@@ -12,10 +12,19 @@ Status notes record what has changed since; the
 
 **Claim status.** Every claim below carries one of these labels:
 
-- **Machine-checked**: a Lean theorem over the executed definitions, compiled
-  by `./scripts/verify.sh` on the head that introduced it.
-- **Argued**: derived by hand from the executed definitions or a closed form;
-  not machine-checked.
+- **Machine-checked**: a Lean theorem over the executed definitions whose
+  conclusion states the claim as worded, over the claim's whole domain,
+  compiled by `./scripts/verify.sh` on the head that introduced it. A theorem
+  about one boundary, one step or one case does not make a claim about a whole
+  run, every step or every case machine-checked. A compiled theorem solely
+  over declared model inputs or abstract arithmetic is a Lean-proved model
+  result, not this execution-specific label; applying it to execution by hand
+  is argued.
+- **Argued**: derived by hand from the executed definitions or a closed form,
+  including a claim composed by hand from machine-checked theorems, such as a
+  whole-run claim derived from a theorem about one boundary and the loop that
+  repeats it; not machine-checked. The label may name the theorems it rests
+  on, as in "argued from a machine-checked identity".
 - **Assumed**: a stated modelling assumption, such as an idealized random
   number generator.
 - **UNKNOWN**: an irreducibly empirical quantity with no observation yet.
@@ -110,8 +119,9 @@ of the questions about the behaviour; the other two missing rows (reward centeri
 nonlinear continual learning) were not previously recorded.
 
 Correctness of what exists (state legality, admission, numeric containment and
-the proved identities) is strong and machine-checked. The weakness is fidelity
-and composition, which the proofs did not state and so could not catch.
+the proved identities) is strong, argued from machine-checked theorems. The
+weakness is fidelity and composition, which the proofs did not state and so
+could not catch.
 
 ## Composition findings
 
@@ -127,11 +137,12 @@ The defining STOMP loop (subtask → option → model → planning → better
 decisions) exists structurally. The findings below describe how it was broken
 or neutralized. All six are argued from the executed definitions; none is
 machine-checked or observed. The repairs of F-A, F-C, F-E and F-F are
-machine-checked by the U1 to U4 theorems cited under each.
+argued from the machine-checked U1 to U4 theorems cited under each.
 
 ### F-A · Subtask churn erased options, models and meta rows
 
-**Status: resolved by U1.** Argued at 86ce779; the repair is machine-checked.
+**Status: resolved by U1.** Argued at 86ce779; the repair is argued from the
+machine-checked U1 theorems.
 
 At 86ce779, a subtask's identity compared both its unit and the exact bits of its
 bonus, and the bonus was the unit's current Demon-0 weight magnitude, re-read at
@@ -211,7 +222,7 @@ compute their target correctly; the target is the wrong quantity.
 ### F-C · The derived exploration rate started near 0.63
 
 **Status: resolved by U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)).** Argued at
-86ce779; the repair is machine-checked.
+86ce779; the repair is argued from the machine-checked U2 theorems.
 
 At 86ce779, every research profile except the annealed comparison used the
 derived rate:
@@ -256,7 +267,9 @@ comparison with that word.
 explore. Under an assumed uniform, independent draw, which the deterministic
 generator does not supply, `ez_duration_mean` gives a mean run length of H₁₂₈, and
 `declared_share_gt` and `declared_share_lt` bound the expected exploratory share
-of the behaviour's cycles between 4.6% and 6%.
+of the behaviour's cycles between 4.6% and 6%. These distributional statements
+are Lean-proved results over a real-arithmetic model; their application to the
+behaviour is argued under the stated draw assumption.
 
 Two consequences of D6 bore on a first pass. The first remains and is not
 conformance with the source; the second was repaired:
@@ -380,8 +393,8 @@ least k > 3 units are mature at each (`run_mature_turnover`).
 ### F-F · Options learn from almost none of the experience
 
 **Status: resolved by U4 ([#10](https://github.com/rbeauchamp/acorn/issues/10)).**
-Argued at 86ce779; what the repair writes is machine-checked; the resulting
-option quality is UNKNOWN.
+Argued at 86ce779; what the repair writes is argued from the machine-checked
+U4 theorems; the resulting option quality is UNKNOWN.
 
 At 86ce779 an option's policy and model updated only on steps where that option
 was executing (`Skill.stepTemporal`). The Alberta Plan's Step 10 says option
@@ -419,7 +432,8 @@ F-E left its feature-construction end inert until U3.
   relation in bits: about three million learned parameters, more than a third
   of them the off-policy questions' weights, hold 94.4 million bits, and the
   whole state of a 1024 × 1024 world fits in fewer than 67.7 million (argued).
-  What is machine-checked, over declared model inputs, is a counting statement:
+  Lean-proved model arithmetic, with its application to the executing agent
+  argued, gives a counting statement over declared model inputs:
   a table with one entry per element of the declared product of position,
   facing, energy, day phase and craft flags would need at least 90,000 times
   the agent's parameters. The agent senses the world through an 11 × 11 window.
@@ -535,7 +549,8 @@ option-learning links to adapted forms of the published mechanisms. The foundati
 theirs: SwiftTD under every learner except the off-policy questions,
 reward-respecting feature-attainment subtasks, GVF
 predictions as features, and continual operation without replay. Acorn's
-machine-checked state legality and admission have no counterpart in that work.
+machine-checked theorems of state legality and admission have no counterpart
+in that work.
 
 ## Conformance sequence
 
@@ -775,16 +790,11 @@ the backup returns, which `CurrentPlanning.differential_backup_relative` states
 for every model state),
 `CurrentPolicyMean.expected_sandwich` (the executed tie-window mean of
 differential control against the convex combination it approximates),
-`CurrentPlanning.expectation_linear`, `CurrentPlanning.expectation_maximum_le`,
-`CurrentPlanning.expectation_maximum_eq`,
-`CurrentPlanning.expectation_sandwiched` and
-`CurrentPlanning.expected_expectation` (what an expectation model keeps under a
-maximum or a tie-window mean over action values),
-`CurrentPlanning.outcome_value_propagation`,
-`CurrentPlanning.outcome_decomposition` and
-`CurrentPlanning.deterministic_outcome` (the dependence of every exact
-per-action value on the value weights, before rounding, and that the shared
-residual and the deviations lose nothing of a share), `CurrentPlanning.transition_storage`,
+`CurrentPlanning.expected_expectation` (the expectation inequality for the
+executed tie-window mean, under its finite-word bounds and exact-mixture
+hypothesis), `CurrentPlanning.outcome_value_propagation` (the dependence of
+every exact per-action value on the value weights, before rounding),
+`CurrentPlanning.transition_storage`,
 `CurrentPlanning.transition_table`, `CurrentPlanning.transition_budget`,
 `CurrentPlanning.complete_budget`, `CurrentPlanning.default_budget` and
 `CurrentPlanning.default_width` (storage),
@@ -801,7 +811,17 @@ ranking and a change of subset),
 `RankedFeatures.input_membership` (a row reads exactly the active ranked slots
 and the constant input), and
 `CurrentModels.planning_primitive`, `CurrentModels.planning_traces` and
-`CurrentModels.planning_lags` (what planning leaves alone). U5 does not
+`CurrentModels.planning_lags` (what planning leaves alone).
+
+Argued from Lean-proved results over rational inputs: what an expectation
+model keeps under a maximum or a tie-window mean over action values
+(`CurrentPlanning.expectation_linear`, `CurrentPlanning.expectation_maximum_le`,
+`CurrentPlanning.expectation_maximum_eq` and
+`CurrentPlanning.expectation_sandwiched`), and that the shared residual and
+the deviations lose nothing of a share (`CurrentPlanning.outcome_decomposition`
+and `CurrentPlanning.deterministic_outcome`). These theorems concern abstract
+rational inputs; their application to the model's design is argued, distinct
+from the execution-linked rounding and propagation results above. U5 does not
 establish what share of an outcome's value the ranked slots carry, that the
 models or the per-action deviations become accurate, that planning with a
 learned linear model is stable ([[10]](#r10) §5.1 and §7.1), or that planning
@@ -834,15 +854,20 @@ improves decisions.
 
 ## What each claim rests on
 
-- **Machine-checked.** Acorn's existing theorems (state legality, admission and
-  the identities cited in the PAR entries) and the U1, U2, U3 and U4 theorems
+- **Machine-checked.** Acorn's existing theorems over executed definitions
+  (state legality, admission and execution-linked identities cited in the PAR
+  entries) and the execution-linked U1, U2, U3 and U4 theorems
   cited above. The assessment inspected the earlier theorems' statements without
   recompiling them; U1's, U2's, U3's and U4's were compiled by the verification
-  run on each change's head. U2's distributional results hold under the assumed
-  uniform, independent draw listed below.
+  run on each change's head.
 - **Argued.** F-A to F-F, including F-C's initial derived rate, E[D] = H₁₂₈, the renewal
   fraction of about 0.90, and F-D's lemma (conditional on equal prediction
-  buckets and no layout collision). None is machine-checked.
+  buckets and no layout collision). None is machine-checked. The repairs of
+  F-A, F-C, F-E and F-F are argued from the machine-checked theorems above.
+  Applications of the declared parameter-budget model, U2's distributional
+  model and the abstract U5 theorems are argued from Lean-proved model
+  results, as distinguished above. U2's distributional results hold under
+  the assumed uniform, independent draw listed below.
 - **Assumed.**
   - An idealized uniform, independent random draw for the renewal fraction and
     for U2's distributional results; the deterministic generator does not
