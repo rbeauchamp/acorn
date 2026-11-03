@@ -1145,8 +1145,8 @@ What these theorems do not establish:
   between attempts, keeping the agent and the carried result. That changes the world outside the
   kernel world's transition, so each attempt has its own kernel loop, from its own agent.
 - **The campaign join.** [Obligation 2](mission-contract.md#open-obligations), the campaign
-  join, is not established here. The loop that repeats the boundary, `Host.runAdmittedCampaign`, is a library
-  iteration, and nothing here says that a campaign ends.
+  join, is not established here. The loop that repeats the boundary, `Host.runAdmittedCampaign`, iterates over
+  `Acorn.Host.forever`, and nothing here says that a campaign ends.
 - **A boundary that returned no next progress.** A world's refusal has only
   `Attempt.complete_learned`, for a refused action, and a refused observation produces no action.
   An attempt whose steps overflow the outcome total ends the campaign with an error and is

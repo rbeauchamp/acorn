@@ -35,8 +35,8 @@ Hypotheses and limits. Each statement is about one attempt, from that attempt's 
 - Goal installation is not a kernel step: `Host.Attempt.start` changes the world outside the kernel
   world's transition, so a campaign is not one kernel loop, and each attempt has its own.
 - The campaign join is obligation 2 of `docs/mission-contract.md`. The loop that repeats a
-  boundary is a library iteration (`Host.runAdmittedCampaign`), and nothing here says that it hands
-  one boundary's progress to the next, or that a campaign ends.
+  boundary (`Host.runAdmittedCampaign`) iterates over `Acorn.Host.forever`, and nothing here says
+  that it hands one boundary's progress to the next, or that a campaign ends.
 - Learners, not whole memories, are related: the host's two accounting writes change the lifetime
   observations and the kernel's memory does not receive them. The close keeps the world and the
   carried result, and writes only the attempt's accounting (`close_run`); its final observation
@@ -441,7 +441,7 @@ from the started attempt's world and carried result and from its agent at the co
 order, the kernel's closed loop after those passes holds the next run state's world and carried
 result, its memory has the next agent's learners, and every action of the attempt is the kernel's
 at that time. The statement is about one boundary and its own kernel loop: installing the goal is
-not a kernel step, and the loop that repeats the boundary is a library iteration. -/
+not a kernel step, and the loop that repeats the boundary iterates over `Acorn.Host.forever`. -/
 theorem campaignStep_closed_loop (construction : AgentConstruction) {config : Host.WorldConfig}
     (curriculum : Host.Curriculum) {plan : Host.CampaignPlan curriculum.size}
     (observer : Host.StreamObserver (AgentObservation construction.config construction.dimension))
