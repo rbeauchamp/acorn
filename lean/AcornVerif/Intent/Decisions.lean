@@ -9,7 +9,7 @@ import AcornVerif.Intent.HashConsequences
 /-!
 # Decisions made on the owner's behalf
 
-On 2026-10-29 the owner decided how the spec-first method divides the work: the owner states
+On 2026-10-29 the owner decided how the intent-first method divides the work: the owner states
 intent where they hold it, and below that level each detail of a specification is a design
 decision the owner's agents make and record, with its reason tied to the owner's intent, marked as
 decided on the owner's behalf and never presented as the owner's confirmation. The owner's

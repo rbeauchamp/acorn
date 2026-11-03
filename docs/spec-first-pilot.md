@@ -1,9 +1,21 @@
-# Spec-first pilot report
+# Intent-first pilot report
 
-This report answers [#177](https://github.com/rbeauchamp/acorn/issues/177): a pilot of the spec-first method on three Acorn functions, `World.dayPhase` and the hash functions `Rng.hash2` and `Rng.hash3`, before the method is applied across Acorn ([#178](https://github.com/rbeauchamp/acorn/issues/178)).
-Whether to apply it across Acorn is the owner's decision on this report.
+This report answers [#177](https://github.com/rbeauchamp/acorn/issues/177): a pilot of the intent-first method on three Acorn functions, `World.dayPhase` and the hash functions `Rng.hash2` and `Rng.hash3`.
+The pilot ran the method under the name spec-first; the owner renamed it intent-first on 2026-11-03.
 
-The method, carried by the owner's spec-first skill and the [lean-intent](https://github.com/rbeauchamp/lean-intent) library (pinned at commit 30fe70d), turns an owner's words into an *intent record*, a Lean structure of named properties of a subject, before any code; proves the record adequate (lean-intent's obligations O1 to O5: well formed, satisfiable, each property refutable, a step that does nothing refused, and any freedom between models made explicit); compares it with a second model's blind formalization of the same words; settles its consequences; and then proves the code against it.
+The method, carried by the owner's skill for it and the [lean-intent](https://github.com/rbeauchamp/lean-intent) library (pinned at commit 30fe70d), turns an owner's words into an *intent record*, a Lean structure of named properties of a subject, before any code; proves the record adequate (lean-intent's obligations O1 to O5: well formed, satisfiable, each property refutable, a step that does nothing refused, and any freedom between models made explicit); compares it with a second model's blind formalization of the same words; settles its consequences; and then proves the code against it.
+
+## The owner's decision on this report
+
+On 2026-11-03 the owner decided, on this report, to adopt intent-first at the three system contracts its [recommendation](#recommendation-which-acorn-contracts-owner-level-records-should-describe) names, which the [mission contract](mission-contract.md) states as its contracts 1 to 3: the agent's interface with a world, what makes a class of worlds big, and the invariants of learning from one stream of experience.
+The decision has three parts:
+
+- Each of the three contracts gets an intent record whose plain-word restatement the owner confirms.
+- Everything below the three contracts is the agents' design. The specifications of internal functions, such as this pilot's records for the day cycle and the hash functions, are derived from the contracts and decided on the owner's behalf, and are never presented as the owner's.
+- The records' adequacy proofs, and the proofs that the executing code fulfils the records, build in Acorn's own merge gate, `./scripts/gate.sh`, like every other proof in the tree. Regula's planned rule for lean-intent's obligations ([rbeauchamp/regula#485](https://github.com/rbeauchamp/regula/issues/485)) was closed as not planned on 2026-10-31, so no rule of Regula's checks lean-intent's obligations.
+
+The reason: a specification that misses the owner's intent is a bug, and this pilot showed that the owner's attention belongs at a system's contracts, not at internal functions an agent invented.
+[#178](https://github.com/rbeauchamp/acorn/issues/178) tracks the adoption, with one sub-issue for each contract.
 
 ## What the pilot found first: where the owner's intent lives
 
@@ -99,7 +111,7 @@ Yes, as theorems in `AcornVerif.Intent.BeforeFixes`:
 - `dayPhaseBefore_unfulfilled`: `World.dayPhase` as it was before #159 makes 12 of the 20 ticks of a 20-tick day night, and the day record refuses it for every world of that configuration, which `WorldConfig.admit` accepts (`twentyTickDay_admitted`).
 - `hashes_refuses_before` and `hash2Before_keeps`: `Rng.hash3` and `Rng.hash2` as they were before #161 keep every spot when the same bits of two inputs are flipped, and the hash record refuses them.
 
-## What to change before applying the method across Acorn
+## What to change before applying the method at the three contracts
 
 In the skill:
 
