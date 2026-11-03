@@ -76,9 +76,8 @@ operations of those stretches belong to the segment of the next costed charge po
 part's last one, so the second part's segments are not yet bounded by constants of the code and its
 bound is part of obligation 7 of `docs/mission-contract.md`. `DemonRecords.observe` is one such
 stretch: a loop over the channels of the demons' lifetime records, whose trip count depends on the
-configuration, with no charge point. The following of the option table (`TemporalControl.followOptions`)
-is another:
-before it maps each slot's costed share (`followSlotCosted`), it computes the stopping estimate, the
+configuration, with no charge point. The following of the option table
+(`TemporalControl.followOptions`) is another: before it maps each slot's costed share (`followSlotCosted`), it computes the stopping estimate, the
 options' rate and the value function, which read the controllers' rates (`Controller.exploreRate`)
 and the stopping comparison (`comparisonValue`), values of costed definitions, with no charge point.
 The bound of a slot's share takes those three as computed and does not count their computation;
