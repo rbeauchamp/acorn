@@ -16,7 +16,10 @@ Status notes record what has changed since; the
   conclusion states the claim as worded, over the claim's whole domain,
   compiled by `./scripts/verify.sh` on the head that introduced it. A theorem
   about one boundary, one step or one case does not make a claim about a whole
-  run, every step or every case machine-checked.
+  run, every step or every case machine-checked. A compiled theorem solely
+  over declared model inputs or abstract arithmetic is a Lean-proved model
+  result, not this execution-specific label; applying it to execution by hand
+  is argued.
 - **Argued**: derived by hand from the executed definitions or a closed form,
   including a claim composed by hand from machine-checked theorems, such as a
   whole-run claim derived from a theorem about one boundary and the loop that
@@ -264,7 +267,9 @@ comparison with that word.
 explore. Under an assumed uniform, independent draw, which the deterministic
 generator does not supply, `ez_duration_mean` gives a mean run length of H₁₂₈, and
 `declared_share_gt` and `declared_share_lt` bound the expected exploratory share
-of the behaviour's cycles between 4.6% and 6%.
+of the behaviour's cycles between 4.6% and 6%. These distributional statements
+are Lean-proved results over a real-arithmetic model; their application to the
+behaviour is argued under the stated draw assumption.
 
 Two consequences of D6 bore on a first pass. The first remains and is not
 conformance with the source; the second was repaired:
@@ -427,7 +432,8 @@ F-E left its feature-construction end inert until U3.
   relation in bits: about three million learned parameters, more than a third
   of them the off-policy questions' weights, hold 94.4 million bits, and the
   whole state of a 1024 × 1024 world fits in fewer than 67.7 million (argued).
-  What is machine-checked, over declared model inputs, is a counting statement:
+  Lean-proved model arithmetic, with its application to the executing agent
+  argued, gives a counting statement over declared model inputs:
   a table with one entry per element of the declared product of position,
   facing, energy, day phase and craft flags would need at least 90,000 times
   the agent's parameters. The agent senses the world through an 11 × 11 window.
@@ -784,16 +790,11 @@ the backup returns, which `CurrentPlanning.differential_backup_relative` states
 for every model state),
 `CurrentPolicyMean.expected_sandwich` (the executed tie-window mean of
 differential control against the convex combination it approximates),
-`CurrentPlanning.expectation_linear`, `CurrentPlanning.expectation_maximum_le`,
-`CurrentPlanning.expectation_maximum_eq`,
-`CurrentPlanning.expectation_sandwiched` and
-`CurrentPlanning.expected_expectation` (what an expectation model keeps under a
-maximum or a tie-window mean over action values),
-`CurrentPlanning.outcome_value_propagation`,
-`CurrentPlanning.outcome_decomposition` and
-`CurrentPlanning.deterministic_outcome` (the dependence of every exact
-per-action value on the value weights, before rounding, and that the shared
-residual and the deviations lose nothing of a share), `CurrentPlanning.transition_storage`,
+`CurrentPlanning.expected_expectation` (the expectation inequality for the
+executed tie-window mean, under its finite-word bounds and exact-mixture
+hypothesis), `CurrentPlanning.outcome_value_propagation` (the dependence of
+every exact per-action value on the value weights, before rounding),
+`CurrentPlanning.transition_storage`,
 `CurrentPlanning.transition_table`, `CurrentPlanning.transition_budget`,
 `CurrentPlanning.complete_budget`, `CurrentPlanning.default_budget` and
 `CurrentPlanning.default_width` (storage),
@@ -810,7 +811,17 @@ ranking and a change of subset),
 `RankedFeatures.input_membership` (a row reads exactly the active ranked slots
 and the constant input), and
 `CurrentModels.planning_primitive`, `CurrentModels.planning_traces` and
-`CurrentModels.planning_lags` (what planning leaves alone). U5 does not
+`CurrentModels.planning_lags` (what planning leaves alone).
+
+Argued from Lean-proved rational identities: what an expectation model keeps
+under a maximum or a tie-window mean over action values
+(`CurrentPlanning.expectation_linear`, `CurrentPlanning.expectation_maximum_le`,
+`CurrentPlanning.expectation_maximum_eq` and
+`CurrentPlanning.expectation_sandwiched`), and that the shared residual and
+the deviations lose nothing of a share (`CurrentPlanning.outcome_decomposition`
+and `CurrentPlanning.deterministic_outcome`). These theorems concern abstract
+rational inputs; their application to the model's design is argued, distinct
+from the execution-linked rounding and propagation results above. U5 does not
 establish what share of an outcome's value the ranked slots carry, that the
 models or the per-action deviations become accurate, that planning with a
 learned linear model is stable ([[10]](#r10) §5.1 and §7.1), or that planning
@@ -843,16 +854,20 @@ improves decisions.
 
 ## What each claim rests on
 
-- **Machine-checked.** Acorn's existing theorems (state legality, admission and
-  the identities cited in the PAR entries) and the U1, U2, U3 and U4 theorems
+- **Machine-checked.** Acorn's existing theorems over executed definitions
+  (state legality, admission and execution-linked identities cited in the PAR
+  entries) and the execution-linked U1, U2, U3 and U4 theorems
   cited above. The assessment inspected the earlier theorems' statements without
   recompiling them; U1's, U2's, U3's and U4's were compiled by the verification
-  run on each change's head. U2's distributional results hold under the assumed
-  uniform, independent draw listed below.
+  run on each change's head.
 - **Argued.** F-A to F-F, including F-C's initial derived rate, E[D] = H₁₂₈, the renewal
   fraction of about 0.90, and F-D's lemma (conditional on equal prediction
   buckets and no layout collision). None is machine-checked. The repairs of
   F-A, F-C, F-E and F-F are argued from the machine-checked theorems above.
+  Applications of the declared parameter-budget model, U2's distributional
+  model and the abstract U5 identities are argued from Lean-proved model
+  results, as distinguished above. U2's distributional results hold under
+  the assumed uniform, independent draw listed below.
 - **Assumed.**
   - An idealized uniform, independent random draw for the renewal fraction and
     for U2's distributional results; the deterministic generator does not
