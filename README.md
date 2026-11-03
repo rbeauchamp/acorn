@@ -57,7 +57,9 @@ work, begun in the issues on modelling
 worlds as a class with proved properties
 ([#69](https://github.com/rbeauchamp/acorn/issues/69)), ARC-AGI-3 games
 as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a
-class of Microduck scenes ([#173](https://github.com/rbeauchamp/acorn/issues/173)).
+class of Microduck scenes ([#173](https://github.com/rbeauchamp/acorn/issues/173));
+the last two are
+[obligation 13](docs/mission-contract.md#open-obligations) of the mission contract.
 
 ## Start with the live viewer
 

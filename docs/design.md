@@ -918,16 +918,13 @@ What these theorems do not establish:
   than 21049, so the count excludes no near target.
 - **That any reach goal is feasible.** The bound is an upper bound. It does not
   show that a target can be reached.
-- **That a campaign's run is a chain of kernel loops.** The grid instance covers one
+- **The campaign join.** The grid instance covers one
   attempt's steps from a state with its goal installed, and
   [each attempt of a campaign has that theorem](#attempts-of-a-campaign-in-the-kernel),
   with its own kernel loop from its own start. Goal installation between attempts is
-  outside the instance, so a whole campaign's run is not one kernel closed loop. What
-  can be stated of it is a chain of kernel closed loops, one per attempt, with goal
-  installation between them and one memory threading through, and no theorem joins a
-  campaign's boundaries into that chain
-  ([obligation 2](mission-contract.md#open-obligations) says when it is due).
-  A run of visits has its own theorem ([below](#runs-of-visits-in-the-host)). Where the host refuses to
+  outside the instance, so a whole campaign's run is not one kernel closed loop.
+  For composition beyond one attempt, see [obligation 2](mission-contract.md#open-obligations),
+  the campaign join. A run of visits has its own theorem ([below](#runs-of-visits-in-the-host)). Where the host refuses to
   observe, the kernel world delivers a blank percept that no executed run
   delivers.
 - **Work and time.** The kernel has a memory axis and no axis for an agent's work
@@ -1147,11 +1144,8 @@ What these theorems do not establish:
 - **That a campaign is one kernel loop.** It is not: `Host.Attempt.start` installs a goal
   between attempts, keeping the agent and the carried result. That changes the world outside the
   kernel world's transition, so each attempt has its own kernel loop, from its own agent.
-- **That the boundaries join.** No theorem takes one boundary's next progress to the next
-  boundary, so none states a whole campaign's run as the chain of these kernel loops, one per
-  attempt, with goal installation between them and the agent's memory threading through
-  ([obligation 2](mission-contract.md#open-obligations) says when that join is due). The loop
-  that repeats the boundary, `Host.runAdmittedCampaign`, is a library
+- **The campaign join.** [Obligation 2](mission-contract.md#open-obligations), the campaign
+  join, is not established here. The loop that repeats the boundary, `Host.runAdmittedCampaign`, is a library
   iteration, and nothing here says that a campaign ends.
 - **A boundary that returned no next progress.** A world's refusal has only
   `Attempt.complete_learned`, for a refused action, and a refused observation produces no action.
@@ -1894,8 +1888,8 @@ What these theorems do not establish:
   step, not a theorem about the signature.
 - **A campaign's run of the host.** The accounting theorems concern one decision.
   [Each attempt a campaign boundary ran](#attempts-of-a-campaign-in-the-kernel) and a
-  [run of visits](#runs-of-visits-in-the-host) have that composition. No theorem joins
-  a campaign's boundaries.
+  [run of visits](#runs-of-visits-in-the-host) have that composition. The campaign-wide
+  requirement is [obligation 2](mission-contract.md#open-obligations), the campaign join.
 - **Whether the composition learns.** That stays empirical.
 
 ## Implementation scope
@@ -2033,9 +2027,9 @@ rounding ratios) or the two of each agreement point's ratio; the sum of each cha
 is bounded by its type, at most its count times the square of the channel's envelope
 (`Agreement.Total.bounded`), and the limit allows `naturalAllowance` bytes for it as for the
 other four. The save of every state whose evaluator naturals each fit that allowance fits the
-limit (`CurrentCheckpointSize.snapshot_size_bound`). That the evaluator's naturals of every
-reached agent fit the allowance is an open obligation, part of the bounds of work and
-memory (requirement R8 of [#90](https://github.com/rbeauchamp/acorn/issues/90)).
+limit (`CurrentCheckpointSize.snapshot_size_bound`). The remaining mission requirement is
+[obligation 6](mission-contract.md#open-obligations), the reachable-memory bound, also part
+of the bounds of work and memory that requirement R8 of [#90](https://github.com/rbeauchamp/acorn/issues/90) owes.
 
 ### Planning selection
 
