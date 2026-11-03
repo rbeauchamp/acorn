@@ -546,8 +546,8 @@ requires the Regula audit:
 Regula's release names three commands for its proof verdict, run in order on one
 build: `lake build --wfail`, `lake check --inadvisably-no-sandbox` and
 `lake lint`. The second exports every constant of the whole imported
-environment, Mathlib's included, used by a claimed constant or not: here 496,347
-constants from 5,585 modules, which it replays from an export held in memory. On
+environment, Mathlib's included, used by a claimed constant or not: here about 497,000
+constants from about 5,600 modules, which it replays from an export held in memory. On
 Acorn's claim it had not finished after 3 hours 45 minutes on a 24 GiB machine,
 its memory footprint at 39 GB, so it does not fit the machines that run the
 gate. The script runs the first and the third in lean, each from that directory

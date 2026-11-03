@@ -9,7 +9,7 @@ description: Regula v0.12.0 and the Regula audit of Acorn's merge gate, which ru
 
 ## The Regula audit
 
-The merge gate runs `./scripts/regula.sh`. Regula's release names three commands for its proof verdict, run in order on one build from the package's directory with no option of Lake's: `lake build --wfail`, `lake check --inadvisably-no-sandbox` and `lake lint`. `lake check` replays the whole imported environment, Mathlib's included (496,347 constants here), from an export it holds in memory, and on Acorn's claim it does not fit a 24 GiB machine. So the script runs, in `lean/`:
+The merge gate runs `./scripts/regula.sh`. Regula's release names three commands for its proof verdict, run in order on one build from the package's directory with no option of Lake's: `lake build --wfail`, `lake check --inadvisably-no-sandbox` and `lake lint`. `lake check` replays the whole imported environment, Mathlib's included, from an export it holds in memory, and on Acorn's claim it does not fit a 24 GiB machine. So the script runs, in `lean/`:
 
 ```sh
 lake build --wfail
