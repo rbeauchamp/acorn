@@ -387,8 +387,8 @@ require floatlib from git
   "https://github.com/lean-dojo/FloatLib" @ "1f5771b3e36a98f17fcac2c6d76aaa024b36aa37"
 
 /-- Intent records, their adequacy obligations and the refinement link from an
-implementation to its record. Only the proof library's intent bridge module imports it;
-no executable library does. -/
+implementation to its record. The proof library's intent bridge imports these definitions;
+the gate's `AcornTools.Intent` imports the build readers. No application library imports it. -/
 require "lean-intent" from git
   "https://github.com/rbeauchamp/lean-intent" @ "9502fbe0000af59574e9b8c427eca8483199ee33"
 

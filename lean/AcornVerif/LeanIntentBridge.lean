@@ -24,8 +24,8 @@ declares the implementation of each implemented deliverable (`LeanIntent.Impleme
 lean-intent's two checks, which Acorn's merge gate runs, read both from the build.
 
 This module is the only importer of lean-intent among the modules of the proof library. The intent
-records under `AcornVerif.Intent` reach lean-intent's declarations through it, so the provisioned
-target `leanIntentBridge` builds exactly the lean-intent modules the proof library uses; no
-executing module imports lean-intent. The gate's checker, the tool module `AcornTools.Intent`,
-imports lean-intent's two readers itself.
+records under `AcornVerif.Intent` reach lean-intent's declarations through it. The provisioned
+target `leanIntentBridge` builds the lean-intent modules imported by this bridge and by the gate's
+checker, `AcornTools.Intent`, which imports the two readers itself. No application module imports
+lean-intent.
 -/

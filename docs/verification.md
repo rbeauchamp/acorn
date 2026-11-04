@@ -658,10 +658,10 @@ Lean's core definitions of binary32 and binary64 arithmetic depend on
 Classical.choice, as does the Mathlib analysis in AcornVerif. One bridge module in
 AcornVerif is the only importer of FloatLib, a proof dependency whose theorems
 use the same three axioms; the boundary audit refuses a FloatLib import by any
-executing module. A second bridge module in AcornVerif is the only importer of
-lean-intent, the proof dependency in which the intent records under
-`AcornVerif.Intent` are stated; it depends on nothing beyond Lean's own
-libraries, and the boundary audit refuses a lean-intent import by any other
+executing module. A second bridge module in AcornVerif is the only module the
+boundary audit admits that imports lean-intent, the proof dependency in which the
+intent records under `AcornVerif.Intent` are stated; it depends on nothing beyond
+Lean's own libraries, and the audit refuses a lean-intent import by any other
 module it admits. Of the tool modules, which it does not admit, only the merge
 gate's lean-intent checker, `lean/AcornTools/Intent.lean`, imports lean-intent, for
 the two readers it runs. The compiler, native runtime, operating system and spawned

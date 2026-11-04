@@ -121,13 +121,13 @@ def lake (overrides : System.FilePath) (args : Array String) : IO.Process.SpawnA
   cmd := "lake", args := #["--no-cache", "--wfail", s!"--packages={overrides}"] ++ args,
   stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
 
-/-- The proof bridge is the single owner of its FloatLib imports, the intent bridge of its
-lean-intent imports, and the two decision registries of their Regula imports. FloatLib and
-lean-intent publish no build cache, and verification must not compile a dependency inside its
-deadline. Lake itself decides readiness: with `--no-build` it exits 3 unless every artifact
-and trace in the import closure of the `floatlibBridge`, `regulaInterface` and
-`leanIntentBridge` targets, and every native object of the `leanIntentNative` target, is
-current, so no list of expected files is kept here. -/
+/-- The proof bridge is the single owner of its FloatLib imports, the intent bridge and the gate's
+`AcornTools.Intent` of their lean-intent imports, and the two decision registries of their Regula
+imports. FloatLib and lean-intent publish no build cache, and verification must not compile a
+dependency inside its deadline. Lake itself decides readiness: with `--no-build` it exits 3 unless
+every artifact and trace in the import closure of the `floatlibBridge`, `regulaInterface` and
+`leanIntentBridge` targets, and every native object of the `leanIntentNative` target, is current,
+so no list of expected files is kept here. -/
 def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
   let output ← IO.Process.output
     (lake overrides #["build", "--no-build", "floatlibBridge", "regulaInterface",
@@ -154,8 +154,9 @@ def run (args : List String) : IO UInt32 := do
   -- This status is the launcher's sole provisioning admission: 0 means ready,
   -- 2 means missing dependencies, and every refusal returns 1. It builds nothing,
   -- writes only the override file above and asks Lake whether the FloatLib modules
-  -- the bridge imports, the lean-intent modules the intent bridge imports and the Regula
-  -- modules the decision registries import are current.
+  -- the bridge imports, the lean-intent modules the intent bridge and `AcornTools.Intent`
+  -- import with the native objects `AcornTools.Intent` links, and the Regula modules the
+  -- decision registries import are current.
   if args == ["provision-status"] then return if ready then 0 else 2
   unless ready do
     throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")
