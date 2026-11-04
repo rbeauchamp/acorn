@@ -65,7 +65,7 @@ Day and night, terrain noise and feature hashing sit below them: the agents choo
 
 At the pilot's pin, lean-intent 30fe70d, the degenerate check also left declared types with value parameters or proof fields, `Fin n`, `UInt64`, and `Std.TreeMap` **not covered**, never passed. These are the pilot's coverage results at that revision.
 
-At lean-intent 9502fbe, the pin Acorn adopts here, `LeanIntent.Degenerate` supplies codes for `Fin (n + 1)` and `UInt64`, and for nondependent function types whose argument and result types have codes. The upgrade adds no degenerate-check verdict proofs (`LeanIntent.Verdicts`) for either Acorn record. Library support therefore does not establish a new coverage result for these records; their adequacy and implementation theorems do not supply those verdicts.
+At lean-intent 9502fbe, the pin Acorn adopts here, the check's module LeanIntent.Degenerate supplies codes for `Fin (n + 1)` and `UInt64`, and for nondependent function types whose argument and result types have codes. The upgrade adds no degenerate-check verdict proofs (lean-intent's Verdicts) for either Acorn record. Library support therefore does not establish a new coverage result for these records; their adequacy and implementation theorems do not supply those verdicts.
 
 O1 holds of every record by construction.
 The hash record's O2 before running, a pair of functions meeting the whole record, is not proved: see the hash results below.
