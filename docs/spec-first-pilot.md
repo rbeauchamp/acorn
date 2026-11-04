@@ -18,6 +18,7 @@ The reason: a specification that misses the owner's intent is a bug, and this pi
 [#178](https://github.com/rbeauchamp/acorn/issues/178) tracks the adoption, with one sub-issue for each contract.
 
 On the same day the owner confirmed plain restatements of the three contracts and of the mission's postcondition, what achieving goals promises, which became a fourth contract the owner confirms; the [mission contract](mission-contract.md#the-owners-confirmation-of-2026-11-03) records the confirmation, and the postcondition is carried through intent-first in the same way ([#219](https://github.com/rbeauchamp/acorn/issues/219)).
+
 ## What the pilot found first: where the owner's intent lives
 
 Asked in plain words what `World.dayPhase` is for, the owner did not know: an agent had added it, and the owner could only guess that it was meant to give the world days and nights.
