@@ -39,7 +39,12 @@ about its agent, the decisions behind it and the sources for each.
 On 2026-11-03 the owner of the project stated this intent for Acorn: its
 architecture and mission are driven by the research of Rich Sutton, Khurram
 Javed and Oak Lab, and by the OaK architecture, so what each contract in the
-mission contract requires is what that research indicates.
+mission contract requires is what that research indicates. On the same day the
+owner confirmed plain restatements of its four contracts: the agent's interface
+with a world, what makes a class of worlds big, the invariants of learning from
+one stream, and what achieving goals promises. The mission contract
+[records the confirmation](docs/mission-contract.md#the-owners-confirmation-of-2026-11-03),
+with a citation of that research for each sentence that rests on it.
 
 The OaK architecture is an overall design for an agent, which Rich Sutton
 presented at the 2025 Reinforcement Learning Conference in
