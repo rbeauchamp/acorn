@@ -6,7 +6,7 @@ This file is the confirmation file of the intent record of contract 1 of Acorn's
 
 - Record: `AcornVerif.Intent.WorldInterface.worldInterface`, in `lean/AcornVerif/Intent/WorldInterface.lean`, with its consequences and explanation, `AcornVerif.Intent.WorldInterface.worldInterfaceExplained`, in `lean/AcornVerif/Intent/WorldInterfaceConsequences.lean`.
 - Deliverable: `AcornVerif.Intent.Decisions.worldInterfaceDeliverable`, declared under lean-intent's confirmation check, and listed in the merge gate's closed list of deliverables awaiting an implementation (`AcornIntentCheck.awaiting` in `lean/AcornTools/Intent.lean`), since no theorem yet proves the executing code against it (the fifth step of rbeauchamp/acorn#213).
-- Revision: the one whose rendering the owners' log statement `contract-1-restatement` holds, rendered at commit REVISION_COMMIT. lean-intent identifies a revision by that rendering, so an answer that names an older rendering no longer counts and the check refuses it.
+- Revision: the one whose rendering the owners' log statement `contract-1-restatement` holds, rendered at commit 74b1f68e20b2ff27b9bdd0bc864dfda4cee5bbe6, the commit that last changed the record and its explanation. lean-intent identifies a revision by that rendering, so an answer that names an older rendering no longer counts and the check refuses it.
 
 ## The restatement the owner confirmed
 
