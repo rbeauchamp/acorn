@@ -34,7 +34,8 @@ the [pull request template](.github/pull_request_template.md). Run
 `./scripts/verify.sh` from the checkout and report its actual result and
 material limits. The merge gate,
 `./scripts/gate.sh`, which the no-mistakes pipeline runs before a pull request
-opens, also requires the [Regula audit](docs/verification.md#regula-audit).
+opens, also requires the [Regula audit](docs/verification.md#regula-audit) and
+lean-intent's confirmation and implementation checks of Acorn's intent records.
 
 Pull requests are squash-merged: the PR title becomes the commit header on main
 and the PR body its message. Title each PR as a

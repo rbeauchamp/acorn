@@ -44,9 +44,9 @@ step 'provisioning the pinned dependencies'
     *) exit "$current" ;;
   esac
   # FloatLib and lean-intent publish no build cache. This builds the modules the proof bridge
-  # imports, the lean-intent modules the intent bridge imports and the Regula interface
-  # modules the decision registries import.
-  lake build floatlibBridge regulaInterface leanIntentBridge
+  # imports, the lean-intent modules the intent bridge and intent-check import with the native
+  # objects intent-check links, and the Regula interface modules the decision registries import.
+  lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
 )
 ./scripts/lean.sh provision-status
 (
@@ -60,8 +60,12 @@ step 'provisioned'
 
 # The two stages of ordinary verification, each under its own 360-second deadline, then
 # the Regula audit (scripts/regula.sh: Regula's proof verdict, by the two commands its release
-# publishes) on its own build with no deadline. The audit runs even when verification fails, so
-# one run reports both.
+# publishes) on its own build with no deadline, then lean-intent's two checks with no deadline:
+# intent-check (lean/AcornTools/Intent.lean) runs the confirmation check and the implementation
+# check on one list of modules, those Lake lists for the default libraries, and passes only when the
+# first finds nothing and the second finds only the deliverables its closed list names as awaiting
+# an implementation. The audit and the checks run even when an earlier step fails, so one run
+# reports all three.
 verified=0
 step 'verification, stage one'
 if ./scripts/verify.sh build-executing; then
@@ -73,6 +77,9 @@ fi
 step "verification exited $verified; Regula audit"
 audited=0
 ( dependency_git; ./scripts/regula.sh ) || audited=$?
-step "Regula audit exited $audited"
-[[ "$verified" == 0 && "$audited" == 0 ]] || exit 1
+step "Regula audit exited $audited; lean-intent checks"
+intended=0
+( dependency_git; ./scripts/lean.sh exe intent-check ) || intended=$?
+step "lean-intent checks exited $intended"
+[[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 ]] || exit 1
 step 'every merge check passed'

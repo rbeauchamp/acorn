@@ -4,13 +4,16 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Intent.Hash
+import AcornVerif.Intent.Delegation
 
 /-!
 # The hash record's consequences
 
 Each consequence of the record that a design decision settles is proved to hold of the record,
-and `hashesExplained` glosses every statement of the record in plain words; the decisions, made
-on the owner's behalf, are recorded in `AcornVerif.Intent.Decisions`. A second, blind
+and `hashesExplained` glosses every statement of the record in plain words, recording each
+consequence it shows as answered by the agents under the owner's delegation
+(`AcornVerif.Intent.agentsAnswer`) and its restatement as unconfirmed by the owner; the decisions,
+made on the owner's behalf, are recorded in `AcornVerif.Intent.Decisions`. A second, blind
 formalization of the same words by a model of another provider wrote "about as rarely as pure
 chance" as a bound on a collision probability whose tolerance and whose relevant patterns it left
 open, allowed a single changed input to collide at that rate, and left open whether the two
@@ -121,28 +124,29 @@ def hashesExplained : Explanation hashes where
       rulesOut := "Spots 0 and 1."
       allows := "Spots 0 and 0."
       freedom := "None: it is equality." }]
+  restatement := .unconfirmed
   consequences := [
     ⟨oneChangeMoves, oneChangeMoves_holds,
       { requires := "Changing any one input always moves the spot, in both functions."
         rulesOut := "Any single changed input landing in the same spot."
         allows := "Inputs that differ in two or three places sharing a spot."
-        freedom := "None beyond the property's." }⟩,
+        freedom := "None beyond the property's." }, .answered agentsAnswer .confirmed⟩,
     ⟨noFixedRule, noFixedRule_holds,
       { requires := "No fixed reordering and shifting of the inputs keeps every spot."
         rulesOut := "Systematic sharing by any such rule."
         allows := "Sharing by rules of other kinds, and sharing with no fixed rule."
-        freedom := "Which rules count as systematic beyond these." }⟩,
+        freedom := "Which rules count as systematic beyond these." }, .answered agentsAnswer .confirmed⟩,
     ⟨rulesOutPlainCombinations, rulesOutPlainCombinations_holds,
       { requires := "Neither function combines its three inputs by plain exclusive or or by \
           plain addition."
         rulesOut := "Those two combinations, since swapping two inputs keeps their spot."
         allows := "Combinations that mix the inputs before combining them."
-        freedom := "None that this consequence adds." }⟩,
+        freedom := "None that this consequence adds." }, .answered agentsAnswer .confirmed⟩,
     ⟨replay, replay_holds,
       { requires := "The same inputs always give the same spot, so a run can be replayed."
         rulesOut := "Nothing: every function of this type meets it."
         allows := "Every pair of functions."
         freedom := "None. It holds by construction; replay further trusts the compiler and \
-          the machine to compute 64-bit words alike everywhere." }⟩]
+          the machine to compute 64-bit words alike everywhere." }, .answered agentsAnswer .confirmed⟩]
 
 end AcornVerif.Intent.Hash

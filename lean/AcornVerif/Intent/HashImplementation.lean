@@ -22,7 +22,9 @@ not proved of these functions here. For a rule that shifts two or more inputs, i
 addition. SplitMix64's finalizer is a nonlinear bijection, so this is expected, but it is a
 statement about all 2^64 differences that no proof in this repository yet establishes.
 `acornHashes_reorder` proves the part that needs no such statement: no reordering of the inputs
-alone keeps every spot.
+alone keeps every spot. So `acornHashes` is no implementation of the hash deliverable
+(`AcornVerif.Intent.Decisions.hashDeliverable`): Acorn declares none, and its merge gate lists the
+deliverable as awaiting one until rbeauchamp/acorn#184 is proved.
 -/
 
 namespace AcornVerif.Intent.Hash

@@ -54,7 +54,7 @@ theorem dayPhaseBefore_night {config : WorldConfig} (base : World config)
 ticks are night, where the record asks for one unbroken half. -/
 theorem dayPhaseBefore_unfulfilled {config : WorldConfig} (base : World config)
     (hL : config.raw.dayLength.toNat = 20) :
-    ¬ (dayCycle (World config) Action UInt8 Nat).Fulfilled
+    ¬ (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
       (acornDay config base dayPhaseBefore) := by
   intro h
   obtain ⟨⟨-, -, s, hs⟩, -⟩ :=

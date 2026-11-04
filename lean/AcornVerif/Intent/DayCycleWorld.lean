@@ -26,6 +26,13 @@ for every day of `8 * m` ticks that divides 2^64, the standard day of 2048 ticks
   cannot be equal (`acornDay_odd_unfulfilled`);
 * a length that does not divide 2^64, for which the 64-bit clock's wrap, after 2^64 ticks, breaks
   one day; and a length of 2, 4 or 6 ticks, below eight, whose phases the proof does not cover.
+
+`acornStandardDay` is the implementation Acorn declares for its day deliverable
+(`AcornVerif.Intent.Implementations.dayImplementation`): `acornDay` in the world of one standard
+configuration, read at one situation (`DayWorld.at`). It fulfils the record at the types of Acorn's
+world (`acornStandardDay_fulfils`), and it is the day of every standard configuration, whatever
+world supplies the rest of the state and whatever situation it is read at (`acornStandardDay_eq`),
+since `World.dayPhase` reads only the clock and the day length (`dayPhase_of_dayLength`).
 -/
 
 namespace AcornVerif.Intent.DayCycle
@@ -145,7 +152,7 @@ def IsDayPhase {config : WorldConfig} (phase : World config → Fin 8) : Prop :=
 /-- `World.dayPhase` refines the day record, for every day of `8 * m` ticks dividing 2^64. -/
 theorem dayPhase_refines {config : WorldConfig} (base : World config) {m : Nat}
     (hL : config.raw.dayLength.toNat = 8 * m) (hwrap : 2 ^ 64 % (8 * m) = 0) :
-    Refines (dayCycle (World config) Action UInt8 Nat) (acornDay config base) IsDayPhase := by
+    Refines (dayCycleFor (World config) Action UInt8 Nat) (acornDay config base) IsDayPhase := by
   intro phase hphase _
   subst hphase
   have hpos : 0 < 8 * m := hL ▸ config.positiveDay
@@ -211,13 +218,15 @@ theorem dayPhase_refines {config : WorldConfig} (base : World config) {m : Nat}
 /-- `World.dayPhase` fulfils the day record, for every day of `8 * m` ticks dividing 2^64. -/
 theorem acornDay_fulfils {config : WorldConfig} (base : World config) {m : Nat}
     (hL : config.raw.dayLength.toNat = 8 * m) (hwrap : 2 ^ 64 % (8 * m) = 0) :
-    (dayCycle (World config) Action UInt8 Nat).Fulfilled (acornDay config base World.dayPhase) :=
+    (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
+      (acornDay config base World.dayPhase) :=
   fulfils (dayPhase_refines base hL hwrap) rfl
 
 /-- The standard world, whose day lasts 2048 ticks, fulfils the day record. -/
 theorem standard_fulfils {seed : UInt64} {side : Coordinate} {config : WorldConfig}
     (h : WorldConfig.standard seed side = .ok config) (base : World config) :
-    (dayCycle (World config) Action UInt8 Nat).Fulfilled (acornDay config base World.dayPhase) := by
+    (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
+      (acornDay config base World.dayPhase) := by
   have hL : config.raw.dayLength.toNat = 8 * 256 := by
     unfold WorldConfig.standard at h
     split at h
@@ -232,10 +241,99 @@ theorem standard_fulfils {seed : UInt64} {side : Coordinate} {config : WorldConf
 whatever the phase reader: its halves cannot be equal. -/
 theorem acornDay_odd_unfulfilled {config : WorldConfig} (base : World config)
     (phase : World config → Fin 8) (hodd : config.raw.dayLength.toNat % 2 = 1) :
-    ¬ (dayCycle (World config) Action UInt8 Nat).Fulfilled (acornDay config base phase) :=
+    ¬ (dayCycleFor (World config) Action UInt8 Nat).Fulfilled (acornDay config base phase) :=
   fun h => by
     have := (dayCycle_meets.mp ⟨(fun _ hd => nomatch hd), h (fun _ hd => nomatch hd)⟩).1.2.1
     simp only [acornDay] at this
     omega
+
+
+/-! ## The implementation Acorn declares -/
+
+section
+
+variable {Ctx Act Obs E : Type}
+
+/-- The day of `w` read at the one situation `c`: the same length and night, and each action's
+cost and the agent's sight as they are in `c`. -/
+def DayWorld.at (w : DayWorld Ctx Act Obs E) (c : Ctx) : DayWorld Unit Act Obs E where
+  length := w.length
+  night := w.night
+  cost t _ a := w.cost t c a
+  sees t _ := w.sees t c
+
+/-- A day that fulfils the record fulfils it read at any one of its situations: every property
+the record states of all situations holds of one. -/
+theorem fulfilled_at [LT E] {w : DayWorld Ctx Act Obs E}
+    (h : (dayCycleFor Ctx Act Obs E).Fulfilled w) (c : Ctx) :
+    (dayCycleFor Unit Act Obs E).Fulfilled (w.at c) := fun _ => by
+  obtain ⟨h1, h2, h3, ⟨start, h4⟩⟩ :=
+    dayCycle_meets.mp ⟨(fun _ hd => nomatch hd), h (fun _ hd => nomatch hd)⟩
+  exact ((dayCycle_meets (w := w.at c)).mpr ⟨h1, fun _ a t t' => h2 c a t t',
+    fun t t' _ _ => h3 t t' c c, start, fun t t' _ _ => h4 t t' c c⟩).2
+
+end
+
+/-- The side of the smallest world the standard configuration admits. -/
+def standardSide : Coordinate := ⟨FeatureConstants.worldMinSide, by decide⟩
+
+theorem standard_isOk : (WorldConfig.standard 0 standardSide).isOk = true := by decide
+
+/-- The standard configuration of seed 0 and the smallest side: one configuration whose day
+`acornStandardDay` reads. Every standard configuration has the same day (`acornStandardDay_eq`). -/
+def standardConfig : WorldConfig :=
+  match h : WorldConfig.standard 0 standardSide with
+  | .ok config => config
+  | .error _ => absurd (h ▸ standard_isOk) (by simp [Except.isOk, Except.toBool])
+
+theorem standardConfig_ok : WorldConfig.standard 0 standardSide = .ok standardConfig := by
+  unfold standardConfig
+  split
+  · next h => exact h
+  · next h => exact absurd (h ▸ standard_isOk) (by simp [Except.isOk, Except.toBool])
+
+/-- Every standard configuration has the day length `FeatureConstants.worldDayLength`. -/
+theorem standard_dayLength {seed : UInt64} {side : Coordinate} {config : WorldConfig}
+    (h : WorldConfig.standard seed side = .ok config) :
+    config.raw.dayLength = FeatureConstants.worldDayLength.toUInt64 := by
+  unfold WorldConfig.standard at h
+  split at h
+  · contradiction
+  · split at h
+    · contradiction
+    · cases h
+      rfl
+
+/-- `World.dayPhase` reads only the clock and the configuration's day length: two worlds of
+configurations with the same day length have the same phase at the same clock reading. -/
+theorem dayPhase_of_dayLength {config config' : WorldConfig} (w : World config)
+    (w' : World config') (hlen : config.raw.dayLength = config'.raw.dayLength) (time : UInt64) :
+    (World.dayPhase { w with time }).val = (World.dayPhase { w' with time }).val := by
+  simp only [World.dayPhase, hlen]
+
+/-- **The day Acorn's world runs**, the implementation Acorn declares for its day record: Acorn's
+`World.dayPhase` and `Action.energyCost`, through `acornDay`, in the world of the standard
+configuration, read at its empty world. -/
+def acornStandardDay : DayWorld Unit Action UInt8 Nat :=
+  (acornDay standardConfig (World.empty standardConfig) World.dayPhase).at
+    (World.empty standardConfig)
+
+/-- Acorn's standard day fulfils the day record at the types of Acorn's world. -/
+theorem acornStandardDay_fulfils :
+    (dayCycleFor Unit Action UInt8 Nat).Fulfilled acornStandardDay :=
+  fulfilled_at (standard_fulfils standardConfig_ok _) _
+
+/-- `acornStandardDay` is the day of every standard configuration, whatever world supplies the
+rest of the state and whatever situation it is read at, since the day phase reads only the clock
+and the day length, which every standard configuration shares. -/
+theorem acornStandardDay_eq {seed : UInt64} {side : Coordinate} {config : WorldConfig}
+    (h : WorldConfig.standard seed side = .ok config) (base c : World config) :
+    acornStandardDay = (acornDay config base World.dayPhase).at c := by
+  have hlen : standardConfig.raw.dayLength = config.raw.dayLength := by
+    rw [standard_dayLength standardConfig_ok, standard_dayLength h]
+  have hphase : ∀ (w : World config) (time : UInt64), (World.dayPhase { w with time }).val =
+      (World.dayPhase { World.empty standardConfig with time }).val :=
+    fun w time => (dayPhase_of_dayLength _ w hlen time).symm
+  simp only [acornStandardDay, acornDay, DayWorld.at, hlen, hphase]
 
 end AcornVerif.Intent.DayCycle

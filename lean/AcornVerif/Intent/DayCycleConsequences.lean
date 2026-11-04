@@ -4,14 +4,17 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Intent.DayCycle
+import AcornVerif.Intent.Delegation
 
 /-!
 # The day record's consequences
 
 Each consequence of the record that a design decision settles is a `LeanIntent.Consequence` with
 a proof that it holds of the record, and `dayCycleExplained` glosses every statement of the record
-in plain words. The decisions themselves, made on the owner's behalf, are recorded in
-`AcornVerif.Intent.Decisions`. Three consequences answer where a second, blind formalization of
+in plain words. It records each consequence it shows as answered by the agents under the owner's
+delegation (`AcornVerif.Intent.agentsAnswer`), and its restatement as unconfirmed by the owner,
+since the record is the agents' design. The decisions themselves, made on the owner's behalf, are
+recorded in `AcornVerif.Intent.Decisions`. Three consequences answer where a second, blind formalization of
 the same words by a model of another provider read them differently: it let days differ in
 length (`everyDayAlike`), required the agent to read its exact position in the day
 (`seesQuarterOfDay`, `dayOrNightOnlyWorld`) and priced every night moment of a day alike
@@ -30,7 +33,7 @@ def everyDayAlike : Consequence (DayWorld Ctx Act Obs E) :=
     fun w => 2 ≤ w.length ∧ w.length % 2 = 0 ∧ ∀ t, w.night (t + w.length) = w.night t⟩
 
 theorem everyDayAlike_holds : (everyDayAlike (Ctx := Ctx) (Act := Act) (Obs := Obs)
-    (E := E)).HoldsOf (dayCycle Ctx Act Obs E) := by
+    (E := E)).HoldsOf (dayCycleFor Ctx Act Obs E) := by
   intro w hw
   obtain ⟨⟨hpos, heven, s, hs⟩, -, -, -⟩ := dayCycle_meets.mp hw
   refine ⟨by omega, heven, fun t => ?_⟩
@@ -45,7 +48,7 @@ def nightAlwaysDearer : Consequence (DayWorld Ctx Act Obs E) :=
     fun w => ∀ c a t t', w.night t = true → w.night t' = false → w.cost t' c a < w.cost t c a⟩
 
 theorem nightAlwaysDearer_holds : (nightAlwaysDearer (Ctx := Ctx) (Act := Act) (Obs := Obs)
-    (E := E)).HoldsOf (dayCycle Ctx Act Obs E) :=
+    (E := E)).HoldsOf (dayCycleFor Ctx Act Obs E) :=
   fun _ hw => (dayCycle_meets.mp hw).2.1
 
 /-- What the agent sees always tells day from night. -/
@@ -54,7 +57,7 @@ def tellsDayFromNightAlways : Consequence (DayWorld Ctx Act Obs E) :=
     fun w => ∀ t t' c c', w.sees t c = w.sees t' c' → w.night t = w.night t'⟩
 
 theorem tellsDayFromNightAlways_holds : (tellsDayFromNightAlways (Ctx := Ctx) (Act := Act)
-    (Obs := Obs) (E := E)).HoldsOf (dayCycle Ctx Act Obs E) :=
+    (Obs := Obs) (E := E)).HoldsOf (dayCycleFor Ctx Act Obs E) :=
   fun _ hw => (dayCycle_meets.mp hw).2.2.1
 
 /-- What the agent sees always tells it the quarter of the day. -/
@@ -64,7 +67,7 @@ def seesQuarterOfDay : Consequence (DayWorld Ctx Act Obs E) :=
       quarter w.length start t = quarter w.length start t'⟩
 
 theorem seesQuarterOfDay_holds : (seesQuarterOfDay (Ctx := Ctx) (Act := Act) (Obs := Obs)
-    (E := E)).HoldsOf (dayCycle Ctx Act Obs E) :=
+    (E := E)).HoldsOf (dayCycleFor Ctx Act Obs E) :=
   fun _ hw => (dayCycle_meets.mp hw).2.2.2
 
 /-- A day of 1000 ticks is allowed. -/
@@ -74,7 +77,7 @@ def longDay : Consequence (DayWorld Ctx Act Obs E) :=
 theorem longDay_holds {lo hi : E} (hlt : lo < hi) {sight : Fin 4 → Obs}
     (hsight : ∀ i j, sight i = sight j → i = j) :
     (longDay (Ctx := Ctx) (Act := Act) (Obs := Obs) (E := E)).HoldsOf
-      (dayCycle Ctx Act Obs E) :=
+      (dayCycleFor Ctx Act Obs E) :=
   ⟨clockWorld 1000 0 lo hi sight, clockWorld_meets (by decide) (by decide) hlt hsight, rfl⟩
 
 /-- The world in which the agent sees only whether it is day or night. -/
@@ -90,7 +93,7 @@ def varyingNight (lo hi hi' : E) (sight : Fin 4 → Obs) : DayWorld Ctx Act Obs 
 
 theorem varyingNight_meets {lo hi hi' : E} (hlt : lo < hi) (hlt' : lo < hi')
     {sight : Fin 4 → Obs} (hsight : ∀ i j, sight i = sight j → i = j) :
-    (dayCycle Ctx Act Obs E).Meets (varyingNight lo hi hi' sight) := by
+    (dayCycleFor Ctx Act Obs E).Meets (varyingNight lo hi hi' sight) := by
   have base := dayCycle_meets.mp
     (clockWorld_meets (Ctx := Ctx) (Act := Act) (length := 4) (start := 0) (by decide)
       (by decide) hlt hsight)
@@ -114,7 +117,7 @@ theorem nightCostVaries_holds (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi
     (hlt' : lo < hi') (hne : hi ≠ hi') {sight : Fin 4 → Obs}
     (hsight : ∀ i j, sight i = sight j → i = j) :
     (nightCostVaries (Ctx := Ctx) (Act := Act) (Obs := Obs) (E := E)).HoldsOf
-      (dayCycle Ctx Act Obs E) :=
+      (dayCycleFor Ctx Act Obs E) :=
   ⟨varyingNight lo hi hi' sight, varyingNight_meets hlt hlt' hsight, c, a, 0, 1,
     (by decide : decide (NightHalf 4 0 0) = true), (by decide : decide (NightHalf 4 0 1) = true),
     by
@@ -134,7 +137,7 @@ situation `c`, an action `a`, three energy amounts with `lo` below the two diffe
 and `hi'`, and four different sights. -/
 def dayCycleExplained (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi) (hlt' : lo < hi')
     (hne : hi ≠ hi') {sight : Fin 4 → Obs} (hsight : ∀ i j, sight i = sight j → i = j) :
-    Explanation (dayCycle Ctx Act Obs E) where
+    Explanation (dayCycleFor Ctx Act Obs E) where
   shape :=
     { requires := "The subject is a description of a world's day: how many ticks a day lasts, \
         which ticks are night, what each action costs at each tick in each situation, and what \
@@ -185,40 +188,41 @@ def dayCycleExplained (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi) (hlt' 
       rulesOut := "Tick 0 in quarter 1 of a day of four ticks counted from tick 0."
       allows := "Tick 0 in quarter 0 of that day."
       freedom := "None: it is a definition." }]
+  restatement := .unconfirmed
   consequences := [
     ⟨everyDayAlike, everyDayAlike_holds,
       { requires := "Every day lasts the same even number of ticks, at least two, and each \
           day's night falls at the same ticks of the day."
         rulesOut := "Days of different lengths."
         allows := "Any one day length shared by all days."
-        freedom := "The length itself." }⟩,
+        freedom := "The length itself." }, .answered agentsAnswer .confirmed⟩,
     ⟨nightAlwaysDearer, nightAlwaysDearer_holds,
       { requires := "Even the cheapest action costs more at any night moment than at any \
           daytime moment, in the same situation."
         rulesOut := "Any action that is no dearer at some night moment."
         allows := "Any extra amount."
-        freedom := "How much more." }⟩,
+        freedom := "How much more." }, .answered agentsAnswer .confirmed⟩,
     ⟨tellsDayFromNightAlways, tellsDayFromNightAlways_holds,
       { requires := "From what it sees, the agent can always tell whether it is day or night."
         rulesOut := "An agent that cannot tell day from night at some moment."
         allows := "An agent that sees more than that."
-        freedom := "How much more it sees." }⟩,
+        freedom := "How much more it sees." }, .answered agentsAnswer .confirmed⟩,
     ⟨seesQuarterOfDay, seesQuarterOfDay_holds,
       { requires := "From what it sees, the agent can always tell which quarter of the day it \
           is in."
         rulesOut := "An agent that sees only day or night."
         allows := "Seeing a finer part of the day, or the exact tick."
-        freedom := "How much finer than a quarter." }⟩,
+        freedom := "How much finer than a quarter." }, .answered agentsAnswer .confirmed⟩,
     ⟨longDay, longDay_holds hlt hsight,
       { requires := "Nothing more: a world whose day lasts 1000 ticks can meet the record."
         rulesOut := "Nothing."
         allows := "Short days and long days alike."
-        freedom := "The day's length." }⟩,
+        freedom := "The day's length." }, .answered agentsAnswer .confirmed⟩,
     ⟨nightCostVaries, nightCostVaries_holds c a hlt hlt' hne hsight,
       { requires := "Nothing more: an action may cost more at one night moment than at another, \
           as long as every night cost is above every daytime cost."
         rulesOut := "Nothing."
         allows := "A night that is dearer at midnight than at dusk."
-        freedom := "Whether the night's extra changes during the night." }⟩]
+        freedom := "Whether the night's extra changes during the night." }, .answered agentsAnswer .confirmed⟩]
 
 end AcornVerif.Intent.DayCycle

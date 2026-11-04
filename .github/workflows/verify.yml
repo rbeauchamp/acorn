@@ -108,11 +108,13 @@ jobs:
       - name: Provision the FloatLib, lean-intent and Regula modules the project imports
         working-directory: lean
         # FloatLib and lean-intent publish no build cache. This step compiles the
-        # modules that AcornVerif.FloatLibBridge and AcornVerif.LeanIntentBridge
-        # import and the Regula interface modules that the decision registries
-        # import, so verification never compiles a dependency inside its deadline.
+        # modules that AcornVerif.FloatLibBridge, AcornVerif.LeanIntentBridge and
+        # AcornTools.Intent import, the native objects of the lean-intent modules
+        # that AcornTools.Intent links, and the Regula interface modules that the
+        # decision registries import, so verification never compiles a dependency
+        # inside its deadline.
         # On an exact cache hit it has nothing to build.
-        run: lake build floatlibBridge regulaInterface leanIntentBridge
+        run: lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before project verification
@@ -180,7 +182,8 @@ jobs:
     # takes longer than verification's deadline allows, so it is a second job with
     # this job's timeout. Regula's contract names Ubuntu 24.04.5 LTS on x86-64, the
     # release that this runner image held when Regula observed it; an image of
-    # another release is outside that contract.
+    # another release is outside that contract. The job then runs lean-intent's two
+    # checks on the build the audit made, as the merge gate does after the audit.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -268,11 +271,13 @@ jobs:
       - name: Provision the FloatLib, lean-intent and Regula modules the project imports
         working-directory: lean
         # FloatLib and lean-intent publish no build cache. This step compiles the
-        # modules that AcornVerif.FloatLibBridge and AcornVerif.LeanIntentBridge
-        # import and the Regula interface modules that the decision registries
-        # import, so verification never compiles a dependency inside its deadline.
+        # modules that AcornVerif.FloatLibBridge, AcornVerif.LeanIntentBridge and
+        # AcornTools.Intent import, the native objects of the lean-intent modules
+        # that AcornTools.Intent links, and the Regula interface modules that the
+        # decision registries import, so verification never compiles a dependency
+        # inside its deadline.
         # On an exact cache hit it has nothing to build.
-        run: lake build floatlibBridge regulaInterface leanIntentBridge
+        run: lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
       - name: Save admitted dependencies before the audit
@@ -286,3 +291,7 @@ jobs:
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
       - name: The Regula audit on the exact source
         run: ./scripts/regula.sh
+      # lean-intent's confirmation and implementation checks on the modules of the
+      # default libraries of the build the audit made (lean/AcornTools/Intent.lean).
+      - name: The lean-intent checks on the exact source
+        run: ./scripts/lean.sh exe intent-check

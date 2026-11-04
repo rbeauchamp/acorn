@@ -158,10 +158,11 @@ case "$dependency_status" in
   2)
     printf 'Downloading the pinned Lean, Mathlib and FloatLib dependencies (first run needs network access)…\n'
     # The upstream cache can omit modules; Lake compiles only those it lacks.
-    # FloatLib and lean-intent publish no cache, so the modules the proof bridge and the
-    # intent bridge import are built here, with the Regula interface modules the decision
-    # registries import.
-    (cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface leanIntentBridge) ;;
+    # FloatLib and lean-intent publish no cache, so the modules the proof bridge, the
+    # intent bridge and the gate's intent-check import are built here, with the native
+    # objects intent-check links and the Regula interface modules the decision registries
+    # import.
+    (cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface leanIntentBridge leanIntentNative) ;;
   *) fail 'Dependency admission failed; the diagnostic above must be resolved before provisioning.' ;;
 esac
 phase='build'

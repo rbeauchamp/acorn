@@ -5,8 +5,9 @@
 # The local pipeline is Acorn's merge gate; GitHub Actions runs no check on a pull request or a
 # push. Its Test step runs scripts/gate.sh in a checkout of the exact commit it validates, holding
 # only tracked files. The script provisions the pinned dependencies and runs every check the
-# verification workflows ran: both stages of ./scripts/verify.sh and the Regula audit
-# ./scripts/regula.sh. Any failing check fails the step.
+# verification workflows run: both stages of ./scripts/verify.sh, the Regula audit
+# ./scripts/regula.sh, and lean-intent's confirmation and implementation checks
+# (lean/AcornTools/Intent.lean). Any failing check fails the step.
 no_ci: true
 
 commands:

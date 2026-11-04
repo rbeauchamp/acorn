@@ -5,9 +5,10 @@ Authors: acorn contributors
 -/
 import AcornVerif.Intent.DayCycleConsequences
 import AcornVerif.Intent.HashConsequences
+import Acorn.Host.Task
 
 /-!
-# Decisions made on the owner's behalf
+# Decisions made on the owner's behalf, and Acorn's deliverables
 
 On 2026-10-29 the owner decided how the intent-first method divides the work: the owner states
 intent where they hold it, and below that level each detail of a specification is a design
@@ -18,13 +19,32 @@ settle that change what they get, and to one-way doors and quality-for-cost trad
 likened the division to an interface and its implementation: their intent is a system's contract,
 and records of internal functions such as these are the agents' own design.
 
-This module records the decisions for the day record (`AcornVerif.Intent.DayCycle.dayCycle`) and
-the hash record (`AcornVerif.Intent.Hash.hashes`) twice. As statements of lean-intent's owners'
-log (`ownersLog`), each decision is an answer by the principal `agents` under the owner's
-delegation `agents-below-intent`, so the log itself says the owner did not give it. As typed
-answers (`dayAnswers`, `hashAnswers`), each is kept by the current revision of its record
-(`dayAccepted`, `hashAccepted`), so a revision that broke one would fail to build. Each decision's
-reason is in the pilot report, `docs/spec-first-pilot.md`, which the answers' sources cite.
+This module declares Acorn's two lean-intent deliverables, `dayDeliverable` and `hashDeliverable`:
+each holds its record, the record's explanation, the answers it keeps and the proof that the record
+keeps them. The day record Acorn declares, `AcornVerif.Intent.DayCycle.dayCycle`, is the generic
+record `dayCycleFor` at the types of Acorn's world: one situation, since Acorn's day reads nothing
+of a situation but the clock (`AcornVerif.Intent.DayCycle.dayPhase_clock`), Acorn's actions, the
+day-phase byte the agent sees and energy as a natural number. The hash record,
+`AcornVerif.Intent.Hash.hashes`, has no parameters.
+
+The owners' log, `ownersLog` in `AcornVerif.Intent.OwnersLog`, holds every statement as the text
+lean-intent's `Statement.print` writes, which `LeanIntent.Confirmation.Read.check` reads from the
+build. It declares the owner, the
+owner's delegation of the decisions below their intent to the agents (`agents-below-intent`), and
+each decision as an answer the agents gave under it, so the log itself says the owner did not give
+it. The answers of 2026-10-29 named the record's revision by a commit and its predicates in a short
+form; the confirmation check compares an answer's revision and predicate with the texts it computes
+from the build (`LeanIntent.Render.revisionText`, `LeanIntent.Render.consequenceText`), so on
+2026-11-03 the agents retracted each of them and gave each again, with the same verdict, against
+those texts, as `LeanIntent.Confirmation.Read.answerStatement` writes them. They also answered, for
+each record, the question every revision asks, whether its rendering restates the intent: the
+records are the agents' design, so that answer is the agents', and each explanation records its
+restatement as unconfirmed by the owner. Each decision's reason is in the pilot report,
+`docs/spec-first-pilot.md`, which the answers' source names (`AcornVerif.Intent.reasons`).
+
+An answer's texts change whenever the rendering of its record or of a definition its predicate
+reaches changes, and the check then refuses it, naming it, until it is retracted and given again
+against the new texts by someone the delegation lets answer.
 
 Two decisions are recorded in prose only, because they are no consequence of a record: the day
 record counts time in whole ticks with one clock for the whole world (its shape), and the hash
@@ -33,11 +53,37 @@ that unsaid, since in Acorn the two never share a space of spots). One decision 
 own: the hash record bounds no collision rate, which the owner accepted as not covered.
 -/
 
+namespace AcornVerif.Intent.DayCycle
+
+open LeanIntent
+
+/-- The day record at the types of Acorn's world: one situation, Acorn's actions, the day-phase
+byte the agent sees, and energy as a natural number. This is the record Acorn declares as its
+deliverable and whose answers the owners' log holds. -/
+def dayCycle : IntentRecord (DayWorld Unit Acorn.Host.Action UInt8 Nat) :=
+  dayCycleFor Unit Acorn.Host.Action UInt8 Nat
+
+/-- The sights of the four quarters that the day record's consequences use: the quarter's index,
+as a byte. -/
+def quarterSight (i : Fin 4) : UInt8 := i.val.toUInt8
+
+theorem quarterSight_injective : ∀ i j, quarterSight i = quarterSight j → i = j := by decide
+
+/-- The day record explained at the types of Acorn's world, with the witnesses its consequences
+need: the one situation, waiting, the energy amounts 0, 1 and 2, and the quarters' sights. -/
+def dayExplained : Explanation dayCycle :=
+  dayCycleExplained () .wait (lo := 0) (hi := 1) (hi' := 2) (by decide) (by decide) (by decide)
+    quarterSight_injective
+
+end AcornVerif.Intent.DayCycle
+
 namespace AcornVerif.Intent.Decisions
 
 open LeanIntent AcornVerif.Intent.DayCycle AcornVerif.Intent.Hash
 
 /-! ## The typed answers, kept by each record's current revision -/
+
+section
 
 variable {Ctx Act Obs E : Type} [LT E]
 
@@ -52,7 +98,7 @@ def dayAnswers (lo hi : E) (o₁ o₂ : Obs) : List (Answer (DayWorld Ctx Act Ob
 /-- The day record keeps every decision on its consequences. -/
 theorem dayCycle_keeps (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi) (hlt' : lo < hi')
     (hne : hi ≠ hi') {sight : Fin 4 → Obs} (hsight : ∀ i j, sight i = sight j → i = j)
-    (o₁ o₂ : Obs) : Keeps (dayCycle Ctx Act Obs E) (dayAnswers lo hi o₁ o₂) := by
+    (o₁ o₂ : Obs) : Keeps (dayCycleFor Ctx Act Obs E) (dayAnswers lo hi o₁ o₂) := by
   refine (keeps_iff _ _).mpr fun x hx => ?_
   simp only [dayAnswers, List.mem_cons, List.not_mem_nil, or_false] at hx
   rcases hx with rfl | rfl | rfl | rfl | rfl | rfl | rfl
@@ -65,11 +111,7 @@ theorem dayCycle_keeps (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi) (hlt'
       dayCycle_refutes_dayOrNightOnly c lo hi o₁ o₂ (he ▸ hw)
   · exact nightCostVaries_holds c a hlt hlt' hne hsight
 
-/-- The day record's current revision, accepted under the decisions. -/
-def dayAccepted (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi) (hlt' : lo < hi')
-    (hne : hi ≠ hi') {sight : Fin 4 → Obs} (hsight : ∀ i j, sight i = sight j → i = j)
-    (o₁ o₂ : Obs) : Accepted (dayAnswers (Ctx := Ctx) (Act := Act) lo hi o₁ o₂) :=
-  ⟨dayCycle Ctx Act Obs E, dayCycle_keeps c a hlt hlt' hne hsight o₁ o₂⟩
+end
 
 /-- The decisions on the hash record's consequences. -/
 def hashAnswers : List (Answer Hashes) :=
@@ -86,137 +128,38 @@ theorem hashes_keeps : Keeps hashes hashAnswers := by
   · exact rulesOutPlainCombinations_holds
   · exact replay_holds
 
-/-- The hash record's current revision, accepted under the decisions. -/
-def hashAccepted : Accepted hashAnswers := ⟨hashes, hashes_keeps⟩
+/-- Each answer, given by the agents under the owner's delegation. -/
+def byAgents {W : Type} (answers : List (Answer W)) : List (Attributed W) :=
+  answers.map fun answer => ⟨answer, agentsAnswer⟩
 
-/-! ## The owners' log -/
+theorem byAgents_answers {W : Type} (answers : List (Answer W)) :
+    (byAgents answers).map (·.answer) = answers := by
+  simp only [byAgents, List.map_map]
+  exact List.map_id _
 
-/-- Where each decision's reason is kept. -/
-def reasons : String := "docs/spec-first-pilot.md, The decisions made on the owner's behalf"
+/-! ## The deliverables -/
 
-/-- The owners' log of the two records: the owner, the owner's delegation of the decisions below
-their intent to the agents, and each decision as an answer the agents gave under it. -/
-def ownersLog : List Statement := [
-  { project := .of "acorn", id := .of "owners", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference "https://github.com/rbeauchamp/acorn"
-    body := .owners { principals := [⟨.of "owner", []⟩], threshold := none } },
-  { project := .of "acorn", id := .of "agents-below-intent", date := ⟨2026, 10, 29, by decide⟩
-    source := .words "Yes, apply it"
-    body := .delegation
-      { delegator := ⟨.of "owner", none⟩
-        delegate := ⟨.of "agents", []⟩
-        scope := { records := .only ["AcornVerif.Intent.DayCycle.dayCycle",
-          "AcornVerif.Intent.Hash.hashes"], confirm := true, decline := true, retract := true }
-        mayPassOn := false } },
-  { project := .of "acorn", id := .of "day-1", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.DayCycle.dayCycle"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "every day lasts the same even number of ticks, at least two, placed alike"
-        kind := .entailment
-        predicate := "fun w => 2 ≤ w.length ∧ w.length % 2 = 0 ∧ ∀ t, w.night (t + w.length) = w.night t"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "day-2", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.DayCycle.dayCycle"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "every action costs more at any night moment than at any daytime moment"
-        kind := .entailment
-        predicate := "fun w => ∀ c a t t', w.night t = true → w.night t' = false → w.cost t' c a < w.cost t c a"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "day-3", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.DayCycle.dayCycle"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "what the agent sees always tells day from night"
-        kind := .entailment
-        predicate := "fun w => ∀ t t' c c', w.sees t c = w.sees t' c' → w.night t = w.night t'"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "day-4", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.DayCycle.dayCycle"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "a day may last 1000 ticks"
-        kind := .possibility
-        predicate := "fun w => w.length = 1000"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "day-5a", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.DayCycle.dayCycle"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "what the agent sees always tells it which quarter of the day it is in"
-        kind := .entailment
-        predicate := "fun w => ∃ start, ∀ t t' c c', w.sees t c = w.sees t' c' → quarter w.length start t = quarter w.length start t'"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "day-5b", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.DayCycle.dayCycle"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "the agent may see only whether it is day or night"
-        kind := .possibility
-        predicate := "fun w => w = dayOrNightOnly lo hi o₁ o₂"
-        verdict := .declined } },
-  { project := .of "acorn", id := .of "day-6", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.DayCycle.dayCycle"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "an action may cost more at one night moment than at another"
-        kind := .possibility
-        predicate := "fun w => ∃ c a t t', w.night t = true ∧ w.night t' = true ∧ w.cost t c a ≠ w.cost t' c a"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "hash-1", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.Hash.hashes"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "changing any one input always moves the spot"
-        kind := .entailment
-        predicate := "fun w => OneInputMoves w.hash2 ∧ OneInputMoves w.hash3"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "hash-2", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.Hash.hashes"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "no fixed rule of reordering and shifting the inputs keeps every spot"
-        kind := .entailment
-        predicate := "fun w => NoRuleKeepsSpots w.hash2 ∧ NoRuleKeepsSpots w.hash3"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "hash-3", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.Hash.hashes"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "neither function combines its inputs by plain exclusive or or plain addition"
-        kind := .entailment
-        predicate := "fun w => w.hash2 ≠ xorAll ∧ w.hash2 ≠ addAll ∧ w.hash3 ≠ xorAll ∧ w.hash3 ≠ addAll"
-        verdict := .confirmed } },
-  { project := .of "acorn", id := .of "hash-6", date := ⟨2026, 10, 29, by decide⟩
-    source := .reference reasons
-    body := .answer
-      { author := ⟨.of "agents", some (.of "agents-below-intent")⟩
-        record := "AcornVerif.Intent.Hash.hashes"
-        revision := "commit 50051c749d9b94ea577bba2bde577552337df271"
-        consequence := "the same inputs always give the same spot"
-        kind := .entailment
-        predicate := "fun w => ∀ x y, x = y → w.hash2 x = w.hash2 y ∧ w.hash3 x = w.hash3 y"
-        verdict := .confirmed } }]
+/-- The day record's deliverable: the record at the types of Acorn's world, its explanation, and
+the decisions on its consequences, the one the record now refutes, that the agent may see only day
+or night (at the sights 0 by day and 4 by night), among them. -/
+def dayDeliverable : Deliverable (DayWorld Unit Acorn.Host.Action UInt8 Nat) where
+  record := dayCycle
+  explanation := dayExplained
+  answers := byAgents (dayAnswers (lo := 0) (hi := 1) 0 4)
+  keeps := by
+    rw [byAgents_answers]
+    exact dayCycle_keeps (Obs := UInt8) () Acorn.Host.Action.wait (lo := 0) (hi := 1) (hi' := 2)
+      (by decide) (by decide) (by decide) quarterSight_injective 0 4
+
+/-- The hash record's deliverable: the record, its explanation and the decisions on its
+consequences. No implementation is declared for it, since no theorem proves that Acorn's
+`Rng.hash2` and `Rng.hash3` fulfil it (rbeauchamp/acorn#184). -/
+def hashDeliverable : Deliverable Hashes where
+  record := hashes
+  explanation := hashesExplained
+  answers := byAgents hashAnswers
+  keeps := by
+    rw [byAgents_answers]
+    exact hashes_keeps
 
 end AcornVerif.Intent.Decisions

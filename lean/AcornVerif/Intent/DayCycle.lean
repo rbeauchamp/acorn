@@ -20,8 +20,10 @@ observation was read, and it names none of them.
 The subject, `DayWorld`, is the day as the statement speaks of it: how many ticks a day lasts,
 which ticks are night, the energy each action costs at each tick in each situation, and what the
 agent sees at each tick in each situation. It is generic in the world's situations, actions,
-sights and energy amounts, so that the record says nothing about how a world represents them;
-`AcornVerif.Intent.DayCycleWorld` links it to Acorn's world.
+sights and energy amounts, so that the record says nothing about how a world represents them:
+`dayCycleFor` is the record for a world made of the types given. The record Acorn declares as its
+lean-intent deliverable, `dayCycle` in `AcornVerif.Intent.Decisions`, is this one at the types of
+Acorn's world, and `AcornVerif.Intent.DayCycleWorld` links it to Acorn's world.
 
 Each property is one clause of the statement:
 
@@ -93,8 +95,8 @@ def seesQuarter (Ctx Act Obs E : Type) : Clause (DayWorld Ctx Act Obs E) :=
     ∃ start, ∀ t t' c c', w.sees t c = w.sees t' c' →
       quarter w.length start t = quarter w.length start t'⟩
 
-/-- The intent record of the world's day and night. -/
-def dayCycle (Ctx Act Obs E : Type) [LT E] : IntentRecord (DayWorld Ctx Act Obs E) where
+/-- The intent record of the day and night of a world made of the types given. -/
+def dayCycleFor (Ctx Act Obs E : Type) [LT E] : IntentRecord (DayWorld Ctx Act Obs E) where
   shape := .value _
   dom := []
   props := [halves Ctx Act Obs E, nightCostsMore Ctx Act Obs E, tellsDayFromNight Ctx Act Obs E,
@@ -108,7 +110,7 @@ variable {Ctx Act Obs E : Type} [LT E]
 /-- A world meets the record exactly when its day has two equal halves, every action costs more
 by night, and its sights tell day from night and the quarter of the day. -/
 theorem dayCycle_meets {w : DayWorld Ctx Act Obs E} :
-    (dayCycle Ctx Act Obs E).Meets w ↔
+    (dayCycleFor Ctx Act Obs E).Meets w ↔
       (0 < w.length ∧ w.length % 2 = 0 ∧
         ∃ start, ∀ t, w.night t = true ↔ NightHalf w.length start t) ∧
       (∀ c a t t', w.night t = true → w.night t' = false → w.cost t' c a < w.cost t c a) ∧
@@ -124,7 +126,7 @@ theorem dayCycle_meets {w : DayWorld Ctx Act Obs E} :
         (List.mem_cons_of_mem _ (List.mem_cons_self ..))))⟩
   · intro ⟨h1, h2, h3, h4⟩
     refine ⟨(fun d hd => nomatch hd), fun p hp => ?_⟩
-    simp only [dayCycle, List.mem_cons, List.not_mem_nil, or_false] at hp
+    simp only [dayCycleFor, List.mem_cons, List.not_mem_nil, or_false] at hp
     rcases hp with rfl | rfl | rfl | rfl
     · exact h1
     · exact h2
@@ -164,7 +166,7 @@ night costs more and the four sights differ. -/
 theorem clockWorld_meets {length start : Nat} {lo hi : E} {sight : Fin 4 → Obs}
     (hpos : 0 < length) (heven : length % 2 = 0) (hlt : lo < hi)
     (hsight : ∀ i j, sight i = sight j → i = j) :
-    (dayCycle Ctx Act Obs E).Meets (clockWorld length start lo hi sight) := by
+    (dayCycleFor Ctx Act Obs E).Meets (clockWorld length start lo hi sight) := by
   have hq : ∀ t t', sight (quarterIndex length start t) = sight (quarterIndex length start t') →
       quarter length start t = quarter length start t' := by
     intro t t' h
@@ -196,7 +198,7 @@ def dayOrNightOnly (lo hi : E) (o₁ o₂ : Obs) : DayWorld Ctx Act Obs E :=
 /-- Ticks 0 and 1 of `dayOrNightOnly` are both night and seen alike, yet lie in different
 quarters of the day however the quarters are placed. -/
 theorem dayCycle_refutes_dayOrNightOnly (c : Ctx) (lo hi : E) (o₁ o₂ : Obs) :
-    ¬ (dayCycle Ctx Act Obs E).Meets (dayOrNightOnly lo hi o₁ o₂) := by
+    ¬ (dayCycleFor Ctx Act Obs E).Meets (dayOrNightOnly lo hi o₁ o₂) := by
   intro h
   obtain ⟨-, -, -, s, hs⟩ := dayCycle_meets.mp h
   have n0 : NightHalf 4 0 0 := by decide
@@ -219,10 +221,10 @@ could not meet the record, and its obligations O2 and O3 are stated under those 
 /-- O2: the record has a model of its (empty) domain hypotheses and an instance of each
 predicate of its vocabulary. -/
 theorem dayCycle_o2 {lo hi : E} (hlt : lo < hi) (sight : Fin 4 → Obs) :
-    O2 (dayCycle Ctx Act Obs E) := by
+    O2 (dayCycleFor Ctx Act Obs E) := by
   refine (o2_correct _).mpr ⟨⟨clockWorld 2 0 lo hi sight, fun _ h => nomatch h⟩, ?_⟩
   intro p hp
-  simp only [dayCycle, List.mem_cons, List.not_mem_nil, or_false] at hp
+  simp only [dayCycleFor, List.mem_cons, List.not_mem_nil, or_false] at hp
   rcases hp with rfl | rfl | rfl
   · exact ⟨(2, 0, 0), show (0 + 0) % 2 < 2 / 2 by decide⟩
   · exact ⟨(lo, hi), hlt⟩
@@ -230,16 +232,16 @@ theorem dayCycle_o2 {lo hi : E} (hlt : lo < hi) (sight : Fin 4 → Obs) :
 
 /-- O2 before running: a world meets the whole record. -/
 theorem dayCycle_o2Run {lo hi : E} (hlt : lo < hi) {sight : Fin 4 → Obs}
-    (hsight : ∀ i j, sight i = sight j → i = j) : O2Run (dayCycle Ctx Act Obs E) :=
+    (hsight : ∀ i j, sight i = sight j → i = j) : O2Run (dayCycleFor Ctx Act Obs E) :=
   o2Run_of_meets (clockWorld_meets (length := 2) (start := 0) (by decide) (by decide) hlt hsight)
 
 /-- O3: each property fails of some world. A day of no ticks fails `halves`; a world where every
 action costs the same at every tick fails `nightCostsMore`; a world where the agent always sees
 the same thing fails `tellsDayFromNight` and `seesQuarter`. -/
 theorem dayCycle_o3 (c : Ctx) (a : Act) {lo hi : E} (hirr : ¬ lo < lo) (sight : Fin 4 → Obs) :
-    O3 (dayCycle Ctx Act Obs E) := by
+    O3 (dayCycleFor Ctx Act Obs E) := by
   refine (o3_correct _).mpr fun p hp => ?_
-  simp only [dayCycle, List.mem_cons, List.not_mem_nil, or_false] at hp
+  simp only [dayCycleFor, List.mem_cons, List.not_mem_nil, or_false] at hp
   rcases hp with rfl | rfl | rfl | rfl
   · exact ⟨{ clockWorld (Ctx := Ctx) (Act := Act) 2 0 lo hi sight with length := 0 },
       fun h => Nat.lt_irrefl 0 h.1⟩
@@ -255,17 +257,17 @@ theorem dayCycle_o3 (c : Ctx) (a : Act) {lo hi : E} (hirr : ¬ lo < lo) (sight :
 
 /-- O4: the subject is a description of the world's day with no state carried from one call to
 the next, declared `.value`, of which O4 asks nothing. -/
-theorem dayCycle_o4 : O4 (dayCycle Ctx Act Obs E) := (o4_correct _).mpr trivial
+theorem dayCycle_o4 : O4 (dayCycleFor Ctx Act Obs E) := (o4_correct _).mpr trivial
 
 /-- O5 does not hold with equality: a day of two ticks and a day of four both meet the record. -/
 theorem dayCycle_not_o5_eq {lo hi : E} (hlt : lo < hi) {sight : Fin 4 → Obs}
-    (hsight : ∀ i j, sight i = sight j → i = j) : ¬ O5 (dayCycle Ctx Act Obs E) .eq :=
+    (hsight : ∀ i j, sight i = sight j → i = j) : ¬ O5 (dayCycleFor Ctx Act Obs E) .eq :=
   not_o5_eq (clockWorld_meets (length := 2) (start := 0) (by decide) (by decide) hlt hsight)
     (clockWorld_meets (length := 4) (start := 0) (by decide) (by decide) hlt hsight)
     (fun h => absurd (congrArg DayWorld.length h) (show (2 : Nat) ≠ 4 by decide))
 
 /-- O5 with the widest freedom, which every record meets: the freedoms are decided on the owner's
 behalf in `AcornVerif.Intent.Decisions`. -/
-theorem dayCycle_o5_widest : O5 (dayCycle Ctx Act Obs E) .widest := o5_widest _
+theorem dayCycle_o5_widest : O5 (dayCycleFor Ctx Act Obs E) .widest := o5_widest _
 
 end AcornVerif.Intent.DayCycle
