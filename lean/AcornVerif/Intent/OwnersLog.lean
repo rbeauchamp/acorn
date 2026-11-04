@@ -24,11 +24,20 @@ which add nothing to the text. It holds, in order:
 * and the answers the agents gave again on 2026-11-03, with the same verdicts, against those texts:
   for each record, the question every revision asks, whether its rendering restates the intent, and
   each decision on a consequence. `LeanIntent.Confirmation.Read.answerStatement` wrote each, from a
-  process that imports the modules `intent-check` reads, so that its texts are the checker's.
+  process that imports the modules `intent-check` reads, so that its texts are the checker's;
+* for the record of contract 1 of Acorn's mission contract, the interface every world meets
+  (`AcornVerif.Intent.WorldInterface.worldInterface`), the origin statement `contract-1-origin`,
+  which says that the agents wrote the plain restatement the record was written from and that the
+  owner adopted it, and the owner's answer `contract-1-restatement`, which attaches the owner's
+  confirmation of that restatement, given on 2026-11-03 in the words the two statements hold as
+  their source, to the record's current revision. The owner saw the restatement, not the record or
+  its rendering; the record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`, says
+  so, and gives the status of every consequence of the record.
 
-No statement is the owner's but the declaration and the delegation; every answer names the agents,
-acting under the delegation, as its author. The decisions and their reasons are described in
-`AcornVerif.Intent.Decisions` and the pilot report, `docs/spec-first-pilot.md`.
+The statements that are the owner's are the declaration, the delegation, and the origin and answer
+of 2026-11-03 for the interface record; every other answer names the agents, acting under the
+delegation, as its author. The decisions on the day and hash records and their reasons are
+described in `AcornVerif.Intent.Decisions` and the pilot report, `docs/spec-first-pilot.md`.
 -/
 
 namespace AcornVerif.Intent.Decisions
