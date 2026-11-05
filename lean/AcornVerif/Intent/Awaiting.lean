@@ -13,7 +13,7 @@ every declared deliverable has exactly one `LeanIntent.Implementation` value rec
 implementation. The intent-first method confirms a record before its implementation exists, so a
 declared deliverable is unimplemented for a while by design. Acorn's merge gate therefore accepts
 from that check exactly the unimplemented findings of the deliverables it lists as awaiting an
-implementation, in one closed list kept in the gate's code (`AcornTools.Intent.awaiting`), and
+implementation, in one closed list kept in the gate's code (`AcornIntentCheck.awaiting`), and
 nothing else. This module states that acceptance and proves what it decides.
 
 `onlyAwaiting awaiting fs` holds exactly when the findings `fs` are, as a set, the unimplemented
