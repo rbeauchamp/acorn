@@ -44,8 +44,9 @@ from the build (`LeanIntent.Render.revisionText`, `LeanIntent.Render.consequence
 those texts, as `LeanIntent.Confirmation.Read.answerStatement` writes them. They also answered, for
 the day and hash records, the question every revision asks, whether its rendering restates the
 intent: those records are the agents' design, so that answer is the agents', and each of their
-explanations records its restatement as unconfirmed by the owner. Each decision's reason is in the pilot report,
-`docs/spec-first-pilot.md`, which the answers' source names (`AcornVerif.Intent.reasons`).
+explanations records its restatement as unconfirmed by the owner. Each decision's reason is in the
+pilot report, `docs/spec-first-pilot.md`, which the answers' source names
+(`AcornVerif.Intent.reasons`).
 
 An answer's texts change whenever the rendering of its record or of a definition its predicate
 reaches changes, and the check then refuses it, naming it, until it is retracted and given again
