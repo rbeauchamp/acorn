@@ -6,6 +6,21 @@ explicit. A **departure** is one such declared choice; it identifies a research
 limitation and the code that owns it. See [the design](design.md#the-learning-loop)
 for an introduction to the agent.
 
+The aim follows Sutton's statement of OaK, which allows knowledge built in at
+design time but makes none of it essential. In his Dertouzos Distinguished
+Lecture at MIT CSAIL on May 13, 2026 (cited from a
+[third-party upload](https://www.youtube.com/watch?v=GfmE2NPSN50&t=917s), whose
+times these are), the slide "Designtime and Runtime" says "At designtime, we
+build domain knowledge into the agent" (on screen from 15:17 to 16:24); the
+conclusions slide calls OaK "a vision of general intelligence requiring no
+human input", "not aided, or limited, by human biases (nor prevented from using
+them)" (on screen from 53:40 to 55:52); and asked whether domain knowledge must
+be put in, for example for mathematical reasoning, he answered that "some
+critical domain knowledge which was essential for it to work" would be "a total
+failure" (at 1:03:36, caption text from the upload's automatic captions). A
+declared departure is design-time knowledge of this kind, and each names the
+conditions for its replacement.
+
 Undeclared hand-authored bias on the action-selection path is a defect.
 Each declared departure identifies the authored choice and its replacement
 conditions. Review checks declarations against the code that produces them.
