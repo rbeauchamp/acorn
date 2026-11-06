@@ -30,14 +30,16 @@ memory the agent holds, and the memory a run keeps for it, from contract 1's fie
 from these three. That the three describe what the agent actually does is trusted, as contract 1
 trusts that a world's and an agent's fields are theirs: an agent that replays a stored experience
 and reports a planning update, resets its memory and reports another kind of update, or reports less
-work than it does, is a subject that meets the record. Where a planning update with a learned model
+work than it does, is not refuted by the record for what it misreports. Where a planning update with a learned model
 ends and a replay of stored experience begins is the line obligation 7 of the mission contract
 draws, and proving that Acorn's executing agent reports truthfully is the fifth step of
 rbeauchamp/acorn#215.
 
-The eight properties are the record's reading of the six sentences, each over every step a run takes
-under every sequence of outside inputs, or every memory a run holds or every stop it makes, with no
-domain hypothesis: sentence 6 is carried by those quantifiers and by having no exception. Each
+The eight properties are the record's reading of the six sentences, with no domain hypothesis. Each
+quantifies over every step a run takes, every memory a run holds or every stop it makes, under every
+sequence of outside inputs: `boundedWork` and `boundedMemory` after a bound chosen first, and
+`learnsEveryStep` and `plansEveryStep` once some step has made a learning or planning update.
+Sentence 6 is carried by those quantifiers and by having no exception. Each
 property's plain words were written from the finished predicate and are trusted, not proved; the
 consequences, and the choices decided on the owner's behalf, are recorded with their reasons in the
 record's confirmation file, `lean/AcornVerif/Intent/OneStream.md`. What the owner confirmed is the six
@@ -149,7 +151,7 @@ def plansEveryStep : Clause Learner :=
 /-- At every step a run takes, under every sequence of outside inputs, the agent's step makes no
 reset. -/
 def neverResetsItself : Clause Learner :=
-  ⟨"no step of the agent resets its memory", fun w =>
+  ⟨"no step of the agent makes a reset", fun w =>
     ∀ ins t s m, w.Takes ins t s m → Update.reset ∉ w.stepUpdates s m (ins t)⟩
 
 /-- At every step a run takes, under every sequence of outside inputs, the agent begins the next step
@@ -249,7 +251,8 @@ def lastSeen : Agent Bool Bool where
 
 /-- The faithful run of contract 1's `mirror` and `lastSeen`, in which the agent reports one learning
 update on the experience each step was given, one unit of work, and resumes with the memory it held:
-each refuting learner below changes one part of it. -/
+`replaysPrevious`, `counting`, `resetsItself`, `runFlipsMemory` and `resumesOther` below each change
+one part of it. -/
 def base : Learner :=
   learner mirror lastSeen (fun _ _ => [.learn (.stream 0)]) (fun _ _ => 1) id
 
@@ -284,7 +287,7 @@ theorem oneStream_o2Run : O2Run oneStream :=
 
 /-! ## Learners that fail one property each -/
 
-/-- `base` with a learning update that learns from the experience the previous step was given. -/
+/-- `base` whose one learning update takes the experience the previous step was given. -/
 def replaysPrevious : Learner := { base with updates := fun _ _ => [.learn (.stream 1)] }
 
 /-- A world whose state counts the steps taken and which shows that count. -/
@@ -305,7 +308,8 @@ def still : Agent Nat Bool := always true
 shown, and no update. -/
 def growingWork : Learner := learner clock still (fun _ _ => []) (fun _ o => o.1) id
 
-/-- The run of `clock` and `still` is at the count `t` after `t` steps. -/
+/-- Under inputs that never ask it to stop, the run of `clock` and `still` is at the count `t` after
+`t` steps. -/
 theorem clock_reaches : ∀ t, (couple clock still).Reaches neverStop t t ()
   | 0 => .start
   | t + 1 => .next (clock_reaches t) rfl
@@ -315,7 +319,8 @@ learning update on each experience and one unit of work. -/
 def counting : Learner :=
   learner mirror echo (fun _ _ => [.learn (.stream 0)]) (fun _ _ => 1) id
 
-/-- The run of `mirror` and `echo` holds the memory `t` after `t` steps. -/
+/-- Under inputs that never ask it to stop, the run of `mirror` and `echo` holds the memory `t` after
+`t` steps. -/
 theorem echo_counts : ∀ t, ∃ s, (couple mirror echo).Reaches neverStop t s t
   | 0 => ⟨_, .start⟩
   | t + 1 =>
@@ -346,7 +351,8 @@ def learnsOnce : Learner :=
 only. -/
 def plansOnce : Learner := learner mirror trained (fun m _ => cond m [] [.plan]) (fun _ _ => 1) id
 
-/-- The run of `mirror` and `trained` has taken a step after one step. -/
+/-- Under inputs that never ask it to stop, the run of `mirror` and `trained` is at `false` with the
+memory `true` after one step. -/
 theorem trained_reaches_one : (couple mirror trained).Reaches neverStop 1 false true :=
   .next .start rfl
 
@@ -419,9 +425,9 @@ theorem oneStream_pairs :
     ∀ c ∈ oneStream.props, OPair (Pair.whole oneStream c) (fun _ => True) :=
   fun c hc => (oPair_whole_iff _ _ _).mpr ⟨base, trivial, fun _ => base_meets.2 c hc⟩
 
-/-- **Every world can be served.** For every world, an agent exists whose faithful run with it meets
-the record: the agent that always answers with one action, keeps nothing, reports no update and no
-work, and resumes with the memory it held. -/
+/-- **Every world with an action can be served.** For every world and each of its actions, an agent
+exists whose faithful run with it meets the record: the agent that always answers with that action,
+keeps nothing, reports no update and no work, and resumes with the memory it held. -/
 theorem every_world_served (W : World) (a₀ : W.Act) :
     ∃ A : Agent W.Obs W.Act, ∃ ups cost back, oneStream.Meets (learner W A ups cost back) :=
   ⟨always a₀, fun _ _ => [], fun _ _ => 0, id,
