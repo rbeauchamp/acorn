@@ -21525,7 +21525,7 @@ def ownersLog : OwnersLog := ⟨[
     by owner\n\
     as owner\n\
     record AcornVerif.Intent.OneStream.oneStream\n\
-    revision 1450\n\
+    revision 1486\n\
     | # The intent record AcornVerif.Intent.OneStream.oneStream\n\
     | \n\
     | Each statement is printed exactly: as Lean syntax that Lean elaborates back to the term \
@@ -22213,6 +22213,43 @@ def ownersLog : OwnersLog := ⟨[
     | - **Still allows:** Nothing more.\n\
     | - **Freedom O5 leaves:** Nothing of its own.\n\
     | \n\
+    | ### the memories the agent holds fit in a fixed number of bits, an entailment: every sub\
+    ject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Exists.{1} Nat (fun (S : Nat) => @Exis\
+    ts.{1} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w) → List.{0} Bool) (fun (code : AcornVerif.Intent.WorldInterface.System.Memory\
+    \x20(AcornVerif.Intent.OneStream.Learner.toSystem w) → List.{0} Bool) => And (∀ (ins : Nat → \
+    AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSyste\
+    m w)), ∀ (t : Nat), ∀ (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Inten\
+    t.OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (A\
+    cornVerif.Intent.OneStream.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.R\
+    eaches (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m → @LE.le.{0} Nat instLEN\
+    at (@List.length.{0} Bool (code m)) S) (∀ (ins : Nat → AcornVerif.Intent.WorldInterface.Sy\
+    stem.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s : AcornVer\
+    if.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀\
+    \x20(m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.\
+    toSystem w)), ∀ (ins' : Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.In\
+    tent.OneStream.Learner.toSystem w)), ∀ (t' : Nat), ∀ (s' : AcornVerif.Intent.WorldInterfac\
+    e.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (m' : AcornVerif.Inten\
+    t.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)), AcornVer\
+    if.Intent.WorldInterface.System.Reaches (AcornVerif.Intent.OneStream.Learner.toSystem w) i\
+    ns t s m → AcornVerif.Intent.WorldInterface.System.Reaches (AcornVerif.Intent.OneStream.Le\
+    arner.toSystem w) ins' t' s' m' → @Eq.{1} (List.{0} Bool) (code m) (code m') → @Eq.{1} (Ac\
+    ornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w)) m m')))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is a number S and a code of the agent's memories as strings of bit\
+    s such that every memory any run holds, under every sequence of outside inputs and at ever\
+    y time, is coded in at most S bits, and two different memories that runs hold have differe\
+    nt codes.\n\
+    | - **Rules out:** A learner whose runs hold more memories than any fixed number of bits c\
+    an tell apart, that is, infinitely many.\n\
+    | - **Still allows:** Any fixed number of bits, however large.\n\
+    | - **Freedom O5 leaves:** The number of bits and the code.\n\
+    | \n\
     | ### an agent that learns on some step learns, on every step, from the experience that st\
     ep was given and from nothing else, an entailment: every subject that meets the record sat\
     isfies it\n\
@@ -22271,6 +22308,24 @@ def ownersLog : OwnersLog := ⟨[
     \x20one the step before was given, does not meet the record.\n\
     | - **Rules out:** That learner; base, which learns only from the experience each step was\
     \x20given, meets the record (base_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner replaysPrevious, whose one learning update takes the experience one step\
+    \x20back instead of its own, is ruled out, an entailment: every subject that meets the record\
+    \x20satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.replaysPrevious\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner replaysPrevious, of contract 1's world mirror and the agent \
+    lastSeen, whose one learning update at every step is reported as taking the experience one\
+    \x20step back rather than its own (from the second step on, the experience the step before wa\
+    s given), does not meet the record.\n\
+    | - **Rules out:** That learner; base, which learns from the experience each step was give\
+    n, meets the record (base_meets).\n\
     | - **Still allows:** Nothing more.\n\
     | - **Freedom O5 leaves:** Everything but being that one learner.\n\
     | \n\
@@ -23749,6 +23804,28 @@ def ownersLog : OwnersLog := ⟨[
     | @AcornVerif.Intent.WorldInterface.Agent.mk Bool Bool Bool Bool.false (fun (x : Bool) => \
     fun (o : Prod.{0, 0} Bool Rat) => @Prod.mk.{0, 0} Bool Bool (@Prod.fst.{0, 0} Bool Rat o) \
     (@Prod.fst.{0, 0} Bool Rat o))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.replaysPrevious\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | have __src : AcornVerif.Intent.OneStream.Learner := AcornVerif.Intent.OneStream.base; Ac\
+    ornVerif.Intent.OneStream.Learner.mk (AcornVerif.Intent.OneStream.Learner.toSystem __src) \
+    (fun (x : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Lear\
+    ner.toSystem __src)) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Ob\
+    s (AcornVerif.Intent.OneStream.Learner.toSystem __src)) Rat) => @List.cons.{0} AcornVerif.\
+    Intent.OneStream.Update (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneSt\
+    ream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))) (@List.n\
+    il.{0} AcornVerif.Intent.OneStream.Update)) (AcornVerif.Intent.OneStream.Learner.work __sr\
+    c) (AcornVerif.Intent.OneStream.Learner.resume __src)\n\
     | ```\n\
     | \n\
     | ### AcornVerif.Intent.OneStream.learnsElsewhere\n\
