@@ -216,6 +216,46 @@ theorem learnsEachOnArrival_holds : learnsEachOnArrival.HoldsOf oneStream := by
   obtain ⟨d, hd⟩ := h4 hsome ins t s m h
   exact ⟨h1 ins t s m h d hd ▸ hd, h1 ins t s m h⟩
 
+/-! ## Memory in bits -/
+
+/-- **Bounded memory is a bounded number of bits.** There is a number `S` and a code of the agent's
+memories as strings of bits such that every memory any run holds, under every sequence of outside
+inputs and at every time, is coded in at most `S` bits, and two different memories that runs hold
+have different codes. -/
+def boundedBits : Consequence Learner :=
+  ⟨"the memories the agent holds fit in a fixed number of bits", .entailment, fun w =>
+    ∃ (S : Nat) (code : w.Memory → List Bool),
+      (∀ ins t s m, w.Reaches ins t s m → (code m).length ≤ S) ∧
+      ∀ ins t s m ins' t' s' m', w.Reaches ins t s m → w.Reaches ins' t' s' m' →
+        code m = code m' → m = m'⟩
+
+theorem boundedBits_holds : boundedBits.HoldsOf oneStream := by
+  intro w hw
+  obtain ⟨L, hL⟩ := (oneStream_meets.mp hw).2.2.1
+  let idx : w.Memory → Nat := fun m =>
+    @dite _ (∃ i : Fin L.length, L.get i = m) (Classical.propDecidable _)
+      (fun h => (Classical.choose h).val) fun _ => 0
+  have hidx : ∀ m, m ∈ L → ∃ i : Fin L.length, idx m = i.val ∧ L.get i = m := fun m hm => by
+    have he : ∃ i : Fin L.length, L.get i = m := by
+      obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp hm
+      exact ⟨⟨i, hi⟩, he⟩
+    refine ⟨Classical.choose he, ?_, Classical.choose_spec he⟩
+    show @dite _ _ (Classical.propDecidable _) _ _ = _
+    split
+    · rfl
+    · contradiction
+  refine ⟨L.length, fun m => List.replicate (idx m) true, fun ins t s m h => ?_,
+    fun ins t s m ins' t' s' m' h h' he => ?_⟩
+  · obtain ⟨i, hi, -⟩ := hidx m (hL _ _ _ _ h)
+    rw [List.length_replicate, hi]
+    exact Nat.le_of_lt i.isLt
+  · obtain ⟨i, hi, hm⟩ := hidx m (hL _ _ _ _ h)
+    obtain ⟨i', hi', hm'⟩ := hidx m' (hL _ _ _ _ h')
+    have hlen := congrArg List.length he
+    simp only [List.length_replicate] at hlen
+    have : i = i' := Fin.ext (hi.symm.trans (hlen.trans hi'))
+    rw [← hm, ← hm', this]
+
 /-! ## Learners the record rules out, each beside the learner that differs only where it attacks -/
 
 /-- `base`, which also learns at each step from the experience the step before was given. -/
@@ -239,6 +279,19 @@ def rulesOutReplay : Consequence Learner :=
 
 theorem rulesOutReplay_holds : rulesOutReplay.HoldsOf oneStream :=
   fun _ hw he => replaysLast_fails (he ▸ hw)
+
+theorem replaysPrevious_fails : ¬ oneStream.Meets replaysPrevious := fun h =>
+  absurd ((oneStream_meets.mp h).1 neverStop 1 _ _ ⟨base_reaches_one, rfl⟩ _ (.head _)) (by decide)
+
+/-- **Learning one step late is ruled out**: the learner `replaysPrevious`, whose one learning update
+at every step is reported as taking the experience one step back rather than its own: from the
+second step on, the experience the step before was given. Its neighbour is `base`. -/
+def rulesOutLateLearning : Consequence Learner :=
+  ⟨"the learner replaysPrevious, whose one learning update takes the experience one step back instead \
+    of its own, is ruled out", .entailment, fun w => w ≠ replaysPrevious⟩
+
+theorem rulesOutLateLearning_holds : rulesOutLateLearning.HoldsOf oneStream :=
+  fun _ hw he => replaysPrevious_fails (he ▸ hw)
 
 /-- `base`, which also learns at each step from data that is no experience of its own stream. -/
 def learnsElsewhere : Learner :=
@@ -845,6 +898,11 @@ def oneStreamExplained : Explanation oneStream where
         rulesOut := "A resumed run that breaks any property of the record."
         allows := "Nothing more."
         freedom := "Nothing of its own." }, .derived⟩,
+    ⟨boundedBits, boundedBits_holds,
+      { requires := "There is a number S and a code of the agent's memories as strings of bits such that every memory any run holds, under every sequence of outside inputs and at every time, is coded in at most S bits, and two different memories that runs hold have different codes."
+        rulesOut := "A learner whose runs hold more memories than any fixed number of bits can tell apart, that is, infinitely many."
+        allows := "Any fixed number of bits, however large."
+        freedom := "The number of bits and the code." }, .derived⟩,
     ⟨learnsEachOnArrival, learnsEachOnArrival_holds,
       { requires := "If the agent learns on some step a run takes, then at every step every run takes it makes a learning update on the experience that step was given, and no learning update on anything else: each experience is learned from at the step it arrives, in order, and at no later step."
         rulesOut := "A learning agent that, at some step, does not learn from the experience that step was given, or learns from another."
@@ -853,6 +911,11 @@ def oneStreamExplained : Explanation oneStream where
     ⟨rulesOutReplay, rulesOutReplay_holds,
       { requires := "The learner replaysLast, of contract 1's world mirror and the agent lastSeen, which at each step learns from the experience that step was given and again from the one the step before was given, does not meet the record."
         rulesOut := "That learner; base, which learns only from the experience each step was given, meets the record (base_meets)."
+        allows := "Nothing more."
+        freedom := "Everything but being that one learner." }, .derived⟩,
+    ⟨rulesOutLateLearning, rulesOutLateLearning_holds,
+      { requires := "The learner replaysPrevious, of contract 1's world mirror and the agent lastSeen, whose one learning update at every step is reported as taking the experience one step back rather than its own (from the second step on, the experience the step before was given), does not meet the record."
+        rulesOut := "That learner; base, which learns from the experience each step was given, meets the record (base_meets)."
         allows := "Nothing more."
         freedom := "Everything but being that one learner." }, .derived⟩,
     ⟨rulesOutOtherStream, rulesOutOtherStream_holds,

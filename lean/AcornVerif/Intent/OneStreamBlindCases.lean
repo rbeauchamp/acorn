@@ -9,12 +9,13 @@ import AcornVerif.Intent.OneStreamConsequences
 # The blind cases reading of contract 3, and the record's verdict on each case
 
 After the record `AcornVerif.Intent.OneStream.oneStream` was sealed at commit b144b41, OpenAI's
-gpt-6-astra read contract 3's six sentences twice, each in a fresh session given only the owner's
-words, the source of the subject's types and, for the record, lean-intent's record module. The record
-session gave no record: it answered that the subject's type does not let a record tell permission
-from occurrence, state a measure of memory, or separate stored data from arrivals. The cases session
-gave 30 cases, each one world, one agent and its run with the agent's reports, and a verdict. This
-module writes each case as a `AcornVerif.Intent.OneStream.Learner` and proves this record's verdict
+gpt-6-astra read contract 3's six sentences in fresh sessions given only the owner's words, the
+source of the subject's types and, for a record, lean-intent's record module or, for the cases, a
+plain description of what an input is: twice for a record, of
+which the first gave none and the second gave the blind record of
+`AcornVerif.Intent.OneStreamBlindReading`, compared with this record in
+`AcornVerif.Intent.OneStreamBlindCompare`, and once for cases. The cases session gave 30 cases, each
+one world, one agent and its run with the agent's reports, and a verdict. This module writes each case as a `AcornVerif.Intent.OneStream.Learner` and proves this record's verdict
 on it, one theorem for each, `c1` to `c30`. It is no deliverable and no part of the owner's intent: it
 is a second model's reading of the owner's words. How each difference was settled is in the record's
 confirmation file, `lean/AcornVerif/Intent/OneStream.md`.
@@ -23,10 +24,12 @@ The cases are transcribed, not copied: the reply gave them in plain words. Each 
 smallest types that carry what the case says: an observation written `1` or `0` is `true` or
 `false`, a lone action is `()`, a world's lone state is `()`, a one-bit memory is a `Bool`, the
 inputs `go` and `stop` are `false` and `true` (cases 26 and 27, with a third input, use `Fin 3`,
-`stop` being `2`), a memory written as a tape or a count is a natural number, and a work of `32` primitive operations is the number
-`32`. Where a case's description of a memory carries content the record does not read (case 2's
-archive and estimate, case 4's model and trace bits), the memory keeps only the values the case's
-answer distinguishes. Each case's own docstring gives its number, the reply's verdict, and this
+`stop` being `2`), a memory written as a tape or a count is a natural number, and a work of `32`
+primitive operations is the number `32`. Where a case's description of a memory carries content the
+record does not read (case 2's archive and estimate), the memory keeps only which of the case's
+named memories it is (`empty` and `saved` as `false` and `true`); case 4's model bit and clipped
+trace are kept whole, as `Bool × Fin 3`; and the memories `0`, `1` and `2` of cases 24 and 25 are
+natural numbers. Each case's own docstring gives its number, the reply's verdict, and this
 record's.
 -/
 
