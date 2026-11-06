@@ -53,6 +53,7 @@ import AcornVerif.CurrentConcealedTarget
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
+import AcornVerif.CurrentQuestionNoninterference
 import AcornVerif.CurrentColdStart
 import AcornVerif.CurrentPreReward
 import AcornVerif.CurrentFeatureConsumers
