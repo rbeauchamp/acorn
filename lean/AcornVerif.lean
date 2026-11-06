@@ -57,6 +57,7 @@ import AcornVerif.CurrentColdStart
 import AcornVerif.CurrentPreReward
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
+import AcornVerif.CurrentCreditHorizon
 import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentCheckpointSize
