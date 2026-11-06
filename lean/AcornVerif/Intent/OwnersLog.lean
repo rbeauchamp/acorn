@@ -21,11 +21,12 @@ which add nothing to the text. It holds, in order:
   by a commit and its predicates in a short form;
 * the agents' retraction of each of them on 2026-11-03, since the confirmation check compares an
   answer's revision and predicate with the texts it computes from the build;
-* and the answers the agents gave again on 2026-11-03, with the same verdicts, against those texts:
-  for each record, the question every revision asks, whether its rendering restates the intent, and
-  each decision on a consequence. `LeanIntent.Confirmation.Read.answerStatement` wrote each, from a
-  process that imports the modules `intent-check` reads, so that its texts are the checker's;
-* for the record of contract 1 of Acorn's mission contract, the interface every world meets
+* the answers the agents gave again on 2026-11-03, with the same verdicts, against those texts:
+  for each of the day and hash records, the question every revision asks, whether its rendering
+  restates the intent, and each decision on a consequence.
+  `LeanIntent.Confirmation.Read.answerStatement` wrote each, from a process that imports the modules
+  `intent-check` reads, so that its texts are the checker's;
+* and, for the record of contract 1 of Acorn's mission contract, the interface every world meets
   (`AcornVerif.Intent.WorldInterface.worldInterface`), the origin statement `contract-1-origin`,
   which says that the agents wrote the plain restatement the record was written from and that the
   owner adopted it, and the owner's answer `contract-1-restatement`, which attaches the owner's
@@ -44,8 +45,8 @@ namespace AcornVerif.Intent.Decisions
 
 open LeanIntent
 
-/-- The owners' log of the day and hash records, each statement as `LeanIntent.Statement.print`
-writes it. -/
+/-- The owners' log of the day, hash and interface records, each statement as
+`LeanIntent.Statement.print` writes it. -/
 def ownersLog : OwnersLog := ⟨[
   "lean-intent statement 1\n\
     kind owners\n\
