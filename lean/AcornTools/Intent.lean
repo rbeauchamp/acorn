@@ -50,7 +50,8 @@ widen silently. Decided on the owner's behalf by the agent supervising Acorn's r
 retired once lean-intent can declare a deliverable awaiting its implementation itself
 (rbeauchamp/lean-intent#52). -/
 def awaiting : List (Name × String) :=
-  [(`AcornVerif.Intent.Decisions.hashDeliverable, "rbeauchamp/acorn#184")]
+  [(`AcornVerif.Intent.Decisions.hashDeliverable, "rbeauchamp/acorn#184"),
+    (`AcornVerif.Intent.Decisions.worldInterfaceDeliverable, "rbeauchamp/acorn#213")]
 
 /-- The output of the bootstrap run with `args`, from the package directory; an error when it
 fails. -/

@@ -522,8 +522,10 @@ implementation, each with the issue that tracks its fulfilment proof
 (`AcornVerif.Intent.onlyAwaiting_iff`, `AcornVerif.Intent.implemented_of_onlyAwaiting`).
 Another finding, a listed name that is no declared deliverable and a listed
 deliverable that gains an implementation each fail it, and both checks refuse a
-project that declares no deliverable. The list names only the hash record's
-deliverable, whose proof rbeauchamp/acorn#184 tracks; it was decided on the owner's
+project that declares no deliverable. The list names the hash record's
+deliverable, whose proof rbeauchamp/acorn#184 tracks, and the deliverable of the
+intent record of contract 1 of the mission contract, the interface every world
+meets, whose proof rbeauchamp/acorn#213 tracks; it was decided on the owner's
 behalf by the agent supervising Acorn's research, since the intent-first method
 confirms a record before its implementation exists, and it is retired once
 lean-intent can declare a deliverable awaiting its implementation itself

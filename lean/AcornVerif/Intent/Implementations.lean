@@ -23,7 +23,11 @@ build.
 * **The hash record** (`AcornVerif.Intent.Decisions.hashDeliverable`) has no implementation here:
   no theorem proves that `Acorn.Rng.hash2` and `Acorn.Rng.hash3` meet its second property
   (rbeauchamp/acorn#184), and a model built to meet it would not be Acorn's code. The gate lists it
-  as awaiting an implementation (`AcornTools.Intent.awaiting`).
+  as awaiting an implementation (`AcornIntentCheck.awaiting`).
+* **The interface record** (`AcornVerif.Intent.Decisions.worldInterfaceDeliverable`), contract 1 of
+  Acorn's mission contract, has no implementation here: no theorem yet proves that Acorn's executing
+  worlds, agent and host meet it, which is the fifth step of rbeauchamp/acorn#213. The gate lists it
+  as awaiting an implementation.
 
 That `acornStandardDay` is what Acorn's executable runs is not checked here: the value's proof
 binds that constant, and that the world's entry point calls `World.dayPhase` and that its compiled

@@ -6,6 +6,7 @@ Authors: acorn contributors
 import LeanIntent.Confirmation
 import LeanIntent.Degenerate
 import LeanIntent.Implementation
+import LeanIntent.Pairs
 import LeanIntent.Refinement
 import LeanIntent.Statement
 
@@ -15,8 +16,9 @@ import LeanIntent.Statement
 lean-intent (https://github.com/rbeauchamp/lean-intent, commit `9502fbe`) states what an owner
 wants from one deliverable as an intent record, `LeanIntent.IntentRecord`: named properties of a
 subject under named domain hypotheses, written before the subject's implementation is read. It
-computes the record's adequacy obligations O1 to O5 with theorems fixing what each states, checks
-the record against the degenerate subjects of its type, keeps the answers to the record's
+computes the record's adequacy obligations O1 to O5 and the obligation of each
+precondition-postcondition pair, with theorems fixing what each states, checks the record against
+the degenerate subjects of its type, keeps the answers to the record's
 consequences across revisions, and links an implementation to its record by refinement. A project
 declares each record as a deliverable (`LeanIntent.Deliverable`), with its explanation and the
 answers it keeps, and the owners' log those answers are read against (`LeanIntent.OwnersLog`); it

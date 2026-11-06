@@ -29,6 +29,13 @@ dependency_git() {
 
 step 'provisioning the pinned dependencies'
 (
+  # Parallel cache extraction can exhaust macOS's inherited 256-descriptor limit.
+  # Give provisioning a process-local floor before Lake can fetch dependencies;
+  # preserve higher limits and the hard limit. This is a budget, not a peak bound.
+  descriptor_limit=$(ulimit -Sn)
+  if [[ "$descriptor_limit" != unlimited ]] && (( descriptor_limit < 4096 )); then
+    ulimit -Sn 4096
+  fi
   dependency_git
   cd lean
   # Lake decides whether Mathlib and Regula's lint driver need provisioning: with
