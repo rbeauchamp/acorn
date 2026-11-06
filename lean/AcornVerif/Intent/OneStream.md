@@ -112,7 +112,7 @@ The cases session gave 30 cases, each one world, one agent and its run with the 
 | Case 18, an agent that never learns, left unsettled, reading the prompt's description of the deliverable, "an agent that learns from its one stream of experience", written by the agent that ran the reading, as possibly asking for learning. This record meets it (`AcornVerif.Intent.OneStream.Cases.c18`). | Follows from sentence 3's "may", as the consequence `keepsNothing` shows; that the agent learns is the mission contract's postcondition. |
 | Cases 6, 13 and 30, runs that give the agent another observation, ignore the viewer's stop request, or hand the world another action and move it otherwise: both this record and the cases reading accept them. | No difference: contract 3's sentences do not speak of these; contract 1's record refutes each. |
 
-Of the cases reading's 30 cases, this record's verdict agrees on 25; it differs on cases 15 and 17, refutes case 5, which that reading left open, and accepts cases 14 and 18, which that reading left open.
+Of the cases reading's 30 cases, this record's verdict agrees on 25; it differs on case 15, refutes cases 5 and 17, which that reading left open, and accepts cases 14 and 18, which that reading left open.
 
 ## Assumptions that remain
 
