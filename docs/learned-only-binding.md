@@ -11,13 +11,13 @@ design time but makes none of it essential. In his Dertouzos Distinguished
 Lecture at MIT CSAIL on May 13, 2026 (cited from a
 [third-party upload](https://www.youtube.com/watch?v=GfmE2NPSN50&t=917s), whose
 times these are), the slide "Designtime and Runtime" says "At designtime, we
-build domain knowledge into the agent" (on screen from 15:17 to 16:24); the
+build domain knowledge into the agent" (on screen at 15:18); the
 conclusions slide calls OaK "a vision of general intelligence requiring no
 human input", "not aided, or limited, by human biases (nor prevented from using
-them)" (on screen from 53:40 to 55:52); and asked whether domain knowledge must
+them)" (on screen at 53:41); and asked whether domain knowledge must
 be put in, for example for mathematical reasoning, he answered that "some
 critical domain knowledge which was essential for it to work" would be "a total
-failure" (at 1:03:36, caption text from the upload's automatic captions). A
+failure" (at 1:03:37, caption text from the upload's automatic captions). A
 declared departure is design-time knowledge of this kind, and each names the
 conditions for its replacement.
 
