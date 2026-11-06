@@ -26,18 +26,22 @@ which add nothing to the text. It holds, in order:
   restates the intent, and each decision on a consequence.
   `LeanIntent.Confirmation.Read.answerStatement` wrote each, from a process that imports the modules
   `intent-check` reads, so that its texts are the checker's;
-* and, for the record of contract 1 of Acorn's mission contract, the interface every world meets
+* for the record of contract 1 of Acorn's mission contract, the interface every world meets
   (`AcornVerif.Intent.WorldInterface.worldInterface`), the origin statement `contract-1-origin`,
   which says that the agents wrote the plain restatement the record was written from and that the
   owner adopted it, and the owner's answer `contract-1-restatement`, which attaches the owner's
   confirmation of that restatement, given on 2026-11-03 in the words the two statements hold as
   their source, to the record's current revision. The owner saw the restatement, not the record or
   its rendering; the record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`, says
-  so, and gives the status of every consequence of the record.
+  so, and gives the status of every consequence of the record;
+* and, in the same way for the record of contract 3, the invariants of learning from one stream
+  (`AcornVerif.Intent.OneStream.oneStream`), the origin statement `contract-3-origin` and the
+  owner's answer `contract-3-restatement`, attached to that record's current revision by the
+  agents' decision, as its confirmation file, `lean/AcornVerif/Intent/OneStream.md`, says.
 
-The statements that are the owner's are the declaration, the delegation, and the origin and answer
-of 2026-11-03 for the interface record; every other answer names the agents, acting under the
-delegation, as its author. The decisions on the day and hash records and their reasons are
+The statements that are the owner's are the declaration, the delegation, and the origins and answers
+of 2026-11-03 for the interface record and the record of learning from one stream; every other
+answer names the agents, acting under the delegation, as its author. The decisions on the day and hash records and their reasons are
 described in `AcornVerif.Intent.Decisions` and the pilot report, `docs/spec-first-pilot.md`.
 -/
 
@@ -45,7 +49,7 @@ namespace AcornVerif.Intent.Decisions
 
 open LeanIntent
 
-/-- The owners' log of the day, hash and interface records, each statement as
+/-- The owners' log of the day, hash, interface and one-stream records, each statement as
 `LeanIntent.Statement.print` writes it. -/
 def ownersLog : OwnersLog := ⟨[
   "lean-intent statement 1\n\
@@ -21474,6 +21478,2911 @@ def ownersLog : OwnersLog := ⟨[
     \x20are those of Lean 4.35.0, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, which made this\
     \x20text. A declaration is counted as Lean's own when Lean found the module that declares it i\
     n that release's library directory.\n\
+    | \n\
+    consequence the record's plain restatement\n\
+    shown as entailment\n\
+    predicate 1\n\
+    | the record, as its revision prints it\n\
+    verdict confirmed\n\
+    ",
+  "lean-intent statement 1\n\
+    kind origin\n\
+    project acorn\n\
+    id contract-3-origin\n\
+    date 2026-11-03\n\
+    words 1\n\
+    | yes, and ensure that each contract has citations and links to their sources\n\
+    by owner\n\
+    as owner\n\
+    record AcornVerif.Intent.OneStream.oneStream\n\
+    written by the agents that work on Acorn, from a research report on the research of Rich S\
+    utton, Khurram Javed and Oak Lab that a second model from another provider audited\n\
+    had read 1\n\
+    | the research report and Acorn's mission contract, whose design sections describe the exe\
+    cuting kernel, host and agent; which parts of the implementation, and of the work that cha\
+    nged it, they read while writing is not recorded\n\
+    adopted 6\n\
+    | 1. The agent consumes its one stream as each experience arrives, in order, and stores no\
+    \x20experience to replay as training data. It may make several internal updates per step, kee\
+    p eligibility traces and plan with a model it has learned.\n\
+    | 2. Every step does bounded work and holds bounded memory, and the bounds do not grow as \
+    the run goes on.\n\
+    | 3. There are no special training periods: on every step of its life the agent may learn,\
+    \x20and may plan with a model it has learned.\n\
+    | 4. The agent is never reset: its memory carries across every attempt, every stop and eve\
+    ry resumption.\n\
+    | 5. A stopped agent resumes exactly where it stopped, and afterwards acts and learns as i\
+    t would have without the stop, in a world that waited for it.\n\
+    | 6. These hold on every step of every run, with no exceptions.\n\
+    ",
+  "lean-intent statement 1\n\
+    kind answer\n\
+    project acorn\n\
+    id contract-3-restatement\n\
+    date 2026-11-03\n\
+    words 1\n\
+    | yes, and ensure that each contract has citations and links to their sources\n\
+    by owner\n\
+    as owner\n\
+    record AcornVerif.Intent.OneStream.oneStream\n\
+    revision 1486\n\
+    | # The intent record AcornVerif.Intent.OneStream.oneStream\n\
+    | \n\
+    | Each statement is printed exactly: as Lean syntax that Lean elaborates back to the term \
+    its kernel checks, binder names and metadata aside, from the root namespace with nothing o\
+    pened. The plain words after it are written by a model and are trusted, not proved.\n\
+    | \n\
+    | ## Shape\n\
+    | \n\
+    | ### The subject\n\
+    | \n\
+    | ```lean\n\
+    | LeanIntent.Shape.value.{1} AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Nothing of its own: the subject is one world, one agent and the run that\
+    \x20couples them, over types each world chooses, with what the agent reports of its own steps\
+    \x20and of how it resumes, declared a plain value.\n\
+    | - **Rules out:** Nothing of its own.\n\
+    | - **Still allows:** A world, an agent or a report that is constant, which a shape that a\
+    sks every function to vary with its input would not admit.\n\
+    | - **Freedom O5 leaves:** Two learners that meet the record may differ in everything the \
+    properties leave open: the world, the agent's memories and answer, the run's parts, how ma\
+    ny internal updates a step makes and of which kinds within the bound, the bound on work, h\
+    ow many memories the agent holds, whether it learns or plans at all, and what the reports \
+    give wherever no run takes a step or stops.\n\
+    | \n\
+    | ## Domain hypotheses\n\
+    | \n\
+    | None.\n\
+    | \n\
+    | ## Properties\n\
+    | \n\
+    | ### each step, every learning update learns from the experience that step was given\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => ∀ (ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s\
+    \x20: AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.Takes (AcornVerif.Intent.\
+    OneStream.Learner.toSystem w) ins t s m → ∀ (d : AcornVerif.Intent.OneStream.Datum), @Memb\
+    ership.mem.{0, 0} AcornVerif.Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream\
+    .Update) (@List.instMembership.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.\
+    OneStream.Learner.stepUpdates w s m (ins t)) (AcornVerif.Intent.OneStream.Update.learn d) \
+    → @Eq.{1} AcornVerif.Intent.OneStream.Datum d (AcornVerif.Intent.OneStream.Datum.stream (@\
+    OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** For every sequence of outside inputs, every time, and every state and me\
+    mory at which the run takes a step, every learning update the agent's step makes there tak\
+    es as its training datum the experience that step was given.\n\
+    | - **Rules out:** A learner that, at a step a run takes, learns from an experience an ear\
+    lier step was given, replaying it, or from data that is no experience of its own stream.\n\
+    | - **Still allows:** Several learning updates in one step on the experience that step was\
+    \x20given; planning updates and other updates, which take no training datum; and a memory tha\
+    t keeps earlier experience, such as an eligibility trace, which no learning update takes a\
+    s its training datum.\n\
+    | - **Freedom O5 leaves:** How many learning updates a step makes, and what the agent woul\
+    d report at a step no run takes.\n\
+    | \n\
+    | ### the work of each step, and the number of its internal updates, stay within one bound\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Exists.{1} Nat (fun (W : Nat) => ∀ (in\
+    s : Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learn\
+    er.toSystem w)), ∀ (t : Nat), ∀ (s : AcornVerif.Intent.WorldInterface.System.State (AcornV\
+    erif.Intent.OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System\
+    .Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)), AcornVerif.Intent.WorldInterfac\
+    e.System.Takes (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m → And (@LE.le.{0\
+    } Nat instLENat (AcornVerif.Intent.OneStream.Learner.stepWork w s m (ins t)) W) (@LE.le.{0\
+    } Nat instLENat (@List.length.{0} AcornVerif.Intent.OneStream.Update (AcornVerif.Intent.On\
+    eStream.Learner.stepUpdates w s m (ins t))) W))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is one number that bounds, at every step every run takes under eve\
+    ry sequence of outside inputs, both the work the agent's step does and the number of its i\
+    nternal updates.\n\
+    | - **Rules out:** A learner whose work, or number of internal updates, at the steps its r\
+    uns take exceeds every bound, such as work that grows with the number of steps taken, in r\
+    uns that take unboundedly many steps.\n\
+    | - **Still allows:** Any bound, however large, and work that varies from step to step wit\
+    hin it.\n\
+    | - **Freedom O5 leaves:** The bound.\n\
+    | \n\
+    | ### the agent holds one of finitely many memories at every time of every run\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Exists.{1} (List.{0} (AcornVerif.Inten\
+    t.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))) (fun (L \
+    : List.{0} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Le\
+    arner.toSystem w))) => ∀ (ins : Nat → AcornVerif.Intent.WorldInterface.System.Input (Acorn\
+    Verif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s : AcornVerif.Intent.WorldIn\
+    terface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.\
+    Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)), Aco\
+    rnVerif.Intent.WorldInterface.System.Reaches (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w) ins t s m → @Membership.mem.{0, 0} (AcornVerif.Intent.WorldInterface.System.Memory (Ac\
+    ornVerif.Intent.OneStream.Learner.toSystem w)) (List.{0} (AcornVerif.Intent.WorldInterface\
+    .System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))) (@List.instMembership.{0\
+    } (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toS\
+    ystem w))) L m)\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is one finite list of memories that holds, at every time of every \
+    run under every sequence of outside inputs, the memory the agent then holds.\n\
+    | - **Rules out:** A learner whose runs reach infinitely many memories, such as an agent t\
+    hat counts its steps or stores every observation it is given, in runs that take unboundedl\
+    y many steps.\n\
+    | - **Still allows:** Any finite number of memories, however large.\n\
+    | - **Freedom O5 leaves:** How many memories the agent holds, and which.\n\
+    | \n\
+    | ### an agent that learns on some step learns on every step\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Exists.{1} (Nat → AcornVerif.Intent.Wo\
+    rldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (ins : Na\
+    t → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toS\
+    ystem w)) => @Exists.{1} Nat (fun (t : Nat) => @Exists.{1} (AcornVerif.Intent.WorldInterfa\
+    ce.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (s : AcornVerif.Int\
+    ent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) => @Exis\
+    ts.{1} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w)) (fun (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)) => @Exists.{1} AcornVerif.Intent.OneStream.Datum (fun (d :\
+    \x20AcornVerif.Intent.OneStream.Datum) => And (AcornVerif.Intent.WorldInterface.System.Takes \
+    (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m) (@Membership.mem.{0, 0} AcornV\
+    erif.Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List.instMemb\
+    ership.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learner.stepUp\
+    dates w s m (ins t)) (AcornVerif.Intent.OneStream.Update.learn d))))))) → ∀ (ins : Nat → A\
+    cornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w)), ∀ (t : Nat), ∀ (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (Ac\
+    ornVerif.Intent.OneStream.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.Ta\
+    kes (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m → @Exists.{1} AcornVerif.In\
+    tent.OneStream.Datum (fun (d : AcornVerif.Intent.OneStream.Datum) => @Membership.mem.{0, 0\
+    } AcornVerif.Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List.\
+    instMembership.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learne\
+    r.stepUpdates w s m (ins t)) (AcornVerif.Intent.OneStream.Update.learn d))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** If, at some step some run takes under some sequence of outside inputs, t\
+    he agent's step makes a learning update, then at every step every run takes, under every s\
+    equence of outside inputs, its step makes a learning update.\n\
+    | - **Rules out:** A learner whose step makes a learning update on some steps and none on \
+    others, whether it learns during a first training period and then stops, learns in some ph\
+    ases only, or makes a learning update only on some experiences, such as only where it is g\
+    iven a reward other than 0.\n\
+    | - **Still allows:** An agent that never learns; and a learning update that changes nothi\
+    ng, so an agent whose learning leaves what it has learned unchanged on some steps meets th\
+    is property when its step makes the update on every step. What the property rules out is m\
+    aking the update on some steps only, not what an update changes.\n\
+    | - **Freedom O5 leaves:** Whether the agent learns at all, and what each learning update \
+    changes.\n\
+    | \n\
+    | ### an agent that plans on some step plans on every step\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Exists.{1} (Nat → AcornVerif.Intent.Wo\
+    rldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (ins : Na\
+    t → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toS\
+    ystem w)) => @Exists.{1} Nat (fun (t : Nat) => @Exists.{1} (AcornVerif.Intent.WorldInterfa\
+    ce.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (s : AcornVerif.Int\
+    ent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) => @Exis\
+    ts.{1} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w)) (fun (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)) => And (AcornVerif.Intent.WorldInterface.System.Takes (Aco\
+    rnVerif.Intent.OneStream.Learner.toSystem w) ins t s m) (@Membership.mem.{0, 0} AcornVerif\
+    .Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List.instMembersh\
+    ip.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learner.stepUpdate\
+    s w s m (ins t)) AcornVerif.Intent.OneStream.Update.plan))))) → ∀ (ins : Nat → AcornVerif.\
+    Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t\
+    \x20: Nat), ∀ (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream\
+    .Learner.toSystem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.I\
+    ntent.OneStream.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.Takes (Acorn\
+    Verif.Intent.OneStream.Learner.toSystem w) ins t s m → @Membership.mem.{0, 0} AcornVerif.I\
+    ntent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List.instMembership\
+    .{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learner.stepUpdates \
+    w s m (ins t)) AcornVerif.Intent.OneStream.Update.plan\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** If, at some step some run takes under some sequence of outside inputs, t\
+    he agent's step makes a planning update, then at every step every run takes, under every s\
+    equence of outside inputs, its step makes a planning update.\n\
+    | - **Rules out:** A learner whose step makes a planning update on some steps and none on \
+    others, whether it plans during a first period and then stops, plans in some phases only, \
+    or plans only on some experiences.\n\
+    | - **Still allows:** An agent that never plans; and a planning update that changes nothin\
+    g, so an agent whose planning leaves what it has learned unchanged on some steps meets thi\
+    s property when its step makes the update on every step. What the property rules out is ma\
+    king the update on some steps only, not what an update changes.\n\
+    | - **Freedom O5 leaves:** Whether the agent plans at all, and what each planning update c\
+    hanges.\n\
+    | \n\
+    | ### no step of the agent makes a reset\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => ∀ (ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s\
+    \x20: AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.Takes (AcornVerif.Intent.\
+    OneStream.Learner.toSystem w) ins t s m → Not (@Membership.mem.{0, 0} AcornVerif.Intent.On\
+    eStream.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List.instMembership.{0} Aco\
+    rnVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learner.stepUpdates w s m (i\
+    ns t)) AcornVerif.Intent.OneStream.Update.reset)\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** At every step every run takes, under every sequence of outside inputs, t\
+    he agent's step makes no reset.\n\
+    | - **Rules out:** An agent that, at a step a run takes, such as one at which the world re\
+    starts, discards what some or all of its memory holds and sets it back to its value at the\
+    \x20start of its life.\n\
+    | - **Still allows:** A memory that returns to its initial value by an update that is no r\
+    eset.\n\
+    | - **Freedom O5 leaves:** Everything about how the agent's memory changes but a reset.\n\
+    | \n\
+    | ### each step, the agent keeps the memory its own answer produced\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => ∀ (ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s\
+    \x20: AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.Takes (AcornVerif.Intent.\
+    OneStream.Learner.toSystem w) ins t s m → @Eq.{1} (AcornVerif.Intent.WorldInterface.System\
+    .Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterfac\
+    e.System.kept (AcornVerif.Intent.OneStream.Learner.toSystem w) s m (ins t) (@Prod.snd.{0, \
+    0} (AcornVerif.Intent.WorldInterface.System.Act (AcornVerif.Intent.OneStream.Learner.toSys\
+    tem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learn\
+    er.toSystem w)) (AcornVerif.Intent.WorldInterface.System.answer (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem w) s m (ins t)))) (@Prod.snd.{0, 0} (AcornVerif.Intent.WorldInterface.\
+    System.Act (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInter\
+    face.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.Wo\
+    rldInterface.System.answer (AcornVerif.Intent.OneStream.Learner.toSystem w) s m (ins t)))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** For every sequence of outside inputs, every time, and every state and me\
+    mory at which the run takes a step, the memory the agent begins its next step with is the \
+    memory its own answer produced.\n\
+    | - **Rules out:** A run in which, at a step it takes, a host, a tool, the viewer or a res\
+    tart of the world leaves the agent another memory than its own answer produced.\n\
+    | - **Still allows:** Any memory the agent's own answer produces.\n\
+    | - **Freedom O5 leaves:** How the agent's own answer changes its memory.\n\
+    | \n\
+    | ### after every stop, the agent resumes with the memory it held when it stopped\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => ∀ (ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s\
+    \x20: AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem w)), AcornVerif.Intent.OneStream.Learner.Stops w ins t s m → @Eq.{1} (\
+    AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSyst\
+    em w)) (AcornVerif.Intent.OneStream.Learner.resume w m) m\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** For every sequence of outside inputs, every time, and every state and me\
+    mory at which the run stops, the memory the agent resumes with is the memory it held there\
+    .\n\
+    | - **Rules out:** An agent that resumes a stop with another memory: its initial one, one \
+    with part of it reset, or one changed while it was stopped.\n\
+    | - **Still allows:** A stop at any time, the first step included.\n\
+    | - **Freedom O5 leaves:** What the agent would resume with from a memory at which no run \
+    stops.\n\
+    | \n\
+    | ## Vocabulary\n\
+    | \n\
+    | ### the run takes a step, a predicate over `AcornVerif.Intent.OneStream.Configuration`\n\
+    | \n\
+    | ```lean\n\
+    | fun (c : AcornVerif.Intent.OneStream.Configuration) => AcornVerif.Intent.WorldInterface.\
+    System.Takes (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.I\
+    ntent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat\
+    \x20→ AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (Aco\
+    rnVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Mem\
+    ory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c)) (@Prod.fst.{0, 0} (Nat → Acor\
+    nVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem (@\
+    Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream\
+    .Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.\
+    Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.Wor\
+    ldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Int\
+    ent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c)))\
+    \x20(Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.\
+    Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (\
+    fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.Worl\
+    dInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat\
+    \x20(Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.\
+    Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.On\
+    eStream.Learner.toSystem w))))) c))) (AcornVerif.Intent.WorldInterface.System.Memory (Acor\
+    nVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Le\
+    arner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Inte\
+    nt.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0,\
+    \x200} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.One\
+    Stream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.In\
+    tent.OneStream.Learner.toSystem w))))) c))))) (@Sigma.snd.{1, 0} AcornVerif.Intent.OneStre\
+    am.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif\
+    .Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Pro\
+    d.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Inten\
+    t.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVer\
+    if.Intent.OneStream.Learner.toSystem w))))) c)) (@Prod.fst.{0, 0} Nat (Prod.{0, 0} (AcornV\
+    erif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem (@Si\
+    gma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.L\
+    earner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.In\
+    tent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.World\
+    Interface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Inten\
+    t.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (\
+    AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSyst\
+    em (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneS\
+    tream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornV\
+    erif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Inten\
+    t.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVeri\
+    f.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)))))\
+    \x20c)))) (@Prod.snd.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.\
+    Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (\
+    fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.Worl\
+    dInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat\
+    \x20(Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.\
+    Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.On\
+    eStream.Learner.toSystem w))))) c))) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.Worl\
+    dInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} A\
+    cornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.\
+    {0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.L\
+    earner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System\
+    .State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface\
+    .System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (AcornVerif.Inten\
+    t.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{\
+    1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) =\
+    > Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneS\
+    tream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface\
+    .System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldIn\
+    terface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))))) (@Sigma.\
+    snd.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learn\
+    er) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInte\
+    rface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.Wo\
+    rldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (@Pro\
+    d.fst.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.L\
+    earner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVeri\
+    f.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.\
+    Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (Aco\
+    rnVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w\
+    )) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.to\
+    System w))))) c))) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneS\
+    tream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : Ac\
+    ornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.\
+    System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, \
+    0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toS\
+    ystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Lea\
+    rner.toSystem w))))) c))) (@Prod.snd.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInter\
+    face.System.State (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVe\
+    rif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0}\
+    \x20(Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner\
+    .toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State\
+    \x20(AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.Syste\
+    m.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (AcornVerif.Intent.Worl\
+    dInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} \
+    AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod\
+    .{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.\
+    Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.Syste\
+    m.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterfac\
+    e.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c)))) (@Prod.snd.{0, \
+    0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learn\
+    er.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.In\
+    tent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Inpu\
+    t (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVe\
+    rif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (\
+    AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSyst\
+    em w))))) c))) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Stat\
+    e (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneSt\
+    ream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVer\
+    if.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (P\
+    rod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Int\
+    ent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornV\
+    erif.Intent.OneStream.Learner.toSystem w))))) c))) (AcornVerif.Intent.WorldInterface.Syste\
+    m.Memory (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Inten\
+    t.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → A\
+    cornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVe\
+    rif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory \
+    (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))))) (@Sigma.snd.{1, 0} AcornVerif.\
+    Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Na\
+    t → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toS\
+    ystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (Ac\
+    ornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Me\
+    mory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c)))) (@Prod.snd.{0, 0} (AcornVe\
+    rif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem (@Sig\
+    ma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Le\
+    arner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Int\
+    ent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldI\
+    nterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent\
+    .WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (A\
+    cornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSyste\
+    m (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneSt\
+    ream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVe\
+    rif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent\
+    .WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif\
+    .Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) \
+    c))) (@Prod.snd.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (Ac\
+    ornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.\
+    Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.In\
+    tent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{\
+    0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.O\
+    neStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.\
+    Intent.OneStream.Learner.toSystem w))))) c))) (AcornVerif.Intent.WorldInterface.System.Mem\
+    ory (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.One\
+    Stream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornV\
+    erif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) \
+    (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.I\
+    ntent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (Acor\
+    nVerif.Intent.OneStream.Learner.toSystem w))))) c)))) (@Prod.snd.{0, 0} (Nat → AcornVerif.\
+    Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.f\
+    st.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learne\
+    r) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.\
+    OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInter\
+    face.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.Wor\
+    ldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (Prod.\
+    {0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.\
+    OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w \
+    : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterf\
+    ace.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.\
+    {0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner\
+    .toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream\
+    .Learner.toSystem w))))) c))) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.\
+    Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (\
+    fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.Worl\
+    dInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat\
+    \x20(Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.\
+    Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.On\
+    eStream.Learner.toSystem w))))) c))))) (@Sigma.snd.{1, 0} AcornVerif.Intent.OneStream.Lear\
+    ner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent\
+    .WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0\
+    } Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneSt\
+    ream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Inte\
+    nt.OneStream.Learner.toSystem w))))) c))))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Under the given outside inputs, the run took each step before the given \
+    time, holds the given state and memory at that time, and takes the next step.\n\
+    | - **Rules out:** A configuration the run does not reach, or one at which it does not go \
+    on.\n\
+    | - **Still allows:** Every configuration the run reaches and goes on from.\n\
+    | - **Freedom O5 leaves:** None of its own: it is a definition the properties are written \
+    in.\n\
+    | \n\
+    | ### the run stops, a predicate over `AcornVerif.Intent.OneStream.Configuration`\n\
+    | \n\
+    | ```lean\n\
+    | fun (c : AcornVerif.Intent.OneStream.Configuration) => AcornVerif.Intent.OneStream.Learn\
+    er.Stops (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Inten\
+    t.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (\
+    AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif\
+    .Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Aco\
+    rnVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem \
+    w))))) c) (@Prod.fst.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVer\
+    if.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learne\
+    r (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.W\
+    orldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} \
+    Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w))))) c))) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.W\
+    orldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0\
+    } AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Pr\
+    od.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStrea\
+    m.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.Sys\
+    tem.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterf\
+    ace.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (AcornVerif.In\
+    tent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fs\
+    t.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner\
+    ) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.O\
+    neStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterf\
+    ace.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.Worl\
+    dInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))))) (@Sig\
+    ma.snd.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Le\
+    arner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Int\
+    ent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldI\
+    nterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent\
+    .WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c)) (@P\
+    rod.fst.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif\
+    .Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner \
+    (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.Wor\
+    ldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Na\
+    t (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream\
+    .Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.O\
+    neStream.Learner.toSystem w))))) c))) (AcornVerif.Intent.WorldInterface.System.Memory (Aco\
+    rnVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.L\
+    earner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Int\
+    ent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0\
+    , 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.On\
+    eStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.I\
+    ntent.OneStream.Learner.toSystem w))))) c)))) (@Prod.snd.{0, 0} (Nat → AcornVerif.Intent.W\
+    orldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0\
+    } AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Pr\
+    od.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStrea\
+    m.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.Sys\
+    tem.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterf\
+    ace.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (Prod.{0, 0} N\
+    at (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStrea\
+    m.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornV\
+    erif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.Syst\
+    em.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (\
+    AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSyste\
+    m w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner\
+    .toSystem w))))) c))) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.O\
+    neStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w :\
+    \x20AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterfa\
+    ce.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{\
+    0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.\
+    toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.\
+    Learner.toSystem w))))) c))))) (@Sigma.snd.{1, 0} AcornVerif.Intent.OneStream.Learner (fun\
+    \x20(w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldIn\
+    terface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (P\
+    rod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Lea\
+    rner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneSt\
+    ream.Learner.toSystem w))))) c))) (@Prod.fst.{0, 0} (AcornVerif.Intent.WorldInterface.Syst\
+    em.State (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Inten\
+    t.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → A\
+    cornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVe\
+    rif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory \
+    (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (AcornVerif.Intent.WorldInterfac\
+    e.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVeri\
+    f.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (\
+    Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.t\
+    oSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (\
+    AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.\
+    Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (@Prod.snd.{0, 0} Nat (Pr\
+    od.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Lear\
+    ner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.I\
+    ntent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Inp\
+    ut (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornV\
+    erif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) \
+    (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSys\
+    tem w))))) c))) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : Acorn\
+    Verif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.Sys\
+    tem.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} \
+    (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSyst\
+    em w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w))))) c)))) (@Prod.snd.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.I\
+    nput (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.On\
+    eStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → Acorn\
+    Verif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w))\
+    \x20(Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.\
+    Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (Aco\
+    rnVerif.Intent.OneStream.Learner.toSystem w))))) c))) (Prod.{0, 0} Nat (Prod.{0, 0} (Acorn\
+    Verif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem (@S\
+    igma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.\
+    Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.I\
+    ntent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.Worl\
+    dInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Inte\
+    nt.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) \
+    (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSys\
+    tem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.One\
+    Stream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (Acorn\
+    Verif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Inte\
+    nt.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVer\
+    if.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))\
+    ) c))))) (@Sigma.snd.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Inten\
+    t.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (\
+    AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif\
+    .Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Aco\
+    rnVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem \
+    w))))) c)))) (@Prod.snd.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.\
+    Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (\
+    fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.Worl\
+    dInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat\
+    \x20(Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.\
+    Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.On\
+    eStream.Learner.toSystem w))))) c))) (AcornVerif.Intent.WorldInterface.System.Memory (Acor\
+    nVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Le\
+    arner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Inte\
+    nt.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0,\
+    \x200} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.One\
+    Stream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.In\
+    tent.OneStream.Learner.toSystem w))))) c))) (@Prod.snd.{0, 0} Nat (Prod.{0, 0} (AcornVerif\
+    .Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.\
+    fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learn\
+    er) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInte\
+    rface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.Wo\
+    rldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (Acor\
+    nVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem (\
+    @Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStrea\
+    m.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif\
+    .Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.Wo\
+    rldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.In\
+    tent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))\
+    )) (@Prod.snd.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Inte\
+    nt.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} AcornVerif.Intent.OneStream.Learner (fun \
+    (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInt\
+    erface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Pr\
+    od.{0, 0} (AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Lear\
+    ner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStr\
+    eam.Learner.toSystem w))))) c))) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInt\
+    erface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0} Acorn\
+    Verif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Prod.{0, \
+    0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learn\
+    er.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Sta\
+    te (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.Sys\
+    tem.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))) (AcornVerif.Intent.Wo\
+    rldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem (@Sigma.fst.{1, 0\
+    } AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) => Pr\
+    od.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStrea\
+    m.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.Sys\
+    tem.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterf\
+    ace.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))))) (@Sigma.snd.\
+    {1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.Learner) \
+    => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.One\
+    Stream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.WorldInterfac\
+    e.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldI\
+    nterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w))))) c))))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Under the given outside inputs, the run took each step before the given \
+    time, holds the given state and memory at that time, and takes no step from them.\n\
+    | - **Rules out:** A configuration the run does not reach, or one from which it goes on.\n\
+    | - **Still allows:** Every configuration the run reaches and does not go on from.\n\
+    | - **Freedom O5 leaves:** None of its own: it is a definition the properties are written \
+    in.\n\
+    | \n\
+    | ## Consequences\n\
+    | \n\
+    | ### a stopped agent resumes where it stopped, and afterwards acts and learns as it would\
+    \x20have without the stop, in a world that waited for it, an entailment: every subject that m\
+    eets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => ∀ (ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s\
+    \x20: AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem w)), AcornVerif.Intent.OneStream.Learner.Stops w ins t s m → ∀ (ins' :\
+    \x20Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.\
+    toSystem w)), And (∀ (k : Nat), ∀ (s' : AcornVerif.Intent.WorldInterface.System.State (Aco\
+    rnVerif.Intent.OneStream.Learner.toSystem (AcornVerif.Intent.OneStream.Learner.resumedAt w\
+    \x20s m))), ∀ (m' : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem (AcornVerif.Intent.OneStream.Learner.resumedAt w s m))), Iff (AcornVer\
+    if.Intent.WorldInterface.System.Reaches (AcornVerif.Intent.OneStream.Learner.toSystem (Aco\
+    rnVerif.Intent.OneStream.Learner.resumedAt w s m)) ins' k s' m') (AcornVerif.Intent.WorldI\
+    nterface.System.Reaches (AcornVerif.Intent.OneStream.Learner.toSystem w) (@AcornVerif.Inte\
+    nt.OneStream.splice (AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneS\
+    tream.Learner.toSystem w)) ins t ins') (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Na\
+    t instAddNat) t k) s' m')) (∀ (s' : AcornVerif.Intent.WorldInterface.System.State (AcornVe\
+    rif.Intent.OneStream.Learner.toSystem (AcornVerif.Intent.OneStream.Learner.resumedAt w s m\
+    ))), ∀ (m' : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.L\
+    earner.toSystem (AcornVerif.Intent.OneStream.Learner.resumedAt w s m))), ∀ (e : AcornVerif\
+    .Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem (AcornVe\
+    rif.Intent.OneStream.Learner.resumedAt w s m))), And (@Eq.{1} (Prod.{0, 0} (AcornVerif.Int\
+    ent.WorldInterface.System.Act (AcornVerif.Intent.OneStream.Learner.toSystem (AcornVerif.In\
+    tent.OneStream.Learner.resumedAt w s m))) (AcornVerif.Intent.WorldInterface.System.Memory \
+    (AcornVerif.Intent.OneStream.Learner.toSystem (AcornVerif.Intent.OneStream.Learner.resumed\
+    At w s m)))) (AcornVerif.Intent.WorldInterface.System.answer (AcornVerif.Intent.OneStream.\
+    Learner.toSystem (AcornVerif.Intent.OneStream.Learner.resumedAt w s m)) s' m' e) (AcornVer\
+    if.Intent.WorldInterface.System.answer (AcornVerif.Intent.OneStream.Learner.toSystem w) s'\
+    \x20m' e)) (@Eq.{1} (List.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStrea\
+    m.Learner.stepUpdates (AcornVerif.Intent.OneStream.Learner.resumedAt w s m) s' m' e) (Acor\
+    nVerif.Intent.OneStream.Learner.stepUpdates w s' m' e)))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** After every stop a run makes, under every sequence of outside inputs, th\
+    e run resumed in the world that waited, at the state where it stopped, reaches at each lat\
+    er time exactly the states and memories the run that did not stop reaches at the same time\
+    \x20after the stop, and at each of them answers and makes the internal updates the agent woul\
+    d have.\n\
+    | - **Rules out:** A resumed agent whose actions or learning after the stop differ from wh\
+    at they would have been without it.\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** What happens to a world that did not wait.\n\
+    | \n\
+    | ### a run resumed after a stop meets the record too, an entailment: every subject that m\
+    eets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => ∀ (ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s\
+    \x20: AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStre\
+    am.Learner.toSystem w)), AcornVerif.Intent.OneStream.Learner.Stops w ins t s m → @LeanInte\
+    nt.IntentRecord.Meets.{1} AcornVerif.Intent.OneStream.Learner AcornVerif.Intent.OneStream.\
+    oneStream (AcornVerif.Intent.OneStream.Learner.resumedAt w s m)\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** After every stop a run makes, the learner resumed in the world that wait\
+    ed meets the record too: the run after a resumption has no exception.\n\
+    | - **Rules out:** A resumed run that breaks any property of the record.\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Nothing of its own.\n\
+    | \n\
+    | ### the memories the agent holds fit in a fixed number of bits, an entailment: every sub\
+    ject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Exists.{1} Nat (fun (S : Nat) => @Exis\
+    ts.{1} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w) → List.{0} Bool) (fun (code : AcornVerif.Intent.WorldInterface.System.Memory\
+    \x20(AcornVerif.Intent.OneStream.Learner.toSystem w) → List.{0} Bool) => And (∀ (ins : Nat → \
+    AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSyste\
+    m w)), ∀ (t : Nat), ∀ (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Inten\
+    t.OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (A\
+    cornVerif.Intent.OneStream.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.R\
+    eaches (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m → @LE.le.{0} Nat instLEN\
+    at (@List.length.{0} Bool (code m)) S) (∀ (ins : Nat → AcornVerif.Intent.WorldInterface.Sy\
+    stem.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s : AcornVer\
+    if.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀\
+    \x20(m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.\
+    toSystem w)), ∀ (ins' : Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.In\
+    tent.OneStream.Learner.toSystem w)), ∀ (t' : Nat), ∀ (s' : AcornVerif.Intent.WorldInterfac\
+    e.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (m' : AcornVerif.Inten\
+    t.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)), AcornVer\
+    if.Intent.WorldInterface.System.Reaches (AcornVerif.Intent.OneStream.Learner.toSystem w) i\
+    ns t s m → AcornVerif.Intent.WorldInterface.System.Reaches (AcornVerif.Intent.OneStream.Le\
+    arner.toSystem w) ins' t' s' m' → @Eq.{1} (List.{0} Bool) (code m) (code m') → @Eq.{1} (Ac\
+    ornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w)) m m')))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is a number S and a code of the agent's memories as strings of bit\
+    s such that every memory any run holds, under every sequence of outside inputs and at ever\
+    y time, is coded in at most S bits, and two different memories that runs hold have differe\
+    nt codes.\n\
+    | - **Rules out:** A learner whose runs hold more memories than any fixed number of bits c\
+    an tell apart, that is, infinitely many.\n\
+    | - **Still allows:** Any fixed number of bits, however large.\n\
+    | - **Freedom O5 leaves:** The number of bits and the code.\n\
+    | \n\
+    | ### an agent that learns on some step learns, on every step, from the experience that st\
+    ep was given and from nothing else, an entailment: every subject that meets the record sat\
+    isfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Exists.{1} (Nat → AcornVerif.Intent.Wo\
+    rldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (ins : Na\
+    t → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toS\
+    ystem w)) => @Exists.{1} Nat (fun (t : Nat) => @Exists.{1} (AcornVerif.Intent.WorldInterfa\
+    ce.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (s : AcornVerif.Int\
+    ent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) => @Exis\
+    ts.{1} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w)) (fun (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)) => @Exists.{1} AcornVerif.Intent.OneStream.Datum (fun (d :\
+    \x20AcornVerif.Intent.OneStream.Datum) => And (AcornVerif.Intent.WorldInterface.System.Takes \
+    (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m) (@Membership.mem.{0, 0} AcornV\
+    erif.Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List.instMemb\
+    ership.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learner.stepUp\
+    dates w s m (ins t)) (AcornVerif.Intent.OneStream.Update.learn d))))))) → ∀ (ins : Nat → A\
+    cornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w)), ∀ (t : Nat), ∀ (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (Ac\
+    ornVerif.Intent.OneStream.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.Ta\
+    kes (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m → And (@Membership.mem.{0, \
+    0} AcornVerif.Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List\
+    .instMembership.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learn\
+    er.stepUpdates w s m (ins t)) (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent\
+    .OneStream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))))) (\
+    ∀ (d : AcornVerif.Intent.OneStream.Datum), @Membership.mem.{0, 0} AcornVerif.Intent.OneStr\
+    eam.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List.instMembership.{0} AcornVe\
+    rif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learner.stepUpdates w s m (ins t\
+    )) (AcornVerif.Intent.OneStream.Update.learn d) → @Eq.{1} AcornVerif.Intent.OneStream.Datu\
+    m d (AcornVerif.Intent.OneStream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNat\
+    Nat (nat_lit 0)))))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** If the agent learns on some step a run takes, then at every step every r\
+    un takes it makes a learning update on the experience that step was given, and no learning\
+    \x20update on anything else: each experience is learned from at the step it arrives, in order\
+    , and at no later step.\n\
+    | - **Rules out:** A learning agent that, at some step, does not learn from the experience\
+    \x20that step was given, or learns from another.\n\
+    | - **Still allows:** An agent that never learns.\n\
+    | - **Freedom O5 leaves:** How many learning updates each step makes.\n\
+    | \n\
+    | ### the learner replaysLast, which learns again from the previous step's experience, is \
+    ruled out, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.replaysLast\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner replaysLast, of contract 1's world mirror and the agent last\
+    Seen, which at each step learns from the experience that step was given and again from the\
+    \x20one the step before was given, does not meet the record.\n\
+    | - **Rules out:** That learner; base, which learns only from the experience each step was\
+    \x20given, meets the record (base_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner replaysPrevious, whose one learning update takes the experience one step\
+    \x20back instead of its own, is ruled out, an entailment: every subject that meets the record\
+    \x20satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.replaysPrevious\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner replaysPrevious, of contract 1's world mirror and the agent \
+    lastSeen, whose one learning update at every step is reported as taking the experience one\
+    \x20step back rather than its own (from the second step on, the experience the step before wa\
+    s given), does not meet the record.\n\
+    | - **Rules out:** That learner; base, which learns from the experience each step was give\
+    n, meets the record (base_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner learnsElsewhere, which learns from data that is no experience of its own\
+    \x20stream, is ruled out, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.learnsElsewhere\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner learnsElsewhere, which at each step also learns from data th\
+    at is no experience of its own stream, does not meet the record.\n\
+    | - **Rules out:** That learner; base meets the record (base_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner storesStream, which keeps every observation it is given though it replay\
+    s none, is ruled out, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.storesStream\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner storesStream, whose agent keeps every observation it is give\
+    n, though it learns only from the experience each step was given and replays none, does no\
+    t meet the record.\n\
+    | - **Rules out:** That learner; base, whose agent keeps only the last observation, meets \
+    the record (base_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner growingWork, whose work grows with the number of steps taken, is ruled o\
+    ut, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.growingWork\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner growingWork, of the world clock, which counts the steps take\
+    n, whose step does as much work as that count, does not meet the record.\n\
+    | - **Rules out:** That learner; the same world and agent reporting no work meet the recor\
+    d (noWork_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner plansMore, which makes one more planning update at each step, is ruled o\
+    ut, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.plansMore\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner plansMore, which makes one more planning update at each step\
+    \x20than at the step before, does not meet the record.\n\
+    | - **Rules out:** That learner; the same world and agent planning once at each step meet \
+    the record (plansOnceEach_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner learnsOnce, which learns on its first step only, is ruled out, an entail\
+    ment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.learnsOnce\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner learnsOnce, which learns on its first step and never after, \
+    does not meet the record.\n\
+    | - **Rules out:** That learner; the same world and agent learning at every step meet the \
+    record (learnsAlways_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner plansOnce, which plans on its first step only, is ruled out, an entailme\
+    nt: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.plansOnce\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner plansOnce, which plans on its first step and never after, do\
+    es not meet the record.\n\
+    | - **Rules out:** That learner; the same world and agent planning at every step meet the \
+    record (plansAlways_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner resetsAtRestart, whose agent resets its memory when the world restarts, \
+    is ruled out, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.resetsAtRestart\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner resetsAtRestart, of contract 1's world attempts, which resta\
+    rts every two steps, whose agent sets its memory back to its initial value at each step fr\
+    om which the world restarts, discarding what it remembered, and reports that reset, does n\
+    ot meet the record.\n\
+    | - **Rules out:** That learner; the same world with an agent that keeps what it remembers\
+    \x20and makes no reset meets the record (attemptsKeeper_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner runResetsAtRestart, whose run resets the agent's memory when the world r\
+    estarts, is ruled out, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.runResetsAtRestart\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner runResetsAtRestart, whose run gives the agent back its initi\
+    al memory at each step from which the world attempts restarts, does not meet the record.\n\
+    | - **Rules out:** That learner; the same world and agent run faithfully meet the record (\
+    attemptsLastSeen_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### the learner resumesFresh, whose agent resumes a stop with its initial memory, is rul\
+    ed out, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Ne.{2} AcornVerif.Intent.OneStream.Lea\
+    rner w AcornVerif.Intent.OneStream.resumesFresh\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The learner resumesFresh, whose agent resumes every stop with its initia\
+    l memory, does not meet the record; it stops after two steps holding another memory.\n\
+    | - **Rules out:** That learner; the same world and agent resuming with the memory held me\
+    et the record (attemptsLastSeen_meets).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one learner.\n\
+    | \n\
+    | ### an agent may make several internal updates in one step, learning more than once from\
+    \x20the experience that step was given and planning, a possibility: some subject that meets t\
+    he record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => @Exists.{1} (Nat → AcornVerif.Intent.Wo\
+    rldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (ins : Na\
+    t → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toS\
+    ystem w)) => @Exists.{1} Nat (fun (t : Nat) => @Exists.{1} (AcornVerif.Intent.WorldInterfa\
+    ce.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (s : AcornVerif.Int\
+    ent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) => @Exis\
+    ts.{1} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w)) (fun (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)) => And (AcornVerif.Intent.WorldInterface.System.Takes (Aco\
+    rnVerif.Intent.OneStream.Learner.toSystem w) ins t s m) (@Eq.{1} (List.{0} AcornVerif.Inte\
+    nt.OneStream.Update) (AcornVerif.Intent.OneStream.Learner.stepUpdates w s m (ins t)) (@Lis\
+    t.cons.{0} AcornVerif.Intent.OneStream.Update (AcornVerif.Intent.OneStream.Update.learn (A\
+    cornVerif.Intent.OneStream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (n\
+    at_lit 0))))) (@List.cons.{0} AcornVerif.Intent.OneStream.Update (AcornVerif.Intent.OneStr\
+    eam.Update.learn (AcornVerif.Intent.OneStream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit \
+    0) (instOfNatNat (nat_lit 0))))) (@List.cons.{0} AcornVerif.Intent.OneStream.Update AcornV\
+    erif.Intent.OneStream.Update.plan (@List.nil.{0} AcornVerif.Intent.OneStream.Update)))))))\
+    ))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Nothing more: some learner that meets the record makes, at a step a run \
+    takes, two learning updates on the experience that step was given and a planning update.\n\
+    | - **Rules out:** Nothing.\n\
+    | - **Still allows:** Several internal updates in one step.\n\
+    | - **Freedom O5 leaves:** How many updates a step makes, within the bound.\n\
+    | \n\
+    | ### an agent may keep short-term memory of earlier experience, such as an eligibility tr\
+    ace, while learning only from the experience each step is given, a possibility: some subje\
+    ct that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => And (∀ (ins : Nat → AcornVerif.Intent.W\
+    orldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat),\
+    \x20∀ (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner\
+    .toSystem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.On\
+    eStream.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.Takes (AcornVerif.In\
+    tent.OneStream.Learner.toSystem w) ins t s m → ∀ (d : AcornVerif.Intent.OneStream.Datum), \
+    @Membership.mem.{0, 0} AcornVerif.Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneS\
+    tream.Update) (@List.instMembership.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.In\
+    tent.OneStream.Learner.stepUpdates w s m (ins t)) (AcornVerif.Intent.OneStream.Update.lear\
+    n d) → @Eq.{1} AcornVerif.Intent.OneStream.Datum d (AcornVerif.Intent.OneStream.Datum.stre\
+    am (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@Exists.{1} (AcornVeri\
+    f.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) (f\
+    un (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w)) => @Exists.{1} (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Obs (A\
+    cornVerif.Intent.OneStream.Learner.toSystem w)) Rat) (fun (o : Prod.{0, 0} (AcornVerif.Int\
+    ent.WorldInterface.System.Obs (AcornVerif.Intent.OneStream.Learner.toSystem w)) Rat) => @E\
+    xists.{1} (Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Obs (AcornVerif.Intent.One\
+    Stream.Learner.toSystem w)) Rat) (fun (o' : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.\
+    System.Obs (AcornVerif.Intent.OneStream.Learner.toSystem w)) Rat) => @Exists.{1} (Prod.{0,\
+    \x200} (AcornVerif.Intent.WorldInterface.System.Obs (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem w)) Rat) (fun (o'' : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Obs (AcornV\
+    erif.Intent.OneStream.Learner.toSystem w)) Rat) => @Ne.{1} (AcornVerif.Intent.WorldInterfa\
+    ce.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) (@Prod.snd.{0, 0} (Acor\
+    nVerif.Intent.WorldInterface.System.Act (AcornVerif.Intent.OneStream.Learner.toSystem w)) \
+    (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSys\
+    tem w)) (AcornVerif.Intent.WorldInterface.System.act (AcornVerif.Intent.OneStream.Learner.\
+    toSystem w) (@Prod.snd.{0, 0} (AcornVerif.Intent.WorldInterface.System.Act (AcornVerif.Int\
+    ent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornV\
+    erif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.act (A\
+    cornVerif.Intent.OneStream.Learner.toSystem w) m o)) o'')) (@Prod.snd.{0, 0} (AcornVerif.I\
+    ntent.WorldInterface.System.Act (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVe\
+    rif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) \
+    (AcornVerif.Intent.WorldInterface.System.act (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w) (@Prod.snd.{0, 0} (AcornVerif.Intent.WorldInterface.System.Act (AcornVerif.Intent.OneS\
+    tream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Int\
+    ent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.act (AcornVeri\
+    f.Intent.OneStream.Learner.toSystem w) m o')) o'')))))))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Nothing more: some learner that meets the record learns only from the ex\
+    perience each step is given at every step a run takes, while its agent's answer, applied t\
+    wice from some memory, gives a memory that depends on the first of the two experiences.\n\
+    | - **Rules out:** Nothing.\n\
+    | - **Still allows:** Short-term memory of earlier experience, such as an eligibility trac\
+    e, beside learning on arrival.\n\
+    | - **Freedom O5 leaves:** What the agent keeps of earlier experience, as long as no learn\
+    ing update takes it.\n\
+    | \n\
+    | ### an agent may learn, and plan with a model it has learned, on every step, a possibili\
+    ty: some subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => And (@Exists.{1} (Nat → AcornVerif.Inte\
+    nt.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (ins\
+    \x20: Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learne\
+    r.toSystem w)) => @Exists.{1} Nat (fun (t : Nat) => @Exists.{1} (AcornVerif.Intent.WorldIn\
+    terface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (fun (s : AcornVeri\
+    f.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) => \
+    @Exists.{1} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.L\
+    earner.toSystem w)) (fun (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.I\
+    ntent.OneStream.Learner.toSystem w)) => AcornVerif.Intent.WorldInterface.System.Takes (Aco\
+    rnVerif.Intent.OneStream.Learner.toSystem w) ins t s m))))) (∀ (ins : Nat → AcornVerif.Int\
+    ent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : \
+    Nat), ∀ (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Le\
+    arner.toSystem w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Inte\
+    nt.OneStream.Learner.toSystem w)), AcornVerif.Intent.WorldInterface.System.Takes (AcornVer\
+    if.Intent.OneStream.Learner.toSystem w) ins t s m → And (@Membership.mem.{0, 0} AcornVerif\
+    .Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream.Update) (@List.instMembersh\
+    ip.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStream.Learner.stepUpdate\
+    s w s m (ins t)) (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneStream.Da\
+    tum.stream (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))))) (@Membership.m\
+    em.{0, 0} AcornVerif.Intent.OneStream.Update (List.{0} AcornVerif.Intent.OneStream.Update)\
+    \x20(@List.instMembership.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.Intent.OneStrea\
+    m.Learner.stepUpdates w s m (ins t)) AcornVerif.Intent.OneStream.Update.plan))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Nothing more: some learner that meets the record takes a step, and at ev\
+    ery step every run takes it makes a learning update on the experience that step was given \
+    and a planning update.\n\
+    | - **Rules out:** Nothing.\n\
+    | - **Still allows:** Learning, and planning with a model the agent has learned, on every \
+    step.\n\
+    | - **Freedom O5 leaves:** Whether the agent learns and plans.\n\
+    | \n\
+    | ### an agent may keep nothing of its experience and never learn, a possibility: some sub\
+    ject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => And (∀ (m : AcornVerif.Intent.WorldInte\
+    rface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (o : Prod.{0, 0} \
+    (AcornVerif.Intent.WorldInterface.System.Obs (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w)) Rat), ∀ (o' : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Obs (AcornVerif.In\
+    tent.OneStream.Learner.toSystem w)) Rat), @Eq.{1} (AcornVerif.Intent.WorldInterface.System\
+    .Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) (@Prod.snd.{0, 0} (AcornVerif.In\
+    tent.WorldInterface.System.Act (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVer\
+    if.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) (\
+    AcornVerif.Intent.WorldInterface.System.act (AcornVerif.Intent.OneStream.Learner.toSystem \
+    w) m o)) (@Prod.snd.{0, 0} (AcornVerif.Intent.WorldInterface.System.Act (AcornVerif.Intent\
+    .OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVeri\
+    f.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.act (Acor\
+    nVerif.Intent.OneStream.Learner.toSystem w) m o'))) (∀ (ins : Nat → AcornVerif.Intent.Worl\
+    dInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ \
+    (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.to\
+    System w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneSt\
+    ream.Learner.toSystem w)), ∀ (d : AcornVerif.Intent.OneStream.Datum), AcornVerif.Intent.Wo\
+    rldInterface.System.Takes (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m → Not\
+    \x20(@Membership.mem.{0, 0} AcornVerif.Intent.OneStream.Update (List.{0} AcornVerif.Intent.On\
+    eStream.Update) (@List.instMembership.{0} AcornVerif.Intent.OneStream.Update) (AcornVerif.\
+    Intent.OneStream.Learner.stepUpdates w s m (ins t)) (AcornVerif.Intent.OneStream.Update.le\
+    arn d)))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Nothing more: some learner that meets the record has an agent whose memo\
+    ry after an answer does not depend on what it was given, and makes no learning update at a\
+    ny step.\n\
+    | - **Rules out:** Nothing.\n\
+    | - **Still allows:** An agent that keeps nothing of its experience and never learns: the \
+    record states how an agent learns, not that it learns; such an agent still meets the recor\
+    d only within its bounds, its stops and its run's keeping of its memory.\n\
+    | - **Freedom O5 leaves:** Whether the agent learns at all.\n\
+    | \n\
+    | ## Definitions the record's meaning reaches\n\
+    | \n\
+    | These are not statements of the record: each is a declaration that a statement above dep\
+    ends on, or that says what it is for a subject to meet the record and for a consequence to\
+    \x20hold of it as shown, with everything those depend on in turn. Each is printed in full: it\
+    s type, a definition's value, or for a definition by structural or well-founded recursion \
+    the equation that determines it, and an inductive type's constructors, which for a structu\
+    re are its fields; a theorem's proof and an opaque constant's value are not, since no term\
+    \x20that uses them depends on more than their types. Their plain words are those of the state\
+    ments that use them.\n\
+    | \n\
+    | ### LeanIntent.Shape\n\
+    | \n\
+    | An inductive type. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type u → Type (u + 1)\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 1 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Shape.value\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), LeanIntent.Shape.{u} W\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.function\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (A : Type u), ∀ (B : A → Type u), LeanIntent.Shape.{u} (∀ (x : A), B x)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.step\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (S : Type u), LeanIntent.Shape.{u} (S → S)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.stepOn\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (S : Type u), ∀ (I : Type u), LeanIntent.Shape.{u} (S → I → S)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.action\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (S : Type u), ∀ (O : Type u), LeanIntent.Shape.{u} (S → Prod.{u, u} O S)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.actionOn\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (S : Type u), ∀ (I : Type u), ∀ (O : Type u), LeanIntent.Shape.{u} (S → I → Prod.{u, u\
+    } O S)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.bundle\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ {D : Type u}, ∀ (data : W → D), ∀ (first : LeanIntent.Member.{u} W), ∀\
+    \x20(rest : List.{u + 1} (LeanIntent.Member.{u} W)), LeanIntent.Shape.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Member\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), Type (u + 1)\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 1 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Member.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (name : String), ∀ (In : Type u), ∀ (Out : Type u), ∀ (get : W → In → \
+    Out), LeanIntent.Member.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type 1\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.OneStream.Learner.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (toSystem : AcornVerif.Intent.WorldInterface.System), ∀ (updates : AcornVerif.Intent.W\
+    orldInterface.System.Memory toSystem → Prod.{0, 0} (AcornVerif.Intent.WorldInterface.Syste\
+    m.Obs toSystem) Rat → List.{0} AcornVerif.Intent.OneStream.Update), ∀ (work : AcornVerif.I\
+    ntent.WorldInterface.System.Memory toSystem → Prod.{0, 0} (AcornVerif.Intent.WorldInterfac\
+    e.System.Obs toSystem) Rat → Nat), ∀ (resume : AcornVerif.Intent.WorldInterface.System.Mem\
+    ory toSystem → AcornVerif.Intent.WorldInterface.System.Memory toSystem), AcornVerif.Intent\
+    .OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type 1\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.WorldInterface.System.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (State : Type), ∀ (Obs : Type), ∀ (Act : Type), ∀ (Memory : Type), ∀ (Input : Type), ∀\
+    \x20(start : State), ∀ (observe : State → Obs), ∀ (reward : State → Rat), ∀ (available : Stat\
+    e → Act → Prop), ∀ (step : State → Act → State), ∀ (initial : Memory), ∀ (act : Memory → P\
+    rod.{0, 0} Obs Rat → Prod.{0, 0} Act Memory), ∀ (stopRequest : Input), ∀ (goesOn : State →\
+    \x20Memory → Input → Bool), ∀ (given : State → Memory → Input → Prod.{0, 0} Obs Rat), ∀ (appl\
+    ied : State → Memory → Input → Act → Act), ∀ (moved : State → Memory → Input → Act → State\
+    ), ∀ (kept : State → Memory → Input → Memory → Memory), AcornVerif.Intent.WorldInterface.S\
+    ystem\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.Memory\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 4, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.Obs\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 2, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Update\n\
+    | \n\
+    | An inductive type. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.OneStream.Update.learn\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (datum : AcornVerif.Intent.OneStream.Datum), AcornVerif.Intent.OneStream.Update\n\
+    | ```\n\
+    | \n\
+    | #### AcornVerif.Intent.OneStream.Update.plan\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Update\n\
+    | ```\n\
+    | \n\
+    | #### AcornVerif.Intent.OneStream.Update.reset\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Update\n\
+    | ```\n\
+    | \n\
+    | #### AcornVerif.Intent.OneStream.Update.other\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Update\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Datum\n\
+    | \n\
+    | An inductive type. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.OneStream.Datum.stream\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (age : Nat), AcornVerif.Intent.OneStream.Datum\n\
+    | ```\n\
+    | \n\
+    | #### AcornVerif.Intent.OneStream.Datum.other\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Datum\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.Input\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 5, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner.toSystem\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 1, counted after the parameters in the type of AcornVerif.Int\
+    ent.OneStream.Learner's constructor, of its argument number 1, a value of AcornVerif.Inten\
+    t.OneStream.Learner. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.OneStream.Learner), AcornVerif.Intent.WorldInterface.System\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.State\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 1, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.Takes\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.WorldInterface.System), ∀ (ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input w), ∀ (t : Nat), ∀ (s : AcornVerif.Intent.WorldInterface.System.Stat\
+    e w), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory w), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.WorldInterface.System) => fun (ins : Nat → AcornVerif.Intent.\
+    WorldInterface.System.Input w) => fun (t : Nat) => fun (s : AcornVerif.Intent.WorldInterfa\
+    ce.System.State w) => fun (m : AcornVerif.Intent.WorldInterface.System.Memory w) => And (A\
+    cornVerif.Intent.WorldInterface.System.Reaches w ins t s m) (@Eq.{1} Bool (AcornVerif.Inte\
+    nt.WorldInterface.System.goesOn w s m (ins t)) Bool.true)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.Reaches\n\
+    | \n\
+    | An inductive type. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.WorldInterface.System), ∀ (ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input w), Nat → AcornVerif.Intent.WorldInterface.System.State w → AcornVer\
+    if.Intent.WorldInterface.System.Memory w → Prop\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 2 are parameters and the other 3 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.WorldInterface.System.Reaches.start\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {w : AcornVerif.Intent.WorldInterface.System}, ∀ {ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input w}, AcornVerif.Intent.WorldInterface.System.Reaches w ins (@OfNat.of\
+    Nat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))) (AcornVerif.Intent.WorldInterface.Syst\
+    em.start w) (AcornVerif.Intent.WorldInterface.System.initial w)\n\
+    | ```\n\
+    | \n\
+    | #### AcornVerif.Intent.WorldInterface.System.Reaches.next\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {w : AcornVerif.Intent.WorldInterface.System}, ∀ {ins : Nat → AcornVerif.Intent.WorldI\
+    nterface.System.Input w}, ∀ {t : Nat}, ∀ {s : AcornVerif.Intent.WorldInterface.System.Stat\
+    e w}, ∀ {m : AcornVerif.Intent.WorldInterface.System.Memory w}, AcornVerif.Intent.WorldInt\
+    erface.System.Reaches w ins t s m → @Eq.{1} Bool (AcornVerif.Intent.WorldInterface.System.\
+    goesOn w s m (ins t)) Bool.true → AcornVerif.Intent.WorldInterface.System.Reaches w ins (@\
+    HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) t (@OfNat.ofNat.{0} Nat (na\
+    t_lit 1) (instOfNatNat (nat_lit 1)))) (AcornVerif.Intent.WorldInterface.System.moved w s m\
+    \x20(ins t) (AcornVerif.Intent.WorldInterface.System.applied w s m (ins t) (@Prod.fst.{0, 0} \
+    (AcornVerif.Intent.WorldInterface.System.Act w) (AcornVerif.Intent.WorldInterface.System.M\
+    emory w) (AcornVerif.Intent.WorldInterface.System.answer w s m (ins t))))) (AcornVerif.Int\
+    ent.WorldInterface.System.kept w s m (ins t) (@Prod.snd.{0, 0} (AcornVerif.Intent.WorldInt\
+    erface.System.Act w) (AcornVerif.Intent.WorldInterface.System.Memory w) (AcornVerif.Intent\
+    .WorldInterface.System.answer w s m (ins t))))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.start\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 6, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.initial\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 11, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.Memory self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.goesOn\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 14, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → AcornVerif.Intent.WorldInterface.System.Memory self → AcornVerif.Intent.W\
+    orldInterface.System.Input self → Bool\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.moved\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 17, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → AcornVerif.Intent.WorldInterface.System.Memory self → AcornVerif.Intent.W\
+    orldInterface.System.Input self → AcornVerif.Intent.WorldInterface.System.Act self → Acorn\
+    Verif.Intent.WorldInterface.System.State self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.Act\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 3, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.applied\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 16, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → AcornVerif.Intent.WorldInterface.System.Memory self → AcornVerif.Intent.W\
+    orldInterface.System.Input self → AcornVerif.Intent.WorldInterface.System.Act self → Acorn\
+    Verif.Intent.WorldInterface.System.Act self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.answer\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.WorldInterface.System), ∀ (s : AcornVerif.Intent.WorldInterface\
+    .System.State w), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory w), ∀ (e : AcornVe\
+    rif.Intent.WorldInterface.System.Input w), Prod.{0, 0} (AcornVerif.Intent.WorldInterface.S\
+    ystem.Act w) (AcornVerif.Intent.WorldInterface.System.Memory w)\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.WorldInterface.System) => fun (s : AcornVerif.Intent.WorldInt\
+    erface.System.State w) => fun (m : AcornVerif.Intent.WorldInterface.System.Memory w) => fu\
+    n (e : AcornVerif.Intent.WorldInterface.System.Input w) => AcornVerif.Intent.WorldInterfac\
+    e.System.act w m (AcornVerif.Intent.WorldInterface.System.given w s m e)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.act\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 12, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.Memory self → Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Obs self) Rat → Pro\
+    d.{0, 0} (AcornVerif.Intent.WorldInterface.System.Act self) (AcornVerif.Intent.WorldInterf\
+    ace.System.Memory self)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.given\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 15, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → AcornVerif.Intent.WorldInterface.System.Memory self → AcornVerif.Intent.W\
+    orldInterface.System.Input self → Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Obs\
+    \x20self) Rat\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.kept\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 18, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → AcornVerif.Intent.WorldInterface.System.Memory self → AcornVerif.Intent.W\
+    orldInterface.System.Input self → AcornVerif.Intent.WorldInterface.System.Memory self → Ac\
+    ornVerif.Intent.WorldInterface.System.Memory self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner.stepUpdates\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.OneStream.Learner), ∀ (s : AcornVerif.Intent.WorldInterface.Sys\
+    tem.State (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.Intent.Worl\
+    dInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (e : AcornVe\
+    rif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), \
+    List.{0} AcornVerif.Intent.OneStream.Update\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => fun (s : AcornVerif.Intent.WorldInterfa\
+    ce.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) => fun (m : AcornVerif.I\
+    ntent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) => fu\
+    n (e : AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.\
+    toSystem w)) => AcornVerif.Intent.OneStream.Learner.updates w m (AcornVerif.Intent.WorldIn\
+    terface.System.given (AcornVerif.Intent.OneStream.Learner.toSystem w) s m e)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner.updates\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 2, counted after the parameters in the type of AcornVerif.Int\
+    ent.OneStream.Learner's constructor, of its argument number 1, a value of AcornVerif.Inten\
+    t.OneStream.Learner. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.OneStream.Learner), AcornVerif.Intent.WorldInterface.System.\
+    Memory (AcornVerif.Intent.OneStream.Learner.toSystem self) → Prod.{0, 0} (AcornVerif.Inten\
+    t.WorldInterface.System.Obs (AcornVerif.Intent.OneStream.Learner.toSystem self)) Rat → Lis\
+    t.{0} AcornVerif.Intent.OneStream.Update\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner.stepWork\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.OneStream.Learner), ∀ (s : AcornVerif.Intent.WorldInterface.Sys\
+    tem.State (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.Intent.Worl\
+    dInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (e : AcornVe\
+    rif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), \
+    Nat\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => fun (s : AcornVerif.Intent.WorldInterfa\
+    ce.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) => fun (m : AcornVerif.I\
+    ntent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) => fu\
+    n (e : AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.\
+    toSystem w)) => AcornVerif.Intent.OneStream.Learner.work w m (AcornVerif.Intent.WorldInter\
+    face.System.given (AcornVerif.Intent.OneStream.Learner.toSystem w) s m e)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner.work\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 3, counted after the parameters in the type of AcornVerif.Int\
+    ent.OneStream.Learner's constructor, of its argument number 1, a value of AcornVerif.Inten\
+    t.OneStream.Learner. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.OneStream.Learner), AcornVerif.Intent.WorldInterface.System.\
+    Memory (AcornVerif.Intent.OneStream.Learner.toSystem self) → Prod.{0, 0} (AcornVerif.Inten\
+    t.WorldInterface.System.Obs (AcornVerif.Intent.OneStream.Learner.toSystem self)) Rat → Nat\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner.Stops\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.OneStream.Learner), ∀ (ins : Nat → AcornVerif.Intent.WorldInter\
+    face.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (t : Nat), ∀ (s : A\
+    cornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem\
+    \x20w)), ∀ (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.L\
+    earner.toSystem w)), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => fun (ins : Nat → AcornVerif.Intent.Worl\
+    dInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem w)) => fun (t : Nat)\
+    \x20=> fun (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Le\
+    arner.toSystem w)) => fun (m : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.\
+    Intent.OneStream.Learner.toSystem w)) => And (AcornVerif.Intent.WorldInterface.System.Reac\
+    hes (AcornVerif.Intent.OneStream.Learner.toSystem w) ins t s m) (@Eq.{1} Bool (AcornVerif.\
+    Intent.WorldInterface.System.goesOn (AcornVerif.Intent.OneStream.Learner.toSystem w) s m (\
+    ins t)) Bool.false)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner.resume\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 4, counted after the parameters in the type of AcornVerif.Int\
+    ent.OneStream.Learner's constructor, of its argument number 1, a value of AcornVerif.Inten\
+    t.OneStream.Learner. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.OneStream.Learner), AcornVerif.Intent.WorldInterface.System.\
+    Memory (AcornVerif.Intent.OneStream.Learner.toSystem self) → AcornVerif.Intent.WorldInterf\
+    ace.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem self)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Configuration\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type 1\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @Sigma.{1, 0} AcornVerif.Intent.OneStream.Learner (fun (w : AcornVerif.Intent.OneStream.\
+    Learner) => Prod.{0, 0} (Nat → AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.I\
+    ntent.OneStream.Learner.toSystem w)) (Prod.{0, 0} Nat (Prod.{0, 0} (AcornVerif.Intent.Worl\
+    dInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Inte\
+    nt.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)))))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.Learner.resumedAt\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.OneStream.Learner), ∀ (s : AcornVerif.Intent.WorldInterface.Sys\
+    tem.State (AcornVerif.Intent.OneStream.Learner.toSystem w)), ∀ (m : AcornVerif.Intent.Worl\
+    dInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)), AcornVerif.Int\
+    ent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.OneStream.Learner) => fun (s : AcornVerif.Intent.WorldInterfa\
+    ce.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) => fun (m : AcornVerif.I\
+    ntent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSystem w)) => Ac\
+    ornVerif.Intent.OneStream.Learner.mk (AcornVerif.Intent.WorldInterface.System.mk (AcornVer\
+    if.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem w)) (A\
+    cornVerif.Intent.WorldInterface.System.Obs (AcornVerif.Intent.OneStream.Learner.toSystem w\
+    )) (AcornVerif.Intent.WorldInterface.System.Act (AcornVerif.Intent.OneStream.Learner.toSys\
+    tem w)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learn\
+    er.toSystem w)) (AcornVerif.Intent.WorldInterface.System.Input (AcornVerif.Intent.OneStrea\
+    m.Learner.toSystem w)) s (AcornVerif.Intent.WorldInterface.System.observe (AcornVerif.Inte\
+    nt.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.reward (AcornVe\
+    rif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.availab\
+    le (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.Sys\
+    tem.step (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.OneStream.Le\
+    arner.resume w m) (AcornVerif.Intent.WorldInterface.System.act (AcornVerif.Intent.OneStrea\
+    m.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.stopRequest (AcornVerif.In\
+    tent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.goesOn (Acorn\
+    Verif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.System.given\
+    \x20(AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterface.Syste\
+    m.applied (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.WorldInterf\
+    ace.System.moved (AcornVerif.Intent.OneStream.Learner.toSystem w)) (AcornVerif.Intent.Worl\
+    dInterface.System.kept (AcornVerif.Intent.OneStream.Learner.toSystem w))) (AcornVerif.Inte\
+    nt.OneStream.Learner.updates w) (AcornVerif.Intent.OneStream.Learner.work w) (AcornVerif.I\
+    ntent.OneStream.Learner.resume w)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.observe\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 7, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → AcornVerif.Intent.WorldInterface.System.Obs self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.reward\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 8, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → Rat\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.available\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 9, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.I\
+    ntent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → AcornVerif.Intent.WorldInterface.System.Act self → Prop\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.step\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 10, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.State self → AcornVerif.Intent.WorldInterface.System.Act self → AcornVerif.Intent.Worl\
+    dInterface.System.State self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.System.stopRequest\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 13, counted after the parameters in the type of AcornVerif.In\
+    tent.WorldInterface.System's constructor, of its argument number 1, a value of AcornVerif.\
+    Intent.WorldInterface.System. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.System), AcornVerif.Intent.WorldInterface.Sys\
+    tem.Input self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.splice\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {I : Type}, ∀ (ins : Nat → I), ∀ (t : Nat), ∀ (ins' : Nat → I), Nat → I\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {I : Type} => fun (ins : Nat → I) => fun (t : Nat) => fun (ins' : Nat → I) => fun (j\
+    \x20: Nat) => @ite.{1} I (@LT.lt.{0} Nat instLTNat j t) (Nat.decLt j t) (ins j) (ins' (@HSub.\
+    hSub.{0, 0, 0} Nat Nat Nat (@instHSub.{0} Nat instSubNat) j t))\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.Meets\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (r : LeanIntent.IntentRecord.{u} W), ∀ (w : W), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {W : Type u} => fun (r : LeanIntent.IntentRecord.{u} W) => fun (w : W) => And (@Lean\
+    Intent.IntentRecord.Dom.{u} W r w) (@LeanIntent.IntentRecord.Props.{u} W r w)\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), Type (u + 1)\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 1 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.IntentRecord.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (shape : LeanIntent.Shape.{u} W), ∀ (dom : List.{u} (LeanIntent.Clause\
+    .{u} W)), ∀ (props : List.{u} (LeanIntent.Clause.{u} W)), ∀ (vocab : List.{u + 1} LeanInte\
+    nt.Pred.{u}), LeanIntent.IntentRecord.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Clause\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), Type u\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 1 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Clause.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (name : String), ∀ (holds : W → Prop), LeanIntent.Clause.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Pred\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type (u + 1)\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Pred.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (name : String), ∀ (Arg : Type u), ∀ (holds : Arg → Prop), LeanIntent.Pred.{u}\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.Dom\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (r : LeanIntent.IntentRecord.{u} W), ∀ (w : W), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {W : Type u} => fun (r : LeanIntent.IntentRecord.{u} W) => fun (w : W) => ∀ (d : Lea\
+    nIntent.Clause.{u} W), @Membership.mem.{u, u} (LeanIntent.Clause.{u} W) (List.{u} (LeanInt\
+    ent.Clause.{u} W)) (@List.instMembership.{u} (LeanIntent.Clause.{u} W)) (@LeanIntent.Inten\
+    tRecord.dom.{u} W r) d → @LeanIntent.Clause.holds.{u} W d w\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.dom\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 2, counted after the parameters in the type of LeanIntent.Int\
+    entRecord's constructor, of its argument number 2, a value of LeanIntent.IntentRecord. It \
+    has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.IntentRecord.{u} W), List.{u} (LeanIntent.Clause.{u\
+    } W)\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Clause.holds\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 2, counted after the parameters in the type of LeanIntent.Cla\
+    use's constructor, of its argument number 2, a value of LeanIntent.Clause. It has the univ\
+    erse parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.Clause.{u} W), W → Prop\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.Props\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (r : LeanIntent.IntentRecord.{u} W), ∀ (w : W), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {W : Type u} => fun (r : LeanIntent.IntentRecord.{u} W) => fun (w : W) => ∀ (p : Lea\
+    nIntent.Clause.{u} W), @Membership.mem.{u, u} (LeanIntent.Clause.{u} W) (List.{u} (LeanInt\
+    ent.Clause.{u} W)) (@List.instMembership.{u} (LeanIntent.Clause.{u} W)) (@LeanIntent.Inten\
+    tRecord.props.{u} W r) p → @LeanIntent.Clause.holds.{u} W p w\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.props\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 3, counted after the parameters in the type of LeanIntent.Int\
+    entRecord's constructor, of its argument number 2, a value of LeanIntent.IntentRecord. It \
+    has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.IntentRecord.{u} W), List.{u} (LeanIntent.Clause.{u\
+    } W)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.replaysLast\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | have __src : AcornVerif.Intent.OneStream.Learner := AcornVerif.Intent.OneStream.base; Ac\
+    ornVerif.Intent.OneStream.Learner.mk (AcornVerif.Intent.OneStream.Learner.toSystem __src) \
+    (fun (x : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Lear\
+    ner.toSystem __src)) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Ob\
+    s (AcornVerif.Intent.OneStream.Learner.toSystem __src)) Rat) => @List.cons.{0} AcornVerif.\
+    Intent.OneStream.Update (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneSt\
+    ream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@List.c\
+    ons.{0} AcornVerif.Intent.OneStream.Update (AcornVerif.Intent.OneStream.Update.learn (Acor\
+    nVerif.Intent.OneStream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_\
+    lit 1))))) (@List.nil.{0} AcornVerif.Intent.OneStream.Update))) (AcornVerif.Intent.OneStre\
+    am.Learner.work __src) (AcornVerif.Intent.OneStream.Learner.resume __src)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.base\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.learner AcornVerif.Intent.WorldInterface.mirror AcornVerif.I\
+    ntent.OneStream.lastSeen (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVe\
+    rif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVerif.I\
+    ntent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Intent.\
+    OneStream.lastSeen) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs \
+    AcornVerif.Intent.WorldInterface.mirror) Rat) => @List.cons.{0} AcornVerif.Intent.OneStrea\
+    m.Update (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneStream.Datum.stre\
+    am (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@List.nil.{0} AcornVer\
+    if.Intent.OneStream.Update)) (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (Aco\
+    rnVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVer\
+    if.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Int\
+    ent.OneStream.lastSeen) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.\
+    Obs AcornVerif.Intent.WorldInterface.mirror) Rat) => @OfNat.ofNat.{0} Nat (nat_lit 1) (ins\
+    tOfNatNat (nat_lit 1))) (@id.{1} (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVer\
+    if.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVerif.In\
+    tent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Intent.O\
+    neStream.lastSeen))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.learner\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : AcornVerif.Intent.WorldInterface.World), ∀ (A : AcornVerif.Intent.WorldInterface.\
+    Agent (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.Wor\
+    ld.Act W)), ∀ (ups : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.Wor\
+    ldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A → Prod.{0, 0} (A\
+    cornVerif.Intent.WorldInterface.World.Obs W) Rat → List.{0} AcornVerif.Intent.OneStream.Up\
+    date), ∀ (cost : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldIn\
+    terface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A → Prod.{0, 0} (Acorn\
+    Verif.Intent.WorldInterface.World.Obs W) Rat → Nat), ∀ (back : @AcornVerif.Intent.WorldInt\
+    erface.Agent.Memory (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.Worl\
+    dInterface.World.Act W) A → @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Int\
+    ent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A), AcornVe\
+    rif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (W : AcornVerif.Intent.WorldInterface.World) => fun (A : AcornVerif.Intent.WorldInte\
+    rface.Agent (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterfa\
+    ce.World.Act W)) => fun (ups : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.\
+    Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A → Prod\
+    .{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs W) Rat → List.{0} AcornVerif.Intent.On\
+    eStream.Update) => fun (cost : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.\
+    Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A → Prod\
+    .{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs W) Rat → Nat) => fun (back : @AcornVer\
+    if.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInterface.World.Obs W) (Acor\
+    nVerif.Intent.WorldInterface.World.Act W) A → @AcornVerif.Intent.WorldInterface.Agent.Memo\
+    ry (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.\
+    Act W) A) => let __System : AcornVerif.Intent.WorldInterface.System := AcornVerif.Intent.W\
+    orldInterface.couple W A; AcornVerif.Intent.OneStream.Learner.mk __System ups cost back\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type 1\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.WorldInterface.World.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (State : Type), ∀ (Obs : Type), ∀ (Act : Type), ∀ (start : State), ∀ (observe : State \
+    → Obs), ∀ (reward : State → Rat), ∀ (available : State → Act → Prop), ∀ (step : State → Ac\
+    t → State), AcornVerif.Intent.WorldInterface.World\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.Agent\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (Obs : Type), ∀ (Act : Type), Type 1\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 2 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.WorldInterface.Agent.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (Memory : Type), ∀ (initial : Memory), ∀ (act : Memory\
+    \x20→ Prod.{0, 0} Obs Rat → Prod.{0, 0} Act Memory), AcornVerif.Intent.WorldInterface.Agent O\
+    bs Act\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World.Obs\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 2, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.World's constructor, of its argument number 1, a value of AcornVerif.In\
+    tent.WorldInterface.World. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.World), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World.Act\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 3, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.World's constructor, of its argument number 1, a value of AcornVerif.In\
+    tent.WorldInterface.World. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.World), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.Agent.Memory\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 1, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.Agent's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.WorldInterface.Agent. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.WorldInterface.Agent Obs Act\
+    ), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.couple\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : AcornVerif.Intent.WorldInterface.World), ∀ (A : AcornVerif.Intent.WorldInterface.\
+    Agent (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.Wor\
+    ld.Act W)), AcornVerif.Intent.WorldInterface.System\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (W : AcornVerif.Intent.WorldInterface.World) => fun (A : AcornVerif.Intent.WorldInte\
+    rface.Agent (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterfa\
+    ce.World.Act W)) => AcornVerif.Intent.WorldInterface.System.mk (AcornVerif.Intent.WorldInt\
+    erface.World.State W) (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.Wo\
+    rldInterface.World.Act W) (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Inte\
+    nt.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A) Bool (Aco\
+    rnVerif.Intent.WorldInterface.World.start W) (AcornVerif.Intent.WorldInterface.World.obser\
+    ve W) (AcornVerif.Intent.WorldInterface.World.reward W) (AcornVerif.Intent.WorldInterface.\
+    World.available W) (AcornVerif.Intent.WorldInterface.World.step W) (@AcornVerif.Intent.Wor\
+    ldInterface.Agent.initial (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Inten\
+    t.WorldInterface.World.Act W) A) (@AcornVerif.Intent.WorldInterface.Agent.act (AcornVerif.\
+    Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A) Bool.\
+    true (fun (x : AcornVerif.Intent.WorldInterface.World.State W) => fun (x_1 : @AcornVerif.I\
+    ntent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVer\
+    if.Intent.WorldInterface.World.Act W) A) => fun (e : Bool) => Bool.not e) (fun (s : AcornV\
+    erif.Intent.WorldInterface.World.State W) => fun (x : @AcornVerif.Intent.WorldInterface.Ag\
+    ent.Memory (AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterfac\
+    e.World.Act W) A) => fun (x_1 : Bool) => @Prod.mk.{0, 0} (AcornVerif.Intent.WorldInterface\
+    .World.Obs W) Rat (AcornVerif.Intent.WorldInterface.World.observe W s) (AcornVerif.Intent.\
+    WorldInterface.World.reward W s)) (fun (x : AcornVerif.Intent.WorldInterface.World.State W\
+    ) => fun (x_1 : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInt\
+    erface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A) => fun (x_2 : Bool) \
+    => fun (a : AcornVerif.Intent.WorldInterface.World.Act W) => a) (fun (s : AcornVerif.Inten\
+    t.WorldInterface.World.State W) => fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory\
+    \x20(AcornVerif.Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Ac\
+    t W) A) => fun (x_1 : Bool) => fun (a : AcornVerif.Intent.WorldInterface.World.Act W) => A\
+    cornVerif.Intent.WorldInterface.World.step W s a) (fun (x : AcornVerif.Intent.WorldInterfa\
+    ce.World.State W) => fun (x_1 : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif\
+    .Intent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A) => f\
+    un (x_2 : Bool) => fun (m : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Int\
+    ent.WorldInterface.World.Obs W) (AcornVerif.Intent.WorldInterface.World.Act W) A) => m)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World.State\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 1, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.World's constructor, of its argument number 1, a value of AcornVerif.In\
+    tent.WorldInterface.World. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.World), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World.start\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 4, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.World's constructor, of its argument number 1, a value of AcornVerif.In\
+    tent.WorldInterface.World. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.World), AcornVerif.Intent.WorldInterface.Worl\
+    d.State self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World.observe\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 5, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.World's constructor, of its argument number 1, a value of AcornVerif.In\
+    tent.WorldInterface.World. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.World), AcornVerif.Intent.WorldInterface.Worl\
+    d.State self → AcornVerif.Intent.WorldInterface.World.Obs self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World.reward\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 6, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.World's constructor, of its argument number 1, a value of AcornVerif.In\
+    tent.WorldInterface.World. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.World), AcornVerif.Intent.WorldInterface.Worl\
+    d.State self → Rat\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World.available\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 7, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.World's constructor, of its argument number 1, a value of AcornVerif.In\
+    tent.WorldInterface.World. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.World), AcornVerif.Intent.WorldInterface.Worl\
+    d.State self → AcornVerif.Intent.WorldInterface.World.Act self → Prop\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.World.step\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 8, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.World's constructor, of its argument number 1, a value of AcornVerif.In\
+    tent.WorldInterface.World. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.WorldInterface.World), AcornVerif.Intent.WorldInterface.Worl\
+    d.State self → AcornVerif.Intent.WorldInterface.World.Act self → AcornVerif.Intent.WorldIn\
+    terface.World.State self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.Agent.initial\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 2, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.Agent's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.WorldInterface.Agent. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.WorldInterface.Agent Obs Act\
+    ), @AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.Agent.act\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 3, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.Agent's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.WorldInterface.Agent. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.WorldInterface.Agent Obs Act\
+    ), @AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act self → Prod.{0, 0} Obs Rat → Pro\
+    d.{0, 0} Act (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act self)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.mirror\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.World\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.World.mk Bool Bool Bool Bool.false (fun (s : Bool) => s\
+    ) (fun (x : Bool) => @OfNat.ofNat.{0} Rat (nat_lit 0) (@Rat.instOfNat (nat_lit 0))) (fun (\
+    x : Bool) => fun (x_1 : Bool) => True) (fun (x : Bool) => fun (a : Bool) => a)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.lastSeen\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.Agent Bool Bool\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @AcornVerif.Intent.WorldInterface.Agent.mk Bool Bool Bool Bool.false (fun (x : Bool) => \
+    fun (o : Prod.{0, 0} Bool Rat) => @Prod.mk.{0, 0} Bool Bool (@Prod.fst.{0, 0} Bool Rat o) \
+    (@Prod.fst.{0, 0} Bool Rat o))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.replaysPrevious\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | have __src : AcornVerif.Intent.OneStream.Learner := AcornVerif.Intent.OneStream.base; Ac\
+    ornVerif.Intent.OneStream.Learner.mk (AcornVerif.Intent.OneStream.Learner.toSystem __src) \
+    (fun (x : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Lear\
+    ner.toSystem __src)) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Ob\
+    s (AcornVerif.Intent.OneStream.Learner.toSystem __src)) Rat) => @List.cons.{0} AcornVerif.\
+    Intent.OneStream.Update (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneSt\
+    ream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))) (@List.n\
+    il.{0} AcornVerif.Intent.OneStream.Update)) (AcornVerif.Intent.OneStream.Learner.work __sr\
+    c) (AcornVerif.Intent.OneStream.Learner.resume __src)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.learnsElsewhere\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | have __src : AcornVerif.Intent.OneStream.Learner := AcornVerif.Intent.OneStream.base; Ac\
+    ornVerif.Intent.OneStream.Learner.mk (AcornVerif.Intent.OneStream.Learner.toSystem __src) \
+    (fun (x : AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Lear\
+    ner.toSystem __src)) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.System.Ob\
+    s (AcornVerif.Intent.OneStream.Learner.toSystem __src)) Rat) => @List.cons.{0} AcornVerif.\
+    Intent.OneStream.Update (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneSt\
+    ream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@List.c\
+    ons.{0} AcornVerif.Intent.OneStream.Update (AcornVerif.Intent.OneStream.Update.learn Acorn\
+    Verif.Intent.OneStream.Datum.other) (@List.nil.{0} AcornVerif.Intent.OneStream.Update))) (\
+    AcornVerif.Intent.OneStream.Learner.work __src) (AcornVerif.Intent.OneStream.Learner.resum\
+    e __src)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.storesStream\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.learner AcornVerif.Intent.WorldInterface.mirror AcornVerif.I\
+    ntent.OneStream.hoarder (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVer\
+    if.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVerif.In\
+    tent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Intent.O\
+    neStream.hoarder) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs Ac\
+    ornVerif.Intent.WorldInterface.mirror) Rat) => @List.cons.{0} AcornVerif.Intent.OneStream.\
+    Update (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneStream.Datum.stream\
+    \x20(@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@List.nil.{0} AcornVerif\
+    .Intent.OneStream.Update)) (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (Acorn\
+    Verif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVerif\
+    .Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Inten\
+    t.OneStream.hoarder) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs\
+    \x20AcornVerif.Intent.WorldInterface.mirror) Rat) => @OfNat.ofNat.{0} Nat (nat_lit 1) (instOf\
+    NatNat (nat_lit 1))) (@id.{1} (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.\
+    Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVerif.Inten\
+    t.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Intent.OneS\
+    tream.hoarder))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.hoarder\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.Agent Bool Bool\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @AcornVerif.Intent.WorldInterface.Agent.mk Bool Bool (List.{0} Bool) (@List.nil.{0} Bool\
+    ) (fun (m : List.{0} Bool) => fun (o : Prod.{0, 0} Bool Rat) => @Prod.mk.{0, 0} Bool (List\
+    .{0} Bool) (@Prod.fst.{0, 0} Bool Rat o) (@List.cons.{0} Bool (@Prod.fst.{0, 0} Bool Rat o\
+    ) m))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.growingWork\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.learner AcornVerif.Intent.OneStream.clock AcornVerif.Intent.\
+    OneStream.still (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Inten\
+    t.WorldInterface.World.Obs AcornVerif.Intent.OneStream.clock) (AcornVerif.Intent.WorldInte\
+    rface.World.Act AcornVerif.Intent.OneStream.clock) AcornVerif.Intent.OneStream.still) => f\
+    un (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.OneStr\
+    eam.clock) Rat) => @List.nil.{0} AcornVerif.Intent.OneStream.Update) (fun (x : @AcornVerif\
+    .Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif\
+    .Intent.OneStream.clock) (AcornVerif.Intent.WorldInterface.World.Act AcornVerif.Intent.One\
+    Stream.clock) AcornVerif.Intent.OneStream.still) => fun (o : Prod.{0, 0} (AcornVerif.Inten\
+    t.WorldInterface.World.Obs AcornVerif.Intent.OneStream.clock) Rat) => @Prod.fst.{0, 0} (Ac\
+    ornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.OneStream.clock) Rat o) (@id.{1\
+    } (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInterface.World.\
+    Obs AcornVerif.Intent.OneStream.clock) (AcornVerif.Intent.WorldInterface.World.Act AcornVe\
+    rif.Intent.OneStream.clock) AcornVerif.Intent.OneStream.still))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.clock\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.World\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.World.mk Nat Nat Bool (@OfNat.ofNat.{0} Nat (nat_lit 0)\
+    \x20(instOfNatNat (nat_lit 0))) (fun (s : Nat) => s) (fun (x : Nat) => @OfNat.ofNat.{0} Rat (\
+    nat_lit 0) (@Rat.instOfNat (nat_lit 0))) (fun (x : Nat) => fun (x_1 : Bool) => True) (fun \
+    (s : Nat) => fun (x : Bool) => @HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAdd\
+    Nat) s (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.still\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.Agent Nat Bool\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @AcornVerif.Intent.WorldInterface.always Nat Bool Bool.true\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.always\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (a : Act), AcornVerif.Intent.WorldInterface.Agent Obs \
+    Act\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {Obs : Type} => fun {Act : Type} => fun (a : Act) => @AcornVerif.Intent.WorldInterfa\
+    ce.Agent.mk Obs Act Unit Unit.unit (fun (x : Unit) => fun (x_1 : Prod.{0, 0} Obs Rat) => @\
+    Prod.mk.{0, 0} Act Unit a Unit.unit)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.plansMore\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.learner AcornVerif.Intent.OneStream.clock AcornVerif.Intent.\
+    OneStream.still (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Inten\
+    t.WorldInterface.World.Obs AcornVerif.Intent.OneStream.clock) (AcornVerif.Intent.WorldInte\
+    rface.World.Act AcornVerif.Intent.OneStream.clock) AcornVerif.Intent.OneStream.still) => f\
+    un (o : Prod.{0, 0} Nat Rat) => @List.replicate.{0} AcornVerif.Intent.OneStream.Update (@H\
+    Add.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) (@Prod.fst.{0, 0} Nat Rat o)\
+    \x20(@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))) AcornVerif.Intent.OneStrea\
+    m.Update.plan) (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent\
+    .WorldInterface.World.Obs AcornVerif.Intent.OneStream.clock) (AcornVerif.Intent.WorldInter\
+    face.World.Act AcornVerif.Intent.OneStream.clock) AcornVerif.Intent.OneStream.still) => fu\
+    n (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.OneStre\
+    am.clock) Rat) => @OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))) (@id.{1} (@\
+    AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInterface.World.Obs \
+    AcornVerif.Intent.OneStream.clock) (AcornVerif.Intent.WorldInterface.World.Act AcornVerif.\
+    Intent.OneStream.clock) AcornVerif.Intent.OneStream.still))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.learnsOnce\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.learner AcornVerif.Intent.WorldInterface.mirror AcornVerif.I\
+    ntent.OneStream.trained (fun (m : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVer\
+    if.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVerif.In\
+    tent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Intent.O\
+    neStream.trained) => fun (x : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs Acor\
+    nVerif.Intent.WorldInterface.mirror) Rat) => @cond.{1} (List.{0} AcornVerif.Intent.OneStre\
+    am.Update) m (@List.nil.{0} AcornVerif.Intent.OneStream.Update) (@List.cons.{0} AcornVerif\
+    .Intent.OneStream.Update (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneS\
+    tream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@List.\
+    nil.{0} AcornVerif.Intent.OneStream.Update))) (fun (x : @AcornVerif.Intent.WorldInterface.\
+    Agent.Memory (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.\
+    mirror) (AcornVerif.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirro\
+    r) AcornVerif.Intent.OneStream.trained) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.World\
+    Interface.World.Obs AcornVerif.Intent.WorldInterface.mirror) Rat) => @OfNat.ofNat.{0} Nat \
+    (nat_lit 1) (instOfNatNat (nat_lit 1))) (@id.{1} (@AcornVerif.Intent.WorldInterface.Agent.\
+    Memory (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror\
+    ) (AcornVerif.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) Aco\
+    rnVerif.Intent.OneStream.trained))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.trained\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.Agent Bool Bool\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @AcornVerif.Intent.WorldInterface.Agent.mk Bool Bool Bool Bool.false (fun (x : Bool) => \
+    fun (o : Prod.{0, 0} Bool Rat) => @Prod.mk.{0, 0} Bool Bool (@Prod.fst.{0, 0} Bool Rat o) \
+    Bool.true)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.plansOnce\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.learner AcornVerif.Intent.WorldInterface.mirror AcornVerif.I\
+    ntent.OneStream.trained (fun (m : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVer\
+    if.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVerif.In\
+    tent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Intent.O\
+    neStream.trained) => fun (x : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs Acor\
+    nVerif.Intent.WorldInterface.mirror) Rat) => @cond.{1} (List.{0} AcornVerif.Intent.OneStre\
+    am.Update) m (@List.nil.{0} AcornVerif.Intent.OneStream.Update) (@List.cons.{0} AcornVerif\
+    .Intent.OneStream.Update AcornVerif.Intent.OneStream.Update.plan (@List.nil.{0} AcornVerif\
+    .Intent.OneStream.Update))) (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (Acor\
+    nVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVeri\
+    f.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Inte\
+    nt.OneStream.trained) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Ob\
+    s AcornVerif.Intent.WorldInterface.mirror) Rat) => @OfNat.ofNat.{0} Nat (nat_lit 1) (instO\
+    fNatNat (nat_lit 1))) (@id.{1} (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif\
+    .Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.mirror) (AcornVerif.Inte\
+    nt.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.mirror) AcornVerif.Intent.One\
+    Stream.trained))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.resetsAtRestart\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.learner AcornVerif.Intent.WorldInterface.attempts AcornVerif\
+    .Intent.OneStream.resetter (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (Acorn\
+    Verif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.attempts) (AcornVer\
+    if.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.attempts) AcornVerif.I\
+    ntent.OneStream.resetter) => fun (o : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.\
+    Obs AcornVerif.Intent.WorldInterface.attempts) Rat) => @cond.{1} (List.{0} AcornVerif.Inte\
+    nt.OneStream.Update) (@Prod.fst.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs AcornVe\
+    rif.Intent.WorldInterface.attempts) Rat o) (@List.cons.{0} AcornVerif.Intent.OneStream.Upd\
+    ate (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneStream.Datum.stream (@\
+    OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@List.cons.{0} AcornVerif.I\
+    ntent.OneStream.Update AcornVerif.Intent.OneStream.Update.reset (@List.nil.{0} AcornVerif.\
+    Intent.OneStream.Update))) (@List.cons.{0} AcornVerif.Intent.OneStream.Update (AcornVerif.\
+    Intent.OneStream.Update.learn (AcornVerif.Intent.OneStream.Datum.stream (@OfNat.ofNat.{0} \
+    Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@List.nil.{0} AcornVerif.Intent.OneStream.U\
+    pdate))) (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.World\
+    Interface.World.Obs AcornVerif.Intent.WorldInterface.attempts) (AcornVerif.Intent.WorldInt\
+    erface.World.Act AcornVerif.Intent.WorldInterface.attempts) AcornVerif.Intent.OneStream.re\
+    setter) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.I\
+    ntent.WorldInterface.attempts) Rat) => @OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat\
+    _lit 1))) (@id.{1} (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.Worl\
+    dInterface.World.Obs AcornVerif.Intent.WorldInterface.attempts) (AcornVerif.Intent.WorldIn\
+    terface.World.Act AcornVerif.Intent.WorldInterface.attempts) AcornVerif.Intent.OneStream.r\
+    esetter))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.attempts\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.World\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.World.mk Bool Bool Bool Bool.false (fun (s : Bool) => s\
+    ) (fun (x : Bool) => @OfNat.ofNat.{0} Rat (nat_lit 0) (@Rat.instOfNat (nat_lit 0))) (fun (\
+    x : Bool) => fun (x_1 : Bool) => True) (fun (s : Bool) => fun (x : Bool) => Bool.not s)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.resetter\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.Agent Bool Bool\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @AcornVerif.Intent.WorldInterface.Agent.mk Bool Bool Bool Bool.false (fun (m : Bool) => \
+    fun (o : Prod.{0, 0} Bool Rat) => @Prod.mk.{0, 0} Bool Bool (@Prod.fst.{0, 0} Bool Rat o) \
+    (@cond.{1} Bool (@Prod.fst.{0, 0} Bool Rat o) Bool.false (Bool.or m (Bool.not (@Prod.fst.{\
+    0, 0} Bool Rat o)))))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.runResetsAtRestart\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | let __src : AcornVerif.Intent.OneStream.Learner := AcornVerif.Intent.OneStream.learner A\
+    cornVerif.Intent.WorldInterface.attempts AcornVerif.Intent.OneStream.lastSeen (fun (x : @A\
+    cornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInterface.World.Obs A\
+    cornVerif.Intent.WorldInterface.attempts) (AcornVerif.Intent.WorldInterface.World.Act Acor\
+    nVerif.Intent.WorldInterface.attempts) AcornVerif.Intent.OneStream.lastSeen) => fun (x_1 :\
+    \x20Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.\
+    attempts) Rat) => @List.cons.{0} AcornVerif.Intent.OneStream.Update (AcornVerif.Intent.One\
+    Stream.Update.learn (AcornVerif.Intent.OneStream.Datum.stream (@OfNat.ofNat.{0} Nat (nat_l\
+    it 0) (instOfNatNat (nat_lit 0))))) (@List.nil.{0} AcornVerif.Intent.OneStream.Update)) (f\
+    un (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInterface.W\
+    orld.Obs AcornVerif.Intent.WorldInterface.attempts) (AcornVerif.Intent.WorldInterface.Worl\
+    d.Act AcornVerif.Intent.WorldInterface.attempts) AcornVerif.Intent.OneStream.lastSeen) => \
+    fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.World\
+    Interface.attempts) Rat) => @OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (\
+    @id.{1} (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.WorldInterface.\
+    World.Obs AcornVerif.Intent.WorldInterface.attempts) (AcornVerif.Intent.WorldInterface.Wor\
+    ld.Act AcornVerif.Intent.WorldInterface.attempts) AcornVerif.Intent.OneStream.lastSeen)); \
+    AcornVerif.Intent.OneStream.Learner.mk (AcornVerif.Intent.WorldInterface.System.mk (AcornV\
+    erif.Intent.WorldInterface.System.State (AcornVerif.Intent.OneStream.Learner.toSystem __sr\
+    c)) (AcornVerif.Intent.WorldInterface.System.Obs (AcornVerif.Intent.OneStream.Learner.toSy\
+    stem __src)) (AcornVerif.Intent.WorldInterface.System.Act (AcornVerif.Intent.OneStream.Lea\
+    rner.toSystem __src)) (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.O\
+    neStream.Learner.toSystem __src)) (AcornVerif.Intent.WorldInterface.System.Input (AcornVer\
+    if.Intent.OneStream.Learner.toSystem __src)) (AcornVerif.Intent.WorldInterface.System.star\
+    t (AcornVerif.Intent.OneStream.Learner.toSystem __src)) (AcornVerif.Intent.WorldInterface.\
+    System.observe (AcornVerif.Intent.OneStream.Learner.toSystem __src)) (AcornVerif.Intent.Wo\
+    rldInterface.System.reward (AcornVerif.Intent.OneStream.Learner.toSystem __src)) (AcornVer\
+    if.Intent.WorldInterface.System.available (AcornVerif.Intent.OneStream.Learner.toSystem __\
+    src)) (AcornVerif.Intent.WorldInterface.System.step (AcornVerif.Intent.OneStream.Learner.t\
+    oSystem __src)) (AcornVerif.Intent.WorldInterface.System.initial (AcornVerif.Intent.OneStr\
+    eam.Learner.toSystem __src)) (AcornVerif.Intent.WorldInterface.System.act (AcornVerif.Inte\
+    nt.OneStream.Learner.toSystem __src)) (AcornVerif.Intent.WorldInterface.System.stopRequest\
+    \x20(AcornVerif.Intent.OneStream.Learner.toSystem __src)) (AcornVerif.Intent.WorldInterface.S\
+    ystem.goesOn (AcornVerif.Intent.OneStream.Learner.toSystem __src)) (AcornVerif.Intent.Worl\
+    dInterface.System.given (AcornVerif.Intent.OneStream.Learner.toSystem __src)) (AcornVerif.\
+    Intent.WorldInterface.System.applied (AcornVerif.Intent.OneStream.Learner.toSystem __src))\
+    \x20(AcornVerif.Intent.WorldInterface.System.moved (AcornVerif.Intent.OneStream.Learner.toSys\
+    tem __src)) (fun (s : AcornVerif.Intent.WorldInterface.System.State (AcornVerif.Intent.One\
+    Stream.Learner.toSystem __src)) => fun (x : AcornVerif.Intent.WorldInterface.System.Memory\
+    \x20(AcornVerif.Intent.OneStream.Learner.toSystem __src)) => fun (x_1 : AcornVerif.Intent.Wor\
+    ldInterface.System.Input (AcornVerif.Intent.OneStream.Learner.toSystem __src)) => fun (m :\
+    \x20AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Intent.OneStream.Learner.toSys\
+    tem __src)) => @cond.{1} (AcornVerif.Intent.WorldInterface.System.Memory (AcornVerif.Inten\
+    t.OneStream.Learner.toSystem __src)) s Bool.false m)) (AcornVerif.Intent.OneStream.Learner\
+    .updates __src) (AcornVerif.Intent.OneStream.Learner.work __src) (AcornVerif.Intent.OneStr\
+    eam.Learner.resume __src)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.OneStream.resumesFresh\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.Learner\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.OneStream.learner AcornVerif.Intent.WorldInterface.attempts AcornVerif\
+    .Intent.OneStream.lastSeen (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Memory (Acorn\
+    Verif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.attempts) (AcornVer\
+    if.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.attempts) AcornVerif.I\
+    ntent.OneStream.lastSeen) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInterface.Worl\
+    d.Obs AcornVerif.Intent.WorldInterface.attempts) Rat) => @List.cons.{0} AcornVerif.Intent.\
+    OneStream.Update (AcornVerif.Intent.OneStream.Update.learn (AcornVerif.Intent.OneStream.Da\
+    tum.stream (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))))) (@List.nil.{0} \
+    AcornVerif.Intent.OneStream.Update)) (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Mem\
+    ory (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.attempts)\
+    \x20(AcornVerif.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.attempts) Ac\
+    ornVerif.Intent.OneStream.lastSeen) => fun (x_1 : Prod.{0, 0} (AcornVerif.Intent.WorldInte\
+    rface.World.Obs AcornVerif.Intent.WorldInterface.attempts) Rat) => @OfNat.ofNat.{0} Nat (n\
+    at_lit 1) (instOfNatNat (nat_lit 1))) (fun (x : @AcornVerif.Intent.WorldInterface.Agent.Me\
+    mory (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.attempts\
+    ) (AcornVerif.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.attempts) A\
+    cornVerif.Intent.OneStream.lastSeen) => Bool.false)\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.HoldsOf\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (c : LeanIntent.Consequence.{u} W), ∀ (r : LeanIntent.IntentRecord.{u}\
+    \x20W), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {W : Type u} => fun (c : LeanIntent.Consequence.{u} W) => fun (r : LeanIntent.Intent\
+    Record.{u} W) => LeanIntent.Consequence.HoldsOf.match_1.{1} (fun (x : LeanIntent.Consequen\
+    ce.Kind) => Prop) (@LeanIntent.Consequence.kind.{u} W c) (fun («_» : Unit) => ∀ (w : W), @\
+    LeanIntent.IntentRecord.Meets.{u} W r w → @LeanIntent.Consequence.holds.{u} W c w) (fun («\
+    _» : Unit) => @LeanIntent.HasInstance.{u + 1} W (fun (w : W) => And (@LeanIntent.IntentRec\
+    ord.Meets.{u} W r w) (@LeanIntent.Consequence.holds.{u} W c w)))\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), Type u\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 1 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Consequence.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (name : String), ∀ (kind : LeanIntent.Consequence.Kind), ∀ (holds : W \
+    → Prop), LeanIntent.Consequence.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.Kind\n\
+    | \n\
+    | An inductive type. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Consequence.Kind.entailment\n\
+    | \n\
+    | ```lean\n\
+    | LeanIntent.Consequence.Kind\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Consequence.Kind.possibility\n\
+    | \n\
+    | ```lean\n\
+    | LeanIntent.Consequence.Kind\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.HoldsOf.match_1\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : LeanIntent.Consequence.Kind → Sort u_1), ∀ (x : LeanIntent.Consequence.Kind)\
+    , ∀ (h_1 : ∀ («_» : Unit), motive LeanIntent.Consequence.Kind.entailment), ∀ (h_2 : ∀ («_»\
+    \x20: Unit), motive LeanIntent.Consequence.Kind.possibility), motive x\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : LeanIntent.Consequence.Kind → Sort u_1) => fun (x : LeanIntent.Consequence\
+    .Kind) => fun (h_1 : ∀ («_» : Unit), motive LeanIntent.Consequence.Kind.entailment) => fun\
+    \x20(h_2 : ∀ («_» : Unit), motive LeanIntent.Consequence.Kind.possibility) => @LeanIntent.Con\
+    sequence.Kind.casesOn.{u_1} (fun (x_1 : LeanIntent.Consequence.Kind) => motive x_1) x (h_1\
+    \x20Unit.unit) (h_2 Unit.unit)\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.Kind.casesOn\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {motive : ∀ (t : LeanIntent.Consequence.Kind), Sort u}, ∀ (t : LeanIntent.Consequence.\
+    Kind), ∀ (entailment : motive LeanIntent.Consequence.Kind.entailment), ∀ (possibility : mo\
+    tive LeanIntent.Consequence.Kind.possibility), motive t\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {motive : ∀ (t : LeanIntent.Consequence.Kind), Sort u} => fun (t : LeanIntent.Conseq\
+    uence.Kind) => fun (entailment : motive LeanIntent.Consequence.Kind.entailment) => fun (po\
+    ssibility : motive LeanIntent.Consequence.Kind.possibility) => @LeanIntent.Consequence.Kin\
+    d.rec.{u} motive entailment possibility t\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.kind\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 2, counted after the parameters in the type of LeanIntent.Con\
+    sequence's constructor, of its argument number 2, a value of LeanIntent.Consequence. It ha\
+    s the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.Consequence.{u} W), LeanIntent.Consequence.Kind\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.holds\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 3, counted after the parameters in the type of LeanIntent.Con\
+    sequence's constructor, of its argument number 2, a value of LeanIntent.Consequence. It ha\
+    s the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.Consequence.{u} W), W → Prop\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.HasInstance\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {α : Sort u_1}, ∀ (P : α → Prop), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {α : Sort u_1} => fun (P : α → Prop) => @Exists.{u_1} α (fun (a : α) => P a)\n\
+    | ```\n\
+    | \n\
+    | ## Lean's own libraries\n\
+    | \n\
+    | The declarations of Lean's own libraries (Init, Std, Lean and Lake) are not printed: the\
+    y are those of Lean 4.35.0, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, which made th\
+    is text. A declaration is counted as Lean's own when Lean found the module that declares i\
+    t in that release's library directory.\n\
     | \n\
     consequence the record's plain restatement\n\
     shown as entailment\n\

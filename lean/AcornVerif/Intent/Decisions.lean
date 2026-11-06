@@ -6,6 +6,7 @@ Authors: acorn contributors
 import AcornVerif.Intent.DayCycleConsequences
 import AcornVerif.Intent.HashConsequences
 import AcornVerif.Intent.WorldInterfaceConsequences
+import AcornVerif.Intent.OneStreamConsequences
 import Acorn.Host.Task
 
 /-!
@@ -20,17 +21,19 @@ settle that change what they get, and to one-way doors and quality-for-cost trad
 likened the division to an interface and its implementation: their intent is a system's contract,
 and records of internal functions such as these are the agents' own design.
 
-This module declares Acorn's three lean-intent deliverables, `dayDeliverable`, `hashDeliverable`
-and `worldInterfaceDeliverable`: each holds its record, the record's explanation, the answers it
-keeps and the proof that the record keeps them. The first two are records of internal functions, the
-agents' design; the third is the record of contract 1 of Acorn's mission contract, the interface
-every world meets, whose plain restatement the owner confirmed on 2026-11-03. The day record Acorn
-declares, `AcornVerif.Intent.DayCycle.dayCycle`, is the generic
+This module declares Acorn's four lean-intent deliverables, `dayDeliverable`, `hashDeliverable`,
+`worldInterfaceDeliverable` and `oneStreamDeliverable`: each holds its record, the record's
+explanation, the answers it keeps and the proof that the record keeps them. The first two are records
+of internal functions, the agents' design; the third is the record of contract 1 of Acorn's mission
+contract, the interface every world meets, and the fourth the record of contract 3, the invariants of
+learning from one stream, whose plain restatements the owner confirmed on 2026-11-03. The day record
+Acorn declares, `AcornVerif.Intent.DayCycle.dayCycle`, is the generic
 record `dayCycleFor` at the types of Acorn's world: one situation, since Acorn's day reads nothing
 of a situation but the clock (`AcornVerif.Intent.DayCycle.dayPhase_clock`), Acorn's actions, the
 day-phase byte the agent sees and energy as a natural number. The hash record,
-`AcornVerif.Intent.Hash.hashes`, and the interface record,
-`AcornVerif.Intent.WorldInterface.worldInterface`, have no parameters.
+`AcornVerif.Intent.Hash.hashes`, the interface record,
+`AcornVerif.Intent.WorldInterface.worldInterface`, and the record of learning from one stream,
+`AcornVerif.Intent.OneStream.oneStream`, have no parameters.
 
 The owners' log, `ownersLog` in `AcornVerif.Intent.OwnersLog`, holds every statement as the text
 lean-intent's `Statement.print` writes, which `LeanIntent.Confirmation.Read.check` reads from the
@@ -52,11 +55,12 @@ An answer's texts change whenever the rendering of its record or of a definition
 reaches changes, and the check then refuses it, naming it, until it is retracted and given again
 against the new texts by someone the delegation lets answer.
 
-The interface record is settled differently. Its explanation records its restatement as confirmed by
-the owner, whose answer of 2026-11-03 the log holds, and each consequence it shows as derived from
-that confirmation, so its deliverable keeps no answer; the consequences decided on the owner's
-behalf are recorded with their reasons in the record's confirmation file,
-`lean/AcornVerif/Intent/WorldInterface.md`.
+The interface record and the record of learning from one stream are settled differently. Each
+explanation records its restatement as confirmed by the owner, whose answer of 2026-11-03 the log
+holds, and each consequence it shows as derived from that confirmation, so their deliverables keep no
+answer; the consequences decided on the owner's behalf are recorded with their reasons in each
+record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md` and
+`lean/AcornVerif/Intent/OneStream.md`.
 
 Two decisions are recorded in prose only, because they are no consequence of a record: the day
 record counts time in whole ticks with one clock for the whole world (its shape), and the hash
@@ -181,6 +185,16 @@ it. No implementation is declared for it until the executing code is proved agai
 def worldInterfaceDeliverable : Deliverable WorldInterface.System where
   record := WorldInterface.worldInterface
   explanation := WorldInterface.worldInterfaceExplained
+  answers := []
+  keeps := (keeps_iff _ _).mpr fun _ h => nomatch h
+
+/-- The deliverable of the record of learning from one stream: the record of contract 3, its
+explanation, and no kept answer, since its restatement stands as the owner's and every consequence it
+shows is derived from it. No implementation is declared for it until the executing code is proved
+against it (rbeauchamp/acorn#215). -/
+def oneStreamDeliverable : Deliverable OneStream.Learner where
+  record := OneStream.oneStream
+  explanation := OneStream.oneStreamExplained
   answers := []
   keeps := (keeps_iff _ _).mpr fun _ h => nomatch h
 
