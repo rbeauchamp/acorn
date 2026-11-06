@@ -1700,7 +1700,7 @@ theorem SkillCalm.startFollowing (calm : SkillCalm learned skill) (ops : OpsQuie
     (action : Action actions.word.toNat) (behaviour : Vector Binary32 actions.word.toNat) :
     SkillCalm learned (skill.startFollowing models features potential rate action behaviour) := by
   rw [Skill.startFollowing_def]
-  obtain ⟨interest, policy, model, following, questions⟩ := skill
+  obtain ⟨interest, policy, model, following⟩ := skill
   dsimp only
   refine ⟨?_, fun held => ?_, calm.interest, fun held stored same => ?_⟩
   · split
@@ -1722,7 +1722,7 @@ theorem SkillCalm.stopFollowing (calm : SkillCalm learned skill) (ops : OpsQuiet
       reward gain) := by
   have previous := calm.following
   rw [Skill.stopFollowing_def]
-  obtain ⟨interest, policy, model, linked, questions⟩ := skill
+  obtain ⟨interest, policy, model, linked⟩ := skill
   dsimp only
   refine ⟨?_, fun held => ?_, calm.interest, fun _ _ same => by cases same⟩
   · split
@@ -1754,7 +1754,7 @@ theorem SkillCalm.followTemporal (calm : SkillCalm learned skill) (ops : OpsQuie
     · rename_i next decided
       have quietNext := calm.decide features unattained goal estimate rate next decided
       have previous := calm.following
-      obtain ⟨interest, policy, model, linked, questions⟩ := skill
+      obtain ⟨interest, policy, model, linked⟩ := skill
       dsimp only at stored ⊢
       refine ⟨?_, fun held => ?_, calm.interest, fun held stored' same => ?_⟩
       · have credited : ModelCalm (if following.live then
@@ -1794,7 +1794,7 @@ theorem SkillCalm.settleFollowing (calm : SkillCalm learned skill) (ops : OpsQui
     · rename_i next decided
       have quietNext := calm.decide features unattained goal estimate rate next decided
       have previous := calm.following
-      obtain ⟨interest, policy, model, linked, questions⟩ := skill
+      obtain ⟨interest, policy, model, linked⟩ := skill
       dsimp only at stored ⊢
       refine ⟨?_, fun held => ?_, calm.interest, fun _ _ same => by cases same⟩
       · split
@@ -2875,16 +2875,7 @@ theorem Quiet.finish (quiet : Quiet state) (features : ActiveSet dimension) (obs
   unfold PredictionControl.advanceWith
   dsimp only [TemporalControl.predictionView, TemporalControl.recordEpisodes]
   have skills : ∀ slot, SkillCalm profile.ranksSubtasks
-      ((if profile.usesHierarchy && profile.mode != .frozen then
-        askQuestions state.runtime.lifecycle.consumers.skills features (signalValues obs reward)
-          decision else state.runtime.lifecycle.consumers.skills).get slot) := by
-    intro slot
-    split
-    · rw [vec_get, askQuestions_get]
-      have calm := quiet.skills slot
-      rw [vec_get] at calm
-      exact ⟨calm.model, calm.policy, calm.interest, calm.following⟩
-    · exact quiet.skills slot
+      (state.runtime.lifecycle.consumers.skills.get slot) := quiet.skills
   split
   · exact ⟨quiet.control, quiet.metaController, skills, quiet.demon, quiet.gap, quiet.credit,
       observe_inert _ _ _ hr quiet.rate, quiet.phase⟩

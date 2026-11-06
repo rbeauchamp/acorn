@@ -275,29 +275,6 @@ theorem followingFormat_within : Within followingFormat 6 :=
   within_mono (map_within (pair_within (fin_within 4 _) (pair_within bool_within bool_within)))
     (by omega)
 
-/-- A question is two weight arrays and its flag. -/
-theorem questionFormat_within (discount : Discount) (dimension : Dimension) :
-    Within (questionFormat discount dimension) (8 * dimension.capacity + 1) :=
-  within_mono (filterMap_within (pair_within (vector_within (weight_within _) _)
-    (pair_within (vector_within (weight_within _) _) bool_within))) (by omega)
-
-/-- A question bank is one question per horizon. -/
-theorem gradientBankFormat_within (dimension : Dimension) :
-    ∀ discounts : List Discount, Within (gradientBankFormat dimension discounts)
-      (discounts.length * (8 * dimension.capacity + 1))
-  | [] => within_mono (map_within unit_within) (Nat.zero_le _)
-  | _ :: rest =>
-    within_mono (map_within (pair_within (questionFormat_within _ _)
-      (gradientBankFormat_within dimension rest)))
-      (by simp only [List.length_cons, Nat.add_mul, Nat.one_mul]; omega)
-
-/-- An option's questions are within `questionsBytes`. -/
-theorem questionsFormat_within (dimension : Dimension) (discounts : List Discount) :
-    Within (questionsFormat dimension discounts)
-      (questionsBytes dimension.capacity discounts.length) :=
-  within_mono (map_within (pair_within (gradientBankFormat_within dimension discounts)
-    (map_within (activeSetFormat_within dimension)))) (by unfold questionsBytes; omega)
-
 /-- The grid world has the primitive action count. -/
 theorem grid_actions :
     Grid.interface.actions.word.toNat = Acorn.FeatureConstants.primitiveCount := by
@@ -307,12 +284,11 @@ theorem grid_actions :
 theorem skillFormat_within (config : Features.Config) (criterion : Criterion)
     (dimension : Dimension) (discounts : List Discount) :
     Within (skillFormat Grid.interface.actions config criterion dimension discounts)
-      (skillBytes dimension discounts.length) :=
+      (skillBytes dimension) :=
   within_mono (map_within (pair_within (interestFormat_within config dimension)
     (pair_within (controllerFormat_within _ _ _)
       (pair_within (modelFormat_within dimension criterion)
-      (pair_within (option_within followingFormat_within)
-        (questionsFormat_within dimension discounts))))))
+      (option_within followingFormat_within)))))
     (by unfold skillBytes; rw [grid_actions]; omega)
 
 /-- The learned consumers of the grid world are within `ensembleBytes`. -/

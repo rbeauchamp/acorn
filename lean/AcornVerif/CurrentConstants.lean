@@ -76,7 +76,6 @@ theorem dimensions :
       FeatureConstants.demonCount = ModelConstants.learnerCount ∧
     ModelConstants.learnerCount + FeatureConstants.skillCount * 2 =
       ModelConstants.runtimeLearnerCount ∧
-    FeatureConstants.skillCount * FeatureConstants.demonCount = ModelConstants.questionCount ∧
     FeatureConstants.energyMax = ModelConstants.energyMax ∧
     FeatureConstants.energyRestRecover = ModelConstants.energyRestRecover ∧
     FeatureConstants.energyEatRestore = ModelConstants.energyEatRestore ∧

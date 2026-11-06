@@ -18,7 +18,7 @@ changed ranking rebuilds its lookup table over the capacity and makes every row 
 changed positions.
 
 Where an executed constructor carries a proof about the vectors it builds (`NumericState`,
-`RankedFeatures`, `Preceding`, `Question`), the twin is the executed value with the work of a
+`RankedFeatures`), the twin is the executed value with the work of a
 run that charges each vector it writes; the run's correspondence with the constructor is by
 reading.
 -/
@@ -199,61 +199,13 @@ theorem modelInitial_work (κ : Costs) (dimension : Dimension) (criterion : Crit
     simp only [modelInitialBound]
     omega
 
-/-- The costed recursion of `GradientBank.initial`: for each question, the projected zero weight
-and two weight vectors, charged before the descent, and a visit of the recursion on the return,
-where the question is put before the rest; and a visit for its end. -/
-def bankInitialRun (κ : Costs) (dimension : Dimension) : (discounts : List Discount) → Costed Unit
-  | [] => Costed.op (κ .visit) ()
-  | _ :: rest => Costed.charge (κ .initialState) do
-    Costed.discard (Costed.replicate (κ .visit) dimension.capacity (0 : Nat))
-    Costed.discard (Costed.ofFn (count := dimension.capacity) (κ .visit) fun _ =>
-      Costed.op (κ .write) ())
-    bankInitialRun κ dimension rest
-    Costed.op (κ .visit) ()
-
-/-- Bound of a fresh question bank of `questions` questions at a capacity. -/
-abbrev bankInitialBound (κ : Costs) (questions capacity : Nat) : Nat :=
-  pass (κ .visit) questions
-    (κ .initialState + (Library.replicate.control (κ .visit) capacity +
-      Library.ofFn.work (κ .visit) capacity (κ .write)))
-
-theorem bankInitialRun_work (κ : Costs) (dimension : Dimension) (discounts : List Discount) :
-    (bankInitialRun κ dimension discounts).work ≤
-      bankInitialBound κ discounts.length dimension.capacity := by
-  induction discounts with
-  | nil => simp [bankInitialRun]
-  | cons discount rest ih =>
-    have fresh := Costed.ofFn_work_le (count := dimension.capacity) (κ .visit) (κ .write)
-      (fun _ => Costed.op (κ .write) ()) fun _ => Nat.le_refl _
-    simp only [bankInitialRun, Costed.charge, Costed.bind_work, List.length_cons, Nat.succ_mul,
-      bankInitialBound, pass] at ih fresh ⊢
-    omega
-
-/-- Twin of `OptionQuestions.initial`: a fresh question for each signal and an empty
-preceding set with its flags. -/
-def questionsInitial (κ : Costs) (dimension : Dimension) (discounts : List Discount) :
-    Costed (OptionQuestions dimension discounts) :=
-  Costed.via (OptionQuestions.initial dimension discounts) (do
-    bankInitialRun κ dimension discounts
-    Costed.discard (Costed.replicate (κ .visit) dimension.capacity false))
-
-/-- Bound of fresh questions. -/
-abbrev questionsInitialBound (κ : Costs) (questions capacity : Nat) : Nat :=
-  bankInitialBound κ questions capacity + Library.replicate.control (κ .visit) capacity
-
-theorem questionsInitial_work (κ : Costs) (dimension : Dimension) (discounts : List Discount) :
-    (questionsInitial κ dimension discounts).work ≤
-      questionsInitialBound κ discounts.length dimension.capacity :=
-  Costed.bind_work_le (bankInitialRun_work κ dimension discounts) fun _ => Nat.le_refl _
-
-/-- Twin of `Skill.initial`: a fresh policy, model and questions. -/
+/-- Twin of `Skill.initial`: a fresh policy and model. -/
 def skillInitial (κ : Costs) (config : Features.Config) (criterion : Criterion)
     (dimension : Dimension) (interest : Interest config) :
     Costed (Skill actions config criterion dimension discounts) := do
   let policy ← controllerInitial κ _ dimension actions.word.toNat
   let model ← modelInitial κ dimension criterion
-  let questions ← questionsInitial κ dimension discounts
-  Costed.pure ⟨interest, policy, model, none, questions⟩
+  Costed.pure ⟨interest, policy, model, none⟩
 
 theorem skillInitial_val (κ : Costs) (config : Features.Config) (criterion : Criterion)
     (dimension : Dimension) (interest : Interest config) :
@@ -261,19 +213,17 @@ theorem skillInitial_val (κ : Costs) (config : Features.Config) (criterion : Cr
       interest).val = Skill.initial config criterion dimension interest := rfl
 
 /-- Bound of a fresh option. -/
-abbrev skillInitialBound (κ : Costs) (rows capacity positions questions : Nat) : Nat :=
-  controllerInitialBound κ rows capacity + (modelInitialBound κ capacity positions +
-    (questionsInitialBound κ questions capacity + 0))
+abbrev skillInitialBound (κ : Costs) (rows capacity positions : Nat) : Nat :=
+  controllerInitialBound κ rows capacity + (modelInitialBound κ capacity positions + 0)
 
 theorem skillInitial_work (κ : Costs) (config : Features.Config) (criterion : Criterion)
     (dimension : Dimension) (interest : Interest config) :
     (skillInitial (actions := actions) (discounts := discounts) κ config criterion dimension
       interest).work ≤
-      skillInitialBound κ actions.word.toNat dimension.capacity (rankDimension dimension).capacity
-        discounts.length :=
+      skillInitialBound κ actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity :=
   Costed.bind_work_le (controllerInitial_work κ _ dimension _) fun _ =>
-    Costed.bind_work_le (modelInitial_work κ dimension criterion) fun _ =>
-      Costed.bind_work_le (questionsInitial_work κ dimension discounts) fun _ => Nat.le_refl _
+    Costed.bind_work_le (modelInitial_work κ dimension criterion) fun _ => Nat.le_refl _
 
 /-- Twin of `Controller.resetAction`: a fresh learner for the reset row. -/
 def resetAction (κ : Costs) {learnerConfig : Acorn.Config} {rows : Nat}
@@ -442,16 +392,15 @@ def install (κ : Costs)
   Costed.via (state.install slot target) (installRun κ state slot target)
 
 /-- Bound of one slot's installation. -/
-abbrev installBound (κ : Costs) (rows capacity positions questions : Nat) : Nat :=
-  κ .install + (skillInitialBound κ rows capacity positions questions +
+abbrev installBound (κ : Costs) (rows capacity positions : Nat) : Nat :=
+  κ .install + (skillInitialBound κ rows capacity positions +
     (learnerInitialBound κ capacity + κ .write))
 
 theorem install_work (κ : Costs)
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
     (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config) :
     (install κ state slot target).work ≤
-      installBound κ actions.word.toNat dimension.capacity (rankDimension dimension).capacity
-        (discounts.length + 1) := by
+      installBound κ actions.word.toNat dimension.capacity (rankDimension dimension).capacity := by
   change (installRun κ state slot target).work ≤ _
   unfold installRun
   exact Costed.charge_work_le (Costed.ite_work_bound _ (Nat.zero_le _)
@@ -475,17 +424,17 @@ theorem refreshRanked_val (κ : Costs)
     (refreshRanked κ state).val = state.refreshRanked := rfl
 
 /-- Bound of the assignment refresh. -/
-abbrev refreshRankedBound (κ : Costs) (rows capacity positions questions units : Nat) : Nat :=
+abbrev refreshRankedBound (κ : Costs) (rows capacity positions units : Nat) : Nat :=
   Library.vectorMap.work (κ .visit) Acorn.FeatureConstants.skillCount (κ .read) +
     (rankedCandidatesBound κ units + κ .assignmentTable +
       Library.foldl.work (κ .visit) Acorn.FeatureConstants.skillCount
-        (installBound κ rows capacity positions questions))
+        (installBound κ rows capacity positions))
 
 theorem refreshRanked_work (κ : Costs)
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
     (refreshRanked κ state).work ≤
       refreshRankedBound κ actions.word.toNat dimension.capacity (rankDimension dimension).capacity
-        (discounts.length + 1) config.units.count := by
+        config.units.count := by
   unfold refreshRanked
   refine Nat.le_trans (Costed.bind_work_le
     (Costed.mapVector_work_le (κ .visit) (κ .read) _ _ fun _ _ => Nat.le_refl _) fun _ =>
@@ -874,8 +823,8 @@ def refreshModels (κ : Costs)
     Costed.discard (rerankModels κ (if assign then state.refreshRanked else state)))
 
 /-- Bound of a free boundary's refresh. -/
-abbrev refreshBound (κ : Costs) (rows capacity positions questions units : Nat) : Nat :=
-  refreshRankedBound κ rows capacity positions questions units +
+abbrev refreshBound (κ : Costs) (rows capacity positions units : Nat) : Nat :=
+  refreshRankedBound κ rows capacity positions units +
     rerankModelsBound κ capacity positions units
 
 theorem refreshModels_work (κ : Costs)
@@ -883,7 +832,7 @@ theorem refreshModels_work (κ : Costs)
     (assign : Bool) :
     (refreshModels κ state assign).work ≤
       refreshBound κ actions.word.toNat dimension.capacity (rankDimension dimension).capacity
-        (discounts.length + 1) config.units.count :=
+        config.units.count :=
   Costed.bind_work_le (Costed.ite_work_bound _
       (Costed.discard_work_le (refreshRanked_work κ state)) (Nat.zero_le _)) fun _ =>
     Costed.discard_work_le (rerankModels_work κ _)

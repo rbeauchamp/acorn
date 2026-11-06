@@ -43,14 +43,16 @@ inductive Error where
   | oversized
   deriving DecidableEq, Repr
 
-/-- The currently supported generation. Every earlier generation is refused with its word:
-an image of generation 18 or earlier holds no option model, off-policy question, primitive
-credit, rate schedule or process-local reference, so no load of it could return the agent
-that was saved. An image of generation 19 has the layout of this generation, but its weights
-were placed by the hashes that read their first two words only through their XOR. This
-generation's hashes differ from those (`Rng.hash3_not_xor`, `Rng.hash2_not_xor`), so a
-feature can have another slot than generation 19 gave it, and a load could read a saved
-weight as the weight of another feature. -/
+/-- The currently supported generation. Every earlier generation is refused with its word.
+An image of generation 20 stores, after each option slot's trajectory, that option's off-policy
+questions, which the agent no longer holds (PAR-18, retired), so this generation reads no
+image of it. An image of generation 19 has the layout of generation 20, but its weights were
+placed by the hashes that read their first two words only through their XOR. This generation's
+hashes differ from those (`Rng.hash3_not_xor`, `Rng.hash2_not_xor`), so a feature can have
+another slot than generation 19 gave it, and a load could read a saved weight as the weight of
+another feature. An image of generation 18 or earlier holds no option model, primitive credit,
+rate schedule or process-local reference, so no load of it could return the agent that was
+saved. -/
 def formatVersion : UInt32 := Acorn.FeatureConstants.checkpointFormatVersion.toUInt32
 
 /-- Header validation precedes large shape-dependent decoding. -/
@@ -77,8 +79,8 @@ function that the admission executes: the words are numerals, the receiver's cho
 its constructors, and the reward rate is the returned typed value. -/
 structure HeaderAdmitted (construction : AgentConstruction) (header : Header)
     (gain : RewardRate) : Prop where
-  /-- The format generation is 20. -/
-  version : header.version = 20
+  /-- The format generation is 21. -/
+  version : header.version = 21
   /-- The criterion word is the word of the receiver's criterion: 0 for the discounted
   criterion and 1 for the differential one. -/
   criterion : (header.criterion = 0 ∧ construction.criterion = .discounted) ∨

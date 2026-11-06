@@ -53,7 +53,6 @@ import AcornVerif.CurrentConcealedTarget
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
-import AcornVerif.CurrentQuestionNoninterference
 import AcornVerif.CurrentColdStart
 import AcornVerif.CurrentPreReward
 import AcornVerif.CurrentFeatureConsumers
@@ -67,7 +66,6 @@ import AcornVerif.CurrentVisits
 import AcornVerif.CurrentModels
 import AcornVerif.CurrentPlanning
 import AcornVerif.CurrentPolicyMean
-import AcornVerif.CurrentOffPolicy
 import AcornVerif.Checkpoint
 import AcornVerif.AverageReward
 import AcornVerif.ModelConstants
@@ -76,7 +74,6 @@ import AcornVerif.StepSize
 import AcornVerif.MetaGradient
 import AcornVerif.Options
 import AcornVerif.Energy
-import AcornVerif.Extragradient
 import AcornVerif.Exploration
 import AcornVerif.Traces
 import AcornVerif.Retirement

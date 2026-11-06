@@ -153,11 +153,7 @@ the encoding of a frame's (`projectionValueCosted`, `Bank.activationsCosted`, `t
 `stopCosted` and `restartCosted`, `Managed.stopTrajectoryCosted` and `restartTrajectoryCosted`, and
 `Model.beginCosted`, `stepCosted`, `terminalCosted`, `stopCosted` and `restartCosted` in
 `Acorn.Models`), the prediction demons' bank step (`DemonBank.stepCosted` in `Acorn.Demon`), and
-every option's off-policy questions (`setFlagsCosted`, `wideSumCosted`, `addAllCosted`,
-`subAllCosted`, `Preceding.advanceCosted`, `GradientLearner.scalarsCosted`, `incrementsCosted` and
-`stepCosted`, `Question.stepCosted`, `GradientBank.stepCosted` and `OptionQuestions.followCosted` in
-`Acorn.OffPolicy`, and `askQuestionsCosted` in `Acorn.Handcrafted.TemporalControl`), and an option's
-rate, start, termination decision, step, credit, frozen policy and termination
+an option's rate, start, termination decision, step, credit, frozen policy and termination
 (`ConsumerRate.resolveCosted`, `Skill.beginOptionCosted`, `decideOptionCosted`, `optionStepCosted`,
 `optionCreditCosted`, `frozenPolicyCosted` and `terminateOptionCosted` in `Acorn.Options`), and an
 option's start, step, credit of a drawn decision, end, the stop and settling of its stored
@@ -208,7 +204,7 @@ the encoding of a frame and their callers, where `NumericState.resumable` and `C
 which fold `UniqueBuilder.add` as `unique` does, call a specialization of that fold of their own
 with the body of the one they shared with `unique`, and of the costed definitions of an option
 model's input, ranked features, prediction and updates and of the controllers' remaining updates,
-the prediction demons' bank step, every option's off-policy questions, an option's operations
+the prediction demons' bank step, an option's operations
 without and with its model and its off-policy following, an option's potential and one slot's share
 of a followed frame, and their callers, where `Skill.followTemporal` reaches the model's restart, a
 costed operation, through nested tests of consistency and liveness, and the code without work passed
@@ -361,26 +357,6 @@ inductive Site where
   | demonOutput
   /-- The record of a demon bank's outputs: its learners, predictions, errors and cumulants. -/
   | demonClose
-  /-- A membership flag of a feature slot read for a filter's test. -/
-  | flagTest
-  /-- A preceding set's advance: its emptiness and armed tests, a classified transition's step
-  size, counts and record, and the stored set's record. -/
-  | preceding
-  /-- The two inner products of a GTD2-MP step's extragradient midpoint, from its four sums. -/
-  | innerProducts
-  /-- The four increments of a GTD2-MP step, each narrowed once. -/
-  | increments
-  /-- One weight of a GTD2-MP step read, moved by its increment through the weight projection and
-  written. -/
-  | gradientWrite
-  /-- A question's silence test and its record. -/
-  | question
-  /-- A question put before the rest of its bank's. -/
-  | questionBank
-  /-- An option's questions' record after their preceding set's advance. -/
-  | follow
-  /-- An option's armed test and its record after its questions take the frame. -/
-  | ask
   /-- An assignment's feature slot computed before its membership test. -/
   | assignmentPotential
   /-- A declared potential read from the frame's declared values. -/
@@ -411,8 +387,7 @@ inductive Site where
   | backupClose
   /-- A planning boundary's work count, its search-control advance and its result. -/
   | planBoundary
-  /-- A fresh learner's rails and record, or a fresh question's projected zero weight, apart
-  from their vectors. -/
+  /-- A fresh learner's rails and record, apart from its vectors. -/
   | initialState
   /-- One unit's Demon-0 weight tested for a ranking candidate, with its feature slot computed. -/
   | rankCandidate

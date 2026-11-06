@@ -234,9 +234,9 @@ def Skill.beginTemporalCosted {config : Config} {criterion : Criterion} {dimensi
   let begun ← skill.beginOptionCosted features potential learning rate
   let skill ← Costed.ite (learning = true)
     (fun _ =>
-      let ⟨interest, policy, model, following, questions⟩ := begun.1
+      let ⟨interest, policy, model, following⟩ := begun.1
       Costed.bind (models.begin model features) fun model =>
-        Costed.pure ⟨interest, policy, model, following, questions⟩)
+        Costed.pure ⟨interest, policy, model, following⟩)
     fun _ => Costed.pure begun.1
   Costed.pure (skill, begun.2)
 
@@ -287,9 +287,9 @@ def Skill.stepTemporalCosted {config : Config} {criterion : Criterion} {dimensio
   let (stepped, rest) := result
   Costed.ite ((activation.learning && activation.age.val > 0) = true)
     (fun _ =>
-      let ⟨interest, policy, model, following, questions⟩ := stepped
+      let ⟨interest, policy, model, following⟩ := stepped
       Costed.bind (models.step model next.features activation.age reward) fun model =>
-        Costed.pure (⟨interest, policy, model, following, questions⟩, rest))
+        Costed.pure (⟨interest, policy, model, following⟩, rest))
     fun _ => Costed.pure result
 
 /-- A first returned action has no completed model transition to credit. The
@@ -321,7 +321,7 @@ theorem Skill.stepTemporal_eq {config : Config} {criterion : Criterion} {dimensi
       (skill, result.2) := by
   unfold Skill.stepTemporal Skill.stepTemporalCosted Skill.optionStep
   generalize skill.optionStepCosted activation next reward gain rng = stepped
-  obtain ⟨⟨⟨interest, policy, model, following, questions⟩, rest⟩, work, single⟩ := stepped
+  obtain ⟨⟨⟨interest, policy, model, following⟩, rest⟩, work, single⟩ := stepped
   dsimp only [Costed.bind, Costed.ite_val]
   split <;> rfl
 
@@ -336,9 +336,9 @@ def Skill.creditTemporalCosted {config : Config} {criterion : Criterion} {dimens
   let credited ← skill.optionCreditCosted activation next drawn reward gain
   Costed.ite ((activation.learning && activation.age.val > 0) = true)
     (fun _ =>
-      let ⟨interest, policy, model, following, questions⟩ := credited
+      let ⟨interest, policy, model, following⟩ := credited
       Costed.bind (models.step model next.features activation.age reward) fun model =>
-        Costed.pure ⟨interest, policy, model, following, questions⟩)
+        Costed.pure ⟨interest, policy, model, following⟩)
     fun _ => Costed.pure credited
 
 /-- The credit half of `stepTemporal`: the policy credit of a decision that is already
@@ -367,7 +367,7 @@ theorem Skill.creditTemporal_def {config : Config} {criterion : Criterion} {dime
         else credited := by
   unfold Skill.creditTemporal Skill.creditTemporalCosted Skill.optionCredit
   generalize skill.optionCreditCosted activation next drawn reward gain = credited
-  obtain ⟨⟨interest, policy, model, following, questions⟩, work, single⟩ := credited
+  obtain ⟨⟨interest, policy, model, following⟩, work, single⟩ := credited
   dsimp only [Costed.bind_val, Costed.ite_val]
   split <;> rfl
 
@@ -394,9 +394,9 @@ def Skill.endTemporalCosted {config : Config} {criterion : Criterion} {dimension
   let result ← skill.terminateOptionCosted ending.activation ending.potential reward terminal gain
   Costed.ite (ending.activation.learning = true)
     (fun _ =>
-      let ⟨interest, policy, model, following, questions⟩ := result
+      let ⟨interest, policy, model, following⟩ := result
       Costed.bind (models.terminal model value features reward) fun model =>
-        Costed.pure ⟨interest, policy, model, following, questions⟩)
+        Costed.pure ⟨interest, policy, model, following⟩)
     fun _ => Costed.pure result
 
 /-- The policy is credited the terminal value with the objective's attained bonus and
@@ -435,13 +435,13 @@ def Skill.startFollowingCosted {config : Config} {criterion : Criterion} {dimens
   let epsilon ← rate.resolveCosted fun _ => skill.policy.exploreRateCosted (count := actions)
   let frozen ← freeze epsilon
   let consistent ← frozen.consistentCosted behaviour
-  let ⟨interest, policy, model, _, questions⟩ := skill
+  let ⟨interest, policy, model, _⟩ := skill
   let policy ← policy.startStepCosted (actions := actions.word.toNat) features action
     (frozen.values.get action)
   let model ← Costed.ite (consistent = true)
     (fun _ => models.restart model features ⟨0, by decide⟩) fun _ => Costed.pure model
   Costed.op .startFollowing
-    ⟨interest, policy, model, some ⟨⟨1, by decide⟩, consistent, potential⟩, questions⟩
+    ⟨interest, policy, model, some ⟨⟨1, by decide⟩, consistent, potential⟩⟩
 
 /-- Link an option that is not executing to the current frame. Every earlier trace
 is released before the taken action's traces are laid, so no earlier transition is
@@ -467,12 +467,12 @@ theorem Skill.startFollowing_def {config : Config} {criterion : Criterion} {dime
       let frozen := skill.policy.snapshot (count := actions) features
         (rate.resolve fun _ => skill.policy.exploreRate (count := actions))
       let consistent := frozen.consistent behaviour
-      let ⟨interest, policy, model, _, questions⟩ := skill
+      let ⟨interest, policy, model, _⟩ := skill
       ⟨interest,
         policy.startStep (actions := actions.word.toNat) features action
           (frozen.values.get action),
         if consistent then (models.restart model features ⟨0, by decide⟩).val else model,
-        some ⟨⟨1, by decide⟩, consistent, potential⟩, questions⟩ := by
+        some ⟨⟨1, by decide⟩, consistent, potential⟩⟩ := by
   cases rate <;> rfl
 
 /-- The stop with its work: the policy's stopping credit and, under the stop's records, a live
@@ -485,12 +485,12 @@ def Skill.stopFollowingCosted {config : Config} {criterion : Criterion} {dimensi
     (gain : RewardRate) : Costed (Skill actions config criterion dimension discounts) :=
   let stopping := (terminalCumulant (criterion.center reward 1 gain)
     (skill.interest.stoppingValue estimate potential) following.previous).sub skill.policy.vOld
-  let ⟨interest, policy, model, _, questions⟩ := skill
+  let ⟨interest, policy, model, _⟩ := skill
   do
     let policy ← policy.stopStepCosted stopping
     let model ← Costed.charge .stopFollowing <| Costed.ite (following.live = true)
       (fun _ => models.stop model value features reward) fun _ => Costed.pure model
-    Costed.pure ⟨interest, policy, model, none, questions⟩
+    Costed.pure ⟨interest, policy, model, none⟩
 
 /-- Stop the stored trajectory where the option's stopping decision fires: the
 policy is credited the stopping value at zero trace decay and a live model
@@ -514,10 +514,9 @@ theorem Skill.stopFollowing_def {config : Config} {criterion : Criterion} {dimen
     skill.stopFollowing models value features following potential estimate reward gain =
       let stopping := (terminalCumulant (criterion.center reward 1 gain)
         (skill.interest.stoppingValue estimate potential) following.previous).sub skill.policy.vOld
-      let ⟨interest, policy, model, _, questions⟩ := skill
+      let ⟨interest, policy, model, _⟩ := skill
       ⟨interest, policy.stopStep stopping,
-        if following.live then (models.stop model value features reward).val else model, none,
-        questions⟩ := by
+        if following.live then (models.stop model value features reward).val else model, none⟩ := by
   unfold Skill.stopFollowing Skill.stopFollowingCosted
   cases following.live <;> rfl
 
@@ -540,7 +539,7 @@ def Skill.followTemporalCosted {config : Config} {criterion : Criterion} {dimens
     match decision with
     | .continuing next =>
       let consistent ← next.policy.consistentCosted behaviour
-      let ⟨interest, policy, model, _, questions⟩ := skill
+      let ⟨interest, policy, model, _⟩ := skill
       let credited ← Costed.ite (following.live = true)
         (fun _ => models.step model features following.age reward) fun _ => Costed.pure model
       let policy ← policy.backupStepCosted (count := actions) features next.policy action
@@ -549,8 +548,7 @@ def Skill.followTemporalCosted {config : Config} {criterion : Criterion} {dimens
       let model ← Costed.ite ((consistent && !following.live) = true)
         (fun _ => models.restart credited features following.age) fun _ => Costed.pure credited
       Costed.op .followStep
-        ⟨interest, policy, model, some ⟨ModelAge.advance following.age, consistent, potential⟩,
-          questions⟩
+        ⟨interest, policy, model, some ⟨ModelAge.advance following.age, consistent, potential⟩⟩
     | .ending _ => do
       let stopped ← skill.stopFollowingCosted models value features following potential estimate
         reward gain
@@ -607,7 +605,7 @@ theorem Skill.followTemporal_def {config : Config} {criterion : Criterion} {dime
         match skill.decideOption following.activation features potential goal estimate rate with
         | .continuing next =>
           let consistent := next.policy.consistent behaviour
-          let ⟨interest, policy, model, _, questions⟩ := skill
+          let ⟨interest, policy, model, _⟩ := skill
           let credited := if following.live then
             (models.step model features following.age reward).val else model
           ⟨interest,
@@ -616,7 +614,7 @@ theorem Skill.followTemporal_def {config : Config} {criterion : Criterion} {dime
                 following.previous),
             if consistent && !following.live then
               (models.restart credited features following.age).val else credited,
-            some ⟨ModelAge.advance following.age, consistent, potential⟩, questions⟩
+            some ⟨ModelAge.advance following.age, consistent, potential⟩⟩
         | .ending _ =>
           (skill.stopFollowing models value features following potential estimate reward
             gain).startFollowing models features potential rate action behaviour := by
@@ -645,14 +643,14 @@ def Skill.settleFollowingCosted {config : Config} {criterion : Criterion} {dimen
     let decision ← skill.decideOptionCosted following.activation features potential goal estimate rate
     match decision with
     | .continuing next =>
-      let ⟨interest, policy, model, _, questions⟩ := skill
+      let ⟨interest, policy, model, _⟩ := skill
       let error ← Costed.charge .settleFollowing (policy.backupErrorCosted (count := actions)
         next.policy (shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
           following.previous))
       let policy ← policy.stopStepCosted error
       let model ← Costed.ite (following.live = true)
         (fun _ => models.step model features following.age reward) fun _ => Costed.pure model
-      Costed.pure ⟨interest, policy, model, none, questions⟩
+      Costed.pure ⟨interest, policy, model, none⟩
     | .ending _ =>
       skill.stopFollowingCosted models value features following potential estimate reward gain
 
@@ -684,14 +682,14 @@ theorem Skill.settleFollowing_def {config : Config} {criterion : Criterion}
       | some following =>
         match skill.decideOption following.activation features potential goal estimate rate with
         | .continuing next =>
-          let ⟨interest, policy, model, _, questions⟩ := skill
+          let ⟨interest, policy, model, _⟩ := skill
           ⟨interest,
             policy.stopStep (policy.backupError (count := actions) next.policy
               (shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
                 following.previous)),
             if following.live then (models.step model features following.age reward).val
               else model,
-            none, questions⟩
+            none⟩
         | .ending _ =>
           skill.stopFollowing models value features following potential estimate reward gain := by
   unfold Skill.settleFollowing Skill.settleFollowingCosted

@@ -10,7 +10,7 @@ import Acorn.Host.Checkpoint.Load
 
 A save writes every field of the agent's temporal state: the representation and its
 generator and tester state, every learner with its transient registers, the option
-models, every option's off-policy questions, the process-local references with the action
+models, the process-local references with the action
 generator and the last decision, primitive credit, the gain, the rate schedule and every
 lifetime observation, durable or process-local. No world is encoded.
 -/

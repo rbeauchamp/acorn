@@ -78,10 +78,10 @@ abbrev frameWidth (interface : Interface) (config : Features.Config) : Nat :=
   config.tilings.toNat * (interface.words + interface.layout.length) + config.units.count
 
 /-- Selection's bound grows with the width of the frame. -/
-theorem selectBound_mono (κ : Costs) (rows capacity positions questions units : Nat)
+theorem selectBound_mono (κ : Costs) (rows capacity positions units : Nat)
     {width limit : Nat} (fits : width ≤ limit) :
-    selectBound κ rows capacity positions questions units width ≤
-      selectBound κ rows capacity positions questions units limit := by
+    selectBound κ rows capacity positions units width ≤
+      selectBound κ rows capacity positions units limit := by
   simp only [selectBound, prepareBound, serveBound, primitiveBound, atBoundaryBound,
     optionBranchBound, planFreeBound, drawMetaBound, closeOptionBound, dispatchBound,
     planningBound, backupAllBound, backupErrorBound, lookAheadBound, predictBound, inputBound,
@@ -101,7 +101,7 @@ abbrev chooseBound (κ : Costs) (interface : Interface) (config : Features.Confi
     (dimension : Dimension) : Nat :=
   κ .choose + (frameBound κ interface dimension.capacity config +
     selectBound κ interface.actions.word.toNat dimension.capacity
-      (rankDimension dimension).capacity (interface.signals.length + 1) config.units.count
+      (rankDimension dimension).capacity config.units.count
       (frameWidth interface config))
 
 theorem chooseSelected_work (κ : Costs)
@@ -112,7 +112,7 @@ theorem chooseSelected_work (κ : Costs)
   Costed.bind_work_le (Nat.le_refl _) fun _ =>
     Costed.bind_work_le (frame_work κ state.advanceClock percept.frame) fun _ =>
       Nat.le_trans (selectRun_work κ _ _ _ _ _ _)
-        (selectBound_mono κ _ _ _ _ _ (Agent.frame_length _ percept.frame))
+        (selectBound_mono κ _ _ _ _ (Agent.frame_length _ percept.frame))
 
 /-- `SiteBounds words κ`: `words site ≤ κ site` for every site, a relation between two cost
 models. Nothing in it ties `words` to execution, and two zero cost models satisfy it. The intended
@@ -127,7 +127,7 @@ set_option maxHeartbeats 400000 in
 theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (interface : Interface)
     (config : Features.Config) (dimension : Dimension) :
     chooseBound words interface config dimension ≤ chooseBound κ interface config dimension := by
-  simp only [chooseBound, atBoundaryBound, backupAllBound, backupErrorBound, bankInitialBound,
+  simp only [chooseBound, atBoundaryBound, backupAllBound, backupErrorBound,
     beginBound, beginOptionBound, beginTemporalBound, bestBound, candidateListBound,
     candidatesBound, changedBound, clearBound, closeOptionBound, columnsBound, comparisonBound,
     controllerInitialBound, creditBound, creditStepBound, decideBound, dispatchBound,
@@ -139,7 +139,7 @@ theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (inte
     modelTerminalWorkBound, normalizedBound, occupiedBound, optionBranchBound, optionStepBound,
     outcomeBound, outcomeValuesBound, persistentBound, planBound, planFreeBound, planningBound,
     policyStepBound, potentialBound, predictAllBound, predictBound, prepareBound,
-    primitiveBound, probabilitiesBound, projectionBound, questionsInitialBound, rankedBound,
+    primitiveBound, probabilitiesBound, projectionBound, rankedBound,
     rankedCandidatesBound, rankedEmptyBound, rankedRerankBound, rankedSlotsBound,
     rankedValuesBound, rateBound, refreshBound, refreshFreeBound, refreshRankedBound,
     releaseBound, rerankModelsBound, rowInputBound, secondLoopBound, selectBound, serveBound,

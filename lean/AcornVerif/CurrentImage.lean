@@ -124,22 +124,6 @@ theorem activeSetFormat_exact (dimension : Dimension) : (activeSetFormat dimensi
         exact kept
       · contradiction)
 
-/-- The preceding-set format is exact: the flags of a preceding set are those of its slots. -/
-theorem precedingFormat_exact (dimension : Dimension) : (precedingFormat dimension).Exact :=
-  Format.map_exact (activeSetFormat_exact dimension)
-    (fun preceding => by
-      obtain ⟨features, flags, agrees⟩ := preceding
-      have same : (presence features.indices).seen = flags := by
-        apply Vector.ext
-        intro index inside
-        rw [agrees ⟨index, inside⟩]
-        have flagged := (presence features.indices).exact ⟨index, inside⟩
-        rw [flagged]
-        exact decide_eq_decide.mpr (presence_mem features.indices ⟨index, inside⟩)
-      subst same
-      rfl)
-    (fun _ => rfl)
-
 /-! ## Learners -/
 
 /-- A vector of nine words is its nine entries. -/
@@ -511,43 +495,13 @@ theorem followingFormat_exact : followingFormat.Exact :=
   Format.map_exact (Format.pair_exact (smallFormat_exact _ (by decide))
     (Format.pair_exact Format.bool_exact Format.bool_exact)) (fun _ => rfl) (fun _ => rfl)
 
-/-- The question format is exact: a stored question is silent only with zero weights. -/
-theorem questionFormat_exact (discount : Discount) (dimension : Dimension) :
-    (questionFormat discount dimension).Exact :=
-  Format.filterMap_exact (Format.pair_exact (Format.vector_exact (weightFormat_exact _) _)
-    (Format.pair_exact (Format.vector_exact (weightFormat_exact _) _) Format.bool_exact))
-    (fun question => by
-      unfold questionPack
-      rw [dite_eq_left question.blank])
-    (fun raw question built => by
-      unfold questionPack at built
-      split at built
-      · obtain rfl := Option.some.inj built
-        rfl
-      · contradiction)
-
-/-- The question bank format is exact. -/
-theorem gradientBankFormat_exact (dimension : Dimension) :
-    ∀ discounts : List Discount, (gradientBankFormat dimension discounts).Exact
-  | [] => Format.map_exact Format.unit_exact (fun bank => by cases bank; rfl) (fun _ => rfl)
-  | _ :: rest =>
-    Format.map_exact (Format.pair_exact (questionFormat_exact _ _)
-      (gradientBankFormat_exact dimension rest)) (fun bank => by cases bank; rfl) (fun _ => rfl)
-
-/-- The option-question format is exact. -/
-theorem questionsFormat_exact (dimension : Dimension) (discounts : List Discount) :
-    (questionsFormat dimension discounts).Exact :=
-  Format.map_exact (Format.pair_exact (gradientBankFormat_exact dimension discounts)
-    (precedingFormat_exact dimension)) (fun _ => rfl) (fun _ => rfl)
-
 /-- The skill format is exact. -/
 theorem skillFormat_exact (actions : Word.Count) (config : Features.Config) (criterion : Criterion)
     (dimension : Dimension) (discounts : List Discount) :
     (skillFormat actions config criterion dimension discounts).Exact :=
   Format.map_exact (Format.pair_exact (interestFormat_exact config dimension)
     (Format.pair_exact (controllerFormat_exact _ _ _) (Format.pair_exact (modelFormat_exact _ _)
-      (Format.pair_exact (Format.option_exact followingFormat_exact)
-        (questionsFormat_exact _ _))))) (fun _ => rfl) (fun _ => rfl)
+      (Format.option_exact followingFormat_exact)))) (fun _ => rfl) (fun _ => rfl)
 
 /-- The consumer format is exact. -/
 theorem ensembleFormat_exact (actions : Word.Count) (config : Features.Config)

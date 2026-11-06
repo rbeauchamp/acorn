@@ -139,7 +139,8 @@ def priorArtTexts (reviewText design frontier : String) : IO Unit := do
       require (fields.length == 5 && fields.all (!·.isEmpty)) "incomplete default qualification row"
       let key := fields.headD ""
       require (!keys.contains key) s!"duplicate qualification {key}"
-      require (["provisional-reference", "research-only", "qualified", "demoted"].contains (fields[1]?.getD ""))
+      require (["provisional-reference", "research-only", "qualified", "demoted", "retired"].contains
+          (fields[1]?.getD ""))
         s!"{key}: unknown default qualification"
       keys := key :: keys
   require (sections == 1 && keys.all entries.contains && entries.all keys.contains)

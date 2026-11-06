@@ -458,7 +458,7 @@ theorem stepTemporalCosted_within (κ : Costs)
   unfold Skill.stepTemporalCosted
   refine Acorn.Costed.bind_within (optionStepCosted_within κ skill activation next reward gain rng)
     ?_
-  obtain ⟨⟨interest, policy, model, following, questions⟩, rest⟩ :=
+  obtain ⟨⟨interest, policy, model, following⟩, rest⟩ :=
     (skill.optionStepCosted activation next reward gain rng).val
   exact Acorn.Costed.ite_within
     (fun _ => (Acorn.Costed.bind_within (modelStepCosted_within κ model next.features
@@ -482,7 +482,7 @@ theorem creditTemporalCosted_within (κ : Costs)
   unfold Skill.creditTemporalCosted
   refine Acorn.Costed.bind_within
     (optionCreditCosted_within κ skill activation next drawn reward gain) ?_
-  obtain ⟨interest, policy, model, following, questions⟩ :=
+  obtain ⟨interest, policy, model, following⟩ :=
     (skill.optionCreditCosted activation next drawn reward gain).val
   exact Acorn.Costed.ite_within
     (fun _ => (Acorn.Costed.bind_within (modelStepCosted_within κ model next.features
@@ -505,7 +505,7 @@ theorem endTemporalCosted_within (κ : Costs)
   unfold Skill.endTemporalCosted
   refine Acorn.Costed.bind_within (terminateOptionCosted_within κ skill ending.activation
     ending.potential reward terminal gain) ?_
-  obtain ⟨interest, policy, model, following, questions⟩ :=
+  obtain ⟨interest, policy, model, following⟩ :=
     (skill.terminateOptionCosted ending.activation ending.potential reward terminal gain).val
   exact Acorn.Costed.ite_within
     (fun _ => (Acorn.Costed.bind_within (modelTerminalCosted_within κ model value features reward)
@@ -526,7 +526,7 @@ theorem stopFollowingCosted_within (κ : Costs)
     (skill.stopFollowingCosted (modelOperations criterion dimension) value features following
       potential estimate reward gain).Within κ (stopFollowingBound κ actions.word.toNat
         dimension.capacity (rankDimension dimension).capacity features.indices.length) := by
-  obtain ⟨interest, policy, model, linked, questions⟩ := skill
+  obtain ⟨interest, policy, model, linked⟩ := skill
   unfold Skill.stopFollowingCosted
   exact Acorn.Costed.bind_within (stopStepCosted_within κ policy _)
     (Acorn.Costed.Within.mono (Acorn.Costed.bind_within (Acorn.Costed.charge_within
@@ -550,7 +550,7 @@ theorem settleFollowingCosted_within (κ : Costs)
     (skill.settleFollowingCosted (modelOperations criterion dimension) value features potential
       goal estimate rate reward gain).Within κ (settleBound κ actions.word.toNat
         dimension.capacity (rankDimension dimension).capacity features.indices.length) := by
-  obtain ⟨interest, policy, model, linked, questions⟩ := skill
+  obtain ⟨interest, policy, model, linked⟩ := skill
   unfold Skill.settleFollowingCosted
   cases linked with
   | none => exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
@@ -623,10 +623,10 @@ theorem startFollowingCosted_within (κ : Costs)
     (skill.startFollowingCosted (modelOperations criterion dimension) features potential rate
       action behaviour).Within κ (startFollowingBound κ actions.word.toNat dimension.capacity
         (rankDimension dimension).capacity features.indices.length) := by
-  obtain ⟨interest, policy, model, linked, questions⟩ := skill
+  obtain ⟨interest, policy, model, linked⟩ := skill
   unfold Skill.startFollowingCosted
   refine Acorn.Costed.Within.mono (Acorn.Costed.bind_within
-    (skillRateCosted_within κ ⟨interest, policy, model, linked, questions⟩ rate)
+    (skillRateCosted_within κ ⟨interest, policy, model, linked⟩ rate)
     (Acorn.Costed.bind_within (snapshotCosted_within κ policy features _)
       (Acorn.Costed.bind_within (consistentCosted_within κ _ behaviour)
         (Acorn.Costed.bind_within (startStepCosted_within κ policy features action _)
@@ -658,7 +658,7 @@ theorem followTemporalCosted_within (κ : Costs)
       goal estimate rate action behaviour reward gain).Within κ
       (followTemporalBound κ actions.word.toNat dimension.capacity
         (rankDimension dimension).capacity features.indices.length) := by
-  obtain ⟨interest, policy, model, linked, questions⟩ := skill
+  obtain ⟨interest, policy, model, linked⟩ := skill
   unfold Skill.followTemporalCosted
   cases linked with
   | none =>

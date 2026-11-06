@@ -5,7 +5,6 @@ Authors: acorn contributors
 -/
 import Acorn.FeatureConstants
 import Acorn.FeatureRanking
-import Acorn.OffPolicy
 import Acorn.RankedFeatures
 
 /-!
@@ -462,8 +461,8 @@ structure Following where
   /-- Potential observed at the preceding frame. -/
   previous : Bool
 
-/-- Complete storage belonging to one option assignment. The questions it asks about its
-own policy follow the prediction channel layout. -/
+/-- Complete storage belonging to one option assignment. `discounts` is the prediction channel
+layout of the ensemble that holds the skill; no field of the skill reads it. -/
 structure Skill (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) where
   /-- Objective identity, retained by feature-slot retirement. -/
@@ -476,17 +475,12 @@ structure Skill (actions : Word.Count) (config : Config) (criterion : Criterion)
   Fresh storage has none, so no frame is credited to a later objective; a checkpoint image
   stores it. -/
   following : Option Following
-  /-- One off-policy question per prediction channel about this option's policy. They
-  read feature slots but are no reader of the tester's utility, so no decision reads
-  them. Fresh storage asks them afresh; a checkpoint image stores them. -/
-  questions : OptionQuestions dimension discounts
 
-/-- Fresh policy, model and questions for the selected target, linked to no earlier
-frame. -/
+/-- Fresh policy and model for the selected target, linked to no earlier frame. -/
 def Skill.initial (config : Config) (criterion : Criterion) (dimension : Dimension)
     {discounts : List Discount} (interest : Interest config) :
     Skill actions config criterion dimension discounts :=
-  ⟨interest, Controller.initial _ _ _, Model.initial _ _, none, OptionQuestions.initial _ _⟩
+  ⟨interest, Controller.initial _ _ _, Model.initial _ _, none⟩
 
 /-- Each policy reader followed by its three model reader positions. -/
 def Skill.readers {config : Config} {criterion : Criterion} {dimension : Dimension}
@@ -498,8 +492,8 @@ def Skill.readers {config : Config} {criterion : Criterion} {dimension : Dimensi
 def Skill.retire {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (skill : Skill actions config criterion dimension discounts)
     (feature : FeatIdx dimension) : Skill actions config criterion dimension discounts :=
-  let ⟨interest, policy, model, following, questions⟩ := skill
-  ⟨interest, policy.retire feature, model.retire feature, following, questions.retire feature⟩
+  let ⟨interest, policy, model, following⟩ := skill
+  ⟨interest, policy.retire feature, model.retire feature, following⟩
 
 /-- All current learned consumers; dimensions, criteria and channel layout are nominal. -/
 structure Ensemble (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)

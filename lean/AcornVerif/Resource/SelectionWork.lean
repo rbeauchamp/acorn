@@ -250,8 +250,8 @@ def refreshFreeRun (κ : Costs)
   Costed.charge (κ .refreshFree) (Costed.discard (refreshModels κ free profile.ranksSubtasks))
 
 /-- Bound of a free dispatch's refresh. -/
-abbrev refreshFreeBound (κ : Costs) (rows capacity positions questions units : Nat) : Nat :=
-  κ .refreshFree + refreshBound κ rows capacity positions questions units
+abbrev refreshFreeBound (κ : Costs) (rows capacity positions units : Nat) : Nat :=
+  κ .refreshFree + refreshBound κ rows capacity positions units
 
 theorem refreshFreeRun_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
@@ -259,7 +259,7 @@ theorem refreshFreeRun_work (κ : Costs)
       (EndingPayload (profile.mode != .frozen)))) :
     (refreshFreeRun κ state closing).work ≤
       refreshFreeBound κ interface.actions.word.toNat dimension.capacity
-        (rankDimension dimension).capacity (interface.signals.length + 1) config.units.count :=
+        (rankDimension dimension).capacity config.units.count :=
   Costed.charge_work_le (Costed.discard_work_le (refreshModels_work κ _ _))
 
 /-- The costed run of `TemporalControl.planFree` with the planning boundary of a selection:
@@ -504,8 +504,8 @@ def atBoundaryRun (κ : Costs) (selection : PlanningSelection)
       dispatchMetaRun κ result.1 features declared reward goal drawn.2)
 
 /-- Bound of a free dispatch over `width` features. -/
-abbrev atBoundaryBound (κ : Costs) (rows capacity positions questions units width : Nat) : Nat :=
-  refreshFreeBound κ rows capacity positions questions units +
+abbrev atBoundaryBound (κ : Costs) (rows capacity positions units width : Nat) : Nat :=
+  refreshFreeBound κ rows capacity positions units +
     (planFreeBound κ rows capacity positions width + (drawMetaBound κ rows capacity width +
       (κ .atBoundary + (closeOptionBound κ rows capacity positions width +
         dispatchBound κ rows capacity positions width))))
@@ -518,7 +518,7 @@ theorem atBoundaryRun_work (κ : Costs) (selection : PlanningSelection)
       (EndingPayload (profile.mode != .frozen)))) :
     (atBoundaryRun κ selection state features declared reward goal closing).work ≤
       atBoundaryBound κ interface.actions.word.toNat dimension.capacity
-        (rankDimension dimension).capacity (interface.signals.length + 1) config.units.count
+        (rankDimension dimension).capacity config.units.count
         features.indices.length := by
   unfold atBoundaryRun
   refine Costed.bind_work_le (refreshFreeRun_work κ state closing) fun _ =>
@@ -580,7 +580,7 @@ def selectRun (κ : Costs) (selection : PlanningSelection)
                           atBoundaryRun κ selection result.1 features declared reward goal none)))
 
 /-- Bound of an executing option's decision and its step or closing over `width` features. -/
-abbrev optionBranchBound (κ : Costs) (rows capacity positions questions units width : Nat) :
+abbrev optionBranchBound (κ : Costs) (rows capacity positions units width : Nat) :
     Nat :=
   potentialBound κ width + (metaRateBound κ rows capacity +
     (predictAllBound κ metaCount.word.toNat width + κ .snapshot +
@@ -588,14 +588,14 @@ abbrev optionBranchBound (κ : Costs) (rows capacity positions questions units w
         (decideBound κ rows capacity width +
           (stepOptionBound κ rows capacity positions width +
             (closeOptionBound κ rows capacity positions width +
-              atBoundaryBound κ rows capacity positions questions units width)))))))
+              atBoundaryBound κ rows capacity positions units width)))))))
 
 /-- Bound of selection over `width` features. -/
-abbrev selectBound (κ : Costs) (rows capacity positions questions units width : Nat) : Nat :=
+abbrev selectBound (κ : Costs) (rows capacity positions units width : Nat) : Nat :=
   prepareBound κ rows capacity positions width + (serveBound κ rows width + (κ .select +
     (primitiveBound κ rows capacity width +
-      (atBoundaryBound κ rows capacity positions questions units width +
-        optionBranchBound κ rows capacity positions questions units width))))
+      (atBoundaryBound κ rows capacity positions units width +
+        optionBranchBound κ rows capacity positions units width))))
 
 theorem selectRun_work (κ : Costs) (selection : PlanningSelection)
     (state : TemporalControl interface profile config criterion dimension)
@@ -603,7 +603,7 @@ theorem selectRun_work (κ : Costs) (selection : PlanningSelection)
     (goal : Bool) :
     (selectRun κ selection state features declared reward goal).work ≤
       selectBound κ interface.actions.word.toNat dimension.capacity
-        (rankDimension dimension).capacity (interface.signals.length + 1) config.units.count
+        (rankDimension dimension).capacity config.units.count
         features.indices.length := by
   unfold selectRun
   refine Costed.bind_work_le (prepareRun_work κ state features reward) fun _ =>
@@ -645,7 +645,7 @@ theorem selectRun_work (κ : Costs) (selection : PlanningSelection)
               (bound := closeOptionBound κ interface.actions.word.toNat dimension.capacity
                   (rankDimension dimension).capacity features.indices.length +
                 atBoundaryBound κ interface.actions.word.toNat dimension.capacity
-                  (rankDimension dimension).capacity (interface.signals.length + 1)
+                  (rankDimension dimension).capacity
                   config.units.count features.indices.length) ?_ ?_) (Nat.le_add_left _ _)
             · exact Nat.le_trans (atBoundaryRun_work κ selection _ features declared reward goal _)
                 (Nat.le_add_left _ _)

@@ -103,19 +103,16 @@ part. -/
 def modelBytes (dimension : Dimension) : Nat :=
   3 * managedBytes dimension.capacity + transitionBytes (rankWidth dimension)
 
-/-- An option's questions: one per signal, and the preceding set. -/
-def questionsBytes (capacity signals : Nat) : Nat := signals * (8 * capacity + 1) + 8 + 4 * capacity
-
-/-- One option slot: interest, policy, model, trajectory and questions. -/
-def skillBytes (dimension : Dimension) (signals : Nat) : Nat :=
+/-- One option slot: interest, policy, model and trajectory. -/
+def skillBytes (dimension : Dimension) : Nat :=
   17 + controllerBytes dimension.capacity Acorn.FeatureConstants.primitiveCount +
-    modelBytes dimension + 7 + questionsBytes dimension.capacity signals
+    modelBytes dimension + 7
 
 /-- Every learned consumer. -/
 def ensembleBytes (dimension : Dimension) (signals : Nat) : Nat :=
   controllerBytes dimension.capacity Acorn.FeatureConstants.primitiveCount +
     controllerBytes dimension.capacity Acorn.FeatureConstants.metaActionCount +
-    Acorn.FeatureConstants.skillCount * skillBytes dimension signals +
+    Acorn.FeatureConstants.skillCount * skillBytes dimension +
     signals * managedBytes dimension.capacity
 
 /-- The process-local references: prediction and error words, model caches, occupancy,

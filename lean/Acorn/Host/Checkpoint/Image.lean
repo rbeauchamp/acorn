@@ -15,12 +15,11 @@ written. Each format reads a value through the same admission its type requires:
 outside its interval, a repeated index, a learner whose words fail its invariant check
 (`NumericState.resumable`) or an agent whose invariants fail is refused, never repaired.
 
-Six fields are not stored, because each is a function of stored fields that its type
+Five fields are not stored, because each is a function of stored fields that its type
 fixes, and reading recomputes it: the step-size rails of a learner (`StepSizeRails.ofConfig`)
 and its step sizes (the portable exponential of each log step size), the projection bank of
 the representation (`Representation.restore`), the position table of a ranked slot set
-(`RankedFeatures.ofSlots`), the slot flags of a question's preceding set
-(`Preceding.ofFeatures`) and the settlement horizon of a prediction record. A learner's
+(`RankedFeatures.ofSlots`) and the settlement horizon of a prediction record. A learner's
 transient registers are stored at its eligible slots only: every other slot of a learner
 that its invariant admits holds positive zero. The proof library proves that each format
 reads exactly the encodings of its values (`AcornVerif.CurrentImage`).
@@ -112,17 +111,6 @@ def activeSetFormat (dimension : Dimension) : Format (SwiftTd.ActiveSet dimensio
   ((indexFormat dimension).list dimension.capacity).filterMap
     (fun stored => if (unique stored).indices = stored then some (unique stored) else none)
     (·.indices)
-
-/-- The preceding set of a question with the flags of its slots, read from the set. -/
-def Preceding.ofFeatures {dimension : Dimension} (features : SwiftTd.ActiveSet dimension) :
-    Preceding dimension :=
-  ⟨features, (presence features.indices).seen, fun index => by
-    rw [(presence features.indices).exact]
-    exact decide_eq_decide.mpr (presence_mem features.indices index)⟩
-
-/-- A preceding set; its flags are read from its slots. -/
-def precedingFormat (dimension : Dimension) : Format (Preceding dimension) :=
-  (activeSetFormat dimension).map Preceding.ofFeatures (·.features)
 
 /-! ## Learners -/
 
@@ -337,49 +325,15 @@ def followingFormat : Format Following :=
     (fun (age, live, previous) => ⟨age, live, previous⟩)
     (fun following => (following.age, following.live, following.previous))
 
-/-- Admit a question: a silent question holds zero weights only. -/
-def questionPack {discount : Discount} {dimension : Dimension}
-    (raw : WeightArray (.discounted discount) dimension ×
-      WeightArray (.discounted discount) dimension × Bool) : Option (Question discount dimension) :=
-  if blank : raw.2.2 = true → ∀ index : FeatIdx dimension,
-      raw.1[index.val].value = .zero ∧ raw.2.1[index.val].value = .zero then
-    some ⟨⟨raw.1, raw.2.1⟩, raw.2.2, blank⟩
-  else none
-
-/-- One off-policy question. -/
-def questionFormat (discount : Discount) (dimension : Dimension) :
-    Format (Question discount dimension) :=
-  ((Format.vector (weightFormat (.discounted discount)) dimension.capacity).pair
-    ((Format.vector (weightFormat (.discounted discount)) dimension.capacity).pair
-      Format.bool)).filterMap questionPack
-    (fun question => (question.learner.main, question.learner.second, question.silent))
-
-/-- One question per prediction signal, in the layout. -/
-def gradientBankFormat (dimension : Dimension) :
-    (discounts : List Discount) → Format (GradientBank dimension discounts)
-  | [] => Format.unit.map (fun _ => .nil) (fun _ => ())
-  | discount :: rest =>
-    ((questionFormat discount dimension).pair (gradientBankFormat dimension rest)).map
-      (fun (head, tail) => .cons head tail) (fun | .cons head tail => (head, tail))
-
-/-- The questions an option asks about its own policy. -/
-def questionsFormat (dimension : Dimension) (discounts : List Discount) :
-    Format (OptionQuestions dimension discounts) :=
-  ((gradientBankFormat dimension discounts).pair (precedingFormat dimension)).map
-    (fun (learners, preceding) => ⟨learners, preceding⟩)
-    (fun questions => (questions.learners, questions.preceding))
-
 /-- One option slot's complete storage. -/
 def skillFormat (actions : Word.Count) (config : Features.Config) (criterion : Criterion)
     (dimension : Dimension) (discounts : List Discount) :
     Format (Skill actions config criterion dimension discounts) :=
   ((interestFormat config dimension).pair
     ((controllerFormat (criterion.config .optionSkill) dimension actions.word.toNat).pair
-    ((modelFormat dimension criterion).pair
-    (followingFormat.option.pair (questionsFormat dimension discounts))))).map
-    (fun (interest, policy, model, following, questions) =>
-      ⟨interest, policy, model, following, questions⟩)
-    (fun skill => (skill.interest, skill.policy, skill.model, skill.following, skill.questions))
+    ((modelFormat dimension criterion).pair followingFormat.option))).map
+    (fun (interest, policy, model, following) => ⟨interest, policy, model, following⟩)
+    (fun skill => (skill.interest, skill.policy, skill.model, skill.following))
 
 /-- Every learned consumer. -/
 def ensembleFormat (actions : Word.Count) (config : Features.Config) (criterion : Criterion)

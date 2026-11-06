@@ -34,8 +34,8 @@ proved here bounds the twin's accounting. It is not a bound of the executed code
 that correspondence as a checked statement, part of obligation 7 of `docs/mission-contract.md`.
 A definition that is the value of its costed definition is bounded through
 that definition instead, in `AcornVerif.Resource.LearnerWork`, `AcornVerif.Resource.ControlWork`,
-`AcornVerif.Resource.EncodeWork`, `AcornVerif.Resource.ModelWork`,
-`AcornVerif.Resource.QuestionWork` or `AcornVerif.Resource.OptionWork`.
+`AcornVerif.Resource.EncodeWork`, `AcornVerif.Resource.ModelWork` or
+`AcornVerif.Resource.OptionWork`.
 
 **Loops.** Each loop combinator below has as its value the library loop applied to the values of
 its parts, and as its work each part's work once and the control of the library loop's row of

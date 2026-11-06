@@ -113,8 +113,8 @@ definitions.
 `step_event` shows that, where selection, `takeoverValue` and `followOptions` agree
 under two events, `TemporalControl.step` agrees: the rest of the transition does not
 depend on the event.
-`TemporalControl.finish`, which credits the primitive action values, the prediction
-learners and the options' questions, is handed the frame and reads it through its
+`TemporalControl.finish`, which credits the primitive action values and the prediction
+learners, is handed the frame and reads it through its
 signal values only (`finish_signals`), so it does not read the event. The tester takes
 no frame. A profile without a hierarchy has no option to end, and
 `step_event_primitive` shows that its local transition does not read the event.
@@ -364,7 +364,8 @@ theorem get_map {source target : Type} {count : Nat} (map : source → target)
 only (`planningBoundary_models`), so the other parts of this option reach no result. -/
 def hold (model : Model dimension criterion) :
     Skill actions config criterion dimension discounts :=
-  { Skill.initial config criterion dimension (.learned .neutral) with model := model }
+  { Skill.initial (discounts := discounts) config criterion dimension (.learned .neutral) with
+    model := model }
 
 /-- What planning reads of a local state: the option models, the planning view, the
 reward rate and the exploration rate of the meta-controller's nominal policy. -/
