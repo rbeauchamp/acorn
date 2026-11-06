@@ -16,21 +16,27 @@ model inputs in `ModelConstants`.
 `state_product_exceeds_parameter_count` compares the declared parameter count
 with a Cartesian product of position, facing, energy, day phase and two craft
 flags: a table with one entry per element of that product would need at least
-90000 times the declared parameters. The comparison concerns tabular
+140000 times the declared parameters, the largest multiple of ten thousand for
+which the comparison holds (`state_margin_largest`). The comparison concerns tabular
 representation of the declared product and nothing more. It does not prove that
 every Cartesian combination is reachable, that every state needs a distinct
 parameter, or that the executing agent learns to generalise.
 
 ## The world's state in bits
 
-In bits the world is the smaller of the two. At side 1024 its whole state fits
-in fewer than 67.7 million bits, and the declared parameters hold 94.4 million
-(`agentBits`, 2949121 × 32 = 94371872). `agent_exceeds_terrain_description`
-checks the corresponding inequality for the packed terrain description alone.
+In bits the agent is the smaller of the two. The declared parameters hold 59.8
+million bits (`agentBits`, 1867777 × 32 = 59768864: `agent_parameters_value` and
+`agent_bits_value`), and at side 1024 the world's whole state fits in fewer than
+67.7 million (`worldStateBits`, 67646087: `world_state_bits_value`), more than the
+parameter bits (`world_state_exceeds_agent_bits`). The packed terrain description
+alone is smaller: `agent_exceeds_terrain_description` checks that the parameter
+bits exceed it nineteen times over, the largest whole ratio that holds
+(`terrain_ratio_largest`).
 
-The state bound is derived here by counting the values of `Acorn.Host.World`
-under `Acorn.Host.WorldConfig.standard` at side 1024; no theorem in this module
-checks it. Terrain is a function of the configuration's seed and scale, so it is
+The field counts below are derived here by counting the values of
+`Acorn.Host.World` under `Acorn.Host.WorldConfig.standard` at side 1024; no
+theorem in this module checks a field's count, and `world_state_bits_value`
+checks their sum. Terrain is a function of the configuration's seed and scale, so it is
 configuration and not state. A field with at most `2 ^ b` values counts as `b`
 bits:
 
@@ -60,15 +66,17 @@ namespace AcornVerif
 
 open AcornVerif.ModelConstants
 
-/-- Declared learned-parameter budget: two arrays per learner, two weight arrays per
-off-policy question (`Acorn.OffPolicy`) and one reserved gain slot.
+/-- Declared learned-parameter budget: two arrays per learner and one reserved gain slot.
 The array counts are model inputs, not generated facts about checkpoint storage. -/
 def agentParameters : ℕ :=
   ModelConstants.runtimeLearnerCount * ModelConstants.weightSpace *
     ModelConstants.knowledgeArraysPerLearner +
-    ModelConstants.questionCount * ModelConstants.weightSpace *
-      ModelConstants.weightArraysPerQuestion +
     ModelConstants.gainParameterCount
+
+/-- The declared budget is 1867777 parameters. -/
+theorem agent_parameters_value : agentParameters = 1867777 := by
+  norm_num [agentParameters, ModelConstants.runtimeLearnerCount, ModelConstants.weightSpace,
+    ModelConstants.knowledgeArraysPerLearner, ModelConstants.gainParameterCount]
 
 /-- Size of the declared Cartesian product of position, facing, energy, day phase and two
 craft flags. It multiplies declared ranges and asserts no reachability of any combination
@@ -81,40 +89,73 @@ def declaredStateProduct : ℕ :=
     * 2
     * 2
 
+/-- The quotient of the state product by the budget is 143791. -/
+theorem state_quotient_value : declaredStateProduct / agentParameters = 143791 := by
+  norm_num [agentParameters, declaredStateProduct,
+    ModelConstants.runtimeLearnerCount, ModelConstants.gainParameterCount,
+    ModelConstants.weightSpace, ModelConstants.knowledgeArraysPerLearner, ModelConstants.worldSide,
+    ModelConstants.facings, ModelConstants.energyMax, ModelConstants.dayPhases]
+
 /-- Declared ratio used in the state-product comparison: the largest multiple of ten thousand
-that `state_product_exceeds_parameter_count` proves. It was 100000 while the budget counted the
-`runtimeLearnerCount` learners alone. The off-policy question weights raise the budget from
-1867777 to 2949121 parameters, which lowers the quotient of the state product by the budget
-from 143791 to 91067, so 100000 no longer holds. -/
-def minStateMargin : ℕ := 90000
+that `state_product_exceeds_parameter_count` proves (`state_margin_largest`), below the
+quotient 143791 (`state_quotient_value`). -/
+def minStateMargin : ℕ := 140000
 
 /-- The declared state product is at least `minStateMargin` times the declared parameter
 count. -/
 theorem state_product_exceeds_parameter_count :
     agentParameters * minStateMargin ≤ declaredStateProduct := by
   norm_num [agentParameters, declaredStateProduct, minStateMargin,
-    ModelConstants.runtimeLearnerCount,
-    ModelConstants.gainParameterCount, ModelConstants.questionCount,
-    ModelConstants.weightArraysPerQuestion,
+    ModelConstants.runtimeLearnerCount, ModelConstants.gainParameterCount,
+    ModelConstants.weightSpace, ModelConstants.knowledgeArraysPerLearner, ModelConstants.worldSide,
+    ModelConstants.facings, ModelConstants.energyMax, ModelConstants.dayPhases]
+
+/-- No larger multiple of ten thousand holds: the quotient of the state product by the budget
+is below 150000. -/
+theorem state_margin_largest :
+    ¬ agentParameters * (minStateMargin + 10000) ≤ declaredStateProduct := by
+  norm_num [agentParameters, declaredStateProduct, minStateMargin,
+    ModelConstants.runtimeLearnerCount, ModelConstants.gainParameterCount,
     ModelConstants.weightSpace, ModelConstants.knowledgeArraysPerLearner, ModelConstants.worldSide,
     ModelConstants.facings, ModelConstants.energyMax, ModelConstants.dayPhases]
 
 /-- Modeled parameter bits, assigning 32 bits to each learned parameter. -/
 def agentBits : ℕ := agentParameters * 32
 
+/-- The declared parameters hold 59768864 bits. -/
+theorem agent_bits_value : agentBits = 59768864 := by
+  rw [agentBits, agent_parameters_value]
+
+/-- Bits of the world's state at side 1024, the sum of the field counts in the module
+documentation: `time`, `goalStart`, `body`, `goal`, `harvested`, `deer`, `food` and `rng`. -/
+def worldStateBits : ℕ := 64 + 64 + 163 + 129 + 67371265 + 262145 + 12001 + 256
+
+/-- The field counts sum to 67646087 bits. -/
+theorem world_state_bits_value : worldStateBits = 67646087 := by
+  norm_num [worldStateBits]
+
+/-- The world's state takes more bits than the declared parameters. -/
+theorem world_state_exceeds_agent_bits : agentBits < worldStateBits := by
+  rw [agent_bits_value, world_state_bits_value]
+  norm_num
+
 /-- Packed terrain bits for the selected square world, with three bits per tile. -/
 def worldTerrainBits : ℕ := ModelConstants.worldSide * ModelConstants.worldSide * 3
 
-/-- Declared lower ratio for parameter bits versus packed terrain bits. -/
+/-- Declared lower ratio for parameter bits versus packed terrain bits: the largest whole ratio
+that `agent_exceeds_terrain_description` proves (`terrain_ratio_largest`). -/
 def minTerrainRatio : ℕ := 19
 
 /-- The modeled parameter bits exceed the packed terrain description by the stated ratio. -/
 theorem agent_exceeds_terrain_description :
     worldTerrainBits * minTerrainRatio ≤ agentBits := by
-  norm_num [worldTerrainBits, agentBits, agentParameters, minTerrainRatio,
-    ModelConstants.runtimeLearnerCount, ModelConstants.gainParameterCount,
-    ModelConstants.questionCount, ModelConstants.weightArraysPerQuestion,
-    ModelConstants.weightSpace, ModelConstants.knowledgeArraysPerLearner,
-    ModelConstants.worldSide]
+  rw [agent_bits_value]
+  norm_num [worldTerrainBits, minTerrainRatio, ModelConstants.worldSide]
+
+/-- No larger whole ratio holds: twenty times the packed terrain bits exceed the parameter
+bits. -/
+theorem terrain_ratio_largest : ¬ worldTerrainBits * (minTerrainRatio + 1) ≤ agentBits := by
+  rw [agent_bits_value]
+  norm_num [worldTerrainBits, minTerrainRatio, ModelConstants.worldSide]
 
 end AcornVerif

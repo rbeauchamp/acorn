@@ -736,16 +736,15 @@ theorem step_executing (state : TemporalControl interface profile config criteri
     refine ⟨chosen.1, rfl, fun slot executing => ?_⟩
     have followed := follow_executing chosen.1 (modelOperations criterion dimension) features
       obs.declared reward goal chosen.2 slot executing
-    have finished := TemporalControl.finish_skill
+    have finished := TemporalControl.finish_skills
       ((chosen.1.followOptions (modelOperations criterion dimension) features
         obs.declared reward goal chosen.2).closeSpan
           (chosen.1.takeoverValue features obs.declared goal chosen.2))
-      features obs reward chosen.2 slot
+      features obs reward chosen.2
     rw [closeSpan_skills] at finished
     simp only at followed
-    constructor
-    · exact (congrArg (·.policy) finished).trans (by split <;> exact followed.1)
-    · exact (congrArg (·.model) finished).trans (by split <;> exact followed.2)
+    rw [finished]
+    exact ⟨followed.1, followed.2⟩
 
 /-- Work bound, inactive profiles: frozen and primitive-only execution performs no
 off-policy option work at all. -/
@@ -841,7 +840,7 @@ theorem follow_age (skill : Skill actions config criterion dimension discounts)
       gain).following.map (·.age.val) = some (following.age.val + 1) := by
   have room : following.age.val < Acorn.FeatureConstants.optionMaxDuration := next.room
   cases skill with
-  | mk interest policy model stored questions =>
+  | mk interest policy model stored =>
     obtain rfl : stored = some following := linked
     simp only [Skill.followTemporal_def, continuing]
     simp [ModelAge.advance]
@@ -876,7 +875,7 @@ theorem follow_idle_model (skill : Skill actions config criterion dimension disc
     (skill.followTemporal models value features potential goal estimate rate action behaviour reward
       gain).model = skill.model := by
   cases skill with
-  | mk interest policy model stored questions =>
+  | mk interest policy model stored =>
     obtain rfl : stored = some following := linked
     simp [Skill.followTemporal_def, continuing, idle, inconsistent]
 
@@ -899,7 +898,7 @@ theorem follow_live_model (skill : Skill actions config criterion dimension disc
       estimate rate action behaviour reward gain).model =
       skill.model.step features following.age reward := by
   cases skill with
-  | mk interest policy model stored questions =>
+  | mk interest policy model stored =>
     obtain rfl : stored = some following := linked
     simp [Skill.followTemporal_def, continuing, live, modelOperations, Model.step]
 
@@ -919,7 +918,7 @@ theorem follow_live (skill : Skill actions config criterion dimension discounts)
     (skill.followTemporal models value features potential goal estimate rate action behaviour reward
       gain).following.map (·.live) = some (next.policy.consistent behaviour) := by
   cases skill with
-  | mk interest policy model stored questions =>
+  | mk interest policy model stored =>
     obtain rfl : stored = some following := linked
     simp only [Skill.followTemporal_def, continuing]
     rfl
@@ -943,7 +942,7 @@ theorem follow_policy (skill : Skill actions config criterion dimension discount
         (Features.shapedCumulant (criterion.center reward 1 gain) criterion.rule.gamma potential
           following.previous) := by
   cases skill with
-  | mk interest policy model stored questions =>
+  | mk interest policy model stored =>
     obtain rfl : stored = some following := linked
     simp only [Skill.followTemporal_def, continuing]
 
@@ -969,7 +968,7 @@ theorem settle_continuing (skill : Skill actions config criterion dimension disc
         (if following.live then (models.step skill.model features following.age reward).val
           else skill.model) := by
   cases skill with
-  | mk interest policy model stored questions =>
+  | mk interest policy model stored =>
     obtain rfl : stored = some following := linked
     simp only [Skill.settleFollowing_def, continuing, and_self]
 
@@ -986,23 +985,24 @@ theorem settle_ending (skill : Skill actions config criterion dimension discount
     skill.settleFollowing models value features potential goal estimate rate reward gain =
       skill.stopFollowing models value features following potential estimate reward gain := by
   cases skill with
-  | mk interest policy model stored questions =>
+  | mk interest policy model stored =>
     obtain rfl : stored = some following := linked
     simp only [Skill.settleFollowing_def, ending]
 
-/-! ## Off-policy questions
+/-! ## Live trajectories and the reported masses
 
-`askQuestions_get` arms a slot's questions at a frame exactly when the option drew the
-frame's action or its model trajectory is live after `followOptions`. The theorems below
-show what that means for the importance ratio: on every frame that arms an option's
-questions, the behaviour's reported mass of every action equals the option's own, so the
-ratio of the two is one wherever it is defined, and a served exploratory frame never arms
-an option that gives mass to another action. No ratio is formed or bounded beyond that. -/
+An option that is not executing keeps its model trajectory live after `followOptions`
+exactly when the masses the behaviour reported equal those of the option's own snapshot
+(PAR-17). The theorems below show what that means for the importance ratio: on every frame
+that leaves an option's trajectory live, the behaviour's reported mass of every action equals
+the option's own, so the ratio of the two is one wherever it is defined, and a served
+exploratory frame is not consistent with an option that gives mass to another action. No
+ratio is formed or bounded beyond that. -/
 
-/-- On a continuing followed frame, a slot's questions are armed only when the masses the
+/-- On a continuing followed frame, a slot's trajectory stays live only when the masses the
 behaviour reported equal those of the option's own snapshot at the frame, action by
 action. -/
-theorem follow_armed_ratio (skill : Skill actions config criterion dimension discounts)
+theorem follow_live_ratio (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
@@ -1013,33 +1013,33 @@ theorem follow_armed_ratio (skill : Skill actions config criterion dimension dis
     (next : OptionContinuation actions dimension following.activation)
     (continuing : skill.decideOption following.activation features potential goal estimate rate =
       .continuing next)
-    (armed : (skill.followTemporal models value features potential goal estimate rate action
+    (kept : (skill.followTemporal models value features potential goal estimate rate action
       behaviour reward gain).following.any (·.live) = true)
     (other : Action actions.word.toNat) :
     next.policy.probabilities.get other = behaviour.get other := by
   have live := follow_live skill models value features potential goal estimate rate action
     behaviour reward gain following linked next continuing
   have consistent : next.policy.consistent behaviour = true := by
-    revert armed live
+    revert kept live
     cases (skill.followTemporal models value features potential goal estimate rate action
       behaviour reward gain).following with
     | none => simp
     | some stored =>
-      intro armed live
-      simp only [Option.any_some] at armed
+      intro kept live
+      simp only [Option.any_some] at kept
       simp only [Option.map_some, Option.some.injEq] at live
       rw [← live]
-      exact armed
+      exact kept
   exact PolicySnapshot.consistent_mass _ _ other consistent
 
 /-- A frame that starts a followed trajectory, after a stop or with no stored trajectory,
-arms the questions only when the behaviour's masses equal those of the option's snapshot
-at the frame, action by action. -/
-theorem start_armed_ratio (skill : Skill actions config criterion dimension discounts)
+starts it live only when the behaviour's masses equal those of the option's snapshot at the
+frame, action by action. -/
+theorem start_live_ratio (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (rate : ConsumerRate) (action : Action actions.word.toNat)
     (behaviour : Vector Binary32 actions.word.toNat)
-    (armed : (skill.startFollowing models features potential rate action
+    (kept : (skill.startFollowing models features potential rate action
       behaviour).following.any (·.live) = true)
     (other : Action actions.word.toNat) :
     (skill.policy.snapshot (count := actions) features
@@ -1048,12 +1048,12 @@ theorem start_armed_ratio (skill : Skill actions config criterion dimension disc
   have consistent : (skill.policy.snapshot (count := actions) features
       (rate.resolve fun _ => skill.policy.exploreRate (count := actions))).consistent
         behaviour = true := by
-    simpa [Skill.startFollowing_def] using armed
+    simpa [Skill.startFollowing_def] using kept
   exact PolicySnapshot.consistent_mass _ _ other consistent
 
-/-- A served frame reports a point mass on its committed action, so it never arms the
-questions of an option whose snapshot gives a nonzero mass word to any other action. -/
-theorem served_unarmed (snapshot : PolicySnapshot actions)
+/-- A served frame reports a point mass on its committed action, so it is not consistent with
+an option whose snapshot gives a nonzero mass word to any other action. -/
+theorem served_inconsistent (snapshot : PolicySnapshot actions)
     (action other : Action actions.word.toNat) (different : other ≠ action)
     (positive : snapshot.probabilities.get other ≠ .zero) :
     snapshot.consistent (servedProbabilities action) = false := by
@@ -1584,8 +1584,8 @@ option's continuing credit word for word, and its policy takes tree-backup credi
 the cumulant the executing option would have read. Where that decision ends,
 `handoff_stop` shows the option is stopped as any followed option is, with the stopping
 value at the nominal meta estimate. The served action enters only as the taken action
-of the tree backup and through the point mass the frame reports, which arms no model
-or question of an option that gives another action a nonzero mass (`served_unarmed`). -/
+of the tree backup and through the point mass the frame reports, which leaves live no model
+trajectory of an option that gives another action a nonzero mass (`served_inconsistent`). -/
 
 /-- Interruption, learning option: its policy and model are untouched, it is linked to
 the trajectory it was executing, and the event names its slot, age and reason. -/
@@ -1757,7 +1757,7 @@ theorem handoff_stop (skill : Skill actions config criterion dimension discounts
   have stop : skill.decideOption activation.following.activation features potential goal estimate
       rate = .ending reason := ending
   cases skill with
-  | mk interest policy model stored questions =>
+  | mk interest policy model stored =>
     obtain rfl : stored = some activation.following := held
     simp only [Skill.followTemporal_def, stop]
 
@@ -1792,7 +1792,7 @@ decision continues (`handoff_model`), and the close toward its terminal targets 
 that decision ends there (`handoff_stop`). Where it continues, the trajectory then lapses
 without a terminal target, because a served frame reports a point mass, which is not
 consistent with the masses of an option that gives another action a nonzero mass
-(`follow_live`, `served_unarmed`), and the model credits no served step
+(`follow_live`, `served_inconsistent`), and the model credits no served step
 (`follow_idle_model`). Its learned target is therefore still the option run to its own
 stop. `AcornVerif.interrupted_span_return` is the identity behind the contract, over
 exact reals: a span closed after some of the option's actions toward the return of the

@@ -931,13 +931,12 @@ lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12
 The expected digest has one form, `0x` and exactly sixteen lowercase hexadecimal digits:
 it is a hash identifier, not a number, so it is not read as a command-line number and
 digit-only text such as `10` is refused.
-Paired checksum `47d37dab0adedf72`. The deployed arm runs the ranked profile
+Paired checksum `68e84d568d55f8ad`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
 command runs all three fixed arms under the same deadline. All three pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
-off-policy option learning (PAR-17), option expectation models with planning under
-the current values (PAR-13, PAR-14) and, in the checksums, every option's off-policy
-questions (PAR-18). Every pin also records persistent exploration by whichever layer
+off-policy option learning (PAR-17) and option expectation models with planning under
+the current values (PAR-13, PAR-14). Every pin also records persistent exploration by whichever layer
 selects the action, a run interrupting the option whose draw began it and closing its
 meta span there (PAR-8, D3);
 the declared-rate and differential pins also record the stable, sign-correct
@@ -948,13 +947,14 @@ when investigating a dynamics change.
 
 ## Checkpoint admission
 
-Format 20 holds the exact image of the agent:
-every field of its temporal state, the option models, each option's off-policy questions
-(PAR-18), primitive credit, the rate schedule and every process-local reference included.
-Earlier formats are refused. Format 19 has this layout, but its weights were placed by the
-hashes that read their first two words only through their XOR, so a saved weight can sit at
-the slot of another feature; the loader refuses it
-(`AcornVerif.CurrentCheckpoint.previous_generation_unloaded`). Load checks dimensions,
+Format 21 holds the exact image of the agent:
+every field of its temporal state, the option models, primitive credit, the rate schedule
+and every process-local reference included. Every earlier format is refused
+(`AcornVerif.CurrentCheckpoint.previous_generation_unloaded`). Format 20 stores, after
+each option slot's trajectory, that option's off-policy questions, which the agent no longer
+holds (PAR-18, retired). Format 19 has the layout of format 20, but its weights were placed by
+the hashes that read their first two words only through their XOR, so a saved weight can sit
+at the slot of another feature. Load checks dimensions,
 identifiers, criterion and step order
 in the header, then reads the image with every stored word in its own domain, every
 learner through the check of its invariant and the agent's two invariants. An incompatible

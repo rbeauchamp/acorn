@@ -607,8 +607,6 @@ def anchors : Array (Name × Name × Name) := #[
   (`AcornVerif.Decisions, `AcornVerif.Decisions.managed_words, `Acorn.Checkpoint.managedWords),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.exploration_begins,
     `Acorn.Features.beginExploration),
-  (`AcornVerif.Decisions, `AcornVerif.Decisions.preceding_advance,
-    `Acorn.Features.Preceding.advance),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.slot_settles,
     `Acorn.Lifetime.DemonStats.advanceSlot),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.first_loop_prune,

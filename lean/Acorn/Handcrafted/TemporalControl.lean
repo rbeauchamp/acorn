@@ -13,7 +13,7 @@ import Acorn.Handcrafted.PredictionControl
 This dispatcher consumes one already-encoded frame of any world interface and its
 preceding reward. It composes persistent exploration, option policies, assignment refresh,
 SMDP meta credit, off-policy option learning, primitive credit, prediction
-feedback, every option's off-policy questions and the old-gain clock.
+feedback and the old-gain clock.
 The full agent supplies encoding/retirement order. Model learning and the selected
 planning algorithm execute the current managed owners. No attempt timeout is a termination input.
 
@@ -111,56 +111,8 @@ def TemporalControl.recordEpisodes (state : TemporalControl interface profile co
   { state with lifetime := { state.lifetime with
       options := Lifetime.recordOptions state.lifetime.options decision.episodeEnd decision.started } }
 
-/-- Whether a frame's action was selected with an option's own distribution: the option drew
-it, or its model trajectory is live after `followOptions`, which holds when the masses the
-behaviour reported equal the option's own. -/
-def askedBy (decision : TemporalDecision actions) (index : Fin Acorn.FeatureConstants.skillCount)
-    (following : Option Following) : Bool :=
-  decision.source == .option index || following.any (·.live)
-
-/-- `askQuestions` with its work: one indexed map over the options, each option's questions
-following the frame and the option's record (`ask`). -/
-def askQuestionsCosted
-    (skills : Vector (Skill interface.actions config criterion dimension interface.layout)
-      Acorn.FeatureConstants.skillCount)
-    (features : SwiftTd.ActiveSet dimension) (cumulants : Features.Cumulants interface.layout)
-    (decision : TemporalDecision interface.actions) :
-    Costed (Vector (Skill interface.actions config criterion dimension interface.layout)
-      Acorn.FeatureConstants.skillCount) :=
-  Costed.mapFinIdx skills fun index skill bound =>
-    let ⟨interest, policy, model, following, questions⟩ := skill
-    Costed.bind
-      (questions.followCosted features cumulants (askedBy decision ⟨index, bound⟩ following))
-      fun asked => Costed.op .ask ⟨interest, policy, model, following, asked⟩
-
-/-- Every option's questions about its own policy take the frame (Horde, AAMAS 2011,
-§4; PAR-18): each learns from the transition into this frame when the preceding frame's
-action was selected with the option's own distribution, and stores this frame when its
-action was. That holds when the option drew the action, or when the masses the behaviour
-reported equal the option's own, which `followOptions` has recorded as the option's live
-model trajectory. No decision reads the questions. -/
-def askQuestions (skills : Vector (Skill interface.actions config criterion dimension interface.layout)
-      Acorn.FeatureConstants.skillCount)
-    (features : SwiftTd.ActiveSet dimension) (cumulants : Features.Cumulants interface.layout)
-    (decision : TemporalDecision interface.actions) :
-    Vector (Skill interface.actions config criterion dimension interface.layout) Acorn.FeatureConstants.skillCount :=
-  (askQuestionsCosted skills features cumulants decision).val
-
-/-- Asking questions runs each option's questions through the frame, armed by the decision. -/
-theorem askQuestions_def
-    (skills : Vector (Skill interface.actions config criterion dimension interface.layout)
-      Acorn.FeatureConstants.skillCount)
-    (features : SwiftTd.ActiveSet dimension) (cumulants : Features.Cumulants interface.layout)
-    (decision : TemporalDecision interface.actions) :
-    askQuestions skills features cumulants decision =
-      skills.mapFinIdx fun index skill bound =>
-        let ⟨interest, policy, model, following, questions⟩ := skill
-        ⟨interest, policy, model, following,
-          questions.follow features cumulants (askedBy decision ⟨index, bound⟩ following)⟩ := rfl
-
-/-- Complete one selected primitive step: primitive credit, demons, every option's
-questions in a learning hierarchy, then gain, and record the frame for later search
-control. The signal values are evaluated once, for the demons and the questions.
+/-- Complete one selected primitive step: primitive credit, demons, then gain, and record
+the frame for later search control. The signal values are evaluated once, for the demons.
 Every selection branch uses this single completion boundary. Retirement is the
 full-agent owner's next operation, after every learner has consumed this frame. -/
 def TemporalControl.finish (state : TemporalControl interface profile config criterion dimension)
@@ -176,8 +128,6 @@ def TemporalControl.finish (state : TemporalControl interface profile config cri
       references.demonPredictions, references.demonErrors, lifetime⟩
   let predicted := view.advanceWith features cumulants reward decision.action decision.own
     representation.progress.clock
-  let skills := if profile.usesHierarchy && profile.mode != .frozen then
-    askQuestions skills features cumulants decision else skills
   ⟨⟨⟨representation, ⟨predicted.control.controller, metaController, skills, predicted.demons⟩⟩,
       { references with
         demonPredictions := predicted.predictions, demonErrors := predicted.errors,
@@ -199,10 +149,7 @@ theorem TemporalControl.finish_eq (state : TemporalControl interface profile con
     { state with
       runtime := { state.runtime with
         lifecycle := { state.runtime.lifecycle with consumers := { state.runtime.lifecycle.consumers with
-          control := predicted.control.controller, demons := predicted.demons,
-          skills := if profile.usesHierarchy && profile.mode != .frozen then
-            askQuestions state.runtime.lifecycle.consumers.skills features cumulants decision
-            else state.runtime.lifecycle.consumers.skills } }
+          control := predicted.control.controller, demons := predicted.demons } }
         references := { state.runtime.references with
           demonPredictions := predicted.predictions, demonErrors := predicted.errors,
           pendingAction := predicted.control.pending, lastDecision := some decision,
@@ -221,34 +168,14 @@ theorem TemporalControl.finish_eq (state : TemporalControl interface profile con
         cases consumers
         rfl
 
-/-- Asking questions writes each slot's questions and nothing else, for every table,
-frame, signal word and decision. A slot's questions are armed exactly when the option
-drew the frame's action or its model trajectory is live. -/
-theorem askQuestions_get (skills : Vector (Skill interface.actions config criterion dimension interface.layout)
-      Acorn.FeatureConstants.skillCount)
-    (features : SwiftTd.ActiveSet dimension) (cumulants : Features.Cumulants interface.layout)
-    (decision : TemporalDecision interface.actions) (index : Fin Acorn.FeatureConstants.skillCount) :
-    (askQuestions skills features cumulants decision)[index.val] =
-      { skills[index.val] with questions := (skills[index.val].questions.follow features cumulants
-          (askedBy decision index skills[index.val].following)) } := by
-  simp only [askQuestions_def, Vector.getElem_mapFinIdx, Fin.eta]
-
-/-- The completion boundary writes each slot's questions in a learning hierarchy and no
-other field of any slot, in every profile. -/
-theorem TemporalControl.finish_skill (state : TemporalControl interface profile config criterion dimension)
+/-- The completion boundary writes no option slot: every skill is as it was, in every
+profile. -/
+theorem TemporalControl.finish_skills (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
-    (decision : TemporalDecision interface.actions) (index : Fin Acorn.FeatureConstants.skillCount) :
-    (state.finish features obs reward decision).runtime.lifecycle.consumers.skills[index.val] =
-      if profile.usesHierarchy && profile.mode != .frozen then
-        let skill := state.runtime.lifecycle.consumers.skills[index.val]
-        { skill with questions := (skill.questions.follow features
-            (signalValues obs reward) (askedBy decision index skill.following)) }
-      else state.runtime.lifecycle.consumers.skills[index.val] := by
+    (decision : TemporalDecision interface.actions) :
+    (state.finish features obs reward decision).runtime.lifecycle.consumers.skills =
+      state.runtime.lifecycle.consumers.skills := by
   rw [TemporalControl.finish_eq]
-  dsimp only
-  split
-  · exact askQuestions_get _ _ _ _ index
-  · rfl
 
 /-- Meta span is the existing byte-bounded credit gap, observed without copying its algorithm. -/
 def TemporalControl.gap (state : TemporalControl interface profile config criterion dimension) : CreditGap :=

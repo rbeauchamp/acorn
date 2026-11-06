@@ -15,7 +15,6 @@ import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentExponential
 import AcornVerif.CurrentLifetime
-import AcornVerif.CurrentOffPolicy
 import AcornVerif.CurrentRunner
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentTemporal
@@ -125,9 +124,9 @@ definitions that specifications share with their functions have the statements o
 * The verdict is one component of a pair, and a component of that pair has a type that depends
   on an earlier argument: whether `Features.beginExploration` begins a run, where the run that
   begins, the verdict component, depends on the action count; whether
-  `Features.Preceding.advance` records a passage, whether `Lifetime.DemonStats.advanceSlot`
-  settles a slot and whether `NumericState.firstLoopElement` prunes an index, beside a state that
-  depends on the dimension, the discount or the configuration; and whether
+  `Lifetime.DemonStats.advanceSlot` settles a slot and whether `NumericState.firstLoopElement`
+  prunes an index, beside a state that depends on the dimension, the discount or the
+  configuration; and whether
   `Checkpoint.loadKeeping`, loading that keeps its receiver, refuses the bytes, beside a state
   that depends on the construction. The kinds read a result whose type depends on the input only
   through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`.
@@ -262,9 +261,6 @@ def first : FeatIdx narrow := ⟨0, by decide⟩
 def traced : NumericState control narrow :=
   let fresh := NumericState.initial control narrow
   { fresh with transient := { fresh.transient with z := #v[⟨⟨0x3f800000⟩⟩] } }
-
-/-- The active set of `narrow` that holds its one index. -/
-def onlyFirst : SwiftTd.ActiveSet narrow := ⟨[first], List.nodup_singleton _⟩
 
 /-- A pending sample of the discount `Discount.g99` at the largest age. -/
 def oldestSample : PendingPrediction Discount.g99 :=
@@ -2694,6 +2690,34 @@ private theorem contains_numerical (range : Interval32) (word : Binary32) :
     exact ⟨finite, (CurrentOrder.numerical32_order _ _ range.lowerFinite finite).mp low,
       (CurrentOrder.numerical32_order _ _ finite range.upperFinite).mp high⟩
 
+/-- The signed scale is odd. -/
+private theorem signedFieldUnits_neg (precision : Nat) (key : Int) :
+    CurrentOrder.signedFieldUnits precision (-key) =
+      -CurrentOrder.signedFieldUnits precision key := by
+  unfold CurrentOrder.signedFieldUnits
+  rcases lt_trichotomy key 0 with negative | zero | positive
+  · have notNegative : ¬ (-key < 0) := by omega
+    have magnitude : (-key).toNat = key.natAbs := by omega
+    simp only [notNegative, negative, ↓reduceIte, neg_neg, magnitude]
+  · subst zero
+    simp [CurrentOrder.fieldUnits_zero]
+  · have negated : -key < 0 := by omega
+    have notNegative : ¬ (key < 0) := by omega
+    have magnitude : (-key).natAbs = key.toNat := by omega
+    simp only [negated, notNegative, ↓reduceIte, magnitude]
+
+/-- The negated horizon of a discount has the negated rational value. -/
+private theorem horizon_negate (discount : Discount) :
+    CurrentArithmetic.numerical32 discount.horizon.negate =
+      -CurrentArithmetic.numerical32 discount.horizon := by
+  have finite : discount.horizon.Finite := by cases discount <;> decide
+  have negFinite : discount.horizon.negate.Finite := by cases discount <;> decide
+  have keys : discount.horizon.negate.key = -discount.horizon.key := by cases discount <;> decide
+  rw [CurrentOrder.numerical32_key_units _ negFinite, CurrentOrder.numerical32_key_units _ finite,
+    keys, signedFieldUnits_neg]
+  push_cast
+  ring
+
 /-- The weight domain of a discount contains exactly the finite words whose rational value is at
 most the horizon in magnitude. -/
 private theorem discount_domain (discount : Discount) (word : Binary32) :
@@ -2704,7 +2728,7 @@ private theorem discount_domain (discount : Discount) (word : Binary32) :
   change word.Finite ∧ CurrentArithmetic.numerical32 discount.horizon.negate ≤
     CurrentArithmetic.numerical32 word ∧
       CurrentArithmetic.numerical32 word ≤ CurrentArithmetic.numerical32 discount.horizon ↔ _
-  rw [(CurrentOffPolicy.horizon_facts discount).2.2.2.1, abs_le]
+  rw [horizon_negate discount, abs_le]
 
 /-- The weight domain of a rule contains exactly the finite words whose rational value is at most
 the horizon of its discount in magnitude, the horizon of `g99` for the differential rule, for
@@ -2791,8 +2815,8 @@ verdict, the record, the statistics or the learner state, depends on the dimensi
 or the configuration. The kinds read a result whose type depends on the input only through
 `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`, so no kind
 here is about such a component, and each statement is a requirement with no kind. Each states
-the verdict for every input; `preceding_advance`, `slot_settles` and `first_loop_prune` also
-state what the state keeps; and both verdicts occur at the inputs each names. -/
+the verdict for every input; `slot_settles` and `first_loop_prune` also state what the state
+keeps; and both verdicts occur at the inputs each names. -/
 
 /-- An exploratory run begins exactly when the 53-bit fraction of the generator's next word is
 below the exploration rate, compared as rational numbers (`TemporalSupport.branch_exact`), for
@@ -2826,36 +2850,6 @@ theorem exploration_begins : Regula.ExecutableContract beginExploration (fun beg
       rw [← output, ← TemporalSupport.branch_exact]
       cases branch : rng.nextF64.1.less (Conversion.widen rate.value) <;>
         simp [beginExploration, branch],
-    by decide, by decide⟩⟩
-
-/-- An advance stores the current set when the frame is armed and the empty set otherwise, and
-it records a passage exactly when the stored set is not empty and both sets fit `passageLimit`
-(`CurrentOffPolicy.advance_stores`); a recorded passage runs from the stored set to the current
-one (`CurrentOffPolicy.advance_passage`). This holds for every dimension, record, current set
-and arming. Both verdicts occur over `narrow`: an armed advance from the record that holds
-`onlyFirst` to `onlyFirst` records a passage, and one from the empty record records none.
-`Features.Preceding.advanceCosted` is the costed definition whose value this function is, and
-has no contract of its own: this statement is its evidence.
-
-**Not claimed:** the classes of the passage's features and the flags that the record keeps,
-which `Features.Preceding.advance_def` states. -/
-theorem preceding_advance : Regula.ExecutableContract @Preceding.advance (fun advance =>
-    (∀ {dimension} (preceding : Preceding dimension) (current : SwiftTd.ActiveSet dimension)
-        (armed : Bool),
-      (advance preceding current armed).2.features =
-          (if armed then current else SwiftTd.ActiveSet.empty dimension) ∧
-        (advance preceding current armed).1.isSome =
-          (!preceding.features.indices.isEmpty &&
-            decide (preceding.features.indices.length ≤ passageLimit ∧
-              current.indices.length ≤ passageLimit)) ∧
-        ∀ passage, (advance preceding current armed).1 = some passage →
-          passage.source = preceding.features ∧ passage.target = current) ∧
-      (advance ((Preceding.empty narrow).advance onlyFirst true).2 onlyFirst true).1.isSome =
-        true ∧
-      (advance (Preceding.empty narrow) onlyFirst true).1.isSome = false) :=
-  ⟨⟨fun preceding current armed => ⟨(CurrentOffPolicy.advance_stores preceding current armed).1,
-      (CurrentOffPolicy.advance_stores preceding current armed).2,
-      CurrentOffPolicy.advance_passage preceding current armed⟩,
     by decide, by decide⟩⟩
 
 /-- A slot settles exactly when it holds a sample whose advanced age, one observation older and

@@ -18,8 +18,9 @@ have no frozen reference.
 
 The definitions under `Direct` are a frozen reference. Each is the definition of the
 same name at commit `d3bc6e0`, before the agent took an interface. Its computational
-body is kept word for word, apart from naming the other frozen definitions it calls,
-and only its proof arguments are restated:
+body is kept word for word, apart from naming the other frozen definitions it calls and,
+in `finish`, leaving out the step of the options' off-policy questions, which the agent
+no longer holds (PAR-18, retired); only its proof arguments are restated:
 `TemporalControl.initial`, `TemporalControl.finish`, `TemporalControl.step`,
 `TemporalControl.alignedStep`, `Agent.initial`, `Agent.frame`, `Agent.act`,
 `PredictionControl.advance` and the whole step of
@@ -29,8 +30,7 @@ the stored types now carry the interface. No executing module imports this one.
 The theorems are equalities for every agent state, observation, reward word and
 achievement flag: construction, the composed transition with its returned decision,
 the host's action and next state, and the prefix input edge. Restoration has no frozen
-reference: the restore of that commit started the option models, the off-policy questions,
-primitive credit, the rate schedule and every process-local reference afresh, and the
+reference: the restore of that commit started the option models, primitive credit, the rate schedule and every process-local reference afresh, and the
 executed restore is exact (`Agent.restore_exact`).
 
 What the reference does not freeze is the storage below the composition. The core
@@ -57,9 +57,8 @@ def initialControl (profile : FeatureProfile) (config : Features.Config)
     profile.credit.initial, by cases profile.credit <;> rfl, .initial,
     RateState.initial profile.rate, Lifetime.Stats.initial _⟩
 
-/-- Complete one selected primitive step: primitive credit, demons, every option's
-questions in a learning hierarchy, then gain, and record the frame for later search
-control. -/
+/-- Complete one selected primitive step: primitive credit, demons, then gain, and record
+the frame for later search control. -/
 def finish (state : TemporalControl Grid.interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32)
     (decision : TemporalDecision Grid.actions) :
@@ -74,8 +73,6 @@ def finish (state : TemporalControl Grid.interface profile config criterion dime
       references.demonPredictions, references.demonErrors, lifetime⟩
   let predicted := view.advanceWith features cumulants reward decision.action decision.own
     representation.progress.clock
-  let skills := if profile.usesHierarchy && profile.mode != .frozen then
-    askQuestions skills features cumulants decision else skills
   ⟨⟨⟨representation, ⟨predicted.control.controller, metaController, skills, predicted.demons⟩⟩,
       { references with
         demonPredictions := predicted.predictions, demonErrors := predicted.errors,

@@ -9,11 +9,10 @@ import Acorn.State
 /-!
 # One signal value per declared question
 
-A frame's prediction signals are evaluated once and read by every learner that asks
-about them: the on-policy demons of `Acorn.Demon` and each option's off-policy
-questions of `Acorn.OffPolicy`. The list of discounts in the type is the layout of
-the bank that consumes the values, so a value cannot reach a question with another
-horizon.
+A frame's prediction signals are evaluated once and read by the learners that ask
+about them, the on-policy demons of `Acorn.Demon`. The list of discounts in the type is
+the layout of the bank that consumes the values, so a value cannot reach a question with
+another horizon.
 -/
 namespace Acorn.Features
 

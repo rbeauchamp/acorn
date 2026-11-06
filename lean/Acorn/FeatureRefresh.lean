@@ -367,25 +367,6 @@ theorem FreeDispatch.install_unlinked {shape : PatchShape} {config : Config} {cr
     (state.install slot target).lifecycle.consumers.skills[slot.val].following = none := by
   simp [FreeDispatch.install, changed, Skill.initial]
 
-/-- A changed unit identity asks its questions afresh. -/
-theorem FreeDispatch.install_questions {shape : PatchShape} {config : Config}
-    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape actions config criterion dimension discounts payload)
-    (slot : Fin Acorn.FeatureConstants.skillCount) (target : Assignment config)
-    (changed : state.lifecycle.consumers.skills[slot.val].interest.sameAssignment target = false) :
-    (state.install slot target).lifecycle.consumers.skills[slot.val].questions =
-      OptionQuestions.initial dimension (.g99 :: discounts) := by
-  simp [FreeDispatch.install, changed, Skill.initial]
-
-/-- A released slot asks its questions afresh. -/
-theorem Ensemble.release_questions {config : Config} {criterion : Criterion}
-    {dimension : Dimension} {discounts : List Discount}
-    (ensemble : Ensemble actions config criterion dimension discounts)
-    (unit : Fin config.units.count) (slot : Fin Acorn.FeatureConstants.skillCount)
-    (held : ensemble.skills[slot.val].interest.held.holds unit = true) :
-    (ensemble.release unit).skills[slot.val].questions = OptionQuestions.initial dimension discounts := by
-  simp [Ensemble.release, held, Skill.initial]
-
 /-- A released slot starts with no stored off-policy trajectory. -/
 theorem Ensemble.release_unlinked {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
@@ -572,34 +553,6 @@ theorem FreeDispatch.fold_retains {shape : PatchShape} {config : Config}
       rw [other.1, other.2, row] at after
       exact after
 
-/-- Installing the requested vector keeps the questions of a slot whose unit it keeps,
-for arbitrary slot order and aliases. -/
-theorem FreeDispatch.fold_questions {shape : PatchShape} {config : Config}
-    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
-    (slots : List (Fin Acorn.FeatureConstants.skillCount))
-    (targets : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
-    (state : FreeDispatch shape actions config criterion dimension discounts payload)
-    (slot : Fin Acorn.FeatureConstants.skillCount)
-    (keeps : state.lifecycle.consumers.skills[slot.val].interest.sameAssignment targets[slot.val] = true) :
-    (slots.foldl (fun current next => current.install next targets[next.val]) state).lifecycle.consumers.skills[slot.val].questions =
-      state.lifecycle.consumers.skills[slot.val].questions := by
-  induction slots generalizing state with
-  | nil => rfl
-  | cons next rest ih =>
-    simp only [List.foldl_cons]
-    by_cases same : next = slot
-    · subst next
-      have installed := state.install_same slot targets[slot.val] keeps
-      have after := ih (state.install slot targets[slot.val]) (by
-        rw [installed.1]
-        exact Assignment.same_refl targets[slot.val])
-      rw [installed.1] at after
-      exact after
-    · have other := state.install_other next slot targets[next.val] (Ne.symm same)
-      have after := ih (state.install next targets[next.val]) (by rw [other.1]; exact keeps)
-      rw [other.1] at after
-      exact after
-
 /-- The assignment refresh preserves projection identity, whether or not it replaced
 any target. -/
 theorem FreeDispatch.refresh_conserves {shape : PatchShape} {config : Config}
@@ -761,29 +714,6 @@ theorem FreeDispatch.refresh_demons {shape : PatchShape} {config : Config} {crit
     state.refreshRanked.lifecycle.consumers.demons = state.lifecycle.consumers.demons := by
   unfold FreeDispatch.refreshRanked
   exact FreeDispatch.fold_demons _ _ _
-
-/-- A refresh keeps the questions of the first slot holding a still-ranked unit, as it keeps
-its policy and model, and the model reranking writes no question. -/
-theorem FreeDispatch.refresh_questions {shape : PatchShape} {config : Config}
-    {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
-    (state : FreeDispatch shape actions config criterion dimension discounts payload) (assign : Bool)
-    (slot : Fin Acorn.FeatureConstants.skillCount) (unit : Fin config.units.count) (bonus : Bonus)
-    (holds : state.lifecycle.consumers.skills[slot.val].interest = .learned (.selected unit bonus))
-    (ranked : unit ∈ (rankedCandidates dimension config
-      state.lifecycle.consumers.demons.rankingWeights).map (·.unit))
-    (first : ∀ other : Fin Acorn.FeatureConstants.skillCount, other.val < slot.val →
-      state.lifecycle.consumers.skills[other.val].interest.held.identity ≠ some unit) :
-    (state.refreshModels assign).lifecycle.consumers.skills[slot.val].questions =
-      state.lifecycle.consumers.skills[slot.val].questions := by
-  cases assign with
-  | false => simp only [FreeDispatch.refreshModels_keep, FreeDispatch.rerankModels_skill]
-  | true =>
-    rw [FreeDispatch.refreshModels_assign, FreeDispatch.rerankModels_skill]
-    obtain ⟨_, _, _, keeps⟩ := state.refresh_keeps slot unit bonus holds ranked first
-    dsimp only
-    unfold FreeDispatch.refreshRanked
-    exact FreeDispatch.fold_questions (List.finRange Acorn.FeatureConstants.skillCount) _
-      state slot keeps
 
 /-- Every complete refresh, assigning or not, keeps distinct held units. -/
 theorem FreeDispatch.refreshModels_distinct {shape : PatchShape} {config : Config}

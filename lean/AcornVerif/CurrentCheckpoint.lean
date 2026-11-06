@@ -88,8 +88,8 @@ theorem candidate_roundtrip (construction : AgentConstruction) (image : construc
 /-- **Loading a saved state returns the state that was saved.** For every construction, every
 receiver and every state of it, and every byte list: when `saveBytes` writes the bytes,
 `load` returns exactly the saved state, every field of its agent: learners and their
-transient registers, option models, off-policy questions, primitive credit, the rate
-schedule, every process-local reference and every lifetime observation. The receiver's
+transient registers, option models, primitive credit, the rate schedule, every
+process-local reference and every lifetime observation. The receiver's
 state does not matter. -/
 theorem load_saved (construction : AgentConstruction) (receiver state : construction.State)
     (bytes : List UInt8) (saved : saveBytes construction state = .ok bytes) :
@@ -277,22 +277,25 @@ theorem unresumable_unloaded (construction : AgentConstruction) (bytes : List UI
   rw [unsupported] at supported
   cases supported
 
-/-- **The loader refuses an image of generation 19.** For every construction, every byte list
-whose header decodes with the generation word 19, and every image, the loader does not return
-the image: header admission requires generation 20 (`HeaderAdmitted.version`). Generation 19
-has the layout of generation 20, but its weights were placed by the hashes that read their
-first two words only through their XOR, so a saved weight can sit at the slot of another
-feature (`Checkpoint.formatVersion`). -/
+/-- **The loader refuses an image of every earlier generation.** For every construction, every
+byte list whose header decodes with a generation word below 21, and every image, the loader does
+not return the image: header admission requires generation 21 (`HeaderAdmitted.version`).
+Generation 20 stores, after each option slot's trajectory, that option's off-policy questions,
+which the agent no longer holds (PAR-18, retired). Generation 19 has the layout of
+generation 20, but its weights were placed by the hashes that read their first two words only
+through their XOR, so a saved weight can sit at the slot of another feature
+(`Checkpoint.formatVersion`). -/
 theorem previous_generation_unloaded (construction : AgentConstruction) (bytes : List UInt8)
     (header : Header) (rest : List UInt8)
     (decoded : headerCodec.decode (bytes.drop magic.length) = some (header, rest))
-    (previous : header.version = 19) (image : construction.Image) :
+    (previous : header.version < 21) (image : construction.Image) :
     loadCandidate construction bytes ≠ .ok image := by
   intro loaded
   obtain ⟨found, _, _, again, admitted⟩ := loadCandidate_header construction bytes image loaded
   rw [decoded, Option.some.injEq, Prod.mk.injEq] at again
   obtain ⟨rfl, -⟩ := again
-  exact absurd (previous.symm.trans admitted.version) (by decide)
+  rw [admitted.version] at previous
+  exact absurd previous (by decide)
 
 /-- A stored word below 256 is its low byte and three zero bytes. -/
 theorem u32_small (word : UInt32) (small : word.toNat < 256) :

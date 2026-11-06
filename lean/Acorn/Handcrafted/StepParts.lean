@@ -15,8 +15,8 @@ module states the step as two functions under a declared `Acorn.StepOrder`.
 `Agent.choose` runs the step up to the point where the decision is known: the clock,
 the encoding of the percept's frame, and selection. `Chosen.learn` runs everything
 after that point: off-policy learning of the options that are not executing, the
-closing of an interrupted option's meta span, primitive credit, the prediction demons,
-every option's questions, and the tester.
+closing of an interrupted option's meta span, primitive credit, the prediction demons and
+the tester.
 
 Under `learnThenAct` the two parts compose to `Agent.act`, for every agent state and
 percept, in every world (`Agent.act_parts`). Under `planAfterAct` selection runs with

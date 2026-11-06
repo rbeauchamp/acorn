@@ -336,8 +336,6 @@ The groups below are a list with no check of completeness: a new definition with
   `bridge_tick_value`, and
   the ownership audit requires by name `Host.Microduck.Idle.tick_keeps` and
   `Host.Microduck.Awaiting.tick_keeps`, which state that.
-  `Features.Preceding.advanceCosted` is the costed definition whose value is
-  `Features.Preceding.advance`, with the contract `preceding_advance` in `AcornVerif.Decisions`.
   `Host.Microduck.Stage.attend` returns the percept that `Host.Microduck.Idle.sense` gives, with
   the contract `microduck_sense`, and only private lemmas of the proofs of
   `Host.Microduck.Stage.step_learning` and `Host.Microduck.Ran.held` name it.
@@ -6850,36 +6848,6 @@ theorem decision_own : Regula.ExecutableContract @TemporalDecision.own (fun own 
 
 /-- Registers `TemporalDecision.own` as a decision function. -/
 theorem TemporalDecision_own_registered : Regula.RegisteredDecision @TemporalDecision.own := ⟨⟩
-
-/-- The arguments of `Handcrafted.askedBy`, in order. -/
-structure AskedBy where
-  /-- The action count. -/
-  actions : Word.Count
-  /-- The decision of the frame. -/
-  decision : TemporalDecision actions
-  /-- The option. -/
-  index : Fin Acorn.FeatureConstants.skillCount
-  /-- The option's off-policy trajectory, if any. -/
-  following : Option Following
-
-/-- A frame's action was selected with an option's own distribution exactly when the option
-drew it, or the option follows a live trajectory: a stored trajectory whose live flag is set. -/
-theorem asked_by : Regula.ExecutableContract @askedBy (fun asked =>
-    Regula.Decides (· = true)
-      (fun input : AskedBy => input.decision.source = .option input.index ∨
-        ∃ age previous, input.following = some ⟨age, true, previous⟩)
-      (fun input : AskedBy => @asked input.actions input.decision input.index input.following)) :=
-  ⟨.of_iff
-    (fun input => by
-      rcases input with ⟨actions, decision, index, following⟩
-      rcases following with _ | ⟨age, live, previous⟩
-      · simp [askedBy]
-      · cases live <;> simp [askedBy])
-    ⟨⟨metaCount, sourced (.option ⟨0, by decide⟩), ⟨0, by decide⟩, none⟩, by decide⟩
-    ⟨⟨metaCount, sourced .primitive, ⟨0, by decide⟩, none⟩, by decide⟩⟩
-
-/-- Registers `askedBy` as a decision function. -/
-theorem askedBy_registered : Regula.RegisteredDecision @askedBy := ⟨⟩
 
 /-- Meta action zero delegates to primitive control, and every other meta action names a
 skill. `skill_of_meta_value` states the skill that it names. -/

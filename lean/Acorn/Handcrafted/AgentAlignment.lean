@@ -320,16 +320,15 @@ theorem TemporalControl.sameInterests_aligned (state next : TemporalControl inte
     rw [same index] at named
     exact named
 
-/-- The common finish changes primitive credit, demons, every option's questions and
-gain, retaining every option source. -/
+/-- The common finish changes primitive credit, demons and gain, retaining every option
+source. -/
 theorem TemporalControl.finish_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (observation : Frame interface)
     (reward : Binary32) (decision : TemporalDecision interface.actions) :
     (state.finish features observation reward decision).Aligned := by
   apply state.sameInterests_aligned _ aligned
   intro index
-  rw [TemporalControl.finish_skill]
-  split <;> rfl
+  rw [TemporalControl.finish_skills]
 
 /-- Off-policy option learning writes policies, models and trajectory links only;
 every slot keeps the interest whose potential it read. -/

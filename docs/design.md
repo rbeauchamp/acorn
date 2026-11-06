@@ -24,10 +24,7 @@ In the `ranked` configuration, these mechanisms work together:
    combines authored input channels with a bank of generated projections.
 2. **Predictions** estimate future signals such as task reward. A **general value
    function (GVF)** specifies a signal to predict, a policy and a horizon; Acorn
-   uses a fixed collection of questions about the policy it follows. Each option
-   also asks the same questions about its own policy and learns them off-policy,
-   from the steps on which the agent chose as that option would; nothing reads
-   those answers yet.
+   uses a fixed collection of questions about the policy it follows.
 3. **Subtasks** attach goals to candidate behaviors. Ranked learned feature
    weights supply the ranking used to choose them.
 4. **Options** are policies that can act over several steps. A higher-level
@@ -95,7 +92,7 @@ A step has two parts ([definitions](../lean/Acorn/Handcrafted/StepParts.lean)).
 `Agent.choose` advances the clock, encodes the percept's frame and selects; its
 result holds the decision. `Chosen.learn` completes the step from that result:
 off-policy learning of the options that are not executing, primitive credit, the
-prediction demons, every option's questions and the tester. A **step order**
+prediction demons and the tester. A **step order**
 ([`StepOrder`](../lean/Acorn/Timing.lean)) is part of an agent's construction and
 selects one of three steps.
 
@@ -313,7 +310,7 @@ yet establishes, each part of that obligation:
   of the controllers' predictions, clear, release, snapshot, derived rate and updates
   listed below, of the frozen policy and of its exploration, of the encoding of a frame,
   of an option model's input, ranked features, prediction and updates, of the prediction
-  demons' bank step, of every option's off-policy questions, of an option's rate,
+  demons' bank step, of an option's rate,
   potential, start, termination decision, step, credit, frozen policy and termination,
   of its operations with its model, and of one slot's share of a followed frame,
   described below;
@@ -359,18 +356,7 @@ the bank's (`Costed.prepend`), so its bound
 (`AcornVerif.Resource.Twin.demonBankStepCosted_within`) grows with the square of the
 number of demons; with the capacity of the dimension in place of the active set's length
 it is a function of the configuration
-(`AcornVerif.Resource.Twin.demonBankStepCosted_within_capacity`). So are every option's
-off-policy questions of the second part (`askQuestions`): each option's preceding set
-advances over the frame's features, and each of its questions takes at most one GTD2-MP
-step over the passage's features: the questions learn only from a transition the advance
-classifies, and a silent question skips its step at a zero signal word. The bound of one
-option's questions grows with the number of questions times the stored and current
-features (`AcornVerif.Resource.Twin.followCosted_within`). The bound of every option's
-questions (`AcornVerif.Resource.Twin.askQuestionsCosted_within`) takes each stored set at the
-capacity of the dimension, so it grows with the number of options times the number of
-questions times that capacity and the frame's features; with the capacity in place of the
-frame's length too it is a function of the configuration
-(`AcornVerif.Resource.Twin.askQuestionsCosted_within_capacity`). An option's operations
+(`AcornVerif.Resource.Twin.demonBankStepCosted_within_capacity`). An option's operations
 (`Acorn.Options`) are also values of their costed definitions: its start
 (`Skill.beginOption`), termination decision
 (`Skill.decideOption`), step (`Skill.optionStep`), the credit of a drawn decision
@@ -403,7 +389,7 @@ dimension in its place each is a function of the configuration
 the value of its costed definition, which for a learned option tests its feature slot's
 membership in the frame by a scan (`Assignment.potential`, `Costed.mem`), and so is one
 slot's share of a followed frame (`followSlot`), which reads the potential and updates the
-option's policy and model off-policy; the option's questions learn in `askQuestions`. Both
+option's policy and model off-policy. Both
 bounds grow with the active set's length, and with the capacity of the dimension in its
 place the slot's is a function of the configuration
 (`AcornVerif.Resource.Twin.potentialCosted_within`,
@@ -687,12 +673,14 @@ every grid frame.
 grid instance with the agent as it was composed directly over the host observation.
 They keep that composition as a frozen reference that no executing module imports:
 the definitions of commit `d3bc6e0` for construction, the encoding frame, the local
-transition, the full decision and the host's step. `act_eq` and
+transition, the full decision and the host's step, with the step of the options' off-policy
+questions left out of its completion boundary, since the agent no longer holds them
+([PAR-18](prior-art-review.md#par-18--off-policy-questions), retired). `act_eq` and
 `callback_eq` state that, for every agent state, observation, reward word and
 achievement flag, the host's step returns the same action, decision and next state
 as the reference; `initial_eq` states the same for construction. Restoration has no
 frozen reference, since restoration is exact (`Agent.restore_exact`) and the restore of
-that commit started the option models, the off-policy questions, primitive credit, the
+that commit started the option models, primitive credit, the
 rate schedule and every process-local reference afresh. The reference does not freeze the
 storage beneath the composition. The
 core types take the action count as a parameter that the grid sets to nine, where
@@ -1902,7 +1890,7 @@ The focus column paraphrases its twelve steps; the status column describes Acorn
 |---|---|---|
 | 1 | Fixed-feature learning | Learning machinery with per-weight step-size adaptation. |
 | 2 | Representation search | Generated projection features over the kind patch and task words, replaced by a published generate-and-test tester at a declared rate; authored input channels remain. |
-| 3 | Predictive questions | Fixed questions, on-policy about the agent's behaviour and off-policy about each option's policy. |
+| 3 | Predictive questions | Fixed questions, on-policy about the agent's behaviour. |
 | 4 | Choosing actions | Declared Sarsa substitution for the plan's actor-critic direction. |
 | 5 | Long-run prediction | General average-reward GVFs are absent. |
 | 6 | Continuing decisions | Differential-control research integration. |
@@ -1981,17 +1969,17 @@ before restore. Changing the criterion does not convert an existing checkpoint.
 
 ### Checkpoints
 
-A checkpoint file of format 20 holds the exact image of the agent: every field of its
+A checkpoint file of format 21 holds the exact image of the agent: every field of its
 temporal state. That is the representation with its generator and tester state, every
 learner with its weights, log step sizes and transient registers, the option models,
-each option's off-policy questions and trajectory, the process-local references (the
+each option's trajectory, the process-local references (the
 dispatch occupancy, the cached predictions and model values, the planning words, the
 deferred span, the action generator, the last decision and the recent feature sets),
 primitive credit, the gain, the rate schedule and every lifetime observation. A field
 that is a function of stored fields is computed again when the image is read: the
 step-size rails of each learner, the step size of each log step size, the projection
-bank, the position table of a ranked slot set, the slot flags of a question's preceding
-set and the settlement horizon of a prediction record. A learner's transient registers
+bank, the position table of a ranked slot set and the settlement horizon of a prediction
+record. A learner's transient registers
 are stored at its eligible slots only, since every other slot of an admitted learner
 holds positive zero.
 
@@ -2005,12 +1993,15 @@ two invariants. Nothing is projected or repaired. Loading the bytes that a save 
 writes returns that state, for every state of every construction of the resumable profile
 and every receiver (`CurrentCheckpoint.load_saved`, from `CurrentImage.imageFormat_exact`
 and `Checkpoint.roundtrip`); the byte layer is part of the proof, and native file IO, the
-runtime and the OS are trusted. A file of format 18 or earlier is refused with its
-generation word: it holds no option model, question, primitive credit, rate schedule or
-process-local reference, so no load of it could return the agent that was saved. A file of
-format 19 has this layout, but its weights were placed by the hashes that read their first
-two words only through their XOR, so a saved weight can sit at the slot of another feature;
-the loader refuses it (`CurrentCheckpoint.previous_generation_unloaded`).
+runtime and the OS are trusted. Every file of an earlier format is refused with its
+generation word (`CurrentCheckpoint.previous_generation_unloaded`). A file of format 20
+stores, after each option slot's trajectory, that option's off-policy questions, which the
+agent no longer holds ([PAR-18](prior-art-review.md#par-18--off-policy-questions), retired).
+A file of format 19 has the layout of format 20, but its weights were placed by the hashes
+that read their first two words only through their XOR, so a saved weight can sit at the
+slot of another feature. A file of format 18 or earlier holds no option model, primitive
+credit, rate schedule or process-local reference, so no load of it could return the agent
+that was saved.
 
 A host begins a new session of the predictive-agreement evaluator after it loads a file:
 `Checkpoint.loadFile`, the one host path from a file to a running agent, returns the verdict of
@@ -2341,7 +2332,7 @@ for fields, rendering, process lifecycle and persistence.
 - [PAR-15](prior-art-review.md#par-15--differential-control): Differential control, [Acorn.Average](../lean/Acorn/Average.lean).
 - [PAR-16](prior-art-review.md#par-16--floatlib-rounding-theory): FloatLib rounding theory, a proof dependency, [AcornVerif.FloatLibBridge](../lean/AcornVerif/FloatLibBridge.lean).
 - [PAR-17](prior-art-review.md#par-17--off-policy-option-learning): Off-policy option learning, [Acorn.Temporal](../lean/Acorn/Temporal.lean).
-- [PAR-18](prior-art-review.md#par-18--off-policy-questions): Off-policy questions, [Acorn.OffPolicy](../lean/Acorn/OffPolicy.lean).
+- [PAR-18](prior-art-review.md#par-18--off-policy-questions): Off-policy questions, retired; no owner.
 - [PAR-19](prior-art-review.md#par-19--planning-after-the-action): Planning after the action, [Acorn.Timing](../lean/Acorn/Timing.lean) and [Acorn.Handcrafted.StepParts](../lean/Acorn/Handcrafted/StepParts.lean).
 - [PAR-20](prior-art-review.md#par-20--acting-before-learning): Acting before learning, [Acorn.Handcrafted.DrawFirst](../lean/Acorn/Handcrafted/DrawFirst.lean) over [Acorn.Options](../lean/Acorn/Options.lean) and [Acorn.Temporal](../lean/Acorn/Temporal.lean).
 
