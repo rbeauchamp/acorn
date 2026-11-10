@@ -8,7 +8,7 @@ designs, and the conformance work it recommends.
 The assessment was made against `main` at commit 86ce779 (2026-09-28), from
 the executed definitions and the primary literature. No agent run informed it.
 Status notes record what has changed since; the
-[Acorn roadmap](https://github.com/users/rbeauchamp/projects/10) tracks the remaining work.
+[roadmap](roadmap.md) orders the remaining work.
 
 **Claim status.** Every claim below carries one of these labels:
 
