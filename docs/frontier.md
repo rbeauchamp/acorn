@@ -8,7 +8,7 @@ The F labels identify research questions, D labels identify authored departures,
 and PAR labels identify mechanism contracts. The
 [baseline assessment](baseline-assessment.md) compares the implementation with
 the published OaK and Alberta Plan designs and orders the conformance work that
-the [roadmap](https://github.com/users/rbeauchamp/projects/10) tracks.
+the [roadmap](roadmap.md) places.
 
 ## F1 · Option-model quality
 

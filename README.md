@@ -31,8 +31,9 @@ to discover and implement algorithms that allow agents to achieve goals in big
 worlds." The mission places no limit on which world: Acorn's agent must be able
 to learn and generalize in any big world. Acorn may restrict its worlds at first,
 to make progress practical, but each restriction is a step toward that end, not a
-narrowing of it. The goals below the mission, such as which capability or world
-comes next, are open and not yet decided. The
+narrowing of it. The [roadmap](docs/roadmap.md) gives the order of work below
+the mission: the first class of worlds is decided, and the order of the classes
+after it is not. The
 [mission contract](docs/mission-contract.md) states what Acorn promises to prove
 about its agent, the decisions behind it and the sources for each.
 
@@ -88,9 +89,8 @@ contract states the conditions that make a class of worlds big
 ([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big)).
 Three of its four conditions are proved of one class in the tile world, with no
 claim yet that the agent learns there; proving them of chosen classes is open
-work, begun in the issues on modelling
-worlds as a class with proved properties
-([#69](https://github.com/rbeauchamp/acorn/issues/69)), ARC-AGI-3 games
+work, in the issues on that contract's record
+([#214](https://github.com/rbeauchamp/acorn/issues/214)), ARC-AGI-3 games
 as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a
 class of Microduck scenes ([#173](https://github.com/rbeauchamp/acorn/issues/173));
 the last two are
@@ -184,8 +184,9 @@ You can read the design without installing Lean.
   and an observation tool.
 - **Wondering how close Acorn is to the published baseline?** Read the
   [baseline assessment](docs/baseline-assessment.md); the
-  [roadmap](https://github.com/users/rbeauchamp/projects/10) tracks the work
-  that remains.
+  [roadmap](docs/roadmap.md) orders the work that remains.
+- **Wondering what comes next?** Read the [roadmap](docs/roadmap.md): the
+  class of worlds Acorn is working on, what is proved of it and what is open.
 
 ## What to inspect
 
@@ -196,7 +197,7 @@ You can read the design without installing Lean.
 | Which hand-authored choices remain? | [Learned-only binding](docs/learned-only-binding.md) |
 | What do the compiler and proofs establish? | [Verification](docs/verification.md) |
 | What remains unresolved? | [Research frontier and limitations](docs/frontier.md) |
-| How close is Acorn to the published baseline, and what work remains? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](https://github.com/users/rbeauchamp/projects/10) |
+| How close is Acorn to the published baseline, and what work remains? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](docs/roadmap.md) |
 | How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) and [missions](docs/missions.md) |
 | Which missions are open, and who has landed what? | [Mission board](docs/mission-board.md) |
 
