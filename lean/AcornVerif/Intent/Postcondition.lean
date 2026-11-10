@@ -20,16 +20,22 @@ The record's writer had read, before writing it: the mission contract, whose des
 proposed Lean forms of separation and retention over the kernel's definitions; the records of
 contracts 1 and 3, `AcornVerif.Intent.WorldInterface.worldInterface` and
 `AcornVerif.Intent.OneStream.oneStream`; the sections of the design document `docs/design.md` on
-classes of worlds, concealed goals and visits; and rbeauchamp/acorn#219, #230, #231 and #232. The
-writer had read none of the executing agent's code and none of the modules that define the kernel's
-worlds, classes and visits. The record imports nothing of Acorn's but contract 1's record module.
+classes of worlds, on concealed goals and visits, and on the OaK picture and the executed agent; the
+baseline assessment, the frontier and, of the prior-art register, its qualification table and its
+two assessments not admitted; and the issues open on 2026-11-10, with the closed
+rbeauchamp/acorn#140, whose text derives facts about the executed agent's controller. Of the modules
+that define the kernel's worlds, classes and visits the writer had read the first line of three
+declarations (`Conceals`, `SolvesOnVisit` and `BigClass`), found by a search for their names, and no
+more; of the executing agent's code, nothing. The record imports nothing of Acorn's but contract 1's
+record module.
 
 The subject, `Trial`, is a class of worlds with what the second sentence says a class states, and
 the agent that learns in it: the members, each a world over the class's observations and actions
 with its reward and its goal (`Member`); the members the comparison counts (`counted`); how long an
 attempt lasts (`length`); how an attempt's rewards are aggregated (`total`); and the agent. Every
 quantity the properties read is computed from those by the faithful run of an agent in a member
-(`Member.run`), which is contract 1's faithful run never stopped: the agent is given the world's
+(`Member.run`), which is contract 1's faithful run never stopped (`run_reaches`, in the module of
+this record's consequences): the agent is given the world's
 observation and reward at each step, the world moves by its own dynamics on the agent's action,
 restarts included, and the agent keeps the memory its answer produced. Attempt `n` of a run is its
 `length` steps from step `length * n` on. So the record reads each compared agent in a run
@@ -64,6 +70,10 @@ formalization and recorded in the record's confirmation file:
   form for campaigns: from which memories, and within how many attempts.
 * `earnsMoreEventually` asks for one attempt, not for every attempt from some attempt on; with
   `keepsSolving` the advantage lasts where the members' problems stay the same.
+* "The attempts counted" are all of them: `rewardCountsMembers` holds on every attempt of each
+  compared agent.
+* The comparison counts a finite list of members that the class names, while `keepsSolving` and
+  `learnsAgain` are asked of every member.
 
 Each property's plain words were written from the finished predicate and are trusted, not proved.
 What the owner confirmed is the six sentences; that this record carries them is the agents'
@@ -184,8 +194,9 @@ end Trial
 /-- Among the agents compared, on every pair of attempts, one earns more reward across the counted
 members than the other exactly when it solves more of them. -/
 def rewardCountsMembers : Clause Trial :=
-  ⟨"among the agents compared, one earns more reward across the class on an attempt than another \
-    exactly when it solves more members on it", fun w =>
+  ⟨"among the agents compared, and for any attempt of each, one earns more reward across the \
+    class on its attempt than the other on its own exactly when it solves more members on it",
+    fun w =>
     ∀ A B, w.Compared A → w.Compared B → ∀ n k,
       (w.classReward B k < w.classReward A n ↔ w.solvedCount B k < w.solvedCount A n)⟩
 
@@ -208,8 +219,8 @@ def keepsSolving : Clause Trial :=
 member's attempts all start from the state the solved attempt started from, it solves the member
 again on some attempt. -/
 def learnsAgain : Clause Trial :=
-  ⟨"once the agent has solved a member, it solves it again on some attempt after the member's \
-    attempts come back for good to the state the solved one started from", fun w =>
+  ⟨"once the agent has solved a member, it solves it again on some attempt once the member's \
+    attempts have come back for good to the state the solved one started from", fun w =>
     ∀ i n n', n ≤ n' → (∀ k, n' ≤ k → w.SameProblem i n k) →
       w.solves w.agent i n = true → ∃ n'', n' ≤ n'' ∧ w.solves w.agent i n'' = true⟩
 

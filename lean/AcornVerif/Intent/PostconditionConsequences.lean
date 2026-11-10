@@ -13,7 +13,7 @@ the record: what it requires of every trial that meets it, the trials it rules o
 `base`, the trial that differs from it only where it attacks and meets the record, and what the
 record still allows.
 
-Three things are not proved here, and each is a consequence for the owner's confirmation labelled
+Two things are not proved here, and each is a consequence for the owner's confirmation labelled
 unproved, never a pass:
 
 * A class whose members never start two attempts from the same state asks no retention: both
@@ -22,16 +22,51 @@ unproved, never a pass:
 * An agent that stores what it perceives and never reads it acts as some agent that keeps nothing
   acts, yet `KeepsNothing` does not hold of it. That such an agent fails the record in every class
   is not proved.
-* The trial-level check of lean-intent's degenerate subjects is not run: the subject's type holds
-  types and functions, which that check does not cover. The trials attacked here are chosen by hand.
 
-That the faithful run this record computes with, `Member.run`, is contract 1's faithful run never
-stopped is stated in the record's module and is not proved against contract 1's `couple` here.
+Two checks of lean-intent were not run:
+
+* Its degenerate-subject and trivial-witness checks cover a subject in `Type`, and `Trial` carries
+  its own types, so it lives one universe higher (rbeauchamp/lean-intent#43). The interim class for
+  a plain value asks for its empty value and `default`, and `Trial` has neither. The nearest
+  subjects are attacked by hand and both fail the record: a class that counts no member
+  (`countsSomeMember_holds`, `uncounted_fails`), and an agent that keeps nothing of its experience,
+  which a script of timed actions is, in every class (`not_earnsMore_of_keepsNothing`,
+  `learnerKeepsSomething_holds`).
+* Its cone exclusion: no implementation of this record is named yet, and the record's module
+  imports contract 1's record and lean-intent only, so none of the modules that define the kernel's
+  worlds, classes and visits, or the executing agent, is in its imports.
+
+The pair whose input is the class of worlds is not discharged here. With no domain hypothesis the
+record admits classes that no agent can serve, as `uncounted_fails` shows, so that pair needs the
+preconditions of contract 2, whose record does not exist yet. What is proved is the pair with the
+trivial input (`postcondition_pairs`) and that one agent, `finder`, serves every two-door class
+with a fair aggregation and payment (`doors_finder_meets`).
 -/
 
 namespace AcornVerif.Intent.Postcondition
 
 open LeanIntent WorldInterface
+
+/-! ## The run is contract 1's -/
+
+/-- The member `M` as a world of contract 1, with every action available at every state. -/
+def Member.world {Obs Act : Type} (M : Member Obs Act) : World where
+  State := M.State
+  Obs := Obs
+  Act := Act
+  start := M.start
+  observe := M.observe
+  reward := M.reward
+  available := fun _ _ => True
+  step := M.step
+
+/-- **The run the record computes with is contract 1's faithful run, never stopped.** After any
+number of steps, the faithful run of contract 1 of a member's world and an agent, sent no stop
+request, has reached the state and the memory that `Member.run` gives. -/
+theorem run_reaches {Obs Act : Type} (M : Member Obs Act) (A : Agent Obs Act) :
+    ∀ t, (couple M.world A).Reaches neverStop t (M.run A t).1 (M.run A t).2
+  | 0 => .start
+  | t + 1 => .next (run_reaches M A t) rfl
 
 /-! ## What the record requires -/
 
