@@ -641,21 +641,16 @@ theorem card_witnessTiles : witnessTiles.card = 147 := by
     · exact apart _ _ point (by simp only [witnessEnd]; omega) first
     · exact apart _ _ point (by simp only [witnessEnd]; omega) second
 
-/-- The separation holds in the executed grid world. In the witness world, with visits of seven
-steps, the replaying agent with the achievement flag as its signal solves on visit 2 the 147
-concealed targets within three tiles of the three end tiles, while on every visit every
-experience-free agent solves fewer: 147 is more than the covering bound 49 + 7 · 7 = 98. -/
-theorem witness_separation (mode : TaskFeatureMode) :
+/-- The 147 concealed targets within three tiles of the three end tiles of the witness's
+explorations. Each is met, from the witness world, by the exploration of one of the visits 0 to 2 at
+its seventh step. -/
+theorem witness_explored (mode : TaskFeatureMode) :
     ∃ members : Finset (findClass witnessConfig mode witnessLive).Index,
-      49 + 7 * 7 < members.card ∧
-      (∀ target ∈ members, Kernel.SolvesOnVisit (findClass witnessConfig mode witnessLive)
-        (fun _ => completion witnessConfig mode 7) 7
-        (Kernel.replay Grid.interface 7 achievedSignal witnessExplore) 2 target) ∧
-      ∀ agent : Kernel.Agent Grid.interface, Kernel.ExperienceFree agent →
-        ∀ (count : ℕ) (solved : Finset (findClass witnessConfig mode witnessLive).Index),
-          (∀ target ∈ solved, Kernel.SolvesOnVisit (findClass witnessConfig mode witnessLive)
-            (fun _ => completion witnessConfig mode 7) 7 agent count target) →
-            solved.card < members.card := by
+      members.card = 147 ∧
+      ∀ target ∈ members, ∃ visit, visit ≤ 2 ∧
+        ∃ step, 1 ≤ step ∧ step ≤ 7 ∧ (completion witnessConfig mode 7).satisfied
+          (Kernel.path (gridWorld witnessConfig mode) (member witnessLive target.1)
+            (witnessExplore visit) step) := by
   let admit :
       { point // point ∈ witnessTiles } → (findClass witnessConfig mode witnessLive).Index :=
     fun point => ⟨pointPosition point.1, by
@@ -671,17 +666,30 @@ theorem witness_separation (mode : TaskFeatureMode) :
   let members := witnessTiles.attach.map ⟨admit, injective⟩
   have count : members.card = 147 := by
     rw [Finset.card_map, Finset.card_attach, card_witnessTiles]
-  have explored : ∀ target ∈ members, ∃ visit, visit ≤ 2 ∧
-      ∃ step, 1 ≤ step ∧ step ≤ 7 ∧ (completion witnessConfig mode 7).satisfied
-        (Kernel.path (gridWorld witnessConfig mode) (member witnessLive target.1)
-          (witnessExplore visit) step) := by
-    intro target chosen
-    obtain ⟨point, -, rfl⟩ := Finset.mem_map.mp chosen
-    obtain ⟨visit, within, near⟩ := witnessTiles_near point.1 point.2
-    refine ⟨visit, within, 7, by omega, le_refl 7, witness_meets mode 7 visit within _ ?_⟩
-    change tile (pointPosition point.1) ∈ box 3 (witnessEnd visit)
-    rw [(witnessTiles_admitted point.1 point.2).1]
-    exact near
+  refine ⟨members, count, fun target chosen => ?_⟩
+  obtain ⟨point, -, rfl⟩ := Finset.mem_map.mp chosen
+  obtain ⟨visit, within, near⟩ := witnessTiles_near point.1 point.2
+  refine ⟨visit, within, 7, by omega, le_refl 7, witness_meets mode 7 visit within _ ?_⟩
+  change tile (pointPosition point.1) ∈ box 3 (witnessEnd visit)
+  rw [(witnessTiles_admitted point.1 point.2).1]
+  exact near
+
+/-- The separation holds in the executed grid world. In the witness world, with visits of seven
+steps, the replaying agent with the achievement flag as its signal solves on visit 2 the 147
+concealed targets within three tiles of the three end tiles, while on every visit every
+experience-free agent solves fewer: 147 is more than the covering bound 49 + 7 · 7 = 98. -/
+theorem witness_separation (mode : TaskFeatureMode) :
+    ∃ members : Finset (findClass witnessConfig mode witnessLive).Index,
+      49 + 7 * 7 < members.card ∧
+      (∀ target ∈ members, Kernel.SolvesOnVisit (findClass witnessConfig mode witnessLive)
+        (fun _ => completion witnessConfig mode 7) 7
+        (Kernel.replay Grid.interface 7 achievedSignal witnessExplore) 2 target) ∧
+      ∀ agent : Kernel.Agent Grid.interface, Kernel.ExperienceFree agent →
+        ∀ (count : ℕ) (solved : Finset (findClass witnessConfig mode witnessLive).Index),
+          (∀ target ∈ solved, Kernel.SolvesOnVisit (findClass witnessConfig mode witnessLive)
+            (fun _ => completion witnessConfig mode 7) 7 agent count target) →
+            solved.card < members.card := by
+  obtain ⟨members, count, explored⟩ := witness_explored mode
   have separated := find_replay_separates witnessConfig mode witnessLive 7 witnessExplore members
     2 explored (by rw [count]; decide)
   exact ⟨members, by rw [count]; decide, separated⟩

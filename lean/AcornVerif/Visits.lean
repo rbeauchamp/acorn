@@ -168,6 +168,16 @@ theorem visits_period (world : World interface) (start : world.State) (length : 
     rw [Nat.add_mul, Nat.one_mul, stateAt_add, ih]
     exact visits_return world start length _
 
+/-- The step count of a visit: after at most `length` decisions from the start of a visit,
+the counter is the number of decisions. -/
+theorem visits_counter (world : World interface) (start : world.State) (length : ℕ)
+    (agent : Agent interface) (count step : ℕ) (within : step ≤ length) :
+    (stateAt (visits world start length) agent (visitStart world start length)
+      (count * (length + 1) + step)).2.val = step := by
+  rw [stateAt_add, visits_period]
+  exact congrArg (fun state : (visits world start length).State => state.2.val)
+    (congrArg Prod.fst (visits_loop world start length _ step within))
+
 /-! ## Solving on a visit -/
 
 /-- The goal of each member with its step cap replaced by a visit's length. -/

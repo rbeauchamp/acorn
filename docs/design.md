@@ -1036,6 +1036,87 @@ What these theorems do not establish:
   indexed, says that some action sequence meets a member's goal, not that an agent
   finds it.
 
+### The mission theorem's statement on a class in visits
+
+The [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder) asks for one
+theorem for each class of worlds of a ladder. [The statement](../lean/AcornVerif/Intent/MissionTheorem.lean)
+is one proposition over the four intent records, and
+[a class in visits](../lean/AcornVerif/MissionVisits.lean) is read as the records' subject, so
+that the statement is proved of it from named premises. A **rung** is the subject: a class of
+worlds with the agent that learns in it, and what that agent reports of its own steps (its
+internal updates, its work and how it resumes), which is what contract 3's record reads. The
+premises about the agent are stated over the kernel's `SolvesOnVisit` in
+[Separation](../lean/AcornVerif/Separation.lean), and the lemmas that carry concealment and
+action lists from a world to that world in visits are in
+[VisitsClass](../lean/AcornVerif/VisitsClass.lean).
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| The statement | `Mission` holds of a rung when the agent's run in every member meets contract 1's record, the class meets contract 2's, the agent's run in every member meets contract 3's under its reports, and the class with the agent meets the postcondition's. The first holds of every rung by how its run is built. A class of two worlds meets all four. | `Rung.interface_met`, `Mission.of_records`, `doors_mission` |
+| Contract 3 as premises | The record of contract 3 in every member follows from four premises: one finite list of memories and one bound on reported work for the whole class, learning from each experience as it arrives, and the record's remaining clauses. The first is about the memories a run holds; the others are about what the agent reports of its own steps. | `MemoryBounded`, `WorkBounded`, `LearnsOnArrival`, `KeepsDiscipline`, `Rung.stream_met` |
+| A class in visits as the records read it | A member is its world in visits, with the percept as observation and the class's reading of the reward word as reward; an attempt is a visit. The run the records compute with is the kernel's closed loop, so an agent solves a member on an attempt exactly when it solves it on that visit, and an agent that keeps nothing of its experience is experience-free. | `run_eq_loop`, `solves_iff`, `keepsNothing_experienceFree` |
+| Concealment across visits | Under every action sequence a world in visits is, at each step of each visit, in the state the world itself reaches under that visit's actions. So a class that conceals its goals conceals them in visits, behind its reference in visits, until a member's goal is first met on any visit. | `visits_path`, `Conceals.inVisits` |
+| The reward lemma | Where the reward read after a step is one when the step satisfies the member's goal and zero when not, and zero at a visit's start, and an attempt's rewards are counted up to and including the first step that pays, every agent earns across the counted members, on every attempt, exactly the number of them it solves. The plain sum of an attempt's rewards is the number of its steps at which the goal is met. | `PaysAtGoals`, `untilPaid`, `earned_eq`, `classReward_eq`, `rewards_sum` |
+| Contract 2 in visits | A class that conceals its goals, with a covering bound for one visit below the count of its counted members, goals feasible within a visit and such a reward, meets contract 2's record in visits, with every agent. Success shows in the reward. | `visits_big`, `visits_goalsConcealed`, `visits_frozenShareSmall`, `visits_successShows` |
+| Separation and retention | `Separates`: on one visit the agent solves more counted members than a bound. `Retains`: what it has solved on one visit it solves on every later visit. `Finds`: it solves each of more than the bound's number of counted members on some visit. An agent that finds and retains separates, and one that separates from the covering bound and retains meets the postcondition's record. Two agents that take the same actions in every world find and retain alike. | `separates_of_finds`, `visits_achieves`, `Finds.of_actions`, `Retains.of_actions` |
+| The mission from premises | On such a class with distinct counted members, an agent that finds and retains, and whose run in every member meets contract 3's record under its reports, meets the statement. | `visits_mission` |
+| All but a fraction of a family | `AllBut` says a guarantee holds of every run of a finite family but a set holding at most a fraction of it. Fractions add, and a fraction of zero is every run. Where all but one fraction of a finite family of agents find and all but another retain, the statement holds of all but their sum. This is a count, with no hypothesis about draws. | `AllBut.and`, `allBut_zero`, `visits_mission_allBut` |
+
+**A reference agent of fixed memory.** [The retracing agent](../lean/AcornVerif/Retrace.lean)
+has its exploration built in: a fixed walk for each of the visits up to a last one. It keeps the
+steps taken in the current visit, the visits completed up to the last exploring one, and the
+exploring walk, by its visit, on which it first perceived its goal met. Until it has found a
+walk it takes the current visit's exploring walk, and from then on the walk it found. It holds
+one of finitely many memories and stores no action and no percept. The replaying agent counts
+its visits without bound, and keeps a record of a visit's actions that it clears when the visit
+ends; a report of that update would be a reset as contract 3's record describes one, an update
+that discards what part of the agent's memory holds and sets that part back to its value at the
+start of the agent's life. The retracing agent's count of a visit's steps also returns to zero
+with each visit, as a count modulo the visit's decisions, which the record does not count as a
+reset (`returnsToInitialWithoutReset`).
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| Fixed memory | The agent's memories are finitely many. | `retraceMemory_finite` |
+| One walk a visit | Within a visit the agent takes one walk, the walk it began the visit with or else the exploring walk of its count, and after the visit it holds that walk, or the count's walk exactly when that walk met the goal during the visit. | `retrace_within`, `retrace_visit_end` |
+| Re-solving and finding | Where the percept after every step shows the signal exactly when the step meets the goal, the agent solves a member on a visit exactly when the walk it takes then meets the member's goal. So it solves on every later visit what it has solved once, and solves a member from the first visit whose exploring walk meets that member's goal. | `retrace_solves_iff`, `retrace_solves`, `retrace_solves_explored`, `retrace_retains`, `retrace_finds` |
+| The statement is satisfiable | With the reward as its signal, on a class as above whose counted members its exploring walks meet, the agent meets the mission's statement with every premise discharged. Its reports to contract 3 are its own declaration, argued where the rung is defined. | `paid_decodes`, `retrace_mission` |
+
+**The first class.** [The concealed targets of the executed grid world](../lean/AcornVerif/CurrentConcealedTargetMission.lean)
+are the first class of the ladder.
+
+| Property | What is proved | Theorems |
+|---|---|---|
+| The executed reward | The number the reward word reads as is one after every step that satisfies the installed goal and zero after every other step, the refused state included. Over a host world that carries a reward of zero, the feasible concealed targets have a reward that pays at their goals. | `reward_step`, `find_pays` |
+| The class's premises | Over a host world that carries a reward of zero, every premise about the class holds of the feasible concealed targets, for every visit length, so with distinct counted members the statement there depends only on the agent. | `find_mission` |
+| A reference agent meets the statement | In the world at seed 5 and side 64, with visits of seven steps, there are 147 distinct feasible concealed targets such that the retracing agent, with the reward as its signal and three walks of seven steps east, west and south as its exploration, meets the statement with those targets counted. | `witness_explored`, `witness_mission` |
+| The executed agent, from premises | For the executed decision function at the default step order, from every state of it and for every profile and configuration: if it finds and retains, every agent that takes its actions in every world, and whose own memory and reports meet the four premises of contract 3, meets the statement. No premise is proved. The agent is a parameter because the executed agent's whole state holds its evaluator's session, which a resumption restarts, so the record's clause on resumption cannot hold of the whole state. | `ActsAsExecuted`, `executedAgent_actsAs`, `ExecutedFinds`, `ExecutedRetains`, `executed_mission` |
+
+What these theorems do not establish:
+
+- **Anything about the executed agent's learning.** `executed_mission` has premises that no
+  theorem proves: that the agent finds, that it retains, and the four premises of contract 3.
+  `ExecutedRetains` asks every later visit, and the agent as built explores at a constant rate,
+  so where an exploring run can make a visit miss, the premise fails of it (argued in the
+  [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder);
+  [#248](https://github.com/rbeauchamp/acorn/issues/248) decides how retention is asked).
+- **A statement for an agent that explores with random draws.** `visits_mission_allBut` counts
+  the agents of a finite family. No theorem models an agent's draws, and finding and retaining
+  name no last visit, so a family of draw sequences is not finite for them.
+- **The class constants of the executed agent's rung.** The theorems hold for every host world
+  that carries a reward of zero, every visit length and every list of distinct counted
+  members. The witness's constants are the reference agent's.
+- **That an agent's reports describe its step,** and which memory of the executed agent
+  contract 3 reads ([#249](https://github.com/rbeauchamp/acorn/issues/249)). The reports are parameters for the executed agent and
+  a declaration for the retracing agent.
+- **That a host runs a rung's run.** A rung's run is contract 1's faithful run by how it is
+  built. [Runs of visits](#runs-of-visits-in-the-host) relates the host's loop of visits to
+  the kernel's world in visits, with the same learners; no theorem ties the native entry
+  `acorn-core visits` to that loop.
+- **That the plain sum of a visit's rewards orders two agents otherwise than the members they
+  solve do.** `rewards_sum` shows that the sum counts the steps at which the goal is met; no
+  pair of agents is exhibited.
+
 ### Runs of visits in the host
 
 [The loop of visits](../lean/Acorn/Host/Visits.lean) sits beside the attempt loop, which it
