@@ -19,9 +19,11 @@ unproved, never a pass:
 
 * The pair of this record with the postcondition's: that in every class which meets this record,
   and whose reward orders the compared agents as members solved do, some agent achieves the
-  postcondition (`Served`). It is proved of every two-door class with a fair aggregation and payment
-  (`doors_served`) and of no other class. A proof for every class needs an agent built for the
-  class, and a class with finitely many actions to try.
+  postcondition (`Served`). It is proved here of every two-door class with a fair aggregation and
+  payment (`doors_served`) and of no other class; `AcornVerif.MissionVisits.retrace_mission` proves
+  the postcondition of one agent on the classes of the kernel's worlds in visits that its exploring
+  walks cover. A proof for every class needs an agent built for the class, and a class with finitely
+  many actions to try.
 * Condition (d) of the restatement, which this record does not carry.
 * That the record allows a trap, as condition (a) says it may: no trial is exhibited that meets the
   record and has an action after which a member's goal can no longer be reached.
