@@ -15,16 +15,17 @@ hypothesis for every state a host runs, and turns the bound on the image into a 
 such states there are. It is the mission rbeauchamp/acorn#195, which serves obligation 6 of
 `docs/mission-contract.md`.
 
-`Running` is the states a host runs: the cold state, a state resumed from bytes, and every state one
-host operation after such a state (a whole step of the construction's order, the two observation
-writes, the censoring at process exit, the start of an evaluator session). It has one constructor
-for each constructor of `AgentConstruction.Reached`, with `loaded` replaced by `resumed`. The agent
-of any image the loader admits is reached, and an image may hold a ratio of any length, so the
-bound is false of reached agents. Every host path from a file goes through
-`Acorn.Checkpoint.resume`, which starts a new evaluator session and so holds no evaluator natural
-but the zero sums of its empty channels.
+`Running` defines the states a host runs: the cold state, a state resumed from bytes, and every
+state one host operation after such a state (a whole step of the construction's order, the two
+observation writes, the censoring at process exit, the start of an evaluator session). It has one
+constructor for each constructor of `AgentConstruction.Reached`, with `loaded` replaced by
+`resumed`. Under a profile that restores, every agent is reached
+(`AcornVerif.CurrentCheckpoint.loader_reaches`), and the type of a ratio bounds neither of its
+naturals, so a reached agent can hold a natural longer than its allowance (argued, not proved
+here). A state that `Acorn.Checkpoint.resume` returns has a new evaluator session, and so holds no
+evaluator natural but the zero sums of its empty channels.
 
-The naturals do not grow with the number of steps:
+The naturals stay below bounds that do not depend on the number of steps:
 
 - the sum of a channel's total is at most its count times the square of the channel's scale, by
   its type, and a scale is below `2 ^ 278` (`magnitudeUnits_lt`), so a sum is below `2 ^ 620`
@@ -55,9 +56,18 @@ its image, and a list of at most `n` bytes has a code below `256 ^ (n + 1)` (`co
 `code_lt`). That gives `running_memory_bits`.
 
 What the bound is not. It counts memory in the bytes of the exact image: it says nothing about
-native allocation or work, or about how the executed agent uses its memory. It does not relate a
-running state to the memory of a kernel loop, which `AcornVerif.Kernel.campaign_count` and the
-record of contract 3 read: that link is a further step.
+native allocation or work, or about how the executed agent uses its memory.
+
+- `Running` is a definition over the states of a grid construction. No theorem says that a native
+  loop holds only such states. The host's loops are generic in the agent's type and reach an agent
+  only through the constructor, the callbacks and the checkpoint hooks, and the hooks load through
+  `Acorn.Checkpoint.resume` (argued). A host operation added to `AgentConstruction.Reached` is not
+  thereby added to `Running`.
+- The count, `running_memory_bits`, is of a construction whose profile restores, because it reads
+  a state back from the bytes of its image. The two bounds on size hold of every construction.
+- Neither relates a running state to the memory of a kernel loop, which
+  `AcornVerif.Kernel.campaign_count` and the record of contract 3 read: that link is a further
+  step.
 -/
 
 set_option exponentiation.threshold 32768
@@ -179,8 +189,8 @@ theorem precision_bounded {discount : Discount} {steps : Nat} {power : Binary32}
             _ = precisionBound := by rw [← Nat.pow_add]; rfl
         · exact Nat.lt_of_lt_of_le envelope (Nat.pow_le_pow_right (by decide) (by decide))
 
-/-- The sum of a channel's total is below `2 ^ 620`: its count is below `2 ^ 64` and its scale
-below `2 ^ 278`. -/
+/-- A count of at most the count limit, times the square of a channel's scale, is below `2 ^ 620`:
+the limit is below `2 ^ 64` and the scale below `2 ^ 278`. -/
 theorem scaled_lt (discount : Discount) (count : Nat) (small : count ≤ Agreement.countLimit) :
     count * Agreement.envelopeUnits discount ^ 2 < sumBound := by
   have envelope := envelopeUnits_lt discount
@@ -198,7 +208,7 @@ theorem sum_lt {discount : Discount}
   Nat.lt_of_le_of_lt total.bounded
     (scaled_lt discount total.count.val (Nat.le_of_lt_succ total.count.isLt))
 
-/-- The ratio of a channel has a denominator below `2 ^ 620`. -/
+/-- The ratio of a channel has a denominator of at most `2 ^ 620`. -/
 theorem channel_ratio_bounded {discount : Discount} (channel : Agreement.Channel discount)
     {ratio : Agreement.Ratio} (scored : channel.ratio = some ratio) :
     ratio.denominator ≤ sumBound := by
@@ -264,7 +274,7 @@ def ChannelBounded (channel : Agreement.Channel discount) : Prop :=
     precision.tail.denominator < precisionBound ∧
       precision.rounding.denominator < precisionBound
 
-/-- An empty channel holds no precision. -/
+/-- An empty channel is bounded: it holds no precision. -/
 theorem empty_bounded (discount : Discount) :
     ChannelBounded (Agreement.Channel.empty discount) :=
   fun _ held => nomatch held
@@ -275,8 +285,9 @@ theorem censor_bounded (channel : Agreement.Channel discount) (count : Nat)
   unfold Agreement.Channel.censor
   split <;> exact held
 
-/-- A settlement keeps the bound: it keeps the precision the channel held, or merges it with a
-derived one, and a merge returns, for each ratio, one of its two arguments. -/
+/-- A settlement keeps the bound. It writes no precision, or the derived precision where the
+channel held none, or the merge of the one held with the derived one, and a merge returns, for
+each ratio, one of its two arguments. -/
 theorem settle_bounded (channel : Agreement.Channel discount) (forecast outcome power : Binary32)
     (steps : Nat) (started settled : UInt64) (held : ChannelBounded channel) :
     ChannelBounded (channel.settle forecast outcome power steps started settled) := by
@@ -368,13 +379,13 @@ def RecordsBounded : {discounts : List Discount} → DemonRecords discounts → 
   | _, .nil => True
   | _, .cons head tail => ChannelBounded head.agreement ∧ RecordsBounded tail
 
-/-- Records rebuilt from their durable projection hold empty channels. -/
+/-- Records rebuilt from their durable projection are bounded: every channel is empty. -/
 theorem restore_bounded : ∀ {discounts : List Discount} (durable : DurableDemons discounts),
     RecordsBounded durable.restore
   | _, .nil => trivial
   | _, .cons _ tail => ⟨empty_bounded _, restore_bounded tail⟩
 
-/-- Cold records hold empty channels. -/
+/-- Cold records are bounded: every channel is empty. -/
 theorem initial_bounded : ∀ discounts : List Discount,
     RecordsBounded (DemonRecords.initial discounts)
   | [] => trivial

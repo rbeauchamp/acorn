@@ -24,10 +24,10 @@ library proves that the save of every state whose evaluator naturals each encode
 `naturalAllowance` bytes fits the limit (`AcornVerif.CurrentCheckpointSize.snapshot_size_bound`).
 The evaluator's naturals of every state a host runs fit the allowance, so the save of each fits
 the limit (`AcornVerif.CurrentRunningMemory.running_naturals_allowed`,
-`AcornVerif.CurrentRunningMemory.running_snapshot_size`). The agent of an image the loader admits
-without a new evaluator session is outside that theorem: a file can hold a ratio of any length.
-The bounds of work that requirement R8 of issue #90 owes remain. These bounds do not promise
-successful allocation on every machine.
+`AcornVerif.CurrentRunningMemory.running_snapshot_size`). The agent of an image the loader admits,
+before a new evaluator session, is outside that theorem. These bounds do not promise successful
+allocation on every machine. The bounds of the work and of the memory of each part of a step,
+which requirement R8 of issue #90 owes, are not among them.
 -/
 namespace Acorn.Checkpoint
 open Features Handcrafted

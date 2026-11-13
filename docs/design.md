@@ -2100,19 +2100,21 @@ is bounded by its type, at most its count times the square of the channel's enve
 (`Agreement.Total.bounded`), and the limit allows `naturalAllowance` bytes for it as for the
 other four. The save of every state whose evaluator naturals each fit that allowance fits the
 limit (`CurrentCheckpointSize.snapshot_size_bound`), and the naturals of every state a host
-runs do. `Running` is those states: the cold state, a state that `Checkpoint.resume` returns,
-and every state one host operation later. The evaluator's naturals do not grow with the number
-of steps: a sum is bounded by its type, a settlement writes a derived precision or keeps one
-the channel held, and an agreement point's ratio is bounded over the eleven channels. So each
-natural fits the allowance (`running_naturals_allowed`), and the image of every running state
-fits the limit (`running_snapshot_size`). Under a profile that restores, a state is a function
-of the bytes of its image, so the running states embed in the bit strings of
-8 · (`maximumBytes` + 1) bits (`running_memory_bits`). The bound is false of the agent of an
-arbitrary image the loader admits, which a host runs only after a new session: a file can hold
-a ratio of any length. What remains of
-[obligation 6](mission-contract.md#open-obligations) is the link from the memories of a kernel
-loop to the running states. The bounds of work that requirement R8 of
-[#90](https://github.com/rbeauchamp/acorn/issues/90) owes also remain.
+runs do. `Running` defines those states: the cold state, a state that `Checkpoint.resume`
+returns, and every state one host operation later. The evaluator's naturals stay below bounds
+that do not depend on the number of steps: a sum is bounded by its type, each ratio of the
+precision a settlement writes is the derived one or the one the channel held, and an agreement
+point's ratio is bounded over the eleven channels. So each natural fits the allowance
+(`running_naturals_allowed`), and the image of every running state fits the limit
+(`running_snapshot_size`). Under a profile that restores, a state is a function of the bytes
+of its image, so the running states embed in the bit strings of 8 · (`maximumBytes` + 1) bits
+(`running_memory_bits`). Under such a profile every agent is reached
+(`CurrentCheckpoint.loader_reaches`) and the type of a ratio bounds neither of its naturals,
+so the bound does not hold of every reached agent (*argued*); a host runs a loaded agent only
+after a new session. [Obligation 6](mission-contract.md#open-obligations), the
+reachable-memory bound, says what remains. The bounds of the work and of the memory of each
+part of a step, which requirement R8 of
+[#90](https://github.com/rbeauchamp/acorn/issues/90) owes, are not among these.
 
 ### Planning selection
 
