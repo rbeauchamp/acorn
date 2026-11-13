@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import AcornVerif.Visits
+import AcornVerif.Separation
 
 /-!
 # An agent that retraces the walk that met the goal
@@ -39,8 +39,10 @@ goal (`retrace_solves_iff`). So:
   among the visits up to the last exploring one (`retrace_solves_explored`).
 
 These are the two facts `AcornVerif.Kernel.replay_solves` and
-`AcornVerif.Kernel.replay_solves_explored` state of `replay`. Nothing here says that an exploring
-walk meets a goal: that is a hypothesis about the class and the walks.
+`AcornVerif.Kernel.replay_solves_explored` state of `replay`. So the agent retains
+(`retrace_retains`), and it finds every counted member whose goal one of its exploring walks meets
+(`retrace_finds`), in the terms of `AcornVerif.Separation`. Nothing here says that an exploring walk
+meets a goal: that is a hypothesis about the class and the walks.
 -/
 
 namespace AcornVerif.Kernel
@@ -581,5 +583,41 @@ theorem retrace_solves_explored (length last : ℕ) (signal : Percept interface 
       first
   · rw [← same]
     exact first
+
+/-! ## Retaining and finding -/
+
+/-- The retracing agent retains, in a class whose members' percepts after every step show the
+signal exactly when that step satisfies the member's goal. -/
+theorem retrace_retains (family : WorldClass interface) (goals : family.Goals) (length last : ℕ)
+    (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface)
+    (decodes : ∀ index state action,
+      signal ((family.world index).percept ((family.world index).step state action)) = true ↔
+        (goals index).satisfied ((family.world index).step state action)) :
+    Retains family goals length (retrace interface length last signal explore) :=
+  fun index visit later after solved =>
+    retrace_solves family goals length last signal explore index (decodes index) visit later
+      after solved
+
+/-- The retracing agent finds every counted member whose goal one of its exploring walks meets
+from the member's start within a visit: where that holds of each of more than `bound` counted
+members, it finds more than `bound`. -/
+theorem retrace_finds (family : WorldClass interface) (goals : family.Goals)
+    (length last bound : ℕ) (signal : Percept interface → Bool)
+    (explore : ℕ → ℕ → Act interface)
+    (decodes : ∀ index state action,
+      signal ((family.world index).percept ((family.world index).step state action)) = true ↔
+        (goals index).satisfied ((family.world index).step state action))
+    (counted : List family.Index) (distinct : counted.Nodup) (many : bound < counted.length)
+    (explored : ∀ index ∈ counted, ∃ visit, visit ≤ last ∧
+      ∃ step, 1 ≤ step ∧ step ≤ length ∧ (goals index).satisfied
+        (path (family.world index) (family.start index) (explore visit) step)) :
+    Finds family goals length bound counted (retrace interface length last signal explore) := by
+  classical
+  refine ⟨counted.toFinset, by rwa [List.toFinset_card_of_nodup distinct],
+    fun index inside => ?_⟩
+  have listed := List.mem_toFinset.mp inside
+  obtain ⟨visit, exploring, meets⟩ := explored index listed
+  exact ⟨listed, visit, retrace_solves_explored family goals length last signal explore index
+    (decodes index) visit visit exploring (Nat.le_refl visit) meets⟩
 
 end AcornVerif.Kernel

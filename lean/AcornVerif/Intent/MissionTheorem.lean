@@ -45,8 +45,11 @@ What the proposition does not say:
 * It speaks of one agent, whose runs are determined. How the fraction of failing runs of an agent
   that explores with random draws enters, under fork F4 of the mission contract, is stated where the
   proposition is applied to a family of agents, not here.
-* The reports are the agent's own. That they describe what its step does is a separate proof for
-  each agent; for Acorn's executing agent it is the fifth step of rbeauchamp/acorn#215.
+* The reports are the agent's own: its internal updates, its work and the memory it resumes with.
+  That they describe what its step does is a separate proof for each agent; for Acorn's executing
+  agent it is the fifth step of rbeauchamp/acorn#215.
+* That a host runs the agent as the rung's run does. The run of a rung is contract 1's faithful
+  run by how it is built, which says nothing of a host.
 * Two of the four records, those of contract 2 and of the postcondition, have not had their blind
   second reading or their confirmation file (rbeauchamp/acorn#214, rbeauchamp/acorn#219), so the
   proposition can change with them.
@@ -102,29 +105,36 @@ theorem Mission.of_records {r : Rung} (big : bigClass.Meets r.toTrial)
 
 /-! ## Contract 3 as named premises
 
-The record of contract 3 holds of an agent's run only through what the agent reports of its own
-steps. For an agent whose reports are not yet proved, its clauses are the premises below. Each names
-the open obligation of `docs/mission-contract.md` it states and the issue that owns it. -/
+The record of contract 3 reads an agent's run through what the agent reports of its own steps. For
+an agent whose reports are not yet proved to describe its step, the record's clauses are the
+premises below. The first two ask one bound for the whole class, since an agent cannot tell which
+member it is in; each gives the record's clause, which asks a bound of each member's run, in every
+member. They ask that a bound exists and name none. Each premise names the open obligation of
+`docs/mission-contract.md` it states, or the step of the issue that owns it. -/
 
-/-- **Obligation 6, a bound on reachable memory** (rbeauchamp/acorn#195). In every member, the
-agent holds one of finitely many memories at every time of every run. -/
+/-- **Obligation 6, a bound on reachable memory** (rbeauchamp/acorn#195). One finite list holds
+every memory the agent holds at every time of every run in every member. -/
 def MemoryBounded (r : Rung) : Prop :=
-  ∀ i, boundedMemory.holds (r.learner i)
+  ∃ L : List r.agent.Memory, ∀ i ins t s (m : r.agent.Memory),
+    (r.learner i).Reaches ins t s m → m ∈ L
 
-/-- **Obligation 7, executed work** (rbeauchamp/acorn#90). In every member, the work of each step of
-the agent, and the number of its internal updates, stay within one bound. -/
+/-- **Obligation 7, executed work** (rbeauchamp/acorn#90). One number bounds, at every step of every
+run in every member, the work the agent reports of its step and the number of its internal
+updates. -/
 def WorkBounded (r : Rung) : Prop :=
-  ∀ i, boundedWork.holds (r.learner i)
+  ∃ W : Nat, ∀ i ins t s m, (r.learner i).Takes ins t s m →
+    (r.learner i).stepWork s m (ins t) ≤ W ∧ ((r.learner i).stepUpdates s m (ins t)).length ≤ W
 
-/-- **Obligation 7, learning from each experience once** (rbeauchamp/acorn#233). In every member,
-every learning update of every step learns from the experience that step was given. -/
-def LearnsOnce (r : Rung) : Prop :=
+/-- **Obligation 7, learning from each experience as it arrives** (rbeauchamp/acorn#233). In every
+member, every learning update the agent reports of a step learns from the experience that step was
+given. -/
+def LearnsOnArrival (r : Rung) : Prop :=
   ∀ i, learnsOnArrival.holds (r.learner i)
 
-/-- **The rest of contract 3 that a faithful run does not give** (the fifth step of
-rbeauchamp/acorn#215). In every member: an agent that learns on some step learns on every step, one
-that plans on some step plans on every step, no step makes a reset, and after every stop the agent
-resumes with the memory it held. -/
+/-- **The clauses of contract 3's record that no numbered obligation states** (the fifth step of
+rbeauchamp/acorn#215). In every member: an agent that reports a learning update on some step
+reports one on every step, one that reports a planning update on some step reports one on every
+step, no step reports a reset, and after every stop the agent resumes with the memory it held. -/
 def KeepsDiscipline (r : Rung) : Prop :=
   ∀ i, learnsEveryStep.holds (r.learner i) ∧ plansEveryStep.holds (r.learner i) ∧
     neverResetsItself.holds (r.learner i) ∧ resumesWhereStopped.holds (r.learner i)
@@ -132,10 +142,12 @@ def KeepsDiscipline (r : Rung) : Prop :=
 /-- The four premises give contract 3's record in every member. The remaining property, that the
 agent keeps the memory its own answer produced, holds of every rung by how its run is built. -/
 theorem Rung.stream_met {r : Rung} (memory : MemoryBounded r) (work : WorkBounded r)
-    (once : LearnsOnce r) (discipline : KeepsDiscipline r) :
-    ∀ i, oneStream.Meets (r.learner i) :=
-  fun i => oneStream_meets.mpr ⟨once i, work i, memory i, (discipline i).1, (discipline i).2.1,
-    (discipline i).2.2.1, fun _ _ _ _ _ => rfl, (discipline i).2.2.2⟩
+    (once : LearnsOnArrival r) (discipline : KeepsDiscipline r) :
+    ∀ i, oneStream.Meets (r.learner i) := by
+  obtain ⟨L, held⟩ := memory
+  obtain ⟨W, spent⟩ := work
+  exact fun i => oneStream_meets.mpr ⟨once i, ⟨W, spent i⟩, ⟨L, held i⟩, (discipline i).1,
+    (discipline i).2.1, (discipline i).2.2.1, fun _ _ _ _ _ => rfl, (discipline i).2.2.2⟩
 
 /-! ## The four records can be met together -/
 

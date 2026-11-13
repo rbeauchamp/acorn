@@ -16,7 +16,7 @@ It was last set on 2026-11-13, and a change to the order changes this page in th
 ## Where the mission stands
 
 No theorem in the tree yet says that Acorn's executed agent learns.
-On the first rung, `executed_mission` proves the mission theorem's statement of the executed agent from premises that name the open obligations, so what remains is those premises.
+On the first rung, `executed_mission` proves the mission theorem's statement from premises about the executed agent that no theorem proves. What remains is those premises, a proof that the agent's reports to contract 3 describe its step, the rung's class constants, a statement for an agent that explores with random draws, and the link from the rung's run to the native entry.
 
 - **Proved.** The kernel's model of worlds and agents. That no agent achieves goals in every world, and that on a class which conceals its goals every agent solves at most a covering bound of members on a first visit. One class of worlds that meets the mission contract's conditions (a) to (c) for a big class (`witness_big`). That every agent which keeps nothing of its experience solves at most a covering bound of members on every visit (`visits_need`). That a reference agent which replays a route it has found separates from those agents and retains what it solved, under its own hypotheses (`witness_separation`, `replay_keeps`). That the host's loop of visits is the kernel's (`executed_visits_closed_loop`). Exact resumption from a checkpoint, and that no host write reaches learning.
 - **Proved of the mission theorem's statement.** The statement is one proposition over the four intent records (`Mission`), and on a class of worlds in visits it follows from named premises about the class and the agent (`visits_mission`). On the first rung's class every premise about the class holds, the reward lemma included (`find_mission`, `classReward_eq`). A reference agent of fixed memory meets the whole statement there, with every premise discharged (`witness_mission`).
@@ -46,12 +46,12 @@ The first rung on which no agent can keep every solution is capacity, condition 
 
 | Obligation | Needed | Issue |
 |---|---|---|
-| 9, separation and retention for the executed agent | Yes: it is the theorem. Stated as the premises `ExecutedFinds` and `ExecutedRetains` | [#230](https://github.com/rbeauchamp/acorn/issues/230) |
+| 9, separation and retention for the executed agent | Yes: it is the theorem. Stated as the premises `ExecutedFinds` and `ExecutedRetains`. Retention on every later visit conflicts with the agent's constant exploration rate (argued) | [#230](https://github.com/rbeauchamp/acorn/issues/230) |
 | 4, goal-information and exploration premises | Yes. The goal information is proved (`reward_step`); no premise about exploration that suffices for the executed agent is known | [#232](https://github.com/rbeauchamp/acorn/issues/232) decides them |
-| 15, the failing fraction of runs | Yes. Its form is stated (`AllBut`, `executed_mission_allBut`); the fraction as a function of the class and the visits is open | [#231](https://github.com/rbeauchamp/acorn/issues/231) for the form, [#232](https://github.com/rbeauchamp/acorn/issues/232) for the fraction |
+| 15, the failing fraction of runs | Yes. Its counting part is stated (`AllBut`, `visits_mission_allBut`); a model of the agent's draws, a number of visits for finding and retaining, and the fraction itself are open | [#231](https://github.com/rbeauchamp/acorn/issues/231) for the count, [#232](https://github.com/rbeauchamp/acorn/issues/232) for the rest |
 | 16, the class's reward lemma | Discharged for this class (`classReward_eq`), with an attempt's rewards counted up to its first payment, which the owner can overrule | [#231](https://github.com/rbeauchamp/acorn/issues/231) |
 | 6, a bound on reachable memory | Yes: the premise `MemoryBounded` | [#195](https://github.com/rbeauchamp/acorn/issues/195), a posted mission |
-| 7, executed work, and learning from each experience once | Yes: the premises `WorkBounded` and `LearnsOnce` | [#90](https://github.com/rbeauchamp/acorn/issues/90) for work, [#233](https://github.com/rbeauchamp/acorn/issues/233) for once-only learning |
+| 7, executed work, and learning from each experience once | Yes: the premises `WorkBounded` and `LearnsOnArrival` | [#90](https://github.com/rbeauchamp/acorn/issues/90) for work, [#233](https://github.com/rbeauchamp/acorn/issues/233) for once-only learning |
 | 3, the viewer's rule as a theorem | Completes contract 1 beside the rung | [#213](https://github.com/rbeauchamp/acorn/issues/213), step 5 |
 | 2, 5, 10, 11, 13, 14 | No: the rung runs in visits and does not use the campaign join | |
 | 12, a guarantee counted over the generator's seeds | No: it stays a named assumption | [#184](https://github.com/rbeauchamp/acorn/issues/184), parked |
@@ -61,7 +61,7 @@ The first rung on which no agent can keep every solution is capacity, condition 
 1. **State.**
    - The intent record of the postcondition, steps 1 to 4 ([#219](https://github.com/rbeauchamp/acorn/issues/219)).
    - The intent record of contract 2, steps 1 to 4 ([#214](https://github.com/rbeauchamp/acorn/issues/214)).
-   - The rung's theorem in Lean ([#231](https://github.com/rbeauchamp/acorn/issues/231)). In the tree: its definitions, a proof that a reference agent meets it (`witness_mission`) and a proof of it for the executed agent from named open premises (`executed_mission`), so the way the theorem depends on its obligations is checked by Lean's kernel. Remaining: the class constants of the executed agent's rung, and the blind second reading of the statement.
+   - The rung's theorem in Lean ([#231](https://github.com/rbeauchamp/acorn/issues/231)). In the tree: its definitions, a proof that a reference agent meets it (`witness_mission`) and a proof of it for the executed agent from named open premises (`executed_mission`), so the way the theorem depends on its obligations is checked by Lean's kernel. Remaining: the class constants of the executed agent's rung, the decisions listed below, and the blind second reading of the statement.
 2. **Discover.** Decide the rung for the primitive research profile, by theorem ([#232](https://github.com/rbeauchamp/acorn/issues/232)): does its exploration find enough members, does credit reach the start of the next visit, does the first reward collapse exploration, and does shared weight send the agent off its route. Two algorithm changes are scoped and open on those answers: exploring without reward and after the first reward ([#170](https://github.com/rbeauchamp/acorn/issues/170)), and a one-step model that carries a success back ([#171](https://github.com/rbeauchamp/acorn/issues/171)).
 3. **Prove.** The invariants, stated over constructions so that an algorithm change does not reopen them: reachable memory ([#195](https://github.com/rbeauchamp/acorn/issues/195)), work ([#90](https://github.com/rbeauchamp/acorn/issues/90)), once-only learning ([#233](https://github.com/rbeauchamp/acorn/issues/233)), and the executing code against the records of contracts 1 and 3 ([#213](https://github.com/rbeauchamp/acorn/issues/213), [#215](https://github.com/rbeauchamp/acorn/issues/215)).
 4. **Assemble.** The rung's theorem for the primitive profile, then for the ranked profile ([#230](https://github.com/rbeauchamp/acorn/issues/230)).
@@ -95,12 +95,21 @@ The recommendation recorded there is: capacity on an agent of restricted capacit
 Each is an issue labelled `needs-owner-decision`, with a recommendation in its text.
 
 - The order of the rungs after the first, and the agent configuration condition (d) is first proved for ([#234](https://github.com/rbeauchamp/acorn/issues/234)).
-- Whether open statements live in the governed tree or in a separate library ([#238](https://github.com/rbeauchamp/acorn/issues/238)). The open premises of the first rung's theorem are hypotheses of theorems in the governed tree, which the owner can overrule ([#231](https://github.com/rbeauchamp/acorn/issues/231)).
-- Whether the first rung counts an attempt's reward up to its first payment, as `untilPaid` does, or the class changes so that the plain sum of a visit's rewards orders agents as the members they solve do ([#231](https://github.com/rbeauchamp/acorn/issues/231)).
+- Whether open statements live in the governed tree or in a separate library ([#238](https://github.com/rbeauchamp/acorn/issues/238)).
 - A standing, bounded budget for diagnostic runs of `acorn-core visits` in step 2, as smoke tests and never as evidence ([#232](https://github.com/rbeauchamp/acorn/issues/232)).
 - What the feature generator reads in a world with no symbol array ([#175](https://github.com/rbeauchamp/acorn/issues/175)).
 - Whether a mission may change a file of the trusted base ([#132](https://github.com/rbeauchamp/acorn/issues/132)).
 - The proposals for outside contributors, below.
+
+Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/issues/231)) made four choices on the owner's behalf, which the owner can overrule, and raised three questions. None has its own issue yet.
+
+- Chosen: an attempt's reward is counted up to its first payment (`untilPaid`), because the plain sum of a visit's rewards counts every step at which the goal stays met (`rewards_sum`).
+- Chosen: the open premises of the rung's theorem are hypotheses of theorems in the governed tree.
+- Chosen: contract 3's bounds on memory and work are asked once for the whole class, where the record asks them of each member's run.
+- Chosen: separation and finding name the members the comparison counts.
+- Raised: retention is asked on every later visit, and the executed agent explores at a constant rate. Either retention is asked up to a number of visits or exploration ends once a member is solved (obligations 9 and 15).
+- Raised: which memory of the executed agent contract 3 reads. A resumption restarts the evaluator's session, so the record's clause on resumption cannot hold of the agent's whole state.
+- Raised: whether the clauses of contract 3's record that no numbered obligation states (`KeepsDiscipline`) get a number in the mission contract.
 
 ## Opening the work to outside contributors
 

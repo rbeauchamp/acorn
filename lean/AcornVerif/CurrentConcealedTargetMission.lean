@@ -45,41 +45,61 @@ of the mission contract, is discharged for this class by
 concealed targets of `AcornVerif.CurrentConcealedTarget.witness_explored` counted and the covering
 bound 98, the retracing agent with the reward as its signal and the witness's three walks as its
 exploration meets the mission's statement, with every premise discharged. So the statement is
-satisfiable on the executed grid world, by an agent that holds one of 96 memories and stores no
-action and no percept. This is a reference: it shows that the four contracts can be met together on
-this class, and it is not a result about Acorn's agent. Its exploration is built for this world.
+satisfiable on the executed grid world, by an agent that holds one of 96 memories (eight counts of
+a visit's steps, three counts of visits and four values of the walk found) and stores no action and
+no percept. This is a reference: it shows that the four contracts can be met together on this
+class, and it is not a result about Acorn's agent. Its exploration is built for this world.
 
 ## The executed agent, from named premises
 
-`executed_mission` proves the mission's statement of the executed agent, from every state of it and
-at every construction, from premises that each name an open obligation of the mission contract:
+`executed_mission` proves the mission's statement from premises about the executed agent, from a
+state of it, for every profile, feature configuration, criterion, dimension and planning
+selection. The executed agent here is the executed decision function at the default step order
+(`AcornVerif.CurrentGridWorld.executedAgent`). The statement is of any agent that takes the
+executed agent's action at every time in every world (`ActsAsExecuted`), with that agent's own
+memory and reports:
 
-- `ExecutedFinds` and `ExecutedRetains`: what remains of obligation 9, and what the
-  goal-information and exploration premises of obligation 4 must deliver for this agent;
-- `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6;
+- `ExecutedFinds` and `ExecutedRetains`, of the executed agent: what remains of obligation 9, and
+  what the goal-information and exploration premises of obligation 4 must deliver;
+- `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6, of the agent's memory;
 - `AcornVerif.Intent.MissionTheorem.WorkBounded` and
-  `AcornVerif.Intent.MissionTheorem.LearnsOnce`, obligation 7;
-- `AcornVerif.Intent.MissionTheorem.KeepsDiscipline`, the rest of contract 3's record.
+  `AcornVerif.Intent.MissionTheorem.LearnsOnArrival`, obligation 7, of its reports;
+- `AcornVerif.Intent.MissionTheorem.KeepsDiscipline`, the clauses of contract 3's record that no
+  numbered obligation states.
 
-`executed_mission_allBut` is the statement under fork F4, obligation 15: for a finite family of
-states of the agent, where finding fails on at most one fraction of the family and retaining on at
-most another, the mission's statement holds of all but the sum of the fractions.
+Why the statement is not of the executed agent's whole state alone. As a kernel agent the executed
+agent's memory is its whole state, which holds its evaluator's session. The executing resumption
+starts a new session (`AcornVerif.CurrentCheckpoint.resume_saved`), so it does not return the
+memory the agent held, and `KeepsDiscipline` cannot hold of that memory with the resumption the
+code performs. Resumption does return every learned field. So contract 3's record can hold of the
+executed agent only as an agent whose memory is what its decisions read, or once the evaluator's
+session is no part of the agent's state, or under a changed record. The theorem takes the agent as
+a parameter and leaves that choice open; the executed agent itself is one such agent
+(`executedAgent_actsAs`).
+
+No premise states obligation 4 or obligation 15. For obligation 4, no premise about the class that
+suffices for this agent is known. For obligation 15, the executed agent's generator is part of its
+state, so a family of its states is a family of seeds, which is the exact count of obligation 12;
+a family of ideal draw sequences needs a model of the agent's draws. `ExecutedRetains` also asks
+every later visit, and the executed agent explores at a constant rate at every decision that serves
+no run (departure D6 of `docs/learned-only-binding.md`). Where an exploring run can make a visit
+miss, the agent as built does not retain on every later visit, under ideal draws on almost every
+run (argued, not proved). Whether retention is asked up to a number of visits, or exploration ends
+once a member is solved, has to be decided before that premise can be met.
 
 What these theorems leave open, beside their premises:
 
 - The class constants. The theorems hold for every host world whose carried reward is zero, every
-  visit length and every list of distinct counted members longer than the covering bound. Which
-  world, visit length and counted members the executed agent's rung fixes is not decided here: the
-  witness's constants suit the reference agent, and a visit length near the horizon over which the
-  executed agent's credit reaches may suit that agent.
-- The agent's reports. What the executed agent's step reports of its internal updates and its work,
-  and how it resumes, are parameters. Defining them from the executing code and proving the four
-  premises about them is the fifth step of rbeauchamp/acorn#215.
-- The family of runs under F4. It is a parameter. Under F4 it is to hold one state for each sequence
-  of the ideal draws a guarantee reads, which needs a model of the agent's draws; with one state for
-  each seed of the generator it is the exact count of obligation 12.
-- The research profile. The theorems hold for every construction; the first to be assembled is the
-  primitive profile.
+  visit length and every list of distinct counted members. Which world, visit length and counted
+  members the executed agent's rung fixes is not decided: the witness's constants are the reference
+  agent's.
+- The agent's reports. What the agent's step reports of its internal updates and its work, and how
+  it resumes, are parameters. Defining them from the executing code and proving the premises about
+  them is the fifth step of rbeauchamp/acorn#215.
+- The link to a host's run. A rung's run is contract 1's faithful run by how it is built, which is
+  not a theorem about a host. That the host's loop of visits is the kernel's world in visits, with
+  the same learners at each step order, is `AcornVerif.CurrentVisits.executed_visits_closed_loop`;
+  no theorem ties the native entry `acorn-core visits` to that loop.
 -/
 
 namespace AcornVerif.CurrentConcealedTargetMission
@@ -172,14 +192,14 @@ def findRung (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live c
     agent updates work resume
 
 /-- **The mission theorem on the concealed targets, from its premises about the agent.** Over a
-host world that carries a reward of zero, with a list of distinct counted members longer than the
-covering bound `49 + 7 length`: an agent that finds more counted members than the bound and retains
-what it has solved, and whose run in every member meets contract 3's record under its reports,
-achieves goals over the class. Every premise about the class is discharged. -/
+host world that carries a reward of zero, with a list of distinct counted members: an agent that
+finds more counted members than the covering bound `49 + 7 length` and retains what it has solved,
+and whose run in every member meets contract 3's record under its reports, achieves goals over the
+class. Every premise about the class is discharged. -/
 theorem find_mission (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
     (length : ℕ) (fresh : live.carried.reward = ⟨0⟩)
     (counted : List (feasibleFind config mode live length).Index) (distinct : counted.Nodup)
-    (many : 49 + 7 * length < counted.length) {agent : Kernel.Agent Grid.interface}
+    {agent : Kernel.Agent Grid.interface}
     {updates : agent.Memory → Percept Grid.interface × ℚ → List OneStream.Update}
     {work : agent.Memory → Percept Grid.interface × ℚ → ℕ}
     {resume : agent.Memory → agent.Memory}
@@ -191,7 +211,7 @@ theorem find_mission (config : Host.WorldConfig) (mode : TaskFeatureMode) (live 
       ((findRung config mode live length counted agent updates work resume).learner target)) :
     Mission (findRung config mode live length counted agent updates work resume) :=
   visits_mission (find_pays mode live length fresh) (feasibleFind_conceals mode live length length)
-    (feasibleFind_covered config mode live length) (fun target => target.2) distinct many finds
+    (feasibleFind_covered config mode live length) (fun target => target.2) distinct finds
     retains stream
 
 /-! ## A reference agent meets the statement -/
@@ -237,23 +257,24 @@ section executed
 variable {profile : FeatureProfile} {features : Features.Config} {criterion : Criterion}
   {dimension : Dimension} {planning : PlanningSelection}
 
-/-- The rung of the executed agent from a state of it, on the feasible concealed targets of a host
-world in visits. The agent's reports of its own steps are parameters. -/
-def executedRung (state : Agent Grid.interface profile features criterion dimension planning)
-    (config : Host.WorldConfig) (live : Live config) (length : ℕ)
-    (counted : List (feasibleFind config profile.taskMode live length).Index)
-    (updates : Agent Grid.interface profile features criterion dimension planning →
-      Percept Grid.interface × ℚ → List OneStream.Update)
-    (work : Agent Grid.interface profile features criterion dimension planning →
-      Percept Grid.interface × ℚ → ℕ)
-    (resume : Agent Grid.interface profile features criterion dimension planning →
-      Agent Grid.interface profile features criterion dimension planning) : Rung :=
-  findRung config profile.taskMode live length counted (executedAgent state) updates work resume
+/-- An agent takes the executed agent's actions, from a state of the executed agent: in every world
+of the grid's interface, from every start, at every time. The executed agent itself is one; an
+agent whose memory is only what the executed decisions read would be another. -/
+def ActsAsExecuted (state : Agent Grid.interface profile features criterion dimension planning)
+    (agent : Kernel.Agent Grid.interface) : Prop :=
+  ∀ (world : Kernel.World Grid.interface) (start : world.State) (time : ℕ),
+    Kernel.actionAt world agent start time = Kernel.actionAt world (executedAgent state) start time
+
+/-- The executed agent takes its own actions. -/
+theorem executedAgent_actsAs
+    (state : Agent Grid.interface profile features criterion dimension planning) :
+    ActsAsExecuted state (executedAgent state) :=
+  fun _ _ _ => rfl
 
 /-- **Obligation 9, first successes; what obligation 4's exploration premise must deliver**
-(rbeauchamp/acorn#232, with rbeauchamp/acorn#170). The executed agent, from the given state, solves
-each of more than `49 + 7 length` counted members on some visit. Open: no theorem says its
-exploration meets a concealed target. -/
+(rbeauchamp/acorn#230, decided in rbeauchamp/acorn#232 with rbeauchamp/acorn#170). The executed
+agent, from the given state, solves each of more than `49 + 7 length` counted members on some
+visit. Open: no theorem says its exploration meets a concealed target. -/
 def ExecutedFinds (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)
     (counted : List (feasibleFind config profile.taskMode live length).Index) : Prop :=
@@ -261,76 +282,47 @@ def ExecutedFinds (state : Agent Grid.interface profile features criterion dimen
     (fun _ => completion config profile.taskMode length) length (49 + 7 * length) counted
     (executedAgent state)
 
-/-- **Obligation 9, retention** (rbeauchamp/acorn#232, with rbeauchamp/acorn#171). The executed
-agent, from the given state, solves on every later visit each member it has solved on one visit.
-Open: no theorem says the agent learns a route from its first reward. -/
+/-- **Obligation 9, retention** (rbeauchamp/acorn#230, decided in rbeauchamp/acorn#232 with
+rbeauchamp/acorn#171). The executed agent, from the given state, solves on every later visit each
+member it has solved on one visit. Open: no theorem says the agent learns a route from its first
+reward. The premise names no last visit, and the agent as built explores at a constant rate at
+every decision that serves no run, so where an exploring run can make a visit miss the premise
+fails of it (argued, not proved): see this module's header. -/
 def ExecutedRetains (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ) : Prop :=
   Kernel.Retains (feasibleFind config profile.taskMode live length)
     (fun _ => completion config profile.taskMode length) length (executedAgent state)
 
 /-- **The executed agent achieves goals over the concealed targets, from named premises.** Over a
-host world that carries a reward of zero, with a list of distinct counted members longer than the
-covering bound: if the executed agent finds and retains, and its reports meet the four premises of
-contract 3, the mission's statement holds of its rung. Each premise names an open obligation of
-`docs/mission-contract.md`; none is proved. -/
+host world that carries a reward of zero, with a list of distinct counted members: if the executed
+agent finds and retains, then every agent that takes its actions, and whose own memory and reports
+meet the four premises of contract 3, achieves goals over the class. The mission's statement holds
+of that agent's rung. No premise is proved, and each names the open obligation, or the step of the
+issue, that owns it. -/
 theorem executed_mission
     (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)
     (fresh : live.carried.reward = ⟨0⟩)
     (counted : List (feasibleFind config profile.taskMode live length).Index)
-    (distinct : counted.Nodup) (many : 49 + 7 * length < counted.length)
-    (updates : Agent Grid.interface profile features criterion dimension planning →
-      Percept Grid.interface × ℚ → List OneStream.Update)
-    (work : Agent Grid.interface profile features criterion dimension planning →
-      Percept Grid.interface × ℚ → ℕ)
-    (resume : Agent Grid.interface profile features criterion dimension planning →
-      Agent Grid.interface profile features criterion dimension planning)
+    (distinct : counted.Nodup) {agent : Kernel.Agent Grid.interface}
+    (acts : ActsAsExecuted state agent)
+    {updates : agent.Memory → Percept Grid.interface × ℚ → List OneStream.Update}
+    {work : agent.Memory → Percept Grid.interface × ℚ → ℕ}
+    {resume : agent.Memory → agent.Memory}
     (finds : ExecutedFinds state config live length counted)
     (retains : ExecutedRetains state config live length)
-    (memory : MemoryBounded (executedRung state config live length counted updates work resume))
-    (bounded : WorkBounded (executedRung state config live length counted updates work resume))
-    (once : LearnsOnce (executedRung state config live length counted updates work resume))
-    (discipline :
-      KeepsDiscipline (executedRung state config live length counted updates work resume)) :
-    Mission (executedRung state config live length counted updates work resume) :=
-  find_mission config profile.taskMode live length fresh counted distinct many finds retains
-    (Rung.stream_met memory bounded once discipline)
-
-/-- **The executed agent's statement for all but a fraction of runs.** For a finite family of states
-of the executed agent, over a class as in `executed_mission`: where the agent finds from all but a
-fraction `left` of the states and retains from all but a fraction `right`, and its reports meet the
-four premises of contract 3 from every state of the family, the mission's statement holds from all
-but the fraction `left + right` of the states. This is the form of the statement under fork F4;
-how the fractions depend on the class and the number of visits is obligation 15. -/
-theorem executed_mission_allBut {Run : Type} (runs : Finset Run)
-    (state : Run → Agent Grid.interface profile features criterion dimension planning)
-    (config : Host.WorldConfig) (live : Live config) (length : ℕ)
-    (fresh : live.carried.reward = ⟨0⟩)
-    (counted : List (feasibleFind config profile.taskMode live length).Index)
-    (distinct : counted.Nodup) (many : 49 + 7 * length < counted.length)
-    (updates : Agent Grid.interface profile features criterion dimension planning →
-      Percept Grid.interface × ℚ → List OneStream.Update)
-    (work : Agent Grid.interface profile features criterion dimension planning →
-      Percept Grid.interface × ℚ → ℕ)
-    (resume : Agent Grid.interface profile features criterion dimension planning →
-      Agent Grid.interface profile features criterion dimension planning)
-    (left right : ℚ)
-    (finds : Kernel.AllBut left runs fun run =>
-      ExecutedFinds (state run) config live length counted)
-    (retains : Kernel.AllBut right runs fun run => ExecutedRetains (state run) config live length)
-    (invariants : ∀ run ∈ runs,
-      MemoryBounded (executedRung (state run) config live length counted updates work resume) ∧
-      WorkBounded (executedRung (state run) config live length counted updates work resume) ∧
-      LearnsOnce (executedRung (state run) config live length counted updates work resume) ∧
-      KeepsDiscipline
-        (executedRung (state run) config live length counted updates work resume)) :
-    Kernel.AllBut (left + right) runs fun run =>
-      Mission (executedRung (state run) config live length counted updates work resume) :=
-  (finds.and retains).mono fun run member both =>
-    executed_mission (state run) config live length fresh counted distinct many updates work
-      resume both.1 both.2 (invariants run member).1 (invariants run member).2.1
-      (invariants run member).2.2.1 (invariants run member).2.2.2
+    (memory : MemoryBounded
+      (findRung config profile.taskMode live length counted agent updates work resume))
+    (bounded : WorkBounded
+      (findRung config profile.taskMode live length counted agent updates work resume))
+    (arrival : LearnsOnArrival
+      (findRung config profile.taskMode live length counted agent updates work resume))
+    (discipline : KeepsDiscipline
+      (findRung config profile.taskMode live length counted agent updates work resume)) :
+    Mission (findRung config profile.taskMode live length counted agent updates work resume) :=
+  find_mission config profile.taskMode live length fresh counted distinct
+    (Kernel.Finds.of_actions acts finds) (Kernel.Retains.of_actions acts retains)
+    (Rung.stream_met memory bounded arrival discipline)
 
 end executed
 

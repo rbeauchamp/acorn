@@ -281,16 +281,6 @@ theorem replay_stored_keeps (world : World interface) (start : world.State) (len
     exact (replay_stored length signal explore _ _).trans
       (ReplayMemory.record_kept _ _ actions ih)
 
-/-- The step count of a visit: after at most `length` decisions from the start of a visit,
-the counter is the number of decisions. -/
-theorem visits_counter (world : World interface) (start : world.State) (length : ℕ)
-    (agent : Agent interface) (count step : ℕ) (within : step ≤ length) :
-    (stateAt (visits world start length) agent (visitStart world start length)
-      (count * (length + 1) + step)).2.val = step := by
-  rw [stateAt_add, visits_period]
-  exact congrArg (fun state : (visits world start length).State => state.2.val)
-    (congrArg Prod.fst (visits_loop world start length _ step within))
-
 /-- After a step at which the goal is met, in a world whose percept after a step shows the
 signal wherever that step satisfies the goal, the replaying agent holds stored actions. -/
 theorem replay_records (world : World interface) (start : world.State) (length : ℕ)

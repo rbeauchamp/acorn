@@ -4,8 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Intent.MissionTheorem
-import AcornVerif.Replay
-import AcornVerif.Separation
+import AcornVerif.Retrace
 import AcornVerif.VisitsClass
 import Mathlib.Tactic.NormNum
 
@@ -15,8 +14,8 @@ import Mathlib.Tactic.NormNum
 `AcornVerif.Intent.MissionTheorem.Mission` is the mission theorem's statement for one class of
 worlds, in the terms of the four intent records. This module reads a class of the kernel's worlds,
 run in visits, as such a class, and proves the statement of it from named premises about the class
-and about the agent. After it, the way the mission theorem on a class in visits depends on its
-obligations is a Lean theorem, `visits_mission`, whose hypotheses are the work that remains.
+and about the agent. The way the mission theorem on a class in visits depends on its obligations is
+the theorem `visits_mission`, whose hypotheses are the work that remains.
 
 ## The class as the records read it
 
@@ -45,9 +44,10 @@ agent earns on every attempt, across the counted members, exactly the number of 
 (`classReward_eq`). That is the class's reward lemma, obligation 16 of the mission contract, and it
 holds of every agent, not only of the agents compared.
 
-Why the aggregate is not the plain sum: a reward paid at every step that satisfies the goal pays an
-agent again for each step it rests where the goal is satisfied, so two agents that solve the same
-members can earn different sums, and the sum does not order agents as the count of members does.
+Why the aggregate is not the plain sum. The plain sum of an attempt's rewards is the number of the
+attempt's steps at which the goal is met (`rewards_sum`), so it pays an agent again for each step
+it rests where the goal is satisfied. That two agents can then be ordered one way by the sum and
+the other way by the members they solve is argued, not proved: no such pair is exhibited here.
 `untilPaid` is the choice made here on the owner's behalf; the owner can overrule it.
 
 ## Contract 2 and the postcondition
@@ -66,11 +66,17 @@ For an agent that separates and retains (`AcornVerif.Kernel.Separates`,
 `visits_mission` proves `Mission` of the rung from: the class's conditions above; `Finds` and
 `Retains` of the agent; and contract 3's record of the agent's run in each member. `Finds` and
 `Retains` are what remains of obligation 9, and are what the goal-information and exploration
-premises of obligation 4 must deliver for an agent. Contract 3's record splits into the premises
+premises of obligation 4 must deliver for an agent. Contract 3's record follows from the premises
 `AcornVerif.Intent.MissionTheorem.MemoryBounded`, `WorkBounded`, `LearnsOnArrival` and
-`KeepsDiscipline`, which name obligations 6 and 7. `visits_mission_allBut` is the statement under
-fork F4, for a family of runs: where finding fails on at most one fraction of the runs and retaining
-on at most another, the mission's statement holds of all but the sum of the fractions.
+`KeepsDiscipline`; the first three state obligations 6 and 7, and the fourth the clauses of the
+record that no numbered obligation states.
+
+`visits_mission_allBut` joins the two premises about solving over a finite family of agents: where
+all but one fraction of them find and all but another retain, the statement holds of all but the
+sum of the fractions. It is a count, with no hypothesis about draws. What it would take to read it
+as fork F4's statement about an agent that explores with random draws is said at
+`AcornVerif.Kernel.AllBut`: a family of the agent's draw sequences, which exists only for a
+guarantee that reads finitely many draws, and `Retains` asks every later visit.
 
 `retrace_mission` discharges every premise for the retracing agent with the reward as its signal,
 on every such class whose counted members its exploring walks meet. So the statement is satisfiable
@@ -362,6 +368,29 @@ theorem classReward_eq (stated : PaysAtGoals family goals pay met)
   rw [each]
   exact sum_indicator _ _
 
+/-- **What the plain sum counts.** The plain sum of the rewards of an attempt is the number of the
+attempt's steps at which the member's goal is met: an agent is paid again for each step at which
+the goal stays met. -/
+theorem rewards_sum (stated : PaysAtGoals family goals pay met)
+    (other : WorldInterface.Agent (Percept interface) (Act interface))
+    (index : family.Index) (attempt : ℕ) :
+    (((visitsTrial family length pay met counted agent).attemptTimes attempt).map fun time =>
+        ((visitsTrial family length pay met counted agent).member index).reward
+          ((visitsTrial family length pay met counted agent).stateAt other index time)).sum =
+      ((((visitsTrial family length pay met counted agent).attemptTimes attempt).filter
+        fun time => ((visitsTrial family length pay met counted agent).member index).goal
+          ((visitsTrial family length pay met counted agent).stateAt other index time)).length :
+        ℚ) := by
+  have rewards :
+      (fun time => ((visitsTrial family length pay met counted agent).member index).reward
+        ((visitsTrial family length pay met counted agent).stateAt other index time)) =
+      fun time => if ((visitsTrial family length pay met counted agent).member index).goal
+        ((visitsTrial family length pay met counted agent).stateAt other index time)
+        then (1 : ℚ) else 0 :=
+    funext (reward_eq family goals length pay met counted agent stated other index)
+  rw [rewards]
+  exact sum_indicator _ _
+
 /-! ## Counting members solved -/
 
 variable {reference : World interface} {origin : reference.State} {bound : ℕ}
@@ -592,16 +621,17 @@ variable {family : WorldClass interface} {goals : family.Goals} {length bound : 
   {counted : List family.Index} {reference : World interface} {origin : reference.State}
 
 /-- **The mission theorem on a class in visits, from its premises.** Take a class that conceals its
-goals, with a covering bound for one visit's length below the count of its counted members, goals
-feasible within a visit and a reward that pays at its goals. An agent that finds more of the counted
-members than the bound and retains what it has solved, and whose run in every member meets contract
-3's record under its reports, achieves goals over the class in visits: the mission's statement holds
-of the rung. -/
+goals, with a covering bound for one visit's length, goals feasible within a visit, a reward that
+pays at its goals and distinct counted members. An agent that finds more of the counted members than
+the bound and retains what it has solved, and whose run in every member meets contract 3's record
+under its reports, achieves goals over the class in visits: the mission's statement holds of the
+rung. That the counted members outnumber the bound follows from the agent's finding more than the
+bound of them. -/
 theorem visits_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
     (feasible : ∀ index, Feasible (visitGoals goals length index) (family.start index))
-    (distinct : counted.Nodup) (many : bound < counted.length) {agent : Agent interface}
+    (distinct : counted.Nodup) {agent : Agent interface}
     {updates : agent.Memory → Percept interface × ℚ → List OneStream.Update}
     {work : agent.Memory → Percept interface × ℚ → ℕ} {resume : agent.Memory → agent.Memory}
     (finds : Finds family goals length bound counted agent)
@@ -611,22 +641,23 @@ theorem visits_mission (stated : PaysAtGoals family goals pay met)
     Mission (visitsRung family length pay met counted agent updates work resume) :=
   Mission.of_records
     (visits_big family goals length pay met counted agent stated hidden covered feasible distinct
-      many)
+      finds.many)
     stream
     (visits_achieves family goals length pay met counted agent stated hidden covered distinct
       (separates_of_finds finds retains) retains)
 
-/-- **The mission theorem on a class in visits, for all but a fraction of runs.** For a family of
-runs, each with its agent and that agent's reports, on a class as in `visits_mission`: where the
-agents of all but a fraction `left` of the runs find, the agents of all but a fraction `right`
-retain, and every run's agent meets contract 3's record in every member, the mission's statement
-holds of all but the fraction `left + right` of the runs. This is the form the statement takes under
-fork F4 of `docs/mission-contract.md`. -/
+/-- **The mission's statement of all but a fraction of a family of agents.** For a finite family
+of agents with their reports, on a class as in `visits_mission`: where all but a fraction `left` of
+the agents find, all but a fraction `right` retain, and every agent's run in every member meets
+contract 3's record, the mission's statement holds of all but the fraction `left + right` of the
+agents. The theorem counts agents and reads no draw. Read as fork F4's statement, the family holds
+one agent for each sequence of ideal draws; such a family is finite only where the guarantee reads
+finitely many draws, which `Retains` does not of an agent that draws at every decision. -/
 theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
     (feasible : ∀ index, Feasible (visitGoals goals length index) (family.start index))
-    (distinct : counted.Nodup) (many : bound < counted.length) {Run : Type}
+    (distinct : counted.Nodup) {Run : Type}
     (runs : Finset Run) (agent : Run → Agent interface)
     (updates : (run : Run) → (agent run).Memory → Percept interface × ℚ → List OneStream.Update)
     (work : (run : Run) → (agent run).Memory → Percept interface × ℚ → ℕ)
@@ -640,7 +671,7 @@ theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
       Mission (visitsRung family length pay met counted (agent run) (updates run) (work run)
         (resume run)) :=
   (finds.and retains).mono fun run member both =>
-    visits_mission stated hidden covered feasible distinct many both.1 both.2 (stream run member)
+    visits_mission stated hidden covered feasible distinct both.1 both.2 (stream run member)
 
 /-! ## The retracing agent meets the statement -/
 
@@ -664,10 +695,12 @@ and two units of work, and it resumes with the memory it held.
 
 That the reports describe its step is argued, not proved. Its step reads the reward of the percept
 it is given and, the first time that reward shows the goal met, keeps the count of the walk it is
-on: a learning update on the experience of that step, which uses its count of visits beside it. It
-then advances its two counts: one other update. It plans with no model. It sets no part of its
-memory back to its first value except the count of a visit's steps, which is a cyclic count and
-discards nothing. -/
+on: one learning update on the experience of that step, which uses its count of visits beside it.
+It then advances its two counts: one other update. Each of the two is counted as one unit of work.
+It makes no planning update. It makes no reset: its walk, once kept, and its count of visits never
+return to their first values, and its count of a visit's steps is a count modulo the visit's
+decisions, which the record of contract 3 does not count as a reset
+(`AcornVerif.Intent.OneStream.returnsToInitialWithoutReset`). -/
 def retraceRung (family : WorldClass interface) (length last : ℕ) (pay : Percept interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
     (counted : List family.Index) (explore : ℕ → ℕ → Act interface) : Rung :=
@@ -690,7 +723,7 @@ theorem retrace_mission (stated : PaysAtGoals family goals pay met)
       ∃ step, 1 ≤ step ∧ step ≤ length ∧ (goals index).satisfied
         (path (family.world index) (family.start index) (explore visit) step)) :
     Mission (retraceRung family length last pay met counted explore) :=
-  visits_mission stated hidden covered feasible distinct many
+  visits_mission stated hidden covered feasible distinct
     (retrace_finds family goals length last bound (paid pay) explore (paid_decodes stated) counted
       distinct many explored)
     (retrace_retains family goals length last (paid pay) explore (paid_decodes stated))
