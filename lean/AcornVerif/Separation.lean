@@ -43,7 +43,7 @@ this module does not supply, and obligation 15 of `docs/mission-contract.md` own
   finitely many draws. `Finds` and `Retains` name no last visit, so for an agent that draws at
   every decision they are not such guarantees, and `Retains` asks every later visit: an agent that
   goes on exploring at a rate that can miss a visit fails it on almost every run (argued, not
-  proved here).
+  proved here). rbeauchamp/acorn#248 decides how retention is asked.
 -/
 
 namespace AcornVerif.Kernel

@@ -74,8 +74,8 @@ memory the agent held, and `KeepsDiscipline` cannot hold of that memory with the
 code performs. Resumption does return every learned field. So contract 3's record can hold of the
 executed agent only as an agent whose memory is what its decisions read, or once the evaluator's
 session is no part of the agent's state, or under a changed record. The theorem takes the agent as
-a parameter and leaves that choice open; the executed agent itself is one such agent
-(`executedAgent_actsAs`).
+a parameter and leaves that choice, which rbeauchamp/acorn#249 decides, open; the executed agent
+itself is one such agent (`executedAgent_actsAs`).
 
 No premise states obligation 4 or obligation 15. For obligation 4, no premise about the class that
 suffices for this agent is known. For obligation 15, the executed agent's generator is part of its
@@ -85,7 +85,7 @@ every later visit, and the executed agent explores at a constant rate at every d
 no run (departure D6 of `docs/learned-only-binding.md`). Where an exploring run can make a visit
 miss, the agent as built does not retain on every later visit, under ideal draws on almost every
 run (argued, not proved). Whether retention is asked up to a number of visits, or exploration ends
-once a member is solved, has to be decided before that premise can be met.
+once a member is solved, has to be decided before that premise can be met (rbeauchamp/acorn#248).
 
 What these theorems leave open, beside their premises:
 
@@ -287,7 +287,8 @@ rbeauchamp/acorn#171). The executed agent, from the given state, solves on every
 member it has solved on one visit. Open: no theorem says the agent learns a route from its first
 reward. The premise names no last visit, and the agent as built explores at a constant rate at
 every decision that serves no run, so where an exploring run can make a visit miss the premise
-fails of it (argued, not proved): see this module's header. -/
+fails of it (argued, not proved): see this module's header, and rbeauchamp/acorn#248, which
+decides how retention is asked. -/
 def ExecutedRetains (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ) : Prop :=
   Kernel.Retains (feasibleFind config profile.taskMode live length)

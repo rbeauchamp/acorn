@@ -132,9 +132,10 @@ def LearnsOnArrival (r : Rung) : Prop :=
   ∀ i, learnsOnArrival.holds (r.learner i)
 
 /-- **The clauses of contract 3's record that no numbered obligation states** (the fifth step of
-rbeauchamp/acorn#215). In every member: an agent that reports a learning update on some step
-reports one on every step, one that reports a planning update on some step reports one on every
-step, no step reports a reset, and after every stop the agent resumes with the memory it held. -/
+rbeauchamp/acorn#215; rbeauchamp/acorn#250 decides whether they get a number). In every member: an
+agent that reports a learning update on some step reports one on every step, one that reports a
+planning update on some step reports one on every step, no step reports a reset, and after every
+stop the agent resumes with the memory it held. -/
 def KeepsDiscipline (r : Rung) : Prop :=
   ∀ i, learnsEveryStep.holds (r.learner i) ∧ plansEveryStep.holds (r.learner i) ∧
     neverResetsItself.holds (r.learner i) ∧ resumesWhereStopped.holds (r.learner i)

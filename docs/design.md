@@ -1098,7 +1098,8 @@ What these theorems do not establish:
   theorem proves: that the agent finds, that it retains, and the four premises of contract 3.
   `ExecutedRetains` asks every later visit, and the agent as built explores at a constant rate,
   so where an exploring run can make a visit miss, the premise fails of it (argued in the
-  [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder)).
+  [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder);
+  [#248](https://github.com/rbeauchamp/acorn/issues/248) decides how retention is asked).
 - **A statement for an agent that explores with random draws.** `visits_mission_allBut` counts
   the agents of a finite family. No theorem models an agent's draws, and finding and retaining
   name no last visit, so a family of draw sequences is not finite for them.
@@ -1106,8 +1107,8 @@ What these theorems do not establish:
   that carries a reward of zero, every visit length and every list of distinct counted
   members. The witness's constants are the reference agent's.
 - **That an agent's reports describe its step,** and which memory of the executed agent
-  contract 3 reads. The reports are parameters for the executed agent and a declaration for the
-  retracing agent.
+  contract 3 reads ([#249](https://github.com/rbeauchamp/acorn/issues/249)). The reports are parameters for the executed agent and
+  a declaration for the retracing agent.
 - **That a host runs a rung's run.** A rung's run is contract 1's faithful run by how it is
   built. [Runs of visits](#runs-of-visits-in-the-host) relates the host's loop of visits to
   the kernel's world in visits, with the same learners; no theorem ties the native entry

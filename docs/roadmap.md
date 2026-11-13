@@ -46,9 +46,9 @@ The first rung on which no agent can keep every solution is capacity, condition 
 
 | Obligation | Needed | Issue |
 |---|---|---|
-| 9, separation and retention for the executed agent | Yes: it is the theorem. Stated as the premises `ExecutedFinds` and `ExecutedRetains`. Retention on every later visit conflicts with the agent's constant exploration rate (argued) | [#230](https://github.com/rbeauchamp/acorn/issues/230) |
+| 9, separation and retention for the executed agent | Yes: it is the theorem. Stated as the premises `ExecutedFinds` and `ExecutedRetains`. Retention on every later visit conflicts with the agent's constant exploration rate (argued) | [#230](https://github.com/rbeauchamp/acorn/issues/230); [#248](https://github.com/rbeauchamp/acorn/issues/248) decides how retention is asked |
 | 4, goal-information and exploration premises | Yes. The goal information is proved (`reward_step`); no premise about exploration that suffices for the executed agent is known | [#232](https://github.com/rbeauchamp/acorn/issues/232) decides them |
-| 15, the failing fraction of runs | Yes. Its counting part is stated (`AllBut`, `visits_mission_allBut`); a model of the agent's draws, a number of visits for finding and retaining, and the fraction itself are open | [#231](https://github.com/rbeauchamp/acorn/issues/231) for the count, [#232](https://github.com/rbeauchamp/acorn/issues/232) for the rest |
+| 15, the failing fraction of runs | Yes. Its counting part is stated (`AllBut`, `visits_mission_allBut`); a model of the agent's draws, a number of visits for finding and retaining, and the fraction itself are open | [#231](https://github.com/rbeauchamp/acorn/issues/231) for the count, [#248](https://github.com/rbeauchamp/acorn/issues/248) and [#232](https://github.com/rbeauchamp/acorn/issues/232) for the rest |
 | 16, the class's reward lemma | Discharged for this class (`classReward_eq`), with an attempt's rewards counted up to its first payment, which the owner can overrule | [#231](https://github.com/rbeauchamp/acorn/issues/231) |
 | 6, a bound on reachable memory | Yes: the premise `MemoryBounded` | [#195](https://github.com/rbeauchamp/acorn/issues/195), a posted mission |
 | 7, executed work, and learning from each experience once | Yes: the premises `WorkBounded` and `LearnsOnArrival` | [#90](https://github.com/rbeauchamp/acorn/issues/90) for work, [#233](https://github.com/rbeauchamp/acorn/issues/233) for once-only learning |
@@ -99,17 +99,17 @@ Each is an issue labelled `needs-owner-decision`, with a recommendation in its t
 - A standing, bounded budget for diagnostic runs of `acorn-core visits` in step 2, as smoke tests and never as evidence ([#232](https://github.com/rbeauchamp/acorn/issues/232)).
 - What the feature generator reads in a world with no symbol array ([#175](https://github.com/rbeauchamp/acorn/issues/175)).
 - Whether a mission may change a file of the trusted base ([#132](https://github.com/rbeauchamp/acorn/issues/132)).
+- How retention is asked of an agent that keeps exploring: up to a number of visits, or exploration that ends once a member is solved ([#248](https://github.com/rbeauchamp/acorn/issues/248)).
+- Which memory of the executed agent contract 3 reads: its whole state, or what its decisions read ([#249](https://github.com/rbeauchamp/acorn/issues/249)).
+- Whether the clauses of contract 3's record that no obligation states get a number in the mission contract ([#250](https://github.com/rbeauchamp/acorn/issues/250)).
 - The proposals for outside contributors, below.
 
-Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/issues/231)) made four choices on the owner's behalf, which the owner can overrule, and raised three questions. None has its own issue yet.
+Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/issues/231)) also made four choices on the owner's behalf, which the owner can overrule:
 
-- Chosen: an attempt's reward is counted up to its first payment (`untilPaid`), because the plain sum of a visit's rewards counts every step at which the goal stays met (`rewards_sum`).
-- Chosen: the open premises of the rung's theorem are hypotheses of theorems in the governed tree.
-- Chosen: contract 3's bounds on memory and work are asked once for the whole class, where the record asks them of each member's run.
-- Chosen: separation and finding name the members the comparison counts.
-- Raised: retention is asked on every later visit, and the executed agent explores at a constant rate. Either retention is asked up to a number of visits or exploration ends once a member is solved (obligations 9 and 15).
-- Raised: which memory of the executed agent contract 3 reads. A resumption restarts the evaluator's session, so the record's clause on resumption cannot hold of the agent's whole state.
-- Raised: whether the clauses of contract 3's record that no numbered obligation states (`KeepsDiscipline`) get a number in the mission contract.
+- An attempt's reward is counted up to its first payment (`untilPaid`), because the plain sum of a visit's rewards counts every step at which the goal stays met (`rewards_sum`).
+- The open premises of the rung's theorem are hypotheses of theorems in the governed tree.
+- Contract 3's bounds on memory and work are asked once for the whole class, where the record asks them of each member's run.
+- Separation and finding name the members the comparison counts.
 
 ## Opening the work to outside contributors
 
