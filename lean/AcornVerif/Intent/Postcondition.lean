@@ -603,8 +603,9 @@ theorem postcondition_not_o5_eq : ¬ O5 postcondition .eq := by
   exact absurd ht (by decide +kernel)
 
 /-- The pair obligation of each property's pair whose only input is trivial, in the class of every
-subject: `base` fulfils each property. The pair whose input is the class of worlds waits for the
-record of contract 2, which states which classes a learning agent can be asked to serve. -/
+subject: `base` fulfils each property. The pair whose input is the class of worlds is stated with
+the record of contract 2, which says which classes a learning agent can be asked to serve
+(`AcornVerif.Intent.BigClass.Served`). -/
 theorem postcondition_pairs :
     ∀ c ∈ postcondition.props, OPair (Pair.whole postcondition c) (fun _ => True) :=
   fun c hc => (oPair_whole_iff _ _ _).mpr ⟨base, trivial, fun _ => base_meets.2 c hc⟩
