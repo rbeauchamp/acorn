@@ -18,7 +18,9 @@ unproved, never a pass:
 
 * A class whose members never start two attempts from the same state asks no retention: both
   `keepsSolving` and `learnsAgain` then hold of every agent. No trial is exhibited that meets the
-  record while its agent solves a member once and never again, and none is refuted.
+  record while its agent solves a member once and never again, and none is refuted. In a class that
+  meets the record of contract 2 every attempt starts from the same state, so there retention is
+  asked without condition (`AcornVerif.Intent.BigClass.retention_unconditional`).
 * An agent that stores what it perceives and never reads it acts as some agent that keeps nothing
   acts, yet `KeepsNothing` does not hold of it. That such an agent fails the record in every class
   is not proved.
@@ -38,7 +40,9 @@ Two checks of lean-intent were not run:
 
 The pair whose input is the class of worlds is not discharged here. With no domain hypothesis the
 record admits classes that no agent can serve, as `uncounted_fails` shows, so that pair needs the
-preconditions of contract 2, whose record does not exist yet. What is proved is the pair with the
+preconditions of contract 2. The record of contract 2, `AcornVerif.Intent.BigClass.bigClass`, states
+them, and the module of its consequences states the pair (`AcornVerif.Intent.BigClass.Served`) and
+leaves it unproved for every class but the two-door ones. What is proved here is the pair with the
 trivial input (`postcondition_pairs`) and that one agent, `finder`, serves every two-door class
 with a fair aggregation and payment (`doors_finder_meets`).
 -/
