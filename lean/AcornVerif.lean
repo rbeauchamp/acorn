@@ -49,7 +49,12 @@ import AcornVerif.Concealment
 import AcornVerif.Visits
 import AcornVerif.Campaign
 import AcornVerif.Replay
+import AcornVerif.Retrace
+import AcornVerif.VisitsClass
+import AcornVerif.Separation
+import AcornVerif.MissionVisits
 import AcornVerif.CurrentConcealedTarget
+import AcornVerif.CurrentConcealedTargetMission
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
