@@ -41,7 +41,7 @@ of the mission contract, is discharged for this class by
 
 ## A reference agent meets the statement
 
-`witness_mission`: in the witness world (seed 5, side 64, visits of seven steps), with the 147
+`witness_mission`: in the witness world (seed 1, side 64, visits of seven steps), with the 147
 concealed targets of `AcornVerif.CurrentConcealedTarget.witness_explored` counted and the covering
 bound 98, the retracing agent with the reward as its signal and the witness's three walks as its
 exploration meets the mission's statement, with every premise discharged. So the statement is
@@ -90,9 +90,10 @@ once a member is solved, has to be decided before that premise can be met (rbeau
 What these theorems leave open, beside their premises:
 
 - The class constants. The theorems hold for every host world whose carried reward is zero, every
-  visit length and every list of distinct counted members. Which world, visit length and counted
-  members the executed agent's rung fixes is not decided: the witness's constants are the reference
-  agent's.
+  visit length and every list of distinct counted members. `AcornVerif.CurrentConcealedTargetRung`
+  fixes the world, the visit length and the agent of the first rung, and names the theorems its
+  world and its visit length rest on. The counted members are those the executed agent finds,
+  which no theorem names.
 - The agent's reports. What the agent's step reports of its internal updates and its work, and how
   it resumes, are parameters. Defining them from the executing code and proving the premises about
   them is the fifth step of rbeauchamp/acorn#215.

@@ -43,17 +43,21 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   more than `49 + 7 cap` targets, on that visit it solves all of them while every
   experience-free agent solves fewer on every visit (`find_replay_separates`). Whether an
   exploration meets a target depends on the terrain, so the theorem takes it as a hypothesis;
-  `witness_separation` discharges it in one admitted world (seed 5, side 64, noise scale
-  one): three visits of seven steps east, west and south from the box's center meet 147
-  members, more than the bound 98, so there the replaying agent solves 147 on visit 2 and
-  every experience-free agent fewer on every visit. The kernel evaluates the executed step
-  along the three walks, 21 steps (`witness_walk`); the count is structural.
+  `witness_separation` discharges it in one world, the standard configuration at seed 1 and
+  side 64 with no deer and no food (`witness_standard`): three visits of seven steps east,
+  west and south from the box's center meet 147 members, more than the bound 98, so there the
+  replaying agent solves 147 on visit 2 and every experience-free agent fewer on every visit.
+  The kernel evaluates the executed step along the three walks, 21 steps (`witness_walk`);
+  the count is structural.
 - **A class with conditions (a) to (c).** `findClass` holds targets no walk can reach within a
   visit. `feasibleFind` holds the concealed targets a visit can meet, so its members are feasible
   by how it is indexed; it keeps the concealment and the bound (`feasibleFind_conceals`,
   `feasibleFind_covered`). In the same world, with visits of seven steps, the 147 members above
   make it a `Kernel.BigClass` with the bound 98 (`witness_big`). This says nothing about
   obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
+  Every member's target lies within `3 + length` tiles of the start, for every terrain
+  (`feasible_window`), so the class is finite, with at most `(2 (3 + length) + 1)² - 49` members
+  (`feasible_count`): at most 392 for visits of seven steps.
 
 Hypotheses and limits. The class is of target positions over one host world: reading a bound
 as a fraction of seeds would assume that the seed hash places targets independently of the
@@ -520,13 +524,24 @@ theorem far_window_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
 
 /-! ## A world in which the separation holds -/
 
-/-- The configuration of the separation witness: seed 5, a box of side 64, a noise scale of
-one, a day of one step, and no food or deer. -/
+/-- The configuration of the separation witness: the standard configuration at seed 1 and the
+smallest side, 64, with no food and no deer (`witness_standard`). Seed 1 is the least seed at
+which the host's own world was observed to start at the box's center, where this world starts
+(`docs/roadmap.md` records the observation; no theorem says it). -/
 def witnessConfig : Host.WorldConfig :=
-  ⟨⟨5, ⟨64, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+  ⟨⟨1, ⟨64, by decide⟩, 2048, 400, 48, 0, 0, ⟨0x41000000⟩⟩, by decide, by decide⟩
+
+/-- The witness's configuration is the one the host's standard constructor builds at seed 1 and
+side 64, with its two capacities set to zero: it keeps that configuration's day, regrowth, food
+interval and noise scale, and so its terrain. -/
+theorem witness_standard :
+    ∃ standard, Host.WorldConfig.standard 1 ⟨64, by decide⟩ = .ok standard ∧
+      witnessConfig.raw = { standard.raw with foodCap := 0, deerCap := 0 } :=
+  ⟨_, rfl, rfl⟩
 
 /-- The host world of the witness: the configuration's empty world, with the body at the box's
-center and its energy full, and an empty carried result. -/
+center and its energy full, and an empty carried result. It is not the world the host generates
+for a run, which holds deer and starts where its spawn search ends. -/
 def witnessLive : Live witnessConfig := ⟨Host.World.empty witnessConfig, {}⟩
 
 /-- The exploration of the witness: east at every step of visit 0, west on visit 1 and south
@@ -728,6 +743,45 @@ theorem feasibleFind_covered (config : Host.WorldConfig) (mode : TaskFeatureMode
   obtain ⟨original, picked, rfl⟩ := Finset.mem_image.mp chosen
   exact each original picked
 
+/-- **The window.** A concealed target that some action sequence meets within `length` steps lies
+within `3 + length` tiles of the start on both axes. So the window of that radius around the start
+holds every member of a class of feasible concealed targets, whatever the terrain. -/
+theorem feasible_window (mode : TaskFeatureMode) (live : Live config) (length : ℕ)
+    (target : Host.Position)
+    (feasible : Kernel.Feasible (completion config mode length) (member live target)) :
+    tile target ∈ box (3 + length) (tile live.world.body.position.position) := by
+  obtain ⟨actions, met⟩ := feasible
+  exact swept_subset_box 3 (walk (physical live.world) actions)
+    (walk_near (physical live.world) actions) length
+    (find_met_swept mode live length actions target met)
+
+/-- A class of feasible concealed targets has at most `(2 (3 + length) + 1)² - 49` members: the
+tiles of its window less those within three tiles of the start. -/
+theorem feasible_count (mode : TaskFeatureMode) (live : Live config) (length : ℕ)
+    (members : Finset (feasibleFind config mode live length).Index) :
+    members.card ≤ (2 * (3 + length) + 1) * (2 * (3 + length) + 1) - 49 := by
+  classical
+  have inside : members.image (fun target => tile target.1.1) ⊆
+      box (3 + length) (tile live.world.body.position.position) \
+        box 3 (tile live.world.body.position.position) := by
+    intro point chosen
+    obtain ⟨target, -, rfl⟩ := Finset.mem_image.mp chosen
+    exact Finset.mem_sdiff.mpr ⟨feasible_window mode live length target.1.1 target.2,
+      (member_tile live target.1.1).mp target.1.2⟩
+  have nested : box 3 (tile live.world.body.position.position) ⊆
+      box (3 + length) (tile live.world.body.position.position) := by
+    intro point close
+    have near := mem_box.mp close
+    exact mem_box.mpr ⟨by omega, by omega⟩
+  calc members.card
+      = (members.image (fun target => tile target.1.1)).card :=
+        (Finset.card_image_of_injective members fun first second same =>
+          Subtype.ext (Subtype.ext (tile_injective same))).symm
+    _ ≤ (box (3 + length) (tile live.world.body.position.position) \
+          box 3 (tile live.world.body.position.position)).card := Finset.card_le_card inside
+    _ = (2 * (3 + length) + 1) * (2 * (3 + length) + 1) - 49 := by
+        rw [Finset.card_sdiff_of_subset nested, card_box, card_box]
+
 /-- In every admitted world, a finite set of more feasible concealed targets than the covering
 bound makes the class big. Feasibility holds by how the class is indexed, so the theorem's content
 is the concealment, the bound and the count. -/
@@ -745,7 +799,7 @@ theorem feasibleFind_big_of (config : Host.WorldConfig) (mode : TaskFeatureMode)
      members := members
      large := many }⟩
 
-/-- **A class meeting conditions (a) to (c).** In the admitted world at seed 5 and side 64, with
+/-- **A class meeting conditions (a) to (c).** In the witness's world, at seed 1 and side 64, with
 visits of seven steps, the feasible concealed targets are a big class with the bound 98: the 147
 members of `witness_separation` are each feasible, since each is solved on a visit. This is a
 lemma the mission theorem on the first class of the ladder uses. It says nothing about obligation 4
