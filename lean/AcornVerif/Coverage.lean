@@ -22,6 +22,9 @@ is `49 + 7 steps`.
 
 The bound is an upper bound for every walk. It is attained by a walk that never turns
 and is not attained by one that revisits a point.
+
+`swept_subset_box` says where the swept set lies: within the radius and the number of
+moves of the walk's first point, on both axes (`walk_within`).
 -/
 
 namespace AcornVerif.Coverage
@@ -147,5 +150,36 @@ theorem card_swept (radius : ℕ) (walk : ℕ → ℤ × ℤ) (steps : ℕ)
           (Nat.add_assoc _ _ _).trans
             (congrArg (fun rest => (2 * radius + 1) * (2 * radius + 1) + rest)
               (Nat.mul_succ (2 * radius + 1) steps).symm)
+
+/-- Each point of a walk is within its index of the walk's first point, on both axes. -/
+theorem walk_within (walk : ℕ → ℤ × ℤ) (near : ∀ index, Near (walk index) (walk (index + 1))) :
+    ∀ index, walk index ∈ box index (walk 0)
+  | 0 => mem_box.mpr ⟨by omega, by omega⟩
+  | index + 1 => by
+    have earlier := mem_box.mp (walk_within walk near index)
+    have step := near index
+    unfold Near at step
+    refine mem_box.mpr ⟨?_, ?_⟩ <;> omega
+
+/-- The points within a radius of a walk's first `steps + 1` points are within the radius and the
+steps of its first point. -/
+theorem swept_subset_box (radius : ℕ) (walk : ℕ → ℤ × ℤ)
+    (near : ∀ index, Near (walk index) (walk (index + 1))) :
+    ∀ steps, swept radius walk steps ⊆ box (radius + steps) (walk 0) := by
+  have each : ∀ index steps, index ≤ steps →
+      box radius (walk index) ⊆ box (radius + steps) (walk 0) := by
+    intro index steps within point inside
+    have here := mem_box.mp (walk_within walk near index)
+    have close := mem_box.mp inside
+    exact mem_box.mpr ⟨by omega, by omega⟩
+  intro steps
+  induction steps with
+  | zero => exact each 0 0 (Nat.le_refl 0)
+  | succ steps ih =>
+    change swept radius walk steps ∪ box radius (walk (steps + 1)) ⊆ _
+    refine Finset.union_subset (Finset.Subset.trans ih fun point inside => ?_)
+      (each (steps + 1) (steps + 1) (Nat.le_refl _))
+    have close := mem_box.mp inside
+    exact mem_box.mpr ⟨by omega, by omega⟩
 
 end AcornVerif.Coverage

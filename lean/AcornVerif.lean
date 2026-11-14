@@ -55,6 +55,7 @@ import AcornVerif.Separation
 import AcornVerif.MissionVisits
 import AcornVerif.CurrentConcealedTarget
 import AcornVerif.CurrentConcealedTargetMission
+import AcornVerif.CurrentConcealedTargetRung
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
@@ -63,6 +64,7 @@ import AcornVerif.CurrentPreReward
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentCreditHorizon
+import AcornVerif.CurrentFrameSize
 import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentCheckpointSize
