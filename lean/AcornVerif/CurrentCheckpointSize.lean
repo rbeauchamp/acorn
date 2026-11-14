@@ -22,7 +22,9 @@ The naturals of the predictive-agreement evaluator are the hypothesis. No type b
 four naturals of each channel's precision (the numerator and denominator of its tail and
 rounding ratios) or the two of each agreement point's ratio. The sum of each channel's total
 is bounded by its type (`Agreement.Total.bounded`: `sum ≤ count.val * envelope ^ 2`, with
-`count : Fin (countLimit + 1)`), and the hypothesis covers it with the other four.
+`count : Fin (countLimit + 1)`), and the hypothesis covers it with the other four. The hypothesis
+holds of every state a host runs (`AcornVerif.CurrentRunningMemory.running_naturals_allowed`), so
+the image of each fits the limit (`AcornVerif.CurrentRunningMemory.running_snapshot_size`).
 -/
 namespace AcornVerif.CurrentCheckpointSize
 open Acorn Acorn.Checkpoint Acorn.Features Acorn.Handcrafted Acorn.Lifetime

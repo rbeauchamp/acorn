@@ -29,10 +29,12 @@ slot's memory and member (`campaign_memory_next`), so fixing the memory at a slo
 by the memory at the cycle's start gives the bound.
 
 This is a lemma the mission theorem on campaigns uses, and not a mission result about learning.
-`campaign_count` holds of the executed agent as of every agent, but says little of it yet: the
-bound on the memories that agent reaches, which `campaign_count` needs, is obligation 6 of
-`docs/mission-contract.md`, and that obligation also says why `campaign_count_bits` gives nothing
-for that agent.
+`campaign_count` holds of the executed agent as of every agent, but says little of it yet. The
+states a host runs of a construction whose profile restores embed in the bit strings of a fixed
+width (`AcornVerif.CurrentRunningMemory.running_memory_bits`). No theorem relates the memories of
+a campaign's kernel loops to those states, which `campaign_count` needs: obligation 6 of
+`docs/mission-contract.md` says what remains, and also why `campaign_count_bits` gives nothing
+for that agent's memory type.
 -/
 
 namespace AcornVerif.Kernel
