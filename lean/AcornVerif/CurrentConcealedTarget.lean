@@ -43,7 +43,7 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   more than `49 + 7 cap` targets, on that visit it solves all of them while every
   experience-free agent solves fewer on every visit (`find_replay_separates`). Whether an
   exploration meets a target depends on the terrain, so the theorem takes it as a hypothesis;
-  `witness_separation` discharges it in one world, the standard configuration at seed 5 and
+  `witness_separation` discharges it in one world, the standard configuration at seed 1 and
   side 64 with no deer and no food (`witness_standard`): three visits of seven steps east,
   west and south from the box's center meet 147 members, more than the bound 98, so there the
   replaying agent solves 147 on visit 2 and every experience-free agent fewer on every visit.
@@ -524,22 +524,24 @@ theorem far_window_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
 
 /-! ## A world in which the separation holds -/
 
-/-- The configuration of the separation witness: the standard configuration at seed 5 and the
-smallest side, 64, with no food and no deer (`witness_standard`). -/
+/-- The configuration of the separation witness: the standard configuration at seed 1 and the
+smallest side, 64, with no food and no deer (`witness_standard`). Seed 1 is the least seed at
+which the host's own world was observed to start at the box's center, where this world starts
+(`docs/roadmap.md` records the observation; no theorem says it). -/
 def witnessConfig : Host.WorldConfig :=
-  ⟨⟨5, ⟨64, by decide⟩, 2048, 400, 48, 0, 0, ⟨0x41000000⟩⟩, by decide, by decide⟩
+  ⟨⟨1, ⟨64, by decide⟩, 2048, 400, 48, 0, 0, ⟨0x41000000⟩⟩, by decide, by decide⟩
 
-/-- The witness's configuration is the one the host's standard constructor builds at seed 5 and
+/-- The witness's configuration is the one the host's standard constructor builds at seed 1 and
 side 64, with its two capacities set to zero: it keeps that configuration's day, regrowth, food
 interval and noise scale, and so its terrain. -/
 theorem witness_standard :
-    ∃ standard, Host.WorldConfig.standard 5 ⟨64, by decide⟩ = .ok standard ∧
+    ∃ standard, Host.WorldConfig.standard 1 ⟨64, by decide⟩ = .ok standard ∧
       witnessConfig.raw = { standard.raw with foodCap := 0, deerCap := 0 } :=
   ⟨_, rfl, rfl⟩
 
 /-- The host world of the witness: the configuration's empty world, with the body at the box's
 center and its energy full, and an empty carried result. It is not the world the host generates
-for a run, which starts where its spawn search ends. -/
+for a run, which holds deer and starts where its spawn search ends. -/
 def witnessLive : Live witnessConfig := ⟨Host.World.empty witnessConfig, {}⟩
 
 /-- The exploration of the witness: east at every step of visit 0, west on visit 1 and south
@@ -797,7 +799,7 @@ theorem feasibleFind_big_of (config : Host.WorldConfig) (mode : TaskFeatureMode)
      members := members
      large := many }⟩
 
-/-- **A class meeting conditions (a) to (c).** In the admitted world at seed 5 and side 64, with
+/-- **A class meeting conditions (a) to (c).** In the witness's world, at seed 1 and side 64, with
 visits of seven steps, the feasible concealed targets are a big class with the bound 98: the 147
 members of `witness_separation` are each feasible, since each is solved on a visit. This is a
 lemma the mission theorem on the first class of the ladder uses. It says nothing about obligation 4

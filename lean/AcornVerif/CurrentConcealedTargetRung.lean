@@ -20,7 +20,7 @@ says what each is chosen for. `rung_mission` is the statement at these constants
 
 - **The world** is the world of the separation witness
   (`AcornVerif.CurrentConcealedTarget.witnessConfig`, `witnessLive`): the host's standard
-  configuration at seed 5 and the smallest side, 64, with no deer and no food
+  configuration at seed 1 and the smallest side, 64, with no deer and no food
   (`AcornVerif.CurrentConcealedTarget.witness_standard`), started at the box's center
   (`witness_start`) with full energy and a carried reward of zero. So its day, its noise scale and
   its terrain are those of the world the host builds at that seed and side.
@@ -36,7 +36,8 @@ which the premise `ExecutedFinds` names.
 
 The world and the visit length each rest on a theorem. The agent's profile is the one the roadmap
 decides first (rbeauchamp/acorn#232), its criterion is the one the host's entry for runs of visits
-constructs, and the seed is the separation witness's; no theorem singles these out.
+constructs, and the seed is the least at which the host's own world was observed to start at the
+box's center, as this world does (`docs/roadmap.md`); no theorem singles these out.
 
 - **The class is proved big in this world at this visit length.** The feasible concealed targets
   are a big class with the covering bound 98 (`AcornVerif.CurrentConcealedTarget.witness_big`), and
@@ -76,10 +77,12 @@ constructs, and the seed is the separation witness's; no theorem singles these o
   `resume_saved`), the account of a crash (`AcornVerif.CurrentVisits.visits_resumed`) and the count
   of the states a host runs (`AcornVerif.CurrentRunningMemory.running_memory_bits`) say nothing of
   it.
-- That the host can run this world. The host's entry `acorn-core visits` builds the standard
-  configuration, with deer and food, and starts where its spawn search ends. No theorem relates a
-  run of it to a member of this class. `docs/roadmap.md` records a world the entry can run as a
-  choice that stays open.
+- That a run of the host is a run of this world. The host's entry `acorn-core visits` builds the
+  standard configuration, with its deer and food, and starts where its spawn search ends. At seed
+  1 and side 64 that start was observed to be the box's center, with one of the world's eight deer
+  in view from part of a visit's reach and no food along a visit (`docs/roadmap.md`). No theorem
+  relates a run of it to a member of this class. The class in the host's own world, deer
+  included, is a later rung.
 - That a class of a longer visit, or of a world with deer and food, is big, or that its frames are
   within the sizes the credit horizon assumes.
 
@@ -93,7 +96,8 @@ each step of a walk brings at most seven more targets within reach
 The host's spawn search evaluates the terrain 163 times for each candidate it considers
 (`Acorn.Host.considerSpawn`: two counts over a nine-by-nine square, and the candidate's own tile)
 and stops at the first walkable candidate whose square holds two trees. How many candidates it
-considers at seed 5 and side 64 is not proved.
+considers at seed 1 and side 64 is not proved; an evaluation of it there ended at the center,
+its first candidate (observed, `docs/roadmap.md`).
 -/
 
 namespace AcornVerif.CurrentConcealedTargetRung

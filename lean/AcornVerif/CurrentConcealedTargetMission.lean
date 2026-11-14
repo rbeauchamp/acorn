@@ -41,7 +41,7 @@ of the mission contract, is discharged for this class by
 
 ## A reference agent meets the statement
 
-`witness_mission`: in the witness world (seed 5, side 64, visits of seven steps), with the 147
+`witness_mission`: in the witness world (seed 1, side 64, visits of seven steps), with the 147
 concealed targets of `AcornVerif.CurrentConcealedTarget.witness_explored` counted and the covering
 bound 98, the retracing agent with the reward as its signal and the witness's three walks as its
 exploration meets the mission's statement, with every premise discharged. So the statement is
