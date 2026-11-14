@@ -6,6 +6,7 @@ Authors: acorn contributors
 import Acorn.Host.AgentAdmission
 import AcornVerif.CurrentConcealedTargetMission
 import AcornVerif.CurrentFrameSize
+import AcornVerif.CurrentKernelMemory
 
 /-!
 # The first rung's class for the executed agent
@@ -65,18 +66,32 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
   the controller's run, not yet about the agent's, and it says that a weight moves, not that the
   greedy choice changes.
 
+## The premise on memory
+
+Of the six premises of `rung_mission`, the one on memory is proved for the executed agent itself,
+whose memory is its whole state: every memory of its run is the agent of a state a host runs, and
+those are finitely many under every profile (`rung_memory_bounded`, from
+`AcornVerif.CurrentKernelMemory`). It is proved as well of every agent whose memory is one function
+of that state which its step keeps (`AcornVerif.CurrentKernelMemory.projected_memory_bounded`), so
+it does not wait on which memory of the executed agent contract 3 reads (rbeauchamp/acorn#249).
+
+No theorem proves the other five. One of them, `KeepsDiscipline`, asks that the agent resume with
+the memory it held. The host neither saves nor loads this profile, so no executed resumption fixes
+what the rung's agent resumes with; under a profile that restores, that clause fails of the whole
+state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
+
 ## What is not proved here
 
-- No premise of `rung_mission` about the agent. Whether the executed agent finds and retains in
-  this class is rbeauchamp/acorn#232. `ExecutedRetains` is argued to fail of the agent as built
+- No premise of `rung_mission` about the agent but the one on memory, for the executed agent
+  itself. Whether the executed agent finds and retains in this class is rbeauchamp/acorn#232.
+  `ExecutedRetains` is argued to fail of the agent as built
   (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
   retention is asked.
 - Anything about saving or resuming the rung's agent. Its profile is the primitive one, which the
   host neither saves nor loads (`Acorn.Checkpoint.save_refuses`,
   `AcornVerif.CurrentCheckpoint.unresumable_unloaded`). So exact resumption (`load_saved`,
-  `resume_saved`), the account of a crash (`AcornVerif.CurrentVisits.visits_resumed`) and the count
-  of the states a host runs (`AcornVerif.CurrentRunningMemory.running_memory_bits`) say nothing of
-  it.
+  `resume_saved`) and the account of a crash (`AcornVerif.CurrentVisits.visits_resumed`) say
+  nothing of it.
 - That a run of the host is a run of this world. The host's entry `acorn-core visits` builds the
   standard configuration, with its deer and food, and starts where its spawn search ends. At seed
   1 and side 64 that start was observed to be the box's center, with one of the world's eight deer
@@ -104,7 +119,8 @@ namespace AcornVerif.CurrentConcealedTargetRung
 open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.Coverage AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
 open AcornVerif.CurrentConcealedTargetMission AcornVerif.CurrentCreditHorizon
-open AcornVerif.CurrentFrameSize AcornVerif.Intent AcornVerif.Intent.MissionTheorem
+open AcornVerif.CurrentFrameSize AcornVerif.CurrentKernelMemory AcornVerif.CurrentRunningMemory
+open AcornVerif.Intent AcornVerif.Intent.MissionTheorem
 
 /-! ## The first rung -/
 
@@ -181,8 +197,9 @@ theorem rung_members (mode : TaskFeatureMode)
 visits of seven steps and a list of distinct counted members: if the rung's agent finds and
 retains, then every agent that takes its actions, and whose own memory and reports meet the four
 premises of contract 3, achieves goals over the class. It is
-`AcornVerif.CurrentConcealedTargetMission.executed_mission` at the rung's constants; no premise is
-proved. -/
+`AcornVerif.CurrentConcealedTargetMission.executed_mission` at the rung's constants. Of its
+premises only the one on memory is proved, for the executed agent itself
+(`rung_memory_bounded`). -/
 theorem rung_mission (planning : PlanningSelection)
     (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
       witnessLive 7).Index)
@@ -211,5 +228,23 @@ theorem rung_mission (planning : PlanningSelection)
       counted agent updates work resume) :=
   executed_mission (rungConstruction planning).initial.agent witnessConfig witnessLive 7 rfl
     counted distinct acts finds retains memory bounded arrival discipline
+
+/-- **The rung's agent holds one of finitely many memories.** The rung of the first class with the
+executed agent itself, whose memory is its whole state, meets the premise `MemoryBounded`, whatever
+the agent reports of its steps: every memory of its run is the agent of a state a host runs, and
+those are finitely many. -/
+theorem rung_memory_bounded (planning : PlanningSelection)
+    (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
+      witnessLive 7).Index)
+    (updates : (executedAgent (rungConstruction planning).initial.agent).Memory →
+      Percept Grid.interface × ℚ → List OneStream.Update)
+    (work : (executedAgent (rungConstruction planning).initial.agent).Memory →
+      Percept Grid.interface × ℚ → ℕ)
+    (resume : (executedAgent (rungConstruction planning).initial.agent).Memory →
+      (executedAgent (rungConstruction planning).initial.agent).Memory) :
+    MemoryBounded (findRung witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7
+      counted (executedAgent (rungConstruction planning).initial.agent) updates work resume) :=
+  find_memory_bounded (rungConstruction planning) rfl .initial witnessConfig witnessLive 7 counted
+    updates work resume
 
 end AcornVerif.CurrentConcealedTargetRung

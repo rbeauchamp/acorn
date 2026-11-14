@@ -112,11 +112,12 @@ member it is in; each gives the record's clause, which asks a bound of each memb
 member. They ask that a bound exists and name none. Each premise names the open obligation of
 `docs/mission-contract.md` it states, or the step of the issue that owns it. -/
 
-/-- **Obligation 6, a bound on reachable memory** (rbeauchamp/acorn#253). One finite list holds
-every memory the agent holds at every time of every run in every member. For the executed agent the
-states a host runs are finitely many under a profile that restores
-(`AcornVerif.CurrentRunningMemory.running_memory_bits`); no theorem relates the memories of a
-rung's run to those states, and rbeauchamp/acorn#249 decides which memory this premise reads. -/
+/-- **Obligation 6, a bound on reachable memory.** One finite list holds every memory the agent
+holds at every time of every run in every member. For a construction of the default step order and
+a run from the agent of a state a host runs, it is proved on every class of worlds of the grid in
+visits, of the executed agent with its whole state as its memory and of every agent whose memory is
+one function of that state which its step keeps
+(`AcornVerif.CurrentKernelMemory.visits_memory_bounded`, `projected_memory_bounded`). -/
 def MemoryBounded (r : Rung) : Prop :=
   ∃ L : List r.agent.Memory, ∀ i ins t s (m : r.agent.Memory),
     (r.learner i).Reaches ins t s m → m ∈ L

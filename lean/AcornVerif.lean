@@ -69,6 +69,7 @@ import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentCheckpointSize
 import AcornVerif.CurrentRunningMemory
+import AcornVerif.CurrentKernelMemory
 import AcornVerif.CurrentHostLoop
 import AcornVerif.CurrentVisits
 import AcornVerif.CurrentModels
