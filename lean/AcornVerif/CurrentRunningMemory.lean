@@ -50,10 +50,11 @@ every natural is below `128 ^ naturalAllowance`, which is `2 ^ 28672`
 (`running_naturals_allowed`): a natural below `128 ^ (digits + 1)` encodes in at most `digits + 1`
 bytes (`natural_length`).
 
-`running_snapshot_size` is then `snapshot_size_bound`. For a construction whose profile restores, a
-load of the bytes a save writes returns the saved state, so a state is a function of the bytes of
-its image, and a list of at most `n` bytes has a code below `256 ^ (n + 1)` (`code_injective`,
-`code_lt`). That gives `running_memory_bits`.
+`running_snapshot_size` is then `snapshot_size_bound`. A state is a function of the bytes of its
+image, under every profile: the frame returns the payload it wrote, the image format reads its own
+encoding, and an agent is the agent of its image (`agentCode_injective`). No load is used, so the
+profile need not restore. A list of at most `n` bytes has a code below `256 ^ (n + 1)`
+(`code_injective`, `code_lt`). That gives `running_memory_bits`, for every construction.
 
 What the bound is not. It counts memory in the bytes of the exact image: it says nothing about
 native allocation or work, or about how the executed agent uses its memory.
@@ -63,11 +64,9 @@ native allocation or work, or about how the executed agent uses its memory.
   only through the constructor, the callbacks and the checkpoint hooks, and the hooks load through
   `Acorn.Checkpoint.resume` (argued). A host operation added to `AgentConstruction.Reached` is not
   thereby added to `Running`.
-- The count, `running_memory_bits`, is of a construction whose profile restores, because it reads
-  a state back from the bytes of its image. The two bounds on size hold of every construction.
-- Neither relates a running state to the memory of a kernel loop, which
-  `AcornVerif.Kernel.campaign_count` and the record of contract 3 read: that link is a further
-  step.
+- No theorem here relates a running state to the memory of a kernel run, which
+  `AcornVerif.Kernel.campaign_count` and the record of contract 3 read.
+  `AcornVerif.CurrentKernelMemory` proves that link.
 -/
 
 set_option exponentiation.threshold 32768
@@ -812,9 +811,35 @@ theorem code_lt : ∀ bytes : List UInt8, code bytes < 256 ^ (bytes.length + 1)
     rw [Nat.pow_succ]
     omega
 
-/-- The code of the exact image of a state. -/
+/-- The code of the exact image of an agent of a construction. -/
+def agentCode (construction : AgentConstruction)
+    (agent : Agent Grid.interface construction.profile construction.config construction.criterion
+      construction.dimension construction.planning) : Nat :=
+  code (encode (imagePayload construction ⟨agent.image⟩))
+
+/-- Two agents of a construction with one image code are one agent, under every profile. The
+frame returns the payload it wrote, the image format reads its own encoding, and an agent is the
+agent of its image. No load is used, so the profile need not restore. -/
+theorem agentCode_injective (construction : AgentConstruction)
+    (first second : Agent Grid.interface construction.profile construction.config
+      construction.criterion construction.dimension construction.planning)
+    (same : agentCode construction first = agentCode construction second) : first = second := by
+  have bytes := code_injective _ _ same
+  have payloads : imagePayload construction ⟨first.image⟩ =
+      imagePayload construction ⟨second.image⟩ :=
+    Option.some.inj ((roundtrip _).symm.trans ((congrArg decode bytes).trans (roundtrip _)))
+  have bodies : (imageFormat construction).encode ⟨first.image⟩ =
+      (imageFormat construction).encode ⟨second.image⟩ := congrArg Payload.body payloads
+  have one := (CurrentImage.imageFormat_exact construction).lawful ⟨first.image⟩ []
+  have two := (CurrentImage.imageFormat_exact construction).lawful ⟨second.image⟩ []
+  rw [bodies, two] at one
+  have images : (⟨second.image⟩ : construction.Image) = ⟨first.image⟩ :=
+    congrArg Prod.fst (Option.some.inj one)
+  exact (congrArg (fun image : construction.Image => image.agent) images).symm
+
+/-- The code of the exact image of a state: the code of its agent's image. -/
 def imageCode (construction : AgentConstruction) (state : construction.State) : Nat :=
-  code (encode (snapshot construction state))
+  agentCode construction state.agent
 
 /-- The code of a running state's image is below 256 to the power of one more than the read
 limit. -/
@@ -828,27 +853,20 @@ theorem imageCode_lt (construction : AgentConstruction) (state : construction.St
       Nat.pow_le_pow_right (by decide) (Nat.succ_le_succ size)
     _ = 2 ^ (8 * (maximumBytes construction + 1)) := (Nat.pow_mul 2 8 _).symm
 
-/-- Under a profile that restores, two states with one image code are one state: a load of the
-bytes a save writes returns the saved state. -/
+/-- Two states with one image code are one state, under every profile. -/
 theorem imageCode_injective (construction : AgentConstruction)
-    (supported : construction.profile.checkpointSupported = true)
     (first second : construction.State)
-    (same : imageCode construction first = imageCode construction second) : first = second := by
-  have bytes := code_injective _ _ same
-  have one := CurrentCheckpoint.save_load construction construction.initial first supported
-  have two := CurrentCheckpoint.save_load construction construction.initial second supported
-  rw [bytes] at one
-  exact Except.ok.inj (one.symm.trans two)
+    (same : imageCode construction first = imageCode construction second) : first = second :=
+  AgentConstruction.State.ext (agentCode_injective construction first.agent second.agent same)
 
-/-- A resumable construction's running states embed in the bit strings of a fixed width. -/
-theorem running_memory_bits (construction : AgentConstruction)
-    (supported : construction.profile.checkpointSupported = true) :
+/-- **The states a host runs are finitely many.** For every construction, whether or not its
+profile restores, its running states embed in the bit strings of a fixed width. -/
+theorem running_memory_bits (construction : AgentConstruction) :
     Nonempty ({ state : construction.State // Running construction state } ↪
       Fin (2 ^ (8 * (maximumBytes construction + 1)))) := by
   exact ⟨⟨fun state => ⟨imageCode construction state.1,
       imageCode_lt construction state.1 state.2⟩,
     fun first second same =>
-      Subtype.ext (imageCode_injective construction supported first.1 second.1
-        (Fin.mk.inj same))⟩⟩
+      Subtype.ext (imageCode_injective construction first.1 second.1 (Fin.mk.inj same))⟩⟩
 
 end AcornVerif.CurrentRunningMemory

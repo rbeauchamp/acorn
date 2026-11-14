@@ -61,7 +61,9 @@ memory and reports:
 
 - `ExecutedFinds` and `ExecutedRetains`, of the executed agent: what remains of obligation 9, and
   what the goal-information and exploration premises of obligation 4 must deliver;
-- `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6, of the agent's memory;
+- `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6, of the agent's memory, which
+  is proved of the executed agent itself, whose memory is its whole state
+  (`AcornVerif.CurrentKernelMemory.find_memory_bounded`);
 - `AcornVerif.Intent.MissionTheorem.WorkBounded` and
   `AcornVerif.Intent.MissionTheorem.LearnsOnArrival`, obligation 7, of its reports;
 - `AcornVerif.Intent.MissionTheorem.KeepsDiscipline`, the clauses of contract 3's record that no

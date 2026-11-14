@@ -1095,12 +1095,14 @@ fixes its world, its visit length and its agent.
 | The first rung's constants | The rung's world is the world of the separation witness: the standard configuration at seed 1 and side 64 with no deer and no food, started at the box's center. A visit is seven steps. The agent is the cold agent the host constructs for the primitive research profile under the discounted criterion, at the world's seed and the default step order, under either planning selection. The statement at these constants follows from the same premises, none of them proved. | `witness_standard`, `witness_start`, `rungConstruction`, `rung_mission` |
 | The rung's class | Every member's target lies within the visit's length and three tiles of the start, for every terrain, so a class of feasible concealed targets is finite. The rung's class has at least 147 members and at most 392, against a covering bound of 98. | `feasible_window`, `feasible_count`, `rung_members`, `witness_mission`, `witness_big` |
 | The rung's frames | [A frame's slots](../lean/AcornVerif/CurrentFrameSize.lean) are bounded by the words its percept carries. A world whose configuration admits no deer and no food holds neither in any state, so every percept it delivers has at most 139 words, at every state. Every frame the rung's agent lays from such a percept holds at most 1712 slots, under every step order. So for percepts of such a world the credit horizon holds with no hypothesis on frames. | `Unpopulated`, `percept_words`, `frame_slots`, `rung_frames`, `unpopulated_weight_rests`, `rung_weight_rests` |
+| The rung's memory | The rung of the first class with the executed agent itself, whose memory is its whole state, meets the premise on memory, whatever the agent reports. So the statement for that agent follows from the other five premises, none of them proved. | `rung_memory_bounded`, `rung_executed` |
 | The rung's visit length | On a primitive controller's cold run over frames of the rung's size, a slot a step laid, followed by at most six more steps, has a weight that a reward of one at the next step moves. That a first reward arrives at most seven decisions after its visit's first is *argued*, from how the kernel's world in visits delivers the reward of a step. | `rung_reach` |
 
 What these theorems do not establish:
 
 - **Anything about the executed agent's learning.** `executed_mission` has premises that no
-  theorem proves: that the agent finds, that it retains, and the four premises of contract 3.
+  theorem proves: that the agent finds, that it retains, and three of the four premises of
+  contract 3. The fourth, on memory, is proved for the executed agent itself.
   `ExecutedRetains` asks every later visit, and the agent as built explores at a constant rate,
   so where an exploring run can make a visit miss, the premise fails of it (argued in the
   [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder);
@@ -1124,7 +1126,7 @@ What these theorems do not establish:
   the interface's bound is proved: 3648 slots under the standard feature configuration.
 - **Anything about saving or resuming the first rung's agent.** Its profile is the primitive
   one, which the host neither saves nor loads (`save_refuses`, `unresumable_unloaded`), so
-  exact resumption and the count of the states a host runs say nothing of it.
+  exact resumption says nothing of it.
 - **That an agent's reports describe its step,** and which memory of the executed agent
   contract 3 reads ([#249](https://github.com/rbeauchamp/acorn/issues/249)). The reports are parameters for the executed agent and
   a declaration for the retracing agent.
@@ -2125,14 +2127,27 @@ that do not depend on the number of steps: a sum is bounded by its type, each ra
 precision a settlement writes is the derived one or the one the channel held, and an agreement
 point's ratio is bounded over the eleven channels. So each natural fits the allowance
 (`running_naturals_allowed`), and the image of every running state fits the limit
-(`running_snapshot_size`). Under a profile that restores, a state is a function of the bytes
-of its image, so the running states embed in the bit strings of 8 · (`maximumBytes` + 1) bits
-(`running_memory_bits`). Under such a profile every agent is reached
-(`CurrentCheckpoint.loader_reaches`) and the type of a ratio bounds neither of its naturals,
-so the bound does not hold of every reached agent (*argued*); a host runs a loaded agent only
-after a new session. [Obligation 6](mission-contract.md#open-obligations), the
-reachable-memory bound, says what remains. The bounds of the work and of the memory of each
-part of a step, which requirement R8 of
+(`running_snapshot_size`). A state is a function of the bytes of its image under every
+profile: the frame returns the payload it wrote, the image format reads its own encoding and
+an agent is the agent of its image (`agentCode_injective`). So the running states embed in the
+bit strings of 8 · (`maximumBytes` + 1) bits (`running_memory_bits`). Under a profile that
+restores every agent is reached (`CurrentCheckpoint.loader_reaches`) and the type of a ratio
+bounds neither of its naturals, so the bound does not hold of every reached agent (*argued*);
+a host runs a loaded agent only after a new session.
+
+[The memories of a kernel run](../lean/AcornVerif/CurrentKernelMemory.lean) are agents of
+running states. For a construction of the default step order, from the agent of a running
+state and on a grid percept, the executed step returns the agent of a running state
+(`step_running`), so in every world whose percepts are grid percepts (`ShowsGrid`: the grid
+world, its visits and its campaigns) every memory of the kernel's closed loop is one
+(`loop_running`). One finite list holds them (`running_agents`). So the executed agent, with
+its whole state as its memory, meets the premise on memory of a class's theorem on every class
+of the grid in visits (`visits_memory_bounded`, `find_memory_bounded`), and the campaign
+counting bound holds of it with 2 to the power 8 · (`maximumBytes` + 1) in place of a set of
+memories (`executed_campaign_count`, `find_campaign_count`). `Running` is a definition: that a
+native loop holds only running states is *argued*, not proved.
+[Obligation 6](mission-contract.md#open-obligations) records this. The bounds of the work and
+of the memory of each part of a step, which requirement R8 of
 [#90](https://github.com/rbeauchamp/acorn/issues/90) owes, are not among these.
 
 ### Planning selection
