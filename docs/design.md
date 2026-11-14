@@ -994,7 +994,7 @@ with the same carried result.
 | The executed observation conceals the target | A concealed target is met exactly in its box, and its task relation is its family's cue and whether it is met. A member's world and the world with a target no body can reach installed step alike, are refused alike and keep their goals; two worlds that differ only in their goals and show one task relation deliver one observation. So the class conceals its goals behind the world with that unreachable target installed. | `find_satisfied_iff`, `find_observe`, `find_task`, `twin_paths`, `observe_twins`, `find_conceals` |
 | One walk meets few targets | One action sequence meets at most 49 + 7·cap concealed targets in cap steps, for every terrain. | `find_met_swept`, `find_covered` |
 | The bounds in the grid world | Every agent, the executed agent included, solves at most 49 + 7·cap members on a first visit. In visits of cap steps every experience-free agent, the uniform-random comparator included, solves at most that many on each visit; every agent solves at most that many for the first time on each visit, and n·(49 + 7·cap) over n visits. At a cap of 3000 and a window of radius 120 an experience-free agent solves on each visit at most 21049 of the members in the window, which number at least 57551: the window's 57600 tiles less at most 49 within three tiles of the start, which are not members. | `find_need`, `executed_find_first`, `find_visits_need`, `comparator_find_visits`, `find_visits_first_success`, `find_visits_ever`, `far_window_visits` |
-| Re-solving and separation | The percept's achievement flag after a step is set exactly when the step meets the installed goal, so the replaying agent with that flag as its signal, which is not experience-free, solves on every later visit each concealed target it has solved once. If its explorations of the visits up to one visit meet more than 49 + 7·cap targets from the host world, on that visit it solves all of them while every experience-free agent solves fewer on every visit. Which targets an exploration meets depends on the terrain, so the theorem takes it as a hypothesis, and one world discharges it: at seed 5, side 64 and a noise scale of one, three visits of seven steps east, west and south from the box's center meet 147 members, more than the bound 98, so there the replaying agent solves 147 members on visit 2 and every experience-free agent fewer on every visit. The kernel evaluates the executed step along the three walks; the count of members is structural. | `achieved_decodes`, `find_replay`, `find_replay_learns`, `find_replay_separates`, `witness_walk`, `witness_separation` |
+| Re-solving and separation | The percept's achievement flag after a step is set exactly when the step meets the installed goal, so the replaying agent with that flag as its signal, which is not experience-free, solves on every later visit each concealed target it has solved once. If its explorations of the visits up to one visit meet more than 49 + 7·cap targets from the host world, on that visit it solves all of them while every experience-free agent solves fewer on every visit. Which targets an exploration meets depends on the terrain, so the theorem takes it as a hypothesis, and one world discharges it: in the standard configuration at seed 5 and side 64 with no deer and no food, started at the box's center, three visits of seven steps east, west and south from the box's center meet 147 members, more than the bound 98, so there the replaying agent solves 147 members on visit 2 and every experience-free agent fewer on every visit. The kernel evaluates the executed step along the three walks; the count of members is structural. | `achieved_decodes`, `find_replay`, `find_replay_learns`, `find_replay_separates`, `witness_standard`, `witness_walk`, `witness_separation` |
 | A class meeting conditions (a) to (c) | The concealed targets a visit can meet are a subclass with the same concealment and covering bound, and each of its members is feasible by how the subclass is indexed. In the same world, with visits of seven steps, the 147 members above make it a big class with the bound 98. It says nothing about goal information or exploration. | `feasibleFind_conceals`, `feasibleFind_covered`, `feasibleFind_big_of`, `witness_big` |
 
 **How a learner is rewarded on a concealed target.** A learner needs a first success before
@@ -1083,7 +1083,8 @@ reset (`returnsToInitialWithoutReset`).
 | The statement is satisfiable | With the reward as its signal, on a class as above whose counted members its exploring walks meet, the agent meets the mission's statement with every premise discharged. Its reports to contract 3 are its own declaration, argued where the rung is defined. | `paid_decodes`, `retrace_mission` |
 
 **The first class.** [The concealed targets of the executed grid world](../lean/AcornVerif/CurrentConcealedTargetMission.lean)
-are the first class of the ladder.
+are the first class of the ladder, and [the first rung](../lean/AcornVerif/CurrentConcealedTargetRung.lean)
+fixes its world, its visit length and its agent.
 
 | Property | What is proved | Theorems |
 |---|---|---|
@@ -1091,6 +1092,10 @@ are the first class of the ladder.
 | The class's premises | Over a host world that carries a reward of zero, every premise about the class holds of the feasible concealed targets, for every visit length, so with distinct counted members the statement there depends only on the agent. | `find_mission` |
 | A reference agent meets the statement | In the world at seed 5 and side 64, with visits of seven steps, there are 147 distinct feasible concealed targets such that the retracing agent, with the reward as its signal and three walks of seven steps east, west and south as its exploration, meets the statement with those targets counted. | `witness_explored`, `witness_mission` |
 | The executed agent, from premises | For the executed decision function at the default step order, from every state of it and for every profile and configuration: if it finds and retains, every agent that takes its actions in every world, and whose own memory and reports meet the four premises of contract 3, meets the statement. No premise is proved. The agent is a parameter because the executed agent's whole state holds its evaluator's session, which a resumption restarts, so the record's clause on resumption cannot hold of the whole state. | `ActsAsExecuted`, `executedAgent_actsAs`, `ExecutedFinds`, `ExecutedRetains`, `executed_mission` |
+| The first rung's constants | The rung's world is the world of the separation witness: the standard configuration at seed 5 and side 64 with no deer and no food, started at the box's center. A visit is seven steps. The agent is the cold agent the host constructs for the primitive research profile under the discounted criterion, at the world's seed and the default step order, under either planning selection. The statement at these constants follows from the same premises, none of them proved. | `witness_standard`, `rungConstruction`, `rung_mission` |
+| The rung's class | Every member's target lies within the visit's length and three tiles of the start, for every terrain, so a class of feasible concealed targets is finite. The rung's class has at most 392 members, 147 of them proved feasible, against a covering bound of 98. | `feasible_window`, `feasible_count`, `rung_members`, `witness_big` |
+| The rung's frames | A world whose configuration admits no deer and no food holds neither in any state, so every percept it delivers has at most 139 words, at every state. Every frame the rung's agent lays from such a percept holds at most 1712 slots, under every step order. So for percepts of such a world the credit horizon holds with no hypothesis on frames. | `Unpopulated`, `percept_words`, `frame_slots`, `rung_frames`, `unpopulated_weight_rests`, `rung_weight_rests` |
+| The rung's visit length | On a primitive controller's cold run over frames of the rung's size, a slot a step laid, followed by at most six more steps, has a weight that a reward of one at the next step moves. A first reward arrives at most seven decisions after its visit's first. | `rung_reach` |
 
 What these theorems do not establish:
 
@@ -1103,9 +1108,17 @@ What these theorems do not establish:
 - **A statement for an agent that explores with random draws.** `visits_mission_allBut` counts
   the agents of a finite family. No theorem models an agent's draws, and finding and retaining
   name no last visit, so a family of draw sequences is not finite for them.
-- **The class constants of the executed agent's rung.** The theorems hold for every host world
-  that carries a reward of zero, every visit length and every list of distinct counted
-  members. The witness's constants are the reference agent's.
+- **The members the first rung counts.** They are members the executed agent finds, which the
+  premise `ExecutedFinds` names and no theorem exhibits.
+- **That the host can run the first rung's world.** The rung's world holds no deer and no food
+  and starts at the box's center. The native entry `acorn-core visits` builds the standard
+  configuration, with its deer and food, and starts where its spawn search ends.
+- **That a first reward reaches the agent's first step of a visit.** `rung_reach` is about the
+  primitive controller's cold run over frames of the rung's size, not about the agent's run,
+  and it says that a weight moves, not that the greedy choice changes.
+- **Anything about a world with deer and food, or a longer visit.** The interface alone bounds
+  a grid frame of the standard feature configuration by 3648 slots, beyond what the theorems
+  on the credit horizon assume.
 - **That an agent's reports describe its step,** and which memory of the executed agent
   contract 3 reads ([#249](https://github.com/rbeauchamp/acorn/issues/249)). The reports are parameters for the executed agent and
   a declaration for the retracing agent.

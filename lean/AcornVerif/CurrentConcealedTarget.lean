@@ -43,11 +43,12 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   more than `49 + 7 cap` targets, on that visit it solves all of them while every
   experience-free agent solves fewer on every visit (`find_replay_separates`). Whether an
   exploration meets a target depends on the terrain, so the theorem takes it as a hypothesis;
-  `witness_separation` discharges it in one admitted world (seed 5, side 64, noise scale
-  one): three visits of seven steps east, west and south from the box's center meet 147
-  members, more than the bound 98, so there the replaying agent solves 147 on visit 2 and
-  every experience-free agent fewer on every visit. The kernel evaluates the executed step
-  along the three walks, 21 steps (`witness_walk`); the count is structural.
+  `witness_separation` discharges it in one world, the standard configuration at seed 5 and
+  side 64 with no deer and no food (`witness_standard`): three visits of seven steps east,
+  west and south from the box's center meet 147 members, more than the bound 98, so there the
+  replaying agent solves 147 on visit 2 and every experience-free agent fewer on every visit.
+  The kernel evaluates the executed step along the three walks, 21 steps (`witness_walk`);
+  the count is structural.
 - **A class with conditions (a) to (c).** `findClass` holds targets no walk can reach within a
   visit. `feasibleFind` holds the concealed targets a visit can meet, so its members are feasible
   by how it is indexed; it keeps the concealment and the bound (`feasibleFind_conceals`,
@@ -520,13 +521,22 @@ theorem far_window_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
 
 /-! ## A world in which the separation holds -/
 
-/-- The configuration of the separation witness: seed 5, a box of side 64, a noise scale of
-one, a day of one step, and no food or deer. -/
+/-- The configuration of the separation witness: the standard configuration at seed 5 and the
+smallest side, 64, with no food and no deer (`witness_standard`). -/
 def witnessConfig : Host.WorldConfig :=
-  ⟨⟨5, ⟨64, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+  ⟨⟨5, ⟨64, by decide⟩, 2048, 400, 48, 0, 0, ⟨0x41000000⟩⟩, by decide, by decide⟩
+
+/-- The witness's configuration is the one the host's standard constructor builds at seed 5 and
+side 64, with its two capacities set to zero: it keeps that configuration's day, regrowth, food
+interval and noise scale, and so its terrain. -/
+theorem witness_standard :
+    ∃ standard, Host.WorldConfig.standard 5 ⟨64, by decide⟩ = .ok standard ∧
+      witnessConfig.raw = { standard.raw with foodCap := 0, deerCap := 0 } :=
+  ⟨_, rfl, rfl⟩
 
 /-- The host world of the witness: the configuration's empty world, with the body at the box's
-center and its energy full, and an empty carried result. -/
+center and its energy full, and an empty carried result. It is not the world the host generates
+for a run, which starts where its spawn search ends. -/
 def witnessLive : Live witnessConfig := ⟨Host.World.empty witnessConfig, {}⟩
 
 /-- The exploration of the witness: east at every step of visit 0, west on visit 1 and south

@@ -55,6 +55,7 @@ import AcornVerif.Separation
 import AcornVerif.MissionVisits
 import AcornVerif.CurrentConcealedTarget
 import AcornVerif.CurrentConcealedTargetMission
+import AcornVerif.CurrentConcealedTargetRung
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
