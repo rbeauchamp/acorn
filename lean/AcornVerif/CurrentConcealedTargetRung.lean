@@ -82,7 +82,7 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
   1 and side 64 that start was observed to be the box's center, with one of the world's eight deer
   in view from part of a visit's reach and no food along a visit (`docs/roadmap.md`). No theorem
   relates a run of it to a member of this class. The class in the host's own world, deer
-  included, is a later rung.
+  included, is a later rung (rbeauchamp/acorn#256).
 - That a class of a longer visit, or of a world with deer and food, is big, or that its frames are
   within the sizes the credit horizon assumes.
 

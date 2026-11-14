@@ -46,7 +46,7 @@ The first rung on which no agent can keep every solution is capacity, condition 
 ### The rung's constants
 
 The owner decided on 2026-11-14 that the first rung's world is the host's standard configuration at seed 1 and side 64 with no deer and no food, started at the box's center, with visits of seven steps and the primitive research profile (`rung_mission`).
-The same class in the host's own world, deer included, is a later rung.
+The same class in the host's own world, deer included, is a later rung ([#256](https://github.com/rbeauchamp/acorn/issues/256)).
 
 - **Why this world and visit length.** They are the one world and visit length at which a class is proved big (`witness_big`), in the one kind of world whose frames are proved within the sizes the credit horizon assumes (`rung_frames`). No theorem says a shorter visit fails.
 - **Why seed 1.** It is the least seed at which the host's own world started at the box's center: Lean's interpreter evaluated the host's generation at side 64 to a start at the tile (27, 27) for seed 0 and at the center, (32, 32), for seed 1 (observed on 2026-11-14; not proved). So the rung's world has the start and the terrain of the world that `acorn-core visits` builds at seed 1 and side 64, and differs from it by that world's eight deer.
@@ -84,13 +84,14 @@ Discovery decides whether the theorem is true; the proofs of step 3 assume it.
 ## The rungs after the first
 
 Their order is the owner's decision and is not yet made ([#234](https://github.com/rbeauchamp/acorn/issues/234)).
-The nearest class to the first rung's is the same class in the host's own world at seed 1 and side 64, deer included, which the entry `acorn-core visits` builds; [the rung's constants](#the-rungs-constants) list what it needs proved first, and no issue tracks it yet.
+The nearest class to the first rung's is the same class in the host's own world at seed 1 and side 64, deer included, which the entry `acorn-core visits` builds ([#256](https://github.com/rbeauchamp/acorn/issues/256)); [the rung's constants](#the-rungs-constants) list what it needs proved first.
 The recommendation recorded there is: capacity on an agent of restricted capacity, then a class of ARC-AGI-3 games ([#71](https://github.com/rbeauchamp/acorn/issues/71)), then a class of Microduck scenes ([#236](https://github.com/rbeauchamp/acorn/issues/236)), then a class of worlds with no restarts.
 
 ## Parked work, and when it re-enters
 
 | Issues | Re-enters when |
 |---|---|
+| [#256](https://github.com/rbeauchamp/acorn/issues/256), the first rung's class in the host's own world | The first rung is decided for the primitive profile ([#232](https://github.com/rbeauchamp/acorn/issues/232)), or a diagnostic run for it needs a world the entry runs exactly |
 | [#71](https://github.com/rbeauchamp/acorn/issues/71), ARC-AGI-3 games as a class | The order of the later rungs is decided and the first rung has landed |
 | [#236](https://github.com/rbeauchamp/acorn/issues/236), Microduck scenes, with [#173](https://github.com/rbeauchamp/acorn/issues/173), [#136](https://github.com/rbeauchamp/acorn/issues/136), [#172](https://github.com/rbeauchamp/acorn/issues/172), [#121](https://github.com/rbeauchamp/acorn/issues/121) and [#175](https://github.com/rbeauchamp/acorn/issues/175) | The same |
 | [#17](https://github.com/rbeauchamp/acorn/issues/17), learned agent state | Step 2 finds interference to be the obstruction, or a rung's class needs memory |
