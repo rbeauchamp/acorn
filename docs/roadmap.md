@@ -2,7 +2,7 @@
 
 This page says what Acorn works on now, in what order, and why.
 GitHub's issues are the record of each piece of work; this page is the order between them.
-It was last set on 2026-11-14, and a change to the order changes this page in the same pull request.
+It was last set on 2026-11-13, and a change to the order changes this page in the same pull request.
 
 ## Terms
 
@@ -16,11 +16,10 @@ It was last set on 2026-11-14, and a change to the order changes this page in th
 ## Where the mission stands
 
 No theorem in the tree yet says that Acorn's executed agent learns.
-On the first rung, whose world, visit length and agent are fixed, `rung_mission` proves the mission theorem's statement from premises about the executed agent that no theorem proves. What remains is those premises, a proof that the agent's reports to contract 3 describe its step, a statement for an agent that explores with random draws, and the link from the rung's run to the native entry.
+On the first rung, `executed_mission` proves the mission theorem's statement from premises about the executed agent that no theorem proves. What remains is those premises, a proof that the agent's reports to contract 3 describe its step, the rung's class constants, a statement for an agent that explores with random draws, and the link from the rung's run to the native entry.
 
 - **Proved.** The kernel's model of worlds and agents. That no agent achieves goals in every world, and that on a class which conceals its goals every agent solves at most a covering bound of members on a first visit. One class of worlds that meets the mission contract's conditions (a) to (c) for a big class (`witness_big`). That every agent which keeps nothing of its experience solves at most a covering bound of members on every visit (`visits_need`). That a reference agent which replays a route it has found separates from those agents and retains what it solved, under its own hypotheses (`witness_separation`, `replay_keeps`). That the host's loop of visits is the kernel's (`executed_visits_closed_loop`). Exact resumption from a checkpoint, and that no host write reaches learning.
 - **Proved of the mission theorem's statement.** The statement is one proposition over the four intent records (`Mission`), and on a class of worlds in visits it follows from named premises about the class and the agent (`visits_mission`). On the first rung's class every premise about the class holds, the reward lemma included (`find_mission`, `classReward_eq`). A reference agent of fixed memory meets the whole statement there, with every premise discharged (`witness_mission`).
-- **Proved of the first rung's constants.** The rung's world is the standard configuration at seed 5 and side 64 with no deer and no food, started at the box's center (`witness_standard`); a visit is seven steps; the agent is the cold agent the host constructs for the primitive research profile (`rungConstruction`). The class has 147 proved members of at most 392, against a covering bound of 98 (`witness_big`, `rung_members`). Every frame of the rung's agent holds at most 1712 slots, so the credit horizon holds there with no hypothesis on frames (`rung_frames`, `rung_weight_rests`), and a visit is within the steps over which a first reward provably moves a laid weight, on the controller's cold run (`rung_reach`).
 - **Proved of the executed agent's controller.** Its control weights stay zero until its first reward (`pre_reward_weights_zero`). What a bias on a few slots then does to the greedy choice (`candidates_of_gap`, `candidates_of_resting`), and how far back a first reward reaches (`creditReach`).
 - **Observed.** Two registered studies on the standard curriculum, each refuted at its horizon ([baseline assessment](baseline-assessment.md#conformance-sequence), U6 and U7). They describe the code before a later change to the hashes, and neither ran on the first rung's class.
 - **Open.** The mission theorem, on every rung.
@@ -51,7 +50,7 @@ The first rung on which no agent can keep every solution is capacity, condition 
 | 4, goal-information and exploration premises | Yes. The goal information is proved (`reward_step`); no premise about exploration that suffices for the executed agent is known | [#232](https://github.com/rbeauchamp/acorn/issues/232) decides them |
 | 15, the failing fraction of runs | Yes. Its counting part is stated (`AllBut`, `visits_mission_allBut`); a model of the agent's draws, a number of visits for finding and retaining, and the fraction itself are open | [#231](https://github.com/rbeauchamp/acorn/issues/231) for the count, [#248](https://github.com/rbeauchamp/acorn/issues/248) and [#232](https://github.com/rbeauchamp/acorn/issues/232) for the rest |
 | 16, the class's reward lemma | Discharged for this class (`classReward_eq`), with an attempt's rewards counted up to its first payment, which the owner can overrule | [#231](https://github.com/rbeauchamp/acorn/issues/231) |
-| 6, a bound on reachable memory | Yes: the premise `MemoryBounded`. The states a host runs are bounded in number under a profile that restores (`running_memory_bits`); the link from a rung's memories to those states is open | [#249](https://github.com/rbeauchamp/acorn/issues/249) decides which memory the premise reads; no issue owns the link |
+| 6, a bound on reachable memory | Yes: the premise `MemoryBounded` | [#195](https://github.com/rbeauchamp/acorn/issues/195), a posted mission |
 | 7, executed work, and learning from each experience once | Yes: the premises `WorkBounded` and `LearnsOnArrival` | [#90](https://github.com/rbeauchamp/acorn/issues/90) for work, [#233](https://github.com/rbeauchamp/acorn/issues/233) for once-only learning |
 | 3, the viewer's rule as a theorem | Completes contract 1 beside the rung | [#213](https://github.com/rbeauchamp/acorn/issues/213), step 5 |
 | 2, 5, 10, 11, 13, 14 | No: the rung runs in visits and does not use the campaign join | |
@@ -62,9 +61,9 @@ The first rung on which no agent can keep every solution is capacity, condition 
 1. **State.**
    - The intent record of the postcondition, steps 1 to 4 ([#219](https://github.com/rbeauchamp/acorn/issues/219)).
    - The intent record of contract 2, steps 1 to 4 ([#214](https://github.com/rbeauchamp/acorn/issues/214)).
-   - The rung's theorem in Lean ([#231](https://github.com/rbeauchamp/acorn/issues/231)). In the tree: its definitions, a proof that a reference agent meets it (`witness_mission`), a proof of it for the executed agent from named open premises (`executed_mission`), so the way the theorem depends on its obligations is checked by Lean's kernel, and the rung's constants with what each rests on (`rung_mission`). Remaining: the decisions listed below, and the blind second reading of the statement.
+   - The rung's theorem in Lean ([#231](https://github.com/rbeauchamp/acorn/issues/231)). In the tree: its definitions, a proof that a reference agent meets it (`witness_mission`) and a proof of it for the executed agent from named open premises (`executed_mission`), so the way the theorem depends on its obligations is checked by Lean's kernel. Remaining: the class constants of the executed agent's rung, the decisions listed below, and the blind second reading of the statement.
 2. **Discover.** Decide the rung for the primitive research profile, by theorem ([#232](https://github.com/rbeauchamp/acorn/issues/232)): does its exploration find enough members, does credit reach the start of the next visit, does the first reward collapse exploration, and does shared weight send the agent off its route. Two algorithm changes are scoped and open on those answers: exploring without reward and after the first reward ([#170](https://github.com/rbeauchamp/acorn/issues/170)), and a one-step model that carries a success back ([#171](https://github.com/rbeauchamp/acorn/issues/171)).
-3. **Prove.** The invariants, stated over constructions so that an algorithm change does not reopen them: reachable memory (proved for the states a host runs, `running_memory_bits`; the link to a rung's memories waits on [#249](https://github.com/rbeauchamp/acorn/issues/249)), work ([#90](https://github.com/rbeauchamp/acorn/issues/90)), once-only learning ([#233](https://github.com/rbeauchamp/acorn/issues/233)), and the executing code against the records of contracts 1 and 3 ([#213](https://github.com/rbeauchamp/acorn/issues/213), [#215](https://github.com/rbeauchamp/acorn/issues/215)).
+3. **Prove.** The invariants, stated over constructions so that an algorithm change does not reopen them: reachable memory ([#195](https://github.com/rbeauchamp/acorn/issues/195)), work ([#90](https://github.com/rbeauchamp/acorn/issues/90)), once-only learning ([#233](https://github.com/rbeauchamp/acorn/issues/233)), and the executing code against the records of contracts 1 and 3 ([#213](https://github.com/rbeauchamp/acorn/issues/213), [#215](https://github.com/rbeauchamp/acorn/issues/215)).
 4. **Assemble.** The rung's theorem for the primitive profile, then for the ranked profile ([#230](https://github.com/rbeauchamp/acorn/issues/230)).
 
 Stating comes first because it is the cheapest step and it decides which of the others are needed.
@@ -105,13 +104,12 @@ Each is an issue labelled `needs-owner-decision`, with a recommendation in its t
 - Whether the clauses of contract 3's record that no obligation states get a number in the mission contract ([#250](https://github.com/rbeauchamp/acorn/issues/250)).
 - The proposals for outside contributors, below.
 
-Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/issues/231)) also made five choices on the owner's behalf, which the owner can overrule:
+Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/issues/231)) also made four choices on the owner's behalf, which the owner can overrule:
 
 - An attempt's reward is counted up to its first payment (`untilPaid`), because the plain sum of a visit's rewards counts every step at which the goal stays met (`rewards_sum`).
 - The open premises of the rung's theorem are hypotheses of theorems in the governed tree.
 - Contract 3's bounds on memory and work are asked once for the whole class, where the record asks them of each member's run.
 - Separation and finding name the members the comparison counts.
-- The first rung's constants are the smallest for which every premise about the class and the frame sizes of the credit horizon are proved: the witness's world, with no deer and no food, visits of seven steps, and the primitive research profile. Two other choices were weighed. A visit at the proved reach of a first reward, 81 steps, needs more than 616 feasible members, and so the terrain of at least 89 tiles. The world the host's entry builds, with its deer and food, has frames no theorem bounds below 3648 slots, and its spawn search reads the terrain of some thousands of tiles. Lean's kernel took 0.6 seconds to evaluate the terrain of one tile of the witness's world and 5.7 seconds to check the witness's walk of seven steps (observed on 2026-11-14 in the cloud container of the session that fixed the constants, with Lean 4.35.0, as the profiler's type-checking time of a proof that the kernel decides), and a proof pays that on every build. So the first rung's world is not one the entry `acorn-core visits` can run: a diagnostic run of it needs a change to the host.
 
 ## Opening the work to outside contributors
 
@@ -121,7 +119,8 @@ Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/iss
 2. Then more kinds of contribution ([#239](https://github.com/rbeauchamp/acorn/issues/239)), claims and credit that hold ([#240](https://github.com/rbeauchamp/acorn/issues/240)) and a lower cost of entry ([#241](https://github.com/rbeauchamp/acorn/issues/241)), with at least 20 open statements seeded.
 3. Then a theory track that formalizes results of the papers Acorn cites ([#242](https://github.com/rbeauchamp/acorn/issues/242), with [#134](https://github.com/rbeauchamp/acorn/issues/134) and [#135](https://github.com/rbeauchamp/acorn/issues/135)), a venue and an announcement ([#243](https://github.com/rbeauchamp/acorn/issues/243)).
 
-Five missions are open today.
+Six missions are open today.
+[#195](https://github.com/rbeauchamp/acorn/issues/195) is on the first rung's path.
 [#200](https://github.com/rbeauchamp/acorn/issues/200) and [#201](https://github.com/rbeauchamp/acorn/issues/201) are lemmas for a design of learned agent state that is not admitted.
 [#132](https://github.com/rbeauchamp/acorn/issues/132), [#163](https://github.com/rbeauchamp/acorn/issues/163) and [#174](https://github.com/rbeauchamp/acorn/issues/174) are off the path.
 The [mission board](mission-board.md) is the dated list.
