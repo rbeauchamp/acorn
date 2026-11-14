@@ -61,8 +61,9 @@ memory and reports:
 
 - `ExecutedFinds` and `ExecutedRetains`, of the executed agent: what remains of obligation 9, and
   what the goal-information and exploration premises of obligation 4 must deliver;
-- `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6, of the agent's memory, which
-  is proved of the executed agent itself, whose memory is its whole state
+- `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6, of the agent's memory. It is
+  proved, for a construction of the default step order and from the agent of a state a host runs,
+  of the executed agent itself, whose memory is its whole state
   (`AcornVerif.CurrentKernelMemory.find_memory_bounded`);
 - `AcornVerif.Intent.MissionTheorem.WorkBounded` and
   `AcornVerif.Intent.MissionTheorem.LearnsOnArrival`, obligation 7, of its reports;
@@ -301,8 +302,10 @@ def ExecutedRetains (state : Agent Grid.interface profile features criterion dim
 host world that carries a reward of zero, with a list of distinct counted members: if the executed
 agent finds and retains, then every agent that takes its actions, and whose own memory and reports
 meet the four premises of contract 3, achieves goals over the class. The mission's statement holds
-of that agent's rung. No premise is proved, and each names the open obligation, or the step of the
-issue, that owns it. -/
+of that agent's rung. Only `MemoryBounded` is proved, where the agent is the executed agent itself
+from the agent of a state a host runs, under a construction of the default step order
+(`AcornVerif.CurrentKernelMemory.find_memory_bounded`). Each premise names the obligation, or the
+step of the issue, that owns it. -/
 theorem executed_mission
     (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)

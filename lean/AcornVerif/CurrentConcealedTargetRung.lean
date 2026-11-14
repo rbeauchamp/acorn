@@ -71,14 +71,20 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
 Of the six premises of `rung_mission`, the one on memory is proved for the executed agent itself,
 whose memory is its whole state: every memory of its run is the agent of a state a host runs, and
 those are finitely many under every profile (`rung_memory_bounded`, from
-`AcornVerif.CurrentKernelMemory`). `rung_executed` is the statement for that agent from the other
-five. Which memory of the executed agent contract 3 reads is rbeauchamp/acorn#249; an agent whose
-memory is a function of the whole state holds at most as many memories (argued).
+`AcornVerif.CurrentKernelMemory`). It is proved as well of every agent whose memory is one function
+of that state which its step keeps (`AcornVerif.CurrentKernelMemory.projected_memory_bounded`), so
+it does not wait on which memory of the executed agent contract 3 reads (rbeauchamp/acorn#249).
+
+No theorem proves the other five. One of them, `KeepsDiscipline`, asks that the agent resume with
+the memory it held. The host neither saves nor loads this profile, so no executed resumption fixes
+what the rung's agent resumes with; under a profile that restores, that clause fails of the whole
+state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 
 ## What is not proved here
 
-- No premise of `rung_mission` about the agent. Whether the executed agent finds and retains in
-  this class is rbeauchamp/acorn#232. `ExecutedRetains` is argued to fail of the agent as built
+- No premise of `rung_mission` about the agent but the one on memory, for the executed agent
+  itself. Whether the executed agent finds and retains in this class is rbeauchamp/acorn#232.
+  `ExecutedRetains` is argued to fail of the agent as built
   (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
   retention is asked.
 - Anything about saving or resuming the rung's agent. Its profile is the primitive one, which the
@@ -191,8 +197,9 @@ theorem rung_members (mode : TaskFeatureMode)
 visits of seven steps and a list of distinct counted members: if the rung's agent finds and
 retains, then every agent that takes its actions, and whose own memory and reports meet the four
 premises of contract 3, achieves goals over the class. It is
-`AcornVerif.CurrentConcealedTargetMission.executed_mission` at the rung's constants; no premise is
-proved. -/
+`AcornVerif.CurrentConcealedTargetMission.executed_mission` at the rung's constants. Of its
+premises only the one on memory is proved, for the executed agent itself
+(`rung_memory_bounded`). -/
 theorem rung_mission (planning : PlanningSelection)
     (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
       witnessLive 7).Index)
@@ -239,37 +246,5 @@ theorem rung_memory_bounded (planning : PlanningSelection)
       counted (executedAgent (rungConstruction planning).initial.agent) updates work resume) :=
   find_memory_bounded (rungConstruction planning) rfl .initial witnessConfig witnessLive 7 counted
     updates work resume
-
-/-- **The mission theorem on the first rung for the executed agent itself, from five premises.**
-With the executed agent's whole state as its memory, the premise on memory is proved
-(`rung_memory_bounded`), so the statement follows from the two premises about solving and the
-three about the agent's reports. None of the five is proved. -/
-theorem rung_executed (planning : PlanningSelection)
-    (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
-      witnessLive 7).Index)
-    (distinct : counted.Nodup)
-    {updates : (executedAgent (rungConstruction planning).initial.agent).Memory →
-      Percept Grid.interface × ℚ → List OneStream.Update}
-    {work : (executedAgent (rungConstruction planning).initial.agent).Memory →
-      Percept Grid.interface × ℚ → ℕ}
-    {resume : (executedAgent (rungConstruction planning).initial.agent).Memory →
-      (executedAgent (rungConstruction planning).initial.agent).Memory}
-    (finds : ExecutedFinds (rungConstruction planning).initial.agent witnessConfig witnessLive 7
-      counted)
-    (retains : ExecutedRetains (rungConstruction planning).initial.agent witnessConfig
-      witnessLive 7)
-    (bounded : WorkBounded (findRung witnessConfig
-      (rungConstruction planning).profile.taskMode witnessLive 7 counted
-      (executedAgent (rungConstruction planning).initial.agent) updates work resume))
-    (arrival : LearnsOnArrival (findRung witnessConfig
-      (rungConstruction planning).profile.taskMode witnessLive 7 counted
-      (executedAgent (rungConstruction planning).initial.agent) updates work resume))
-    (discipline : KeepsDiscipline (findRung witnessConfig
-      (rungConstruction planning).profile.taskMode witnessLive 7 counted
-      (executedAgent (rungConstruction planning).initial.agent) updates work resume)) :
-    Mission (findRung witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7
-      counted (executedAgent (rungConstruction planning).initial.agent) updates work resume) :=
-  rung_mission planning counted distinct (executedAgent_actsAs _) finds retains
-    (rung_memory_bounded planning counted updates work resume) bounded arrival discipline
 
 end AcornVerif.CurrentConcealedTargetRung

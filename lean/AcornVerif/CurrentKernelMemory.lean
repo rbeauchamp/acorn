@@ -22,34 +22,43 @@ which is what obligation 6 of `docs/mission-contract.md` asks of a kernel run.
 takes the executed step of the default order on each percept. A host's whole step is the agent's
 step of the construction's order on a grid percept: an observation of the host with the carried
 reward and achievement flag (`Acorn.Handcrafted.AgentConstruction.callbacks_act`). So, for a
-construction of the default order, from the agent of a running state and on a grid percept, the
-kernel agent's next memory is the agent of a running state (`step_running`). A world shows grid
-percepts when each of its percepts is one (`ShowsGrid`): the grid world does at every state, the
-refused state included, and so do its visits and its campaigns (`gridWorld_shows`, `visits_shows`,
-`campaign_shows`). In such a world every memory of the kernel's closed loop is the agent of a
-running state (`loop_running`).
+construction of the default order, from the agent of a running state and on a grid percept of the
+construction's task mode, the kernel agent's next memory is the agent of a running state
+(`step_running`). A world shows grid percepts in a task mode when each of its percepts is one
+(`ShowsGrid`): the grid world does at every state, the refused state included, and so do its
+visits and its campaigns (`gridWorld_shows`, `visits_shows`, `campaign_shows`). In such a world
+every memory of the kernel's closed loop is the agent of a running state (`loop_running`).
 
-**What follows.**
+**What follows**, for a construction of the default order and a run from the agent of a running
+state, the cold state among them:
 
 - One finite list holds the agent of every running state (`running_agents`), so the premise
-  `MemoryBounded` holds of the executed agent on every class of such worlds in visits
-  (`visits_memory_bounded`), and on the concealed targets of every host world
+  `MemoryBounded` holds of the executed agent, whose memory is its whole state, on every class of
+  such worlds in visits (`visits_memory_bounded`), and on the concealed targets of every host world
   (`find_memory_bounded`).
+- The same premise holds of every agent whose memory is one function of the executed agent's
+  state, where its first memory is that function of the first state and its step keeps that
+  function of the state the executed step keeps (`projected_memory_bounded`). Where its step also
+  answers as the executed step does, it takes the executed agent's actions (`projected_actsAs`).
+  So the bound does not wait on which such memory contract 3 reads (rbeauchamp/acorn#249).
 - The campaign counting bound holds of the executed agent with a number in place of a set of
   memories: the assignments on which it solves every slot of one cycle number at most
-  `2 ^ (8 * (maximumBytes construction + 1))` times the covering bound to the power of the slots
-  (`executed_campaign_count`, and `find_campaign_count` on the concealed targets).
+  `2 ^ (8 * (maximumBytes construction + 1))`, which bounds the number of running states, times
+  the covering bound to the power of the slots (`executed_campaign_count`, and
+  `find_campaign_count` on the concealed targets). For the standard construction that width is
+  455,844,664 bits (`standard_width`).
 
 **Hypotheses and limits.**
 
 - The construction's order is the default one, since the kernel agent takes the step of that
-  order. The run starts from the agent of a running state: the cold state is one.
-- `MemoryBounded` is proved of the agent whose memory is the executed agent's whole state. An agent
-  whose memory is a function of that state holds at most as many memories; which memory contract 3
-  reads is rbeauchamp/acorn#249.
+  order. A construction of another order has no kernel agent here.
+- `MemoryBounded` reads the memories a run holds and none of the agent's reports, so it holds
+  whatever the agent reports of its updates, its work and its resumption.
 - `Running` is a definition. That a native loop holds only such states is argued in
   `AcornVerif.CurrentRunningMemory`, not proved, and nothing here ties a kernel run to a native
   loop.
+- The list of `running_agents` exists by a classical argument from the embedding of
+  `running_memory_bits`, which carries the number.
 - The width is that of the checkpoint image, which holds every field of the agent. It bounds the
   count and says nothing of native allocation.
 -/
@@ -129,8 +138,12 @@ theorem loop_running (default : construction.order = .learnThenAct)
     rw [agent, same, ← shown]
     rfl
 
+end Link
+
+/-! ## One list of the agents of running states -/
+
 /-- One finite list holds the agent of every state a host runs. -/
-theorem running_agents :
+theorem running_agents (construction : AgentConstruction) :
     ∃ agents : List (Agent Grid.interface construction.profile construction.config
         construction.criterion construction.dimension construction.planning),
       ∀ state : construction.State, Running construction state → state.agent ∈ agents := by
@@ -142,14 +155,90 @@ theorem running_agents :
   exact ⟨states.map fun state => state.1.agent, fun state running =>
     List.mem_map.mpr ⟨⟨state, running⟩, all _, rfl⟩⟩
 
-end Link
+/-! ## Agents whose memory is a function of the executed agent's state -/
+
+section Projected
+
+variable {profile : FeatureProfile} {features : Features.Config} {criterion : Criterion}
+  {dimension : Dimension} {planning : PlanningSelection}
+
+/-- An agent whose memory is one function of the executed agent's state takes the executed agent's
+actions, where its first memory is that function of the executed agent's and its step answers as
+the executed step does and keeps that function of the state the executed step keeps. -/
+theorem projected_actsAs
+    (state : Agent Grid.interface profile features criterion dimension planning)
+    (agent : Kernel.Agent Grid.interface)
+    (project : Agent Grid.interface profile features criterion dimension planning → agent.Memory)
+    (begins : agent.initial = project state)
+    (answers : ∀ memory percept,
+      (agent.act (project memory) percept).1 = (memory.act percept).2.action)
+    (follows : ∀ memory percept,
+      (agent.act (project memory) percept).2 = project (memory.act percept).1) :
+    ActsAsExecuted state agent := by
+  intro world start time
+  have same : ∀ count, Kernel.loop world agent start count =
+      ((Kernel.loop world (executedAgent state) start count).1,
+        project (Kernel.loop world (executedAgent state) start count).2) := by
+    intro count
+    induction count with
+    | zero => exact Prod.ext rfl begins
+    | succ count ih =>
+      change Kernel.interact world agent (Kernel.loop world agent start count) = _
+      rw [ih]
+      exact Prod.ext (congrArg (world.step _) (answers _ _)) (follows _ _)
+  unfold Kernel.actionAt Kernel.memoryAt Kernel.perceptAt Kernel.stateAt
+  rw [same time]
+  exact answers _ _
+
+end Projected
 
 /-! ## Contract 3's bound on memory -/
+
+/-- **A memory that is one function of the executed agent's state is one of finitely many, on a
+class in visits.** For a construction of the default order and a class whose worlds show grid
+percepts of its task mode: take an agent whose first memory is one function of the agent of a
+running state and whose step keeps that function of the state the executed step keeps. The rung of
+the class in visits with that agent meets the premise `MemoryBounded`, whatever the agent reports
+of its steps. -/
+theorem projected_memory_bounded (construction : AgentConstruction)
+    (default : construction.order = .learnThenAct)
+    {origin : construction.State} (running : Running construction origin)
+    (family : Kernel.WorldClass Grid.interface)
+    (shows : ∀ index, ShowsGrid construction.profile.taskMode (family.world index))
+    (length : ℕ) (pay : Percept Grid.interface → ℚ)
+    (met : (index : family.Index) → (family.world index).State → Bool)
+    (counted : List family.Index) (agent : Kernel.Agent Grid.interface)
+    (project : Agent Grid.interface construction.profile construction.config
+      construction.criterion construction.dimension construction.planning → agent.Memory)
+    (begins : agent.initial = project origin.agent)
+    (follows : ∀ memory percept,
+      (agent.act (project memory) percept).2 = project (memory.act percept).1)
+    (updates : agent.Memory → Percept Grid.interface × ℚ → List OneStream.Update)
+    (work : agent.Memory → Percept Grid.interface × ℚ → ℕ)
+    (resume : agent.Memory → agent.Memory) :
+    MemoryBounded (visitsRung family length pay met counted agent updates work resume) := by
+  obtain ⟨agents, listed⟩ := running_agents construction
+  refine ⟨agents.map project, fun index ins time state memory reached => ?_⟩
+  suffices held : ∃ host : construction.State,
+      Running construction host ∧ project host.agent = memory by
+    obtain ⟨host, ran, same⟩ := held
+    exact same ▸ List.mem_map.mpr ⟨host.agent, listed host ran, rfl⟩
+  induction reached with
+  | start => exact ⟨origin, running, begins.symm⟩
+  | next earlier goes ih =>
+    obtain ⟨host, ran, same⟩ := ih
+    rename_i before held
+    obtain ⟨observation, result, shown⟩ := shows index before.1
+    obtain ⟨next, stepped, kept⟩ := step_running construction default ran observation result
+    refine ⟨next, stepped, ?_⟩
+    rw [kept, ← follows, same, ← shown]
+    rfl
 
 /-- **The executed agent holds one of finitely many memories on a class in visits.** For a
 construction of the default order and a class whose worlds show grid percepts of its task mode:
 the rung of the class in visits with the executed agent, from the agent of a running state, meets
-the premise `MemoryBounded`, whatever the agent reports of its steps. -/
+the premise `MemoryBounded`, whatever the agent reports of its steps. Its memory is its whole
+state: this is `projected_memory_bounded` at the identity. -/
 theorem visits_memory_bounded (construction : AgentConstruction)
     (default : construction.order = .learnThenAct)
     {origin : construction.State} (running : Running construction origin)
@@ -163,22 +252,9 @@ theorem visits_memory_bounded (construction : AgentConstruction)
     (work : (executedAgent origin.agent).Memory → Percept Grid.interface × ℚ → ℕ)
     (resume : (executedAgent origin.agent).Memory → (executedAgent origin.agent).Memory) :
     MemoryBounded (visitsRung family length pay met counted (executedAgent origin.agent) updates
-      work resume) := by
-  obtain ⟨agents, listed⟩ := running_agents construction
-  refine ⟨agents, fun index ins time state memory reached => ?_⟩
-  suffices held : ∃ host : construction.State, Running construction host ∧ host.agent = memory by
-    obtain ⟨host, ran, same⟩ := held
-    exact same ▸ listed host ran
-  induction reached with
-  | start => exact ⟨origin, running, rfl⟩
-  | next earlier goes ih =>
-    obtain ⟨host, ran, same⟩ := ih
-    rename_i before held
-    obtain ⟨observation, result, shown⟩ := shows index before.1
-    obtain ⟨next, stepped, agent⟩ := step_running construction default ran observation result
-    refine ⟨next, stepped, ?_⟩
-    rw [agent, same, ← shown]
-    rfl
+      work resume) :=
+  projected_memory_bounded construction default running family shows length pay met counted
+    (executedAgent origin.agent) id rfl (fun _ _ => rfl) updates work resume
 
 /-- **The executed agent holds one of finitely many memories on the concealed targets.** For a
 construction of the default order, every host world, visit length and list of counted members: the
@@ -271,5 +347,15 @@ theorem find_campaign_count (construction : AgentConstruction)
     (feasibleFind_conceals construction.profile.taskMode live length length)
     (feasibleFind_covered config construction.profile.taskMode live length)
     (fun _ => gridWorld_shows config construction.profile.taskMode) slots cycle assignments each
+
+/-- The width of the count for the standard construction: its read limit is 56,980,582 bytes, so
+the states a host runs of it embed in the bit strings of 455,844,664 bits. -/
+theorem standard_width (seed : UInt64) (selection : Host.AgentSelection)
+    (planning : PlanningSelection) (order : StepOrder) :
+    8 * (maximumBytes (AgentConstruction.standard seed selection planning order) + 1) =
+      455844664 := by
+  change 8 * (maximumBytes (AgentConstruction.standard 0 ⟨.ranked, .discounted⟩ .none
+    .learnThenAct) + 1) = 455844664
+  decide
 
 end AcornVerif.CurrentKernelMemory

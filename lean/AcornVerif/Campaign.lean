@@ -30,10 +30,11 @@ by the memory at the cycle's start gives the bound.
 
 This is a lemma the mission theorem on campaigns uses, and not a mission result about learning.
 `campaign_count` holds of the executed agent as of every agent. `campaign_count_bits` gives
-nothing for that agent, whose memory type holds exact naturals and so fits no fixed width. The
-memories it holds in a campaign over worlds of the grid are agents of states a host runs, which
-are finitely many, and `AcornVerif.CurrentKernelMemory.executed_campaign_count` is the count for
-it with their number in place of a set of memories.
+nothing for that agent, whose memory type holds exact naturals and so fits no fixed width
+(argued). For a construction of the default step order, from the agent of a state a host runs,
+the memories it holds in a campaign over worlds that show grid percepts are agents of states a
+host runs, and `AcornVerif.CurrentKernelMemory.executed_campaign_count` is the count for it with
+a bound on the number of those states in place of a set of memories.
 -/
 
 namespace AcornVerif.Kernel
