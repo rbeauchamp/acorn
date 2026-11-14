@@ -500,9 +500,10 @@ def decodeNatural (bytes : List UInt8) : Option (Nat × List UInt8) := decodeNat
 
 /-- A natural of any size. Reading a natural of `n` bytes takes work quadratic in `n`, since
 each digit rebuilds the accumulated value. The image writes the evaluator's exact naturals in
-this format; that those of every reached agent fit their allowance (`naturalAllowance`), which
-bounds their length, is part of obligation 6 of `docs/mission-contract.md`, also part of the
-bounds of work and memory that requirement R8 of issue #90 owes. -/
+this format; those of every state a host runs fit their allowance (`naturalAllowance`), which
+bounds their length (`AcornVerif.CurrentRunningMemory.running_naturals_allowed`). That theorem
+bounds neither the work nor the memory of each part of a step, which requirement R8 of issue #90
+owes. -/
 def natural : Format Nat := ⟨encodeNatural, decodeNatural⟩
 
 /-- Written digits precede the digits of the natural. -/
