@@ -24,9 +24,9 @@ inventory words. A world whose configuration admits no deer and no food (`Unpopu
 neither in any state, by the bound its populations carry. So every percept it delivers has at most
 139 words (`percept_words`), at every state of the grid world, the refused state included. Every
 frame the executed agent lays from such a percept, under every step order, then has at most
-`bareSlots` slots (`unpopulated_fits`), which is 1712 for the standard feature configuration
-(`standard_slots`). So for percepts of such a world the credit horizon holds with no hypothesis on
-frames (`unpopulated_weight_rests`).
+`bareSlots` slots (`unpopulated_frame`, `unpopulated_fits`), which is 1712 for the standard
+feature configuration (`standard_slots`). So for percepts of such a world the credit horizon
+holds with no hypothesis on frames (`unpopulated_weight_rests`).
 
 What this does not say. No theorem here bounds a frame of a world with deer or food below the
 interface's bound: that needs a bound on how many deer and how much food a window can hold along a
@@ -227,19 +227,23 @@ theorem frame_slots (state : Agent interface profile features criterion dimensio
   exact Nat.le_trans (encode_length dimension _ (state.words observation) observation.symbols)
     (Nat.add_le_add_right (Nat.mul_le_mul_left features.tilings.toNat read) _)
 
+/-- The frame a step lays, under every step order, is the encoding of its percept's frame on the
+once-advanced clock. -/
+theorem choose_frame (state : Agent interface profile features criterion dimension planning)
+    (order : StepOrder) (percept : Percept interface) :
+    (state.choose order percept).features = (state.advanceClock.frame percept.frame).active := by
+  cases order with
+  | actThenLearn => exact (state.choose_drawn percept).2.2.2.1
+  | learnThenAct => exact (state.choose_selected .learnThenAct (by decide) percept).2.2.2.1
+  | planAfterAct => exact (state.choose_selected .planAfterAct (by decide) percept).2.2.2.1
+
 /-- The frame a step lays, under every step order, is bounded by the words of its percept. -/
 theorem choose_slots (state : Agent interface profile features criterion dimension planning)
     (order : StepOrder) (percept : Percept interface) :
     (state.choose order percept).features.indices.length ≤
       features.tilings.toNat * (percept.frame.words.length + interface.layout.length) +
         features.units.count := by
-  have same : (state.choose order percept).features =
-      (state.advanceClock.frame percept.frame).active := by
-    cases order with
-    | actThenLearn => exact (state.choose_drawn percept).2.2.2.1
-    | learnThenAct => exact (state.choose_selected .learnThenAct (by decide) percept).2.2.2.1
-    | planAfterAct => exact (state.choose_selected .planAfterAct (by decide) percept).2.2.2.1
-  rw [same]
+  rw [choose_frame]
   exact frame_slots state.advanceClock percept.frame
 
 /-- Over percepts of at most `words` words, every step of the executed agent lays a frame of at
@@ -280,6 +284,18 @@ section Horizon
 
 variable {profile : FeatureProfile} {features : Features.Config} {criterion : Criterion}
   {dimension : Dimension} {planning : PlanningSelection}
+
+/-- A step of the executed agent on a percept of a world with no deer and no food lays a frame of
+at most `bareSlots` slots, from every agent state, at every state of the world and under every
+step order. -/
+theorem unpopulated_frame (bare : Unpopulated config) (mode : TaskFeatureMode) (order : StepOrder)
+    (state : Agent Grid.interface profile features criterion dimension planning)
+    (inner : Option (Live config)) :
+    (state.choose order ((gridWorld config mode).percept inner)).features.indices.length ≤
+      bareSlots features :=
+  Nat.le_trans (choose_slots state order _)
+    (Nat.add_le_add_right (Nat.mul_le_mul_left _
+      (Nat.add_le_add_right (percept_words bare mode inner) _)) _)
 
 /-- Over percepts a world with no deer and no food delivers, every step of the executed agent
 lays a frame of at most `bareSlots` slots, from every state and under every step order. -/
