@@ -51,10 +51,11 @@ frame the decision reads, and how long before.
   held no trace when the run began, the row laid no slot of the frame on those steps
   (`unlaid_window`), and its total on the frame is a zero word (`unlaid_total`).
 - Take a step at most nine steps before the reward, on a frame of at most 1900 slots. On every
-  frame that shares a slot with that one, the row of its action has a total of at least the least
-  laid trace decayed eight times (`shared_total`). That word exceeds the tie window by a positive
-  word (`AcornVerif.CurrentCreditHorizon.low_clears_tie`). So right after the reward step the
-  value of that action at such a frame is above the tie window (`shared_value`).
+  frame of at most 1999 slots that shares a slot with that one, the row of its action has a total
+  of at least the least laid trace decayed eight times (`shared_total`). That word exceeds the
+  tie window by a positive word (`AcornVerif.CurrentCreditHorizon.low_clears_tie`). So right
+  after the reward step the value of that action at such a frame is above the tie window
+  (`shared_value`).
 - So at a frame that shares such a slot, an action that the last `creditReach` steps before the
   reward took on no frame holding a slot of this one is no candidate (`unlaid_excluded`, through
   `AcornVerif.CurrentCreditHorizon.zero_excluded`). And at such a frame, where every one of those
@@ -62,11 +63,12 @@ frame the decision reads, and how long before.
   and the greedy draw returns it whatever the generator (`sole_candidate`, through
   `AcornVerif.CurrentCreditHorizon.lone_candidate`).
 
-So the first greedy choice after a first reward follows what the agent did on the frames that
-share slots with the present one: an action it took on none of them is excluded, and where it
-took one action on all of them, that action is chosen. Where it took several, the choice is the
-comparison of their rows' totals. In a world all of whose frames share a slot, every action taken
-on the last `creditReach` steps before the reward can hold a total on every frame.
+So at a frame that shares a slot with a frame laid at most nine steps before the reward, the
+first greedy choice after the reward follows what the agent did on the frames that share slots
+with it: an action it took on none of them is excluded, and where it took one action on all of
+them, that action is chosen. Where it took several, the choice is the comparison of their rows'
+totals. In a world all of whose frames share a slot, every action taken on the last
+`creditReach` steps before the reward can hold a total on every frame.
 
 Two frames whose percepts carry a common word share a slot
 (`AcornVerif.CurrentFrameSlots.shared_slot`).
@@ -76,9 +78,9 @@ What this does not say.
 - Which action is the candidate when the steps before the reward took several. That is the
   comparison of their rows' trace totals on the frame, and a total depends on how many slots the
   frame shares with each earlier frame. No theorem here evaluates a total.
-- Anything of a later decision. After the first reward the weights are not all zero words, so
-  the error of a later step need not be a zero word, and a step whose error is not one moves
-  every weight whose slot holds a trace.
+- Anything of a later decision. After the first reward the weights need not all be zero words,
+  so the error of a later step need not be a zero word, and a step whose error is not a zero word
+  can move every weight whose slot holds a trace.
 - That the action leads back to where the reward was earned. The totals are those of the run
   before the reward, and are what they would be had the reward not come.
 - A run past the first maturing unit, when a replaced unit's slot is retired; the differential

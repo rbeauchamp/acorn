@@ -33,11 +33,12 @@ the slot's trace (`reward_weight_reads`), so it reads at least any word the trac
 at least. Over reward-free steps that word is `lowChain`'s, a lower bound on the trace a step lays
 on a frame of at most 1900 slots, decayed once for each step since (`recent_laid`, `fold_recent`),
 and decayed at most eight times it is above the tie window of the greedy choice
-(`lowChain_above_tie`), and exceeds it by a positive word (`low_clears_tie`). In a policy of
-small values, a value that is a zero word is then no near-maximum candidate once another value
-reads at least such a word (`zero_excluded`), and that other value is the one candidate when
-every other value is a zero word (`lone_candidate`). The values 119 and 132 are upper limits; the
-theorems do not say that a trace reaches them.
+(`lowChain_above_tie`); decayed eight times, it exceeds the window by a positive word
+(`low_clears_tie`). In a policy of small values, a value that is a zero word is no near-maximum
+candidate once another value reads at least a word that exceeds the window so
+(`zero_excluded`), and that other value is the one candidate when every other value is a zero
+word (`lone_candidate`). The values 119 and 132 are upper limits; the theorems do not say that a
+trace reaches them.
 
 **Words.** Every statement is about the executed binary32 words. The primitive learner's stored
 step size is `stepWord` (`0x3851b71c`), the portable exponential of its stored log step size

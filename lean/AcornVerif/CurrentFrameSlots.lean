@@ -19,8 +19,8 @@ word therefore share a slot, under a configuration with a tiling, whatever the t
 (`shared_slot`).
 
 Every percept of the grid world carries its energy word, at every state, the refused state
-included (`percept_holds_word`). So every frame the executed agent lays from a grid percept holds
-at least one slot (`grid_frame_slot`).
+included (`percept_holds_word`). So, under a configuration with a tiling, every frame the
+executed agent lays from a grid percept holds at least one slot (`grid_frame_slot`).
 
 What this does not say. Which word two percepts of a run have in common: that is a fact of the
 world's states. And two words can hash to one slot, as any two hashed words can, so a frame can
