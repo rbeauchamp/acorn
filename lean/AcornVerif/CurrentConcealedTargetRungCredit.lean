@@ -3,84 +3,78 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import AcornVerif.CurrentConcealedTargetRung
+import AcornVerif.CurrentConcealedTargetRungFinds
 import AcornVerif.CurrentFirstCredit
 
 /-!
-# On the first rung, a first reward's credit reaches the start of its visit
+# On the first rung, a first reward's credit is written at the start of its visit
 
 Question 2 of rbeauchamp/acorn#232 asks whether, after a first success in a member, credit
-reaches the start of the visit. Its test is the corrected one of rbeauchamp/acorn#140: credit has
-not reached the start when the start frame's own credit is at most the tie window of the greedy
-choice (`Acorn.Features.tieWindow`).
+reaches the start of the next visit. Its test is the corrected one of rbeauchamp/acorn#140, which
+reads the credit where the reward writes it and nothing of the next visit: credit has not reached
+the start when the own credit of the successful visit's start frame is at most the tie window of
+the greedy choice (`Acorn.Features.tieWindow`). The own credit is what that visit's first
+decision laid on the frame's slots, as the reward finds it, summed over the slots.
 
-`rung_credit` answers it for the rung's agent. In the visits of a member, let the agent meet the
-member's target for the first time at a step of a visit, within its first 1000 decisions. Then
-after the agent's step on the percept that carries that reward, every slot of the frame laid at
-the visit's first decision holds, in the row of the action taken there, a weight of at least the
-least laid trace decayed once for each later step before the reward, and that word is above the
-tie window. So by that test credit reaches the start, on every slot the start frame holds.
+`rung_credit` bounds each slot's weight for the rung's agent. In the visits of a member, let the
+agent meet the member's target for the first time at a step of a visit, within its first 1000
+decisions. Then right after the agent's step on the percept that carries that reward, every slot
+of the frame laid at the visit's first decision holds, in the row of the action taken there, a
+weight of at least `AcornVerif.CurrentCreditHorizon.lowChain`'s word decayed once for each later
+step before the reward, and that word is above the tie window. The word bounds what the first
+decision's own laying puts on a slot, so each slot's share of the own credit passes the test by
+itself, and the frame's own credit passes it when the frame holds a slot (argued: the bound on
+the laid increment is a step of `AcornVerif.CurrentCreditHorizon.laid_lower`'s proof; no theorem
+here sums the executed words or says that a frame holds a slot).
+
 `rung_first_credit` states it of every member the agent solves on one of its first 125 visits,
-which include the visits on which it solves the 102 members that
-`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds` lists.
+at the member's first such visit and the first step of it that meets the target.
+`rung_found_credit` states it of the 102 members that
+`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds` lists, each first solved within the first
+72 visits.
 
 The proof reads the member's reward words and applies
 `AcornVerif.CurrentFirstCredit.loop_first_credit`. At the start of each visit the reward word is
 the one the host world carries, the zero word in the rung's world (`start_reward`); after each
 step it is the word one when the step met the target and the zero word when it did not
-(`reward_word_step`, `step_reward`). So the first reward of one arrives with the first step that
-meets the target, at most seven decisions after the visit's first. Every frame of the run is
-within the rung's bound (`AcornVerif.CurrentConcealedTargetRung.rung_frames`), and 1000 decisions
-are within the declared tester's maturity threshold, so no slot is retired before the reward.
+(`AcornVerif.CurrentConcealedTargetMission.reward_word_step`, `step_reward`). So the first reward
+of one arrives with the percept after the first step that meets the target, at most seven
+decisions after the visit's first. Every frame of the run is within the rung's bound
+(`AcornVerif.CurrentConcealedTargetRung.rung_frames`), and 1000 decisions are within the declared
+tester's maturity threshold, so no slot is retired before the reward.
 
 What this does not say.
 
-- That the weight is still there at the start of the next visit: the steps that remain in the
-  visit, and every later step, learn from it and can lower it.
+- That the weight is still there at the start of the next visit, except for a first success on
+  the visit's seventh step: the memory the statement is of is then the one the next visit starts
+  from. After an earlier step, the steps that remain in the visit form their errors from the
+  weights this reward wrote and can lower it (argued). No question of rbeauchamp/acorn#232 asks
+  this.
 - That the greedy choice at the next visit's start is the action of this visit's first decision.
-  Other rows hold credit on the slots their own frames share with the start frame, and the next
-  start frame differs from this one where the agent's own predictions are fed back. Questions 3
-  and 4 of rbeauchamp/acorn#232 ask these.
-- That the start frame holds a slot. The statement is of each slot it holds.
+  The rows of later actions can hold more credit on the slots their frames share with the start
+  frame, and the next start frame can differ from this one where the agent's own predictions are
+  fed back (argued). Questions 3 and 4 of rbeauchamp/acorn#232 ask what the greedy choice then
+  does.
 - Anything of a first success after the first 1000 decisions, when a unit can be replaced and its
   slot retired, or of another profile, criterion or step order.
-- The weight's value. The word is a lower bound for a frame of at most 1900 slots, the least a
-  laying step can write there.
+- The weight's value. The word is a lower bound, computed for frames of at most 1900 slots; no
+  theorem says that a laying step writes as little.
+
+Trust. The statements are about executed binary32 words. Lean's kernel, its model of binary32
+arithmetic and the agreement of the native operations with that model on finite operands remain
+trusted, as for every proof of executed words in this library.
 -/
 
 namespace AcornVerif.CurrentConcealedTargetRungCredit
 open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
 open AcornVerif.CurrentConcealedTargetMission AcornVerif.CurrentConcealedTargetRung
-open AcornVerif.CurrentCreditHorizon AcornVerif.CurrentFirstCredit AcornVerif.CurrentFrameSize
+open AcornVerif.CurrentConcealedTargetRungFinds AcornVerif.CurrentCreditHorizon
+open AcornVerif.CurrentFirstCredit AcornVerif.CurrentFrameSize
 
 variable {config : Host.WorldConfig}
 
 /-! ## The reward word in a member's visits -/
-
-/-- **The grid world's reward word.** After every step of the grid world the reward word is the
-word one when the step satisfies the installed goal and the zero word when it does not, the
-refused state included. -/
-theorem reward_word_step (mode : TaskFeatureMode) (state : Option (Live config))
-    (action : Kernel.Act Grid.interface) :
-    ((gridWorld config mode).percept ((gridWorld config mode).step state action)).reward =
-      if goalMet ((gridWorld config mode).step state action) then Binary32.one
-      else Binary32.zero := by
-  cases state with
-  | none => rfl
-  | some live =>
-    change ((gridWorld config mode).percept (advance live action)).reward =
-      if goalMet (advance live action) then Binary32.one else Binary32.zero
-    cases stepped : advance live action with
-    | none => rfl
-    | some next =>
-      obtain ⟨events, moved, carried⟩ := advance_some live next action stepped
-      have done := Host.World.step_completion _ _ _ _ moved
-      change next.carried.reward = if next.world.goalSatisfied then Binary32.one else Binary32.zero
-      rw [carried, ← done]
-      change events.reward = _
-      unfold Host.StepResult.reward
-      cases events.done <;> rfl
 
 /-- At the start of each visit of a member, the reward word is the one the host world carries. -/
 theorem start_reward (mode : TaskFeatureMode) (live : Live config) (target : Host.Position)
@@ -105,18 +99,8 @@ theorem step_reward (mode : TaskFeatureMode) (live : Live config) (target : Host
           (count * (length + 1) + step)).1 then Binary32.one
       else Binary32.zero := by
   obtain ⟨before, rfl⟩ : ∃ before, step = before + 1 := ⟨step - 1, by omega⟩
-  have inner : (Kernel.stateAt (Kernel.visits (gridWorld config mode) (member live target)
-      length) agent (Kernel.visitStart (gridWorld config mode) (member live target) length)
-      (count * (length + 1) + (before + 1))).1 =
-        Kernel.stateAt (gridWorld config mode)
-          (agent.resume (Kernel.memoryAt (Kernel.visits (gridWorld config mode)
-            (member live target) length) agent
-            (Kernel.visitStart (gridWorld config mode) (member live target) length)
-            (count * (length + 1)))) (member live target) (before + 1) := by
-    rw [Kernel.stateAt_add, Kernel.visits_period]
-    exact congrArg Prod.fst (congrArg Prod.fst
-      (Kernel.visits_loop (gridWorld config mode) (member live target) length _ (before + 1)
-        high))
+  have inner := Kernel.visits_state (gridWorld config mode) (member live target) length agent
+    count (before + 1) high
   change ((gridWorld config mode).percept (Kernel.stateAt (Kernel.visits (gridWorld config mode)
     (member live target) length) agent
     (Kernel.visitStart (gridWorld config mode) (member live target) length)
@@ -126,18 +110,14 @@ theorem step_reward (mode : TaskFeatureMode) (live : Live config) (target : Host
 
 /-! ## The first reward of a member reaches its visit's start -/
 
-/-- The rung's agent as a kernel agent: the executed decision function from the cold state of the
-rung's construction. -/
-abbrev rungAgent (planning : PlanningSelection) : Kernel.Agent Grid.interface :=
-  executedAgent (rungConstruction planning).initial.agent
-
-/-- **Credit reaches the start.** In the visits of a member of the rung's class, let the rung's
-agent meet the member's target for the first time at step `step` of visit `visit`, within its
-first 1000 decisions. Then after the agent's step on the percept that carries that reward, every
-slot of the frame it laid at the visit's first decision holds, in the row of the action it took
-there, a weight that reads at least the least laid trace decayed once for each later step of the
-visit before the reward (`AcornVerif.CurrentCreditHorizon.lowChain`), and that word is above the
-tie window of the greedy choice. -/
+/-- **Credit is written at the start.** In the visits of a member of the rung's class, let the
+rung's agent meet the member's target for the first time at step `step` of visit `visit`, within
+its first 1000 decisions. Then right after the agent's step on the percept that carries that
+reward, every slot of the frame it laid at the visit's first decision holds, in the row of the
+action it took there, a weight that reads at least a word that bounds from below the trace a step
+lays, decayed once for each later step of the visit before the reward
+(`AcornVerif.CurrentCreditHorizon.lowChain`); and that word is above the tie window of the greedy
+choice. -/
 theorem rung_credit (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index)
@@ -152,16 +132,17 @@ theorem rung_credit (planning : PlanningSelection)
       (Kernel.stateAt world (rungAgent planning) origin (visit * 8 + sooner)).1) →
     (completion witnessConfig mode 7).satisfied
       (Kernel.stateAt world (rungAgent planning) origin (visit * 8 + step)).1 →
-    ∀ slot ∈ ((Kernel.memoryAt world (rungAgent planning) origin (visit * 8)).choose .learnThenAct
-        (Kernel.perceptAt world (rungAgent planning) origin (visit * 8))).features.indices,
-      numerical32 tieWindow < numerical32 (lowChain .discounted (step - 1)) ∧
+    numerical32 tieWindow < numerical32 (lowChain .discounted (step - 1)) ∧
+      ∀ slot ∈ ((Kernel.memoryAt world (rungAgent planning) origin (visit * 8)).choose
+          .learnThenAct (Kernel.perceptAt world (rungAgent planning) origin
+            (visit * 8))).features.indices,
         numerical32 (lowChain .discounted (step - 1)) ≤
           numerical32 (((controlOf (Kernel.memoryAt world (rungAgent planning) origin
             (visit * 8 + step + 1))).learners.get
             ((Kernel.memoryAt world (rungAgent planning) origin (visit * 8)).choose .learnThenAct
               (Kernel.perceptAt world (rungAgent planning) origin
                 (visit * 8))).decision.action).state.weights.get slot).value := by
-  intro mode world origin unsolved unmet met slot held
+  intro mode world origin unsolved unmet met
   obtain ⟨gap, rfl⟩ : ∃ gap, step = gap + 1 := ⟨step - 1, by omega⟩
   have quietBefore : ∀ time, time < visit * 8 + (gap + 1) →
       (Kernel.perceptAt world (rungAgent planning) origin time).reward = Binary32.zero := by
@@ -211,16 +192,16 @@ theorem rung_credit (planning : PlanningSelection)
       (by decide))
     (fun laid member => Nat.le_trans
       (rung_frames planning mode .learnThenAct _ (delivered _) _ laid member) (by decide))
-    slot held
   have time : visit * 8 + 1 + gap + 1 = visit * 8 + (gap + 1) + 1 := by omega
   rw [time] at credited
   exact ⟨lowChain_above_tie .discounted gap (by omega), credited⟩
 
-/-- **At a member's first success, credit reaches the start of that visit.** Every member of the
-rung's class that the rung's agent solves on one of its first 125 visits has a first visit and a
-first step of it at which its target is met; and after the agent's step on the percept that
-carries that reward, every slot of the frame laid at that visit's first decision holds, in the row
-of the action taken there, a weight above the tie window of the greedy choice. -/
+/-- **At a member's first success, credit is written at the start of that visit.** Every member
+of the rung's class that the rung's agent solves on one of its first 125 visits has a first visit
+on which its target is met and a first step of that visit at which it is met; and right after the
+agent's step on the percept that carries that reward, every slot of the frame laid at that
+visit's first decision holds, in the row of the action taken there, a weight above the tie window
+of the greedy choice. -/
 theorem rung_first_credit (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index)
@@ -236,6 +217,8 @@ theorem rung_first_credit (planning : PlanningSelection)
       (∀ earlier, earlier < visit →
         ¬ Kernel.SolvesOnVisit (feasibleFind witnessConfig mode witnessLive 7)
           (fun _ => completion witnessConfig mode 7) 7 (rungAgent planning) earlier index) ∧
+      (∀ sooner, 1 ≤ sooner → sooner < step → ¬ (completion witnessConfig mode 7).satisfied
+        (Kernel.stateAt world (rungAgent planning) origin (visit * 8 + sooner)).1) ∧
       (completion witnessConfig mode 7).satisfied
         (Kernel.stateAt world (rungAgent planning) origin (visit * 8 + step)).1 ∧
       ∀ slot ∈ ((Kernel.memoryAt world (rungAgent planning) origin (visit * 8)).choose
@@ -263,7 +246,76 @@ theorem rung_first_credit (planning : PlanningSelection)
     (fun sooner lowSooner early satisfied =>
       Nat.find_min stepped early ⟨lowSooner, by omega, satisfied⟩) met
   exact ⟨Nat.find ever, Nat.find stepped, by omega, low, high,
-    fun earlier sooner => Nat.find_min ever sooner, met,
-    fun slot held => lt_of_lt_of_le (credit slot held).1 (credit slot held).2⟩
+    fun earlier sooner => Nat.find_min ever sooner,
+    fun sooner lowSooner early satisfied =>
+      Nat.find_min stepped early ⟨lowSooner, by omega, satisfied⟩, met,
+    fun slot held => lt_of_lt_of_le credit.1 (credit.2 slot held)⟩
+
+/-- **Each member the rung's agent is proved to find has its first reward's credit written at the
+start of that visit.** There are 102 distinct members of the rung's class, those of
+`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`, each of which the agent first solves on
+one of its first 72 visits, and for each of which the conclusion of `rung_first_credit` holds at
+that first success. -/
+theorem rung_found_credit (planning : PlanningSelection) :
+    ∃ counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
+        witnessLive 7).Index,
+      counted.Nodup ∧ counted.length = 102 ∧ ∀ index ∈ counted,
+        ∃ visit step, visit < 72 ∧ 1 ≤ step ∧ step ≤ 7 ∧
+          (∀ earlier, earlier < visit →
+            ¬ Kernel.SolvesOnVisit
+              (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
+                witnessLive 7)
+              (fun _ => completion witnessConfig (rungConstruction planning).profile.taskMode 7)
+              7 (rungAgent planning) earlier index) ∧
+          (∀ sooner, 1 ≤ sooner → sooner < step →
+            ¬ (completion witnessConfig (rungConstruction planning).profile.taskMode 7).satisfied
+              (Kernel.stateAt (Kernel.visits
+                (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                (member witnessLive index.1.1) 7) (rungAgent planning)
+                (Kernel.visitStart
+                  (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                  (member witnessLive index.1.1) 7) (visit * 8 + sooner)).1) ∧
+          (completion witnessConfig (rungConstruction planning).profile.taskMode 7).satisfied
+            (Kernel.stateAt (Kernel.visits
+              (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+              (member witnessLive index.1.1) 7) (rungAgent planning)
+              (Kernel.visitStart
+                (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                (member witnessLive index.1.1) 7) (visit * 8 + step)).1 ∧
+          ∀ slot ∈ ((Kernel.memoryAt (Kernel.visits
+              (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+              (member witnessLive index.1.1) 7) (rungAgent planning)
+              (Kernel.visitStart
+                (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                (member witnessLive index.1.1) 7) (visit * 8)).choose .learnThenAct
+              (Kernel.perceptAt (Kernel.visits
+                (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                (member witnessLive index.1.1) 7) (rungAgent planning)
+                (Kernel.visitStart
+                  (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                  (member witnessLive index.1.1) 7) (visit * 8))).features.indices,
+            numerical32 tieWindow <
+              numerical32 (((controlOf (Kernel.memoryAt (Kernel.visits
+                (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                (member witnessLive index.1.1) 7) (rungAgent planning)
+                (Kernel.visitStart
+                  (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                  (member witnessLive index.1.1) 7) (visit * 8 + step + 1))).learners.get
+                ((Kernel.memoryAt (Kernel.visits
+                  (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                  (member witnessLive index.1.1) 7) (rungAgent planning)
+                  (Kernel.visitStart
+                    (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                    (member witnessLive index.1.1) 7) (visit * 8)).choose .learnThenAct
+                  (Kernel.perceptAt (Kernel.visits
+                    (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                    (member witnessLive index.1.1) 7) (rungAgent planning)
+                    (Kernel.visitStart
+                      (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+                      (member witnessLive index.1.1) 7)
+                    (visit * 8))).decision.action).state.weights.get slot).value := by
+  obtain ⟨counted, distinct, size, solved, -⟩ := rung_finds planning
+  exact ⟨counted, distinct, size, fun index member =>
+    rung_first_credit planning index 72 (by decide) (solved index member)⟩
 
 end AcornVerif.CurrentConcealedTargetRungCredit

@@ -19,7 +19,7 @@ between (`first_reward_credits`; `loop_first_credit` is the same statement of a 
 An agent's step is one controller step followed by the tester's retirements
 (`AcornVerif.CurrentCreditHorizon.learning_step`), and a retirement clears a slot's weight and
 trace. So the statement is of the agent's run before a unit of its feature bank matures, when the
-tester retires nothing.
+tester retires nothing. The names here call such an agent, step or run young.
 
 - **The tester before a unit matures.** A unit is eligible for replacement once its age exceeds
   the tester's maturity threshold (`Acorn.Features.Lifecycle.mature`). While the clock is at most
@@ -28,8 +28,8 @@ tester retires nothing.
   (`young_retire`). The declared tester's threshold is 1000 steps
   (`Acorn.Handcrafted.declaredTester`).
 - **The clock.** Under the default order, a step of a profile with no hierarchy advances the
-  agent's clock once, before its tester runs (`step_clock`): its selection, its learning part and
-  its tester keep the representation that holds the clock.
+  agent's clock once, before its tester runs (`step_clock`): its selection and its learning part
+  keep the representation that holds the clock, and its tester keeps the clock (`retire_clock`).
 - **One step.** So before a unit matures, one agent step is exactly one controller step at the
   encoded frame, the executed action and the centred reward (`young_step`). Under the discounted
   criterion the centred reward is the percept's reward word.
@@ -50,6 +50,10 @@ Not covered. A run past the first maturing unit: a replaced unit's slot is retir
 a frame that coincides with it loses its credit. The differential criterion, whose centred reward
 is a difference. What later steps do to the weight: the statement is of the state right after
 the reward step. And the bound is a lower one: nothing here bounds the weight from above.
+
+Trust. The statements are about executed binary32 words. Lean's kernel, its model of binary32
+arithmetic and the agreement of the native operations with that model on finite operands remain
+trusted, as for every proof of executed words in this library.
 -/
 
 namespace AcornVerif.CurrentFirstCredit
@@ -472,14 +476,11 @@ theorem first_reward_credits (primitive : profile.usesHierarchy = false)
   have centred : Criterion.center .discounted paying.reward 1
       (finishInput (waited.1.choose .learnThenAct paying)).average.rate = Binary32.one := pays
   rw [centred] at steppedPaid
-  have prunePositive : 0 ≤ numerical32 pruneWord := by
-    rw [← zero_value]
-    exact num_le (by decide) (by decide) (by decide)
   change numerical32 _ ≤ numerical32 (((controlOf
     (waited.1.choose .learnThenAct paying).learn).learners.get _).state.weights.get slot).value
   rw [steppedPaid]
   exact recent_credited ctrlWaited _ _ _ slot _ recentWaited
-    (lt_of_le_of_lt prunePositive (lowChain_above .discounted after.length near))
+    (lowChain_positive .discounted after.length near)
 
 end Run
 
@@ -527,11 +528,12 @@ theorem traced_loop (agent : Agent interface profile config criterion dimension 
 
 /-- **The first reward's credit in a kernel run.** For a profile with no hierarchy under per-step
 credit and the discounted criterion, from cold initialization, in every world of the agent's
-interface and from every start: if every reward word up to a time `laid + gap` is the zero word
-and the next one is the word one, all before a unit of the feature bank matures and over frames
-within the sizes above, then after the step that learns that reward, every slot of the frame laid
-at the time `laid` holds, in the row of the action taken on it, a weight that reads at least the
-least laid trace decayed `gap` times. It is `first_reward_credits` on the percepts of the run. -/
+interface and from every start: if, for a `gap` of at most 80, every reward word up to the time
+`laid + gap` is the zero word and the next one is the word one, all before a unit of the feature
+bank matures and over frames within the sizes above, then right after the step that learns that
+reward, every slot of the frame laid at the time `laid` holds, in the row of the action taken on
+it, a weight that reads at least the least laid trace decayed `gap` times. It is
+`first_reward_credits` on the percepts of the run. -/
 theorem loop_first_credit (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (planning : PlanningSelection)
     (world : Kernel.World interface) (start : world.State) (laid gap : ℕ) (near : gap ≤ 80)

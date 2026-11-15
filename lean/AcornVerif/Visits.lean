@@ -186,6 +186,17 @@ theorem visits_counter (world : World interface) (start : world.State) (length :
   exact congrArg (fun state : (visits world start length).State => state.2.val)
     (congrArg Prod.fst (visits_loop world start length _ step within))
 
+/-- Within a visit, the world's state is the state that the agent resumed from its memory at the
+visit's start reaches in the world itself, after the visit's own count of steps. -/
+theorem visits_state (world : World interface) (start : world.State) (length : ℕ)
+    (agent : Agent interface) (count step : ℕ) (within : step ≤ length) :
+    (stateAt (visits world start length) agent (visitStart world start length)
+        (count * (length + 1) + step)).1 =
+      stateAt world (agent.resume (memoryAt (visits world start length) agent
+        (visitStart world start length) (count * (length + 1)))) start step := by
+  rw [stateAt_add, visits_period]
+  exact congrArg Prod.fst (congrArg Prod.fst (visits_loop world start length _ step within))
+
 /-! ## Solving on a visit -/
 
 /-- The goal of each member with its step cap replaced by a visit's length. -/
@@ -213,19 +224,7 @@ theorem solvesOnVisit_iff (family : WorldClass interface) (goals : family.Goals)
           (visitStart (family.world index) (family.start index) length)
           (count * (length + 1))))
         index := by
-  have inner : ∀ step, step ≤ length →
-      (stateAt (visits (family.world index) (family.start index) length) agent
-        (visitStart (family.world index) (family.start index) length)
-        (count * (length + 1) + step)).1 =
-      stateAt (family.world index)
-        (agent.resume (memoryAt (visits (family.world index) (family.start index) length) agent
-          (visitStart (family.world index) (family.start index) length)
-          (count * (length + 1))))
-        (family.start index) step := by
-    intro step within
-    rw [stateAt_add, visits_period]
-    exact congrArg Prod.fst (congrArg Prod.fst
-      (visits_loop (family.world index) (family.start index) length _ step within))
+  have inner := visits_state (family.world index) (family.start index) length agent count
   constructor
   · rintro ⟨step, low, high, met⟩
     refine ⟨step, low, high, ?_⟩

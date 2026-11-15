@@ -142,6 +142,30 @@ theorem goalMet_iff (mode : TaskFeatureMode) (cap : ℕ) (state : Option (Live c
   | some live =>
     exact ⟨fun met => ⟨live, rfl, met⟩, fun ⟨found, same, met⟩ => by cases same; exact met⟩
 
+/-- **The grid world's reward word.** After every step of the grid world the reward word is the
+word one when the step satisfies the installed goal and the zero word when it does not: a step
+the host refuses, and every step from the refused state, pays nothing. -/
+theorem reward_word_step (mode : TaskFeatureMode) (state : Option (Live config))
+    (action : Kernel.Act Grid.interface) :
+    ((gridWorld config mode).percept ((gridWorld config mode).step state action)).reward =
+      if goalMet ((gridWorld config mode).step state action) then Binary32.one
+      else Binary32.zero := by
+  cases state with
+  | none => rfl
+  | some live =>
+    change ((gridWorld config mode).percept (advance live action)).reward =
+      if goalMet (advance live action) then Binary32.one else Binary32.zero
+    cases stepped : advance live action with
+    | none => rfl
+    | some next =>
+      obtain ⟨events, moved, carried⟩ := advance_some live next action stepped
+      have done := Host.World.step_completion _ _ _ _ moved
+      change next.carried.reward = if next.world.goalSatisfied then Binary32.one else Binary32.zero
+      rw [carried, ← done]
+      change events.reward = _
+      unfold Host.StepResult.reward
+      cases events.done <;> rfl
+
 /-- **The grid world's whole reward function.** After every step of the grid world, the reward is
 one when the step satisfies the installed goal and zero when it does not: a step the host refuses,
 and every step from the refused state, pays nothing. -/
@@ -149,32 +173,16 @@ theorem reward_step (mode : TaskFeatureMode) (state : Option (Live config))
     (action : Kernel.Act Grid.interface) :
     reward ((gridWorld config mode).percept ((gridWorld config mode).step state action)) =
       if goalMet ((gridWorld config mode).step state action) then 1 else 0 := by
-  have zero : numerical32 (Binary32.mk 0) = 0 := by decide
-  have one : numerical32 (Binary32.mk 0x3f800000) = 1 := by
+  have zero : numerical32 Binary32.zero = 0 := by decide
+  have one : numerical32 Binary32.one = 1 := by
     change (1 : ℚ) * 8388608 * (2 : ℚ) ^ (-23 : Int) = 1
     norm_num
-  have refused : reward ((gridWorld config mode).percept none) =
-      if goalMet (none : Option (Live config)) then 1 else 0 := zero
-  cases state with
-  | none => exact refused
-  | some live =>
-    change reward ((gridWorld config mode).percept (advance live action)) =
-      if goalMet (advance live action) then 1 else 0
-    cases stepped : live.world.step (Host.Action.fromIndex action.val) with
-    | error refusal =>
-      have gone : advance live action = none := by simp only [advance, stepped]
-      rw [gone]
-      exact refused
-    | ok pair =>
-      obtain ⟨world, events⟩ := pair
-      rw [advance_ok live action world events stepped]
-      have done := Host.World.step_completion _ _ _ _ stepped
-      change numerical32 events.reward = if world.goalSatisfied then 1 else 0
-      rw [← done]
-      unfold Host.StepResult.reward
-      cases events.done
-      · exact zero
-      · exact one
+  change numerical32 ((gridWorld config mode).percept
+    ((gridWorld config mode).step state action)).reward = _
+  rw [reward_word_step]
+  cases goalMet ((gridWorld config mode).step state action)
+  · exact zero
+  · exact one
 
 /-- **The class's reward pays at its goals.** Over a host world that carries a reward of zero, the
 feasible concealed targets have a reward that is one after each step that satisfies the member's

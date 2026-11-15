@@ -62,11 +62,12 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
   the reward moves (`AcornVerif.CurrentCreditHorizon.recent_weight_moves`); `rung_reach` is that
   statement for frames of the rung's size and a slot laid at most seven steps before.
   `AcornVerif.CurrentConcealedTargetRungCredit.rung_credit` is the statement about the agent's run
-  in a member. A member's first reward arrives with the first step that meets its target, at most
-  seven decisions after its visit's first; and after the agent learns it, every slot of the frame
-  laid at the visit's first decision holds, in the row of the action taken there, a weight above
-  the tie window, for a first success within the agent's first 1000 decisions. It says that the
-  credit is written, not that the greedy choice changes.
+  in a member. A member's first reward arrives with the percept after the first step that meets
+  its target, at most seven decisions after its visit's first; and right after the agent's step
+  on that percept, every slot of the frame laid at the visit's first decision holds, in the row
+  of the action taken there, a weight above the tie window, for a first success within the
+  agent's first 1000 decisions. It says that the credit is written, not that it stays or that
+  the greedy choice changes.
 
 ## The premises on memory and on finding
 
@@ -95,7 +96,7 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 
 - No premise of `rung_mission` about the agent but the ones on memory and on finding, for the
   executed agent itself. Whether the executed agent retains in this class is the rest of
-  rbeauchamp/acorn#232: what it does after a first reward is not characterized.
+  rbeauchamp/acorn#232: its actions after a first reward are not characterized.
   `ExecutedRetains` is argued to fail of the agent as built
   (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
   retention is asked.
@@ -249,6 +250,11 @@ generator seeded from the seed of the rung's world, which is the seed of the age
 configuration. -/
 def rungExplorer : Explorer Grid.interface.actions :=
   Explorer.cold Grid.interface.actions witnessConfig.raw.seed
+
+/-- The rung's agent as a kernel agent: the executed decision function from the cold state of the
+rung's construction. -/
+abbrev rungAgent (planning : PlanningSelection) : Kernel.Agent Grid.interface :=
+  executedAgent (rungConstruction planning).initial.agent
 
 /-- **Finding on the first rung is a property of one action sequence.** The rung's agent finds
 exactly when there are more than 98 counted members each of whose targets the actions of

@@ -29,9 +29,11 @@ near-maximum candidates are those of the frame's slots that some window step lai
 `recent_weight_moves` shows that the limit is not met trivially: on a controller's cold run over
 frames of at most 1900 slots, a slot laid at most 81 steps before a first reward of one has a weight
 that the reward moves. `recent_credited` gives an amount: the weight word the reward writes reads
-the slot's trace (`reward_weight_reads`), so it is at least the least laid trace decayed once for
-each step since (`lowChain`), and for a slot laid at most nine steps before the reward that word
-is above the tie window of the greedy choice (`lowChain_above_tie`). The values 119 and 132 are
+the slot's trace (`reward_weight_reads`), so it reads at least any word the trace is known to be
+at least. Over reward-free steps that word is `lowChain`'s, a lower bound on the trace a step lays
+on a frame of at most 1900 slots, decayed once for each step since (`recent_laid`, `fold_recent`),
+and decayed at most eight times it is above the tie window of the greedy choice
+(`lowChain_above_tie`). The values 119 and 132 are
 upper limits; the theorems do not say that a trace reaches them.
 
 **Words.** Every statement is about the executed binary32 words. The primitive learner's stored
@@ -802,6 +804,11 @@ def logStepWord : Binary32 := ⟨0xc11e74af⟩
 
 /-- The pruning threshold of a slot laid at the stored step size. -/
 def pruneWord : Binary32 := ⟨0x30097062⟩
+
+/-- The pruning threshold is not negative. -/
+theorem prune_nonneg : 0 ≤ numerical32 pruneWord := by
+  rw [← zero_value]
+  exact num_le (by decide) (by decide) (by decide)
 
 /-- A fixed point of laying: a trace at most this word is at most this word after a step that
 lays it. -/
@@ -2044,6 +2051,11 @@ theorem lowChain_above (criterion : Criterion) (i : Nat) (near : i ≤ 80) :
     (lowChain_facts criterion 80).1.1).mpr (low_above criterion)
   exact lt_of_lt_of_le above far
 
+/-- The least laid trace decayed at most eighty times is positive. -/
+theorem lowChain_positive (criterion : Criterion) (i : Nat) (near : i ≤ 80) :
+    0 < numerical32 (lowChain criterion i) :=
+  lt_of_le_of_lt prune_nonneg (lowChain_above criterion i near)
+
 /-- The least laid trace decayed eight times is still above the tie window. -/
 theorem low_above_tie (criterion : Criterion) : tieWindow.key < (lowChain criterion 8).key := by
   cases criterion <;> decide +kernel
@@ -2108,8 +2120,7 @@ theorem recent_first_loop {history : List (Laid dimension actions)} {row : Actio
         have zeroRead := zero_reads zero
         have lowered := mul_le_self lowerSmall (small_decay criterion) lowerNonneg
           (decay_le_one criterion)
-        have prunePositive : 0 ≤ numerical32 pruneWord := by
-          rw [← zero_value]; exact num_le (by decide) (by decide) (by decide)
+        have prunePositive : 0 ≤ numerical32 pruneWord := prune_nonneg
         linarith
       have threshold := words.reference nonzero
       have keep : (current.firstLoopElement idx delta vDelta (decayOf criterion)).2 = false := by
@@ -2894,9 +2905,7 @@ theorem recent_weight_moves (criterion : Criterion) (dimension : Dimension) {act
   have lateQuiet := fold_quiet after _ _ laidQuiet afterFits
   rw [Nat.zero_add] at lateRecent
   rw [split]
-  have prunePositive : 0 ≤ AcornVerif.CurrentArithmetic.numerical32 pruneWord := by
-    rw [← zero_value]; exact num_le (by decide) (by decide) (by decide)
   exact recent_moves lateQuiet next.features next.row laid.row slot _ lateRecent
-    (lt_of_le_of_lt prunePositive (lowChain_above criterion after.length (by omega)))
+    (lowChain_positive criterion after.length (by omega))
 
 end AcornVerif.CurrentCreditHorizon
