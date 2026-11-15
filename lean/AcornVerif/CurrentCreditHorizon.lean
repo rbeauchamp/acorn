@@ -28,8 +28,11 @@ later step. `candidates_read_window` gives the consequence for the greedy choice
 near-maximum candidates are those of the frame's slots that some window step laid.
 `recent_weight_moves` shows that the limit is not met trivially: on a controller's cold run over
 frames of at most 1900 slots, a slot laid at most 81 steps before a first reward of one has a weight
-that the reward moves. The values 119 and 132 are upper limits; the theorems do not say that a
-trace reaches them.
+that the reward moves. `recent_credited` gives an amount: the weight word the reward writes reads
+the slot's trace (`reward_weight_reads`), so it is at least the least laid trace decayed once for
+each step since (`lowChain`), and for a slot laid at most nine steps before the reward that word
+is above the tie window of the greedy choice (`lowChain_above_tie`). The values 119 and 132 are
+upper limits; the theorems do not say that a trace reaches them.
 
 **Words.** Every statement is about the executed binary32 words. The primitive learner's stored
 step size is `stepWord` (`0x3851b71c`), the portable exponential of its stored log step size
@@ -69,11 +72,12 @@ nothing under a frozen profile (`finish_control`); the tester then only retires 
 state of `AcornVerif.CurrentPreReward.Quiet` keeps inert, and a stored rate is finite, so it is a
 zero word (`quiet_rate`).
 
-**Not covered.** Nothing here bounds the credit inside the window, or says whether slots shared with
-the window help the agent. Frames over 1999 slots in the reward-free part, profiles without per-step
-credit, the meta-controller and the option policies are outside these statements. Lean's kernel, its
-float model of binary32 and the agreement of native `Float32` with that model on finite operands
-remain trusted, as for every proof of executed words in this library.
+**Not covered.** Nothing here bounds the credit inside the window from above, or after a first
+reward, or says whether slots shared with the window help the agent. Frames over 1999 slots in the
+reward-free part, profiles without per-step credit, the meta-controller and the option policies are
+outside these statements. Lean's kernel, its float model of binary32 and the agreement of native
+`Float32` with that model on finite operands remain trusted, as for every proof of executed words in
+this library.
 -/
 
 namespace AcornVerif.CurrentCreditHorizon
@@ -2040,6 +2044,20 @@ theorem lowChain_above (criterion : Criterion) (i : Nat) (near : i ≤ 80) :
     (lowChain_facts criterion 80).1.1).mpr (low_above criterion)
   exact lt_of_lt_of_le above far
 
+/-- The least laid trace decayed eight times is still above the tie window. -/
+theorem low_above_tie (criterion : Criterion) : tieWindow.key < (lowChain criterion 8).key := by
+  cases criterion <;> decide +kernel
+
+/-- The least laid trace decayed at most eight times is above the tie window of the greedy
+choice. -/
+theorem lowChain_above_tie (criterion : Criterion) (i : Nat) (near : i ≤ 8) :
+    numerical32 tieWindow < numerical32 (lowChain criterion i) := by
+  have far := lowChain_antitone criterion i (8 - i)
+  rw [show i + (8 - i) = 8 by omega] at far
+  have above := (numerical32_strict_order _ _ (by decide)
+    (lowChain_facts criterion 8).1.1).mpr (low_above_tie criterion)
+  exact lt_of_lt_of_le above far
+
 /-- A slot eligible in a row whose trace is at least a word. -/
 def Recent (controller : Controller (criterion.config .control) dimension actions)
     (row : Fin actions) (slot : FeatIdx dimension) (lower : Binary32) : Prop :=
@@ -2275,14 +2293,15 @@ theorem first_element_weight {cfg : Acorn.Config} (state : NumericState cfg dime
   simp only [NumericState.firstLoopElement, slotOf_weight, slotOf_z, slotOf_zDelta, get_set_vec,
     ite_true]
 
-/-- **A reward of one moves a recent weight.** At the trace it reads, a positive trace no larger
-than the trace bound is written into the weight word by the first loop at error one. -/
-theorem reward_weight (rule : ValueRule) (inside : rule = criterion.rule)
+/-- **A reward of one writes the trace into a resting weight.** At a zero weight, a positive trace
+no larger than the trace bound is the exact reading of the weight word the first loop writes at
+error one. -/
+theorem reward_weight_reads (rule : ValueRule) (inside : rule = criterion.rule)
     {weight z zDelta vDelta : Binary32} (hw : weight.isZero = true) (zs : Small z)
     (zh : numerical32 z ≤ numerical32 (traceBound criterion))
     (positive : 0 < numerical32 z) (hd : zDelta.Finite) (hv : vDelta.isZero = true) :
-    (Weight.project rule (weight.add ((Binary32.one.mul z).sub (zDelta.mul vDelta)))).value.isZero =
-      false := by
+    numerical32 (Weight.project rule
+      (weight.add ((Binary32.one.mul z).sub (zDelta.mul vDelta)))).value = numerical32 z := by
   have product := mul_small small_one zs
   have same : numerical32 (Binary32.one.mul z) = numerical32 z :=
     by
@@ -2325,11 +2344,22 @@ theorem reward_weight (rule : ValueRule) (inside : rule = criterion.rule)
         subst inside; cases criterion <;> decide +kernel
       omega
   rw [Weight.project_eq]
-  change (Binary32.project _ rule.domain.range.upper).isZero = false
+  change numerical32 (Binary32.project _ rule.domain.range.upper) = _
   rw [rule.domain.symmetric_project_identity _ contains]
+  exact raw
+
+/-- **A reward of one moves a recent weight.** At the trace it reads, a positive trace no larger
+than the trace bound is written into the weight word by the first loop at error one. -/
+theorem reward_weight (rule : ValueRule) (inside : rule = criterion.rule)
+    {weight z zDelta vDelta : Binary32} (hw : weight.isZero = true) (zs : Small z)
+    (zh : numerical32 z ≤ numerical32 (traceBound criterion))
+    (positive : 0 < numerical32 z) (hd : zDelta.Finite) (hv : vDelta.isZero = true) :
+    (Weight.project rule (weight.add ((Binary32.one.mul z).sub (zDelta.mul vDelta)))).value.isZero =
+      false := by
+  have reads := reward_weight_reads rule inside hw zs zh positive hd hv
   apply Bool.eq_false_iff.mpr
   intro zero
-  rw [zero_reads zero] at raw
+  rw [zero_reads zero] at reads
   linarith
 
 /-- One plus a zero word minus a zero word is one. -/
@@ -2342,15 +2372,16 @@ theorem one_add_sub_zeros {first second : Binary32} (hf : first.isZero = true)
     subst bf bs
     decide +kernel
 
-/-- **A reward of one moves the weight of a recent slot**, whatever the frame and action of the
-reward step. -/
-theorem recent_moves {history : List (Laid dimension actions)}
+/-- **A reward of one writes at least a recent slot's least trace into its weight**, whatever the
+frame and action of the reward step: the weight word reads at least the word the slot's trace is
+known to be at least. -/
+theorem recent_credited {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
     (action row : Action actions) (slot : FeatIdx dimension) (lower : Binary32)
     (recent : Recent controller row slot lower) (positive : 0 < numerical32 lower) :
-    (((controller.step features action .one).1.learners.get row).state.weights.get
-      slot).value.isZero = false := by
+    numerical32 lower ≤ numerical32 (((controller.step features action .one).1.learners.get
+      row).state.weights.get slot).value := by
   rw [step_eq]
   have lag := ctrlQuiet_predict quiet features action
   have gamma : (criterion.config .control).rule.gamma.Finite := by cases criterion <;> decide
@@ -2360,15 +2391,17 @@ theorem recent_moves {history : List (Laid dimension actions)}
   have moved := first_loop_slots
     (fun idx words => idx = slot → SlotQuiet criterion words ∧
       numerical32 lower ≤ numerical32 words.z)
-    (fun idx words => idx = slot → words.weight.isZero = false)
-    (fun idx words => idx = slot → words.weight.isZero = false) Binary32.one controller.vDelta
+    (fun idx words => idx = slot → numerical32 lower ≤ numerical32 words.weight)
+    (fun idx words => idx = slot → numerical32 lower ≤ numerical32 words.weight) Binary32.one
+    controller.vDelta
     (decayOf criterion) (StepSizeRails.ofConfig (criterion.config .control)) ?_
     (controller.learners.get row).state (quiet.rows row).rails (row_unique controller row)
     (fun idx _ same => by subst same; exact ⟨(quiet.rows row).slots idx, recent.2⟩)
     (fun idx absent same => absurd (same ▸ recent.1) absent)
-  · have weight : (slotOf ((controller.learners.get row).state.learnFirstLoop
-        (criterion.config .control) Binary32.one controller.vDelta (decayOf criterion))
-        slot).weight.isZero = false := by
+  · have weight : numerical32 lower ≤ numerical32 (slotOf
+        ((controller.learners.get row).state.learnFirstLoop
+          (criterion.config .control) Binary32.one controller.vDelta (decayOf criterion))
+        slot).weight := by
       by_cases member : slot ∈ ((controller.learners.get row).state.learnFirstLoop
           (criterion.config .control) Binary32.one controller.vDelta
           (decayOf criterion)).transient.eligible
@@ -2379,25 +2412,39 @@ theorem recent_moves {history : List (Laid dimension actions)}
       exact weight
     · exact weight
   · intro current idx _ pre
-    have written : (slotOf (current.firstLoopElement idx Binary32.one controller.vDelta
-        (decayOf criterion)).1 idx).weight.isZero = true → idx = slot → False := by
-      intro zero same
+    have written : idx = slot → numerical32 lower ≤ numerical32
+        (slotOf (current.firstLoopElement idx Binary32.one controller.vDelta
+          (decayOf criterion)).1 idx).weight := by
+      intro same
       subst same
       obtain ⟨words, low⟩ := pre rfl
       have zs : Small (slotOf current idx).z :=
         small_between words.zFinite small_zero (small_bound criterion)
           (by rw [zero_value]; exact words.zLow) words.zHigh
-      rw [first_element_weight] at zero
-      rw [reward_weight (criterion.config .control).rule rfl words.weight zs words.zHigh
-        (lt_of_lt_of_le positive low)
-        words.zDelta quiet.vDelta] at zero
-      cases zero
+      rw [first_element_weight, reward_weight_reads (criterion.config .control).rule rfl
+        words.weight zs words.zHigh (lt_of_lt_of_le positive low) words.zDelta quiet.vDelta]
+      exact low
     refine ⟨fun _ same => ?_, fun _ same => ?_⟩
     · have knowledge := clear_feature_knowledge
         (current.firstLoopElement idx Binary32.one controller.vDelta (decayOf criterion)).1 idx idx
       rw [slotOf_weight, knowledge.1, ← slotOf_weight]
-      exact Bool.eq_false_iff.mpr fun zero => written zero same
-    · exact Bool.eq_false_iff.mpr fun zero => written zero same
+      exact written same
+    · exact written same
+
+/-- **A reward of one moves the weight of a recent slot**, whatever the frame and action of the
+reward step. -/
+theorem recent_moves {history : List (Laid dimension actions)}
+    {controller : Controller (criterion.config .control) dimension actions}
+    (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
+    (action row : Action actions) (slot : FeatIdx dimension) (lower : Binary32)
+    (recent : Recent controller row slot lower) (positive : 0 < numerical32 lower) :
+    (((controller.step features action .one).1.learners.get row).state.weights.get
+      slot).value.isZero = false := by
+  have credited := recent_credited quiet features action row slot lower recent positive
+  apply Bool.eq_false_iff.mpr
+  intro zero
+  rw [zero_reads zero] at credited
+  linarith
 
 /-- A cold run's controller is quiet against the steps it took. -/
 theorem fold_quiet {cfgCriterion : Criterion} :
