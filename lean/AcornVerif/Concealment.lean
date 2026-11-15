@@ -145,6 +145,30 @@ theorem Conceals.need (hidden : Conceals family goals reference origin) {bound :
     (covered : Covered family goals bound) : Need family goals (fun _ => True) bound :=
   fun agent _ => need_of_covered covered agent (hidden.blind agent)
 
+/-- **A member is solved exactly when the reference's actions meet it.** In a class that
+conceals its goals, an agent solves a member exactly when the actions of its closed loop in the
+reference meet that member's goal. Before the goal is first met the agent takes those actions,
+so its closed loop in the member is their path up to the first state that satisfies the goal. -/
+theorem Conceals.solves_iff (hidden : Conceals family goals reference origin)
+    (agent : Agent interface) (index : family.Index) :
+    Solves family goals agent index ↔
+      (goals index).MetBy (family.start index) (actionAt reference agent origin) := by
+  constructor
+  · exact blind_metBy (fun member time unmet =>
+      (hidden.agree agent member time unmet).2 time (Nat.le_refl time)) index
+  · rintro ⟨time, low, high, met⟩
+    by_cases sooner : ∃ earlier, 1 ≤ earlier ∧ earlier < time ∧ (goals index).satisfied
+        (stateAt (family.world index) agent (family.start index) earlier)
+    · obtain ⟨earlier, lowEarlier, before, reached⟩ := sooner
+      exact ⟨earlier, lowEarlier, Nat.le_trans (Nat.le_of_lt before) high, reached⟩
+    · have same := (hidden.agree agent index (time - 1)
+        (fun earlier lowEarlier within reached =>
+          sooner ⟨earlier, lowEarlier, by omega, reached⟩)).2
+      refine ⟨time, low, high, ?_⟩
+      rw [stateAt_eq_path, path_congr _ _ _ (actionAt reference agent origin) time
+        (fun step before => same step (by omega))]
+      exact met
+
 /-! ## Parking -/
 
 /-- The parking agent: its memory is a step counter. It takes the staying action whenever its

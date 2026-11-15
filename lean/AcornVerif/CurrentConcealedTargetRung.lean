@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.AgentAdmission
-import AcornVerif.CurrentConcealedTargetMission
+import AcornVerif.CurrentConcealedTargetFinding
 import AcornVerif.CurrentFrameSize
 import AcornVerif.CurrentKernelMemory
 
@@ -118,7 +118,8 @@ its first candidate (observed, `docs/roadmap.md`).
 namespace AcornVerif.CurrentConcealedTargetRung
 open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.Coverage AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
-open AcornVerif.CurrentConcealedTargetMission AcornVerif.CurrentCreditHorizon
+open AcornVerif.CurrentConcealedTargetFinding AcornVerif.CurrentConcealedTargetMission
+open AcornVerif.CurrentCreditHorizon AcornVerif.CurrentExplorer
 open AcornVerif.CurrentFrameSize AcornVerif.CurrentKernelMemory AcornVerif.CurrentRunningMemory
 open AcornVerif.Intent AcornVerif.Intent.MissionTheorem
 
@@ -228,6 +229,31 @@ theorem rung_mission (planning : PlanningSelection)
       counted agent updates work resume) :=
   executed_mission (rungConstruction planning).initial.agent witnessConfig witnessLive 7 rfl
     counted distinct acts finds retains memory bounded arrival discipline
+
+/-- The explorer of the rung's agent: over the grid's nine actions, with no committed run and the
+generator seeded from the seed of the rung's world, which is the seed of the agent's feature
+configuration. -/
+def rungExplorer : Explorer Grid.interface.actions :=
+  Explorer.cold Grid.interface.actions witnessConfig.raw.seed
+
+/-- **Finding on the first rung is a property of one action sequence.** The rung's agent finds
+exactly when there are more than 98 counted members each of whose targets the actions of
+`rungExplorer` meet on some visit, within the visit's seven steps: visit `visit` takes the
+explorer's actions at the times `8 visit` to `8 visit + 6`. The right-hand side reads the
+executed generator and the executed world step, and no learner. It is
+`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff` at the rung's constants. -/
+theorem rung_finds_iff (planning : PlanningSelection)
+    (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
+      witnessLive 7).Index) :
+    ExecutedFinds (rungConstruction planning).initial.agent witnessConfig witnessLive 7 counted ↔
+      ∃ solved : Finset (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
+          witnessLive 7).Index,
+        98 < solved.card ∧ ∀ index ∈ solved, index ∈ counted ∧
+          ∃ visit, (completion witnessConfig (rungConstruction planning).profile.taskMode
+              7).MetBy (member witnessLive index.1.1)
+            (fun step => rungExplorer.actionAt (visit * 8 + step)) :=
+  cold_finds_iff (profile := (rungConstruction planning).profile) rfl rfl planning witnessLive
+    rfl 7 counted
 
 /-- **The rung's agent holds one of finitely many memories.** The rung of the first class with the
 executed agent itself, whose memory is its whole state, meets the premise `MemoryBounded`, whatever

@@ -300,6 +300,35 @@ theorem find_met_swept (mode : TaskFeatureMode) (live : Live config) (cap : ℕ)
     exact box_of_goalBox target _ inside
   exact box_subset_swept 3 _ cap time high near
 
+/-- A concealed target within three tiles of the tile the body stands on after a step of an
+action sequence is met at that step: the world's dynamics do not read the installed goal. This is
+the converse of `find_met_swept` at one step. -/
+theorem find_near_met (mode : TaskFeatureMode) (live : Live config) (cap : ℕ)
+    (actions : ℕ → Kernel.Act Grid.interface) (step : ℕ) (point : ℤ × ℤ)
+    (walked : (physicalPath (physical live.world) actions step).map
+      (fun world => tile world.body.position.position) = some point)
+    (target : Host.Position) (near : tile target ∈ box 3 point) :
+    (completion config mode cap).satisfied
+      (Kernel.path (gridWorld config mode) (member live target) actions step) := by
+  have track := path_physical mode ⟨live.world.setGoal (.find target), live.carried⟩ actions step
+  change (Kernel.path (gridWorld config mode) (member live target) actions step).map
+    (fun state => physical state.world) = physicalPath (physical live.world) actions step at track
+  cases reached : Kernel.path (gridWorld config mode) (member live target) actions step with
+  | none =>
+    rw [reached] at track
+    rw [← track] at walked
+    cases walked
+  | some final =>
+    rw [reached] at track
+    rw [← track] at walked
+    have here : tile final.world.body.position.position = point := Option.some.inj walked
+    have installed : final.world.goal = some (.find target) :=
+      path_goal mode ⟨live.world.setGoal (.find target), live.carried⟩ final actions step reached
+    have close : tile target ∈ box 3 (tile final.world.body.position.position) := by
+      rw [here]
+      exact near
+    exact ⟨final, rfl, (find_goal_iff final.world target installed).mpr (mem_box.mp close)⟩
+
 /-- One action sequence meets the concealed targets of at most `49 + 7 cap` members in `cap`
 steps, for every terrain. -/
 theorem find_covered (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
@@ -577,33 +606,9 @@ theorem witness_meets (mode : TaskFeatureMode) (cap visit : ℕ) (within : visit
     (target : Host.Position) (near : tile target ∈ box 3 (witnessEnd visit)) :
     (completion witnessConfig mode cap).satisfied
       (Kernel.path (gridWorld witnessConfig mode) (member witnessLive target)
-        (witnessExplore visit) 7) := by
-  have track := path_physical mode
-    ⟨witnessLive.world.setGoal (.find target), witnessLive.carried⟩ (witnessExplore visit) 7
-  change (Kernel.path (gridWorld witnessConfig mode) (member witnessLive target)
-    (witnessExplore visit) 7).map (fun state => physical state.world) =
-      physicalPath (physical witnessLive.world) (witnessExplore visit) 7 at track
-  have walked := witness_walk visit within
-  cases reached : Kernel.path (gridWorld witnessConfig mode) (member witnessLive target)
-      (witnessExplore visit) 7 with
-  | none =>
-    rw [reached] at track
-    rw [← track] at walked
-    cases walked
-  | some final =>
-    rw [reached] at track
-    rw [← track] at walked
-    have here : tile final.world.body.position.position = witnessEnd visit :=
-      Option.some.inj walked
-    have installed : final.world.goal = some (.find target) :=
-      path_goal mode ⟨witnessLive.world.setGoal (.find target), witnessLive.carried⟩ final
-        (witnessExplore visit) 7 reached
-    have close : tile target ∈ box 3 (tile final.world.body.position.position) := by
-      rw [here]
-      exact near
-    refine ⟨final, rfl, (find_goal_iff final.world target installed).mpr ?_⟩
-    have inside := mem_box.mp close
-    exact inside
+        (witnessExplore visit) 7) :=
+  find_near_met mode witnessLive cap (witnessExplore visit) 7 (witnessEnd visit)
+    (witness_walk visit within) target near
 
 /-- The coordinate of an integer, clamped to the signed 64-bit range. -/
 def clampCoordinate (value : ℤ) : Host.Coordinate :=

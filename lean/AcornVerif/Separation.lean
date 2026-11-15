@@ -122,6 +122,26 @@ theorem Finds.many {bound : ℕ} {counted : List family.Index}
   exact Nat.lt_of_lt_of_le many
     (le_trans (Finset.card_le_card inside) (List.toFinset_card_le counted))
 
+/-- **Finding is a property of the run in the reference.** In a class that conceals its goals
+behind a reference, an agent finds exactly when the actions of its run in the reference's visits
+meet, each on some visit, the goals of more counted members than the bound. No goal is met in the
+reference, so finding reads how the agent explores and nothing it learns from a success. -/
+theorem Conceals.finds_iff {reference : World interface} {origin : reference.State}
+    (hidden : Conceals family goals reference origin) (bound : ℕ)
+    (counted : List family.Index) :
+    Finds family goals length bound counted agent ↔
+      ∃ solved : Finset family.Index, bound < solved.card ∧
+        ∀ index ∈ solved, index ∈ counted ∧
+          ∃ visit, (visitGoals goals length index).MetBy (family.start index)
+            (visitActions reference origin length agent visit) := by
+  constructor
+  · rintro ⟨solved, many, each⟩
+    exact ⟨solved, many, fun index member =>
+      ⟨(each index member).1, (hidden.found_iff length agent index).mp (each index member).2⟩⟩
+  · rintro ⟨solved, many, each⟩
+    exact ⟨solved, many, fun index member =>
+      ⟨(each index member).1, (hidden.found_iff length agent index).mpr (each index member).2⟩⟩
+
 /-! ## Agents that act alike -/
 
 /-- Two agents that take the same action at every time in every world are in the same state at
