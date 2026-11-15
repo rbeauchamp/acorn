@@ -2304,13 +2304,13 @@ theorem first_element_weight {cfg : Acorn.Config} (state : NumericState cfg dime
   simp only [NumericState.firstLoopElement, slotOf_weight, slotOf_z, slotOf_zDelta, get_set_vec,
     ite_true]
 
-/-- **A reward of one writes the trace into a resting weight.** At a zero weight, a positive trace
-no larger than the trace bound is the exact reading of the weight word the first loop writes at
-error one. -/
+/-- **A reward of one writes the trace into a resting weight.** At a zero weight, a nonnegative
+trace no larger than the trace bound is the exact reading of the weight word the first loop writes
+at error one. -/
 theorem reward_weight_reads (rule : ValueRule) (inside : rule = criterion.rule)
     {weight z zDelta vDelta : Binary32} (hw : weight.isZero = true) (zs : Small z)
     (zh : numerical32 z ≤ numerical32 (traceBound criterion))
-    (positive : 0 < numerical32 z) (hd : zDelta.Finite) (hv : vDelta.isZero = true) :
+    (nonneg : 0 ≤ numerical32 z) (hd : zDelta.Finite) (hv : vDelta.isZero = true) :
     numerical32 (Weight.project rule
       (weight.add ((Binary32.one.mul z).sub (zDelta.mul vDelta)))).value = numerical32 z := by
   have product := mul_small small_one zs
@@ -2344,7 +2344,7 @@ theorem reward_weight_reads (rule : ValueRule) (inside : rule = criterion.rule)
     · have nonneg :
           (0 : Int) ≤ (weight.add ((Binary32.one.mul z).sub (zDelta.mul vDelta))).key := by
         have := key_le (by decide : Binary32.zero.Finite) rawFinite
-          (by rw [zero_value, raw]; exact positive.le)
+          (by rw [zero_value, raw]; exact nonneg)
         have zeroKey : Binary32.zero.key = 0 := by decide
         omega
       have lowerKey : rule.domain.range.lower.key ≤ 0 := by
@@ -2367,7 +2367,7 @@ theorem reward_weight (rule : ValueRule) (inside : rule = criterion.rule)
     (positive : 0 < numerical32 z) (hd : zDelta.Finite) (hv : vDelta.isZero = true) :
     (Weight.project rule (weight.add ((Binary32.one.mul z).sub (zDelta.mul vDelta)))).value.isZero =
       false := by
-  have reads := reward_weight_reads rule inside hw zs zh positive hd hv
+  have reads := reward_weight_reads rule inside hw zs zh positive.le hd hv
   apply Bool.eq_false_iff.mpr
   intro zero
   rw [zero_reads zero] at reads
@@ -2433,7 +2433,7 @@ theorem recent_credited {history : List (Laid dimension actions)}
         small_between words.zFinite small_zero (small_bound criterion)
           (by rw [zero_value]; exact words.zLow) words.zHigh
       rw [first_element_weight, reward_weight_reads (criterion.config .control).rule rfl
-        words.weight zs words.zHigh (lt_of_lt_of_le positive low) words.zDelta quiet.vDelta]
+        words.weight zs words.zHigh (lt_of_lt_of_le positive low).le words.zDelta quiet.vDelta]
       exact low
     refine ⟨fun _ same => ?_, fun _ same => ?_⟩
     · have knowledge := clear_feature_knowledge

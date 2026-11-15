@@ -24,9 +24,16 @@ inventory words. A world whose configuration admits no deer and no food (`Unpopu
 neither in any state, by the bound its populations carry. So every percept it delivers has at most
 139 words (`percept_words`), at every state of the grid world, the refused state included. Every
 frame the executed agent lays from such a percept, under every step order, then has at most
-`bareSlots` slots (`unpopulated_fits`), which is 1712 for the standard feature configuration
-(`standard_slots`). So for percepts of such a world the credit horizon holds with no hypothesis on
-frames (`unpopulated_weight_rests`).
+`bareSlots` slots (`unpopulated_frame`, `unpopulated_fits`), which is 1712 for the standard
+feature configuration (`standard_slots`). So for percepts of such a world the credit horizon
+holds with no hypothesis on frames (`unpopulated_weight_rests`).
+
+A frame also holds the slots of its percept's words. The tiled coder hashes each word once for
+each tiling and the first-occurrence filtering keeps every slot, so each word gives a slot of the
+frame at each tiling (`word_slot`), and two frames whose percepts carry a common word share a
+slot under a configuration with a tiling (`shared_slot`). Every percept of the grid world
+carries its energy word (`percept_holds_word`), so every frame the executed agent lays from one
+holds a slot (`grid_frame_slot`).
 
 What this does not say. No theorem here bounds a frame of a world with deer or food below the
 interface's bound: that needs a bound on how many deer and how much food a window can hold along a
@@ -203,6 +210,19 @@ theorem percept_words (bare : Unpopulated config) (mode : TaskFeatureMode)
   | none => exact sensorWords_bare blank mode blank_bare
   | some live => exact sensorWords_bare (sensed live.world) mode (sensed_bare bare live.world)
 
+/-- Every observation's words hold its energy word. -/
+theorem sensorWords_energy (observation : Host.Observation) (mode : TaskFeatureMode) :
+    (⟨0x40, observation.energy.toUInt64⟩ : SensorWord) ∈ sensorWords observation mode := by
+  simp [sensorWords]
+
+/-- Every percept of the grid world carries a word, at every state, the refused state included:
+its energy word. -/
+theorem percept_holds_word (mode : TaskFeatureMode) (state : Option (Live config)) :
+    ∃ word, word ∈ ((gridWorld config mode).percept state).frame.words := by
+  cases state with
+  | none => exact ⟨_, sensorWords_energy blank mode⟩
+  | some live => exact ⟨_, sensorWords_energy (sensed live.world) mode⟩
+
 /-! ## The slots of a frame -/
 
 section Slots
@@ -227,20 +247,53 @@ theorem frame_slots (state : Agent interface profile features criterion dimensio
   exact Nat.le_trans (encode_length dimension _ (state.words observation) observation.symbols)
     (Nat.add_le_add_right (Nat.mul_le_mul_left features.tilings.toNat read) _)
 
+/-- The frame a step lays, under every step order, is the encoding of its percept's frame on the
+once-advanced clock. -/
+theorem choose_frame (state : Agent interface profile features criterion dimension planning)
+    (order : StepOrder) (percept : Percept interface) :
+    (state.choose order percept).features = (state.advanceClock.frame percept.frame).active := by
+  cases order with
+  | actThenLearn => exact (state.choose_drawn percept).2.2.2.1
+  | learnThenAct => exact (state.choose_selected .learnThenAct (by decide) percept).2.2.2.1
+  | planAfterAct => exact (state.choose_selected .planAfterAct (by decide) percept).2.2.2.1
+
 /-- The frame a step lays, under every step order, is bounded by the words of its percept. -/
 theorem choose_slots (state : Agent interface profile features criterion dimension planning)
     (order : StepOrder) (percept : Percept interface) :
     (state.choose order percept).features.indices.length ≤
       features.tilings.toNat * (percept.frame.words.length + interface.layout.length) +
         features.units.count := by
-  have same : (state.choose order percept).features =
-      (state.advanceClock.frame percept.frame).active := by
-    cases order with
-    | actThenLearn => exact (state.choose_drawn percept).2.2.2.1
-    | learnThenAct => exact (state.choose_selected .learnThenAct (by decide) percept).2.2.2.1
-    | planAfterAct => exact (state.choose_selected .planAfterAct (by decide) percept).2.2.2.1
-  rw [same]
+  rw [choose_frame]
   exact frame_slots state.advanceClock percept.frame
+
+/-- Every word of a percept's frame gives, at each tiling, a slot of the frame the step lays: the
+tiled coder hashes each word once for each tiling, and the first-occurrence filtering keeps every
+slot. -/
+theorem word_slot (state : Agent interface profile features criterion dimension planning)
+    (order : StepOrder) (percept : Percept interface) (word : SensorWord)
+    (held : word ∈ percept.frame.words) (tiling : ℕ) (within : tiling < features.tilings.toNat) :
+    FeatIdx.fromHash dimension (Rng.hash3 (features.seed ^^^ tiling.toUInt64) word.channel
+      word.value) ∈ (state.choose order percept).features.indices := by
+  rw [choose_frame, (state.advanceClock.frame percept.frame).fresh, encode_membership]
+  change _ ∈ rawEncodeWith dimension features _ _
+  rw [rawEncodeWith_def, tiledFeatures_def]
+  refine List.mem_append_left _ (List.mem_flatMap.mpr ⟨tiling, List.mem_range.mpr within,
+    List.mem_map.mpr ⟨word, ?_, rfl⟩⟩)
+  rw [Agent.words_def]
+  exact List.mem_append_left _ held
+
+/-- **Two frames that carry a common word share a slot.** Under a feature configuration with a
+tiling, two steps on percepts whose frames carry one common word lay one common slot, whatever
+the two agent states and step orders. -/
+theorem shared_slot
+    (first second : Agent interface profile features criterion dimension planning)
+    (order other : StepOrder) (one two : Percept interface) (word : SensorWord)
+    (heldOne : word ∈ one.frame.words) (heldTwo : word ∈ two.frame.words)
+    (tiled : 0 < features.tilings.toNat) :
+    ∃ slot, slot ∈ (first.choose order one).features.indices ∧
+      slot ∈ (second.choose other two).features.indices :=
+  ⟨_, word_slot first order one word heldOne 0 tiled,
+    word_slot second other two word heldTwo 0 tiled⟩
 
 /-- Over percepts of at most `words` words, every step of the executed agent lays a frame of at
 most `tilings * (words + questions) + units` slots. -/
@@ -280,6 +333,29 @@ section Horizon
 
 variable {profile : FeatureProfile} {features : Features.Config} {criterion : Criterion}
   {dimension : Dimension} {planning : PlanningSelection}
+
+/-- A step of the executed agent on a percept of a world with no deer and no food lays a frame of
+at most `bareSlots` slots, from every agent state, at every state of the world and under every
+step order. -/
+theorem unpopulated_frame (bare : Unpopulated config) (mode : TaskFeatureMode) (order : StepOrder)
+    (state : Agent Grid.interface profile features criterion dimension planning)
+    (inner : Option (Live config)) :
+    (state.choose order ((gridWorld config mode).percept inner)).features.indices.length ≤
+      bareSlots features :=
+  Nat.le_trans (choose_slots state order _)
+    (Nat.add_le_add_right (Nat.mul_le_mul_left _
+      (Nat.add_le_add_right (percept_words bare mode inner) _)) _)
+
+/-- **Every frame of the grid world holds a slot.** Under a feature configuration with a tiling,
+every step of the executed agent on a percept of the grid world lays at least one slot, from
+every agent state, at every state of the world and under every step order. -/
+theorem grid_frame_slot (mode : TaskFeatureMode) (order : StepOrder)
+    (state : Agent Grid.interface profile features criterion dimension planning)
+    (inner : Option (Live config)) (tiled : 0 < features.tilings.toNat) :
+    ∃ slot, slot ∈
+      (state.choose order ((gridWorld config mode).percept inner)).features.indices := by
+  obtain ⟨word, held⟩ := percept_holds_word mode inner
+  exact ⟨_, word_slot state order _ word held 0 tiled⟩
 
 /-- Over percepts a world with no deer and no food delivers, every step of the executed agent
 lays a frame of at most `bareSlots` slots, from every state and under every step order. -/

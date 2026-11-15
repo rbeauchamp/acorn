@@ -28,10 +28,21 @@ compares the branch word's numerator with the declared rate's exact share and ru
 in natural-number arithmetic (`reservoir_natural`). `Explorer.actions` lists an explorer's first
 actions in one pass (`Explorer.actions_get`), the form a kernel evaluation reads.
 
-`select_explores` proves that the executed selection of such a profile, from a state whose
-primitive controller is at rest, returns the explorer's action and leaves the explorer's next
-state. `act_explores` carries it through the whole step under the default order, on every
-percept: the step selects before it learns from its percept's reward. `quiet_actions` carries it
+The explorer's decision is the case, for a controller at rest, of one decision of primitive
+control over a frozen policy (`Explorer.stepOver`): a committed run with a step left serves its
+action, and otherwise the decision is one persistent draw from the policy. Such a decision reads
+the policy through its rate and its near-maximum candidates alone (`draw_congr`,
+`Explorer.stepOver_congr`); outside a run, when the generator begins none, it is the policy's
+greedy draw (`Explorer.stepOver_greedy`). `select_draws` proves that the executed selection of
+such a profile, from every state, returns the action of one decision over the policy its
+primitive controller freezes at the frame, and leaves that decision's run and generator;
+`act_draws` carries it through the whole step under the default order.
+
+`select_explores` is the case of a state whose primitive controller is at rest, whose frozen
+policy has the candidates of the resting policy (`settled_candidates`): the selection returns
+the explorer's action and leaves the explorer's next state. `act_explores` carries it through
+the whole step, on every percept: the step selects before it learns from its percept's reward,
+so the policy is frozen from the weights the step receives. `quiet_actions` carries it
 through a kernel run: in every world, from every start, if every reward word delivered before a
 time is a zero word, the executed agent takes the explorer's action at that time, from every
 state of it whose learners are at rest (`AcornVerif.CurrentPreReward.Quiet`). `cold_actions` is
@@ -49,8 +60,10 @@ probability.
 
 What it does not cover: a profile with a hierarchy, whose meta-controller draws before primitive
 control does and whose options draw their own actions; a rate policy other than the declared one;
-a step order other than the default; and every decision after the first percept whose reward word
-is not a zero word.
+and a step order other than the default. Of a decision after the first percept whose reward word
+is not a zero word, this module says only that it is one decision over the policy the controller
+then freezes (`act_draws`); it says nothing of that policy.
+`AcornVerif.CurrentFirstChoice.first_choice` gives the policy of the first such decision.
 -/
 
 namespace AcornVerif.CurrentExplorer
@@ -81,15 +94,20 @@ structure Explorer (count : Word.Count) where
   /-- The action generator. -/
   rng : Rng.Xoshiro256
 
-/-- One decision of the explorer: the next action of a committed run with a step left, with no
-draw; otherwise one persistent draw from the resting policy, which leaves the generator after
-its words and commits the part of a drawn run that is left to serve. -/
-def Explorer.step (explorer : Explorer count) : Action count.word.toNat × Explorer count :=
+/-- One decision of primitive control over a frozen policy: the next action of a committed run
+with a step left, with no draw; otherwise one persistent draw from the policy, which leaves the
+generator after its words and commits the part of a drawn run that is left to serve. -/
+def Explorer.stepOver (explorer : Explorer count) (policy : PolicySnapshot count) :
+    Action count.word.toNat × Explorer count :=
   match explorer.run.bind ExploratoryRun.serve with
   | some served => (served.1, ⟨some served.2, explorer.rng⟩)
   | none =>
-    let drawn := (restingPolicy count).drawPersistent explorer.rng
+    let drawn := policy.drawPersistent explorer.rng
     (drawn.1.action, ⟨leftToServe drawn.1.run, drawn.2⟩)
+
+/-- One decision of the explorer: its decision over the resting policy. -/
+def Explorer.step (explorer : Explorer count) : Action count.word.toNat × Explorer count :=
+  explorer.stepOver (restingPolicy count)
 
 /-- The explorer after a number of decisions. -/
 def Explorer.after (explorer : Explorer count) : ℕ → Explorer count
@@ -105,31 +123,59 @@ seeds for its action stream (`Acorn.Features.TemporalReferences.cold`). -/
 def Explorer.cold (count : Word.Count) (seed : UInt64) : Explorer count :=
   ⟨none, Rng.Xoshiro256.seed (Rng.streamKey seed 0xA6E0000000000001)⟩
 
-/-- A persistent draw from a policy all of whose values are zero words, at the declared rate,
-takes the action of the draw from the resting policy, commits its run and leaves its generator:
-the two policies have one rate and one list of candidates. -/
-theorem settled_draw (snapshot : PolicySnapshot count) (settled : Settled snapshot)
-    (declared : snapshot.epsilon = declaredRate) (rng : Rng.Xoshiro256) :
-    (snapshot.drawPersistent rng).1.action = ((restingPolicy count).drawPersistent rng).1.action ∧
-      (snapshot.drawPersistent rng).1.run = ((restingPolicy count).drawPersistent rng).1.run ∧
-      (snapshot.drawPersistent rng).2 = ((restingPolicy count).drawPersistent rng).2 := by
-  have candidates : snapshot.candidates = (restingPolicy count).candidates :=
-    candidates_related snapshot (restingPolicy count) (fun action =>
-      ⟨CurrentControl.zero_finite _ (settled action),
-        CurrentControl.zero_finite _ (restingPolicy_settled count action),
-        (zero_key _ (settled action)).trans (zero_key _ (restingPolicy_settled count action)).symm⟩)
-  have greedy : ∀ generator, snapshot.greedy generator = (restingPolicy count).greedy generator :=
+/-- A persistent draw reads a policy through its rate and its near-maximum candidates alone: two
+policies with one rate and one list of candidates take one action, commit one run and leave one
+generator. -/
+theorem draw_congr (left right : PolicySnapshot count) (rate : left.epsilon = right.epsilon)
+    (candidates : left.candidates = right.candidates) (rng : Rng.Xoshiro256) :
+    (left.drawPersistent rng).1.action = (right.drawPersistent rng).1.action ∧
+      (left.drawPersistent rng).1.run = (right.drawPersistent rng).1.run ∧
+      (left.drawPersistent rng).2 = (right.drawPersistent rng).2 := by
+  have greedy : ∀ generator, left.greedy generator = right.greedy generator :=
     fun generator => by
       rw [PolicySnapshot.greedy_def, PolicySnapshot.greedy_def, candidates]
-  have rate : (restingPolicy count).epsilon = declaredRate := rfl
-  rw [PolicySnapshot.drawPersistent_def, PolicySnapshot.drawPersistent_def, declared, rate]
+  rw [PolicySnapshot.drawPersistent_def, PolicySnapshot.drawPersistent_def, rate]
   dsimp only
-  cases (beginExploration count declaredRate rng).1 with
+  cases (beginExploration count right.epsilon rng).1 with
   | some run => exact ⟨rfl, rfl, rfl⟩
   | none =>
     dsimp only
     rw [greedy]
     exact ⟨rfl, rfl, rfl⟩
+
+/-- A decision reads its policy through the rate and the candidates alone. -/
+theorem Explorer.stepOver_congr (explorer : Explorer count) (left right : PolicySnapshot count)
+    (rate : left.epsilon = right.epsilon) (candidates : left.candidates = right.candidates) :
+    explorer.stepOver left = explorer.stepOver right := by
+  unfold Explorer.stepOver
+  cases explorer.run.bind ExploratoryRun.serve with
+  | some served => rfl
+  | none =>
+    obtain ⟨action, run, generator⟩ := draw_congr left right rate candidates explorer.rng
+    dsimp only
+    rw [action, run, generator]
+
+/-- Outside a committed run, when the generator begins no run, a decision over a policy takes
+the policy's greedy draw, from the generator the branch word leaves. -/
+theorem Explorer.stepOver_greedy (explorer : Explorer count) (policy : PolicySnapshot count)
+    (unserved : explorer.run.bind ExploratoryRun.serve = none)
+    (calm : (beginExploration count policy.epsilon explorer.rng).1 = none) :
+    (explorer.stepOver policy).1 =
+      (policy.greedy (beginExploration count policy.epsilon explorer.rng).2).1 := by
+  unfold Explorer.stepOver
+  rw [unserved]
+  dsimp only
+  rw [PolicySnapshot.drawPersistent_def]
+  dsimp only
+  rw [calm]
+
+/-- A policy all of whose values are zero words has the candidates of the resting policy. -/
+theorem settled_candidates (snapshot : PolicySnapshot count) (settled : Settled snapshot) :
+    snapshot.candidates = (restingPolicy count).candidates :=
+  candidates_related snapshot (restingPolicy count) (fun action =>
+    ⟨CurrentControl.zero_finite _ (settled action),
+      CurrentControl.zero_finite _ (restingPolicy_settled count action),
+      (zero_key _ (settled action)).trans (zero_key _ (restingPolicy_settled count action)).symm⟩)
 
 /-- Every action is a candidate of the resting policy: every value is within the tie window of
 the maximum. -/
@@ -224,7 +270,7 @@ at the declared rate is an integer comparison on the first word
 (`AcornVerif.TemporalSupport.declared_branch`), and the greedy draw of the resting policy is the
 reservoir over every action. -/
 theorem Explorer.step_eq (explorer : Explorer count) : explorer.step = explorer.byWord := by
-  unfold Explorer.step Explorer.byWord
+  unfold Explorer.step Explorer.stepOver Explorer.byWord
   cases explorer.run.bind ExploratoryRun.serve with
   | some served => rfl
   | none =>
@@ -312,22 +358,24 @@ theorem prepare_control (state : TemporalControl interface profile config criter
       state.runtime.lifecycle.consumers.control := by
   simp [TemporalControl.prepareSelection, primitive]
 
-/-- **The executed selection explores.** For a profile with no hierarchy under the declared rate,
-from a state whose primitive controller is at rest, every decision the executed selection returns
-takes the explorer's action, and the returned state holds the explorer's next run and
-generator: for every frame, reward word and model and planning implementation. -/
-theorem select_explores
+/-- **The executed selection is one decision over the frozen primitive policy.** For a profile
+with no hierarchy under the declared rate, every decision the executed selection returns takes the
+action of one decision over the policy its primitive controller freezes at the frame, at the
+declared rate, and the returned state holds that decision's run and generator: from every state,
+for every frame, reward word and model and planning implementation. -/
+theorem select_draws
     (state next : TemporalControl interface profile config criterion dimension)
     (primitive : profile.usesHierarchy = false) (declared : profile.rate = .declared)
-    (still : Still state.runtime.lifecycle.consumers.control)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (potentials : DeclaredPotentials)
     (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions)
     (executed : state.selectWithOperations models plan features potentials reward goal =
       some (next, decision)) :
-    decision.action = (explorerOf state).step.1 ∧
-      explorerOf next = (explorerOf state).step.2 := by
+    decision.action = ((explorerOf state).stepOver
+        (state.runtime.lifecycle.consumers.control.snapshot features declaredRate)).1 ∧
+      explorerOf next = ((explorerOf state).stepOver
+        (state.runtime.lifecycle.consumers.control.snapshot features declaredRate)).2 := by
   unfold TemporalControl.selectWithOperations at executed
   have frame := prepare_frame state models features reward
   have kept := prepare_control state primitive models features reward
@@ -335,7 +383,7 @@ theorem select_explores
   have same : explorerOf prepared = explorerOf state := by
     change Explorer.mk _ _ = Explorer.mk _ _
     rw [frame.1, frame.2]
-  rw [← same]
+  rw [← same, ← kept]
   dsimp only at executed
   cases served : prepared.serve features with
   | some result =>
@@ -348,7 +396,7 @@ theorem select_explores
       change (committedRun prepared.runtime.references.phase).bind ExploratoryRun.serve = _
       rw [holds]
       exact service
-    unfold Explorer.step
+    unfold Explorer.stepOver
     rw [run]
     refine ⟨rfl, ?_⟩
     change Explorer.mk (committedRun next.runtime.references.phase) next.runtime.references.rng =
@@ -363,26 +411,42 @@ theorem select_explores
           (Vector.replicate _ .zero) none none = (next, decision) := Option.some.inj executed
       have drawn := choosePrimitive_drawn (prepared.withPhase .idle) features
         (Vector.replicate _ .zero) none none
-      rw [chosen] at drawn
+      rw [chosen, (TemporalControl.declared_rates (prepared.withPhase .idle) declared).1] at drawn
       obtain ⟨action, -, -, -, generator, committed⟩ := drawn
-      have stillPrepared :
-          Still (prepared.withPhase .idle).runtime.lifecycle.consumers.control := by
-        change Still prepared.runtime.lifecycle.consumers.control
-        rw [kept]
-        exact still
-      obtain ⟨sameAction, sameRun, sameRng⟩ := settled_draw _
-        (stillPrepared.snapshot features (prepared.withPhase .idle).controlRate)
-        ((TemporalControl.declared_rates (prepared.withPhase .idle) declared).1)
-        (prepared.withPhase .idle).runtime.references.rng
-      unfold Explorer.step
+      unfold Explorer.stepOver
       rw [unserved]
-      refine ⟨action.trans sameAction, ?_⟩
+      refine ⟨action, ?_⟩
       change Explorer.mk (committedRun next.runtime.references.phase)
         next.runtime.references.rng = _
-      rw [committed, generator, sameRun, sameRng]
+      rw [committed, generator]
       rfl
     · rename_i hierarchy
       simp [primitive] at hierarchy
+
+/-- **The executed selection explores.** For a profile with no hierarchy under the declared rate,
+from a state whose primitive controller is at rest, every decision the executed selection returns
+takes the explorer's action, and the returned state holds the explorer's next run and
+generator: for every frame, reward word and model and planning implementation. The frozen policy
+of a controller at rest has the candidates of the resting policy. -/
+theorem select_explores
+    (state next : TemporalControl interface profile config criterion dimension)
+    (primitive : profile.usesHierarchy = false) (declared : profile.rate = .declared)
+    (still : Still state.runtime.lifecycle.consumers.control)
+    (models : OptionModelOps criterion dimension)
+    (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
+    (features : SwiftTd.ActiveSet dimension) (potentials : DeclaredPotentials)
+    (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions)
+    (executed : state.selectWithOperations models plan features potentials reward goal =
+      some (next, decision)) :
+    decision.action = (explorerOf state).step.1 ∧
+      explorerOf next = (explorerOf state).step.2 := by
+  have drawn := select_draws state next primitive declared models plan features potentials reward
+    goal decision executed
+  rw [(explorerOf state).stepOver_congr
+    (state.runtime.lifecycle.consumers.control.snapshot features declaredRate)
+    (restingPolicy interface.actions) rfl
+    (settled_candidates _ (still.snapshot features declaredRate))] at drawn
+  exact drawn
 
 /-! ## The whole step -/
 
@@ -435,6 +499,30 @@ theorem learn_explorer (chosen : Chosen interface profile config criterion dimen
   change Explorer.mk _ _ = Explorer.mk _ _
   rw [phase, chosen.learn_rng]
 
+/-- **The executed step is one decision over the frozen primitive policy.** For a profile with no
+hierarchy under the declared rate, the executed step takes, on every percept and from every
+agent state, the action of one decision over the policy its primitive controller freezes at the
+percept's frame, and the agent it returns holds that decision's run and generator. Under the
+default order the step selects before it learns from its percept's reward, so the policy is
+frozen from the weights the step receives. -/
+theorem act_draws (agent : Agent interface profile config criterion dimension planning)
+    (primitive : profile.usesHierarchy = false) (declared : profile.rate = .declared)
+    (percept : Percept interface) :
+    (agent.act percept).2.action = ((explorerOf agent.control).stepOver
+        (agent.control.runtime.lifecycle.consumers.control.snapshot
+          (agent.choose .learnThenAct percept).features declaredRate)).1 ∧
+      explorerOf (agent.act percept).1.control = ((explorerOf agent.control).stepOver
+        (agent.control.runtime.lifecycle.consumers.control.snapshot
+          (agent.choose .learnThenAct percept).features declaredRate)).2 := by
+  rw [Agent.act_parts]
+  obtain ⟨selected, ordered, -, encoded, -⟩ :=
+    agent.choose_selected .learnThenAct (by decide) percept
+  unfold TemporalControl.select at selected
+  have drawn := select_draws agent.advanceClock.control _ primitive declared _ _ _ _ _ _ _
+    selected
+  rw [encoded]
+  exact ⟨drawn.1, (learn_explorer (agent.choose .learnThenAct percept) ordered).trans drawn.2⟩
+
 /-- **The executed step explores.** For a profile with no hierarchy under the declared rate, from
 an agent state whose primitive controller is at rest, the executed step takes the explorer's
 action on every percept, whatever its reward word, and the agent it returns holds the explorer's
@@ -446,13 +534,13 @@ theorem act_explores (agent : Agent interface profile config criterion dimension
     (percept : Percept interface) :
     (agent.act percept).2.action = (explorerOf agent.control).step.1 ∧
       explorerOf (agent.act percept).1.control = (explorerOf agent.control).step.2 := by
-  rw [Agent.act_parts]
-  obtain ⟨selected, ordered, -⟩ := agent.choose_selected .learnThenAct (by decide) percept
-  unfold TemporalControl.select at selected
-  have explored := select_explores agent.advanceClock.control _ primitive declared still
-    _ _ _ _ _ _ _ selected
-  exact ⟨explored.1,
-    (learn_explorer (agent.choose .learnThenAct percept) ordered).trans explored.2⟩
+  have drawn := act_draws agent primitive declared percept
+  rw [(explorerOf agent.control).stepOver_congr
+    (agent.control.runtime.lifecycle.consumers.control.snapshot
+      (agent.choose .learnThenAct percept).features declaredRate)
+    (restingPolicy interface.actions) rfl
+    (settled_candidates _ (still.snapshot _ declaredRate))] at drawn
+  exact drawn
 
 /-- The executed step keeps an agent's learners at rest on a percept whose reward word is a zero
 word. -/

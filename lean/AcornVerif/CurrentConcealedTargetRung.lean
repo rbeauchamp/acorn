@@ -50,8 +50,9 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
   inside the box.
 - **No deer and no food, so that every frame is proved small.** In a world that admits neither,
   every percept has at most 139 words (`AcornVerif.CurrentFrameSize.percept_words`), so every frame
-  of the rung's agent has at most 1712 active slots (`rung_frames`), and the credit horizon holds
-  of it with no hypothesis on frames (`rung_weight_rests`). Of a world with deer and food the tree
+  of the rung's agent has at most 1712 active slots (`rung_frames`, and `rung_frame` of one step),
+  and the credit horizon holds of it with no hypothesis on frames (`rung_weight_rests`). Every
+  frame holds at least one slot (`rung_frame_slot`). Of a world with deer and food the tree
   proves only the interface's bound of 3648 slots (`AcornVerif.CurrentFrameSize`), which is above
   the 1999 that horizon assumes. A smaller bound for the host's own world along a visit of seven
   steps is not proved. It looks within reach: from a generated world no food is due at the times
@@ -67,7 +68,8 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
   on that percept, every slot of the frame laid at the visit's first decision holds, in the row
   of the action taken there, a weight above the tie window, for a first success within the
   agent's first 1000 decisions. It says that the credit is written, not that it stays or that
-  the greedy choice changes.
+  the greedy choice changes. `AcornVerif.CurrentConcealedTargetRungChoice.rung_choice` says what
+  the agent's next decision reads: the totals of the traces its rows held when the reward came.
 
 ## The premises on memory and on finding
 
@@ -160,6 +162,34 @@ theorem rung_frames (planning : PlanningSelection) (mode : TaskFeatureMode) (ord
   fun step member => Nat.le_trans
     (unpopulated_fits witness_unpopulated mode order percepts delivered state step member)
     (Nat.le_of_eq (standard_slots _ _ _ _))
+
+/-- Every step of the rung's agent on a percept of the rung's world lays a frame of at most 1712
+slots, from every agent state, at every state of the world and under every step order: the
+statement of `rung_frames` of one step. -/
+theorem rung_frame (planning : PlanningSelection) (mode : TaskFeatureMode) (order : StepOrder)
+    (state : Agent Grid.interface (rungConstruction planning).profile
+      (rungConstruction planning).config (rungConstruction planning).criterion
+      (rungConstruction planning).dimension (rungConstruction planning).planning)
+    (inner : Option (Live witnessConfig)) :
+    (state.choose order ((gridWorld witnessConfig mode).percept inner)).features.indices.length ≤
+      1712 :=
+  Nat.le_trans (unpopulated_frame witness_unpopulated mode order state inner)
+    (Nat.le_of_eq (standard_slots _ _ _ _))
+
+/-- **Every frame of the first rung holds a slot.** Every step of the rung's agent on a percept
+of the rung's world lays at least one slot: the frame carries its energy word, and the rung's
+feature configuration has eight tilings. -/
+theorem rung_frame_slot (planning : PlanningSelection) (mode : TaskFeatureMode)
+    (order : StepOrder)
+    (state : Agent Grid.interface (rungConstruction planning).profile
+      (rungConstruction planning).config (rungConstruction planning).criterion
+      (rungConstruction planning).dimension (rungConstruction planning).planning)
+    (inner : Option (Live witnessConfig)) :
+    ∃ slot, slot ∈
+      (state.choose order ((gridWorld witnessConfig mode).percept inner)).features.indices :=
+  grid_frame_slot mode order state inner (by
+    change 0 < Acorn.FeatureConstants.defaultTilings.toUInt64.toNat
+    decide)
 
 /-- **The credit horizon of the first rung.** For the rung's agent from cold initialization, over
 percepts the rung's world delivers whose reward words are zero, and then any percepts at all, a

@@ -208,8 +208,10 @@ The greedy draw keeps the actions whose frozen value is within the tie window of
 maximum (`PolicySnapshot.candidates`). The theorems below characterize that list over the executed
 binary32 words, NaN, signed zeros and rounding included. A finite value more than the window above
 every other is the one candidate (`candidates_of_gap`). Weights that are zero words on the active
-slots outside an anchor set leave the anchor's candidates (`candidates_of_resting`). Each takes the
-values or weights as a hypothesis and says nothing about whether a run reaches them. -/
+slots outside an anchor set leave the anchor's candidates (`candidates_of_resting`). Among finite
+values the ordered maximum is one of them and no value is above it (`best_bounds`), so the greedy
+draw returns a candidate (`greedy_candidate`). Each takes the values or weights as a hypothesis
+and says nothing about whether a run reaches them. -/
 
 section Bias
 open Float.Model (Format UnpackedFloat)
@@ -592,17 +594,31 @@ theorem add_zero_same (word zero : Binary32) (finite : word.Finite)
   | zero other => cases sign <;> cases other <;> rfl
   | _ => cases sign <;> rfl
 
-/-- Adding one finite word to two finite words of one value gives one value: the two words are one
-word, or both zero words, which add like each other. -/
-theorem add_same_value (left right term : Binary32) (lf : left.Finite) (rf : right.Finite)
-    (tf : term.Finite) (same : numerical32 left = numerical32 right) :
-    numerical32 (left.add term) = numerical32 (right.add term) := by
+/-- Adding finite words of one value to finite words of one value gives one value: each pair is
+one word, or two zero words, and a zero word of either sign adds like the other. -/
+theorem add_same_values (left right first second : Binary32) (lf : left.Finite)
+    (rf : right.Finite) (ff : first.Finite) (sf : second.Finite)
+    (same : numerical32 left = numerical32 right)
+    (terms : numerical32 first = numerical32 second) :
+    numerical32 (left.add first) = numerical32 (right.add second) := by
   have key : left.key = right.key :=
     le_antisymm ((numerical32_order _ _ lf rf).mp same.le)
       ((numerical32_order _ _ rf lf).mp same.ge)
-  rcases key_inj _ _ key with rfl | ⟨lz, rz⟩
-  · rfl
-  · rw [zero_add_same _ _ lz tf, zero_add_same _ _ rz tf]
+  have termKey : first.key = second.key :=
+    le_antisymm ((numerical32_order _ _ ff sf).mp terms.le)
+      ((numerical32_order _ _ sf ff).mp terms.ge)
+  rcases key_inj _ _ termKey with rfl | ⟨fz, sz⟩
+  · rcases key_inj _ _ key with rfl | ⟨lz, rz⟩
+    · rfl
+    · rw [zero_add_same _ _ lz ff, zero_add_same _ _ rz ff]
+  · rw [add_zero_same left first lf fz, add_zero_same right second rf sz]
+    exact same
+
+/-- Adding one finite word to two finite words of one value gives one value. -/
+theorem add_same_value (left right term : Binary32) (lf : left.Finite) (rf : right.Finite)
+    (tf : term.Finite) (same : numerical32 left = numerical32 right) :
+    numerical32 (left.add term) = numerical32 (right.add term) :=
+  add_same_values left right term term lf rf tf tf same rfl
 
 /-- Where the weights outside `keep` are zero words, the ordered sum of the weights has the value
 of the ordered sum of the kept weights. Every partial sum of legal weights is finite
@@ -735,6 +751,87 @@ theorem candidates_of_resting {count : Word.Count} {config : Acorn.Config} {dime
   refine ⟨lf, rf, le_antisymm ?_ ?_⟩
   · exact (numerical32_order _ _ lf rf).mp same.le
   · exact (numerical32_order _ _ rf lf).mp same.ge
+
+/-- The ordered maximum's fold over finite words ends at its start or at a word it read, and at a
+key no lower than the start's and every read word's. -/
+theorem fold_max :
+    ∀ (rest : List Binary32) (start : Binary32), start.Finite → (∀ value ∈ rest, value.Finite) →
+      (rest.foldl (fun best value => if best.Less value then value else best) start = start ∨
+        rest.foldl (fun best value => if best.Less value then value else best) start ∈ rest) ∧
+      start.key ≤ (rest.foldl (fun best value => if best.Less value then value else best)
+        start).key ∧
+      ∀ value ∈ rest, value.key ≤
+        (rest.foldl (fun best value => if best.Less value then value else best) start).key := by
+  intro rest
+  induction rest with
+  | nil => intro start _ _; exact ⟨Or.inl rfl, le_rfl, fun _ member => nomatch member⟩
+  | cons value rest ih =>
+    intro start startFinite finite
+    have valueFinite := finite value List.mem_cons_self
+    rw [List.foldl_cons]
+    by_cases less : start.Less value
+    · rw [ite_eq_left less]
+      obtain ⟨origin, low, high⟩ := ih value valueFinite
+        (fun other member => finite other (List.mem_cons_of_mem _ member))
+      refine ⟨Or.inr ?_, le_trans less.2.2.le low, fun other member => ?_⟩
+      · rcases origin with same | later
+        · rw [same]; exact List.mem_cons_self
+        · exact List.mem_cons_of_mem _ later
+      · rcases List.mem_cons.mp member with rfl | later
+        · exact low
+        · exact high other later
+    · rw [ite_eq_right less]
+      obtain ⟨origin, low, high⟩ := ih start startFinite
+        (fun other member => finite other (List.mem_cons_of_mem _ member))
+      have below : value.key ≤ start.key := by
+        by_contra above
+        exact less ⟨finite_not_isNaN startFinite, finite_not_isNaN valueFinite, by omega⟩
+      refine ⟨origin.imp id (List.mem_cons_of_mem _), low, fun other member => ?_⟩
+      rcases List.mem_cons.mp member with rfl | later
+      · exact le_trans below low
+      · exact high other later
+
+/-- The ordered maximum of finite values is one of them, and no value's key is above its key. -/
+theorem best_bounds {count : Word.Count} (snapshot : PolicySnapshot count)
+    (finite : ∀ action, (snapshot.values.get action).Finite) :
+    (∃ action, snapshot.best = snapshot.values.get action) ∧
+      ∀ action, (snapshot.values.get action).key ≤ snapshot.best.key := by
+  have listed : ∀ value ∈ snapshot.values.toList.drop 1, value.Finite := by
+    intro value member
+    obtain ⟨action, rfl⟩ := vector_member snapshot.values value (List.mem_of_mem_drop member)
+    exact finite action
+  obtain ⟨origin, low, high⟩ := fold_max (snapshot.values.toList.drop 1)
+    (snapshot.values.get (firstAction count)) (finite _) listed
+  rw [← PolicySnapshot.best_def] at origin low high
+  refine ⟨?_, fun action => ?_⟩
+  · rcases origin with same | later
+    · exact ⟨firstAction count, same⟩
+    · exact vector_member snapshot.values _ (List.mem_of_mem_drop later)
+  · by_cases first : action = firstAction count
+    · rw [first]; exact low
+    · apply high
+      have later : action.val ≠ 0 := fun zero => first (Fin.ext zero)
+      refine List.mem_iff_getElem.mpr ⟨action.val - 1, by simp; omega, ?_⟩
+      simp only [List.getElem_drop, vector_get, Vector.getElem_toList]
+      congr 1
+      omega
+
+/-- The greedy draw from a policy of finite values returns a near-maximum candidate: the action
+of the ordered maximum is one, so the list is not empty. -/
+theorem greedy_candidate {count : Word.Count} (snapshot : PolicySnapshot count)
+    (finite : ∀ action, (snapshot.values.get action).Finite) (rng : Rng.Xoshiro256) :
+    (snapshot.greedy rng).1 ∈ snapshot.candidates := by
+  obtain ⟨⟨top, best⟩, -⟩ := best_bounds snapshot finite
+  have threshold := sub_tie_le _ (finite top)
+  have listed : top ∈ snapshot.candidates := by
+    rw [PolicySnapshot.candidates_def]
+    dsimp only
+    rw [best]
+    exact List.mem_filter.mpr ⟨List.mem_finRange top,
+      decide_eq_true ⟨threshold.1, finite_not_isNaN (finite top), threshold.2⟩⟩
+  have support := greedy_support snapshot rng
+  rw [ite_eq_right (List.ne_nil_of_mem listed)] at support
+  exact support
 
 end Bias
 

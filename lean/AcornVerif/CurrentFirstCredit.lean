@@ -38,8 +38,12 @@ tester retires nothing. The names here call such an agent, step or run young.
   (`traced_recent`). A first reward of one then writes at least the slot's least trace into its
   weight (`AcornVerif.CurrentCreditHorizon.recent_credited`).
 
-`traced_loop` says that a kernel run of the executed agent is its traced run over the percepts it
-receives, which is how `loop_first_credit` follows.
+A kernel run of the executed agent is its traced run over the percepts it receives
+(`traced_loop`), and the steps that run lays are the steps of the traced run (`laidAt`,
+`traced_laid`). So in a kernel run the controller stays quiet while the rewards are zero
+(`loop_quiet`), a laid slot stays recent (`loop_recent`), and the step that learns a reward of
+one is one controller step at reward one (`loop_paid`); `loop_first_credit` follows from the
+three.
 
 Scope. A profile with no hierarchy under per-step credit and the discounted criterion, at the
 default step order, from cold initialization; reward words that are the zero word until a first
@@ -526,14 +530,199 @@ theorem traced_loop (agent : Agent interface profile config criterion dimension 
     exact congrArg (Kernel.memoryAt world (executedAgent agent) start)
       (show origin + 1 + count = origin + (count + 1) by omega)
 
+/-- What the executed agent's step at a time of a kernel run lays: the frame it encodes and the
+action it takes. -/
+def laidAt (agent : Agent interface profile config criterion dimension planning)
+    (world : Kernel.World interface) (start : world.State) (time : ℕ) :
+    Laid dimension interface.actions.word.toNat :=
+  ⟨((Kernel.memoryAt world (executedAgent agent) start time).choose .learnThenAct
+      (Kernel.perceptAt world (executedAgent agent) start time)).features,
+    ((Kernel.memoryAt world (executedAgent agent) start time).choose .learnThenAct
+      (Kernel.perceptAt world (executedAgent agent) start time)).decision.action⟩
+
+/-- The row a step of a kernel run lays is the action the run takes at that time. -/
+theorem laidAt_row (agent : Agent interface profile config criterion dimension planning)
+    (world : Kernel.World interface) (start : world.State) (time : ℕ) :
+    (laidAt agent world start time).row =
+      Kernel.actionAt world (executedAgent agent) start time :=
+  (congrArg (fun step => step.2.action)
+    (Agent.act_parts (Kernel.memoryAt world (executedAgent agent) start time)
+      (Kernel.perceptAt world (executedAgent agent) start time))).symm
+
+/-- The steps a traced run over the percepts of a kernel run lays are the steps of the run. -/
+theorem traced_laid (agent : Agent interface profile config criterion dimension planning)
+    (world : Kernel.World interface) (start : world.State) :
+    ∀ (count origin : ℕ),
+      (traced .learnThenAct (Kernel.memoryAt world (executedAgent agent) start origin)
+        ((List.range' origin count).map
+          (Kernel.perceptAt world (executedAgent agent) start))).2 =
+        (List.range' origin count).map (laidAt agent world start) := by
+  intro count
+  induction count with
+  | zero => intro origin; rfl
+  | succ count ih =>
+    intro origin
+    rw [List.range'_succ, List.map_cons, List.map_cons]
+    change laidAt agent world start origin :: (traced .learnThenAct
+      ((Kernel.memoryAt world (executedAgent agent) start origin).choose .learnThenAct
+        (Kernel.perceptAt world (executedAgent agent) start origin)).learn
+      ((List.range' (origin + 1) count).map
+        (Kernel.perceptAt world (executedAgent agent) start))).2 = _
+    rw [← loop_step, ih (origin + 1)]
+
+/-- In a kernel run the clock of a profile with no hierarchy advances by at most one each time. -/
+theorem loop_clock (primitive : profile.usesHierarchy = false)
+    (agent : Agent interface profile config criterion dimension planning)
+    (world : Kernel.World interface) (start : world.State) (time : ℕ) :
+    (Kernel.memoryAt world (executedAgent agent) start time).clock.toNat ≤
+      agent.clock.toNat + time := by
+  induction time with
+  | zero => exact le_rfl
+  | succ time ih =>
+    have next : (Kernel.memoryAt world (executedAgent agent) start (time + 1)).clock =
+        advanceClock (Kernel.memoryAt world (executedAgent agent) start time).clock :=
+      (congrArg (fun memory : Agent interface profile config criterion dimension planning =>
+        memory.clock) (loop_step agent world start time)).trans
+        (step_clock (Kernel.memoryAt world (executedAgent agent) start time) primitive
+          (Kernel.perceptAt world (executedAgent agent) start time)).2
+    rw [next, advanceClock_exact]
+    exact Nat.le_trans (Nat.min_le_left _ _) (by omega)
+
+/-- **A reward-free kernel run before a unit matures.** For a profile with no hierarchy under
+per-step credit and the discounted criterion, from an agent state whose learners are at rest and
+whose primitive controller is quiet against a history: in a kernel run in which every reward word
+before a time is the zero word, over frames of at most 1999 slots and before a unit of the
+feature bank matures, the agent's learners are still at rest at that time and its primitive
+controller is quiet against the history extended by the steps of the run. It is `traced_young`
+on the percepts of the run. -/
+theorem loop_quiet (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (history : List (Laid dimension interface.actions.word.toNat))
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) history)
+    (world : Kernel.World interface) (start : world.State) (time : ℕ)
+    (young : agent.clock.toNat + time ≤ config.tester.maturity)
+    (silent : ∀ earlier, earlier < time →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (fits : ∀ earlier, earlier < time →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999) :
+    Quiet (Kernel.memoryAt world (executedAgent agent) start time).control ∧
+      CtrlQuiet .discounted (controlOf (Kernel.memoryAt world (executedAgent agent) start time))
+        (history ++ (List.range' 0 time).map (laidAt agent world start)) := by
+  have laid : (traced .learnThenAct agent ((List.range' 0 time).map
+      (Kernel.perceptAt world (executedAgent agent) start))).2 =
+        (List.range' 0 time).map (laidAt agent world start) := traced_laid agent world start time 0
+  have reached : (traced .learnThenAct agent ((List.range' 0 time).map
+      (Kernel.perceptAt world (executedAgent agent) start))).1 =
+        Kernel.memoryAt world (executedAgent agent) start time := by
+    have run := traced_loop agent world start time 0
+    rw [Nat.zero_add] at run
+    exact run
+  have run := traced_young primitive perStep
+    ((List.range' 0 time).map (Kernel.perceptAt world (executedAgent agent) start)) agent history
+    quiet ctrl
+    (fun percept member => by
+      obtain ⟨earlier, inside, rfl⟩ := List.mem_map.mp member
+      exact silent earlier (by have := (List.mem_range'_1.mp inside).2; omega))
+    (by rw [List.length_map, List.length_range']; exact young)
+    (fun step member => by
+      rw [laid] at member
+      obtain ⟨earlier, inside, rfl⟩ := List.mem_map.mp member
+      exact fits earlier (by have := (List.mem_range'_1.mp inside).2; omega))
+  rw [laid, reached] at run
+  exact ⟨run.1, run.2.1⟩
+
+/-- **In a kernel run a laid slot stays recent while the rewards are zero.** Under the
+hypotheses of `loop_quiet`, every slot of a frame of at most 1900 slots that the run laid at one
+time is, `gap` steps after the step that laid it and for a `gap` of at most 80, still eligible in
+the row of the action taken on that frame, with a trace at least the least laid trace decayed
+`gap` times. It is `AcornVerif.CurrentCreditHorizon.recent_laid` at the laying step and
+`traced_recent` on the percepts after it. -/
+theorem loop_recent (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (history : List (Laid dimension interface.actions.word.toNat))
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) history)
+    (world : Kernel.World interface) (start : world.State) (laid gap : ℕ) (near : gap ≤ 80)
+    (young : agent.clock.toNat + (laid + 1 + gap) ≤ config.tester.maturity)
+    (silent : ∀ earlier, earlier < laid + 1 + gap →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (fits : ∀ earlier, earlier < laid + 1 + gap →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (fitsLaid : (laidAt agent world start laid).features.indices.length ≤ 1900)
+    (slot : FeatIdx dimension) (held : slot ∈ (laidAt agent world start laid).features.indices) :
+    Recent (controlOf (Kernel.memoryAt world (executedAgent agent) start (laid + 1 + gap)))
+      (laidAt agent world start laid).row slot (lowChain .discounted gap) := by
+  obtain ⟨quietLaid, ctrlLaid⟩ := loop_quiet primitive perStep agent history quiet
+    ctrl world start laid (by omega) (fun earlier before => silent earlier (by omega))
+    (fun earlier before => fits earlier (by omega))
+  have clockLaid := loop_clock primitive agent world start laid
+  obtain ⟨stepped, quietNext, ctrlNext, -⟩ := young_quiet_step primitive perStep
+    (Kernel.memoryAt world (executedAgent agent) start laid) _
+    (Kernel.perceptAt world (executedAgent agent) start laid) quietLaid ctrlLaid
+    (silent laid (by omega)) (by omega) (fits laid (by omega))
+  have recent : Recent (controlOf ((Kernel.memoryAt world (executedAgent agent) start
+      laid).choose .learnThenAct (Kernel.perceptAt world (executedAgent agent) start
+        laid)).learn) (laidAt agent world start laid).row slot (lowChain .discounted 0) := by
+    rw [stepped]
+    exact recent_laid ctrlLaid _ _ fitsLaid slot held
+  have next := loop_step agent world start laid
+  have clockNext := loop_clock primitive agent world start (laid + 1)
+  have later := traced_recent primitive perStep (laidAt agent world start laid).row slot
+    ((List.range' (laid + 1) gap).map (Kernel.perceptAt world (executedAgent agent) start))
+    (Kernel.memoryAt world (executedAgent agent) start (laid + 1)) _ 0 (next ▸ quietNext)
+    (next ▸ ctrlNext) (next ▸ recent)
+    (fun percept member => by
+      obtain ⟨earlier, inside, rfl⟩ := List.mem_map.mp member
+      exact silent earlier (by have := (List.mem_range'_1.mp inside).2; omega))
+    (by rw [List.length_map, List.length_range']; omega)
+    (by rw [List.length_map, List.length_range']; omega)
+    (fun step member => by
+      rw [traced_laid] at member
+      obtain ⟨earlier, inside, rfl⟩ := List.mem_map.mp member
+      exact fits earlier (by have := (List.mem_range'_1.mp inside).2; omega))
+  rw [List.length_map, List.length_range', Nat.zero_add, traced_loop] at later
+  exact later
+
+/-- **The step that learns a reward of one, before a unit matures.** For a profile with no
+hierarchy under per-step credit and the discounted criterion, in a kernel run: when the percept
+of a time carries the reward word one and the agent's clock is still below the tester's maturity
+threshold, the step of that time leaves the primitive controller that one controller step at
+reward one leaves, at the frame and the action of that time. It is `young_step` on that percept:
+under the discounted criterion the centred reward is the reward word. -/
+theorem loop_paid (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (world : Kernel.World interface) (start : world.State) (paid : ℕ)
+    (young : agent.clock.toNat + paid < config.tester.maturity)
+    (pays : (Kernel.perceptAt world (executedAgent agent) start paid).reward = .one) :
+    controlOf (Kernel.memoryAt world (executedAgent agent) start (paid + 1)) =
+      ((controlOf (Kernel.memoryAt world (executedAgent agent) start paid)).step
+        (laidAt agent world start paid).features (laidAt agent world start paid).row .one).1 := by
+  have clock := loop_clock primitive agent world start paid
+  have stepped := young_step primitive perStep
+    (Kernel.memoryAt world (executedAgent agent) start paid)
+    (Kernel.perceptAt world (executedAgent agent) start paid) (by omega)
+  have centred : Criterion.center .discounted
+      (Kernel.perceptAt world (executedAgent agent) start paid).reward 1
+      (finishInput ((Kernel.memoryAt world (executedAgent agent) start paid).choose
+        .learnThenAct (Kernel.perceptAt world (executedAgent agent) start
+          paid))).average.rate = Binary32.one := pays
+  rw [centred] at stepped
+  exact (congrArg (fun memory : Agent interface profile config .discounted dimension planning =>
+    controlOf memory) (loop_step agent world start paid)).trans stepped
+
 /-- **The first reward's credit in a kernel run.** For a profile with no hierarchy under per-step
 credit and the discounted criterion, from cold initialization, in every world of the agent's
 interface and from every start: if, for a `gap` of at most 80, every reward word up to the time
 `laid + gap` is the zero word and the next one is the word one, all before a unit of the feature
-bank matures and over frames within the sizes above, then right after the step that learns that
-reward, every slot of the frame laid at the time `laid` holds, in the row of the action taken on
-it, a weight that reads at least the least laid trace decayed `gap` times. It is
-`first_reward_credits` on the percepts of the run. -/
+bank matures, over frames of at most 1999 slots and the one laid at the time `laid` of at most
+1900, then right after the step that learns that reward, every slot of the frame laid at the
+time `laid` holds, in the row of the action taken on it, a weight that reads at least the least
+laid trace decayed `gap` times. The slot is recent when the reward comes (`loop_recent`), the
+step that learns the reward is one controller step at reward one (`loop_paid`), and that step
+writes at least a recent slot's least trace into its weight
+(`AcornVerif.CurrentCreditHorizon.recent_credited`). -/
 theorem loop_first_credit (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (planning : PlanningSelection)
     (world : Kernel.World interface) (start : world.State) (laid gap : ℕ) (near : gap ≤ 80)
@@ -545,102 +734,36 @@ theorem loop_first_credit (primitive : profile.usesHierarchy = false)
     (pays : (Kernel.perceptAt world (executedAgent
       (Agent.initial interface profile config .discounted dimension planning)) start
       (laid + 1 + gap)).reward = .one)
-    (fitsBefore : ∀ step ∈ (traced .learnThenAct
-        (Agent.initial interface profile config .discounted dimension planning)
-        ((List.range' 0 laid).map (Kernel.perceptAt world (executedAgent
-          (Agent.initial interface profile config .discounted dimension planning)) start))).2,
-      step.features.indices.length ≤ 1999)
-    (fitsLaid : ((Kernel.memoryAt world (executedAgent
-        (Agent.initial interface profile config .discounted dimension planning)) start
-        laid).choose .learnThenAct (Kernel.perceptAt world (executedAgent
-          (Agent.initial interface profile config .discounted dimension planning)) start
-          laid)).features.indices.length ≤ 1900)
-    (fitsAfter : ∀ step ∈ (traced .learnThenAct (Kernel.memoryAt world (executedAgent
-        (Agent.initial interface profile config .discounted dimension planning)) start
-        (laid + 1))
-        ((List.range' (laid + 1) gap).map (Kernel.perceptAt world (executedAgent
-          (Agent.initial interface profile config .discounted dimension planning)) start))).2,
-      step.features.indices.length ≤ 1999) :
-    ∀ slot ∈ ((Kernel.memoryAt world (executedAgent
-        (Agent.initial interface profile config .discounted dimension planning)) start
-        laid).choose .learnThenAct (Kernel.perceptAt world (executedAgent
-          (Agent.initial interface profile config .discounted dimension planning)) start
-          laid)).features.indices,
+    (fits : ∀ time, time ≤ laid + gap →
+      (laidAt (Agent.initial interface profile config .discounted dimension planning) world start
+        time).features.indices.length ≤ 1999)
+    (fitsLaid : (laidAt (Agent.initial interface profile config .discounted dimension planning)
+      world start laid).features.indices.length ≤ 1900) :
+    ∀ slot ∈ (laidAt (Agent.initial interface profile config .discounted dimension planning)
+        world start laid).features.indices,
       numerical32 (lowChain .discounted gap) ≤
         numerical32 (((controlOf (Kernel.memoryAt world (executedAgent
           (Agent.initial interface profile config .discounted dimension planning)) start
           (laid + 1 + gap + 1))).learners.get
-          ((Kernel.memoryAt world (executedAgent
-            (Agent.initial interface profile config .discounted dimension planning)) start
-            laid).choose .learnThenAct (Kernel.perceptAt world (executedAgent
-              (Agent.initial interface profile config .discounted dimension planning)) start
-              laid)).decision.action).state.weights.get slot).value := by
-  have e1 : (traced .learnThenAct (Agent.initial interface profile config .discounted dimension
-      planning)
-      ((List.range' 0 laid).map (Kernel.perceptAt world (executedAgent (Agent.initial interface
-          profile config .discounted dimension planning)) start))).1 =
-        Kernel.memoryAt world (executedAgent (Agent.initial interface profile config .discounted
-            dimension planning)) start laid := by
-    have run := traced_loop (Agent.initial interface profile config .discounted dimension planning)
-        world start laid 0
-    rw [Nat.zero_add] at run
-    exact run
-  have e2 : ((Kernel.memoryAt world (executedAgent (Agent.initial interface profile config
-      .discounted dimension planning)) start laid).choose .learnThenAct
-      (Kernel.perceptAt world (executedAgent (Agent.initial interface profile config .discounted
-          dimension planning)) start laid)).learn =
-        Kernel.memoryAt world (executedAgent (Agent.initial interface profile config .discounted
-            dimension planning)) start (laid + 1) :=
-    (loop_step (Agent.initial interface profile config .discounted dimension planning) world start
-        laid).symm
-  have e3 : (traced .learnThenAct (Kernel.memoryAt world (executedAgent (Agent.initial interface
-      profile config .discounted dimension planning)) start (laid + 1))
-      ((List.range' (laid + 1) gap).map (Kernel.perceptAt world (executedAgent (Agent.initial
-          interface profile config .discounted dimension planning)) start))).1 =
-        Kernel.memoryAt world (executedAgent (Agent.initial interface profile config .discounted
-            dimension planning)) start (laid + 1 + gap) :=
-    traced_loop (Agent.initial interface profile config .discounted dimension planning) world start
-        gap (laid + 1)
-  have e4 : ((Kernel.memoryAt world (executedAgent (Agent.initial interface profile config
-      .discounted dimension planning)) start (laid + 1 + gap)).choose
-      .learnThenAct (Kernel.perceptAt world (executedAgent (Agent.initial interface profile config
-          .discounted dimension planning)) start (laid + 1 + gap))).learn =
-        Kernel.memoryAt world (executedAgent (Agent.initial interface profile config .discounted
-            dimension planning)) start (laid + 1 + gap + 1) :=
-    (loop_step (Agent.initial interface profile config .discounted dimension planning) world start
-        (laid + 1 + gap)).symm
-  have quiet : ∀ percept ∈ (List.range' 0 laid).map
-      (Kernel.perceptAt world (executedAgent (Agent.initial interface profile config .discounted
-          dimension planning)) start) ++
-        Kernel.perceptAt world (executedAgent (Agent.initial interface profile config .discounted
-            dimension planning)) start laid ::
-          (List.range' (laid + 1) gap).map (Kernel.perceptAt world (executedAgent (Agent.initial
-              interface profile config .discounted dimension planning)) start),
-      percept.reward = .zero := by
-    intro percept member
-    rcases List.mem_append.mp member with early | late
-    · obtain ⟨time, inside, rfl⟩ := List.mem_map.mp early
-      have bound := (List.mem_range'_1.mp inside).2
-      exact silent time (by omega)
-    · rcases List.mem_cons.mp late with rfl | later
-      · exact silent laid (by omega)
-      · obtain ⟨time, inside, rfl⟩ := List.mem_map.mp later
-        have bound := (List.mem_range'_1.mp inside).2
-        exact silent time (by omega)
-  have key := first_reward_credits (dimension := dimension) primitive perStep planning
-    ((List.range' 0 laid).map (Kernel.perceptAt world (executedAgent (Agent.initial interface
-        profile config .discounted dimension planning)) start))
-    ((List.range' (laid + 1) gap).map (Kernel.perceptAt world (executedAgent (Agent.initial
-        interface profile config .discounted dimension planning)) start))
-    (Kernel.perceptAt world (executedAgent (Agent.initial interface profile config .discounted
-        dimension planning)) start laid)
-    (Kernel.perceptAt world (executedAgent (Agent.initial interface profile config .discounted
-        dimension planning)) start (laid + 1 + gap))
-    quiet pays
-    (by rw [List.length_map, List.length_range']; exact near)
-    (by rw [List.length_map, List.length_map, List.length_range', List.length_range']; omega)
-  simp only [e1, e2, e3, e4, List.length_map, List.length_range'] at key
-  exact key fitsBefore fitsLaid fitsAfter
+          (laidAt (Agent.initial interface profile config .discounted dimension planning) world
+            start laid).row).state.weights.get slot).value := by
+  intro slot held
+  have coldClock : (Agent.initial interface profile config .discounted dimension
+      planning).clock.toNat = 0 := rfl
+  have recent := loop_recent primitive perStep
+    (Agent.initial interface profile config .discounted dimension planning) [] Quiet.initial
+    ctrlQuiet_initial world start laid gap near (by rw [coldClock]; omega)
+    (fun earlier before => silent earlier (by omega))
+    (fun earlier before => fits earlier (by omega)) fitsLaid slot held
+  obtain ⟨-, ctrl⟩ := loop_quiet primitive perStep
+    (Agent.initial interface profile config .discounted dimension planning) [] Quiet.initial
+    ctrlQuiet_initial world start (laid + 1 + gap) (by rw [coldClock]; omega)
+    (fun earlier before => silent earlier (by omega))
+    (fun earlier before => fits earlier (by omega))
+  rw [loop_paid primitive perStep
+    (Agent.initial interface profile config .discounted dimension planning) world start
+    (laid + 1 + gap) (by rw [coldClock]; omega) pays]
+  exact recent_credited ctrl _ _ _ slot _ recent (lowChain_positive .discounted gap near)
 
 end Loop
 
