@@ -60,7 +60,11 @@ executed agent's action at every time in every world (`ActsAsExecuted`), with th
 memory and reports:
 
 - `ExecutedFinds` and `ExecutedRetains`, of the executed agent: what remains of obligation 9, and
-  what the goal-information and exploration premises of obligation 4 must deliver;
+  what the goal-information and exploration premises of obligation 4 must deliver. For the cold
+  agent of a profile with no hierarchy under the declared rate, over a host world that carries
+  the zero reward word, `ExecutedFinds` is equivalent to a statement that reads one action
+  sequence and no learner (`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff`), and it is
+  proved on the first rung (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`);
 - `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6, of the agent's memory. It is
   proved, for a construction of the default step order and from the agent of a state a host runs,
   of the executed agent itself, whose memory is its whole state
@@ -81,22 +85,26 @@ a parameter and leaves that choice, which rbeauchamp/acorn#249 decides, open; th
 itself is one such agent (`executedAgent_actsAs`).
 
 No premise states obligation 4 or obligation 15. For obligation 4, no premise about the class that
-suffices for this agent is known. For obligation 15, the executed agent's generator is part of its
-state, so a family of its states is a family of seeds, which is the exact count of obligation 12;
-a family of ideal draw sequences needs a model of the agent's draws. `ExecutedRetains` also asks
-every later visit, and the executed agent explores at a constant rate at every decision that serves
-no run (departure D6 of `docs/learned-only-binding.md`). Where an exploring run can make a visit
-miss, the agent as built does not retain on every later visit, under ideal draws on almost every
-run (argued, not proved). Whether retention is asked up to a number of visits, or exploration ends
-once a member is solved, has to be decided before that premise can be met (rbeauchamp/acorn#248).
+suffices for this agent's retention is known; its finding on the first rung needs none, since its
+actions up to a first reward are a function of its seed (`AcornVerif.CurrentExplorer`). For
+obligation 15, the executed agent's generator is part of its state, so a family of its states is a
+family of seeds, which is the exact count of obligation 12; a family of ideal draw sequences needs
+a model of the agent's draws, which the tree has for primitive control under the declared rate
+up to a first reward (`AcornVerif.CurrentExplorer.Explorer`) and not after one. `ExecutedRetains`
+also asks every later visit, and the executed agent explores at a constant rate at every decision
+that serves no run (departure D6 of `docs/learned-only-binding.md`). Where an exploring run can
+make a visit miss, the agent as built does not retain on every later visit, under ideal draws on
+almost every run (argued, not proved). Whether retention is asked up to a number of visits, or
+exploration ends once a member is solved, has to be decided before that premise can be met
+(rbeauchamp/acorn#248).
 
 What these theorems leave open, beside their premises:
 
 - The class constants. The theorems hold for every host world whose carried reward is zero, every
   visit length and every list of distinct counted members. `AcornVerif.CurrentConcealedTargetRung`
   fixes the world, the visit length and the agent of the first rung, and names the theorems its
-  world and its visit length rest on. The counted members are those the executed agent finds,
-  which no theorem names.
+  world and its visit length rest on. The counted members are those the executed agent finds;
+  on the first rung 102 are listed (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`).
 - The agent's reports. What the agent's step reports of its internal updates and its work, and how
   it resumes, are parameters. Defining them from the executing code and proving the premises about
   them is the fifth step of rbeauchamp/acorn#215.
@@ -278,7 +286,9 @@ theorem executedAgent_actsAs
 /-- **Obligation 9, first successes; what obligation 4's exploration premise must deliver**
 (rbeauchamp/acorn#230, decided in rbeauchamp/acorn#232 with rbeauchamp/acorn#170). The executed
 agent, from the given state, solves each of more than `49 + 7 length` counted members on some
-visit. Open: no theorem says its exploration meets a concealed target. -/
+visit. For the cold agent of a profile with no hierarchy under the declared rate it is a property
+of one action sequence (`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff`), and on the
+first rung it is proved (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). -/
 def ExecutedFinds (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)
     (counted : List (feasibleFind config profile.taskMode live length).Index) : Prop :=
@@ -302,10 +312,11 @@ def ExecutedRetains (state : Agent Grid.interface profile features criterion dim
 host world that carries a reward of zero, with a list of distinct counted members: if the executed
 agent finds and retains, then every agent that takes its actions, and whose own memory and reports
 meet the four premises of contract 3, achieves goals over the class. The mission's statement holds
-of that agent's rung. Only `MemoryBounded` is proved, where the agent is the executed agent itself
-from the agent of a state a host runs, under a construction of the default step order
-(`AcornVerif.CurrentKernelMemory.find_memory_bounded`). Each premise names the obligation, or the
-step of the issue, that owns it. -/
+of that agent's rung. Two premises are proved: `MemoryBounded`, where the agent is the executed
+agent itself from the agent of a state a host runs, under a construction of the default step order
+(`AcornVerif.CurrentKernelMemory.find_memory_bounded`), and `ExecutedFinds` on the first rung
+(`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). Each premise names the obligation, or
+the step of the issue, that owns it. -/
 theorem executed_mission
     (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)

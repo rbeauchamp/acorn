@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Acorn.Host.AgentAdmission
-import AcornVerif.CurrentConcealedTargetMission
+import AcornVerif.CurrentConcealedTargetFinding
 import AcornVerif.CurrentFrameSize
 import AcornVerif.CurrentKernelMemory
 
@@ -31,7 +31,8 @@ says what each is chosen for. `rung_mission` is the statement at these constants
   either planning selection.
 
 The members the comparison counts are not fixed here: they are members the executed agent finds,
-which the premise `ExecutedFinds` names.
+which the premise `ExecutedFinds` names. `AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`
+lists 102 of them.
 
 ## What the choices rest on
 
@@ -66,24 +67,34 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
   the controller's run, not yet about the agent's, and it says that a weight moves, not that the
   greedy choice changes.
 
-## The premise on memory
+## The premises on memory and on finding
 
-Of the six premises of `rung_mission`, the one on memory is proved for the executed agent itself,
-whose memory is its whole state: every memory of its run is the agent of a state a host runs, and
-those are finitely many under every profile (`rung_memory_bounded`, from
+Of the six premises of `rung_mission`, two are proved for the executed agent itself. The one on
+memory is proved with its whole state as its memory: every memory of its run is the agent of a
+state a host runs, and those are finitely many under every profile (`rung_memory_bounded`, from
 `AcornVerif.CurrentKernelMemory`). It is proved as well of every agent whose memory is one function
 of that state which its step keeps (`AcornVerif.CurrentKernelMemory.projected_memory_bounded`), so
 it does not wait on which memory of the executed agent contract 3 reads (rbeauchamp/acorn#249).
 
-No theorem proves the other five. One of them, `KeepsDiscipline`, asks that the agent resume with
+The one on finding is reduced here to one action sequence. The rung's agent finds exactly when
+the actions of `rungExplorer`, the explorer of its seed, meet the targets of more than 98 counted
+members, each on some visit (`rung_finds_iff`): before a first reward the agent takes the
+explorer's actions, and a member is found exactly when the agent's run in the reference, where no
+reward is paid, meets it (`AcornVerif.CurrentConcealedTargetFinding`).
+`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds` then proves the premise, by evaluating
+those actions and four of their walks: the agent solves each of 102 listed members on one of its
+first 72 visits.
+
+No theorem proves the other four. One of them, `KeepsDiscipline`, asks that the agent resume with
 the memory it held. The host neither saves nor loads this profile, so no executed resumption fixes
 what the rung's agent resumes with; under a profile that restores, that clause fails of the whole
 state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 
 ## What is not proved here
 
-- No premise of `rung_mission` about the agent but the one on memory, for the executed agent
-  itself. Whether the executed agent finds and retains in this class is rbeauchamp/acorn#232.
+- No premise of `rung_mission` about the agent but the ones on memory and on finding, for the
+  executed agent itself. Whether the executed agent retains in this class is the rest of
+  rbeauchamp/acorn#232: what it does after a first reward is not characterized.
   `ExecutedRetains` is argued to fail of the agent as built
   (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
   retention is asked.
@@ -104,9 +115,10 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 ## What a proof about a world's layout costs
 
 The kernel evaluates the executed terrain for each tile a proof reads, each time the module is
-rebuilt (`docs/roadmap.md` records the timing). The witness reads 21 tiles (`witness_walk`). A
-class with visits of 81 steps, the proved reach of a first reward, has a covering bound of 616;
-each step of a walk brings at most seven more targets within reach
+rebuilt (`docs/roadmap.md` records the timing). The witness reads 21 tiles (`witness_walk`), and
+the four walks of `AcornVerif.CurrentConcealedTargetRungFinds` evaluate 28 more steps of the
+world. A class with visits of 81 steps, the proved reach of a first reward, has a covering bound
+of 616; each step of a walk brings at most seven more targets within reach
 (`AcornVerif.Coverage.card_swept`), so its count needs the terrain of at least 89 tiles (argued).
 The host's spawn search evaluates the terrain 163 times for each candidate it considers
 (`Acorn.Host.considerSpawn`: two counts over a nine-by-nine square, and the candidate's own tile)
@@ -118,7 +130,8 @@ its first candidate (observed, `docs/roadmap.md`).
 namespace AcornVerif.CurrentConcealedTargetRung
 open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.Coverage AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
-open AcornVerif.CurrentConcealedTargetMission AcornVerif.CurrentCreditHorizon
+open AcornVerif.CurrentConcealedTargetFinding AcornVerif.CurrentConcealedTargetMission
+open AcornVerif.CurrentCreditHorizon AcornVerif.CurrentExplorer
 open AcornVerif.CurrentFrameSize AcornVerif.CurrentKernelMemory AcornVerif.CurrentRunningMemory
 open AcornVerif.Intent AcornVerif.Intent.MissionTheorem
 
@@ -198,8 +211,8 @@ visits of seven steps and a list of distinct counted members: if the rung's agen
 retains, then every agent that takes its actions, and whose own memory and reports meet the four
 premises of contract 3, achieves goals over the class. It is
 `AcornVerif.CurrentConcealedTargetMission.executed_mission` at the rung's constants. Of its
-premises only the one on memory is proved, for the executed agent itself
-(`rung_memory_bounded`). -/
+premises two are proved, for the executed agent itself: the one on memory (`rung_memory_bounded`)
+and the one on finding (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). -/
 theorem rung_mission (planning : PlanningSelection)
     (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
       witnessLive 7).Index)
@@ -228,6 +241,31 @@ theorem rung_mission (planning : PlanningSelection)
       counted agent updates work resume) :=
   executed_mission (rungConstruction planning).initial.agent witnessConfig witnessLive 7 rfl
     counted distinct acts finds retains memory bounded arrival discipline
+
+/-- The explorer of the rung's agent: over the grid's nine actions, with no committed run and the
+generator seeded from the seed of the rung's world, which is the seed of the agent's feature
+configuration. -/
+def rungExplorer : Explorer Grid.interface.actions :=
+  Explorer.cold Grid.interface.actions witnessConfig.raw.seed
+
+/-- **Finding on the first rung is a property of one action sequence.** The rung's agent finds
+exactly when there are more than 98 counted members each of whose targets the actions of
+`rungExplorer` meet on some visit, within the visit's seven steps: visit `visit` takes the
+explorer's actions at the times `8 visit` to `8 visit + 6`. The right-hand side reads the
+executed generator and the executed world step, and no learner. It is
+`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff` at the rung's constants. -/
+theorem rung_finds_iff (planning : PlanningSelection)
+    (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
+      witnessLive 7).Index) :
+    ExecutedFinds (rungConstruction planning).initial.agent witnessConfig witnessLive 7 counted ↔
+      ∃ solved : Finset (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
+          witnessLive 7).Index,
+        98 < solved.card ∧ ∀ index ∈ solved, index ∈ counted ∧
+          ∃ visit, (completion witnessConfig (rungConstruction planning).profile.taskMode
+              7).MetBy (member witnessLive index.1.1)
+            (fun step => rungExplorer.actionAt (visit * 8 + step)) :=
+  cold_finds_iff (profile := (rungConstruction planning).profile) rfl rfl planning witnessLive
+    rfl 7 counted
 
 /-- **The rung's agent holds one of finitely many memories.** The rung of the first class with the
 executed agent itself, whose memory is its whole state, meets the premise `MemoryBounded`, whatever

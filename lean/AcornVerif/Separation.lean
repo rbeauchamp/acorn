@@ -22,7 +22,10 @@ two statements about attempt goals, which this module defines over the kernel's
 counted members is solved on some visit, each on a visit of its own. An agent that finds and retains
 separates (`separates_of_finds`): it solves on the latest of those visits every member it has found.
 So the obligation to separate splits into finding, which concerns how the agent explores, and
-retaining, which concerns what it learns.
+retaining, which concerns what it learns. In a class that conceals its goals behind a reference,
+finding is a property of the agent's one run in the reference (`Conceals.finds_iff`); where the
+reference pays no reward, as that of the concealed targets does, that run is the agent's
+exploration before any reward.
 
 These statements read an agent only through the states its closed loops reach, so two agents that
 take the same action at every time in every world find, retain and separate alike
@@ -121,6 +124,27 @@ theorem Finds.many {bound : ℕ} {counted : List family.Index}
     fun index member => List.mem_toFinset.mpr (each index member).1
   exact Nat.lt_of_lt_of_le many
     (le_trans (Finset.card_le_card inside) (List.toFinset_card_le counted))
+
+/-- **Finding is a property of the run in the reference.** In a class that conceals its goals
+behind a reference, an agent finds exactly when the actions of its run in the reference's visits
+meet, each on some visit, the goals of more counted members than the bound. The reference is one
+world for the whole class, so finding reads one run of the agent and nothing a member shows
+it. -/
+theorem Conceals.finds_iff {reference : World interface} {origin : reference.State}
+    (hidden : Conceals family goals reference origin) (bound : ℕ)
+    (counted : List family.Index) :
+    Finds family goals length bound counted agent ↔
+      ∃ solved : Finset family.Index, bound < solved.card ∧
+        ∀ index ∈ solved, index ∈ counted ∧
+          ∃ visit, (visitGoals goals length index).MetBy (family.start index)
+            (visitActions reference origin length agent visit) := by
+  constructor
+  · rintro ⟨solved, many, each⟩
+    exact ⟨solved, many, fun index member =>
+      ⟨(each index member).1, (hidden.found_iff length agent index).mp (each index member).2⟩⟩
+  · rintro ⟨solved, many, each⟩
+    exact ⟨solved, many, fun index member =>
+      ⟨(each index member).1, (hidden.found_iff length agent index).mpr (each index member).2⟩⟩
 
 /-! ## Agents that act alike -/
 

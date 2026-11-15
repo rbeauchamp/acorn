@@ -54,13 +54,16 @@ import AcornVerif.VisitsClass
 import AcornVerif.Separation
 import AcornVerif.MissionVisits
 import AcornVerif.CurrentConcealedTarget
+import AcornVerif.CurrentConcealedTargetFinding
 import AcornVerif.CurrentConcealedTargetMission
 import AcornVerif.CurrentConcealedTargetRung
+import AcornVerif.CurrentConcealedTargetRungFinds
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
 import AcornVerif.CurrentColdStart
 import AcornVerif.CurrentPreReward
+import AcornVerif.CurrentExplorer
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentCreditHorizon
