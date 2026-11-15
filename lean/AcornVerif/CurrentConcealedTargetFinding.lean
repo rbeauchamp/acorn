@@ -11,19 +11,19 @@ import AcornVerif.CurrentExplorer
 
 `AcornVerif.CurrentConcealedTargetMission.ExecutedFinds` is the premise that the executed agent
 solves each of more counted members than the covering bound on some visit. This module reduces
-it, for the cold agent of a profile with no hierarchy under the declared exploration rate, to a
-statement that reads no learner: which concealed targets the walks of one fixed action sequence
-meet.
+it, for the cold agent of a profile with no hierarchy under the declared exploration rate, over a
+host world that carries the zero reward word, to a statement that reads no learner: which
+concealed targets the walks of one fixed action sequence meet.
 
 Two results give the reduction.
 
 - A member is solved on some visit exactly when the actions of the agent's run in the reference
   meet its goal on some visit (`AcornVerif.Kernel.Conceals.found_iff`). The reference of this
   class is the same world with the target `nowhere` installed, which no state satisfies.
-- In the reference no reward is ever paid: every state on every run delivers the zero reward word
-  (`reference_unpaid`). So the cold agent's run there is its run before a first reward, on which
-  it takes the actions of the explorer of its seed (`AcornVerif.CurrentExplorer.cold_actions`,
-  `reference_actions`).
+- In the reference of a host world that carries the zero reward word, no reward is ever paid:
+  every state on every run delivers the zero reward word (`reference_unpaid`). So the cold
+  agent's run there is its run before a first reward, on which it takes the actions of the
+  explorer of its seed (`AcornVerif.CurrentExplorer.cold_actions`, `reference_actions`).
 
 `cold_finds_iff` is the result: the cold agent finds exactly when, for more counted members than
 the covering bound, the explorer's actions on some visit meet the member's target within the

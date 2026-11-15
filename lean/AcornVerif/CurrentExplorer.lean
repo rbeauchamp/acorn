@@ -13,8 +13,9 @@ import AcornVerif.TemporalSupport
 Before its first reward every control weight of the executed agent is a zero word
 (`AcornVerif.CurrentPreReward.pre_reward_weights_zero`). This module says what its actions then
 are, for a profile with no hierarchy under the declared exploration rate, which the primitive
-research profile is: they are the actions of an `Explorer`, a machine whose whole state is the
-exploratory run it has committed to and the action generator. It reads no percept.
+research profile is, at the default step order: they are the actions of an `Explorer`, a machine
+whose whole state is the exploratory run it has committed to and the action generator. It reads
+no percept.
 
 `Explorer.step` is one decision. A committed run with a step left serves its action and draws
 nothing. Otherwise the decision is one persistent draw (`Acorn.Features.PolicySnapshot
@@ -29,23 +30,27 @@ actions in one pass (`Explorer.actions_get`), the form a kernel evaluation reads
 
 `select_explores` proves that the executed selection of such a profile, from a state whose
 primitive controller is at rest, returns the explorer's action and leaves the explorer's next
-state. `act_explores` carries it through the whole step under the default order, on a percept
-whose reward word is a zero word, and `quiet_actions` through a kernel run: in every world, from
-every start, as long as every reward word delivered so far is a zero word, the executed agent
-takes the explorer's action at every time, from every state of it whose learners are at rest
-(`AcornVerif.CurrentPreReward.Quiet`). `cold_actions` is the statement from cold initialization,
-where the explorer holds no run and the generator the agent seeds for its action stream.
+state. `act_explores` carries it through the whole step under the default order, on every
+percept: the step selects before it learns from its percept's reward. `quiet_actions` carries it
+through a kernel run: in every world, from every start, if every reward word delivered before a
+time is a zero word, the executed agent takes the explorer's action at that time, from every
+state of it whose learners are at rest (`AcornVerif.CurrentPreReward.Quiet`). `cold_actions` is
+the statement from cold initialization, where the explorer holds no run and the generator the
+agent seeds for its action stream.
 
-So before a first reward the agent's actions are one fixed sequence, a function of its feature
-configuration's seed and of the number of actions alone: they do not depend on the world, on the
-frames it delivers, or on what any learner other than the primitive controller holds. This is the
-model of the agent's draws that obligation 15 of `docs/mission-contract.md` asks for, for the time
-before a first reward and for this profile. It is a statement about the executed generator. It
-assumes nothing about how the generator's words are distributed, and gives no probability.
+So up to and including the decision on the first percept whose reward word is not a zero word,
+the cold agent's actions are one fixed sequence, a function of its feature configuration's seed
+and of the number of actions alone: they do not depend on the world or on the frames it
+delivers, and so on nothing a learner comes to hold from those frames. This is a model of the
+executed agent's draws along a run, which obligation 15 of `docs/mission-contract.md` asks for,
+for that stretch of the run and for this profile. It is a statement about the executed
+generator. It assumes nothing about how the generator's words are distributed, and gives no
+probability.
 
 What it does not cover: a profile with a hierarchy, whose meta-controller draws before primitive
 control does and whose options draw their own actions; a rate policy other than the declared one;
-a step order other than the default; and every decision after a first nonzero reward.
+a step order other than the default; and every decision after the first percept whose reward word
+is not a zero word.
 -/
 
 namespace AcornVerif.CurrentExplorer
@@ -59,13 +64,13 @@ variable {count : Word.Count}
 
 /-- The frozen policy of a controller at rest under the declared rate: every value the positive
 zero word. -/
-def resting (count : Word.Count) : PolicySnapshot count :=
+def restingPolicy (count : Word.Count) : PolicySnapshot count :=
   ⟨Vector.replicate _ .zero, declaredRate⟩
 
 /-- Every value of the resting policy is a zero word. -/
-theorem resting_settled (count : Word.Count) : Settled (resting count) := by
+theorem restingPolicy_settled (count : Word.Count) : Settled (restingPolicy count) := by
   intro action
-  simp only [resting, Vector.get, Vector.getElem_toArray, Vector.getElem_replicate]
+  simp only [restingPolicy, Vector.get, Vector.getElem_toArray, Vector.getElem_replicate]
   decide
 
 /-- What primitive control's choice of action reads while its controller is at rest: the
@@ -83,7 +88,7 @@ def Explorer.step (explorer : Explorer count) : Action count.word.toNat × Explo
   match explorer.run.bind ExploratoryRun.serve with
   | some served => (served.1, ⟨some served.2, explorer.rng⟩)
   | none =>
-    let drawn := (resting count).drawPersistent explorer.rng
+    let drawn := (restingPolicy count).drawPersistent explorer.rng
     (drawn.1.action, ⟨leftToServe drawn.1.run, drawn.2⟩)
 
 /-- The explorer after a number of decisions. -/
@@ -105,18 +110,18 @@ takes the action of the draw from the resting policy, commits its run and leaves
 the two policies have one rate and one list of candidates. -/
 theorem settled_draw (snapshot : PolicySnapshot count) (settled : Settled snapshot)
     (declared : snapshot.epsilon = declaredRate) (rng : Rng.Xoshiro256) :
-    (snapshot.drawPersistent rng).1.action = ((resting count).drawPersistent rng).1.action ∧
-      (snapshot.drawPersistent rng).1.run = ((resting count).drawPersistent rng).1.run ∧
-      (snapshot.drawPersistent rng).2 = ((resting count).drawPersistent rng).2 := by
-  have candidates : snapshot.candidates = (resting count).candidates :=
-    candidates_related snapshot (resting count) (fun action =>
+    (snapshot.drawPersistent rng).1.action = ((restingPolicy count).drawPersistent rng).1.action ∧
+      (snapshot.drawPersistent rng).1.run = ((restingPolicy count).drawPersistent rng).1.run ∧
+      (snapshot.drawPersistent rng).2 = ((restingPolicy count).drawPersistent rng).2 := by
+  have candidates : snapshot.candidates = (restingPolicy count).candidates :=
+    candidates_related snapshot (restingPolicy count) (fun action =>
       ⟨CurrentControl.zero_finite _ (settled action),
-        CurrentControl.zero_finite _ (resting_settled count action),
-        (zero_key _ (settled action)).trans (zero_key _ (resting_settled count action)).symm⟩)
-  have greedy : ∀ generator, snapshot.greedy generator = (resting count).greedy generator :=
+        CurrentControl.zero_finite _ (restingPolicy_settled count action),
+        (zero_key _ (settled action)).trans (zero_key _ (restingPolicy_settled count action)).symm⟩)
+  have greedy : ∀ generator, snapshot.greedy generator = (restingPolicy count).greedy generator :=
     fun generator => by
       rw [PolicySnapshot.greedy_def, PolicySnapshot.greedy_def, candidates]
-  have rate : (resting count).epsilon = declaredRate := rfl
+  have rate : (restingPolicy count).epsilon = declaredRate := rfl
   rw [PolicySnapshot.drawPersistent_def, PolicySnapshot.drawPersistent_def, declared, rate]
   dsimp only
   cases (beginExploration count declaredRate rng).1 with
@@ -128,19 +133,19 @@ theorem settled_draw (snapshot : PolicySnapshot count) (settled : Settled snapsh
 
 /-- Every action is a candidate of the resting policy: every value is within the tie window of
 the maximum. -/
-theorem resting_candidates (count : Word.Count) :
-    (resting count).candidates = List.finRange count.word.toNat := by
-  have value : ∀ action, (resting count).values.get action = Binary32.zero := by
+theorem restingPolicy_candidates (count : Word.Count) :
+    (restingPolicy count).candidates = List.finRange count.word.toNat := by
+  have value : ∀ action, (restingPolicy count).values.get action = Binary32.zero := by
     intro action
-    simp only [resting, Vector.get, Vector.getElem_toArray, Vector.getElem_replicate]
-  have best : (resting count).best = Binary32.zero := by
+    simp only [restingPolicy, Vector.get, Vector.getElem_toArray, Vector.getElem_replicate]
+  have best : (restingPolicy count).best = Binary32.zero := by
     rw [PolicySnapshot.best_def, value]
-    have zeros : ∀ word ∈ (resting count).values.toList.drop 1, word = Binary32.zero := by
+    have zeros : ∀ word ∈ (restingPolicy count).values.toList.drop 1, word = Binary32.zero := by
       intro word member
       have inside := List.mem_of_mem_drop member
-      simp only [resting, Vector.toList_replicate, List.mem_replicate] at inside
+      simp only [restingPolicy, Vector.toList_replicate, List.mem_replicate] at inside
       exact inside.2
-    generalize (resting count).values.toList.drop 1 = rest at zeros
+    generalize (restingPolicy count).values.toList.drop 1 = rest at zeros
     induction rest with
     | nil => rfl
     | cons head tail ih =>
@@ -224,7 +229,7 @@ theorem Explorer.step_eq (explorer : Explorer count) : explorer.step = explorer.
   | some served => rfl
   | none =>
     dsimp only
-    have rate : (resting count).epsilon = declaredRate := rfl
+    have rate : (restingPolicy count).epsilon = declaredRate := rfl
     have fits : (0 : UInt64).toNat + (List.finRange count.word.toNat).length < 2 ^ 64 := by
       rw [List.length_finRange]
       exact (Nat.zero_add _).symm ▸ count.word.toNat_lt
@@ -235,7 +240,7 @@ theorem Explorer.step_eq (explorer : Explorer count) : explorer.step = explorer.
     by_cases below : (explorer.rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23
     · simp only [below, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
     · simp only [below, decide_false, Bool.not_false, ↓reduceIte, PolicySnapshot.greedy_def,
-        resting_candidates, reservoir_natural _ _ _ _ fits]
+        restingPolicy_candidates, reservoir_natural _ _ _ _ fits]
       rfl
 
 /-- The first actions of an explorer, in one pass over its decisions word by word. -/
@@ -431,31 +436,39 @@ theorem learn_explorer (chosen : Chosen interface profile config criterion dimen
   rw [phase, chosen.learn_rng]
 
 /-- **The executed step explores.** For a profile with no hierarchy under the declared rate, from
-an agent state whose learners are at rest, on a percept whose reward word is a zero word, the
-executed step takes the explorer's action, and the agent it returns holds the explorer's next
-state and is again at rest. -/
+an agent state whose primitive controller is at rest, the executed step takes the explorer's
+action on every percept, whatever its reward word, and the agent it returns holds the explorer's
+next state. Under the default order the step selects before it learns from its percept's
+reward. -/
 theorem act_explores (agent : Agent interface profile config criterion dimension planning)
     (primitive : profile.usesHierarchy = false) (declared : profile.rate = .declared)
-    (quiet : Quiet agent.control) (percept : Percept interface)
-    (unpaid : percept.reward.isZero = true) :
+    (still : Still agent.control.runtime.lifecycle.consumers.control)
+    (percept : Percept interface) :
     (agent.act percept).2.action = (explorerOf agent.control).step.1 ∧
-      explorerOf (agent.act percept).1.control = (explorerOf agent.control).step.2 ∧
-      Quiet (agent.act percept).1.control := by
+      explorerOf (agent.act percept).1.control = (explorerOf agent.control).step.2 := by
   rw [Agent.act_parts]
   obtain ⟨selected, ordered, -⟩ := agent.choose_selected .learnThenAct (by decide) percept
   unfold TemporalControl.select at selected
-  have explored := select_explores agent.advanceClock.control _ primitive declared
-    quiet.advanceClock.control _ _ _ _ _ _ _ selected
-  refine ⟨explored.1, ?_, quiet.actOrdered .learnThenAct percept (Inert32.ofZero unpaid)⟩
-  exact (learn_explorer (agent.choose .learnThenAct percept) ordered).trans explored.2
+  have explored := select_explores agent.advanceClock.control _ primitive declared still
+    _ _ _ _ _ _ _ selected
+  exact ⟨explored.1,
+    (learn_explorer (agent.choose .learnThenAct percept) ordered).trans explored.2⟩
+
+/-- The executed step keeps an agent's learners at rest on a percept whose reward word is a zero
+word. -/
+theorem act_quiet (agent : Agent interface profile config criterion dimension planning)
+    (quiet : Quiet agent.control) (percept : Percept interface)
+    (unpaid : percept.reward.isZero = true) : Quiet (agent.act percept).1.control := by
+  rw [Agent.act_parts]
+  exact quiet.actOrdered .learnThenAct percept (Inert32.ofZero unpaid)
 
 /-! ## A kernel run -/
 
-/-- **The executed agent's actions before a first reward.** For a profile with no hierarchy under
+/-- **The executed agent's actions up to a first reward.** For a profile with no hierarchy under
 the declared rate, from an agent state whose learners are at rest: in every world of the agent's
 interface, from every start, if every reward word the world delivers before a time is a zero
 word, then at that time the agent is at rest, holds the explorer's state after that many
-decisions, and takes the explorer's action. -/
+decisions, and takes the explorer's action, whatever reward word that time's percept carries. -/
 theorem quiet_actions (primitive : profile.usesHierarchy = false)
     (declared : profile.rate = .declared)
     (agent : Agent interface profile config criterion dimension planning)
@@ -466,9 +479,8 @@ theorem quiet_actions (primitive : profile.usesHierarchy = false)
     Quiet (Kernel.memoryAt world (executedAgent agent) start time).control ∧
       explorerOf (Kernel.memoryAt world (executedAgent agent) start time).control =
         (explorerOf agent.control).after time ∧
-      (∀ percept : Percept interface, percept.reward.isZero = true →
-        ((Kernel.memoryAt world (executedAgent agent) start time).act percept).2.action =
-          (explorerOf agent.control).actionAt time) := by
+      Kernel.actionAt world (executedAgent agent) start time =
+        (explorerOf agent.control).actionAt time := by
   have reached : Quiet (Kernel.memoryAt world (executedAgent agent) start time).control ∧
       explorerOf (Kernel.memoryAt world (executedAgent agent) start time).control =
         (explorerOf agent.control).after time := by
@@ -477,28 +489,33 @@ theorem quiet_actions (primitive : profile.usesHierarchy = false)
     | succ time ih =>
       obtain ⟨rest, tracked⟩ := ih (fun earlier before => unpaid earlier (Nat.lt_succ_of_lt before))
       have stepped := act_explores (Kernel.memoryAt world (executedAgent agent) start time)
-        primitive declared rest (Kernel.perceptAt world (executedAgent agent) start time)
-        (unpaid time (Nat.lt_succ_self time))
-      refine ⟨stepped.2.2, ?_⟩
+        primitive declared rest.control (Kernel.perceptAt world (executedAgent agent) start time)
+      refine ⟨act_quiet (Kernel.memoryAt world (executedAgent agent) start time) rest
+        (Kernel.perceptAt world (executedAgent agent) start time)
+        (unpaid time (Nat.lt_succ_self time)), ?_⟩
       change explorerOf ((Kernel.memoryAt world (executedAgent agent) start time).act
         (Kernel.perceptAt world (executedAgent agent) start time)).1.control = _
-      rw [stepped.2.1, tracked]
+      rw [stepped.2, tracked]
       rfl
-  refine ⟨reached.1, reached.2, fun percept zero => ?_⟩
+  refine ⟨reached.1, reached.2, ?_⟩
   have stepped := act_explores (Kernel.memoryAt world (executedAgent agent) start time)
-    primitive declared reached.1 percept zero
+    primitive declared reached.1.control
+    (Kernel.perceptAt world (executedAgent agent) start time)
+  change ((Kernel.memoryAt world (executedAgent agent) start time).act
+    (Kernel.perceptAt world (executedAgent agent) start time)).2.action = _
   rw [stepped.1, reached.2]
   rfl
 
 /-- **From cold initialization the agent takes the explorer's actions.** For a profile with no
 hierarchy under the declared rate, in every world of the agent's interface and from every start:
-if every reward word delivered up to a time is a zero word, the cold agent's action at that time
+if every reward word delivered before a time is a zero word, the cold agent's action at that time
 is the action, at that time, of the explorer that holds no run and the generator seeded from the
-feature configuration's seed. -/
+feature configuration's seed. The decision on the first percept that carries another reward word
+is among them. -/
 theorem cold_actions (primitive : profile.usesHierarchy = false)
     (declared : profile.rate = .declared) (planning : PlanningSelection)
     (world : Kernel.World interface) (start : world.State) (time : ℕ)
-    (unpaid : ∀ earlier, earlier ≤ time →
+    (unpaid : ∀ earlier, earlier < time →
       (Kernel.perceptAt world
         (executedAgent (Agent.initial interface profile config criterion dimension planning))
         start earlier).reward.isZero = true) :
@@ -508,7 +525,6 @@ theorem cold_actions (primitive : profile.usesHierarchy = false)
       (Explorer.cold interface.actions config.seed).actionAt time :=
   (quiet_actions primitive declared
     (Agent.initial interface profile config criterion dimension planning) Quiet.initial world
-    start time (fun earlier before => unpaid earlier (Nat.le_of_lt before))).2.2 _
-    (unpaid time (Nat.le_refl time))
+    start time unpaid).2.2
 
 end AcornVerif.CurrentExplorer

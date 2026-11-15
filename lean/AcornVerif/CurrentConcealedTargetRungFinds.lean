@@ -9,38 +9,47 @@ import AcornVerif.CurrentConcealedTargetRung
 # The first rung's agent finds
 
 `rung_finds` proves the premise `ExecutedFinds` of the first rung's theorem
-(`AcornVerif.CurrentConcealedTargetRung.rung_mission`): the rung's agent solves each of 99 listed
-members of its class on one of its first 72 visits, and 99 is more than the covering bound 98. It
-is a statement about the executed agent's run in each member's own world, with no assumption on
-the generator's words: the agent's seed is fixed, so its run is one run.
+(`AcornVerif.CurrentConcealedTargetRung.rung_mission`): the rung's agent solves each of 102 listed
+members of its class on one of its first 72 visits, and 102 is more than the covering bound 98.
+It is a statement about the executed agent's run in each member's own world, with no assumption
+on the generator's words: the agent's seed is fixed, so its run is one run.
 
 The proof is by the reduction of `AcornVerif.CurrentConcealedTargetFinding.cold_found_within` and
 two evaluations by Lean's kernel of executed definitions.
 
-- **The actions.** Before a first reward the agent takes the actions of the explorer of its seed
+- **The actions.** Up to a first reward the agent takes the actions of the explorer of its seed
   (`AcornVerif.CurrentExplorer.cold_actions`). `rung_actions` evaluates the explorer's first 576
   actions, the 72 visits of eight decisions that `rungRows` lists, over the executed generator
   and the executed duration draw, in the explorer's word-by-word form
   (`AcornVerif.CurrentExplorer.Explorer.step_eq`).
-- **The walks.** `rungWalks` lists four of those visits, 23, 45, 47 and 71 counting from zero,
+- **The walks.** `rungWalks` lists four of those visits, 45, 47, 53 and 71 counting from zero,
   with the seven actions of each and the tile the body stands on after each. `walks_listed`
   checks the actions against `rungRows`, and `walks_traced` evaluates the executed world step
   along them, the terrain of the tiles entered and faced included.
 
-`rungFound` lists the 99 tiles within three tiles of a tile of those walks and more than three
-from the start. `found_listed` checks that list, so each of its targets is met by one of the four
-walks (`found_met`) and is a member the agent solves on that visit or an earlier one.
+`rungFound` lists 102 tiles, each within three tiles of a tile of those walks and more than three
+from the start (`found_listed`). So each of its targets is met by one of the four walks
+(`found_met`) and is a member the agent solves on that visit or an earlier one.
 
 What this does not say. The four visits are not the first at which the count passes the bound:
-an evaluation outside the kernel found 99 members met after 54 visits (observed, `docs/roadmap.md`);
-these four are chosen because they need the fewest evaluated steps. Nothing here is about a visit
-after a member's first success, so nothing is about retention. And the statement is of this seed,
-this world and this profile: a profile with a hierarchy draws differently, and another seed walks
-elsewhere.
+an evaluation outside the kernel found 99 members met after 54 visits (observed, `docs/roadmap.md`).
+These four were chosen by a search outside the tree for walks with few moves, 18 in their 28
+steps; no theorem says the choice is the cheapest. Nothing here is about a visit after a member's
+first success, so nothing is about retention. And the statement is of this seed, this world and
+this profile: no walk of another seed or world is evaluated, and the reduction does not cover a
+profile with a hierarchy.
 
-Proof cost. The kernel re-evaluates the generator over 576 decisions and the world step over 28
-steps each time this module is rebuilt (`docs/roadmap.md` records the timing and the owner's
-decision to pay it).
+Trust. The kernel evaluates the duration draw and the terrain in its model of binary32 and
+binary64 arithmetic; that the native operations agree with that model is trusted, as for every
+proof of executed words in this library.
+
+Proof cost, and what breaks it. The kernel re-evaluates the generator over 576 decisions and the
+world step over 28 steps each time this module is rebuilt (`docs/roadmap.md` records the timing
+and the owner's decision to pay it). The tables are data: a change to the generator, to the
+persistent draw, to the world step or to the terrain makes `rung_actions` or `walks_traced` fail,
+and the tables are then computed again from the definitions here. `rungRows` is the codes of
+`rungExplorer.actions 576` in rows of eight, and a walk's tiles are `tileTrace` of its actions
+from the rung's world.
 -/
 
 namespace AcornVerif.CurrentConcealedTargetRungFinds
@@ -108,12 +117,12 @@ structure Walk where
 
 /-- Four visits of the rung's explorer, with their actions and the tiles of their walks. -/
 def rungWalks : List Walk := [
-  ⟨23, [.north, .craftAxe, .north, .craftAxe, .east, .harvest, .east],
-    [(32, 31), (32, 31), (32, 30), (32, 30), (33, 30), (33, 30), (34, 30)]⟩,
   ⟨45, [.west, .south, .south, .south, .wait, .harvest, .south],
     [(31, 32), (31, 33), (31, 34), (31, 35), (31, 35), (31, 35), (31, 36)]⟩,
   ⟨47, [.south, .craftBoat, .east, .east, .craftAxe, .north, .east],
     [(32, 33), (32, 33), (33, 33), (34, 33), (34, 33), (34, 32), (35, 32)]⟩,
+  ⟨53, [.craftBoat, .north, .north, .eat, .north, .craftBoat, .wait],
+    [(32, 32), (32, 31), (32, 30), (32, 30), (32, 29), (32, 29), (32, 29)]⟩,
   ⟨71, [.north, .wait, .west, .west, .west, .west, .eat],
     [(32, 31), (32, 31), (31, 31), (30, 31), (29, 31), (28, 31), (28, 31)]⟩]
 
@@ -164,20 +173,21 @@ theorem rung_walk (walk : Walk) (listed : walk ∈ rungWalks) (step : ℕ) (with
 
 /-! ## The members found -/
 
-/-- The 99 tiles within three tiles of a tile of the four listed walks and more than three tiles
-from the start `(32, 32)`. -/
+/-- 102 tiles, each within three tiles of a tile of the four listed walks and more than three
+tiles from the start `(32, 32)`. -/
 def rungFound : List (ℤ × ℤ) := [
-  (29, 27), (30, 27), (31, 27), (32, 27), (33, 27), (34, 27), (35, 27), (36, 27), (37, 27),
-  (25, 28), (26, 28), (27, 28), (28, 28), (29, 28), (30, 28), (31, 28), (32, 28), (33, 28),
-  (34, 28), (35, 28), (36, 28), (37, 28), (25, 29), (26, 29), (27, 29), (28, 29), (36, 29),
-  (37, 29), (38, 29), (25, 30), (26, 30), (27, 30), (28, 30), (36, 30), (37, 30), (38, 30),
-  (25, 31), (26, 31), (27, 31), (28, 31), (36, 31), (37, 31), (38, 31), (25, 32), (26, 32),
-  (27, 32), (28, 32), (36, 32), (37, 32), (38, 32), (25, 33), (26, 33), (27, 33), (28, 33),
-  (36, 33), (37, 33), (38, 33), (25, 34), (26, 34), (27, 34), (28, 34), (36, 34), (37, 34),
-  (38, 34), (28, 35), (36, 35), (37, 35), (38, 35), (28, 36), (29, 36), (30, 36), (31, 36),
-  (32, 36), (33, 36), (34, 36), (35, 36), (36, 36), (37, 36), (28, 37), (29, 37), (30, 37),
-  (31, 37), (32, 37), (33, 37), (34, 37), (28, 38), (29, 38), (30, 38), (31, 38), (32, 38),
-  (33, 38), (34, 38), (28, 39), (29, 39), (30, 39), (31, 39), (32, 39), (33, 39), (34, 39)]
+  (29, 26), (30, 26), (31, 26), (32, 26), (33, 26), (34, 26), (35, 26), (29, 27), (30, 27),
+  (31, 27), (32, 27), (33, 27), (34, 27), (35, 27), (25, 28), (26, 28), (27, 28), (28, 28),
+  (29, 28), (30, 28), (31, 28), (32, 28), (33, 28), (34, 28), (35, 28), (25, 29), (26, 29),
+  (27, 29), (28, 29), (36, 29), (37, 29), (38, 29), (25, 30), (26, 30), (27, 30), (28, 30),
+  (36, 30), (37, 30), (38, 30), (25, 31), (26, 31), (27, 31), (28, 31), (36, 31), (37, 31),
+  (38, 31), (25, 32), (26, 32), (27, 32), (28, 32), (36, 32), (37, 32), (38, 32), (25, 33),
+  (26, 33), (27, 33), (28, 33), (36, 33), (37, 33), (38, 33), (25, 34), (26, 34), (27, 34),
+  (28, 34), (36, 34), (37, 34), (38, 34), (28, 35), (36, 35), (37, 35), (38, 35), (28, 36),
+  (29, 36), (30, 36), (31, 36), (32, 36), (33, 36), (34, 36), (35, 36), (36, 36), (37, 36),
+  (28, 37), (29, 37), (30, 37), (31, 37), (32, 37), (33, 37), (34, 37), (28, 38), (29, 38),
+  (30, 38), (31, 38), (32, 38), (33, 38), (34, 38), (28, 39), (29, 39), (30, 39), (31, 39),
+  (32, 39), (33, 39), (34, 39)]
 
 /-- Each listed tile is the tile of its position, lies more than three tiles from the start, and
 lies within three tiles of the tile after some step of a listed walk. -/
@@ -208,14 +218,14 @@ theorem found_met (mode : TaskFeatureMode) (point : ℤ × ℤ) (listed : point 
     omega, find_near_met mode witnessLive 7 _ (step + 1) _ (rung_walk walk walked step within)
       (pointPosition point) near⟩
 
-/-- **The first rung's agent finds.** There are 99 distinct members of the rung's class each of
-which the rung's agent solves on one of its first 72 visits. So the agent finds: 99 is more than
+/-- **The first rung's agent finds.** There are 102 distinct members of the rung's class each of
+which the rung's agent solves on one of its first 72 visits. So the agent finds: 102 is more than
 the covering bound 98. This is the premise `ExecutedFinds` of
 `AcornVerif.CurrentConcealedTargetRung.rung_mission`, with those members counted. -/
 theorem rung_finds (planning : PlanningSelection) :
     ∃ counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
         witnessLive 7).Index,
-      counted.Nodup ∧ counted.length = 99 ∧
+      counted.Nodup ∧ counted.length = 102 ∧
         (∀ index ∈ counted, ∃ visit, visit < 72 ∧
           Kernel.SolvesOnVisit
             (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7)

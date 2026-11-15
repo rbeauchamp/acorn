@@ -34,11 +34,12 @@ For a class that conceals its goals, with a covering bound for one visit's lengt
   that many (`visits_ever`).
 - **What a visit finds.** Until a member is first solved, a visit solves it exactly when the
   actions the agent takes on that visit of the reference's visits meet its goal
-  (`Conceals.solvesOnVisit_iff_met`). So an agent solves a member on some visit exactly when its
-  run in the reference meets that member's goal on some visit (`Conceals.found_iff`), and on one
-  of its first `count` visits exactly when that run does on one of its first `count`
-  (`Conceals.found_within`). No goal is met in the reference: which members an agent ever solves
-  for the first time is decided by how it explores.
+  (`Conceals.solvesOnVisit_iff_met`). So an agent solves a member on some visit exactly when
+  the actions of some visit of its run in the reference's visits meet that member's goal
+  (`Conceals.found_iff`), and on one of its first `count` visits exactly when those of one of
+  the run's first `count` visits do (`Conceals.found_within`). The reference is one world for
+  the whole class: which members an agent ever solves for the first time is decided by its one
+  run there.
 
 What bounds the later visits of an experience-free agent is that each member returns to its
 own fixed start state, which does not depend on what happened on earlier visits; it may
@@ -421,8 +422,8 @@ theorem Conceals.found_within (hidden : Conceals family goals reference origin) 
 /-- **A member is found exactly when the reference run meets it.** In a class that conceals its
 goals, an agent solves a member on some visit exactly when, on some visit of its run in the
 reference's visits, the actions it takes meet that member's goal. So which members an agent ever
-solves for the first time is decided by its run in the reference, where no goal is met: by how
-it explores, and by nothing it learns from a success. -/
+solves for the first time is decided by its run in the reference, one run for the whole class,
+and by nothing a member shows it. -/
 theorem Conceals.found_iff (hidden : Conceals family goals reference origin) (length : ℕ)
     (agent : Agent interface) (index : family.Index) :
     (∃ visit, SolvesOnVisit family goals length agent visit index) ↔

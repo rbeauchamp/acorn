@@ -61,9 +61,10 @@ memory and reports:
 
 - `ExecutedFinds` and `ExecutedRetains`, of the executed agent: what remains of obligation 9, and
   what the goal-information and exploration premises of obligation 4 must deliver. For the cold
-  agent of a profile with no hierarchy, `ExecutedFinds` reads one action sequence and no learner
-  (`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff`), and it is proved on the first rung
-  (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`);
+  agent of a profile with no hierarchy under the declared rate, over a host world that carries
+  the zero reward word, `ExecutedFinds` is equivalent to a statement that reads one action
+  sequence and no learner (`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff`), and it is
+  proved on the first rung (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`);
 - `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6, of the agent's memory. It is
   proved, for a construction of the default step order and from the agent of a state a host runs,
   of the executed agent itself, whose memory is its whole state
@@ -84,17 +85,18 @@ a parameter and leaves that choice, which rbeauchamp/acorn#249 decides, open; th
 itself is one such agent (`executedAgent_actsAs`).
 
 No premise states obligation 4 or obligation 15. For obligation 4, no premise about the class that
-suffices for this agent's retention is known; its finding on the first rung needed none, since its
-actions before a first reward are a function of its seed (`AcornVerif.CurrentExplorer`). For
+suffices for this agent's retention is known; its finding on the first rung needs none, since its
+actions up to a first reward are a function of its seed (`AcornVerif.CurrentExplorer`). For
 obligation 15, the executed agent's generator is part of its state, so a family of its states is a
 family of seeds, which is the exact count of obligation 12; a family of ideal draw sequences needs
-a model of the agent's draws, which the tree has for primitive control before a first reward
-(`AcornVerif.CurrentExplorer.Explorer`) and not after one. `ExecutedRetains` also asks
-every later visit, and the executed agent explores at a constant rate at every decision that serves
-no run (departure D6 of `docs/learned-only-binding.md`). Where an exploring run can make a visit
-miss, the agent as built does not retain on every later visit, under ideal draws on almost every
-run (argued, not proved). Whether retention is asked up to a number of visits, or exploration ends
-once a member is solved, has to be decided before that premise can be met (rbeauchamp/acorn#248).
+a model of the agent's draws, which the tree has for primitive control under the declared rate
+up to a first reward (`AcornVerif.CurrentExplorer.Explorer`) and not after one. `ExecutedRetains`
+also asks every later visit, and the executed agent explores at a constant rate at every decision
+that serves no run (departure D6 of `docs/learned-only-binding.md`). Where an exploring run can
+make a visit miss, the agent as built does not retain on every later visit, under ideal draws on
+almost every run (argued, not proved). Whether retention is asked up to a number of visits, or
+exploration ends once a member is solved, has to be decided before that premise can be met
+(rbeauchamp/acorn#248).
 
 What these theorems leave open, beside their premises:
 
@@ -102,7 +104,7 @@ What these theorems leave open, beside their premises:
   visit length and every list of distinct counted members. `AcornVerif.CurrentConcealedTargetRung`
   fixes the world, the visit length and the agent of the first rung, and names the theorems its
   world and its visit length rest on. The counted members are those the executed agent finds;
-  on the first rung 99 are listed (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`).
+  on the first rung 102 are listed (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`).
 - The agent's reports. What the agent's step reports of its internal updates and its work, and how
   it resumes, are parameters. Defining them from the executing code and proving the premises about
   them is the fifth step of rbeauchamp/acorn#215.

@@ -23,8 +23,9 @@ counted members is solved on some visit, each on a visit of its own. An agent th
 separates (`separates_of_finds`): it solves on the latest of those visits every member it has found.
 So the obligation to separate splits into finding, which concerns how the agent explores, and
 retaining, which concerns what it learns. In a class that conceals its goals behind a reference,
-finding is a property of the agent's run in the reference, where no goal is met
-(`Conceals.finds_iff`).
+finding is a property of the agent's one run in the reference (`Conceals.finds_iff`); where the
+reference pays no reward, as that of the concealed targets does, that run is the agent's
+exploration before any reward.
 
 These statements read an agent only through the states its closed loops reach, so two agents that
 take the same action at every time in every world find, retain and separate alike
@@ -126,8 +127,9 @@ theorem Finds.many {bound : ℕ} {counted : List family.Index}
 
 /-- **Finding is a property of the run in the reference.** In a class that conceals its goals
 behind a reference, an agent finds exactly when the actions of its run in the reference's visits
-meet, each on some visit, the goals of more counted members than the bound. No goal is met in the
-reference, so finding reads how the agent explores and nothing it learns from a success. -/
+meet, each on some visit, the goals of more counted members than the bound. The reference is one
+world for the whole class, so finding reads one run of the agent and nothing a member shows
+it. -/
 theorem Conceals.finds_iff {reference : World interface} {origin : reference.State}
     (hidden : Conceals family goals reference origin) (bound : ℕ)
     (counted : List family.Index) :

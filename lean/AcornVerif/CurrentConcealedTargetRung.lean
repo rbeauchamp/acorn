@@ -32,7 +32,7 @@ says what each is chosen for. `rung_mission` is the statement at these constants
 
 The members the comparison counts are not fixed here: they are members the executed agent finds,
 which the premise `ExecutedFinds` names. `AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`
-lists 99 of them.
+lists 102 of them.
 
 ## What the choices rest on
 
@@ -82,7 +82,7 @@ members, each on some visit (`rung_finds_iff`): before a first reward the agent 
 explorer's actions, and a member is found exactly when the agent's run in the reference, where no
 reward is paid, meets it (`AcornVerif.CurrentConcealedTargetFinding`).
 `AcornVerif.CurrentConcealedTargetRungFinds.rung_finds` then proves the premise, by evaluating
-those actions and four of their walks: the agent solves each of 99 listed members on one of its
+those actions and four of their walks: the agent solves each of 102 listed members on one of its
 first 72 visits.
 
 No theorem proves the other four. One of them, `KeepsDiscipline`, asks that the agent resume with
@@ -117,9 +117,8 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 The kernel evaluates the executed terrain for each tile a proof reads, each time the module is
 rebuilt (`docs/roadmap.md` records the timing). The witness reads 21 tiles (`witness_walk`), and
 the four walks of `AcornVerif.CurrentConcealedTargetRungFinds` evaluate 28 more steps of the
-world. A
-class with visits of 81 steps, the proved reach of a first reward, has a covering bound of 616;
-each step of a walk brings at most seven more targets within reach
+world. A class with visits of 81 steps, the proved reach of a first reward, has a covering bound
+of 616; each step of a walk brings at most seven more targets within reach
 (`AcornVerif.Coverage.card_swept`), so its count needs the terrain of at least 89 tiles (argued).
 The host's spawn search evaluates the terrain 163 times for each candidate it considers
 (`Acorn.Host.considerSpawn`: two counts over a nine-by-nine square, and the candidate's own tile)
