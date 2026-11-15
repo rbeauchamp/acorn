@@ -32,6 +32,13 @@ For a class that conceals its goals, with a covering bound for one visit's lengt
   number at most the covering bound (`visits_first_success`), on its first visit it solves at
   most that many (`visits_first`), and over its first `count` visits at most `count` times
   that many (`visits_ever`).
+- **What a visit finds.** Until a member is first solved, a visit solves it exactly when the
+  actions the agent takes on that visit of the reference's visits meet its goal
+  (`Conceals.solvesOnVisit_iff_met`). So an agent solves a member on some visit exactly when its
+  run in the reference meets that member's goal on some visit (`Conceals.found_iff`), and on one
+  of its first `count` visits exactly when that run does on one of its first `count`
+  (`Conceals.found_within`). No goal is met in the reference: which members an agent ever solves
+  for the first time is decided by how it explores.
 
 What bounds the later visits of an experience-free agent is that each member returns to its
 own fixed start state, which does not depend on what happened on earlier visits; it may
@@ -387,6 +394,30 @@ theorem Conceals.solvesOnVisit_iff_met (hidden : Conceals family goals reference
     rw [same time high]
     exact met
 
+/-- **A member is found by a visit exactly when the reference run has met it by that visit.** In
+a class that conceals its goals, an agent solves a member on one of its first `count` visits
+exactly when, on one of the first `count` visits of its run in the reference's visits, the actions
+it takes meet that member's goal. -/
+theorem Conceals.found_within (hidden : Conceals family goals reference origin) (length : ℕ)
+    (agent : Agent interface) (index : family.Index) (count : ℕ) :
+    (∃ visit, visit < count ∧ SolvesOnVisit family goals length agent visit index) ↔
+      ∃ visit, visit < count ∧ (visitGoals goals length index).MetBy (family.start index)
+        (visitActions reference origin length agent visit) := by
+  classical
+  constructor
+  · rintro ⟨visit, before, solved⟩
+    have once : ∃ visit, SolvesOnVisit family goals length agent visit index := ⟨visit, solved⟩
+    exact ⟨Nat.find once, Nat.lt_of_le_of_lt (Nat.find_min' once solved) before,
+      (hidden.solvesOnVisit_iff_met length agent index (Nat.find once)
+        (fun earlier sooner => Nat.find_min once sooner)).mp (Nat.find_spec once)⟩
+  · rintro ⟨visit, before, met⟩
+    by_cases sooner : ∃ earlier, earlier < visit ∧
+        SolvesOnVisit family goals length agent earlier index
+    · obtain ⟨earlier, early, solved⟩ := sooner
+      exact ⟨earlier, Nat.lt_trans early before, solved⟩
+    · exact ⟨visit, before, (hidden.solvesOnVisit_iff_met length agent index visit
+        (fun earlier early solved => sooner ⟨earlier, early, solved⟩)).mpr met⟩
+
 /-- **A member is found exactly when the reference run meets it.** In a class that conceals its
 goals, an agent solves a member on some visit exactly when, on some visit of its run in the
 reference's visits, the actions it takes meet that member's goal. So which members an agent ever
@@ -397,18 +428,15 @@ theorem Conceals.found_iff (hidden : Conceals family goals reference origin) (le
     (∃ visit, SolvesOnVisit family goals length agent visit index) ↔
       ∃ visit, (visitGoals goals length index).MetBy (family.start index)
         (visitActions reference origin length agent visit) := by
-  classical
   constructor
-  · intro solved
-    exact ⟨Nat.find solved, (hidden.solvesOnVisit_iff_met length agent index (Nat.find solved)
-      (fun earlier before => Nat.find_min solved before)).mp (Nat.find_spec solved)⟩
+  · rintro ⟨visit, solved⟩
+    obtain ⟨found, -, met⟩ := (hidden.found_within length agent index (visit + 1)).mp
+      ⟨visit, Nat.lt_succ_self visit, solved⟩
+    exact ⟨found, met⟩
   · rintro ⟨visit, met⟩
-    by_cases sooner : ∃ earlier, earlier < visit ∧
-        SolvesOnVisit family goals length agent earlier index
-    · obtain ⟨earlier, -, solved⟩ := sooner
-      exact ⟨earlier, solved⟩
-    · exact ⟨visit, (hidden.solvesOnVisit_iff_met length agent index visit
-        (fun earlier before solved => sooner ⟨earlier, before, solved⟩)).mpr met⟩
+    obtain ⟨found, -, solved⟩ := (hidden.found_within length agent index (visit + 1)).mpr
+      ⟨visit, Nat.lt_succ_self visit, met⟩
+    exact ⟨found, solved⟩
 
 /-- First success, for every agent. In a class that conceals its goals, if one action
 sequence meets the goal of at most `bound` members within one visit's length, then for every

@@ -17,7 +17,8 @@ agent is therefore blind on the class (`Conceals.blind`), and a covering bound i
 bound for every agent (`Conceals.need`): one agent, the same in every member, solves at most
 as many members as one action sequence meets. This is the first-visit bound. It covers an
 agent that learns, provided its memory at the attempt's start is the same in every member:
-it has had no experience of the member yet.
+it has had no experience of the member yet. The members an agent solves are exactly those its
+actions in the reference meet (`Conceals.solves_iff`).
 
 The bound says nothing about a later attempt in a world that persists, because the world
 can carry what an agent learned nothing about. `park` follows a step counter until its

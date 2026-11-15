@@ -57,6 +57,7 @@ import AcornVerif.CurrentConcealedTarget
 import AcornVerif.CurrentConcealedTargetFinding
 import AcornVerif.CurrentConcealedTargetMission
 import AcornVerif.CurrentConcealedTargetRung
+import AcornVerif.CurrentConcealedTargetRungFinds
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting

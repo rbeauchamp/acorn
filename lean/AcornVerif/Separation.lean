@@ -22,7 +22,9 @@ two statements about attempt goals, which this module defines over the kernel's
 counted members is solved on some visit, each on a visit of its own. An agent that finds and retains
 separates (`separates_of_finds`): it solves on the latest of those visits every member it has found.
 So the obligation to separate splits into finding, which concerns how the agent explores, and
-retaining, which concerns what it learns.
+retaining, which concerns what it learns. In a class that conceals its goals behind a reference,
+finding is a property of the agent's run in the reference, where no goal is met
+(`Conceals.finds_iff`).
 
 These statements read an agent only through the states its closed loops reach, so two agents that
 take the same action at every time in every world find, retain and separate alike

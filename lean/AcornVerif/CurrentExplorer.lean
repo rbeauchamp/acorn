@@ -22,7 +22,10 @@ nothing. Otherwise the decision is one persistent draw (`Acorn.Features.PolicySn
 are zero words, at the declared rate (departure D6): one branch word; then either a duration word
 and an action word, which begin a run, or one word for each of the interface's actions, since
 every action is within the tie window of the maximum and the ordered reservoir draws once for
-each candidate.
+each candidate. `Explorer.step_eq` proves that description: a step is `Explorer.byWord`, which
+compares the branch word's numerator with the declared rate's exact share and runs the reservoir
+in natural-number arithmetic (`reservoir_natural`). `Explorer.actions` lists an explorer's first
+actions in one pass (`Explorer.actions_get`), the form a kernel evaluation reads.
 
 `select_explores` proves that the executed selection of such a profile, from a state whose
 primitive controller is at rest, returns the explorer's action and leaves the explorer's next
@@ -149,30 +152,82 @@ theorem resting_candidates (count : Word.Count) :
   rw [value]
   decide
 
-/-- **One decision of the explorer, word by word.** A committed run with a step left serves its
+/-- The ordered reservoir in the arithmetic of natural numbers: the candidate at count `seen + 1`
+replaces the pick exactly when the next word times that count is below `2^64`, which is when the
+executed range selection returns zero. -/
+def naturalReservoir {actions : ℕ} :
+    List (Action actions) → ℕ → Action actions → Rng.Xoshiro256 →
+      Action actions × Rng.Xoshiro256
+  | [], _, pick, rng => (pick, rng)
+  | action :: rest, seen, pick, rng =>
+    naturalReservoir rest (seen + 1)
+      (if rng.next.1.toNat * (seen + 1) < 2 ^ 64 then action else pick) rng.next.2
+
+/-- The executed reservoir is the reservoir in natural-number arithmetic, while its count of
+candidates stays within a word. -/
+theorem reservoir_natural {actions : ℕ} (pending : List (Action actions)) (seen : UInt64)
+    (pick : Action actions) (rng : Rng.Xoshiro256)
+    (fits : seen.toNat + pending.length < 2 ^ 64) :
+    reservoir pending seen pick rng = naturalReservoir pending seen.toNat pick rng := by
+  induction pending generalizing seen pick rng with
+  | nil => rfl
+  | cons action rest ih =>
+    rw [List.length_cons] at fits
+    have one : (1 : UInt64).toNat = 1 := rfl
+    have next : (seen + 1).toNat = seen.toNat + 1 := by
+      rw [UInt64.toNat_add, one]
+      exact Nat.mod_eq_of_lt (by omega)
+    have counted : (Word.Count.ofWord (seen + 1)).word = seen + 1 := by
+      unfold Word.Count.ofWord
+      split
+      · rfl
+      · omega
+    have quotient : (rng.nextBelow (Word.Count.ofWord (seen + 1))).1.val.toNat =
+        rng.next.1.toNat * (seen.toNat + 1) / 2 ^ 64 := by
+      rw [Rng.nextBelow_quotient, counted, next]
+    have zero : ((rng.nextBelow (Word.Count.ofWord (seen + 1))).1.val == 0) =
+        decide (rng.next.1.toNat * (seen.toNat + 1) < 2 ^ 64) := by
+      rw [Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_eq, ← UInt64.toNat_inj, quotient]
+      change _ / 2 ^ 64 = 0 ↔ _
+      rw [Nat.div_eq_zero_iff]
+      omega
+    rw [reservoir_cons]
+    dsimp only
+    rw [zero, Rng.nextBelow_transition, ih _ _ _ (by omega), next]
+    simp only [naturalReservoir, decide_eq_true_eq]
+
+/-- One decision of the explorer, word by word. A committed run with a step left serves its
 action. Otherwise the decision reads one word of the generator. If that word's 53-bit numerator
 is below `10737418 · 2^23`, the declared rate's exact share, it reads a duration word and an
 action word, takes the action the action word selects and commits the rest of the run. If not, it
 takes the pick of the ordered reservoir over every action, which reads one word for each. -/
-theorem Explorer.step_eq (explorer : Explorer count) :
-    explorer.step =
-      match explorer.run.bind ExploratoryRun.serve with
-      | some served => (served.1, ⟨some served.2, explorer.rng⟩)
-      | none =>
-        if (explorer.rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23 then
-          let duration := explorer.rng.next.2.nextF64
-          let action := uniformAction count duration.2
-          (action.1, ⟨leftToServe (some ⟨action.1, durationRemaining duration.1⟩), action.2⟩)
-        else
-          let greedy := reservoir (List.finRange count.word.toNat) 0 (firstAction count)
-            explorer.rng.next.2
-          (greedy.1, ⟨none, greedy.2⟩) := by
-  unfold Explorer.step
+def Explorer.byWord (explorer : Explorer count) : Action count.word.toNat × Explorer count :=
+  match explorer.run.bind ExploratoryRun.serve with
+  | some served => (served.1, ⟨some served.2, explorer.rng⟩)
+  | none =>
+    if (explorer.rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23 then
+      let duration := explorer.rng.next.2.nextF64
+      let action := uniformAction count duration.2
+      (action.1, ⟨leftToServe (some ⟨action.1, durationRemaining duration.1⟩), action.2⟩)
+    else
+      let greedy := naturalReservoir (List.finRange count.word.toNat) 0 (firstAction count)
+        explorer.rng.next.2
+      (greedy.1, ⟨none, greedy.2⟩)
+
+/-- **One decision of the explorer is its decision word by word.** The branch of a persistent draw
+at the declared rate is an integer comparison on the first word
+(`AcornVerif.TemporalSupport.declared_branch`), and the greedy draw of the resting policy is the
+reservoir over every action. -/
+theorem Explorer.step_eq (explorer : Explorer count) : explorer.step = explorer.byWord := by
+  unfold Explorer.step Explorer.byWord
   cases explorer.run.bind ExploratoryRun.serve with
   | some served => rfl
   | none =>
     dsimp only
     have rate : (resting count).epsilon = declaredRate := rfl
+    have fits : (0 : UInt64).toNat + (List.finRange count.word.toNat).length < 2 ^ 64 := by
+      rw [List.length_finRange]
+      exact (Nat.zero_add _).symm ▸ count.word.toNat_lt
     rw [PolicySnapshot.drawPersistent_def, rate]
     unfold beginExploration
     dsimp only
@@ -180,8 +235,41 @@ theorem Explorer.step_eq (explorer : Explorer count) :
     by_cases below : (explorer.rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23
     · simp only [below, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
     · simp only [below, decide_false, Bool.not_false, ↓reduceIte, PolicySnapshot.greedy_def,
-        resting_candidates]
+        resting_candidates, reservoir_natural _ _ _ _ fits]
       rfl
+
+/-- The first actions of an explorer, in one pass over its decisions word by word. -/
+def Explorer.actions : ℕ → Explorer count → List (Action count.word.toNat)
+  | 0, _ => []
+  | steps + 1, explorer =>
+    match explorer.byWord with
+    | (action, next) => action :: Explorer.actions steps next
+
+/-- The explorer one decision later is the explorer of its next state. -/
+theorem Explorer.after_shift (explorer : Explorer count) (time : ℕ) :
+    explorer.after (time + 1) = explorer.step.2.after time := by
+  induction time with
+  | zero => rfl
+  | succ time ih => exact congrArg (fun later : Explorer count => later.step.2) ih
+
+/-- The list of an explorer's first actions holds its action at each time. -/
+theorem Explorer.actions_get (explorer : Explorer count) (steps time : ℕ)
+    (within : time < steps) :
+    (explorer.actions steps)[time]? = some (explorer.actionAt time) := by
+  induction steps generalizing explorer time with
+  | zero => exact absurd within (Nat.not_lt_zero time)
+  | succ steps ih =>
+    have unfolded : explorer.actions (steps + 1) =
+        explorer.step.1 :: explorer.step.2.actions steps := by
+      rw [explorer.step_eq]
+      rfl
+    rw [unfolded]
+    cases time with
+    | zero => rfl
+    | succ time =>
+      rw [List.getElem?_cons_succ, ih explorer.step.2 time (Nat.lt_of_succ_lt_succ within)]
+      exact congrArg some (congrArg (fun later : Explorer count => later.step.1)
+        (explorer.after_shift time).symm)
 
 /-! ## The executed selection -/
 
