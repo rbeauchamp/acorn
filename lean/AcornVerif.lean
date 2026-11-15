@@ -57,6 +57,7 @@ import AcornVerif.CurrentConcealedTarget
 import AcornVerif.CurrentConcealedTargetFinding
 import AcornVerif.CurrentConcealedTargetMission
 import AcornVerif.CurrentConcealedTargetRung
+import AcornVerif.CurrentConcealedTargetRungCredit
 import AcornVerif.CurrentConcealedTargetRungFinds
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
@@ -67,6 +68,7 @@ import AcornVerif.CurrentExplorer
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentCreditHorizon
+import AcornVerif.CurrentFirstCredit
 import AcornVerif.CurrentFrameSize
 import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint

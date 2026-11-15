@@ -60,12 +60,14 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
 - **A visit of seven steps is within the proved reach of a first reward.** On a primitive
   controller's cold run, a slot laid at most 81 steps before a first reward of one has a weight
   the reward moves (`AcornVerif.CurrentCreditHorizon.recent_weight_moves`); `rung_reach` is that
-  statement for frames of the rung's size and a slot laid at most seven steps before. In the
-  kernel's world in visits a reward is the result of one of a visit's seven steps and arrives with
-  the decision that follows that step, so a first reward arrives at most seven decisions after its
-  visit's first (argued, from `AcornVerif.Kernel.visits` and `reward_step`). The statement is about
-  the controller's run, not yet about the agent's, and it says that a weight moves, not that the
-  greedy choice changes.
+  statement for frames of the rung's size and a slot laid at most seven steps before.
+  `AcornVerif.CurrentConcealedTargetRungCredit.rung_credit` is the statement about the agent's run
+  in a member. A member's first reward arrives with the percept after the first step that meets
+  its target, at most seven decisions after its visit's first; and right after the agent's step
+  on that percept, every slot of the frame laid at the visit's first decision holds, in the row
+  of the action taken there, a weight above the tie window, for a first success within the
+  agent's first 1000 decisions. It says that the credit is written, not that it stays or that
+  the greedy choice changes.
 
 ## The premises on memory and on finding
 
@@ -94,7 +96,7 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 
 - No premise of `rung_mission` about the agent but the ones on memory and on finding, for the
   executed agent itself. Whether the executed agent retains in this class is the rest of
-  rbeauchamp/acorn#232: what it does after a first reward is not characterized.
+  rbeauchamp/acorn#232: its actions after a first reward are not characterized.
   `ExecutedRetains` is argued to fail of the agent as built
   (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
   retention is asked.
@@ -182,8 +184,9 @@ theorem rung_weight_rests (planning : PlanningSelection) (mode : TaskFeatureMode
 controller's cold run over frames of at most 1712 slots, a slot that a step laid, followed by at
 most six more steps, has a weight that a reward of one at the next step moves, under either
 criterion. It is `AcornVerif.CurrentCreditHorizon.recent_weight_moves` at the rung's sizes. The
-statement is of the controller's run, not of the agent's, and it mentions no visit: this module's
-header argues that a first reward arrives at most seven decisions after its visit's first. -/
+statement is of the controller's run and mentions no visit;
+`AcornVerif.CurrentConcealedTargetRungCredit.rung_credit` is the statement of the agent's run in a
+member's visits. -/
 theorem rung_reach (criterion : Criterion) (dimension : Dimension) {actions : Nat}
     (before after : List (Laid dimension actions)) (laid : Laid dimension actions)
     (slot : FeatIdx dimension) (held : slot ∈ laid.features.indices)
@@ -247,6 +250,11 @@ generator seeded from the seed of the rung's world, which is the seed of the age
 configuration. -/
 def rungExplorer : Explorer Grid.interface.actions :=
   Explorer.cold Grid.interface.actions witnessConfig.raw.seed
+
+/-- The rung's agent as a kernel agent: the executed decision function from the cold state of the
+rung's construction. -/
+abbrev rungAgent (planning : PlanningSelection) : Kernel.Agent Grid.interface :=
+  executedAgent (rungConstruction planning).initial.agent
 
 /-- **Finding on the first rung is a property of one action sequence.** The rung's agent finds
 exactly when there are more than 98 counted members each of whose targets the actions of

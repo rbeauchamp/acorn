@@ -1103,15 +1103,17 @@ fixes its world, its visit length and its agent.
 | The agent's actions up to a first reward | [For a profile with no hierarchy under the declared rate](../lean/AcornVerif/CurrentExplorer.lean), at the default step order, from a state whose learners are at rest: at each time before which every reward word is a zero word, the executed agent takes the action of an explorer, whose whole state is the exploratory run it has committed to and the action generator. A decision serves a committed run, or reads one word; below the declared rate's share it reads a duration word and an action word and begins a run, and otherwise it takes the pick of the ordered reservoir over every action, one word each. From cold initialization the explorer holds no run and the generator of the feature configuration's seed. | `Explorer`, `Explorer.step_eq`, `select_explores`, `act_explores`, `act_quiet`, `quiet_actions`, `cold_actions` |
 | Finding on the concealed targets | [In the reference of the concealed targets](../lean/AcornVerif/CurrentConcealedTargetFinding.lean), over a host world that carries the zero reward word, no reward is paid at any time. So the cold agent of such a profile finds exactly when the explorer's actions meet, each on some visit, the targets of more counted members than the covering bound. | `reference_unpaid`, `reference_actions`, `cold_found_within`, `cold_finds_iff`, `rung_finds_iff` |
 | The rung's agent finds | [The rung's agent](../lean/AcornVerif/CurrentConcealedTargetRungFinds.lean) solves 102 listed members, more than the covering bound of 98, each on one of its first 72 visits. The kernel evaluates the explorer's first 576 actions and the executed world step along the walks of four visits; each listed target lies within three tiles of one of those walks. No premise of the rung's theorem but this one and the one on memory is proved. | `rung_actions`, `walks_listed`, `walks_traced`, `found_listed`, `rung_finds` |
-| The rung's visit length | On a primitive controller's cold run over frames of the rung's size, a slot a step laid, followed by at most six more steps, has a weight that a reward of one at the next step moves. That a first reward arrives at most seven decisions after its visit's first is *argued*, from how the kernel's world in visits delivers the reward of a step. | `rung_reach` |
+| The rung's visit length | On a primitive controller's cold run over frames of the rung's size, a slot a step laid, followed by at most six more steps, has a weight that a reward of one at the next step moves. In a member's visits the reward word is the word one after a step that meets the target and the zero word after every other step and at each visit's start, so a member's first reward arrives with the percept after the first step that meets its target, at most seven decisions after its visit's first. | `rung_reach`, `reward_word_step`, `start_reward`, `step_reward` |
+| A first reward's credit | [While the agent's clock is at most the tester's maturity threshold](../lean/AcornVerif/CurrentFirstCredit.lean), 1000 steps for the declared tester, no unit of the feature bank is eligible for replacement and the tester writes no learner. For a profile with no hierarchy under per-step credit, at the default step order, one agent step is then one controller step. For such a profile under the discounted criterion, from cold initialization, with every step up to and including the one that learns the reward inside that threshold, over frames of at most 1999 slots: when every reward word is the zero word until one that is the word one, then right after the step that learns it every slot of a frame of at most 1900 slots laid at most 81 steps before holds, in the row of the action taken on that frame, a weight of at least a word that bounds from below the trace a step lays (`lowChain`), decayed once for each step between. [On the rung](../lean/AcornVerif/CurrentConcealedTargetRungCredit.lean), at a member's first success within the rung's agent's first 1000 decisions, that word is above the tie window, the margin within which the greedy choice treats two values as tied, on every slot the visit's start frame holds; the 102 members the agent is proved to find each have such a first success. | `young_ineligible`, `idle_test`, `young_step`, `reward_weight_reads`, `recent_credited`, `lowChain_above_tie`, `first_reward_credits`, `loop_first_credit`, `rung_credit`, `rung_first_credit`, `rung_found_credit` |
 
 What these theorems do not establish:
 
-- **Anything about the executed agent's learning.** `executed_mission` has premises that no
-  theorem proves: that the agent retains, and three of the four premises of contract 3. The
-  fourth, on memory, is proved for the executed agent itself, and so is finding on the first
+- **That the executed agent learns to solve a member again.** `executed_mission` has premises
+  that no theorem proves: that the agent retains, and three of the four premises of contract 3.
+  The fourth, on memory, is proved for the executed agent itself, and so is finding on the first
   rung, which is reduced to the agent's exploration before any reward and evaluates no
-  learner.
+  learner. `rung_credit` bounds the weights a first reward writes on one frame, right after the
+  step that learns it, and says nothing of an action the agent takes afterwards.
   `ExecutedRetains` asks every later visit, and the agent as built explores at a constant rate,
   so where an exploring run can make a visit miss, the premise fails of it (argued in the
   [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder);
@@ -1130,9 +1132,12 @@ What these theorems do not establish:
   seed 1 and side 64 that start was the box's center when Lean's interpreter evaluated it
   (observed; the [roadmap](roadmap.md#the-rungs-constants) records the run), so the two worlds
   share their start and their terrain and differ by the host's deer. No theorem says so.
-- **That a first reward reaches the agent's first step of a visit.** `rung_reach` is about the
-  primitive controller's cold run over frames of the rung's size, not about the agent's run,
-  and it says that a weight moves, not that the greedy choice changes.
+- **That the agent's greedy choice follows a first reward.** `rung_credit` says that the
+  reward's credit is written on each slot of the visit's start frame, above the tie window,
+  right after the step that learns it, for a first success within the agent's first 1000
+  decisions. Except for a first success on the visit's last step, it does not say that the
+  weight is still there when the next visit starts; and it does not say that the greedy choice
+  there is the action it was written for.
 - **That a class of a longer visit, or of a world with deer and food, is big, or that its
   frames are within the sizes the credit horizon assumes.** Of a world with deer and food only
   the interface's bound is proved: 3648 slots under the standard feature configuration.
