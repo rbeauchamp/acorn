@@ -5,7 +5,7 @@ Authors: acorn contributors
 -/
 import Acorn.Host.AgentAdmission
 import AcornVerif.CurrentConcealedTargetFinding
-import AcornVerif.CurrentFrameSize
+import AcornVerif.CurrentFrameSlots
 import AcornVerif.CurrentKernelMemory
 
 /-!
@@ -50,9 +50,9 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
   inside the box.
 - **No deer and no food, so that every frame is proved small.** In a world that admits neither,
   every percept has at most 139 words (`AcornVerif.CurrentFrameSize.percept_words`), so every frame
-  of the rung's agent has at most 1712 active slots (`rung_frames`, and `rung_frame` of one step),
-  and the credit horizon holds of it with no hypothesis on frames (`rung_weight_rests`). Every
-  frame holds at least one slot (`rung_frame_slot`). Of a world with deer and food the tree
+  of the rung's agent has at most 1712 active slots (`rung_frame`), and the credit horizon holds
+  of it with no hypothesis on frames (`rung_weight_rests`). Every frame holds at least one slot
+  (`rung_frame_slot`). Of a world with deer and food the tree
   proves only the interface's bound of 3648 slots (`AcornVerif.CurrentFrameSize`), which is above
   the 1999 that horizon assumes. A smaller bound for the host's own world along a visit of seven
   steps is not proved. It looks within reach: from a generated world no food is due at the times
@@ -98,7 +98,8 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 
 - No premise of `rung_mission` about the agent but the ones on memory and on finding, for the
   executed agent itself. Whether the executed agent retains in this class is the rest of
-  rbeauchamp/acorn#232: its actions after a first reward are not characterized.
+  rbeauchamp/acorn#232: of its actions after a first reward, only the first is characterized
+  (`AcornVerif.CurrentConcealedTargetRungChoice.rung_choice`), and not which action it is.
   `ExecutedRetains` is argued to fail of the agent as built
   (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
   retention is asked.
@@ -136,7 +137,8 @@ open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.Coverage AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
 open AcornVerif.CurrentConcealedTargetFinding AcornVerif.CurrentConcealedTargetMission
 open AcornVerif.CurrentCreditHorizon AcornVerif.CurrentExplorer
-open AcornVerif.CurrentFrameSize AcornVerif.CurrentKernelMemory AcornVerif.CurrentRunningMemory
+open AcornVerif.CurrentFrameSize AcornVerif.CurrentFrameSlots AcornVerif.CurrentKernelMemory
+open AcornVerif.CurrentRunningMemory
 open AcornVerif.Intent AcornVerif.Intent.MissionTheorem
 
 /-! ## The first rung -/
@@ -151,21 +153,9 @@ def rungConstruction (planning : PlanningSelection) : AgentConstruction :=
   AgentConstruction.standard witnessConfig.raw.seed ⟨.primitive, .discounted⟩ planning
     .learnThenAct
 
-/-- **The frames of the first rung.** Over percepts the rung's world delivers, every step of the
-rung's agent lays a frame of at most 1712 slots, from every state and under every step order. -/
-theorem rung_frames (planning : PlanningSelection) (mode : TaskFeatureMode) (order : StepOrder)
-    (percepts : List (Percept Grid.interface)) (delivered : Delivered witnessConfig mode percepts)
-    (state : Agent Grid.interface (rungConstruction planning).profile
-      (rungConstruction planning).config (rungConstruction planning).criterion
-      (rungConstruction planning).dimension (rungConstruction planning).planning) :
-    ∀ step ∈ (traced order state percepts).2, step.features.indices.length ≤ 1712 :=
-  fun step member => Nat.le_trans
-    (unpopulated_fits witness_unpopulated mode order percepts delivered state step member)
-    (Nat.le_of_eq (standard_slots _ _ _ _))
-
-/-- Every step of the rung's agent on a percept of the rung's world lays a frame of at most 1712
-slots, from every agent state, at every state of the world and under every step order: the
-statement of `rung_frames` of one step. -/
+/-- **The frames of the first rung.** Every step of the rung's agent on a percept of the rung's
+world lays a frame of at most 1712 slots, from every agent state, at every state of the world and
+under every step order. -/
 theorem rung_frame (planning : PlanningSelection) (mode : TaskFeatureMode) (order : StepOrder)
     (state : Agent Grid.interface (rungConstruction planning).profile
       (rungConstruction planning).config (rungConstruction planning).criterion

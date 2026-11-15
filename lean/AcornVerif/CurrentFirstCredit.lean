@@ -11,10 +11,10 @@ import AcornVerif.CurrentGridWorld
 
 `AcornVerif.CurrentCreditHorizon` proves, of a primitive controller's own run, that a slot laid at
 most 81 steps before a first reward of one has a weight the reward moves. This module carries
-that to the executed agent and gives an amount. After the agent's step on the first rewarded
-percept, every slot of a frame it laid at most 81 steps before holds, in the row of the action
-taken on that frame, a weight that reads at least the least laid trace decayed once for each step
-between (`first_reward_credits`; `loop_first_credit` is the same statement of a kernel run).
+that to the executed agent and gives an amount. In a kernel run, after the agent's step on the
+first rewarded percept, every slot of a frame it laid at most 81 steps before holds, in the row
+of the action taken on that frame, a weight that reads at least the least laid trace decayed once
+for each step between (`loop_first_credit`).
 
 An agent's step is one controller step followed by the tester's retirements
 (`AcornVerif.CurrentCreditHorizon.learning_step`), and a retirement clears a slot's weight and
@@ -33,17 +33,16 @@ tester retires nothing. The names here call such an agent, step or run young.
 - **One step.** So before a unit matures, one agent step is exactly one controller step at the
   encoded frame, the executed action and the centred reward (`young_step`). Under the discounted
   criterion the centred reward is the percept's reward word.
-- **A run.** Over percepts whose reward word is the zero word, the controller stays quiet against
-  what it laid (`traced_young`), and a recent slot stays recent, decayed once for each step
-  (`traced_recent`). A first reward of one then writes at least the slot's least trace into its
-  weight (`AcornVerif.CurrentCreditHorizon.recent_credited`).
-
-A kernel run of the executed agent is its traced run over the percepts it receives
-(`traced_loop`), and the steps that run lays are the steps of the traced run (`laidAt`,
-`traced_laid`). So in a kernel run the controller stays quiet while the rewards are zero
-(`loop_quiet`), a laid slot stays recent (`loop_recent`), and the step that learns a reward of
-one is one controller step at reward one (`loop_paid`); `loop_first_credit` follows from the
-three.
+- **A list of percepts.** Over percepts whose reward word is the zero word, the controller stays
+  quiet against what it laid (`traced_young`), and a recent slot stays recent, decayed once for
+  each step (`traced_recent`).
+- **A kernel run.** A kernel run of the executed agent is its traced run over the percepts it
+  receives (`traced_loop`), and the steps that run lays are the steps of the traced run
+  (`laidAt`, `traced_laid`). So in a kernel run the controller stays quiet while the rewards are
+  zero (`loop_quiet`), a laid slot stays recent (`loop_recent`), and the step that learns a
+  reward of one is one controller step at reward one (`loop_paid`). That step writes at least a
+  recent slot's least trace into its weight
+  (`AcornVerif.CurrentCreditHorizon.recent_credited`), which gives `loop_first_credit`.
 
 Scope. A profile with no hierarchy under per-step credit and the discounted criterion, at the
 default step order, from cold initialization; reward words that are the zero word until a first
@@ -417,74 +416,6 @@ theorem traced_recent (primitive : profile.usesHierarchy = false)
       (fun other member => silent other (List.mem_cons_of_mem _ member)) (by omega) (by omega)
       (fun step member => fits step (List.mem_cons_of_mem _ member))
     simpa [traced, Nat.add_assoc, Nat.add_comm 1] using result
-
-/-- **The first reward's credit along the executed agent's run.** For a profile with no hierarchy
-under per-step credit and the discounted criterion, at the default step order, from cold
-initialization: let the agent lay a frame at one step, take at most eighty more steps, and then
-receive a first reward of one, all before a unit of its feature bank matures, over frames of at
-most 1999 slots, the laid one of at most 1900. Then after the step that learns the reward, every
-slot of the laid frame holds, in the row of the action taken on it, a weight that reads at least
-the least laid trace decayed once for each step between. -/
-theorem first_reward_credits (primitive : profile.usesHierarchy = false)
-    (perStep : profile.credit = .perStep) (planning : PlanningSelection)
-    (before after : List (Percept interface)) (laying paying : Percept interface)
-    (silent : ∀ percept ∈ before ++ laying :: after, percept.reward = .zero)
-    (pays : paying.reward = .one) (near : after.length ≤ 80)
-    (young : before.length + after.length + 2 ≤ config.tester.maturity) :
-    let cold := Agent.initial interface profile config .discounted dimension planning
-    let prior := traced .learnThenAct cold before
-    let laid := prior.1.choose .learnThenAct laying
-    let waited := traced .learnThenAct laid.learn after
-    let paid := (waited.1.choose .learnThenAct paying).learn
-    (∀ step ∈ prior.2, step.features.indices.length ≤ 1999) →
-    laid.features.indices.length ≤ 1900 →
-    (∀ step ∈ waited.2, step.features.indices.length ≤ 1999) →
-    ∀ slot ∈ laid.features.indices,
-      numerical32 (lowChain .discounted after.length) ≤
-        numerical32 (((controlOf paid).learners.get laid.decision.action).state.weights.get
-          slot).value := by
-  intro cold prior laid waited paid fitsBefore fitsLaid fitsAfter slot held
-  have coldClock : cold.clock.toNat = 0 := rfl
-  obtain ⟨quietPrior, ctrlPrior, clockPrior⟩ := traced_young primitive perStep before cold []
-    Quiet.initial ctrlQuiet_initial
-    (fun percept member => silent percept (List.mem_append_left _ member))
-    (by rw [coldClock]; omega) fitsBefore
-  rw [List.nil_append] at ctrlPrior
-  have priorClock : prior.1.clock.toNat ≤ before.length := by
-    rw [coldClock, Nat.zero_add] at clockPrior
-    exact clockPrior
-  have fitsLaying : laid.features.indices.length ≤ 1999 := Nat.le_trans fitsLaid (by decide)
-  obtain ⟨steppedLaid, quietLaid, ctrlLaid, clockLaid⟩ := young_quiet_step primitive perStep
-    prior.1 prior.2 laying quietPrior ctrlPrior
-    (silent laying (List.mem_append_right _ List.mem_cons_self))
-    (Nat.lt_of_le_of_lt priorClock (by omega)) fitsLaying
-  have laidClock : laid.learn.clock.toNat ≤ before.length + 1 :=
-    Nat.le_trans clockLaid (Nat.succ_le_succ priorClock)
-  have recentLaid : Recent (controlOf laid.learn) laid.decision.action slot
-      (lowChain .discounted 0) := by
-    rw [steppedLaid]
-    exact recent_laid ctrlPrior laid.features laid.decision.action fitsLaid slot held
-  have silentAfter : ∀ percept ∈ after, percept.reward = .zero := fun percept member =>
-    silent percept (List.mem_append_right _ (List.mem_cons_of_mem _ member))
-  have youngAfter : laid.learn.clock.toNat + after.length ≤ config.tester.maturity :=
-    Nat.le_trans (Nat.add_le_add_right laidClock _) (by omega)
-  obtain ⟨quietWaited, ctrlWaited, clockWaited⟩ := traced_young primitive perStep after
-    laid.learn _ quietLaid ctrlLaid silentAfter youngAfter fitsAfter
-  have waitedClock : waited.1.clock.toNat ≤ before.length + 1 + after.length :=
-    Nat.le_trans clockWaited (Nat.add_le_add_right laidClock _)
-  have recentWaited := traced_recent primitive perStep laid.decision.action slot after
-    laid.learn _ 0 quietLaid ctrlLaid recentLaid silentAfter (by omega) youngAfter fitsAfter
-  rw [Nat.zero_add] at recentWaited
-  have steppedPaid := young_step primitive perStep waited.1 paying
-    (Nat.lt_of_le_of_lt waitedClock (by omega))
-  have centred : Criterion.center .discounted paying.reward 1
-      (finishInput (waited.1.choose .learnThenAct paying)).average.rate = Binary32.one := pays
-  rw [centred] at steppedPaid
-  change numerical32 _ ≤ numerical32 (((controlOf
-    (waited.1.choose .learnThenAct paying).learn).learners.get _).state.weights.get slot).value
-  rw [steppedPaid]
-  exact recent_credited ctrlWaited _ _ _ slot _ recentWaited
-    (lowChain_positive .discounted after.length near)
 
 end Run
 

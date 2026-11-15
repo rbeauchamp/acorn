@@ -33,8 +33,11 @@ the slot's trace (`reward_weight_reads`), so it reads at least any word the trac
 at least. Over reward-free steps that word is `lowChain`'s, a lower bound on the trace a step lays
 on a frame of at most 1900 slots, decayed once for each step since (`recent_laid`, `fold_recent`),
 and decayed at most eight times it is above the tie window of the greedy choice
-(`lowChain_above_tie`). The values 119 and 132 are
-upper limits; the theorems do not say that a trace reaches them.
+(`lowChain_above_tie`), and exceeds it by a positive word (`low_clears_tie`). In a policy of
+small values, a value that is a zero word is then no near-maximum candidate once another value
+reads at least such a word (`zero_excluded`), and that other value is the one candidate when
+every other value is a zero word (`lone_candidate`). The values 119 and 132 are upper limits; the
+theorems do not say that a trace reaches them.
 
 **Words.** Every statement is about the executed binary32 words. The primitive learner's stored
 step size is `stepWord` (`0x3851b71c`), the portable exponential of its stored log step size
@@ -1074,6 +1077,9 @@ theorem small_named {word : Binary32}
 /-- The stored step size is small. -/
 theorem small_step : Small stepWord := small_named (by decide)
 
+/-- The tie window of the greedy choice is small. -/
+theorem small_tie : Small tieWindow := small_named (by decide)
+
 /-- The stored step size is nonnegative. -/
 theorem step_nonneg : 0 ≤ numerical32 stepWord := by
   rw [← zero_value]; exact num_le (by decide) (by decide) (by decide)
@@ -2070,6 +2076,15 @@ theorem lowChain_above_tie (criterion : Criterion) (i : Nat) (near : i ≤ 8) :
     (lowChain_facts criterion 8).1.1).mpr (low_above_tie criterion)
   exact lt_of_lt_of_le above far
 
+/-- The least laid trace decayed eight times exceeds the tie window by a positive word. -/
+theorem low_clears_tie (criterion : Criterion) :
+    0 < numerical32 ((lowChain criterion 8).sub tieWindow) := by
+  have key : Binary32.zero.key < ((lowChain criterion 8).sub tieWindow).key := by
+    cases criterion <;> decide +kernel
+  rw [← zero_value]
+  exact (numerical32_strict_order _ _ (by decide)
+    (sub_small (lowChain_facts criterion 8).1 small_tie).1).mpr key
+
 /-- A slot eligible in a row whose trace is at least a word. -/
 def Recent (controller : Controller (criterion.config .control) dimension actions)
     (row : Fin actions) (slot : FeatIdx dimension) (lower : Binary32) : Prop :=
@@ -2507,6 +2522,70 @@ theorem fold_recent {cfgCriterion : Criterion} (row : Action actions) (slot : Fe
     simpa [Nat.add_assoc, Nat.add_comm 1] using result
 
 end Moves
+
+section Candidates
+
+open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder AcornVerif.CurrentBackupBounds
+open AcornVerif.CurrentLearner AcornVerif.CurrentControl
+
+variable {count : Word.Count}
+
+/-! ## Zero values and the tie window
+
+Two facts about the near-maximum candidates of a policy of small values, carried by the
+monotonicity of the rounded subtraction of the tie window: a value that is a zero word is no
+candidate once another value clears the window, and it leaves that other value the one candidate
+when every other value is a zero word. -/
+
+/-- **A zero value is no candidate once another value clears the tie window.** In a policy of
+small values, if one action's value reads at least a small word whose difference from the tie
+window is positive, an action whose value is a zero word is not a near-maximum candidate. -/
+theorem zero_excluded (snapshot : PolicySnapshot count)
+    (small : ∀ action, Small (snapshot.values.get action))
+    (leader other : Action count.word.toNat) (lower : Binary32) (lowerSmall : Small lower)
+    (gap : 0 < numerical32 (lower.sub tieWindow))
+    (leads : numerical32 lower ≤ numerical32 (snapshot.values.get leader))
+    (zero : (snapshot.values.get other).isZero = true) :
+    other ∉ snapshot.candidates := by
+  obtain ⟨⟨top, best⟩, above⟩ := best_bounds snapshot fun action => (small action).1
+  have bestSmall : Small snapshot.best := best ▸ small top
+  have leadsBest : numerical32 lower ≤ numerical32 snapshot.best :=
+    le_trans leads (num_le (small leader).1 bestSmall.1 (above leader))
+  have threshold := sub_mono lowerSmall small_tie bestSmall small_tie leadsBest le_rfl
+  have strict := (numerical32_strict_order _ _ (by decide : Binary32.zero.Finite)
+    (sub_small bestSmall small_tie).1).mp (by rw [zero_value]; exact lt_of_lt_of_le gap threshold)
+  rw [PolicySnapshot.candidates_def]
+  dsimp only
+  intro member
+  have kept := of_decide_eq_true (List.mem_filter.mp member).2
+  have order := kept.2.2
+  rw [zero_key _ zero] at order
+  have zeroKey : Binary32.zero.key = 0 := by decide
+  omega
+
+/-- **One value above the tie window over zero values is the one candidate.** In a policy whose
+other values are zero words, an action whose small value reads at least a small word whose
+difference from the tie window is positive is the one near-maximum candidate, and the greedy draw
+returns it whatever the generator. -/
+theorem lone_candidate (snapshot : PolicySnapshot count) (leader : Action count.word.toNat)
+    (leaderSmall : Small (snapshot.values.get leader)) (lower : Binary32)
+    (lowerSmall : Small lower) (gap : 0 < numerical32 (lower.sub tieWindow))
+    (leads : numerical32 lower ≤ numerical32 (snapshot.values.get leader))
+    (zeros : ∀ action, action ≠ leader → (snapshot.values.get action).isZero = true) :
+    snapshot.candidates = [leader] ∧ ∀ rng, (snapshot.greedy rng).1 = leader := by
+  apply candidates_of_gap snapshot leader leaderSmall.1
+  intro action other
+  have threshold := sub_mono lowerSmall small_tie leaderSmall small_tie leads le_rfl
+  have finite := (sub_small leaderSmall small_tie).1
+  have strict := (numerical32_strict_order _ _ (by decide : Binary32.zero.Finite) finite).mp
+    (by rw [zero_value]; exact lt_of_lt_of_le gap threshold)
+  have zeroKey : Binary32.zero.key = 0 := by decide
+  refine ⟨finite_not_isNaN (CurrentControl.zero_finite _ (zeros action other)),
+    finite_not_isNaN finite, ?_⟩
+  rw [zero_key _ (zeros action other)]
+  omega
+
+end Candidates
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}

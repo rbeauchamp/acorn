@@ -25,39 +25,42 @@ enter: its second loop writes no weight.
 
 **The values.** After that step, the value of each action at a frame of at most 1999 slots reads
 its row's trace total on the frame (`traceTotal`, `reward_values`): the ordered sum, over the
-frame's slots, of the traces the row held when the reward came, which is the word the second loop
-reads when a row lays a frame. The policy the controller freezes at the frame has the
-near-maximum candidates of the policy whose values are those totals (`tracePolicy`,
+frame's slots, of the traces the row held when the step began. It is the same ordered sum that
+the second loop forms when a row lays a frame. The policy the controller freezes at the frame has
+the near-maximum candidates of the policy whose values are those totals (`tracePolicy`,
 `reward_candidates`).
 
 **The decision.** In a kernel run in which every reward word before a time is the zero word and
 that time's is the word one, the action at the next time is one decision of primitive control
-(`AcornVerif.CurrentExplorer.Explorer.stepOver`), from the explorer's state after that many
-decisions, over the trace policy at the frame the decision reads (`first_choice`). A committed
-run with a step left serves its action; otherwise the decision is one persistent draw from the
-trace policy. Outside a run, when the generator begins none, the action is a near-maximum
-candidate of the trace policy (`first_choice_greedy`).
+(`AcornVerif.CurrentExplorer.Explorer.stepOver`) over the trace policy at the frame the decision
+reads, from the state the explorer holds after the run's decisions up to and including the one
+on the rewarded percept (`first_choice`). A committed run with a step left serves its action;
+otherwise the decision is one persistent draw from the trace policy. Outside a run, when the
+generator begins none, the action is a near-maximum candidate of the trace policy
+(`first_choice_greedy`).
 
 **What the trace totals say.** A step lays a trace on the slots of its frame, in the row of its
-action, and every later step decays it, whatever the rewards. So a total records which actions the
-agent took before the reward, on frames that share slots with the frame the decision reads, and
-how long before.
+action, and every later step decays it. The traces a first reward turns into weights were laid on
+steps whose reward words were all zero, so a total is what it would be had no reward come: it
+records which actions the agent took before the reward, on frames that share slots with the
+frame the decision reads, and how long before.
 
 - Take a frame, and a row whose action no step among the last
   `AcornVerif.CurrentCreditHorizon.creditReach` before a time took on a frame holding a slot of
-  that frame; a row whose action was taken on none of those steps is one. The row laid no slot of
-  the frame on those steps (`unlaid_window`), and its total on the frame is a zero word
-  (`unlaid_total`).
-- A row that took a step at most nine steps before the reward, on a frame of at most 1900 slots,
-  has, on every frame that shares a slot with that one, a total of at least the least laid trace
-  decayed eight times (`shared_total`). That word exceeds the tie window by a positive word
-  (`low_clears_tie`). So right after the reward step the value of that row's action at such a
-  frame is above the tie window (`shared_value`).
+  that frame; a row whose action was taken on none of those steps is one. From a controller that
+  held no trace when the run began, the row laid no slot of the frame on those steps
+  (`unlaid_window`), and its total on the frame is a zero word (`unlaid_total`).
+- Take a step at most nine steps before the reward, on a frame of at most 1900 slots. On every
+  frame that shares a slot with that one, the row of its action has a total of at least the least
+  laid trace decayed eight times (`shared_total`). That word exceeds the tie window by a positive
+  word (`AcornVerif.CurrentCreditHorizon.low_clears_tie`). So right after the reward step the
+  value of that action at such a frame is above the tie window (`shared_value`).
 - So at a frame that shares such a slot, an action that the last `creditReach` steps before the
   reward took on no frame holding a slot of this one is no candidate (`unlaid_excluded`, through
-  `zero_excluded`). Where every one of those steps whose frame holds a slot of this one took one
-  action, that action is the one candidate, and the greedy draw returns it whatever the generator
-  (`sole_candidate`, through `lone_candidate`).
+  `AcornVerif.CurrentCreditHorizon.zero_excluded`). And at such a frame, where every one of those
+  steps whose frame holds a slot of this one took one action, that action is the one candidate,
+  and the greedy draw returns it whatever the generator (`sole_candidate`, through
+  `AcornVerif.CurrentCreditHorizon.lone_candidate`).
 
 So the first greedy choice after a first reward follows what the agent did on the frames that
 share slots with the present one: an action it took on none of them is excluded, and where it
@@ -66,17 +69,18 @@ comparison of their rows' totals. In a world all of whose frames share a slot, e
 on the last `creditReach` steps before the reward can hold a total on every frame.
 
 Two frames whose percepts carry a common word share a slot
-(`AcornVerif.CurrentFrameSize.shared_slot`).
+(`AcornVerif.CurrentFrameSlots.shared_slot`).
 
 What this does not say.
 
 - Which action is the candidate when the steps before the reward took several. That is the
   comparison of their rows' trace totals on the frame, and a total depends on how many slots the
   frame shares with each earlier frame. No theorem here evaluates a total.
-- Anything of a later decision. After the first reward the weights are not zero words, so the
-  errors of the next steps are not, and each moves every weight whose slot holds a trace.
-- That the action leads back to where the reward was earned. The traces the reward turns into
-  weights were laid before it, and no trace reads a reward.
+- Anything of a later decision. After the first reward the weights are not all zero words, so
+  the error of a later step need not be a zero word, and a step whose error is not one moves
+  every weight whose slot holds a trace.
+- That the action leads back to where the reward was earned. The totals are those of the run
+  before the reward, and are what they would be had the reward not come.
 - A run past the first maturing unit, when a replaced unit's slot is retired; the differential
   criterion; a profile with a hierarchy; another rate policy or step order.
 
@@ -156,8 +160,8 @@ theorem reward_writes_traces {history : List (Laid dimension actions)}
     rw [slotOf_weight, knowledge.1, ← slotOf_weight]
     exact written
 
-/-- The total of the traces a row holds on the slots of a frame, in the frame's order: the word
-the second loop reads when the row lays the frame. -/
+/-- The total of the traces a row holds on the slots of a frame, in the frame's order: the same
+ordered sum that the second loop forms, of the traces it then finds, when a row lays a frame. -/
 def traceTotal {cfg : Acorn.Config} (controller : Controller cfg dimension actions)
     (features : ActiveSet dimension) (row : Fin actions) : Binary32 :=
   Binary32.sumFrom .zero (features.indices.map fun slot =>
@@ -346,66 +350,6 @@ theorem reward_candidates {history : List (Laid dimension count.word.toNat)}
   exact ⟨lf, rf, le_antisymm ((numerical32_order _ _ lf rf).mp same.le)
     ((numerical32_order _ _ rf lf).mp same.ge)⟩
 
-/-- The tie window is small. -/
-theorem small_tie : Small tieWindow := small_named (by decide)
-
-/-- **A zero value is no candidate once another value clears the tie window.** In a policy of
-small values, if one action's value reads at least a small word whose difference from the tie
-window is positive, an action whose value is a zero word is not a near-maximum candidate. -/
-theorem zero_excluded (snapshot : PolicySnapshot count)
-    (small : ∀ action, Small (snapshot.values.get action))
-    (leader other : Action count.word.toNat) (lower : Binary32) (lowerSmall : Small lower)
-    (gap : 0 < numerical32 (lower.sub tieWindow))
-    (leads : numerical32 lower ≤ numerical32 (snapshot.values.get leader))
-    (zero : (snapshot.values.get other).isZero = true) :
-    other ∉ snapshot.candidates := by
-  obtain ⟨⟨top, best⟩, above⟩ := best_bounds snapshot fun action => (small action).1
-  have bestSmall : Small snapshot.best := best ▸ small top
-  have leadsBest : numerical32 lower ≤ numerical32 snapshot.best :=
-    le_trans leads (num_le (small leader).1 bestSmall.1 (above leader))
-  have threshold := sub_mono lowerSmall small_tie bestSmall small_tie leadsBest le_rfl
-  have strict := (numerical32_strict_order _ _ (by decide : Binary32.zero.Finite)
-    (sub_small bestSmall small_tie).1).mp (by rw [zero_value]; exact lt_of_lt_of_le gap threshold)
-  rw [PolicySnapshot.candidates_def]
-  dsimp only
-  intro member
-  have kept := of_decide_eq_true (List.mem_filter.mp member).2
-  have order := kept.2.2
-  rw [zero_key _ zero] at order
-  have zeroKey : Binary32.zero.key = 0 := by decide
-  omega
-
-/-- **One value above the tie window over zero values is the one candidate.** In a policy whose
-other values are zero words, an action whose small value reads at least a small word whose
-difference from the tie window is positive is the one near-maximum candidate, and the greedy draw
-returns it whatever the generator. -/
-theorem lone_candidate (snapshot : PolicySnapshot count) (leader : Action count.word.toNat)
-    (leaderSmall : Small (snapshot.values.get leader)) (lower : Binary32)
-    (lowerSmall : Small lower) (gap : 0 < numerical32 (lower.sub tieWindow))
-    (leads : numerical32 lower ≤ numerical32 (snapshot.values.get leader))
-    (zeros : ∀ action, action ≠ leader → (snapshot.values.get action).isZero = true) :
-    snapshot.candidates = [leader] ∧ ∀ rng, (snapshot.greedy rng).1 = leader := by
-  apply candidates_of_gap snapshot leader leaderSmall.1
-  intro action other
-  have threshold := sub_mono lowerSmall small_tie leaderSmall small_tie leads le_rfl
-  have finite := (sub_small leaderSmall small_tie).1
-  have strict := (numerical32_strict_order _ _ (by decide : Binary32.zero.Finite) finite).mp
-    (by rw [zero_value]; exact lt_of_lt_of_le gap threshold)
-  have zeroKey : Binary32.zero.key = 0 := by decide
-  refine ⟨finite_not_isNaN (CurrentControl.zero_finite _ (zeros action other)),
-    finite_not_isNaN finite, ?_⟩
-  rw [zero_key _ (zeros action other)]
-  omega
-
-/-- The least laid trace decayed eight times exceeds the tie window by a positive word. -/
-theorem low_clears_tie (criterion : Criterion) :
-    0 < numerical32 ((lowChain criterion 8).sub tieWindow) := by
-  have key : Binary32.zero.key < ((lowChain criterion 8).sub tieWindow).key := by
-    cases criterion <;> decide +kernel
-  rw [← zero_value]
-  exact (numerical32_strict_order _ _ (by decide)
-    (sub_small (lowChain_facts criterion 8).1 small_tie).1).mpr key
-
 end Policy
 
 /-! ## A kernel run -/
@@ -448,11 +392,13 @@ theorem first_reward_weights (primitive : profile.usesHierarchy = false)
 /-- **The first decision after a first reward.** For a profile with no hierarchy under per-step
 credit, the declared rate and the discounted criterion, at the default step order, from an agent
 state whose learners are at rest and whose primitive controller is quiet: in a kernel run in
-which every reward word before a time is the zero word and that time's is the word one, all
-before a unit of the feature bank matures and over frames of at most 1999 slots, the action at
-the next time is one decision of primitive control, from the explorer's state after that many
-decisions, over the policy whose value for each action is the total of the traces its row held,
-when the step that learns the reward began, on the slots of the frame the decision reads. -/
+which every reward word before the time `paid` is the zero word and that time's is the word one,
+before a unit of the feature bank matures, over frames of at most 1999 slots before that time and
+at the next, the action at the time `paid + 1` is one decision of primitive control, from the
+explorer's state after `paid + 1` decisions, over the policy whose value for each action is the
+total of the traces its row held, when the step that learns the reward began, on the slots of
+the frame the decision reads. The frame of the step that learns the reward is not bounded: it
+enters no weight. -/
 theorem first_choice (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -463,14 +409,15 @@ theorem first_choice (primitive : profile.usesHierarchy = false)
     (silent : ∀ earlier, earlier < paid →
       (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
     (pays : (Kernel.perceptAt world (executedAgent agent) start paid).reward = .one)
-    (fits : ∀ time, time ≤ paid + 1 →
-      (laidAt agent world start time).features.indices.length ≤ 1999) :
+    (fits : ∀ earlier, earlier < paid →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (fitsNext : (laidAt agent world start (paid + 1)).features.indices.length ≤ 1999) :
     Kernel.actionAt world (executedAgent agent) start (paid + 1) =
       (((explorerOf agent.control).after (paid + 1)).stepOver
         (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start paid))
           (laidAt agent world start (paid + 1)).features declaredRate)).1 := by
   obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent history quiet ctrl world start
-    paid (by omega) silent (fun earlier before => fits earlier (by omega))
+    paid (by omega) silent fits
   obtain ⟨rest, tracked, -⟩ := quiet_actions primitive declared agent quiet world start paid
     (fun earlier before => by rw [silent earlier before]; decide)
   have stepped := act_explores (Kernel.memoryAt world (executedAgent agent) start paid)
@@ -485,7 +432,7 @@ theorem first_choice (primitive : profile.usesHierarchy = false)
     primitive declared (Kernel.perceptAt world (executedAgent agent) start (paid + 1))).1
   have candidates := reward_candidates ctrlPaid (laidAt agent world start paid).features
     (laidAt agent world start paid).row (laidAt agent world start (paid + 1)).features
-    (fits (paid + 1) le_rfl) declaredRate
+    fitsNext declaredRate
   rw [← loop_paid primitive perStep agent world start paid young pays] at candidates
   change ((Kernel.memoryAt world (executedAgent agent) start (paid + 1)).act
     (Kernel.perceptAt world (executedAgent agent) start (paid + 1))).2.action = _
@@ -493,9 +440,9 @@ theorem first_choice (primitive : profile.usesHierarchy = false)
   exact congrArg Prod.fst (Explorer.stepOver_congr _ _ _ rfl candidates)
 
 /-- **Outside a run, the first decision after a first reward takes a candidate of the trace
-totals.** Under the hypotheses of `first_choice`, when the explorer's state after that many
+totals.** Under the hypotheses of `first_choice`, when the explorer's state after `paid + 1`
 decisions holds no committed run with a step left and its generator begins none at the declared
-rate, the action at the next time is a near-maximum candidate of the trace policy. -/
+rate, the action at the time `paid + 1` is a near-maximum candidate of the trace policy. -/
 theorem first_choice_greedy (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -506,8 +453,9 @@ theorem first_choice_greedy (primitive : profile.usesHierarchy = false)
     (silent : ∀ earlier, earlier < paid →
       (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
     (pays : (Kernel.perceptAt world (executedAgent agent) start paid).reward = .one)
-    (fits : ∀ time, time ≤ paid + 1 →
-      (laidAt agent world start time).features.indices.length ≤ 1999)
+    (fits : ∀ earlier, earlier < paid →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (fitsNext : (laidAt agent world start (paid + 1)).features.indices.length ≤ 1999)
     (unserved : ((explorerOf agent.control).after (paid + 1)).run.bind ExploratoryRun.serve =
       none)
     (calm : (beginExploration interface.actions declaredRate
@@ -516,9 +464,9 @@ theorem first_choice_greedy (primitive : profile.usesHierarchy = false)
       (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start paid))
         (laidAt agent world start (paid + 1)).features declaredRate).candidates := by
   obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent history quiet ctrl world start
-    paid (by omega) silent (fun earlier before => fits earlier (by omega))
+    paid (by omega) silent fits
   have chosen := first_choice primitive perStep declared agent history quiet ctrl world start
-    paid young silent pays fits
+    paid young silent pays fits fitsNext
   have greedy := Explorer.stepOver_greedy ((explorerOf agent.control).after (paid + 1))
     (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start paid))
       (laidAt agent world start (paid + 1)).features declaredRate) unserved calm
@@ -527,24 +475,13 @@ theorem first_choice_greedy (primitive : profile.usesHierarchy = false)
       (laidAt agent world start (paid + 1)).features declaredRate)
     (fun action => by
       rw [tracePolicy_value]
-      exact (traces_sum_small ctrlPaid action _ (fits (paid + 1) le_rfl)).1.1)
+      exact (traces_sum_small ctrlPaid action _ fitsNext).1.1)
     (beginExploration interface.actions declaredRate
       ((explorerOf agent.control).after (paid + 1)).rng).2
   rw [chosen, greedy]
   exact member
 
 /-! ## What the trace totals say -/
-
-/-- An item of a mapped range after its first `skip` items is the image of a time from `skip`
-on. -/
-theorem mem_drop_range {α : Type} (f : ℕ → α) (count skip : ℕ) (item : α)
-    (member : item ∈ ((List.range' 0 count).map f).drop skip) :
-    ∃ time, skip ≤ time ∧ time < count ∧ item = f time := by
-  obtain ⟨index, bound, same⟩ := List.mem_iff_getElem.mp member
-  rw [List.length_drop, List.length_map, List.length_range'] at bound
-  refine ⟨skip + index, by omega, by omega, ?_⟩
-  rw [← same, List.getElem_drop, List.getElem_map, List.getElem_range']
-  simp
 
 /-- In a kernel run, a row laid a slot on none of the last `reach` steps before a time when no
 step among them both took the row's action and encoded a frame that holds the slot. -/
@@ -554,32 +491,39 @@ theorem unlaid_window (agent : Agent interface profile config criterion dimensio
     (apart : ∀ earlier, earlier < time → time ≤ earlier + reach →
       Kernel.actionAt world (executedAgent agent) start earlier = other →
       slot ∉ (laidAt agent world start earlier).features.indices) :
-    notLaid ([] ++ (List.range' 0 time).map (laidAt agent world start)) other slot reach := by
+    notLaid ((List.range' 0 time).map (laidAt agent world start)) other slot reach := by
   intro step member lays
-  rw [List.nil_append, List.length_map, List.length_range'] at member
-  obtain ⟨earlier, low, high, rfl⟩ := mem_drop_range _ _ _ _ member
-  exact apart earlier high (by omega)
-    ((laidAt_row agent world start earlier).symm.trans lays.1) lays.2
+  rw [List.length_map, List.length_range'] at member
+  obtain ⟨index, bound, same⟩ := List.mem_iff_getElem.mp member
+  rw [List.length_drop, List.length_map, List.length_range'] at bound
+  rw [List.getElem_drop, List.getElem_map, List.getElem_range'] at same
+  have position : 0 + 1 * (time - reach + index) = time - reach + index := by omega
+  rw [position] at same
+  subst same
+  exact apart (time - reach + index) (by omega) (by omega)
+    ((laidAt_row agent world start (time - reach + index)).symm.trans lays.1) lays.2
 
 /-- **A frame that shares a recently laid slot gives its row a total that clears the tie
 window.** For a profile with no hierarchy under per-step credit and the discounted criterion,
-from an agent state whose learners are at rest and whose primitive controller is quiet against
-the empty history: in a kernel run in which every reward word before a time is the zero word,
-over frames of at most 1900 slots and before a unit of the feature bank matures, let a step at
-most nine steps before that time have laid a slot that a frame of at most 1999 slots holds. Then
-at that time the row of that step's action has, on that frame, a trace total of at least the
-least laid trace decayed eight times. -/
+from an agent state whose learners are at rest and whose primitive controller is quiet: in a
+kernel run in which every reward word before the time `paid` is the zero word, over frames of at
+most 1999 slots and before a unit of the feature bank matures, let a step at most nine steps
+before that time have laid, on a frame of at most 1900 slots, a slot that another frame of at
+most 1999 slots holds. Then at the time `paid` the row of that step's action has, on that other
+frame, a trace total of at least the least laid trace decayed eight times. -/
 theorem shared_total (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
-    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (history : List (Laid dimension interface.actions.word.toNat))
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) history)
     (world : Kernel.World interface) (start : world.State) (paid : ℕ)
     (young : agent.clock.toNat + paid ≤ config.tester.maturity)
     (silent : ∀ earlier, earlier < paid →
       (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
     (fits : ∀ earlier, earlier < paid →
-      (laidAt agent world start earlier).features.indices.length ≤ 1900)
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
     (laid : ℕ) (before : laid < paid) (near : paid ≤ laid + 9)
+    (fitsLaid : (laidAt agent world start laid).features.indices.length ≤ 1900)
     (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
     (slot : FeatIdx dimension)
     (heldLaid : slot ∈ (laidAt agent world start laid).features.indices)
@@ -588,21 +532,18 @@ theorem shared_total (primitive : profile.usesHierarchy = false)
       numerical32 (traceTotal (controlOf (Kernel.memoryAt world (executedAgent agent) start paid))
         frame (laidAt agent world start laid).row) := by
   obtain ⟨gap, rfl⟩ : ∃ gap, paid = laid + 1 + gap := ⟨paid - 1 - laid, by omega⟩
-  have wide : ∀ earlier, earlier < laid + 1 + gap →
-      (laidAt agent world start earlier).features.indices.length ≤ 1999 :=
-    fun earlier early => Nat.le_trans (fits earlier early) (by decide)
-  obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent [] quiet ctrl world start
-    (laid + 1 + gap) young silent wide
-  have recent := loop_recent primitive perStep agent [] quiet ctrl world start laid gap
-    (by omega) young silent wide (fits laid (by omega)) slot heldLaid
+  obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent history quiet ctrl world start
+    (laid + 1 + gap) young silent fits
+  have recent := loop_recent primitive perStep agent history quiet ctrl world start laid gap
+    (by omega) young silent fits fitsLaid slot heldLaid
   have far := lowChain_antitone .discounted gap (8 - gap)
   rw [show gap + (8 - gap) = 8 by omega] at far
   exact le_trans far (le_trans recent.2
     (trace_le_total ctrlPaid _ frame fitsFrame slot heldFrame))
 
 /-- **After the reward, the value of a recent action clears the tie window where its frame's
-slots are.** Under the hypotheses of `shared_total`, when the percept of that time carries the
-reward word one and the agent's clock is still below the tester's maturity threshold: right
+slots are.** Under the hypotheses of `shared_total`, when the percept of the time `paid` carries
+the reward word one and the agent's clock is still below the tester's maturity threshold: right
 after the step that learns the reward, the value of the action of a step at most nine steps
 before, at a frame that shares a slot with the frame that step laid, reads at least the least
 laid trace decayed eight times, which is above the tie window
@@ -610,15 +551,17 @@ laid trace decayed eight times, which is above the tie window
 theorem shared_value (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
-    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (history : List (Laid dimension interface.actions.word.toNat))
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) history)
     (world : Kernel.World interface) (start : world.State) (paid : ℕ)
     (young : agent.clock.toNat + paid < config.tester.maturity)
     (silent : ∀ earlier, earlier < paid →
       (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
     (pays : (Kernel.perceptAt world (executedAgent agent) start paid).reward = .one)
     (fits : ∀ earlier, earlier < paid →
-      (laidAt agent world start earlier).features.indices.length ≤ 1900)
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
     (laid : ℕ) (before : laid < paid) (near : paid ≤ laid + 9)
+    (fitsLaid : (laidAt agent world start laid).features.indices.length ≤ 1900)
     (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
     (slot : FeatIdx dimension)
     (heldLaid : slot ∈ (laidAt agent world start laid).features.indices)
@@ -626,19 +569,20 @@ theorem shared_value (primitive : profile.usesHierarchy = false)
     numerical32 (lowChain .discounted 8) ≤
       numerical32 (((controlOf (Kernel.memoryAt world (executedAgent agent) start
         (paid + 1))).predictAll frame).get (laidAt agent world start laid).row) := by
-  obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent [] quiet ctrl world start paid
-    (by omega) silent (fun earlier early => Nat.le_trans (fits earlier early) (by decide))
+  obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent history quiet ctrl world start paid
+    (by omega) silent fits
   rw [loop_paid primitive perStep agent world start paid young pays,
     reward_values ctrlPaid _ _ frame fitsFrame]
-  exact shared_total primitive perStep agent quiet ctrl world start paid (by omega) silent fits
-    laid before near frame fitsFrame slot heldLaid heldFrame
+  exact shared_total primitive perStep agent history quiet ctrl world start paid (by omega)
+    silent fits laid before near fitsLaid frame fitsFrame slot heldLaid heldFrame
 
 /-- **An action not taken on the frame's slots for the credit horizon is no candidate.** Under
-the hypotheses of `shared_total`, at a frame that shares a slot with a frame laid at most nine
-steps before, take an action that no step among the last `creditReach` took on a frame holding a
-slot of this one: an action taken on none of those steps is one. It is not a near-maximum
-candidate of the trace policy at the frame, at any rate: its total is a zero word, and the total
-of the row that laid the shared slot clears the tie window. -/
+the hypotheses of `shared_total`, from a controller quiet against the empty history, which holds
+no trace: at a frame that shares a slot with a frame laid at most nine steps before, take an
+action that no step among the last `creditReach` took on a frame holding a slot of this one. An
+action taken on none of those steps is one. It is not a near-maximum candidate of the trace
+policy at the frame, at any rate: its total is a zero word, and the total of the row that laid
+the shared slot clears the tie window. -/
 theorem unlaid_excluded (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -648,8 +592,9 @@ theorem unlaid_excluded (primitive : profile.usesHierarchy = false)
     (silent : ∀ earlier, earlier < paid →
       (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
     (fits : ∀ earlier, earlier < paid →
-      (laidAt agent world start earlier).features.indices.length ≤ 1900)
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
     (laid : ℕ) (before : laid < paid) (near : paid ≤ laid + 9)
+    (fitsLaid : (laidAt agent world start laid).features.indices.length ≤ 1900)
     (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
     (slot : FeatIdx dimension)
     (heldLaid : slot ∈ (laidAt agent world start laid).features.indices)
@@ -662,9 +607,10 @@ theorem unlaid_excluded (primitive : profile.usesHierarchy = false)
     other ∉ (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start paid))
       frame epsilon).candidates := by
   obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent [] quiet ctrl world start paid
-    young silent (fun earlier early => Nat.le_trans (fits earlier early) (by decide))
-  have leads := shared_total primitive perStep agent quiet ctrl world start paid young silent
-    fits laid before near frame fitsFrame slot heldLaid heldFrame
+    young silent fits
+  rw [List.nil_append] at ctrlPaid
+  have leads := shared_total primitive perStep agent [] quiet ctrl world start paid young silent
+    fits laid before near fitsLaid frame fitsFrame slot heldLaid heldFrame
   refine zero_excluded _ (fun action => ?_) (laidAt agent world start laid).row other
     (lowChain .discounted 8) (lowChain_facts .discounted 8).1 (low_clears_tie .discounted) ?_ ?_
   · rw [tracePolicy_value]
@@ -676,10 +622,11 @@ theorem unlaid_excluded (primitive : profile.usesHierarchy = false)
       unlaid_window agent world start paid _ other held (apart held inside)
 
 /-- **Where one action alone was taken on the frame's slots, it is the one candidate.** Under the
-hypotheses of `shared_total`, at a frame that shares a slot with a frame laid at most nine steps
-before, suppose that every step among the last `creditReach` whose frame holds a slot of this one
-took one action. Then that action is the one near-maximum candidate of the trace policy at the
-frame, at any rate, and the greedy draw returns it whatever the generator. -/
+hypotheses of `shared_total`, from a controller quiet against the empty history, which holds no
+trace: at a frame that shares a slot with a frame laid at most nine steps before, suppose that
+every step among the last `creditReach` whose frame holds a slot of this one took one action.
+Then that action is the one near-maximum candidate of the trace policy at the frame, at any
+rate, and the greedy draw returns it whatever the generator. -/
 theorem sole_candidate (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -689,8 +636,9 @@ theorem sole_candidate (primitive : profile.usesHierarchy = false)
     (silent : ∀ earlier, earlier < paid →
       (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
     (fits : ∀ earlier, earlier < paid →
-      (laidAt agent world start earlier).features.indices.length ≤ 1900)
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
     (laid : ℕ) (before : laid < paid) (near : paid ≤ laid + 9)
+    (fitsLaid : (laidAt agent world start laid).features.indices.length ≤ 1900)
     (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
     (slot : FeatIdx dimension)
     (heldLaid : slot ∈ (laidAt agent world start laid).features.indices)
@@ -705,9 +653,10 @@ theorem sole_candidate (primitive : profile.usesHierarchy = false)
       ∀ rng, ((tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start paid))
         frame epsilon).greedy rng).1 = only := by
   obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent [] quiet ctrl world start paid
-    young silent (fun earlier early => Nat.le_trans (fits earlier early) (by decide))
-  have leads := shared_total primitive perStep agent quiet ctrl world start paid young silent
-    fits laid before near frame fitsFrame slot heldLaid heldFrame
+    young silent fits
+  rw [List.nil_append] at ctrlPaid
+  have leads := shared_total primitive perStep agent [] quiet ctrl world start paid young silent
+    fits laid before near fitsLaid frame fitsFrame slot heldLaid heldFrame
   have row : (laidAt agent world start laid).row = only :=
     (laidAt_row agent world start laid).trans
       (taken slot heldFrame laid before (by change paid ≤ laid + 119; omega) heldLaid)

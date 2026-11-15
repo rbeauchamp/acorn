@@ -72,6 +72,7 @@ import AcornVerif.CurrentCreditHorizon
 import AcornVerif.CurrentFirstChoice
 import AcornVerif.CurrentFirstCredit
 import AcornVerif.CurrentFrameSize
+import AcornVerif.CurrentFrameSlots
 import AcornVerif.CurrentAgent
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentCheckpointSize

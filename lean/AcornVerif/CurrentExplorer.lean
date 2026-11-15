@@ -86,8 +86,9 @@ theorem restingPolicy_settled (count : Word.Count) : Settled (restingPolicy coun
   simp only [restingPolicy, Vector.get, Vector.getElem_toArray, Vector.getElem_replicate]
   decide
 
-/-- What primitive control's choice of action reads while its controller is at rest: the
-exploratory run it has committed to, and the action generator. -/
+/-- What a decision of primitive control reads beside the policy its controller freezes: the
+exploratory run it has committed to, and the action generator. While the controller is at rest
+the frozen policy is the same at every frame, and these two are all a decision reads. -/
 structure Explorer (count : Word.Count) where
   /-- The committed run, if any. A run with no step left serves nothing. -/
   run : Option (ExploratoryRun count)
