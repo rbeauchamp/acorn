@@ -77,7 +77,9 @@ What this does not say.
 
 - Which action is the candidate when the steps before the reward took several. That is the
   comparison of their rows' trace totals on the frame, and a total depends on how many slots the
-  frame shares with each earlier frame. No theorem here evaluates a total.
+  frame shares with each earlier frame. No theorem here evaluates a total;
+  `AcornVerif.CurrentTraceCounts` states the total of a row whose action was taken once, and
+  compares such totals.
 - Anything of a later decision. After the first reward the weights need not all be zero words,
   so the error of a later step need not be a zero word, and a step whose error is not a zero word
   can move every weight whose slot holds a trace.

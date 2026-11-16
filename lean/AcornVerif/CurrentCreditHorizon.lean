@@ -57,7 +57,9 @@ most `chain criterion j`, the trace bound decayed `j` times, and is not eligible
 at most the pruning threshold (`RowQuiet`). On a frame of at most 1999 slots the ordered sum of
 step sizes stays at or below `Config.eta`, so the overshoot branch of the second loop is not taken
 and its trace scale is one, and the trace total stays below one, so each laid increment lies
-between zero and the step size (`quiet_entry`, `laid_trace`). Each controller step keeps this
+between zero and the step size (`quiet_entry`, `laid_trace`). A reward-free step is, in each row,
+the row's first loop at a zero error, followed in the taken row by its second loop
+(`quiet_step_row`). Each controller step keeps the invariant
 against the history extended by the step (`ctrlQuiet_step`), and so does each retirement
 (`ctrlQuiet_retire`); at `creditReach criterion` steps the bound is at most the threshold
 (`reach_pruned`), so the slot is `Dormant`: not eligible, with a zero weight
@@ -1085,6 +1087,11 @@ theorem small_tie : Small tieWindow := small_named (by decide)
 theorem step_nonneg : 0 ≤ numerical32 stepWord := by
   rw [← zero_value]; exact num_le (by decide) (by decide) (by decide)
 
+/-- The stored step size reads `13743900 · 2^(-38)`, a little above `5 · 10^(-5)`. -/
+theorem step_value : numerical32 stepWord = 13743900 * (2 : ℚ) ^ (-38 : Int) := by
+  change (1 : ℚ) * 13743900 * (2 : ℚ) ^ (-38 : Int) = _
+  ring
+
 /-- The stored step size is at most one. -/
 theorem step_le_one : numerical32 stepWord ≤ 1 := by
   rw [← one_value]; exact num_le (by decide) (by decide) (by decide)
@@ -1865,6 +1872,30 @@ theorem ctrlQuiet_predict {history : List (Laid dimension actions)}
   obtain ⟨slot, _, rfl⟩ := List.mem_map.mp held
   exact ((quiet.rows row).slots slot).weight
 
+/-- **A reward-free step of a quiet controller is its credit at a zero error.** There is a zero
+word such that the step leaves in each row the row's first loop at that error, followed in the
+taken row by the second loop on the step's frame. -/
+theorem quiet_step_row {history : List (Laid dimension actions)}
+    {controller : Controller (criterion.config .control) dimension actions}
+    (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
+    (action : Action actions) :
+    ∃ δ : Binary32, δ.isZero = true ∧ ∀ row : Fin actions,
+      ((controller.step features action .zero).1.learners.get row).state =
+        if action = row then
+          (((controller.learners.get row).state.learnFirstLoop (criterion.config .control) δ
+            controller.vDelta (decayOf criterion)).learnSecondLoop (criterion.config .control)
+            features .zero).1
+        else (controller.learners.get row).state.learnFirstLoop (criterion.config .control) δ
+          controller.vDelta (decayOf criterion) := by
+  have lag := ctrlQuiet_predict quiet features action
+  have gamma : (criterion.config .control).rule.gamma.Finite := by cases criterion <;> decide
+  refine ⟨_, zeroWord_sub (zeroWord_add (by decide : Binary32.zero.isZero = true)
+    (finite_mul_zero gamma lag)) quiet.vOld, fun row => ?_⟩
+  have decay : (criterion.config .control).rule.gamma.mul (criterion.config .control).lambda =
+      decayOf criterion := rfl
+  rw [step_eq, decay, creditStep_row, credit_state, quiet.restart]
+  simp only [Bool.false_eq_true, ↓reduceIte]
+
 /-- **A reward-free controller step on a frame of at most 1999 slots keeps the controller quiet
 against the history extended by that step.** -/
 theorem ctrlQuiet_step {history : List (Laid dimension actions)}
@@ -2192,17 +2223,9 @@ theorem recent_laid {history : List (Laid dimension actions)}
     (held : slot ∈ features.indices) :
     Recent (controller.step features row .zero).1 row slot (lowChain criterion 0) := by
   unfold Recent
-  rw [step_eq]
-  have lag := ctrlQuiet_predict quiet features row
-  have gamma : (criterion.config .control).rule.gamma.Finite := by cases criterion <;> decide
-  have delta := zeroWord_sub (zeroWord_add (by decide : Binary32.zero.isZero = true)
-    (finite_mul_zero gamma lag)) quiet.vOld
-  generalize ((Binary32.zero.add ((criterion.config .control).rule.gamma.mul
-    ((controller.predictAll features).get row))).sub controller.vOld) = δ at delta ⊢
-  have decay : (criterion.config .control).rule.gamma.mul (criterion.config .control).lambda =
-      decayOf criterion := rfl
-  rw [decay, creditStep_row, credit_state, quiet.restart]
-  simp only [Bool.false_eq_true, ↓reduceIte]
+  obtain ⟨δ, delta, stepped⟩ := quiet_step_row quiet features row
+  rw [stepped row]
+  simp only [↓reduceIte]
   have first := quiet_first_loop (controller.learners.get row).state history row (quiet.rows row)
     (row_unique controller row) (row_supported controller row) delta quiet.vDelta
   have entry := quiet_first_entry (controller.learners.get row).state history row
@@ -2248,17 +2271,8 @@ theorem recent_after {history : List (Laid dimension actions)}
     (above : numerical32 pruneWord < numerical32 (lower.mul (decayOf criterion))) :
     Recent (controller.step features action .zero).1 row slot (lower.mul (decayOf criterion)) := by
   unfold Recent
-  rw [step_eq]
-  have lag := ctrlQuiet_predict quiet features action
-  have gamma : (criterion.config .control).rule.gamma.Finite := by cases criterion <;> decide
-  have delta := zeroWord_sub (zeroWord_add (by decide : Binary32.zero.isZero = true)
-    (finite_mul_zero gamma lag)) quiet.vOld
-  generalize ((Binary32.zero.add ((criterion.config .control).rule.gamma.mul
-    ((controller.predictAll features).get action))).sub controller.vOld) = δ at delta ⊢
-  have decay : (criterion.config .control).rule.gamma.mul (criterion.config .control).lambda =
-      decayOf criterion := rfl
-  rw [decay, creditStep_row, credit_state, quiet.restart]
-  simp only [Bool.false_eq_true, ↓reduceIte]
+  obtain ⟨δ, delta, stepped⟩ := quiet_step_row quiet features action
+  rw [stepped row]
   have kept := recent_first_loop (controller.learners.get row).state (quiet.rows row)
     (row_unique controller row) delta quiet.vDelta slot lower lowerSmall lowerNonneg recent.1
     recent.2 above
@@ -2388,6 +2402,15 @@ theorem reward_weight (rule : ValueRule) (inside : rule = criterion.rule)
   intro zero
   rw [zero_reads zero] at reads
   linarith
+
+/-- One less a zero word is the word one. -/
+theorem one_sub_zero {word : Binary32} (zero : word.isZero = true) :
+    Binary32.one.sub word = Binary32.one := by
+  rcases isZero_bits word zero with bits | bits <;>
+  · obtain ⟨raw⟩ := word
+    simp only at bits
+    subst bits
+    decide +kernel
 
 /-- One plus a zero word minus a zero word is one. -/
 theorem one_add_sub_zeros {first second : Binary32} (hf : first.isZero = true)

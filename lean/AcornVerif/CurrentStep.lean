@@ -19,7 +19,8 @@ and a run of move actions is exhausted on at most one step in eleven, plus a
 bounded start (`trace_moves`). Enterability is a fixed table of the static
 terrain plus the boat (`enterable_static`). A step leaves the body where it is or
 moves it one tile in a direction (`step_adjacent`), never onto a mountain and onto
-water only when it owns a boat (`step_terrain`).
+water only when it owns a boat (`step_terrain`); on an action that names no
+direction it leaves the body where it is (`step_stays`).
 
 A successful step is a hypothesis throughout: a step the world refuses returns no
 successor. Nothing here shows that a goal is feasible or that a tile is reachable;
@@ -555,6 +556,24 @@ theorem step_adjacent {config : WorldConfig} (world next : World config) (action
     | harvested item amount result => left; rw [result]
     | crafted tool inventory recipe result => left; rw [result]
     | ate meal result => left; rw [result]
+
+/-- A successful step on an action that names no direction leaves the body where it is. -/
+theorem step_stays {config : WorldConfig} (world next : World config) (action : Action)
+    (events : StepResult) (h : world.step action = .ok (next, events))
+    (still : action.direction = none) : next.body.position = world.body.position := by
+  obtain ⟨active, paid, body, -⟩ := step_active world next action events h
+  rw [body]
+  obtain ⟨night, outcome⟩ := payAndAct_outcome world action active paid
+  rcases outcome with ⟨-, exhausted, -⟩ | ⟨energy, -, performed, -⟩
+  · rw [exhausted]
+  · cases performed with
+    | unchanged same => rw [same]
+    | moved direction candidate position picked heading translated admitted entered result =>
+      rw [still] at heading
+      cases heading
+    | harvested item amount result => rw [result]
+    | crafted tool inventory recipe result => rw [result]
+    | ate meal result => rw [result]
 
 /-- A successful step leaves the body where it is or moves it onto a tile whose static
 terrain it may enter with the boat it held before the step. -/

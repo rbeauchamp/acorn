@@ -52,6 +52,13 @@ The statements name a member's first success by one proposition, `FirstSuccess`:
 the member's target for the first time at a step of a visit. `rungVisits` and `rungOrigin` are
 the member's visits and their start.
 
+Two facts of the live states of a member's visits are stated for every configuration and every
+action sequence: a live state's clock is past the member's own by at most the steps the visit
+has taken (`visits_clock`), and every live state holds the member's goal (`visits_goal`). So
+where a visit stays within the first eighth of the day, every percept of the visits carries the
+word of day phase zero (`visits_day_word`). The rung's world starts at the day's first step and
+its visits take seven, so every percept of the rung's run carries that word (`rung_day_word`).
+
 What this does not say.
 
 - That the weight is still there at the start of the next visit, except for a first success on
@@ -79,7 +86,7 @@ open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
 open AcornVerif.CurrentConcealedTargetMission AcornVerif.CurrentConcealedTargetRung
 open AcornVerif.CurrentConcealedTargetRungFinds AcornVerif.CurrentCreditHorizon
-open AcornVerif.CurrentFirstCredit AcornVerif.CurrentFrameSize
+open AcornVerif.CurrentFirstCredit AcornVerif.CurrentFrameSize AcornVerif.CurrentFrameSlots
 
 variable {config : Host.WorldConfig}
 
@@ -125,6 +132,142 @@ theorem step_reward (mode : TaskFeatureMode) (live : Live config) (target : Host
     (count * (length + 1) + (before + 1))).1).reward = _
   rw [inner]
   exact reward_word_step mode _ _
+
+/-! ## The live states of a member's visits -/
+
+/-- **A visit's clock.** In the visits of a member, along every action sequence, the clock of a
+live state is past the member's own by at most the number of steps the visit has taken. Each
+visit starts from the member's world, and a successful step advances the clock by one. -/
+theorem visits_clock (mode : TaskFeatureMode) (live : Live config) (target : Host.Position)
+    (length : ℕ) (actions : ℕ → Kernel.Act Grid.interface) :
+    ∀ (time : ℕ) (here : Live config),
+      (Kernel.path (Kernel.visits (gridWorld config mode) (member live target) length)
+        (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+        time).1 = some here →
+      here.world.time.toNat ≤ live.world.time.toNat +
+        (Kernel.path (Kernel.visits (gridWorld config mode) (member live target) length)
+          (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+          time).2.val := by
+  intro time
+  induction time with
+  | zero =>
+    intro here reached
+    have same : member live target = some here := reached
+    obtain rfl := Option.some.inj same
+    exact Nat.le_add_right _ _
+  | succ time ih =>
+    intro here reached
+    by_cases within : (Kernel.path (Kernel.visits (gridWorld config mode) (member live target)
+        length) (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+        time).2.val < length
+    · have taken : Kernel.path (Kernel.visits (gridWorld config mode) (member live target)
+          length) (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+          (time + 1) =
+          ((gridWorld config mode).step (Kernel.path (Kernel.visits (gridWorld config mode)
+            (member live target) length) (Kernel.visitStart (gridWorld config mode)
+            (member live target) length) actions time).1 (actions time),
+            ⟨(Kernel.path (Kernel.visits (gridWorld config mode) (member live target) length)
+              (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+              time).2.val + 1, by omega⟩) := dite_eq_left within
+      rw [taken] at reached ⊢
+      cases before : (Kernel.path (Kernel.visits (gridWorld config mode) (member live target)
+          length) (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+          time).1 with
+      | none =>
+        rw [before] at reached
+        cases reached
+      | some prior =>
+        rw [before] at reached
+        have moved : advance prior (actions time) = some here := reached
+        obtain ⟨events, stepped, -⟩ := advance_some prior here (actions time) moved
+        have tick := Host.World.step_clock prior.world here.world _ events stepped
+        have earlier := ih prior before
+        have wrap : (prior.world.time + 1).toNat ≤ prior.world.time.toNat + 1 := by
+          rw [UInt64.toNat_add]
+          exact Nat.mod_le _ _
+        rw [tick]
+        simp only
+        omega
+    · have reset : Kernel.path (Kernel.visits (gridWorld config mode) (member live target)
+          length) (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+          (time + 1) = (member live target, ⟨0, Nat.succ_pos length⟩) := dite_eq_right within
+      rw [reset] at reached ⊢
+      have same : member live target = some here := reached
+      obtain rfl := Option.some.inj same
+      exact Nat.le_add_right _ _
+
+/-- In the visits of a member, along every action sequence, every live state holds the member's
+goal. -/
+theorem visits_goal (mode : TaskFeatureMode) (live : Live config) (target : Host.Position)
+    (length : ℕ) (actions : ℕ → Kernel.Act Grid.interface) :
+    ∀ (time : ℕ) (here : Live config),
+      (Kernel.path (Kernel.visits (gridWorld config mode) (member live target) length)
+        (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+        time).1 = some here →
+      here.world.goal = some (.find target) := by
+  intro time
+  induction time with
+  | zero =>
+    intro here reached
+    have same : member live target = some here := reached
+    obtain rfl := Option.some.inj same
+    rfl
+  | succ time ih =>
+    intro here reached
+    by_cases within : (Kernel.path (Kernel.visits (gridWorld config mode) (member live target)
+        length) (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+        time).2.val < length
+    · have taken : Kernel.path (Kernel.visits (gridWorld config mode) (member live target)
+          length) (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+          (time + 1) =
+          ((gridWorld config mode).step (Kernel.path (Kernel.visits (gridWorld config mode)
+            (member live target) length) (Kernel.visitStart (gridWorld config mode)
+            (member live target) length) actions time).1 (actions time),
+            ⟨(Kernel.path (Kernel.visits (gridWorld config mode) (member live target) length)
+              (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+              time).2.val + 1, by omega⟩) := dite_eq_left within
+      rw [taken] at reached
+      cases before : (Kernel.path (Kernel.visits (gridWorld config mode) (member live target)
+          length) (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+          time).1 with
+      | none =>
+        rw [before] at reached
+        cases reached
+      | some prior =>
+        rw [before] at reached
+        have moved : advance prior (actions time) = some here := reached
+        obtain ⟨events, stepped, -⟩ := advance_some prior here (actions time) moved
+        exact (Host.World.step_goal _ _ _ _ stepped).1.trans (ih prior before)
+    · have reset : Kernel.path (Kernel.visits (gridWorld config mode) (member live target)
+          length) (Kernel.visitStart (gridWorld config mode) (member live target) length) actions
+          (time + 1) = (member live target, ⟨0, Nat.succ_pos length⟩) := dite_eq_right within
+      rw [reset] at reached
+      have same : member live target = some here := reached
+      obtain rfl := Option.some.inj same
+      rfl
+
+/-- **Every percept of a member's visits carries one day word.** Where the member's clock and a
+visit's length together stay within the first eighth of the day, the percept at every time of the
+member's visits, under every agent, carries the word of day phase zero: a live state's clock is
+within that eighth (`visits_clock`), and the refused state shows the blank observation, whose
+day is zero. -/
+theorem visits_day_word (mode : TaskFeatureMode) (live : Live config) (target : Host.Position)
+    (length : ℕ) (agent : Kernel.Agent Grid.interface)
+    (early : live.world.time.toNat + length < config.raw.dayLength.toNat / 8) (time : ℕ) :
+    (⟨0x41, 0⟩ : SensorWord) ∈ (Kernel.perceptAt (Kernel.visits (gridWorld config mode)
+      (member live target) length) agent
+      (Kernel.visitStart (gridWorld config mode) (member live target) length)
+      time).frame.words := by
+  unfold Kernel.perceptAt
+  rw [Kernel.stateAt_eq_path]
+  apply percept_day_word mode
+  intro here reached
+  have clock := visits_clock mode live target length _ time here reached
+  have bound := (Kernel.path (Kernel.visits (gridWorld config mode) (member live target) length)
+    (Kernel.visitStart (gridWorld config mode) (member live target) length)
+    (Kernel.actionAt (Kernel.visits (gridWorld config mode) (member live target) length) agent
+      (Kernel.visitStart (gridWorld config mode) (member live target) length)) time).2.isLt
+  omega
 
 /-! ## A member's visits and its first success -/
 
@@ -252,6 +395,17 @@ theorem rung_laid (planning : PlanningSelection)
       time)
     (Kernel.stateAt (rungVisits planning index) (rungAgent planning) (rungOrigin planning index)
       time).1
+
+/-- Every percept of the rung's visits carries the word of day phase zero: the rung's world
+starts at the day's first step, and a visit's seven steps stay within its first eighth, 256
+steps. -/
+theorem rung_day_word (planning : PlanningSelection)
+    (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
+      7).Index) (time : ℕ) :
+    (⟨0x41, 0⟩ : SensorWord) ∈ (Kernel.perceptAt (rungVisits planning index) (rungAgent planning)
+      (rungOrigin planning index) time).frame.words :=
+  visits_day_word (rungConstruction planning).profile.taskMode witnessLive index.1.1 7
+    (rungAgent planning) (by decide) time
 
 /-! ## The first reward of a member reaches its visit's start -/
 

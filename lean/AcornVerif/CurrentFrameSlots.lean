@@ -22,9 +22,15 @@ Every percept of the grid world carries its energy word, at every state, the ref
 included (`percept_holds_word`). So, under a configuration with a tiling, every frame the
 executed agent lays from a grid percept holds at least one slot (`grid_frame_slot`).
 
-What this does not say. Which word two percepts of a run have in common: that is a fact of the
-world's states. And two words can hash to one slot, as any two hashed words can, so a frame can
-hold fewer slots than its words times its tilings.
+Every percept also carries its day word (`sensorWords_day`). The host reports the day's phase,
+which is zero until an eighth of the day has passed (`dayPhase_early`), and the blank observation
+that stands in for a refused one reports zero (`sensed_day`). So at a state that is refused, or
+whose clock has not passed an eighth of the day, the percept carries the word of day phase zero
+(`percept_day_word`), and two such percepts have that word in common.
+
+What this does not say. Which other word two percepts of a run have in common: that is a fact of
+the world's states. And two words can hash to one slot, as any two hashed words can, so a frame
+can hold fewer slots than its words times its tilings.
 -/
 
 namespace AcornVerif.CurrentFrameSlots
@@ -47,6 +53,58 @@ theorem percept_holds_word (mode : TaskFeatureMode) (state : Option (Live config
   cases state with
   | none => exact ⟨_, sensorWords_energy blank mode⟩
   | some live => exact ⟨_, sensorWords_energy (sensed live.world) mode⟩
+
+/-- Every observation's words hold its day word. -/
+theorem sensorWords_day (observation : Host.Observation) (mode : TaskFeatureMode) :
+    (⟨0x41, observation.day.toUInt64⟩ : SensorWord) ∈ sensorWords observation mode := by
+  simp [sensorWords]
+
+/-- Before an eighth of the day has passed, the day phase is zero. -/
+theorem dayPhase_early (world : Host.World config)
+    (early : world.time.toNat < config.raw.dayLength.toNat / 8) : world.dayPhase.val = 0 := by
+  have slot : world.time.toNat % config.raw.dayLength.toNat = world.time.toNat :=
+    Nat.mod_eq_of_lt (by omega)
+  have first : world.time.toNat < config.raw.dayLength.toNat / 2 := by omega
+  have eighth : max 1 (config.raw.dayLength.toNat / 8) = config.raw.dayLength.toNat / 8 := by
+    omega
+  unfold Host.World.dayPhase
+  simp only [FeatureConstants.dayPhases, slot, first, eighth, ↓reduceIte,
+    Nat.div_eq_of_lt early, Nat.zero_min]
+
+/-- The observation a state senses reports the world's day phase, or zero where the host
+refuses and the blank observation stands in. -/
+theorem sensed_day (world : Host.World config) :
+    (sensed world).day = world.dayPhase.val.toUInt8 ∨ (sensed world).day = 0 := by
+  unfold sensed
+  cases seen : world.observe with
+  | error refusal => exact Or.inr rfl
+  | ok observation =>
+    left
+    unfold Host.World.observe at seen
+    cases tiles : Vector.ofFnM (fun row => Vector.ofFnM (world.observeTile world.occupancy row))
+      with
+    | error refusal => simp [tiles, bind, Except.bind] at seen
+    | ok tiles =>
+      simp only [tiles, bind, Except.bind, pure, Except.pure, Except.ok.injEq] at seen
+      cases seen
+      rfl
+
+/-- **Early in the day every percept carries one day word.** At a state of the grid world that is
+refused, or whose clock has not passed an eighth of the day, the percept carries the word of day
+phase zero. -/
+theorem percept_day_word (mode : TaskFeatureMode) (state : Option (Live config))
+    (early : ∀ live, state = some live →
+      live.world.time.toNat < config.raw.dayLength.toNat / 8) :
+    (⟨0x41, 0⟩ : SensorWord) ∈ ((gridWorld config mode).percept state).frame.words := by
+  cases state with
+  | none => exact sensorWords_day blank mode
+  | some live =>
+    have word := sensorWords_day (sensed live.world) mode
+    rcases sensed_day live.world with day | day
+    · rw [day, dayPhase_early live.world (early live rfl)] at word
+      exact word
+    · rw [day] at word
+      exact word
 
 /-! ## The slots of the words -/
 

@@ -39,7 +39,8 @@ tester retires nothing. The names here call such an agent, step or run young.
 - **A kernel run.** A kernel run of the executed agent is its traced run over the percepts it
   receives (`traced_loop`), and the steps that run lays are the steps of the traced run
   (`laidAt`, `traced_laid`). So in a kernel run the controller stays quiet while the rewards are
-  zero (`loop_quiet`), a laid slot stays recent (`loop_recent`), and the step that learns a
+  zero (`loop_quiet`), each of those steps is one controller step at reward zero
+  (`loop_silent`), a laid slot stays recent (`loop_recent`), and the step that learns a
   reward of one is one controller step at reward one (`loop_paid`). That step writes at least a
   recent slot's least trace into its weight
   (`AcornVerif.CurrentCreditHorizon.recent_credited`), which gives `loop_first_credit`.
@@ -614,6 +615,39 @@ theorem loop_recent (primitive : profile.usesHierarchy = false)
       exact fits earlier (by have := (List.mem_range'_1.mp inside).2; omega))
   rw [List.length_map, List.length_range', Nat.zero_add, traced_loop] at later
   exact later
+
+/-- **A reward-free step of a kernel run, before a unit matures.** Under the hypotheses of
+`loop_quiet` up to and including a time: the primitive controller before the step of that time is
+quiet against the frames laid so far, and the step leaves the controller that one controller step
+at reward zero leaves, at the frame and the action of that time. -/
+theorem loop_silent (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (history : List (Laid dimension interface.actions.word.toNat))
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) history)
+    (world : Kernel.World interface) (start : world.State) (time : ℕ)
+    (young : agent.clock.toNat + (time + 1) ≤ config.tester.maturity)
+    (silent : ∀ earlier, earlier < time + 1 →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (fits : ∀ earlier, earlier < time + 1 →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999) :
+    CtrlQuiet .discounted (controlOf (Kernel.memoryAt world (executedAgent agent) start time))
+        (history ++ (List.range' 0 time).map (laidAt agent world start)) ∧
+      controlOf (Kernel.memoryAt world (executedAgent agent) start (time + 1)) =
+        ((controlOf (Kernel.memoryAt world (executedAgent agent) start time)).step
+          (laidAt agent world start time).features (laidAt agent world start time).row
+          .zero).1 := by
+  obtain ⟨quietHere, ctrlHere⟩ := loop_quiet primitive perStep agent history quiet ctrl world
+    start time (by omega) (fun earlier before => silent earlier (by omega))
+    (fun earlier before => fits earlier (by omega))
+  have clock := loop_clock primitive agent world start time
+  obtain ⟨equation, -⟩ := young_quiet_step primitive perStep
+    (Kernel.memoryAt world (executedAgent agent) start time) _
+    (Kernel.perceptAt world (executedAgent agent) start time) quietHere ctrlHere
+    (silent time (by omega)) (by omega) (fits time (by omega))
+  exact ⟨ctrlHere, (congrArg (fun memory : Agent interface profile config .discounted
+    dimension planning => controlOf memory) (loop_step agent world start time)).trans
+      equation⟩
 
 /-- **The step that learns a reward of one, before a unit matures.** For a profile with no
 hierarchy under per-step credit and the discounted criterion, in a kernel run: when the percept
