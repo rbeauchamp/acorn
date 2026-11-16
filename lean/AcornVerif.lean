@@ -70,6 +70,7 @@ import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentCreditHorizon
 import AcornVerif.CurrentFirstChoice
+import AcornVerif.CurrentTraceCounts
 import AcornVerif.CurrentFirstCredit
 import AcornVerif.CurrentFrameSize
 import AcornVerif.CurrentFrameSlots

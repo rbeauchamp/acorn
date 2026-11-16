@@ -4,7 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.CurrentConcealedTargetRungCredit
-import AcornVerif.CurrentFirstChoice
+import AcornVerif.CurrentTraceCounts
 
 /-!
 # On the first rung, the first decision after a first reward reads the traces
@@ -38,6 +38,16 @@ learns the reward. Times count the agent's decisions from zero.
   the value there of the action taken at that decision is above the tie window
   (`rung_next_value`). For a first success on an earlier step no theorem says that the next
   decision's frame shares a slot with an earlier one.
+- **After a success among the first visit's first three steps.** The explorer's first three
+  actions are pairwise different (`rung_early_distinct`), so each row taken before such a reward
+  was taken once, and its trace total on a frame is the sum of one word, taken once for each
+  slot the frame holds of the frame the row laid
+  (`AcornVerif.CurrentTraceCounts.loop_totals`). At the times two, three and four the explorer
+  holds no committed run and begins none (`rung_calm`). So where the frame the next decision
+  reads holds a slot of the frame laid at the decision whose action met the target, and at least
+  as many slots of it as of each earlier frame, the agent takes that action again
+  (`rung_early_repeat`). The condition on the frames is a hypothesis, and no member is named
+  that has its first success there.
 
 `rung_first_choice` states the decision of every member the agent solves on one of its first 125
 visits, at the member's first success. `rung_found_choice` states it of the 102 members that
@@ -54,12 +64,15 @@ What this does not say.
   action for not having been taken at a first reward at a time from 39 to 576: at each of those
   times the explorer has taken every one of the nine actions on the 119 decisions before
   (`rung_taken`). No theorem lists the explorer's actions after its first 576. No theorem
-  evaluates a trace total of the rung's run, so none says which of the actions taken before the
-  reward is the candidate, or that there is only one.
+  counts the slots two frames of the rung's run share, so none says without a hypothesis which
+  of the actions taken before the reward is the candidate, or that there is only one. And the
+  explorer's sixth action repeats its fourth (`rungRows`), so a first reward after the agent's
+  first six decisions finds a row that was laid twice, of which
+  `AcornVerif.CurrentTraceCounts` says nothing.
 - Anything of a later decision, and so nothing of whether one action is repeated: after the first
   reward the error of a later step need not be a zero word.
-- That a member has its first success on a visit's last step. `rung_next_value` is stated of
-  such a success and names none.
+- That a member has its first success on a visit's last step, or among the first visit's first
+  three. `rung_next_value` and `rung_early_repeat` are stated of such successes and name none.
 - Anything of a first success after the first 1000 decisions, or of another profile, criterion,
   rate policy or step order.
 
@@ -75,6 +88,7 @@ open AcornVerif.CurrentConcealedTargetMission AcornVerif.CurrentConcealedTargetR
 open AcornVerif.CurrentConcealedTargetRungFinds AcornVerif.CurrentConcealedTargetRungCredit
 open AcornVerif.CurrentCreditHorizon AcornVerif.CurrentExplorer AcornVerif.CurrentFirstChoice
 open AcornVerif.CurrentFirstCredit AcornVerif.CurrentFrameSlots AcornVerif.CurrentPreReward
+open AcornVerif.CurrentTraceCounts
 
 /-! ## Right after the step that learns the reward -/
 
@@ -339,5 +353,89 @@ theorem rung_taken (time : ℕ) (low : 39 ≤ time) (high : time ≤ 576)
   rw [rung_action _ (by omega), ← same, List.getElem_take, List.getElem_drop,
     List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by rw [size]; omega)]
   rfl
+
+/-! ## A first success among the first three steps -/
+
+/-- The explorer's first three actions are pairwise different: their codes are six, one and two,
+for crafting an axe, a step south and a step east. -/
+theorem rung_early_distinct (one two : ℕ) (first : one < 3) (second : two < 3)
+    (apart : one ≠ two) : rungExplorer.actionAt one ≠ rungExplorer.actionAt two := by
+  intro same
+  have codes := congrArg Fin.val same
+  rw [rung_action one (by omega), rung_action two (by omega)] at codes
+  have table : ∀ time, time < 3 → rungRows.flatten.getD time 0 = [6, 1, 2].getD time 0 := by
+    decide +kernel
+  rw [table one first, table two second] at codes
+  have all : ∀ left, left < 3 → ∀ right, right < 3 → left ≠ right →
+      [6, 1, 2].getD left 0 ≠ [6, 1, 2].getD right 0 := by decide
+  exact all one first two second apart codes
+
+/-- At the times two, three and four the explorer holds no committed run with a step left, and
+its generator begins none at the declared rate. -/
+theorem rung_calm (time : ℕ) (low : 2 ≤ time) (high : time ≤ 4) :
+    (rungExplorer.after time).run.bind ExploratoryRun.serve = none ∧
+      (beginExploration Grid.interface.actions declaredRate (rungExplorer.after time).rng).1 =
+        none := by
+  obtain rfl | rfl | rfl : time = 2 ∨ time = 3 ∨ time = 4 := by omega
+  all_goals decide +kernel
+
+/-- **After a first success among the first three steps, the agent takes again the action that
+met the target, where the frames allow.** At a member's first success by the rung's agent at
+step `last + 1` of the first visit, one of its first three: suppose the frame the decision at the
+time `last + 2` reads holds a slot of the frame laid at the time `last`, and at least as many
+slots of it as of the frame laid at each earlier time. Then the agent's action at the time
+`last + 2` is the explorer's action at the time `last`, the action after which the target was
+met. The explorer's first three actions are pairwise different, so every row taken before the
+reward holds a fresh trace (`AcornVerif.CurrentTraceCounts.first_choice_last`), and at those
+times the explorer is outside a run (`rung_calm`). -/
+theorem rung_early_repeat (planning : PlanningSelection)
+    (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
+      7).Index)
+    (last : ℕ) (early : last ≤ 2)
+    (first : FirstSuccess planning index (rungAgent planning) 0 (last + 1))
+    (shares : 1 ≤ (laidAt (rungConstruction planning).initial.agent (rungVisits planning index)
+        (rungOrigin planning index) (last + 2)).features.indices.countP fun slot =>
+      decide (slot ∈ (laidAt (rungConstruction planning).initial.agent (rungVisits planning index)
+        (rungOrigin planning index) last).features.indices))
+    (most : ∀ earlier, earlier < last →
+      ((laidAt (rungConstruction planning).initial.agent (rungVisits planning index)
+        (rungOrigin planning index) (last + 2)).features.indices.countP fun slot =>
+        decide (slot ∈ (laidAt (rungConstruction planning).initial.agent
+          (rungVisits planning index) (rungOrigin planning index) earlier).features.indices)) ≤
+      (laidAt (rungConstruction planning).initial.agent (rungVisits planning index)
+        (rungOrigin planning index) (last + 2)).features.indices.countP fun slot =>
+        decide (slot ∈ (laidAt (rungConstruction planning).initial.agent
+          (rungVisits planning index) (rungOrigin planning index) last).features.indices)) :
+    Kernel.actionAt (rungVisits planning index) (rungAgent planning) (rungOrigin planning index)
+      (last + 2) = rungExplorer.actionAt last := by
+  obtain ⟨silent, pays⟩ := rung_first_rewards planning index (rungAgent planning) 0 (last + 1)
+    first
+  rw [Nat.zero_mul, Nat.zero_add] at silent pays
+  have explored : ∀ time, time < last + 1 →
+      Kernel.actionAt (rungVisits planning index) (rungAgent planning)
+        (rungOrigin planning index) time = rungExplorer.actionAt time := fun time before =>
+    cold_actions (profile := (rungConstruction planning).profile)
+      (config := (rungConstruction planning).config)
+      (dimension := (rungConstruction planning).dimension) rfl rfl planning
+      (rungVisits planning index) (rungOrigin planning index) time
+      (fun earlier sooner =>
+        (congrArg Binary32.isZero (silent earlier (by omega))).trans (by decide))
+  have calm := rung_calm (last + 2) (by omega) (by omega)
+  have repeated := first_choice_last (interface := Grid.interface)
+    (profile := (rungConstruction planning).profile)
+    (config := (rungConstruction planning).config)
+    (dimension := (rungConstruction planning).dimension) rfl rfl rfl
+    (Agent.initial Grid.interface (rungConstruction planning).profile
+      (rungConstruction planning).config .discounted (rungConstruction planning).dimension
+      planning) Quiet.initial ctrlQuiet_initial (rungVisits planning index)
+    (rungOrigin planning index) last (by omega)
+    (by change 0 + (last + 1) < 1000; omega) silent pays
+    (fun time _ => Nat.le_trans (rung_laid planning index time) (by decide))
+    (Nat.le_trans (rung_laid planning index (last + 2)) (by decide))
+    (fun one two early1 early2 apart same =>
+      rung_early_distinct one two (by omega) (by omega) apart
+        ((explored one early1).symm.trans (same.trans (explored two early2))))
+    shares most calm.1 calm.2
+  exact repeated.trans (explored last (by omega))
 
 end AcornVerif.CurrentConcealedTargetRungChoice
