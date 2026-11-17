@@ -22,6 +22,10 @@ remains trusted. No real-arithmetic reassociation replaces a rounded operation.
 The final contracts retain the actual rounded endpoints of model backups.
 The TD-error input intervals are explicit admission contracts, not an assertion
 that arbitrary raw learner transients already inhabit those intervals.
+
+`binary32_sub_finite_strict_error` states the error of one executing difference
+below an admitted power of two, as
+`AcornVerif.CurrentPrediction.binary32_add_finite_strict_error` does of a sum.
 -/
 open Acorn
 open Float.Model (Format UnpackedFloat totalExponent)
@@ -594,6 +598,61 @@ theorem binary32_rounded_sub (left right : Binary32) (hl : left.Finite) (hr : ri
   simpa only [numerical32, decoded, model_sub_add_neg, model_neg_value, ← sub_eq_add_neg] using
     rounded_add (decoded32 left) (UnpackedFloat.neg (decoded32 right)) ln
       (model_neg_normalized _ _ rn)
+
+/-- Actual binary32 subtraction remains finite and inherits the strict rounding radius whenever
+the exact difference is below an admitted power of two, through exponent 33: the counterpart of
+`AcornVerif.CurrentPrediction.binary32_add_finite_strict_error`. -/
+theorem binary32_sub_finite_strict_error (left right : Binary32)
+    (leftFinite : left.Finite) (rightFinite : right.Finite) (limit : Int) (range : limit ≤ 33)
+    (bound : |numerical32 left - numerical32 right| < (2 : ℚ) ^ limit) :
+    (left.sub right).Finite ∧
+      |numerical32 (left.sub right) - (numerical32 left - numerical32 right)| ≤
+        (2 : ℚ) ^ (max (limit - 24) (-149)) / 2 := by
+  have ln := (model_unpack_format Format.binary32 (by decide) left.bits.toBitVec
+    ((model_decoded32_finite left).mpr leftFinite)).1
+  have rn := (model_unpack_format Format.binary32 (by decide) right.bits.toBitVec
+    ((model_decoded32_finite right).mpr rightFinite)).1
+  have proof := AcornVerif.CurrentPrediction.model_add_dyadic_local_strict Format.binary32
+    (decoded32 left) (UnpackedFloat.neg (decoded32 right)) ln
+    (model_neg_normalized Format.binary32 _ rn) limit
+    (by simpa only [numerical32, model_neg_value, sub_eq_add_neg] using bound)
+  rw [← model_sub_add_neg, model_neg_value, ← sub_eq_add_neg] at proof
+  have operation : ModelNormalized Format.binary32
+      (UnpackedFloat.sub Format.binary32 (decoded32 left) (decoded32 right)) ∧
+      |unpackedValue (UnpackedFloat.sub Format.binary32 (decoded32 left) (decoded32 right)) -
+        (numerical32 left - numerical32 right)| ≤ (2 : ℚ) ^ (max (limit - 24) (-149)) / 2 :=
+    proof
+  have radiusBound : (2 : ℚ) ^ (max (limit - 24) (-149)) / 2 ≤ 256 := by
+    have power := zpow_le_zpow_right₀ (by norm_num : (1 : ℚ) ≤ 2)
+      (show max (limit - 24) (-149) ≤ 9 by omega)
+    norm_num at power
+    linarith only [power]
+  have differenceBound : |numerical32 left - numerical32 right| ≤ 8589934592 := by
+    have power := zpow_le_zpow_right₀ (by norm_num : (1 : ℚ) ≤ 2) range
+    norm_num at power
+    exact le_trans (le_of_lt bound) power
+  have fits : ModelFits Format.binary32
+      (UnpackedFloat.sub Format.binary32 (decoded32 left) (decoded32 right)) := by
+    apply model_fits_of_value_bound Format.binary32 _
+      (model_normalized_finite _ _ operation.1) 34 (by decide)
+    have triangle := abs_add_le
+      (unpackedValue (UnpackedFloat.sub Format.binary32 (decoded32 left) (decoded32 right)) -
+        (numerical32 left - numerical32 right)) (numerical32 left - numerical32 right)
+    rw [sub_add_cancel] at triangle
+    norm_num
+    linarith only [triangle, operation.2, radiusBound, differenceBound]
+  have decoded : decoded32 (left.sub right) =
+      UnpackedFloat.sub Format.binary32 (decoded32 left) (decoded32 right) := by
+    change unpack Format.binary32 (pack Format.binary32
+      (UnpackedFloat.sub Format.binary32 (Float32.Model.ofBits left.bits).unpack
+        (Float32.Model.ofBits right.bits).unpack)) = _
+    rw [model_ofBits32_decoded left leftFinite, model_ofBits32_decoded right rightFinite]
+    exact model_unpack_pack_normalized _ _ operation.1 fits
+  constructor
+  · apply (model_decoded32_finite _).mp
+    rw [decoded]
+    exact model_normalized_finite _ _ operation.1
+  · simpa only [numerical32, decoded] using operation.2
 
 /-- The executing centered model reward has exactly the capped magnitude bound.
 Wan, Naik and Sutton, *Average-Reward Learning and Planning with Options*,

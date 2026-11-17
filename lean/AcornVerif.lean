@@ -60,6 +60,7 @@ import AcornVerif.CurrentConcealedTargetRung
 import AcornVerif.CurrentConcealedTargetRungChoice
 import AcornVerif.CurrentConcealedTargetRungCredit
 import AcornVerif.CurrentConcealedTargetRungFinds
+import AcornVerif.CurrentConcealedTargetRungFirstVisit
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
@@ -70,6 +71,7 @@ import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentCreditHorizon
 import AcornVerif.CurrentFirstChoice
+import AcornVerif.CurrentTraceCounts
 import AcornVerif.CurrentFirstCredit
 import AcornVerif.CurrentFrameSize
 import AcornVerif.CurrentFrameSlots

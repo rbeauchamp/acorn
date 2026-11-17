@@ -126,6 +126,11 @@ theorem advance_ok (live : Live config) (action : Kernel.Act Grid.interface)
     advance live action = some ⟨next, events.raw⟩ := by
   simp only [advance, stepped]
 
+/-- The grid world's step from a live state is the host's step of that state. -/
+theorem grid_step_live (mode : TaskFeatureMode) (live : Live config)
+    (action : Kernel.Act Grid.interface) :
+    (gridWorld config mode).step (some live) action = advance live action := rfl
+
 /-- A kernel step between live states is a successful host step whose raw result the
 successor carries. -/
 theorem advance_some (live next : Live config) (action : Kernel.Act Grid.interface)

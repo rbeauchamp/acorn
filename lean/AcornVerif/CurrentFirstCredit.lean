@@ -23,9 +23,9 @@ tester retires nothing. The names here call such an agent, step or run young.
 
 - **The tester before a unit matures.** A unit is eligible for replacement once its age exceeds
   the tester's maturity threshold (`Acorn.Features.Lifecycle.mature`). While the clock is at most
-  that threshold no unit is eligible (`young_ineligible`), a test replaces no unit and writes no
-  learner (`idle_test`), and the tester leaves the primitive controller as it was
-  (`young_retire`). The declared tester's threshold is 1000 steps
+  that threshold no unit is eligible (`young_ineligible`), a test replaces no unit, writes no
+  learner and keeps the feature bank (`idle_test`, `idle_test_bank`), and the tester leaves the
+  primitive controller as it was (`young_retire`). The declared tester's threshold is 1000 steps
   (`Acorn.Handcrafted.declaredTester`).
 - **The clock.** Under the default order, a step of a profile with no hierarchy advances the
   agent's clock once, before its tester runs (`step_clock`): its selection and its learning part
@@ -33,13 +33,22 @@ tester retires nothing. The names here call such an agent, step or run young.
 - **One step.** So before a unit matures, one agent step is exactly one controller step at the
   encoded frame, the executed action and the centred reward (`young_step`). Under the discounted
   criterion the centred reward is the percept's reward word.
+- **What the next frame reads of the step.** A frame is encoded under the feature bank, and it
+  feeds back the predictions the step before stored. Before a unit matures, a step of a profile
+  with no hierarchy at the default order keeps the bank (`young_bank`). A step of a learning
+  profile stores the predictions its prediction demons made before they learned
+  (`step_predictions`), and a fresh demon predicts positive zero
+  (`AcornVerif.CurrentPreReward.initial_prediction`, `initial_bank_predictions`). So the first
+  step of a cold agent of a learning profile stores the predictions it started with
+  (`cold_step_predictions`).
 - **A list of percepts.** Over percepts whose reward word is the zero word, the controller stays
   quiet against what it laid (`traced_young`), and a recent slot stays recent, decayed once for
   each step (`traced_recent`).
 - **A kernel run.** A kernel run of the executed agent is its traced run over the percepts it
   receives (`traced_loop`), and the steps that run lays are the steps of the traced run
   (`laidAt`, `traced_laid`). So in a kernel run the controller stays quiet while the rewards are
-  zero (`loop_quiet`), a laid slot stays recent (`loop_recent`), and the step that learns a
+  zero (`loop_quiet`), each of those steps is one controller step at reward zero
+  (`loop_silent`), a laid slot stays recent (`loop_recent`), and the step that learns a
   reward of one is one controller step at reward one (`loop_paid`). That step writes at least a
   recent slot's least trace into its weight
   (`AcornVerif.CurrentCreditHorizon.recent_credited`), which gives `loop_first_credit`.
@@ -109,7 +118,59 @@ theorem idle_test (state : Lifecycle shape actions config criterion dimension di
     rw [unchanged]
     exact ⟨rfl, rfl⟩
 
+/-- A test with no eligible unit keeps the bank: it rescores the units and stores the credit, and
+replaces none. -/
+theorem idle_test_bank (state : Lifecycle shape actions config criterion dimension discounts)
+    (free : Bool) (active : Vector Bool config.units.count)
+    (none : state.eligibleCount free = 0) :
+    (state.test free active).1.representation.bank = state.representation.bank := by
+  have scored := state.score_eligible active free
+  have credited := (state.score active).withCredit_eligible
+    (config.tester.remainder ((state.score active).accrued free)) free
+  have idle : ((state.score active).withCredit
+      (config.tester.remainder ((state.score active).accrued free))).candidate free =
+        Option.none := by
+    rw [Lifecycle.candidate_none_iff]
+    simp only [Lifecycle.eligibleCount, credited.1, scored.1]
+    exact none
+  unfold Lifecycle.test
+  dsimp only
+  cases config.tester.due ((state.score active).accrued free) with
+  | zero => rfl
+  | succ rest =>
+    have unchanged : Lifecycle.replaceDue free (rest + 1) ((state.score active).withCredit
+        (config.tester.remainder ((state.score active).accrued free))) =
+          ((state.score active).withCredit
+            (config.tester.remainder ((state.score active).accrued free)), []) := by
+      simp only [Lifecycle.replaceDue, idle]
+    rw [unchanged]
+    rfl
+
 end Tester
+
+/-! ## What a fresh demon bank predicts -/
+
+section Demons
+
+variable {dimension : Dimension}
+
+/-- **A step of the fresh demon bank returns the cold prediction cache.** Each demon returns the
+prediction it made before it learned, which for a fresh learner is positive zero
+(`AcornVerif.CurrentPreReward.initial_prediction`), the word the cold cache holds. -/
+theorem initial_bank_predictions (features : SwiftTd.ActiveSet dimension) :
+    ∀ (discounts : List Discount) (cumulants : Cumulants discounts),
+      ((DemonBank.initial dimension discounts).step features cumulants).predictions =
+        PredictionCache.initial discounts
+  | [], .nil => rfl
+  | discount :: rest, .cons origin value tail => by
+    rw [DemonBank.step_def]
+    change PredictionCache.cons (Prediction.project _
+      ((NumericState.initial _ dimension).linearPrediction features))
+        ((DemonBank.initial dimension rest).step features tail).predictions = _
+    rw [initial_prediction, initial_bank_predictions features rest tail]
+    rfl
+
+end Demons
 
 /-! ## One step of the agent before a unit matures -/
 
@@ -267,6 +328,97 @@ theorem step_clock (agent : Agent interface profile config criterion dimension p
     rw [chosen]
     rfl
   exact ⟨learned, (retire_clock _ _).trans learned⟩
+
+/-- The completion boundary of a learning profile stores the predictions its demons return. -/
+theorem finish_predictions (learning : profile.mode ≠ .frozen)
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
+    (decision : TemporalDecision interface.actions) :
+    (state.finish features obs reward decision).runtime.references.demonPredictions =
+      (state.runtime.lifecycle.consumers.demons.step features
+        (signalValues obs reward)).predictions := by
+  simp [TemporalControl.finish_eq, TemporalControl.predictionView,
+    PredictionControl.advanceWith, TemporalControl.recordEpisodes, learning]
+
+/-- The tester keeps the stored predictions. -/
+theorem retire_predictions (agent : Agent interface profile config criterion dimension planning)
+    (active : Vector Bool config.units.count) :
+    (agent.retire active).control.runtime.references.demonPredictions =
+      agent.control.runtime.references.demonPredictions := by
+  unfold Agent.retire
+  split <;> rfl
+
+/-- **A step of a learning profile stores what its demons predicted before they learned.** The
+predictions the next frame feeds back are the ones the demons the step started from return on
+the step's frame. -/
+theorem step_predictions (learning : profile.mode ≠ .frozen)
+    (agent : Agent interface profile config criterion dimension planning) (order : StepOrder)
+    (percept : Percept interface) :
+    (agent.choose order percept).learn.control.runtime.references.demonPredictions =
+      (agent.control.runtime.lifecycle.consumers.demons.step (agent.choose order percept).features
+        (signalValues percept.frame percept.reward)).predictions := by
+  unfold Chosen.learn
+  rw [retire_predictions]
+  change ((finishInput (agent.choose order percept)).finish _ _ _
+    _).runtime.references.demonPredictions = _
+  rw [finish_predictions learning, finishInput_demons, choose_percept]
+
+/-- **The cold agent's first step stores the predictions it started with.** For a learning
+profile, under every step order and on every percept: the fresh demons return the cold cache
+(`initial_bank_predictions`). -/
+theorem cold_step_predictions (learning : profile.mode ≠ .frozen) (order : StepOrder)
+    (percept : Percept interface) :
+    ((Agent.initial interface profile config criterion dimension planning).choose order
+        percept).learn.control.runtime.references.demonPredictions =
+      (Agent.initial interface profile config criterion dimension
+        planning).control.runtime.references.demonPredictions := by
+  rw [step_predictions learning]
+  exact initial_bank_predictions _ _ _
+
+/-- **Before a unit matures, a step of a profile with no hierarchy keeps the bank.** At the
+default step order, while the agent's clock is below the tester's maturity threshold: selection
+and learning keep the representation, and the tester replaces no unit. -/
+theorem young_bank (primitive : profile.usesHierarchy = false)
+    (agent : Agent interface profile config criterion dimension planning)
+    (percept : Percept interface) (young : agent.clock.toNat < config.tester.maturity) :
+    (agent.choose .learnThenAct percept).learn.control.runtime.lifecycle.representation.bank =
+      agent.control.runtime.lifecycle.representation.bank := by
+  obtain ⟨selected, ordered, -⟩ := agent.choose_selected .learnThenAct (by decide) percept
+  unfold TemporalControl.select at selected
+  have chosen := select_representation agent.advanceClock.control _ primitive _ _ _ _ _ _ _
+    selected
+  have learned :
+      (agent.choose .learnThenAct percept).learned.control.runtime.lifecycle.representation =
+        agent.advanceClock.control.runtime.lifecycle.representation := by
+    change ((((agent.choose .learnThenAct percept).control.deferred
+      (agent.choose .learnThenAct percept).order planning
+      (agent.choose .learnThenAct percept).features (agent.choose .learnThenAct percept).owed
+      (agent.choose .learnThenAct percept).percept.reward
+      (agent.choose .learnThenAct percept).percept.frame.achieved
+      (agent.choose .learnThenAct percept).decision).learn
+      (agent.choose .learnThenAct percept).features
+      (agent.choose .learnThenAct percept).percept.frame
+      (agent.choose .learnThenAct percept).percept.reward
+      (agent.choose .learnThenAct percept).percept.frame.achieved
+      (agent.choose .learnThenAct percept).decision
+      ).runtime.lifecycle.representation) = _
+    rw [learn_representation, ordered]
+    exact chosen
+  have clock := (step_clock agent primitive percept).1
+  have youngLearned : (agent.choose .learnThenAct percept).learned.clock.toNat ≤
+      config.tester.maturity := by
+    rw [clock, advanceClock_exact]
+    exact Nat.le_trans (Nat.min_le_left _ _) young
+  have kept :
+      (agent.choose .learnThenAct percept).learn.control.runtime.lifecycle.representation.bank =
+        (agent.choose .learnThenAct
+          percept).learned.control.runtime.lifecycle.representation.bank := by
+    unfold Chosen.learn Agent.retire
+    split
+    · rfl
+    · exact idle_test_bank _ _ _ (young_ineligible _ _ youngLearned)
+  rw [kept, learned]
+  rfl
 
 end Step
 
@@ -614,6 +766,39 @@ theorem loop_recent (primitive : profile.usesHierarchy = false)
       exact fits earlier (by have := (List.mem_range'_1.mp inside).2; omega))
   rw [List.length_map, List.length_range', Nat.zero_add, traced_loop] at later
   exact later
+
+/-- **A reward-free step of a kernel run, before a unit matures.** Under the hypotheses of
+`loop_quiet` up to and including a time: the primitive controller before the step of that time is
+quiet against the frames laid so far, and the step leaves the controller that one controller step
+at reward zero leaves, at the frame and the action of that time. -/
+theorem loop_silent (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (history : List (Laid dimension interface.actions.word.toNat))
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) history)
+    (world : Kernel.World interface) (start : world.State) (time : ℕ)
+    (young : agent.clock.toNat + (time + 1) ≤ config.tester.maturity)
+    (silent : ∀ earlier, earlier < time + 1 →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (fits : ∀ earlier, earlier < time + 1 →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999) :
+    CtrlQuiet .discounted (controlOf (Kernel.memoryAt world (executedAgent agent) start time))
+        (history ++ (List.range' 0 time).map (laidAt agent world start)) ∧
+      controlOf (Kernel.memoryAt world (executedAgent agent) start (time + 1)) =
+        ((controlOf (Kernel.memoryAt world (executedAgent agent) start time)).step
+          (laidAt agent world start time).features (laidAt agent world start time).row
+          .zero).1 := by
+  obtain ⟨quietHere, ctrlHere⟩ := loop_quiet primitive perStep agent history quiet ctrl world
+    start time (by omega) (fun earlier before => silent earlier (by omega))
+    (fun earlier before => fits earlier (by omega))
+  have clock := loop_clock primitive agent world start time
+  obtain ⟨equation, -⟩ := young_quiet_step primitive perStep
+    (Kernel.memoryAt world (executedAgent agent) start time) _
+    (Kernel.perceptAt world (executedAgent agent) start time) quietHere ctrlHere
+    (silent time (by omega)) (by omega) (fits time (by omega))
+  exact ⟨ctrlHere, (congrArg (fun memory : Agent interface profile config .discounted
+    dimension planning => controlOf memory) (loop_step agent world start time)).trans
+      equation⟩
 
 /-- **The step that learns a reward of one, before a unit matures.** For a profile with no
 hierarchy under per-step credit and the discounted criterion, in a kernel run: when the percept
