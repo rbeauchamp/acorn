@@ -152,7 +152,7 @@ end Tester
 
 section Demons
 
-variable {config : Acorn.Config} {dimension : Dimension}
+variable {dimension : Dimension}
 
 /-- **A step of the fresh demon bank returns the cold prediction cache.** Each demon returns the
 prediction it made before it learned, which for a fresh learner is positive zero

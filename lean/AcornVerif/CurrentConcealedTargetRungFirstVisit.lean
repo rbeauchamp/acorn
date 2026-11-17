@@ -48,8 +48,8 @@ and the step lays a trace on each of them.
     and the rung's world holds neither food nor deer. So after it the host shows the observation
     it showed at the start (`first_step_sensed`, from
     `AcornVerif.CurrentFrameSlots.observe_congr`). No tile's terrain is evaluated for this.
-  - The bank. Before a unit matures, a step of a profile with no hierarchy keeps the feature
-    bank (`AcornVerif.CurrentFirstCredit.young_bank`).
+  - The bank. Before a unit matures, a step of a profile with no hierarchy at the default step
+    order keeps the feature bank (`AcornVerif.CurrentFirstCredit.young_bank`).
   - The stored predictions. The first step of a cold agent of a learning profile stores the
     predictions its fresh prediction demons return, which are the ones it started with
     (`AcornVerif.CurrentFirstCredit.cold_step_predictions`).
@@ -588,16 +588,17 @@ theorem second_step_listed : ∀ point ∈ rungSecondStep, point ∈ rungFound :
   decide +kernel
 
 /-- **The members first met at the first visit's second step, and the agent's next action.**
-There are seven members of the rung's class whose first success by the rung's agent is at the
-second step of the first visit: they are distinct, their targets are the tiles of
-`rungSecondStep`, and no other member has such a success. After each, the agent's action at the
-time three is the step south, the action after which the target was met, and it is not the
-explorer's action at that time, which is to eat (`second_step_codes`). That action is the
-agent's first after the step that learns the reward. -/
+Exactly seven members of the rung's class have their first success by the rung's agent at the
+second step of the first visit: a list holds seven distinct members, with the targets of
+`rungSecondStep`, and a member is in the list exactly when it has such a success. After each,
+the agent's action at the time three is the step south, the action after which the target was
+met, and it is not the explorer's action at that time, which is to eat (`second_step_codes`).
+That action is the agent's first after the step that learns the reward. -/
 theorem second_step_repeats (planning : PlanningSelection) :
     ∃ counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
         witnessLive 7).Index,
-      counted.Nodup ∧ counted.map (fun index => tile index.1.1) = rungSecondStep ∧
+      counted.Nodup ∧ counted.length = 7 ∧
+        counted.map (fun index => tile index.1.1) = rungSecondStep ∧
         (∀ index, index ∈ counted ↔ FirstSuccess planning index (rungAgent planning) 0 2) ∧
         ∀ index ∈ counted,
           Host.Action.fromIndex (Kernel.actionAt (rungVisits planning index)
@@ -637,7 +638,9 @@ theorem second_step_repeats (planning : PlanningSelection) :
       refine List.mem_map.mpr ⟨⟨tile index.1.1, listed⟩, List.mem_attach _ _, ?_⟩
       exact Subtype.ext (Subtype.ext (tile_injective (own ⟨tile index.1.1, listed⟩)))
   refine ⟨rungSecondStep.attach.map admit,
-    (List.nodup_attach.mpr (by decide)).map injective, ?_, firsts, fun index listed =>
+    (List.nodup_attach.mpr (by decide)).map injective, by
+      rw [List.length_map, List.length_attach]
+      rfl, ?_, firsts, fun index listed =>
       second_step_south planning index ((firsts index).mp listed)⟩
   rw [List.map_map]
   exact (List.map_congr_left fun point _ => own point).trans

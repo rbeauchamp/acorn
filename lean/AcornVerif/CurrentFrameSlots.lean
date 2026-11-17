@@ -30,14 +30,14 @@ whose clock has not passed an eighth of the day, the percept carries the word of
 
 A frame is encoded under the agent's feature bank from three things: the words of its percept's
 frame, the words fed back from the agent's stored predictions, and the symbols of its percept's
-frame, the codes of the window's tiles and of the task that the bank's units read. So two steps
-lay the same frame when their percepts' frames carry the same words and symbols and the two agent
-states hold the same bank and the same stored predictions (`choose_features_congr`). In the grid
-world the words and the symbols are functions of the host's observation (`sensed_congr`,
-`percept_frame_congr`). Two worlds are observed alike when they agree on the body's position and
-inventory, on the bucket of its energy, on the kind of every tile, on which tiles hold food or
-deer, on the day's phase and on the task (`observe_congr`). Where no tile is harvested a tile's
-kind is its base terrain (`tileKind_unharvested`).
+frame, which the bank's units read. So two steps lay the same frame when their percepts' frames
+carry the same words and symbols and the two agent states hold the same bank and the same stored
+predictions (`choose_features_congr`). In the grid world the symbols are the codes of the
+window's tiles and of the task, and they and the words are functions of the host's observation
+(`sensed_congr`, `percept_frame_congr`). Two worlds are observed alike when they agree on the
+body's position and inventory, on the bucket of its energy, on the kind of every tile, on which
+tiles hold food or deer, on the day's phase and on the task (`observe_congr`). Where no tile is
+harvested a tile's kind is its base terrain (`tileKind_unharvested`).
 
 What this does not say. Which other word two percepts of a run have in common: that is a fact of
 the world's states. How many slots two different frames share. And two words can hash to one
