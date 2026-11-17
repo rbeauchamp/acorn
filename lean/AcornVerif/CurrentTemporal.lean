@@ -820,7 +820,7 @@ theorem stopping_estimate_frozen
     (decision : TemporalDecision interface.actions) (drawn : PolicyDecision metaCount)
     (frozen : decision.metaDecision = some drawn) :
     state.stoppingEstimate decision = comparisonValue criterion drawn.snapshot := by
-  simp only [TemporalControl.stoppingEstimate, frozen]
+  simp only [TemporalControl.stoppingEstimate_def, frozen]
 
 /-- The trajectory age advances by exactly one on every continuing frame, never
 saturating and whatever the action taken, so the stored age is the number of

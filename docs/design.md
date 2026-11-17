@@ -312,8 +312,9 @@ yet establishes, each part of that obligation:
   of an option model's input, ranked features, prediction and updates, of the prediction
   demons' bank step, of an option's rate,
   potential, start, termination decision, step, credit, frozen policy and termination,
-  of its operations with its model, and of one slot's share of a followed frame,
-  described below;
+  of its operations with its model, of one slot's share of a followed frame, and of the
+  following of the option table with the rates, the value function and the stopping
+  estimate it computes, described below;
 - the correspondence of the twins of selection, among them the controllers' initial
   value and reset, with the executed definitions: the twins'
   charges were compared with the compiled call multisets of one build by a one-time
@@ -393,7 +394,27 @@ option's policy and model off-policy. Both
 bounds grow with the active set's length, and with the capacity of the dimension in its
 place the slot's is a function of the configuration
 (`AcornVerif.Resource.Twin.potentialCosted_within`,
-`AcornVerif.Resource.Twin.followSlotCosted_within_capacity`). A controller's initial
+`AcornVerif.Resource.Twin.followSlotCosted_within_capacity`). The following of the option
+table (`TemporalControl.followOptions`) is the value of its costed definition too
+(`TemporalControl.followOptionsCosted`). Where options learn, it computes the stopping
+estimate, the options' rate source and the value function
+(`TemporalControl.stoppingEstimate`, `TemporalControl.skillRate`,
+`TemporalControl.valueFunction`), each the value of a costed definition that counts the
+controllers' derived rates and the stopping comparison it reads
+(`TemporalControl.primitiveRate`, `TemporalControl.metaRate`), and then maps each slot's
+share in table order (`Costed.mapFinIdx`). Its bound is those three, the map's work at one
+slot's share for each of the table's slots and the state's record, and with the capacity of
+the dimension in place of the active set's length it is a function of the configuration
+(`AcornVerif.Resource.Twin.followOptionsCosted_within`,
+`AcornVerif.Resource.Twin.followOptionsCosted_within_capacity`). The twins of the meta
+rate, the options' rate source and the value function that selection reads are now adapters
+checked against these costed definitions (`AcornVerif.Resource.Twin.metaRate_costed`,
+`AcornVerif.Resource.Twin.skillSource_costed`,
+`AcornVerif.Resource.Twin.valueFunction_costed`). The generated C of the definitions without
+work and of these is equal up to renaming, apart from the order of one constant's load in
+the stopping estimate and of the parallel moves into a join point in three callers, an
+observation of one build recorded in the [cost semantics](../lean/Acorn/Cost.lean). A
+controller's initial
 value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
 have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
@@ -536,15 +557,7 @@ That is why the claim that every segment is bounded by a constant of the code is
 to the first part and to each costed definition's own call. The
 executed `detachedUpdate` is not yet the value of its costed definition
 `detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
-is part of obligation 7. The following of the option table
-(`TemporalControl.followOptions`) is not yet the value of a costed definition either: before
-it maps each slot's share (`followSlot`), it computes the stopping estimate
-(`TemporalControl.stoppingEstimate`), the options' rate (`TemporalControl.skillRate`) and the
-value function (`TemporalControl.valueFunction`), which read the controllers' rates
-(`Controller.exploreRate`) and the stopping comparison (`comparisonValue`), values of costed
-definitions, with no charge point. The bound of a slot's share
-(`AcornVerif.Resource.Twin.followSlotCosted_within`) takes those three as computed and does not
-count their computation; costing the table's following with them is part of obligation 7.
+is part of obligation 7.
 
 ### The time a world declares
 

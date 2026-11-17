@@ -57,29 +57,20 @@ def primitiveRate (κ : Costs)
     Costed SwiftTd.ExploreRate :=
   exploreRate (count := interface.actions) κ state.runtime.lifecycle.consumers.control
 
-/-- Twin of `TemporalControl.metaRate`: the meta-controller's rate, the primitive rate, or the
-projection of an annealed rate. -/
+/-- `TemporalControl.metaRate` with its bound. -/
 def metaRate (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     Costed SwiftTd.ExploreRate :=
-  Costed.via state.metaRate (rateRun state.rate
-    (Costed.discard (exploreRate (count := metaCount) κ
-      state.runtime.lifecycle.consumers.metaController))
-    (Costed.discard (primitiveRate κ state)) (Costed.op (κ .rateClose) ()))
-
-/-- Bound of any controller rate of a state. -/
-abbrev metaRateBound (κ : Costs) (rows capacity : Nat) : Nat :=
-  rateBound κ metaCount.word.toNat capacity + rateBound κ rows capacity
+  ⟨state.metaRate, metaRateBound κ interface.actions.word.toNat dimension.capacity⟩
 
 theorem metaRate_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     (metaRate κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
-  rateRun_work _ _ _ _ _
-    (Nat.le_trans (exploreRate_work (count := metaCount) κ
-      state.runtime.lifecycle.consumers.metaController) (Nat.le_add_right _ _))
-    (Nat.le_trans (exploreRate_work (count := interface.actions) κ
-      state.runtime.lifecycle.consumers.control) (Nat.le_add_left _ _))
-    (by change κ .rateClose ≤ _; simp only [metaRateBound, rateBound]; omega)
+  Nat.le_refl _
+
+theorem metaRate_costed (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.metaRateCosted.Within κ (metaRate κ state).work := metaRateCosted_within κ state
 
 /-- Twin of `TemporalControl.controlRate`: the primitive rate, or the projection of an annealed
 rate. -/
@@ -99,28 +90,26 @@ theorem controlRate_work (κ : Costs)
       state.runtime.lifecycle.consumers.control) (Nat.le_add_left _ _))
     (by change κ .rateClose ≤ _; simp only [metaRateBound, rateBound]; omega)
 
-/-- Twin of `TemporalControl.skillRate`: the primitive rate, or none; an annealed skill rate is a
-closed term of the compiled code. -/
+/-- `TemporalControl.skillRate` with its bound. -/
 def skillSource (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     Costed ConsumerRate :=
-  Costed.via state.skillRate (rateRun state.rate (Costed.pure ())
-    (Costed.discard (primitiveRate κ state)) (Costed.pure ()))
+  ⟨state.skillRate, rateBound κ interface.actions.word.toNat dimension.capacity⟩
 
 theorem skillSource_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     (skillSource κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
-  rateRun_work _ _ _ _ _ (Nat.zero_le _)
-    (Nat.le_trans (exploreRate_work (count := interface.actions) κ
-      state.runtime.lifecycle.consumers.control) (Nat.le_add_left _ _))
-    (Nat.zero_le _)
+  Nat.le_add_left _ _
 
-/-- Twin of `TemporalControl.valueFunction`. -/
+theorem skillSource_costed (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.skillRateCosted.Within κ (skillSource κ state).work := skillSourceCosted_within κ state
+
+/-- `TemporalControl.valueFunction` with its bound. -/
 def valueFunction (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
-    Costed (ValueFunction criterion dimension) := do
-  let rate ← metaRate κ state
-  Costed.pure ⟨state.runtime.lifecycle.consumers.metaController, rate⟩
+    Costed (ValueFunction criterion dimension) :=
+  ⟨state.valueFunction, metaRateBound κ interface.actions.word.toNat dimension.capacity⟩
 
 theorem valueFunction_val (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
@@ -130,8 +119,12 @@ theorem valueFunction_work (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     (valueFunction κ state).work ≤
       metaRateBound κ interface.actions.word.toNat dimension.capacity :=
-  Nat.le_trans (Costed.bind_work_le (metaRate_work κ state) fun _ => Nat.le_refl 0)
-    (Nat.le_of_eq (Nat.add_zero _))
+  Nat.le_refl _
+
+theorem valueFunction_costed (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.valueFunctionCosted.Within κ (valueFunction κ state).work :=
+  valueFunctionCosted_within κ state
 
 /-! ## The operations of selection -/
 

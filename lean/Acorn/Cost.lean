@@ -76,15 +76,8 @@ operations of those stretches belong to the segment of the next costed charge po
 part's last one, so the second part's segments are not yet bounded by constants of the code and its
 bound is part of obligation 7 of `docs/mission-contract.md`. `DemonRecords.observe` is one such
 stretch: a loop over the channels of the demons' lifetime records, whose trip count depends on the
-configuration, with no charge point. The following of the option table
-(`TemporalControl.followOptions`) is another: before it maps each slot's costed share
-(`followSlotCosted`), it computes the stopping estimate, the options' rate and the value function,
-which read the controllers' rates (`Controller.exploreRate`) and the stopping comparison
-(`comparisonValue`), values of costed definitions, with no charge point.
-The bound of a slot's share takes those three as computed and does not count their computation;
-costing the table's following with them is part of obligation 7 of `docs/mission-contract.md`.
-That is why the claim above that every segment is bounded by a constant of the code is limited to
-the first part and to each costed definition's own call.
+configuration, with no charge point. That is why the claim above that every segment is bounded by a
+constant of the code is limited to the first part and to each costed definition's own call.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
@@ -163,7 +156,11 @@ trajectory, a start whose first action is drawn and its off-policy following, wi
 `startFollowingCosted` and `followTemporalCosted` in `Acorn.Temporal`), and an option's potential
 and one slot's share of a followed frame (`Assignment.potentialCosted` in `Acorn.FeatureRanking`,
 `Interest.potentialCosted` in `Acorn.Options` and `followSlotCosted` in
-`Acorn.Handcrafted.TemporalControl`).
+`Acorn.Handcrafted.TemporalControl`), and the following of the option table with the rates, the
+value function and the stopping estimate it computes (`RateState.controllerCosted` and
+`RateState.skillCosted` in `Acorn.Handcrafted.TemporalProfile`, and
+`TemporalControl.primitiveRateCosted`, `metaRateCosted`, `skillRateCosted`, `valueFunctionCosted`,
+`stoppingEstimateCosted` and `followOptionsCosted` in `Acorn.Handcrafted.TemporalControl`).
 A combinator counts the work of every function it takes, but not the computation of a value it
 takes. The values a costed definition passes in, which are all its uncosted entry points, are:
 
@@ -213,7 +210,13 @@ same order, and where `PolicySnapshot.consistentCosted`, which compares raw word
 `vectorEq`, allocates the closure of the words' equality after it reads the nominal masses, where
 the code without work allocated it before, and where `Acorn.Handcrafted.TemporalProfile` no longer
 contains the compiled splitter of the match of `Interest.potential`, which a proof there generated
-by unfolding the definition without work and no code calls. Each is an observation of one build,
+by unfolding the definition without work and no code calls, and of the costed definitions of the
+following of the option table, with the rates, the value function and the stopping estimate it
+computes, and their callers, where `TemporalControl.stoppingEstimateCosted`, without a drawn meta
+decision, loads the constant count of the meta actions after it calls the meta rate, where the code
+without work loaded it before, and where `TemporalControl.choosePrimitive`, `TemporalControl.serve`
+and `TemporalControl.stepOption` differ only in the order of the parallel moves into a join point.
+Each is an observation of one build,
 which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`; no
 checked statement says that a segment of the executed code does at most its site's cost in word
 operations.
@@ -381,6 +384,9 @@ inductive Site where
   /-- A slot's executing test and its unlinked skill record, or the unlinked record of a slot
   whose potential has no source. -/
   | unlinkSlot
+  /-- A followed table's test that options learn and its executing slot, with the state's record
+  around the followed table, or the unchanged state. -/
+  | followTable
   /-- A planning look-ahead's backed-up target and its result record. -/
   | lookAhead
   /-- A backup's store of its prediction cache and planning error. -/
