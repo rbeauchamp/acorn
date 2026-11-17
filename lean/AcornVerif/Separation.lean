@@ -11,16 +11,21 @@ import Mathlib.Order.Interval.Finset.Nat
 # Separation, retention and the failing fraction of runs
 
 The postcondition of `docs/mission-contract.md` is proved, on a class of worlds in visits, through
-two statements about attempt goals, which this module defines over the kernel's
+statements about attempt goals, which this module defines over the kernel's
 `AcornVerif.Kernel.SolvesOnVisit`:
 
 - `Separates`: on one visit the agent solves more of the counted members than a bound. With a
   covering bound of a class that conceals its goals, no agent that keeps nothing of its experience
-  does so on any visit (`visits_need`).
+  does so on any visit (`visits_need`). `SeparatesBy` names a visit before which it does.
 - `Retains`: a member the agent has solved on one visit it solves on every later visit.
 - `RetainsBut`: the same before a stated visit, the horizon, but for at most a stated number of
-  each member's visits, its lapses. It is the form the postcondition asks, as the owner decided on
-  2026-11-17 (rbeauchamp/acorn#248), and `Retains` gives it with no lapse (`Retains.but`).
+  each member's visits, its lapses. `Retains` gives it with no lapse (`Retains.but`).
+
+The postcondition asks `SeparatesBy` and `RetainsBut` together, as the owner decided on 2026-11-17
+(rbeauchamp/acorn#248): the visit of the advantage comes early enough before the horizon that
+more later visits than the lapses remain, so each member solved on it is solved again
+(`RetainsBut.again`). A horizon that leaves no such room asks no retention
+(`retainsBut_of_lapses`).
 
 `Finds` is the part of separation that is exploration: each of more than the bound's number of
 counted members is solved on some visit, each on a visit of its own. An agent that finds and retains
@@ -47,22 +52,24 @@ this module does not supply, and obligation 15 of `docs/mission-contract.md` own
   ideal ones. No theorem here has that hypothesis, because none reads a draw: the family is a
   parameter.
 - a number of visits. A finite family of draw sequences exists only for a guarantee that reads
-  finitely many draws. `Finds` and `Retains` name no last visit, so for an agent that draws at
-  every decision they are not such guarantees, and `Retains` asks every later visit: an agent that
-  goes on exploring at a rate that can miss a visit fails it on almost every run (argued, not
-  proved here). `FindsBy` and `RetainsBut` name a last visit.
+  finitely many draws. `Finds`, `Separates` and `Retains` name no last visit, so for an agent that
+  draws at every decision they are not such guarantees, and `Retains` asks every later visit: an
+  agent that goes on exploring at a rate that can miss a visit fails it on almost every run
+  (argued, not proved here). `FindsBy`, `SeparatesBy`, `RetainsOn` and `RetainsBut` each name a
+  visit before which they are read.
 
 **An agent that goes on exploring.** Retention is asked of it in two parts. `RetainsOn` is the
-first: a member solved on one visit is solved on every later visit that a predicate admits. It is
-a statement about one run and counts nothing. The second counts: the predicate admits every visit
-before the horizon but for at most `lapses` of each member's (`AdmitsBut`). Together they give
-`RetainsBut` (`RetainsOn.but`), under which a member solved once is solved again within the lapses
-(`RetainsBut.again`). Separation needs one visit on which the agent solves more counted members
-than the bound, so it needs the predicate to admit one visit for enough members at once: with
-finding, by a stated visit, of `spare` members more than the bound asks, and one later visit
-that the predicate admits for all but `spare` of the counted members (`AdmitsOnce`), the first
-part gives separation (`separates_of_finds_on`). The predicate is a parameter: the one to read
-is that the agent takes no exploratory action on that visit of that member's run, which
+first: before the horizon, a member solved on one visit is solved on every later visit that a
+predicate admits. It is a statement about one run and counts nothing. The second counts: the
+predicate admits every visit before the horizon but for at most `lapses` of each member's
+(`AdmitsBut`). Together they give `RetainsBut` (`RetainsOn.but`), under which a member solved once
+is solved again within the lapses (`RetainsBut.again`). Separation needs one visit on which the
+agent solves more counted members than the bound, so it needs the predicate to admit one visit
+for enough members at once: with finding, by a stated visit, of `spare` members more than the
+bound asks, and one later visit before a stated visit that the predicate admits for all but
+`spare` of the counted members (`AdmitsOnce`), the first part gives separation before that visit
+(`separatesBy_of_finds_on`). The predicate is a parameter: the one to read is that the agent
+takes no exploratory action on that visit of that member's run, which
 `AcornVerif.CurrentConcealedTargetMission.ExecutedCalm` defines for the executed agent.
 -/
 
@@ -79,9 +86,18 @@ def Separates (family : WorldClass interface) (goals : family.Goals) (length bou
   ∃ (visit : ℕ) (solved : Finset family.Index), bound < solved.card ∧
     ∀ index ∈ solved, index ∈ counted ∧ SolvesOnVisit family goals length agent visit index
 
-/-- **Retention.** A member the agent has solved on one visit it solves on every later visit. This
-is postcondition (ii) of `docs/mission-contract.md` for a class in visits, where every visit of a
-member starts from the same state. -/
+/-- **Separation before a stated visit.** On one visit before the visit `limit` the agent solves
+each member of a set of more than `bound` of the counted members. This is postcondition (i) of
+`docs/mission-contract.md` for a class in visits, read before the class's horizon as the owner
+decided on 2026-11-17 (rbeauchamp/acorn#248). -/
+def SeparatesBy (family : WorldClass interface) (goals : family.Goals) (length bound : ℕ)
+    (counted : List family.Index) (limit : ℕ) (agent : Agent interface) : Prop :=
+  ∃ (visit : ℕ) (solved : Finset family.Index), visit < limit ∧ bound < solved.card ∧
+    ∀ index ∈ solved, index ∈ counted ∧ SolvesOnVisit family goals length agent visit index
+
+/-- **Retention on every later visit.** A member the agent has solved on one visit it solves on
+every later visit. It names no horizon and allows no lapse: `RetainsBut` is the form postcondition
+(ii) of `docs/mission-contract.md` takes, and this gives it at every horizon (`Retains.but`). -/
 def Retains (family : WorldClass interface) (goals : family.Goals) (length : ℕ)
     (agent : Agent interface) : Prop :=
   ∀ index visit later, visit < later → SolvesOnVisit family goals length agent visit index →
@@ -103,22 +119,23 @@ def FindsBy (family : WorldClass interface) (goals : family.Goals) (length bound
     ∀ index ∈ solved, index ∈ counted ∧
       ∃ visit, visit < last ∧ SolvesOnVisit family goals length agent visit index
 
-/-- **Retention on the visits a predicate admits.** A member the agent has solved on one visit it
-solves on every later visit that the predicate `admits` holds of for that member. `Retains` is the
-case of a predicate that admits every visit (`retainsOn_true`). For an agent that goes on
-exploring, the predicate to read is that the agent takes no exploratory action on that visit of
-that member's run. No definition here says so: every theorem below holds of every predicate. -/
-def RetainsOn (family : WorldClass interface) (goals : family.Goals) (length : ℕ)
+/-- **Retention on the visits a predicate admits, before a horizon.** A member the agent has
+solved on one visit it solves on every later visit before the visit `horizon` that the predicate
+`admits` holds of for that member. `Retains` gives it for every predicate and horizon
+(`Retains.on`). For an agent that goes on exploring, the predicate to read is that the agent
+takes no exploratory action on that visit of that member's run. No definition here says so: every
+theorem below holds of every predicate. -/
+def RetainsOn (family : WorldClass interface) (goals : family.Goals) (length horizon : ℕ)
     (admits : family.Index → ℕ → Prop) (agent : Agent interface) : Prop :=
-  ∀ index visit later, visit < later → SolvesOnVisit family goals length agent visit index →
-    admits index later → SolvesOnVisit family goals length agent later index
+  ∀ index visit later, visit < later → later < horizon →
+    SolvesOnVisit family goals length agent visit index → admits index later →
+      SolvesOnVisit family goals length agent later index
 
 /-- **Retention before a horizon, but for a number of lapses.** For each member there are at most
 `lapses` visits outside which the agent solves the member on every visit before the visit
 `horizon` that is later than one on which it solved it. This is postcondition (ii) of
 `docs/mission-contract.md` for a class in visits, where every visit of a member starts from the
-same state, as the owner decided it on 2026-11-17 (rbeauchamp/acorn#248). `Retains` gives it with
-no lapse, at every horizon (`Retains.but`). -/
+same state, as the owner decided it on 2026-11-17 (rbeauchamp/acorn#248). -/
 def RetainsBut (family : WorldClass interface) (goals : family.Goals)
     (length horizon lapses : ℕ) (agent : Agent interface) : Prop :=
   ∀ index, ∃ lapsed : Finset ℕ, lapsed.card ≤ lapses ∧
@@ -132,10 +149,12 @@ def AdmitsBut {ι : Type} (admits : ι → ℕ → Prop) (horizon lapses : ℕ) 
   ∀ index, ∃ restless : Finset ℕ, restless.card ≤ lapses ∧
     ∀ visit, visit < horizon → visit ∉ restless → admits index visit
 
-/-- **Admitted together once, but for a number of members.** Some visit from the visit `last` on is
-admitted for every counted member outside a set of at most `spare` members. -/
-def AdmitsOnce {ι : Type} (admits : ι → ℕ → Prop) (counted : List ι) (last spare : ℕ) : Prop :=
-  ∃ common, last ≤ common ∧ ∃ restless : Finset ι, restless.card ≤ spare ∧
+/-- **Admitted together once, but for a number of members.** Some visit from the visit `last` on
+and before the visit `limit` is admitted for every counted member outside a set of at most `spare`
+members. -/
+def AdmitsOnce {ι : Type} (admits : ι → ℕ → Prop) (counted : List ι)
+    (last limit spare : ℕ) : Prop :=
+  ∃ common, last ≤ common ∧ common < limit ∧ ∃ restless : Finset ι, restless.card ≤ spare ∧
     ∀ index ∈ counted, index ∉ restless → admits index common
 
 variable {family : WorldClass interface} {goals : family.Goals} {length : ℕ}
@@ -215,35 +234,48 @@ theorem findsBy_of_each {bound last : ℕ} {counted : List family.Index} (distin
   rw [List.toFinset_card_of_nodup distinct]
   exact many
 
+/-- An agent that separates before a stated visit separates. -/
+theorem SeparatesBy.separates {bound limit : ℕ} {counted : List family.Index}
+    (separates : SeparatesBy family goals length bound counted limit agent) :
+    Separates family goals length bound counted agent := by
+  obtain ⟨visit, solved, -, many, each⟩ := separates
+  exact ⟨visit, solved, many, each⟩
+
 /-! ## Retention for an agent that goes on exploring -/
 
-/-- An agent that retains, retains on the visits any predicate admits. -/
-theorem Retains.on (retains : Retains family goals length agent)
-    (admits : family.Index → ℕ → Prop) : RetainsOn family goals length admits agent :=
-  fun index visit later after solved _ => retains index visit later after solved
+/-- An agent that retains on every later visit retains, before every horizon, on the visits any
+predicate admits. -/
+theorem Retains.on (retains : Retains family goals length agent) (horizon : ℕ)
+    (admits : family.Index → ℕ → Prop) : RetainsOn family goals length horizon admits agent :=
+  fun index visit later after _ solved _ => retains index visit later after solved
 
-/-- Retention on the visits of a predicate that admits every visit is retention. -/
+/-- Retention before every horizon on the visits of a predicate that admits every visit is
+retention on every later visit. -/
 theorem retainsOn_true :
-    RetainsOn family goals length (fun _ _ => True) agent ↔ Retains family goals length agent :=
-  ⟨fun core index visit later after solved => core index visit later after solved trivial,
-    fun retains => retains.on _⟩
+    (∀ horizon, RetainsOn family goals length horizon (fun _ _ => True) agent) ↔
+      Retains family goals length agent :=
+  ⟨fun core index visit later after solved =>
+      core (later + 1) index visit later after (Nat.lt_succ_self later) solved trivial,
+    fun retains horizon => retains.on horizon _⟩
 
-/-- An agent that retains has no lapse before any horizon. -/
+/-- An agent that retains on every later visit has no lapse before any horizon. -/
 theorem Retains.but (retains : Retains family goals length agent) (horizon : ℕ) :
     RetainsBut family goals length horizon 0 agent :=
   fun index => ⟨∅, Nat.le_of_eq Finset.card_empty,
     fun visit later after _ solved _ => retains index visit later after solved⟩
 
-/-- **The two parts give retention but for the lapses.** An agent that retains on the visits a
-predicate admits, where the predicate admits every visit before the horizon but for at most
-`lapses` of each member's, retains before that horizon but for that many lapses. The first part is
-a statement about one run with no count in it; the second counts visits and reads no solving. -/
+/-- **The two parts give retention but for the lapses.** An agent that retains, before the
+horizon, on the visits a predicate admits, where the predicate admits every visit before the
+horizon but for at most `lapses` of each member's, retains before that horizon but for that many
+lapses. The first part is a statement about one run with no count in it; the second counts visits
+and reads no solving. -/
 theorem RetainsOn.but {admits : family.Index → ℕ → Prop} {horizon lapses : ℕ}
-    (core : RetainsOn family goals length admits agent) (few : AdmitsBut admits horizon lapses) :
+    (core : RetainsOn family goals length horizon admits agent)
+    (few : AdmitsBut admits horizon lapses) :
     RetainsBut family goals length horizon lapses agent := fun index => by
   obtain ⟨restless, count, admitted⟩ := few index
   exact ⟨restless, count, fun visit later after before solved out =>
-    core index visit later after solved (admitted later before out)⟩
+    core index visit later after before solved (admitted later before out)⟩
 
 /-- **A member solved once is solved again within the lapses.** Under retention but for `lapses`
 lapses, among the `lapses + 1` visits from any visit on, where all come before the horizon, the
@@ -266,27 +298,54 @@ theorem RetainsBut.again {horizon lapses : ℕ}
   · rw [← same]
     exact solved
 
-/-- **An agent that finds by a visit and retains on admitted visits separates**, where it finds
-`spare` members more than the bound asks and the predicate admits some visit from that one on for
-all but `spare` of the counted members: on that visit it solves every member it has found for
-which the visit is admitted, and those are more than the bound. -/
-theorem separates_of_finds_on {bound last spare : ℕ} {counted : List family.Index}
-    {admits : family.Index → ℕ → Prop}
+/-- **A horizon within one visit of the lapses asks no retention.** Where the lapses number at
+least the visits before the horizon, less one, every agent retains before that horizon but for
+those lapses: every visit before the horizon but the first may be a lapse, and the first visit is
+later than none. -/
+theorem retainsBut_of_lapses (family : WorldClass interface) (goals : family.Goals)
+    (length : ℕ) {horizon lapses : ℕ} (agent : Agent interface)
+    (covered : horizon ≤ lapses + 1) : RetainsBut family goals length horizon lapses agent := by
+  intro index
+  refine ⟨Finset.Icc 1 (horizon - 1), ?_, ?_⟩
+  · rw [Nat.card_Icc]
+    omega
+  · intro visit later after before _ out
+    exact absurd (Finset.mem_Icc.mpr ⟨by omega, by omega⟩) out
+
+/-- **An agent that finds by a visit and retains on admitted visits separates before a stated
+visit**, where it finds `spare` members more than the bound asks and the predicate admits some
+visit from that one on, before the stated visit, for all but `spare` of the counted members: on
+that visit it solves every member it has found for which the visit is admitted, and those are
+more than the bound. The stated visit is no later than the horizon of the retention. -/
+theorem separatesBy_of_finds_on {bound last limit horizon spare : ℕ}
+    {counted : List family.Index} {admits : family.Index → ℕ → Prop}
     (finds : FindsBy family goals length (bound + spare) counted last agent)
-    (core : RetainsOn family goals length admits agent)
-    (once : AdmitsOnce admits counted last spare) :
-    Separates family goals length bound counted agent := by
+    (core : RetainsOn family goals length horizon admits agent)
+    (once : AdmitsOnce admits counted last limit spare) (within : limit ≤ horizon) :
+    SeparatesBy family goals length bound counted limit agent := by
   classical
   obtain ⟨solved, many, each⟩ := finds
-  obtain ⟨common, late, restless, few, admitted⟩ := once
-  refine ⟨common, solved \ restless, ?_, fun index member => ?_⟩
+  obtain ⟨common, late, early, restless, few, admitted⟩ := once
+  refine ⟨common, solved \ restless, early, ?_, fun index member => ?_⟩
   · have left := Finset.le_card_sdiff restless solved
     omega
   · obtain ⟨inside, out⟩ := Finset.mem_sdiff.mp member
     refine ⟨(each index inside).1, ?_⟩
     obtain ⟨visit, before, found⟩ := (each index inside).2
-    exact core index visit common (Nat.lt_of_lt_of_le before late) found
-      (admitted index (each index inside).1 out)
+    exact core index visit common (Nat.lt_of_lt_of_le before late)
+      (Nat.lt_of_lt_of_le early within) found (admitted index (each index inside).1 out)
+
+/-- **An agent that finds by a visit and retains on every later visit separates on that visit**:
+it solves on the visit `last` every member it has found before it. -/
+theorem separatesBy_of_findsBy {bound last : ℕ} {counted : List family.Index}
+    (finds : FindsBy family goals length bound counted last agent)
+    (retains : Retains family goals length agent) :
+    SeparatesBy family goals length bound counted (last + 1) agent :=
+  separatesBy_of_finds_on (spare := 0) (admits := fun _ _ => True) finds
+    (retains.on (last + 1) _)
+    ⟨last, Nat.le_refl last, Nat.lt_succ_self last, ∅, Nat.le_of_eq Finset.card_empty,
+      fun _ _ _ => trivial⟩
+    (Nat.le_refl _)
 
 /-- **Finding is a property of the run in the reference.** In a class that conceals its goals
 behind a reference, an agent finds exactly when the actions of its run in the reference's visits
@@ -372,18 +431,18 @@ theorem FindsBy.of_actions {first second : Agent interface} {bound last : ℕ}
   obtain ⟨visit, before, once⟩ := (each index member).2
   exact ⟨visit, before, (solvesOnVisit_of_actions same visit index).mpr once⟩
 
-/-- An agent that takes the actions of an agent that retains on the visits a predicate admits,
-retains on them. -/
-theorem RetainsOn.of_actions {first second : Agent interface}
+/-- An agent that takes the actions of an agent that retains, before a horizon, on the visits a
+predicate admits, retains on them before it. -/
+theorem RetainsOn.of_actions {first second : Agent interface} {horizon : ℕ}
     {admits : family.Index → ℕ → Prop}
     (same : ∀ (world : World interface) (start : world.State) (time : ℕ),
       actionAt world first start time = actionAt world second start time)
-    (core : RetainsOn family goals length admits second) :
-    RetainsOn family goals length admits first :=
-  fun index visit later after solved admitted =>
+    (core : RetainsOn family goals length horizon admits second) :
+    RetainsOn family goals length horizon admits first :=
+  fun index visit later after before solved admitted =>
     (solvesOnVisit_of_actions same later index).mpr
-      (core index visit later after ((solvesOnVisit_of_actions same visit index).mp solved)
-        admitted)
+      (core index visit later after before
+        ((solvesOnVisit_of_actions same visit index).mp solved) admitted)
 
 /-! ## All but a fraction of runs -/
 

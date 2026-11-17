@@ -18,7 +18,10 @@ Javed and Oak Lab, and the owner adopted it by confirming it. On 2026-11-17 the 
 the record reads "it keeps solving it" of an agent that goes on exploring (rbeauchamp/acorn#248):
 once the agent has solved a member, it solves it again on every later attempt before a stated
 attempt, but for at most a stated number of them, while the member's attempts start from the same
-state. The restatement and that decision are this record's only sources.
+state. The owner decided the same day that the advantage is read before that attempt too: it
+comes on an attempt that leaves more later attempts before the stated attempt than the stated
+number, so that the promise of solving again bears on it. The restatement and those two decisions
+are this record's only sources.
 
 The record's writer had read, before writing it: the mission contract, whose design sections state
 proposed Lean forms of separation and retention over the kernel's definitions; the records of
@@ -56,9 +59,12 @@ The four properties are the record's reading of sentences 2 to 5:
 
 * `rewardCountsMembers` is sentence 2: among the agents compared, on every pair of attempts, one
   earns more reward across the counted members than the other exactly when it solves more of them.
-* `earnsMoreEventually` is sentence 3 with the first half of sentence 5: on some attempt the agent
+* `earnsMoreInTime` is sentence 3 with the first half of sentence 5: on some attempt the agent
   earns more reward across the counted members than any agent that keeps nothing of its experience
-  earns on any attempt. It names no bound on that attempt, as fork F-B decides.
+  earns on any attempt. The attempt leaves more later attempts before the class's horizon than
+  the class's number of lapses, as the owner decided on 2026-11-17. The record names no bound on
+  it that holds of every class, which is the bound fork F-B leaves to the next step: each class
+  names its own horizon.
 * `keepsSolving` is the first half of sentence 4, with "the problem stays the same" read as: the
   member's attempts start from the same state of its world, and "it keeps solving it" read as the
   owner decided on 2026-11-17: on every later attempt before the class's horizon, but for at most
@@ -89,9 +95,12 @@ formalization and recorded in the record's confirmation file:
 * A class names its horizon and its number of lapses, and the record asks nothing of them. A class
   that allows as many lapses as it has attempts before its horizon asks no retention
   (`keepsSolving_of_lapses`, in the module of this record's consequences).
-* `earnsMoreEventually` asks for one attempt, not for every attempt from some attempt on. With
+* `earnsMoreInTime` asks for one attempt, not for every attempt from some attempt on. With
   `keepsSolving`, each member the agent has solved it solves again on the later attempts before
-  the horizon that are not that member's lapses, where the member's problem stays the same.
+  the horizon that are not that member's lapses, where the member's problem stays the same; and
+  since the attempt of the advantage leaves more later attempts than the lapses, each member
+  solved on it is solved on at least one of them (`advantageSolvedAgain_holds`, in the module of
+  this record's consequences).
 * "The attempts counted" are all of them: `rewardCountsMembers` holds on every attempt of each
   compared agent.
 * The comparison counts a finite list of members that the class names, while `keepsSolving` and
@@ -227,12 +236,15 @@ def rewardCountsMembers : Clause Trial :=
     ∀ A B, w.Compared A → w.Compared B → ∀ n k,
       (w.classReward B k < w.classReward A n ↔ w.solvedCount B k < w.solvedCount A n)⟩
 
-/-- There is an attempt on which the agent earns more reward across the counted members than any
-agent that keeps nothing of its experience earns on any attempt. -/
-def earnsMoreEventually : Clause Trial :=
-  ⟨"on some attempt the agent earns more reward across the class than any agent that keeps nothing \
-    of its experience earns on any attempt", fun w =>
-    ∃ n, ∀ B, KeepsNothing B → ∀ k, w.classReward B k < w.classReward w.agent n⟩
+/-- There is an attempt, with more later attempts before the class's horizon than the class's
+number of lapses, on which the agent earns more reward across the counted members than any agent
+that keeps nothing of its experience earns on any attempt. -/
+def earnsMoreInTime : Clause Trial :=
+  ⟨"on some attempt that leaves more later attempts before a stated attempt than a stated number \
+    of lapses, the agent earns more reward across the class than any agent that keeps nothing of \
+    its experience earns on any attempt", fun w =>
+    ∃ n, n + w.lapses + 1 < w.horizon ∧
+      ∀ B, KeepsNothing B → ∀ k, w.classReward B k < w.classReward w.agent n⟩
 
 /-- Once the agent has solved a member on an attempt, it solves it on every later attempt before
 the class's horizon up to which that member's attempts all start from the state the solved attempt
@@ -272,7 +284,7 @@ and the agent that learns in it. -/
 def postcondition : IntentRecord Trial where
   shape := .value _
   dom := []
-  props := [rewardCountsMembers, earnsMoreEventually, keepsSolving, learnsAgain]
+  props := [rewardCountsMembers, earnsMoreInTime, keepsSolving, learnsAgain]
   vocab := [
     ⟨"the agent keeps nothing of its experience", Entrant, fun c => KeepsNothing c.2⟩,
     ⟨"the agent solves the member on the attempt", Attempt,
@@ -281,7 +293,7 @@ def postcondition : IntentRecord Trial where
 /-- A trial meets the record exactly when each of the four properties holds of it. -/
 theorem postcondition_meets {w : Trial} :
     postcondition.Meets w ↔
-      rewardCountsMembers.holds w ∧ earnsMoreEventually.holds w ∧ keepsSolving.holds w ∧
+      rewardCountsMembers.holds w ∧ earnsMoreInTime.holds w ∧ keepsSolving.holds w ∧
         learnsAgain.holds w := by
   constructor
   · intro hm
@@ -331,7 +343,7 @@ def door (pay : Rat) (b : Bool) : Member (Option Bool) Bool where
 
 /-- The two-door class with the aggregation `total`, the payment `pay` and the agent `A`: one member
 for each door, both counted, and attempts of two steps, one to try a door and one to see the
-outcome. Its promise of solving again covers the first two attempts and allows no lapse. -/
+outcome. Its promises are read over its first three attempts, and it allows no lapse. -/
 def doors (total : List Rat → Rat) (pay : Rat) (A : Agent (Option Bool) Bool) : Trial where
   Obs := Option Bool
   Act := Bool
@@ -340,7 +352,7 @@ def doors (total : List Rat → Rat) (pay : Rat) (A : Agent (Option Bool) Bool) 
   counted := [true, false]
   length := 2
   total := total
-  horizon := 2
+  horizon := 3
   lapses := 0
   agent := A
 
@@ -514,7 +526,7 @@ theorem finder_solves (b : Bool) (n : Nat) :
 theorem doors_finder_meets (h : Fair total pay) :
     postcondition.Meets (doors total pay finder) := by
   refine postcondition_meets.mpr ⟨doors_rewardCounts total pay finder h,
-    ⟨1, fun (B : Agent (Option Bool) Bool) hB k => ?_⟩,
+    ⟨1, show 1 + 0 + 1 < 3 by decide, fun (B : Agent (Option Bool) Bool) hB k => ?_⟩,
     fun b => ⟨[], Nat.le_refl 0, fun n n' hle _ _ hs _ => ?_⟩,
     fun b n n' hle room _ hs => ?_⟩
   · show (doors total pay finder).classReward B k < (doors total pay finder).classReward finder 1
@@ -591,11 +603,11 @@ theorem once_misses (n : Nat) : (doors total pay X).solves once true (n + 1) = f
 theorem doors_sameProblem (b : Bool) (n k : Nat) : (doors total pay X).SameProblem b n k :=
   (door_ask pay b X k).trans (door_ask pay b X n).symm
 
-/-- An agent that keeps nothing of its experience fails `earnsMoreEventually` in every class: on no
+/-- An agent that keeps nothing of its experience fails `earnsMoreInTime` in every class: on no
 attempt does it earn more than itself. -/
 theorem not_earnsMore_of_keepsNothing {w : Trial} (h : KeepsNothing w.agent) :
-    ¬ earnsMoreEventually.holds w :=
-  fun ⟨n, hn⟩ => Rat.lt_irrefl (hn w.agent h n)
+    ¬ earnsMoreInTime.holds w :=
+  fun ⟨n, _, hn⟩ => Rat.lt_irrefl (hn w.agent h n)
 
 /-- O3: each property fails of a trial that changes one part of `base`. -/
 theorem postcondition_o3 : O3 postcondition := by

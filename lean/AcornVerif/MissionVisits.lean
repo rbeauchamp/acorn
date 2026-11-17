@@ -60,34 +60,35 @@ feasible goals and `PaysAtGoals`, the class in visits meets the record of contra
 Concealment is carried across visits by `AcornVerif.Kernel.Conceals.inVisits`. Success shows in the
 reward: the reading that says whether the goal is met is whether the reward is one.
 
-For an agent that separates, and that retains before the horizon but for the lapses
-(`AcornVerif.Kernel.Separates`, `AcornVerif.Kernel.RetainsBut`), the class in visits meets the
+For an agent that separates before a visit that leaves more later visits than the lapses before
+the horizon, and that retains before the horizon but for the lapses
+(`AcornVerif.Kernel.SeparatesBy`, `AcornVerif.Kernel.RetainsBut`), the class in visits meets the
 record of the postcondition (`visits_achieves`). A member solved once is solved again within the
 lapses (`AcornVerif.Kernel.RetainsBut.again`), which is the record's clause on learning again.
 
 ## The mission from premises
 
-`visits_mission` proves `Mission` of the rung from: the class's conditions above; `Separates` and
-`RetainsBut` of the agent; and contract 3's record of the agent's run in each member. The two are
-what remains of obligation 9, and are what the goal-information and exploration premises of
-obligation 4 must deliver for an agent. `AcornVerif.Separation` gives them from parts: an agent
-that finds and retains on every later visit has both, with no lapse
-(`AcornVerif.Kernel.separates_of_finds`, `AcornVerif.Kernel.Retains.but`), and an agent that goes
-on exploring has them from finding by a stated visit, retention on the visits a predicate admits,
-and two counts of those visits (`AcornVerif.Kernel.separates_of_finds_on`,
+`visits_mission` proves `Mission` of the rung from: the class's conditions above; `SeparatesBy`
+and `RetainsBut` of the agent, with room between the visit of the one and the horizon of the
+other; and contract 3's record of the agent's run in each member. The two are what remains of
+obligation 9, and are what the goal-information and exploration premises of obligation 4 must
+deliver for an agent. `AcornVerif.Separation` gives them from parts: an agent that finds by a
+stated visit and retains on every later visit has both, with no lapse
+(`AcornVerif.Kernel.separatesBy_of_findsBy`, `AcornVerif.Kernel.Retains.but`), and an agent that
+goes on exploring has them from finding by a stated visit, retention on the visits a predicate
+admits, and two counts of those visits (`AcornVerif.Kernel.separatesBy_of_finds_on`,
 `AcornVerif.Kernel.RetainsOn.but`). Contract 3's record follows from the premises
 `AcornVerif.Intent.MissionTheorem.MemoryBounded`, `WorkBounded`, `LearnsOnArrival` and
 `KeepsDiscipline`; the first three state obligations 6 and 7, and the fourth the clauses of the
 record that no numbered obligation states.
 
 `visits_mission_allBut` joins the two premises about solving over a finite family of agents: where
-all but one fraction of them separate and all but another retain before the horizon but for the
-lapses, the statement holds of all but the sum of the fractions. It is a count, with no hypothesis
-about draws. What it would take to read it as fork F4's statement about an agent that explores
-with random draws is said at `AcornVerif.Kernel.AllBut`: a family of the agent's draw sequences,
-which exists only for a guarantee that reads finitely many draws. `RetainsBut` reads the visits
-before its horizon. `Separates` names no last visit; it reads finitely many draws where the visit
-on which the agent solves the members is named.
+all but one fraction of them separate before a stated visit and all but another retain before the
+horizon but for the lapses, the statement holds of all but the sum of the fractions. It is a
+count, with no hypothesis about draws. What it would take to read it as fork F4's statement about
+an agent that explores with random draws is said at `AcornVerif.Kernel.AllBut`: a family of the
+agent's draw sequences, which exists only for a guarantee that reads finitely many draws. Both
+premises read the visits before the horizon and no other.
 
 `retrace_mission` discharges every premise for the retracing agent with the reward as its signal,
 on every such class whose counted members its exploring walks meet. So the statement is satisfiable
@@ -455,16 +456,17 @@ theorem frozen_bound (stated : PaysAtGoals family goals pay met)
     (visitsTrial family length horizon lapses pay met counted agent).solves other index attempt)
   exact le_trans (le_of_eq card.symm) few
 
-/-- An agent that separates solves, on some attempt, more of the counted members than the bound. -/
-theorem count_of_separates (stated : PaysAtGoals family goals pay met)
-    (separates : Separates family goals length bound counted agent) :
-    ∃ attempt, bound <
+/-- An agent that separates before a stated visit solves, on some attempt before it, more of the
+counted members than the bound. -/
+theorem count_of_separates (stated : PaysAtGoals family goals pay met) {limit : ℕ}
+    (separates : SeparatesBy family goals length bound counted limit agent) :
+    ∃ attempt, attempt < limit ∧ bound <
       (visitsTrial family length horizon lapses pay met counted agent).solvedCount (recordAgent
           agent)
         attempt := by
   classical
-  obtain ⟨visit, solved, many, each⟩ := separates
-  refine ⟨visit, Nat.lt_of_lt_of_le many ?_⟩
+  obtain ⟨visit, solved, early, many, each⟩ := separates
+  refine ⟨visit, early, Nat.lt_of_lt_of_le many ?_⟩
   have inside : solved ⊆ (counted.filter fun index =>
       (visitsTrial family length horizon lapses pay met counted agent).solves (recordAgent agent)
           index
@@ -601,15 +603,17 @@ theorem visits_big (stated : PaysAtGoals family goals pay met)
 
 /-! ## The postcondition -/
 
-/-- **An agent that separates and retains but for its lapses achieves goals, as the
+/-- **An agent that separates in time and retains but for its lapses achieves goals, as the
 postcondition's record says.** In a class that conceals its goals, with a covering bound for one
 visit's length and a reward that pays at its goals, the class in visits with an agent that
-separates from that bound, and retains before the horizon but for the lapses, meets the record of
-the postcondition. -/
+separates from that bound before a visit that leaves more later visits than the lapses before
+the horizon, and retains before the horizon but for the lapses, meets the record of the
+postcondition. -/
 theorem visits_achieves (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)
-    (separates : Separates family goals length bound counted agent)
+    {limit : ℕ} (separates : SeparatesBy family goals length bound counted limit agent)
+    (room : limit + lapses < horizon)
     (retains : RetainsBut family goals length horizon lapses agent) :
     Postcondition.postcondition.Meets
       (visitsTrial family length horizon lapses pay met counted agent) := by
@@ -621,10 +625,10 @@ theorem visits_achieves (stated : PaysAtGoals family goals pay met)
   · rw [classReward_eq family goals length horizon lapses pay met counted agent stated,
       classReward_eq family goals length horizon lapses pay met counted agent stated]
     exact Nat.cast_lt
-  · obtain ⟨attempt, more⟩ :=
+  · obtain ⟨attempt, early, more⟩ :=
       count_of_separates family goals length horizon lapses pay met counted agent stated separates
-    refine ⟨attempt, fun (other : WorldInterface.Agent (Percept interface) (Act interface))
-      frozen later => ?_⟩
+    refine ⟨attempt, show attempt + lapses + 1 < horizon by omega,
+      fun (other : WorldInterface.Agent (Percept interface) (Act interface)) frozen later => ?_⟩
     change (visitsTrial family length horizon lapses pay met counted agent).classReward other
         later <
       (visitsTrial family length horizon lapses pay met counted agent).classReward (recordAgent
@@ -679,8 +683,9 @@ variable {family : WorldClass interface} {goals : family.Goals}
 
 /-- **The mission theorem on a class in visits, from its premises.** Take a class that conceals its
 goals, with a covering bound for one visit's length, goals feasible within a visit, a reward that
-pays at its goals and distinct counted members. An agent that solves on one visit more of the
-counted members than the bound, and retains what it has solved before the horizon but for the
+pays at its goals and distinct counted members. An agent that solves more of the counted members
+than the bound on one visit before the visit `limit`, where `limit` leaves more later visits than
+the lapses before the horizon, and retains what it has solved before the horizon but for the
 lapses, and whose run in every member meets contract 3's record under its reports, achieves goals
 over the class in visits: the mission's statement holds of the rung. That the counted members
 outnumber the bound follows from the agent's solving more than the bound of them. -/
@@ -691,7 +696,8 @@ theorem visits_mission (stated : PaysAtGoals family goals pay met)
     (distinct : counted.Nodup) {agent : Agent interface}
     {updates : agent.Memory → Percept interface × ℚ → List OneStream.Update}
     {work : agent.Memory → Percept interface × ℚ → ℕ} {resume : agent.Memory → agent.Memory}
-    (separates : Separates family goals length bound counted agent)
+    {limit : ℕ} (separates : SeparatesBy family goals length bound counted limit agent)
+    (room : limit + lapses < horizon)
     (retains : RetainsBut family goals length horizon lapses agent)
     (stream : ∀ index, OneStream.oneStream.Meets
       ((visitsRung family length horizon lapses pay met counted agent updates work
@@ -699,19 +705,19 @@ theorem visits_mission (stated : PaysAtGoals family goals pay met)
     Mission (visitsRung family length horizon lapses pay met counted agent updates work resume) :=
   Mission.of_records
     (visits_big family goals length horizon lapses pay met counted agent stated hidden covered
-      feasible distinct separates.finds.many)
+      feasible distinct separates.separates.finds.many)
     stream
     (visits_achieves family goals length horizon lapses pay met counted agent stated hidden
-      covered distinct separates retains)
+      covered distinct separates room retains)
 
 /-- **The mission's statement of all but a fraction of a family of agents.** For a finite family
 of agents with their reports, on a class as in `visits_mission`: where all but a fraction `left` of
-the agents separate, all but a fraction `right` retain before the horizon but for the lapses, and
-every agent's run in every member meets contract 3's record, the mission's statement holds of all
-but the fraction `left + right` of the agents. The theorem counts agents and reads no draw. Read
-as fork F4's statement, the family holds one agent for each sequence of ideal draws; such a family
-is finite only where the guarantee reads finitely many draws, as retention before a horizon
-does. -/
+the agents separate before the visit `limit`, all but a fraction `right` retain before the horizon
+but for the lapses, and every agent's run in every member meets contract 3's record, the mission's
+statement holds of all but the fraction `left + right` of the agents. The theorem counts agents
+and reads no draw. Read as fork F4's statement, the family holds one agent for each sequence of
+ideal draws; such a family is finite only where the guarantee reads finitely many draws, as
+separation before a stated visit and retention before a horizon do. -/
 theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -721,8 +727,9 @@ theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
     (updates : (run : Run) → (agent run).Memory → Percept interface × ℚ → List OneStream.Update)
     (work : (run : Run) → (agent run).Memory → Percept interface × ℚ → ℕ)
     (resume : (run : Run) → (agent run).Memory → (agent run).Memory) (left right : ℚ)
+    {limit : ℕ} (room : limit + lapses < horizon)
     (separates : AllBut left runs fun run =>
-      Separates family goals length bound counted (agent run))
+      SeparatesBy family goals length bound counted limit (agent run))
     (retains : AllBut right runs fun run =>
       RetainsBut family goals length horizon lapses (agent run))
     (stream : ∀ run ∈ runs, ∀ index, OneStream.oneStream.Meets
@@ -732,7 +739,7 @@ theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
       Mission (visitsRung family length horizon lapses pay met counted (agent run) (updates run)
         (work run) (resume run)) :=
   (separates.and retains).mono fun run member both =>
-    visits_mission stated hidden covered feasible distinct both.1 both.2 (stream run member)
+    visits_mission stated hidden covered feasible distinct both.1 room both.2 (stream run member)
 
 /-! ## The retracing agent meets the statement -/
 
@@ -776,22 +783,24 @@ goals, with a covering bound for one visit's length below the count of its count
 feasible within a visit and a reward that pays at its goals. If, for each counted member, one of the
 exploring walks of the visits up to `last` meets that member's goal from its start within a visit,
 the retracing agent with the reward as its signal achieves goals over the class: the mission's
-statement holds of its rung, with every premise discharged, at every horizon and with no lapse. -/
+statement holds of its rung, with every premise discharged, with no lapse and at every horizon
+that leaves a visit after the one on which the agent separates, the visit `last + 1`. -/
 theorem retrace_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
     (feasible : ∀ index, Feasible (visitGoals goals length index) (family.start index))
     (distinct : counted.Nodup) (many : bound < counted.length) (last : ℕ)
-    (explore : ℕ → ℕ → Act interface)
+    (late : last + 2 < horizon) (explore : ℕ → ℕ → Act interface)
     (explored : ∀ index ∈ counted, ∃ visit, visit ≤ last ∧
       ∃ step, 1 ≤ step ∧ step ≤ length ∧ (goals index).satisfied
         (path (family.world index) (family.start index) (explore visit) step)) :
     Mission (retraceRung family length horizon last pay met counted explore) :=
   visits_mission stated hidden covered feasible distinct
-    (separates_of_finds
+    (separatesBy_of_findsBy
       (retrace_finds family goals length last bound (paid pay) explore (paid_decodes stated)
         counted distinct many explored)
       (retrace_retains family goals length last (paid pay) explore (paid_decodes stated)))
+    (show last + 1 + 1 + 0 < horizon by omega)
     ((retrace_retains family goals length last (paid pay) explore (paid_decodes stated)).but
       horizon)
     (fun _ => OneStream.learner_meets _ _ _ _ _

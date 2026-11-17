@@ -301,7 +301,7 @@ def classOf (member : Bool → Member (Option Bool) Bool) : Trial where
   counted := [true, false]
   length := 2
   total := List.sum
-  horizon := 2
+  horizon := 3
   lapses := 0
   agent := finder
 

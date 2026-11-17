@@ -283,7 +283,7 @@ record has an agent that solves, on some attempt, more counted members than any 
 nothing of its experience solves on any attempt, so such an agent never solves them all. -/
 theorem frozenShareSmall_of_postcondition {w : Trial} (h : postcondition.Meets w) :
     frozenShareSmall.holds w := by
-  obtain ⟨n, hn⟩ := solvesMoreEventually_holds w h
+  obtain ⟨n, -, hn⟩ := solvesMoreInTime_holds w h
   have hle : w.solvedCount w.agent n ≤ w.counted.length := List.length_filter_le _ _
   have hpos := hn (shell w.agent) (shell_keepsNothing _) 0
   refine ⟨w.solvedCount w.agent n - 1, by omega, fun B hB k => ?_⟩
