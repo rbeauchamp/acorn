@@ -12,9 +12,9 @@ import Mathlib.Analysis.SpecialFunctions.Exp
 
 /-! # Targets of mission #201: what a gated column holds from threshold letters
 
-A *target* is an open statement held as a definition of type `Prop`. This module holds the
-contract of mission [#201](https://github.com/rbeauchamp/acorn/issues/201): its definitions, in
-`AcornVerif.ColumnLatch`, and one target for each of its theorems, in
+A *target* is a statement that a mission is to prove, held as a definition of type `Prop`. This
+module holds the contract of mission [#201](https://github.com/rbeauchamp/acorn/issues/201): its
+definitions, in `AcornVerif.ColumnLatch`, and one target for each of its theorems, in
 `AcornVerif.Targets.ColumnLatch`. A target is the theorem's statement with each binder written as
 a leading arrow, `(name : type) →`, in the same order and of the same kind; a theorem that used
 the contract's variables `F` and `m` binds them first. Such an arrow means what `∀` means; under
@@ -28,8 +28,8 @@ parameter, or a run of the agent.
 The docstrings name the work the definitions model. It is the source the contract lists, with the
 contract's equation numbers, which are the JMLR paper's: Javed, Shah, Sutton and White, *Scalable
 Real-Time Recurrent Learning Using Columnar-Constructive Networks*, JMLR 24 (2023), eqs. (7), (10)
-and (11) to (16). The prior-art review assesses that work in its entry INC-2. The mission's own
-module cites each equation it reproduces.
+and (11) to (16). The prior-art review assesses that work in its entry INC-2. The contract
+requires the mission's own module to cite each equation it reproduces.
 -/
 
 noncomputable section

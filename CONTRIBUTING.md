@@ -97,10 +97,13 @@ check refusing noncomputable in executing modules).
 - **Where a contract is frozen:** a theorem's statement is frozen as a *target*,
   a Lean definition whose value is the statement, in a module under
   `lean/AcornVerif/Targets/`. Every build elaborates each target against the
-  current definitions, so a statement cannot stop type-checking unnoticed, and
-  [CODEOWNERS](.github/CODEOWNERS) gives the directory to the owner, so only the
-  owner changes one. `lean/AcornVerif/Targets/Registry.lean` lists every target
-  with its mission's issue number. A part of a contract that is not a statement
+  current definitions, so a statement cannot stop type-checking unnoticed.
+  [CODEOWNERS](.github/CODEOWNERS) names the directory, which requests the
+  owner's review on every pull request that changes it, and only the owner
+  merges, so a change to a target is the owner's to make. A target fixes its
+  own text: the definitions it names are outside the directory, and a mission
+  does not change them either. `lean/AcornVerif/Targets/Registry.lean` lists the
+  targets under each mission's issue number. A part of a contract that is not a statement
   to prove, such as a change to a decision's kind or the list of files a pull
   request may change, is frozen in the issue, and so is the whole contract of a
   mission with no target: there it is frozen while nobody but the owner has
@@ -144,8 +147,9 @@ check refusing noncomputable in executing modules).
   mission names (such as the modules that hold its proofs in `lean/Acorn/` or
   `lean/AcornVerif/`, the decision registries `lean/Acorn/Decisions.lean` and
   `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). A mission with targets
-  also adds its entries to `lean/AcornVerif/Landings.lean` and changes nothing
-  under `lean/AcornVerif/Targets/`, which is its contract. Files that make up
+  also adds its entries to `lean/AcornVerif/Landings.lean`, and changes nothing
+  under `lean/AcornVerif/Targets/` and no definition that a target names, which
+  together are its contract. Files that make up
   Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
   `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
   and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests

@@ -9,6 +9,7 @@
 /lean/os/ @rbeauchamp
 /.github/ @rbeauchamp
 
-# Open statements of missions, held as Lean definitions of type Prop (targets), and the
-# registry that lists them. Each is a frozen contract: only the owner changes it.
+# Statements that missions are to prove, held as Lean definitions of type Prop (targets),
+# and the registry that lists them. Each is a frozen contract: a change to one is the
+# owner's to make.
 /lean/AcornVerif/Targets/ @rbeauchamp

@@ -9,16 +9,20 @@ import AcornVerif.Targets.StateEntry
 
 /-! # The registry of targets
 
-A *target* is an open statement held as a definition of type `Prop` in a module of this directory,
-`lean/AcornVerif/Targets/`. The build elaborates every target against the current definitions, and
-`.github/CODEOWNERS` gives this directory to the repository's owner, so a target changes only at
-the owner's hand. A mission that has targets is finished by proving each of them.
+A *target* is a statement that a mission is to prove, held as a definition of type `Prop` in a
+module of this directory, `lean/AcornVerif/Targets/`. It is open until `AcornVerif.landings`
+records a proof of it. The build elaborates every target against the current definitions, so a
+target that no longer type-checks fails the build. `.github/CODEOWNERS` names this directory, so
+GitHub asks the repository's owner to review any pull request that changes it, and only the owner
+merges. A mission establishes its statements by proving each of its targets; a part of its
+contract that is not a statement to prove stays in its issue.
 
-`registry` lists every target with the issue number of its mission. Each entry repeats one
-identifier, as in `⟨200, ``StateEntry.arm_letter, StateEntry.arm_letter⟩`: Lean resolves the
-doubled backquote to the name of a declaration, and the last field is that declaration, which
-Lean requires to be a proposition. A target's name is its module's name followed by the name its
-contract gave the theorem, so `AcornVerif.Targets.StateEntry.arm_letter` is in
+`registry` lists the targets by mission: `ofMission 200 [...]` holds one pair for each target of
+mission #200. Each pair repeats one identifier, as in
+`(``StateEntry.arm_letter, StateEntry.arm_letter)`: Lean resolves the doubled backquote to the
+name of a declaration, and the second component is that declaration, which Lean requires to be a
+proposition. A target's name is its module's name followed by one more component, the name of the
+theorem that is to prove it, so `AcornVerif.Targets.StateEntry.arm_letter` is in
 `lean/AcornVerif/Targets/StateEntry.lean`.
 
 `Landing` is the record that a target is proved: the target's name, the name of the theorem that
@@ -26,20 +30,26 @@ proves it, and a proof of `statementOf` that name, which Lean's kernel checks. T
 `AcornVerif.landings`, is outside this directory, so that a mission's pull request adds to it and
 changes nothing here.
 
-What the proofs below establish: the statement registered under each target's name is that
-target's statement (`statementOf_name`), so no entry hides another, and a proof of what is
-registered under any name is a proof of a registered target's statement (`statementOf_registered`,
-`Landing.proves`).
+What the proofs below establish: no two targets have one name (`registry_distinct`), so the
+statement registered under each target's name is that target's statement (`statementOf_name`), and
+a proof of what is registered under any name is a proof of a registered target's statement
+(`statementOf_registered`, `Landing.proves`).
 
-What they do not establish: that an entry's name and its statement are one declaration, since no
-theorem relates a name to the declaration it names; the entry's form above and the owner's review
-of this directory keep that. Nor that a target states what its mission means: review reads each
-statement.
+What they do not establish:
+
+* That a pair's name and its statement are one declaration, since no theorem relates a name to the
+  declaration it names. The pair's form above and the owner's review of this directory keep that.
+* That the registry holds every definition of a statement in this directory. One left out is
+  elaborated by the build and is no target.
+* That a mission's number is the right issue. Nothing joins it to GitHub's record.
+* That a target keeps its meaning. A target fixes its own text, and the definitions it names are
+  outside this directory: a change to one of them changes what the target says.
+* That a target states what its mission means. Review reads each statement.
 -/
 
 namespace AcornVerif.Targets
 
-/-- One open statement on record. -/
+/-- One statement on record. -/
 structure Target where
   /-- The issue number of the mission the statement belongs to. -/
   mission : Nat
@@ -48,66 +58,90 @@ structure Target where
   /-- The statement. -/
   statement : Prop
 
-/-- Every target, each with its mission, in the order of the contracts. -/
-def registry : List Target := [
-  ⟨163, ``Json.parse_complete, Json.parse_complete⟩,
-  ⟨200, ``StateEntry.arm_letter, StateEntry.arm_letter⟩,
-  ⟨200, ``StateEntry.fold_arm, StateEntry.fold_arm⟩,
-  ⟨200, ``StateEntry.near_threshold, StateEntry.near_threshold⟩,
-  ⟨200, ``StateEntry.clear_threshold, StateEntry.clear_threshold⟩,
-  ⟨200, ``StateEntry.latches_mono, StateEntry.latches_mono⟩,
-  ⟨200, ``StateEntry.memoryless_refused, StateEntry.memoryless_refused⟩,
-  ⟨200, ``StateEntry.frozen_refused, StateEntry.frozen_refused⟩,
-  ⟨200, ``StateEntry.fading_margin, StateEntry.fading_margin⟩,
-  ⟨200, ``StateEntry.fading_no_uniform, StateEntry.fading_no_uniform⟩,
-  ⟨200, ``StateEntry.additive_margin, StateEntry.additive_margin⟩,
-  ⟨200, ``StateEntry.rows_accept, StateEntry.rows_accept⟩,
-  ⟨200, ``StateEntry.rows_clamped, StateEntry.rows_clamped⟩,
-  ⟨200, ``StateEntry.linearTrace_additive, StateEntry.linearTrace_additive⟩,
-  ⟨200, ``StateEntry.linearTrace_margin, StateEntry.linearTrace_margin⟩,
-  ⟨200, ``StateEntry.linearTrace_refused, StateEntry.linearTrace_refused⟩,
-  ⟨200, ``StateEntry.column_accepts, StateEntry.column_accepts⟩,
-  ⟨200, ``StateEntry.tracks_decide, StateEntry.tracks_decide⟩,
-  ⟨200, ``StateEntry.column_tracks, StateEntry.column_tracks⟩,
-  ⟨200, ``StateEntry.bucket_refuses, StateEntry.bucket_refuses⟩,
-  ⟨200, ``StateEntry.level_carries, StateEntry.level_carries⟩,
-  ⟨200, ``StateEntry.two_values_levels, StateEntry.two_values_levels⟩,
-  ⟨200, ``StateEntry.values_bellman, StateEntry.values_bellman⟩,
-  ⟨200, ``StateEntry.values_first_bucket, StateEntry.values_first_bucket⟩,
-  ⟨201, ``ColumnLatch.cell_accepts, ColumnLatch.cell_accepts⟩,
-  ⟨201, ``ColumnLatch.cell_bands, ColumnLatch.cell_bands⟩,
-  ⟨201, ``ColumnLatch.read_lipschitz, ColumnLatch.read_lipschitz⟩,
-  ⟨201, ``ColumnLatch.threshold_trap, ColumnLatch.threshold_trap⟩,
-  ⟨201, ``ColumnLatch.front_accepts, ColumnLatch.front_accepts⟩,
-  ⟨201, ``ColumnLatch.tied_bounded, ColumnLatch.tied_bounded⟩,
-  ⟨201, ``ColumnLatch.tied_fixed, ColumnLatch.tied_fixed⟩,
-  ⟨201, ``ColumnLatch.tied_drift, ColumnLatch.tied_drift⟩,
-  ⟨201, ``ColumnLatch.tied_fades, ColumnLatch.tied_fades⟩,
-  ⟨201, ``ColumnLatch.tied_accepts, ColumnLatch.tied_accepts⟩,
-  ⟨201, ``ColumnLatch.tiedFront_accepts, ColumnLatch.tiedFront_accepts⟩,
-  ⟨201, ``ColumnLatch.tied_slope, ColumnLatch.tied_slope⟩,
-  ⟨201, ``ColumnLatch.state_bound, ColumnLatch.state_bound⟩,
-  ⟨201, ``ColumnLatch.standardized_fades, ColumnLatch.standardized_fades⟩,
-  ⟨201, ``ColumnLatch.grid_carries, ColumnLatch.grid_carries⟩,
-  ⟨201, ``ColumnLatch.envelope_decides, ColumnLatch.envelope_decides⟩,
-  ⟨201, ``ColumnLatch.swing_bound, ColumnLatch.swing_bound⟩,
-  ⟨201, ``ColumnLatch.cell_word_decides, ColumnLatch.cell_word_decides⟩,
-  ⟨201, ``ColumnLatch.counts_separated, ColumnLatch.counts_separated⟩]
+/-- The targets of one mission, from the name and the statement of each. -/
+def ofMission (mission : Nat) (statements : List (Lean.Name × Prop)) : List Target :=
+  statements.map fun entry => ⟨mission, entry.1, entry.2⟩
 
-/-- The statement registered under a name: that of the first entry of `registry` with the name,
+/-- Every target, by mission, each mission's in the order of its contract. -/
+def registry : List Target :=
+  ofMission 163 [
+    (``Json.parse_complete, Json.parse_complete)] ++
+  ofMission 200 [
+    (``StateEntry.arm_letter, StateEntry.arm_letter),
+    (``StateEntry.fold_arm, StateEntry.fold_arm),
+    (``StateEntry.near_threshold, StateEntry.near_threshold),
+    (``StateEntry.clear_threshold, StateEntry.clear_threshold),
+    (``StateEntry.latches_mono, StateEntry.latches_mono),
+    (``StateEntry.memoryless_refused, StateEntry.memoryless_refused),
+    (``StateEntry.frozen_refused, StateEntry.frozen_refused),
+    (``StateEntry.fading_margin, StateEntry.fading_margin),
+    (``StateEntry.fading_no_uniform, StateEntry.fading_no_uniform),
+    (``StateEntry.additive_margin, StateEntry.additive_margin),
+    (``StateEntry.rows_accept, StateEntry.rows_accept),
+    (``StateEntry.rows_clamped, StateEntry.rows_clamped),
+    (``StateEntry.linearTrace_additive, StateEntry.linearTrace_additive),
+    (``StateEntry.linearTrace_margin, StateEntry.linearTrace_margin),
+    (``StateEntry.linearTrace_refused, StateEntry.linearTrace_refused),
+    (``StateEntry.column_accepts, StateEntry.column_accepts),
+    (``StateEntry.tracks_decide, StateEntry.tracks_decide),
+    (``StateEntry.column_tracks, StateEntry.column_tracks),
+    (``StateEntry.bucket_refuses, StateEntry.bucket_refuses),
+    (``StateEntry.level_carries, StateEntry.level_carries),
+    (``StateEntry.two_values_levels, StateEntry.two_values_levels),
+    (``StateEntry.values_bellman, StateEntry.values_bellman),
+    (``StateEntry.values_first_bucket, StateEntry.values_first_bucket)] ++
+  ofMission 201 [
+    (``ColumnLatch.cell_accepts, ColumnLatch.cell_accepts),
+    (``ColumnLatch.cell_bands, ColumnLatch.cell_bands),
+    (``ColumnLatch.read_lipschitz, ColumnLatch.read_lipschitz),
+    (``ColumnLatch.threshold_trap, ColumnLatch.threshold_trap),
+    (``ColumnLatch.front_accepts, ColumnLatch.front_accepts),
+    (``ColumnLatch.tied_bounded, ColumnLatch.tied_bounded),
+    (``ColumnLatch.tied_fixed, ColumnLatch.tied_fixed),
+    (``ColumnLatch.tied_drift, ColumnLatch.tied_drift),
+    (``ColumnLatch.tied_fades, ColumnLatch.tied_fades),
+    (``ColumnLatch.tied_accepts, ColumnLatch.tied_accepts),
+    (``ColumnLatch.tiedFront_accepts, ColumnLatch.tiedFront_accepts),
+    (``ColumnLatch.tied_slope, ColumnLatch.tied_slope),
+    (``ColumnLatch.state_bound, ColumnLatch.state_bound),
+    (``ColumnLatch.standardized_fades, ColumnLatch.standardized_fades),
+    (``ColumnLatch.grid_carries, ColumnLatch.grid_carries),
+    (``ColumnLatch.envelope_decides, ColumnLatch.envelope_decides),
+    (``ColumnLatch.swing_bound, ColumnLatch.swing_bound),
+    (``ColumnLatch.cell_word_decides, ColumnLatch.cell_word_decides),
+    (``ColumnLatch.counts_separated, ColumnLatch.counts_separated)]
+
+/-- The statement registered under a name: that of the first target of `registry` with the name,
 and `False` for a name the registry does not hold. -/
 def statementOf (name : Lean.Name) : Prop :=
   match registry.find? (·.name == name) with
   | some target => target.statement
   | none => False
 
-/-- The statement registered under each target's name is that target's statement. So an entry is
-never hidden by an earlier one of the same name, and a proof of a target is a proof of
-`statementOf` its name as it stands. -/
+/-- In a list of targets with distinct names, the first target with a member's name is that
+member. -/
+theorem find_named {targets : List Target} (distinct : (targets.map (·.name)).Nodup)
+    {target : Target} (member : target ∈ targets) :
+    targets.find? (·.name == target.name) = some target := by
+  induction targets with
+  | nil => cases member
+  | cons head tail step =>
+    obtain ⟨fresh, rest⟩ := List.nodup_cons.mp distinct
+    rcases List.mem_cons.mp member with same | later
+    · subst same
+      simp
+    · have differs : head.name ≠ target.name := fun same =>
+        fresh (List.mem_map.mpr ⟨target, later, same.symm⟩)
+      simp [differs, step rest later]
+
+/-- No two targets of the registry have one name. -/
+theorem registry_distinct : (registry.map (·.name)).Nodup := by decide +kernel
+
+/-- The statement registered under each target's name is that target's statement. So no target is
+hidden by an earlier one, and a proof of a target is a proof of `statementOf` its name. -/
 theorem statementOf_name : ∀ target ∈ registry, statementOf target.name = target.statement := by
-  simp only [registry, List.forall_mem_cons, List.not_mem_nil, false_imp_iff, implies_true,
-    and_true]
-  and_intros <;> rfl
+  intro target member
+  simp only [statementOf, find_named registry_distinct member]
 
 /-- A proof of what is registered under a name is a proof of a registered target's statement. -/
 theorem statementOf_registered {name : Lean.Name} (holds : statementOf name) :

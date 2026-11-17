@@ -7,10 +7,12 @@ import Acorn.Json
 
 /-! # Target of mission #163: `Json.parse` accepts every JSON text of its grammar
 
-A *target* is an open statement held as a definition of type `Prop`. This module holds the
-proposition of the contract of mission [#163](https://github.com/rbeauchamp/acorn/issues/163),
-which concerns the executed parser `Acorn.Json.parse` and the grammar `Acorn.Json.Grammar.Text`.
-Nothing here is proved; the mission is to prove the target. `AcornVerif.Targets.registry` lists it.
+A *target* is a statement that a mission is to prove, held as a definition of type `Prop`. This
+module holds the proposition of the contract of mission
+[#163](https://github.com/rbeauchamp/acorn/issues/163), which concerns the executed parser
+`Acorn.Json.parse` and the grammar `Acorn.Json.Grammar.Text`. The issue names no theorem;
+`parse_complete` is the name given here, beside `Acorn.Json.parse_sound`. Nothing here is proved;
+the mission is to prove the target. `AcornVerif.Targets.registry` lists it.
 
 The contract's other part, the change of decision kinds in `lean/Acorn/Decisions.lean`, is not a
 proposition and stays in the issue.

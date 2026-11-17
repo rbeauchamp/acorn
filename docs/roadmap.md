@@ -179,6 +179,8 @@ Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/iss
 3. Then a theory track that formalizes results of the papers Acorn cites ([#242](https://github.com/rbeauchamp/acorn/issues/242), with [#134](https://github.com/rbeauchamp/acorn/issues/134) and [#135](https://github.com/rbeauchamp/acorn/issues/135)), a venue and an announcement ([#243](https://github.com/rbeauchamp/acorn/issues/243)).
 
 On 2026-11-17 the owner decided where open statements live and when their mechanism is built ([the owner's direction](#the-owners-direction)).
+That mechanism exists. An open statement is held as a Lean definition under `lean/AcornVerif/Targets/`, which [missions](missions.md) calls a *target*; the word has nothing to do with the first rung's concealed targets. Every build has Lean read each target against the current code, a change to one is the owner's to make, `AcornVerif.Targets.registry` lists the targets under their missions, and `AcornVerif.landings` records each one that is proved, with a proof that Lean's kernel checks against the registered statement.
+The statements of [#163](https://github.com/rbeauchamp/acorn/issues/163), [#200](https://github.com/rbeauchamp/acorn/issues/200) and [#201](https://github.com/rbeauchamp/acorn/issues/201) are held this way, 43 targets in all, none of them proved. No premise of the first rung is a target yet.
 The work bound and once-only learning are seeded first: their statements are premises of `rung_mission` and are stated over constructions, so an algorithm change does not reopen them.
 The discipline premise waits on which memory contract 3 reads ([#249](https://github.com/rbeauchamp/acorn/issues/249)).
 

@@ -12,9 +12,9 @@ import Mathlib.Logic.Equiv.Defs
 
 /-! # Targets of mission #200: how learned recurrent state enters the linear learners
 
-A *target* is an open statement held as a definition of type `Prop`. This module holds the
-contract of mission [#200](https://github.com/rbeauchamp/acorn/issues/200): its definitions, in
-`AcornVerif.StateEntry`, and one target for each of its theorems, in
+A *target* is a statement that a mission is to prove, held as a definition of type `Prop`. This
+module holds the contract of mission [#200](https://github.com/rbeauchamp/acorn/issues/200): its
+definitions, in `AcornVerif.StateEntry`, and one target for each of its theorems, in
 `AcornVerif.Targets.StateEntry`. A target is the theorem's statement with each binder written as
 a leading arrow, `(name : type) →`, in the same order and of the same kind. Such an arrow means
 what `∀` means; under `∀` Lean's unused-variable linter rejects a hypothesis whose name the
@@ -22,10 +22,10 @@ statement does not mention. Nothing here is proved; the mission is to prove each
 `AcornVerif.Targets.registry` lists the targets.
 
 The definitions are models over the reals except where they name an executed definition of
-`Acorn.Handcrafted.Microduck`: `letterOf`, `topZones`, `closeCount`, `distantCount` and `steady`
-read an executed reading, and the targets `arm_letter`, `fold_arm`, `near_threshold` and
-`clear_threshold` concern executed definitions. Nothing here concerns Binary32 or a run of the
-agent.
+`Acorn.Handcrafted.Microduck`: `letterOf`, `closeCount`, `distantCount` and `steady` read an
+executed reading, `topZones` takes its zones from the executed patch shape, and the targets
+`arm_letter`, `fold_arm`, `near_threshold` and `clear_threshold` concern executed definitions.
+Nothing here concerns Binary32 or a run of the agent.
 
 The docstrings name the works a definition models. They are the sources the contract lists, with
 the contract's equation numbers: Elsayed, Pham and Mahmood, *Streaming Recurrent Memory*,
@@ -34,7 +34,8 @@ Bowling and White, *Real-Time Recurrent Learning using Trace Units in Reinforcem
 NeurIPS 2024, arXiv:2409.01449, eq. (2) (`linearTrace`); Javed, Shah, Sutton and White, *Scalable
 Real-Time Recurrent Learning Using Columnar-Constructive Networks*, JMLR 24 (2023), eqs. (11) to
 (16) (`ColumnGates`, `column`). The prior-art review assesses the first in its entry INC-1 and the
-third in INC-2. The mission's own module cites each equation it reproduces.
+third in INC-2. The contract requires the mission's own module to cite each with the equation it
+reproduces.
 -/
 
 noncomputable section
