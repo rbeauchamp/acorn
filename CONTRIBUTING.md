@@ -200,6 +200,9 @@ every promise is one that an organization of one owner and its agents can keep:
 Ordinary engineering needs implementation, proofs, useful documentation and a
 concise PR, not a scientific dossier. Do not run a study to replace an unresolved
 proof obligation. Scientific execution requires explicitly authorized scope.
+A run is the last resort, a smoke test or a diagnostic that only chooses a
+direction included: [AGENTS](AGENTS.md#correct-by-construction) says what must be
+shown before one is proposed.
 
 ### Deliverable placement
 

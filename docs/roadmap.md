@@ -30,6 +30,7 @@ On the first rung, whose world, visit length and agent are fixed, `rung_mission`
 
 On 2026-11-05 the owner directed that all effort goes to Acorn's mission, with supporting work only for bugs, problems of velocity and issues already planned.
 Under the mission contract, Acorn's results are theorems about running code; a run of the agent is a smoke test and never evidence.
+On 2026-11-17 the owner decided against a budget for diagnostic runs: what the agent does at its seed is a mathematical question, and a run is the last resort, proposed only for a named question that derivation or proof cannot answer effectively and efficiently ([AGENTS](../AGENTS.md#correct-by-construction)).
 The order below follows both: one rung is active, and work that no active rung needs is parked.
 
 ## The active rung: concealed targets in visits
@@ -130,7 +131,7 @@ The recommendation recorded there is: capacity on an agent of restricted capacit
 
 | Issues | Re-enters when |
 |---|---|
-| [#256](https://github.com/rbeauchamp/acorn/issues/256), the first rung's class in the host's own world | The first rung is decided for the primitive profile ([#232](https://github.com/rbeauchamp/acorn/issues/232)), or a diagnostic run for it needs a world the entry runs exactly |
+| [#256](https://github.com/rbeauchamp/acorn/issues/256), the first rung's class in the host's own world | The first rung is decided for the primitive profile ([#232](https://github.com/rbeauchamp/acorn/issues/232)), or a run the owner has authorized needs a world the entry runs exactly |
 | [#71](https://github.com/rbeauchamp/acorn/issues/71), ARC-AGI-3 games as a class | The order of the later rungs is decided and the first rung has landed |
 | [#236](https://github.com/rbeauchamp/acorn/issues/236), Microduck scenes, with [#173](https://github.com/rbeauchamp/acorn/issues/173), [#136](https://github.com/rbeauchamp/acorn/issues/136), [#172](https://github.com/rbeauchamp/acorn/issues/172), [#121](https://github.com/rbeauchamp/acorn/issues/121) and [#175](https://github.com/rbeauchamp/acorn/issues/175) | The same |
 | [#17](https://github.com/rbeauchamp/acorn/issues/17), learned agent state | Step 2 finds interference to be the obstruction, or a rung's class needs memory |
@@ -149,7 +150,6 @@ Each is an issue labelled `needs-owner-decision`, with a recommendation in its t
 
 - The order of the rungs after the first, and the agent configuration condition (d) is first proved for ([#234](https://github.com/rbeauchamp/acorn/issues/234)).
 - Whether open statements live in the governed tree or in a separate library ([#238](https://github.com/rbeauchamp/acorn/issues/238)).
-- A standing, bounded budget for diagnostic runs of `acorn-core visits` in step 2, as smoke tests and never as evidence ([#232](https://github.com/rbeauchamp/acorn/issues/232)). Such a run is of the host's own world, with its deer and food, started at its spawn; [the rung's constants](#the-rungs-constants) say how that world relates to the first rung's at seed 1.
 - What the feature generator reads in a world with no symbol array ([#175](https://github.com/rbeauchamp/acorn/issues/175)).
 - Whether a mission may change a file of the trusted base ([#132](https://github.com/rbeauchamp/acorn/issues/132)).
 - How retention is asked of an agent that keeps exploring: up to a number of visits, or exploration that ends once a member is solved ([#248](https://github.com/rbeauchamp/acorn/issues/248)).

@@ -53,7 +53,9 @@ an available inductive argument.
 ### Evidence and compute cost
 
 Flag measured universals and unnecessary certified re-execution under the
-[engineering policy](../../../../AGENTS.md#correct-by-construction). Check that
+[engineering policy](../../../../AGENTS.md#correct-by-construction). Flag a run,
+smoke test or diagnostic that is proposed or reported where derivation or proof
+answers the question. Check that
 empirical claims follow [CONTRIBUTING](../../../../CONTRIBUTING.md#scientific-evidence),
 including prospective criteria, run identity and uncertainty. Name a missing
 proof obligation rather than replacing it with a measurement.

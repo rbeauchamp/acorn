@@ -38,6 +38,14 @@ reflection. Before certified re-execution, estimate initial and recurring proof
 cost beside the proposed observation and obtain an owner decision if it does
 not cost clearly less. Difficulty proving a property does not make it empirical.
 
+Mathematics comes first. A run of the agent, a study or any other evaluation
+taken as an answer is the last resort, whatever its name: a measurement, a smoke
+test or a diagnostic that only chooses a direction. What deterministic code does
+at a fixed seed is a mathematical question. Before proposing a run, state the
+question and why derivation or proof cannot answer it effectively and
+efficiently, with the cost of each, and obtain the owner's authorization.
+Computing data that a proof then checks is proof search, not a run.
+
 - Measure only irreducibly empirical claims with explicit scope, budget,
   uncertainty and prospective decision criteria.
 - Label an unresolved empirical quantity, including a gap between prediction and
