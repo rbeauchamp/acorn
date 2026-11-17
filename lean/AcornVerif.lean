@@ -60,6 +60,7 @@ import AcornVerif.CurrentConcealedTargetRung
 import AcornVerif.CurrentConcealedTargetRungChoice
 import AcornVerif.CurrentConcealedTargetRungCredit
 import AcornVerif.CurrentConcealedTargetRungFinds
+import AcornVerif.CurrentConcealedTargetRungFirstVisit
 import AcornVerif.Oak
 import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting

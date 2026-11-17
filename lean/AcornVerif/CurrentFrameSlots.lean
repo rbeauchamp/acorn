@@ -28,9 +28,20 @@ that stands in for a refused one reports zero (`sensed_day`). So at a state that
 whose clock has not passed an eighth of the day, the percept carries the word of day phase zero
 (`percept_day_word`), and two such percepts have that word in common.
 
+A frame is encoded from the words and the symbols of its percept's frame and the words fed back
+from the agent's stored predictions, under the agent's feature bank. So two steps lay the same
+frame when their percepts' frames carry the same words and symbols and the two agent states hold
+the same bank and the same stored predictions (`choose_features_congr`). In the grid world the
+words and the symbols are functions of the host's observation (`sensed_congr`,
+`percept_frame_congr`), and two worlds are observed alike when they agree on the body's position,
+inventory and energy bucket, on the kind of every tile, on the food and the deer, on the day's
+phase and on the task (`observe_congr`). Where no tile is harvested a tile's kind is its base
+terrain (`tileKind_bare`), and a population of capacity zero is empty (`population_unique`).
+
 What this does not say. Which other word two percepts of a run have in common: that is a fact of
-the world's states. And two words can hash to one slot, as any two hashed words can, so a frame
-can hold fewer slots than its words times its tilings.
+the world's states. How many slots two different frames share. And two words can hash to one
+slot, as any two hashed words can, so a frame can hold fewer slots than its words times its
+tilings.
 -/
 
 namespace AcornVerif.CurrentFrameSlots
@@ -106,6 +117,77 @@ theorem percept_day_word (mode : TaskFeatureMode) (state : Option (Live config))
     · rw [day] at word
       exact word
 
+/-! ## Worlds the host observes alike -/
+
+/-- Where no tile has been harvested, the effective kind of a tile is its base terrain. -/
+theorem tileKind_bare (world : Host.World config) (bare : world.harvested.isEmpty = true)
+    (position : Host.Position) :
+    world.tileKind position =
+      Host.terrain position config.raw.seed config.raw.baseScale := by
+  unfold Host.World.tileKind
+  cases Host.terrain position config.raw.seed config.raw.baseScale with
+  | error refusal => rfl
+  | ok base =>
+    simp only [bind, Except.bind, Std.TreeMap.getElem?_of_isEmpty bare]
+    repeat' split
+    all_goals rfl
+
+/-- A population of capacity zero is the empty one. -/
+theorem population_unique {α : Type} {capacity : Nat} (zero : capacity = 0)
+    (first second : Host.Population α capacity) : first = second := by
+  subst zero
+  obtain ⟨firstEntries, firstBound⟩ := first
+  obtain ⟨secondEntries, secondBound⟩ := second
+  have one : firstEntries = #[] := Array.eq_empty_of_size_eq_zero (by omega)
+  have two : secondEntries = #[] := Array.eq_empty_of_size_eq_zero (by omega)
+  subst one two
+  rfl
+
+/-- **What the host's observation reads.** Two worlds are observed alike when they agree on the
+body's position and inventory, on the bucket of its energy, on the effective kind of every tile,
+on the food and the deer, on the day's phase and on the task. -/
+theorem observe_congr (world next : Host.World config)
+    (place : next.body.position = world.body.position)
+    (kinds : ∀ position, next.tileKind position = world.tileKind position)
+    (food : next.food = world.food) (deer : next.deer = world.deer)
+    (energy : min (next.body.energy.val / 100) 10 = min (world.body.energy.val / 100) 10)
+    (day : next.dayPhase = world.dayPhase)
+    (task : next.taskObservation = world.taskObservation)
+    (inventory : next.body.inventory = world.body.inventory) :
+    next.observe = world.observe := by
+  have occupied : next.occupancy = world.occupancy := by
+    unfold Host.World.occupancy
+    rw [food, deer]
+  have tiles : ∀ (occupancy : Host.Occupancy) (row : Fin Host.patchSide),
+      next.observeTile occupancy row = world.observeTile occupancy row := by
+    intro occupancy row
+    funext column
+    unfold Host.World.observeTile
+    rw [place]
+    simp only [kinds]
+  unfold Host.World.observe
+  simp only [occupied, tiles, energy, day, task, inventory]
+
+/-- Two worlds the host observes alike are sensed alike. -/
+theorem sensed_congr (first second : Host.World config)
+    (same : first.observe = second.observe) : sensed first = sensed second := by
+  unfold sensed
+  rw [same]
+
+/-- Two live states whose worlds are sensed alike deliver percepts whose frames carry the same
+words and the same symbols. -/
+theorem percept_frame_congr (mode : TaskFeatureMode) (first second : Live config)
+    (same : sensed first.world = sensed second.world) :
+    ((gridWorld config mode).percept (some first)).frame.words =
+        ((gridWorld config mode).percept (some second)).frame.words ∧
+      ((gridWorld config mode).percept (some first)).frame.symbols =
+        ((gridWorld config mode).percept (some second)).frame.symbols := by
+  constructor
+  · change sensorWords (sensed first.world) mode = sensorWords (sensed second.world) mode
+    rw [same]
+  · change observationPatch (sensed first.world) mode = observationPatch (sensed second.world) mode
+    rw [same]
+
 /-! ## The slots of the words -/
 
 section Slots
@@ -141,6 +223,29 @@ theorem shared_slot
       slot ∈ (second.choose other two).features.indices :=
   ⟨_, word_slot first order one word heldOne 0 tiled,
     word_slot second other two word heldTwo 0 tiled⟩
+
+/-- **A frame is decided by the percept's frame, the bank and the stored predictions.** Two steps
+lay the same slots, in the same order, when their percepts' frames carry the same words and the
+same symbols and the two agent states hold the same bank and the same stored predictions,
+whatever else the states hold and whatever the step orders. -/
+theorem choose_features_congr
+    (first second : Agent interface profile features criterion dimension planning)
+    (order other : StepOrder) (one two : Percept interface)
+    (words : one.frame.words = two.frame.words) (symbols : one.frame.symbols = two.frame.symbols)
+    (bank : first.control.runtime.lifecycle.representation.bank =
+      second.control.runtime.lifecycle.representation.bank)
+    (stored : first.control.runtime.references.demonPredictions =
+      second.control.runtime.references.demonPredictions) :
+    (first.choose order one).features = (second.choose other two).features := by
+  rw [choose_frame, choose_frame, (first.advanceClock.frame one.frame).fresh,
+    (second.advanceClock.frame two.frame).fresh, Agent.words_def, Agent.words_def]
+  change encode dimension first.control.runtime.lifecycle.representation.bank
+      (one.frame.words ++ feedbackWords interface.feedback interface.layout
+        first.control.runtime.references.demonPredictions.words 0) one.frame.symbols =
+    encode dimension second.control.runtime.lifecycle.representation.bank
+      (two.frame.words ++ feedbackWords interface.feedback interface.layout
+        second.control.runtime.references.demonPredictions.words 0) two.frame.symbols
+  rw [words, symbols, bank, stored]
 
 end Slots
 

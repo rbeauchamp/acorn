@@ -100,8 +100,10 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
   executed agent itself. Whether the executed agent retains in this class is the rest of
   rbeauchamp/acorn#232: of its actions after a first reward, only the first is characterized
   (`AcornVerif.CurrentConcealedTargetRungChoice.rung_choice`). Which action it is, is stated
-  only after a first success on the first visit, under a hypothesis on the slots its frames
-  share (`AcornVerif.CurrentConcealedTargetRungChoice.rung_early_repeat`).
+  only after a first success on the first visit: under a hypothesis on the slots its frames
+  share (`AcornVerif.CurrentConcealedTargetRungChoice.rung_early_repeat`), and without one after
+  a first success at that visit's second step, which seven listed members have
+  (`AcornVerif.CurrentConcealedTargetRungFirstVisit.rung_second_repeats`).
   `ExecutedRetains` is argued to fail of the agent as built
   (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
   retention is asked.

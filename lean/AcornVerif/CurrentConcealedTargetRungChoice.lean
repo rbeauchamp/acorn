@@ -50,7 +50,8 @@ learns the reward. Times count the agent's decisions from zero.
   decision reads holds at least as many slots of the frame laid at the decision whose action met
   the target as of each earlier frame, the agent's first action after the step that learns the
   reward is that action again (`rung_early_repeat`). The condition on the frames is a
-  hypothesis, and no member is named that has its first success on the first visit.
+  hypothesis here. `AcornVerif.CurrentConcealedTargetRungFirstVisit` proves it for a first
+  success at the first visit's second step, and names seven members that have one.
 
 `rung_first_choice` states the decision of every member the agent solves on one of its first 125
 visits, at the member's first success. `rung_found_choice` states it of the 102 members that
@@ -67,16 +68,21 @@ What this does not say.
   the run does (`rung_frames_share`). That excludes no action for not having been taken at a
   first reward at a time from 39 to 576: at each of those times the explorer has taken every one
   of the nine actions on the 119 decisions before (`rung_taken`). No theorem lists the explorer's
-  actions after its first 576. No theorem says that two frames of the rung's run share more than
-  one slot, so none says without a hypothesis which of the actions taken before the reward is the
-  candidate, or that there is only one. And the explorer's sixth action repeats its fourth
+  actions after its first 576. No theorem here says that two frames of the rung's run share more
+  than one slot, so none here says without a hypothesis which of the actions taken before the
+  reward is the candidate, or that there is only one.
+  `AcornVerif.CurrentConcealedTargetRungFirstVisit` proves that the frames laid at the times zero
+  and one are one frame, and with it names the action after a first success at the first visit's
+  second step; of two frames laid on different observations no theorem counts the shared slots.
+  And the explorer's sixth action repeats its fourth
   (`AcornVerif.CurrentConcealedTargetRungFinds.rung_actions`), so a first reward after the
   agent's first six decisions finds a row that was laid twice, and of such a row's total
   `AcornVerif.CurrentTraceCounts` says nothing.
 - Anything of a later decision, and so nothing of whether one action is repeated: after the first
   reward the error of a later step need not be a zero word.
 - That a member has its first success on the first visit. `rung_early_repeat` is stated of such
-  a success and names none.
+  a success and names none; `AcornVerif.CurrentConcealedTargetRungFirstVisit.rung_second_repeats`
+  names seven, at the visit's second step.
 - Anything of a first success after the first 1000 decisions, or of another profile, criterion,
   rate policy or step order.
 
@@ -354,6 +360,22 @@ theorem rung_taken (time : ℕ) (low : 39 ≤ time) (high : time ≤ 576)
 
 /-! ## A first success on the first visit -/
 
+/-- Within a member's first visit, the world's state after one more decision is the grid world's
+step from the state before it, on the action taken there. -/
+theorem rung_step_state (planning : PlanningSelection)
+    (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
+      7).Index) (agent : Kernel.Agent Grid.interface) (time : ℕ) (within : time < 7) :
+    (Kernel.stateAt (rungVisits planning index) agent (rungOrigin planning index) (time + 1)).1 =
+      (gridWorld witnessConfig (rungConstruction planning).profile.taskMode).step
+        (Kernel.stateAt (rungVisits planning index) agent (rungOrigin planning index) time).1
+        (Kernel.actionAt (rungVisits planning index) agent (rungOrigin planning index) time) := by
+  have counter : (Kernel.stateAt (rungVisits planning index) agent (rungOrigin planning index)
+      time).2.val = time :=
+    congrArg (fun pair => pair.1.2.val) (Kernel.visits_loop
+      (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+      (member witnessLive index.1.1) 7 agent time (by omega))
+  exact congrArg Prod.fst (dite_eq_left (lt_of_eq_of_lt counter within))
+
 /-- Of the first seven codes that `rungRows` lists, all but the second and the third are codes
 of actions that name no direction: to craft an axe, to eat, to harvest, and to eat twice. -/
 theorem rung_still_codes : ∀ time, time < 7 → time ≠ 1 → time ≠ 2 →
@@ -386,19 +408,7 @@ theorem rung_first_visit (planning : PlanningSelection)
       (rungAgent planning) (rungOrigin planning index) prev).val).direction = none := by
     rw [explored, rung_action prev (by omega)]
     exact rung_still_codes prev (by omega) (by omega) (by omega)
-  have counter : (Kernel.stateAt (rungVisits planning index) (rungAgent planning)
-      (rungOrigin planning index) prev).2.val = prev :=
-    congrArg (fun pair => pair.1.2.val) (Kernel.visits_loop
-      (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
-      (member witnessLive index.1.1) 7 (rungAgent planning) prev (by omega))
-  have next : (Kernel.stateAt (rungVisits planning index) (rungAgent planning)
-      (rungOrigin planning index) (prev + 1)).1 =
-      (gridWorld witnessConfig (rungConstruction planning).profile.taskMode).step
-        (Kernel.stateAt (rungVisits planning index) (rungAgent planning)
-          (rungOrigin planning index) prev).1
-        (Kernel.actionAt (rungVisits planning index) (rungAgent planning)
-          (rungOrigin planning index) prev) :=
-    congrArg Prod.fst (dite_eq_left (lt_of_eq_of_lt counter (by omega)))
+  have next := rung_step_state planning index (rungAgent planning) prev (by omega)
   obtain ⟨after, reached, satisfied⟩ := met
   rw [next] at reached
   cases before : (Kernel.stateAt (rungVisits planning index) (rungAgent planning)

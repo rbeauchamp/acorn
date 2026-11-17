@@ -73,7 +73,9 @@ admits one.
 **From the agent to the controller.** The first part of a step writes no primitive row
 (`Agent.choose_keeps`); neither do the owed writes and the deferred planning
 (`TemporalControl.deferred_keeps`), the off-policy option learning or the span close
-(`followOptions_control`, `closeSpan_control`). The completion boundary credits the controller with
+(`followOptions_control`, `closeSpan_control`). The same parts write no prediction demon, so the
+completion boundary reads the demons the step started from (`followOptions_demons`,
+`closeSpan_demons`, `finishInput_demons`). The completion boundary credits the controller with
 `Controller.step` at the encoded frame and the executed action under per-step credit, and with
 nothing under a frozen profile (`finish_control`); the tester then only retires slots
 (`retire_closed`). The reward word the step sees is centred at the average-reward rate, which the
@@ -2708,6 +2710,42 @@ theorem finishInput_control (state : Agent interface profile config criterion di
   unfold finishInput
   rw [closeSpan_control, followOptions_control, deferred]
   exact (state.choose_keeps order percept).1
+
+/-- Off-policy option learning writes no demon. -/
+theorem followOptions_demons
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
+    (decision : TemporalDecision interface.actions) :
+    (state.followOptions models features declared reward goal
+        decision).runtime.lifecycle.consumers.demons =
+      state.runtime.lifecycle.consumers.demons := by
+  rw [TemporalControl.followOptions_eq]
+  split <;> rfl
+
+/-- The span close writes no demon. -/
+theorem closeSpan_demons (state : TemporalControl interface profile config criterion dimension)
+    (continuation : Option Binary32) :
+    (state.closeSpan continuation).runtime.lifecycle.consumers.demons =
+      state.runtime.lifecycle.consumers.demons := by
+  cases continuation with
+  | none => rfl
+  | some value =>
+    rw [TemporalControl.closeSpan_eq]
+    rfl
+
+/-- The completion boundary reads the demons the step started from. -/
+theorem finishInput_demons (state : Agent interface profile config criterion dimension planning)
+    (order : StepOrder) (percept : Percept interface) :
+    (finishInput (state.choose order percept)).runtime.lifecycle.consumers.demons =
+      state.control.runtime.lifecycle.consumers.demons := by
+  let chosen := state.choose order percept
+  have deferred := (TemporalControl.deferred_keeps chosen.control chosen.control ⟨rfl, rfl⟩
+    chosen.order planning chosen.features chosen.owed chosen.percept.reward
+    chosen.percept.frame.achieved chosen.decision).2
+  unfold finishInput
+  rw [closeSpan_demons, followOptions_demons, deferred]
+  exact (state.choose_keeps order percept).2
 
 /-- The completion boundary credits the controller with one step under per-step credit, and with
 nothing under a frozen profile. -/
