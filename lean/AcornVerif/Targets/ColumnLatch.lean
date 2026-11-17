@@ -15,18 +15,21 @@ import Mathlib.Analysis.SpecialFunctions.Exp
 A *target* is an open statement held as a definition of type `Prop`. This module holds the
 contract of mission [#201](https://github.com/rbeauchamp/acorn/issues/201): its definitions, in
 `AcornVerif.ColumnLatch`, and one target for each of its theorems, in
-`AcornVerif.Targets.ColumnLatch`. A target is the theorem's statement with its binders as leading
-universal quantifiers, in the same order and of the same kind; a theorem that used the contract's
-variables `F` and `m` binds them first. Nothing here is proved; the mission is to prove each
-target. `AcornVerif.Targets.registry` lists the targets.
+`AcornVerif.Targets.ColumnLatch`. A target is the theorem's statement with each binder written as
+a leading arrow, `(name : type) →`, in the same order and of the same kind; a theorem that used
+the contract's variables `F` and `m` binds them first. Such an arrow means what `∀` means; under
+`∀` Lean's unused-variable linter rejects a hypothesis whose name the statement does not mention.
+Nothing here is proved; the mission is to prove each target. `AcornVerif.Targets.registry` lists
+the targets.
 
 The definitions are models over the reals. Nothing here concerns Binary32, an update of any
 parameter, or a run of the agent.
 
-The docstrings name the work the definitions model, as the contract wrote them: Javed, Shah,
-Sutton and White, *Scalable Real-Time Recurrent Learning Using Columnar-Constructive Networks*,
-JMLR 24 (2023), eqs. (7), (10) and (11) to (16), with equation numbers of the JMLR paper. The
-mission's own module cites each with the equation it reproduces.
+The docstrings name the work the definitions model. It is the source the contract lists, with the
+contract's equation numbers, which are the JMLR paper's: Javed, Shah, Sutton and White, *Scalable
+Real-Time Recurrent Learning Using Columnar-Constructive Networks*, JMLR 24 (2023), eqs. (7), (10)
+and (11) to (16). The prior-art review assesses that work in its entry INC-2. The mission's own
+module cites each equation it reproduces.
 -/
 
 noncomputable section
@@ -86,13 +89,13 @@ def Gate.arg (gate : Gate m) (input : Fin m → ℝ) (h : ℝ) : ℝ :=
 
 /-- The four gates of one column. -/
 structure Cell (m : ℕ) where
-  /-- The input gate, eq. (11). -/
+  /-- The input gate. -/
   input : Gate m
-  /-- The forget gate, eq. (12). -/
+  /-- The forget gate. -/
   forget : Gate m
-  /-- The output gate, eq. (13). -/
+  /-- The output gate. -/
   output : Gate m
-  /-- The write, eq. (14). -/
+  /-- The gate of the write. -/
   write : Gate m
 
 /-- One step of eqs. (11) to (16), on the state `(c, h)`. -/
