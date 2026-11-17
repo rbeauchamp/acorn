@@ -354,8 +354,8 @@ theorem rung_taken (time : ℕ) (low : 39 ≤ time) (high : time ≤ 576)
 
 /-! ## A first success on the first visit -/
 
-/-- Of the explorer's first seven actions, all but the second and the third name no direction:
-to craft an axe, to eat, to harvest, and to eat twice. -/
+/-- Of the first seven codes that `rungRows` lists, all but the second and the third are codes
+of actions that name no direction: to craft an axe, to eat, to harvest, and to eat twice. -/
 theorem rung_still_codes : ∀ time, time < 7 → time ≠ 1 → time ≠ 2 →
     (Host.Action.fromIndex (rungRows.flatten.getD time 0)).direction = none := by
   decide +kernel

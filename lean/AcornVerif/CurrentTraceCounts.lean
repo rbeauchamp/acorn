@@ -31,8 +31,8 @@ that word in the row and no other slot of the row holds a trace (`Fresh`). `fres
 ordered sum of as many copies of the fresh trace as the frame holds slots of the laid frame
 (`fresh_total`): the frame's other slots hold positive zero in that row. The only fact of the
 two frames the total reads is that count. The sum is the executed one, added copy by copy. It is
-near the product of the count and the word (`repeatSum_near`) and need not be the rounded
-product.
+near the product of the count and the word (`repeatSum_near`); no theorem here says that it is
+the rounded product.
 
 **The comparison.** Under the discounted criterion, the ordered sum of at least one and at most
 1999 stored step sizes, less the tie window, is above the ordered sum of at most as many fresh
@@ -49,15 +49,17 @@ most as many fresh traces of age one, that value's action is the one near-maximu
 (`counted_candidate`).
 
 **A kernel run.** For a profile with no hierarchy under per-step credit and the discounted
-criterion, before a unit of the feature bank matures: take a kernel run whose rewards are zero
-words and whose frames hold at most 1999 slots. A row whose action the run took at one time
-only is fresh at the frame laid then, for eighty steps (`loop_fresh`). Where the actions before
-a time are pairwise different, every row that was taken is fresh and every other row holds no
-trace. So right before the step that learns a reward, on any frame of at most 1999 slots, the
-trace total of each action taken reads the ordered sum of as many copies of the fresh trace of
-the action's age as the frame holds slots of the frame laid at the action's step, and the total
-of an action not taken is a zero word (`loop_totals`). The comparison of two such actions is
-then a comparison of two counts and two named words.
+criterion, before a unit of the feature bank matures: take a kernel run, from an agent state
+whose learners are at rest and whose primitive controller holds no trace, whose rewards are zero
+words and whose frames hold at most 1999 slots. A row whose action the run took at one time, and
+at no other from 119 steps before that time on, is fresh at the frame laid then, for eighty
+steps (`loop_fresh`). Where the actions before a time are pairwise different, every row that was
+taken is fresh and every other row holds no trace. So right before the step that learns a
+reward, on any frame of at most 1999 slots, the trace total of each action taken reads the
+ordered sum of as many copies of the fresh trace of the action's age as the frame holds slots of
+the frame laid at the action's step, and the total of an action not taken is a zero word
+(`loop_totals`). The comparison of two such actions is then a comparison of two counts and two
+named words.
 
 **The decision.** At a frame that holds a slot of the last frame laid before that time, and at
 least as many slots of it as of each earlier frame, the last action taken is the one candidate
@@ -104,7 +106,7 @@ def freshChain (criterion : Criterion) : Nat → Binary32
   | 0 => stepWord
   | age + 1 => (freshChain criterion age).mul (decayOf criterion)
 
-/-- A fresh trace decayed any number of times is small, nonnegative and at most the step size. -/
+/-- The fresh trace of every age is small, nonnegative and at most the step size. -/
 theorem freshChain_facts (criterion : Criterion) (age : Nat) :
     Small (freshChain criterion age) ∧ 0 ≤ numerical32 (freshChain criterion age) ∧
       numerical32 (freshChain criterion age) ≤ numerical32 stepWord := by
@@ -129,7 +131,7 @@ theorem low_le_fresh (criterion : Criterion) (age : Nat) :
       (freshChain_facts criterion age).1 (small_decay criterion)
       (lowChain_facts criterion age).2.1 (decay_nonneg criterion) ih le_rfl
 
-/-- A fresh trace decayed at most eighty times is above the pruning threshold. -/
+/-- The fresh trace of an age of at most eighty is above the pruning threshold. -/
 theorem freshChain_above (criterion : Criterion) (age : Nat) (near : age ≤ 80) :
     numerical32 pruneWord < numerical32 (freshChain criterion age) :=
   lt_of_lt_of_le (lowChain_above criterion age near) (low_le_fresh criterion age)
@@ -612,16 +614,15 @@ theorem loop_fresh (primitive : profile.usesHierarchy = false)
     exact once (laid + 1 + gap) (by omega) (by omega) (by omega)
 
 /-- **In a run of pairwise different actions, every trace total sums one word over the shared
-slots.** For
-a profile with no hierarchy under per-step credit and the discounted criterion, from an agent
-state whose learners are at rest and whose primitive controller holds no trace: in a kernel run
-in which every reward word up to the time `last` is the zero word, over frames of at most 1999
-slots and before a unit of the feature bank matures, suppose the actions at the times up to
-`last` are pairwise different. Then, right before the step at the time `last + 1`, on every frame
-of at most 1999 slots: the trace total of the action taken `age` steps before the time `last`
-reads the ordered sum of as many copies of the fresh trace of that age as the frame holds slots
-of the frame laid at that time; and the trace total of an action taken at none of those times is
-a zero word. -/
+slots.** For a profile with no hierarchy under per-step credit and the discounted criterion, from
+an agent state whose learners are at rest and whose primitive controller holds no trace: in a
+kernel run in which every reward word up to the time `last` is the zero word, over frames of at
+most 1999 slots and before a unit of the feature bank matures, suppose the actions at the times
+up to `last` are pairwise different. Then, right before the step at the time `last + 1`, on every
+frame of at most 1999 slots: the trace total of the action taken `age` steps before the time
+`last` reads the ordered sum of as many copies of the fresh trace of that age as the frame holds
+slots of the frame laid at that time; and the trace total of an action taken at none of those
+times is a zero word. -/
 theorem loop_totals (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
