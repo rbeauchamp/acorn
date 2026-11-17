@@ -66,4 +66,6 @@ empirical quantity stays UNKNOWN with an explanation of why deduction cannot
 settle it. If a study is within explicitly authorized scope, use the prospective
 protocol requirements in CONTRIBUTING.md; otherwise identify it as separate
 work. Avoid adding a study, default promotion or new infrastructure as an
-implicit acceptance gate.
+implicit acceptance gate. Plan no run, smoke test or diagnostic in an issue
+unless the issue shows why derivation or proof cannot answer the question
+effectively and efficiently.

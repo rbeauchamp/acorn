@@ -1119,8 +1119,9 @@ What these theorems do not establish:
   step that learns it, and says nothing of an action the agent takes afterwards.
   `ExecutedRetains` asks every later visit, and the agent as built explores at a constant rate,
   so where an exploring run can make a visit miss, the premise fails of it (argued in the
-  [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder);
-  [#248](https://github.com/rbeauchamp/acorn/issues/248) decides how retention is asked).
+  [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder)). The owner
+  decided on 2026-11-17 that retention is asked visit by visit
+  ([#248](https://github.com/rbeauchamp/acorn/issues/248)); the premise is not yet restated so.
 - **A statement for an agent that explores with random draws.** `visits_mission_allBut` counts
   the agents of a finite family. The agent's draws are modelled only up to a first reward and at
   the first decision after it, for a profile with no hierarchy under the declared rate
