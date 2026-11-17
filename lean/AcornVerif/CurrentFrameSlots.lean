@@ -28,15 +28,16 @@ that stands in for a refused one reports zero (`sensed_day`). So at a state that
 whose clock has not passed an eighth of the day, the percept carries the word of day phase zero
 (`percept_day_word`), and two such percepts have that word in common.
 
-A frame is encoded from the words and the symbols of its percept's frame and the words fed back
-from the agent's stored predictions, under the agent's feature bank. So two steps lay the same
-frame when their percepts' frames carry the same words and symbols and the two agent states hold
-the same bank and the same stored predictions (`choose_features_congr`). In the grid world the
-words and the symbols are functions of the host's observation (`sensed_congr`,
-`percept_frame_congr`), and two worlds are observed alike when they agree on the body's position,
-inventory and energy bucket, on the kind of every tile, on the food and the deer, on the day's
-phase and on the task (`observe_congr`). Where no tile is harvested a tile's kind is its base
-terrain (`tileKind_bare`), and a population of capacity zero is empty (`population_unique`).
+A frame is encoded under the agent's feature bank from three things: the words of its percept's
+frame, the words fed back from the agent's stored predictions, and the symbols of its percept's
+frame, the codes of the window's tiles and of the task that the bank's units read. So two steps
+lay the same frame when their percepts' frames carry the same words and symbols and the two agent
+states hold the same bank and the same stored predictions (`choose_features_congr`). In the grid
+world the words and the symbols are functions of the host's observation (`sensed_congr`,
+`percept_frame_congr`). Two worlds are observed alike when they agree on the body's position and
+inventory, on the bucket of its energy, on the kind of every tile, on which tiles hold food or
+deer, on the day's phase and on the task (`observe_congr`). Where no tile is harvested a tile's
+kind is its base terrain (`tileKind_unharvested`).
 
 What this does not say. Which other word two percepts of a run have in common: that is a fact of
 the world's states. How many slots two different frames share. And two words can hash to one
@@ -120,44 +121,32 @@ theorem percept_day_word (mode : TaskFeatureMode) (state : Option (Live config))
 /-! ## Worlds the host observes alike -/
 
 /-- Where no tile has been harvested, the effective kind of a tile is its base terrain. -/
-theorem tileKind_bare (world : Host.World config) (bare : world.harvested.isEmpty = true)
-    (position : Host.Position) :
+theorem tileKind_unharvested (world : Host.World config)
+    (unharvested : world.harvested.isEmpty = true) (position : Host.Position) :
     world.tileKind position =
       Host.terrain position config.raw.seed config.raw.baseScale := by
   unfold Host.World.tileKind
   cases Host.terrain position config.raw.seed config.raw.baseScale with
   | error refusal => rfl
   | ok base =>
-    simp only [bind, Except.bind, Std.TreeMap.getElem?_of_isEmpty bare]
+    simp only [bind, Except.bind, Std.TreeMap.getElem?_of_isEmpty unharvested]
     repeat' split
     all_goals rfl
 
-/-- A population of capacity zero is the empty one. -/
-theorem population_unique {α : Type} {capacity : Nat} (zero : capacity = 0)
-    (first second : Host.Population α capacity) : first = second := by
-  subst zero
-  obtain ⟨firstEntries, firstBound⟩ := first
-  obtain ⟨secondEntries, secondBound⟩ := second
-  have one : firstEntries = #[] := Array.eq_empty_of_size_eq_zero (by omega)
-  have two : secondEntries = #[] := Array.eq_empty_of_size_eq_zero (by omega)
-  subst one two
-  rfl
-
 /-- **What the host's observation reads.** Two worlds are observed alike when they agree on the
-body's position and inventory, on the bucket of its energy, on the effective kind of every tile,
-on the food and the deer, on the day's phase and on the task. -/
+body's position and inventory, on the bucket of its energy (its hundreds, up to ten), on the
+effective kind of every tile, on the index of the tiles that hold food or deer, on the day's
+phase and on the task. `AcornVerif.CurrentConcealedTarget.observe_twins` states the case of two
+worlds that differ at most in their installed goals. -/
 theorem observe_congr (world next : Host.World config)
     (place : next.body.position = world.body.position)
     (kinds : ∀ position, next.tileKind position = world.tileKind position)
-    (food : next.food = world.food) (deer : next.deer = world.deer)
+    (occupied : next.occupancy = world.occupancy)
     (energy : min (next.body.energy.val / 100) 10 = min (world.body.energy.val / 100) 10)
     (day : next.dayPhase = world.dayPhase)
     (task : next.taskObservation = world.taskObservation)
     (inventory : next.body.inventory = world.body.inventory) :
     next.observe = world.observe := by
-  have occupied : next.occupancy = world.occupancy := by
-    unfold Host.World.occupancy
-    rw [food, deer]
   have tiles : ∀ (occupancy : Host.Occupancy) (row : Fin Host.patchSide),
       next.observeTile occupancy row = world.observeTile occupancy row := by
     intro occupancy row
@@ -227,7 +216,8 @@ theorem shared_slot
 /-- **A frame is decided by the percept's frame, the bank and the stored predictions.** Two steps
 lay the same slots, in the same order, when their percepts' frames carry the same words and the
 same symbols and the two agent states hold the same bank and the same stored predictions,
-whatever else the states hold and whatever the step orders. -/
+whatever else the states hold and whatever the step orders. `AcornVerif.CurrentOak.frame_congr`
+states it of two frames at one agent state. -/
 theorem choose_features_congr
     (first second : Agent interface profile features criterion dimension planning)
     (order other : StepOrder) (one two : Percept interface)

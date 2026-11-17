@@ -34,11 +34,13 @@ tester retires nothing. The names here call such an agent, step or run young.
   encoded frame, the executed action and the centred reward (`young_step`). Under the discounted
   criterion the centred reward is the percept's reward word.
 - **What the next frame reads of the step.** A frame is encoded under the feature bank, and it
-  feeds back the predictions the step before stored. Before a unit matures a step keeps the bank
-  (`young_bank`). A step of a learning profile stores the predictions its prediction demons made
-  before they learned (`step_predictions`), and a fresh demon predicts positive zero
-  (`initial_prediction`, `initial_bank_predictions`). So the cold agent's first step stores the
-  predictions it started with (`cold_step_predictions`).
+  feeds back the predictions the step before stored. Before a unit matures, a step of a profile
+  with no hierarchy at the default order keeps the bank (`young_bank`). A step of a learning
+  profile stores the predictions its prediction demons made before they learned
+  (`step_predictions`), and a fresh demon predicts positive zero
+  (`AcornVerif.CurrentPreReward.initial_prediction`, `initial_bank_predictions`). So the first
+  step of a cold agent of a learning profile stores the predictions it started with
+  (`cold_step_predictions`).
 - **A list of percepts.** Over percepts whose reward word is the zero word, the controller stays
   quiet against what it laid (`traced_young`), and a recent slot stays recent, decayed once for
   each step (`traced_recent`).
@@ -152,29 +154,9 @@ section Demons
 
 variable {config : Acorn.Config} {dimension : Dimension}
 
-/-- An ordered sum of positive zeros from positive zero is positive zero. -/
-theorem sumFrom_zeros (values : List Binary32) (zeros : ∀ value ∈ values, value = Binary32.zero) :
-    Binary32.sumFrom .zero values = .zero := by
-  rw [Binary32.sumFrom_def]
-  induction values with
-  | nil => rfl
-  | cons head rest ih =>
-    rw [List.foldl_cons, zeros head (List.mem_cons_self ..)]
-    exact ih fun value member => zeros value (List.mem_cons_of_mem _ member)
-
-/-- The fresh learner predicts positive zero on every frame: its weights are positive zeros. -/
-theorem initial_prediction (features : SwiftTd.ActiveSet dimension) :
-    (NumericState.initial config dimension).linearPrediction features = .zero := by
-  rw [NumericState.linearPrediction_eq_sumFrom]
-  apply sumFrom_zeros
-  intro value member
-  obtain ⟨idx, _, rfl⟩ := List.mem_map.mp member
-  change ((Vector.replicate _ (Weight.project config.rule .zero)).get idx).value = .zero
-  rw [get_replicate_vec, Weight.project_zero]
-
 /-- **A step of the fresh demon bank returns the cold prediction cache.** Each demon returns the
-prediction it made before it learned, which for a fresh learner is positive zero, the word the
-cold cache holds. -/
+prediction it made before it learned, which for a fresh learner is positive zero
+(`AcornVerif.CurrentPreReward.initial_prediction`), the word the cold cache holds. -/
 theorem initial_bank_predictions (features : SwiftTd.ActiveSet dimension) :
     ∀ (discounts : List Discount) (cumulants : Cumulants discounts),
       ((DemonBank.initial dimension discounts).step features cumulants).predictions =

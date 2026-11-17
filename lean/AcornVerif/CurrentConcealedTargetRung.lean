@@ -102,8 +102,8 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
   (`AcornVerif.CurrentConcealedTargetRungChoice.rung_choice`). Which action it is, is stated
   only after a first success on the first visit: under a hypothesis on the slots its frames
   share (`AcornVerif.CurrentConcealedTargetRungChoice.rung_early_repeat`), and without one after
-  a first success at that visit's second step, which seven listed members have
-  (`AcornVerif.CurrentConcealedTargetRungFirstVisit.rung_second_repeats`).
+  a first success at that visit's second step, which exactly seven members have
+  (`AcornVerif.CurrentConcealedTargetRungFirstVisit.second_step_repeats`).
   `ExecutedRetains` is argued to fail of the agent as built
   (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
   retention is asked.
@@ -124,10 +124,11 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 ## What a proof about a world's layout costs
 
 The kernel evaluates the executed terrain for each tile a proof reads, each time the module is
-rebuilt (`docs/roadmap.md` records the timing). The witness reads 21 tiles (`witness_walk`), and
-the four walks of `AcornVerif.CurrentConcealedTargetRungFinds` evaluate 28 more steps of the
-world. A class with visits of 81 steps, the proved reach of a first reward, has a covering bound
-of 616; each step of a walk brings at most seven more targets within reach
+rebuilt (`docs/roadmap.md` records the timing). The witness reads 21 tiles (`witness_walk`), the
+four walks of `AcornVerif.CurrentConcealedTargetRungFinds` evaluate 28 more steps of the world,
+and `AcornVerif.CurrentConcealedTargetRungFirstVisit.first_walk` two more, the first of them
+again for `craft_keeps`. A class with visits of 81 steps, the proved reach of a first reward, has
+a covering bound of 616; each step of a walk brings at most seven more targets within reach
 (`AcornVerif.Coverage.card_swept`), so its count needs the terrain of at least 89 tiles (argued).
 The host's spawn search evaluates the terrain 163 times for each candidate it considers
 (`Acorn.Host.considerSpawn`: two counts over a nine-by-nine square, and the candidate's own tile)
@@ -274,6 +275,12 @@ generator seeded from the seed of the rung's world, which is the seed of the age
 configuration. -/
 def rungExplorer : Explorer Grid.interface.actions :=
   Explorer.cold Grid.interface.actions witnessConfig.raw.seed
+
+/-- The explorer of the rung's feature configuration is `rungExplorer`: the configuration's seed
+is the seed of the rung's world. -/
+theorem rung_explorer (planning : PlanningSelection) :
+    Explorer.cold Grid.interface.actions (rungConstruction planning).config.seed =
+      rungExplorer := rfl
 
 /-- The rung's agent as a kernel agent: the executed decision function from the cold state of the
 rung's construction. -/

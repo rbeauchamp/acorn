@@ -14,10 +14,11 @@ import Mathlib.Data.Nat.Find
 `length` steps of the world, delivers one more percept at the visit's last state, and then
 returns to the start state whatever the action. A visit takes `length + 1` decisions, and
 every visit begins in the start state (`visits_period`). Within a visit the closed loop is
-the world's own (`visits_loop`). An agent's later decisions are the decisions of the agent
-resumed from its memory (`loop_add`), so a member is solved on a visit exactly when the agent,
-resumed from its memory at the start of that visit, solves it in the member's world within
-one visit's length (`solvesOnVisit_iff`).
+the world's own (`visits_loop`): one more decision takes the world's step (`visits_step`), and
+the percept is the world's percept of the world state (`visits_percept`). An agent's later
+decisions are the decisions of the agent resumed from its memory (`loop_add`), so a member is
+solved on a visit exactly when the agent, resumed from its memory at the start of that visit,
+solves it in the member's world within one visit's length (`solvesOnVisit_iff`).
 
 For a class that conceals its goals, with a covering bound for one visit's length:
 
@@ -196,6 +197,28 @@ theorem visits_state (world : World interface) (start : world.State) (length : �
         (visitStart world start length) (count * (length + 1)))) start step := by
   rw [stateAt_add, visits_period]
   exact congrArg Prod.fst (congrArg Prod.fst (visits_loop world start length _ step within))
+
+/-- Within a visit, one more decision takes the world's own step: after fewer than `length`
+decisions from the start of a visit, the next world state is the world's step from the state
+before it, on the action taken there. -/
+theorem visits_step (world : World interface) (start : world.State) (length : ℕ)
+    (agent : Agent interface) (time : ℕ) (within : time < length) :
+    (stateAt (visits world start length) agent (visitStart world start length) (time + 1)).1 =
+      world.step
+        (stateAt (visits world start length) agent (visitStart world start length) time).1
+        (actionAt (visits world start length) agent (visitStart world start length) time) := by
+  have counter : (stateAt (visits world start length) agent (visitStart world start length)
+      time).2.val = time :=
+    congrArg (fun pair => pair.1.2.val)
+      (visits_loop world start length agent time (Nat.le_of_lt within))
+  exact congrArg Prod.fst (dite_eq_left (lt_of_eq_of_lt counter within))
+
+/-- The percept at a time of a run in visits is the world's percept of the world state at that
+time: the visit's step count is not shown. -/
+theorem visits_percept (world : World interface) (start : world.State) (length : ℕ)
+    (agent : Agent interface) (origin : (visits world start length).State) (time : ℕ) :
+    perceptAt (visits world start length) agent origin time =
+      world.percept (stateAt (visits world start length) agent origin time).1 := rfl
 
 /-! ## Solving on a visit -/
 

@@ -301,6 +301,17 @@ theorem zeroWord_foldlAdd (values : List Binary32) (initial : Binary32) (start :
     exact ih _ (zeroWord_add start (terms value (List.mem_cons_self ..)))
       (fun other held => terms other (List.mem_cons_of_mem _ held))
 
+/-- An ordered sum of positive zeros from positive zero is positive zero: the word itself, where
+`zeroWord_foldlAdd` gives a zero word of either sign. -/
+theorem sumFrom_zeros (values : List Binary32) (zeros : ∀ value ∈ values, value = Binary32.zero) :
+    Binary32.sumFrom .zero values = .zero := by
+  rw [Binary32.sumFrom_def]
+  induction values with
+  | nil => rfl
+  | cons head rest ih =>
+    rw [List.foldl_cons, zeros head (List.mem_cons_self ..)]
+    exact ih fun value member => zeros value (List.mem_cons_of_mem _ member)
+
 /-- A saturation between two zero words is a zero word, whatever the saturated word. -/
 theorem zeroWord_saturate (value : Binary32) {lower upper : Binary32}
     (hl : lower.isZero = true) (hu : upper.isZero = true) :
@@ -712,6 +723,17 @@ theorem Calm.predict_zero {state : NumericState config dimension} (calm : Calm s
   intro value held
   obtain ⟨idx, _, rfl⟩ := List.mem_map.mp held
   exact calm.weights idx
+
+/-- The fresh learner predicts positive zero on every frame: its weights are positive zeros.
+`Calm.predict_zero` gives a zero word of either sign for every learner at rest. -/
+theorem initial_prediction (features : ActiveSet dimension) :
+    (NumericState.initial config dimension).linearPrediction features = .zero := by
+  rw [NumericState.linearPrediction_eq_sumFrom]
+  apply sumFrom_zeros
+  intro value member
+  obtain ⟨idx, _, rfl⟩ := List.mem_map.mp member
+  change ((Vector.replicate _ (Weight.project config.rule .zero)).get idx).value = .zero
+  rw [get_replicate_vec, Weight.project_zero]
 
 /-- An applied entry with quiet inputs keeps a managed learner at rest. -/
 theorem Calm.managed {learner : Managed config dimension} (calm : Calm learner.state)

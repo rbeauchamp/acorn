@@ -51,7 +51,7 @@ learns the reward. Times count the agent's decisions from zero.
   the target as of each earlier frame, the agent's first action after the step that learns the
   reward is that action again (`rung_early_repeat`). The condition on the frames is a
   hypothesis here. `AcornVerif.CurrentConcealedTargetRungFirstVisit` proves it for a first
-  success at the first visit's second step, and names seven members that have one.
+  success at the first visit's second step, which exactly seven members have.
 
 `rung_first_choice` states the decision of every member the agent solves on one of its first 125
 visits, at the member's first success. `rung_found_choice` states it of the 102 members that
@@ -81,8 +81,8 @@ What this does not say.
 - Anything of a later decision, and so nothing of whether one action is repeated: after the first
   reward the error of a later step need not be a zero word.
 - That a member has its first success on the first visit. `rung_early_repeat` is stated of such
-  a success and names none; `AcornVerif.CurrentConcealedTargetRungFirstVisit.rung_second_repeats`
-  names seven, at the visit's second step.
+  a success and names none; `AcornVerif.CurrentConcealedTargetRungFirstVisit.second_step_repeats`
+  lists the seven that have one at the visit's second step.
 - Anything of a first success after the first 1000 decisions, or of another profile, criterion,
   rate policy or step order.
 
@@ -361,20 +361,17 @@ theorem rung_taken (time : ℕ) (low : 39 ≤ time) (high : time ≤ 576)
 /-! ## A first success on the first visit -/
 
 /-- Within a member's first visit, the world's state after one more decision is the grid world's
-step from the state before it, on the action taken there. -/
+step from the state before it, on the action taken there. It is `AcornVerif.Kernel.visits_step`
+at the rung's world. -/
 theorem rung_step_state (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index) (agent : Kernel.Agent Grid.interface) (time : ℕ) (within : time < 7) :
     (Kernel.stateAt (rungVisits planning index) agent (rungOrigin planning index) (time + 1)).1 =
       (gridWorld witnessConfig (rungConstruction planning).profile.taskMode).step
         (Kernel.stateAt (rungVisits planning index) agent (rungOrigin planning index) time).1
-        (Kernel.actionAt (rungVisits planning index) agent (rungOrigin planning index) time) := by
-  have counter : (Kernel.stateAt (rungVisits planning index) agent (rungOrigin planning index)
-      time).2.val = time :=
-    congrArg (fun pair => pair.1.2.val) (Kernel.visits_loop
-      (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
-      (member witnessLive index.1.1) 7 agent time (by omega))
-  exact congrArg Prod.fst (dite_eq_left (lt_of_eq_of_lt counter within))
+        (Kernel.actionAt (rungVisits planning index) agent (rungOrigin planning index) time) :=
+  Kernel.visits_step (gridWorld witnessConfig (rungConstruction planning).profile.taskMode)
+    (member witnessLive index.1.1) 7 agent time within
 
 /-- Of the first seven codes that `rungRows` lists, all but the second and the third are codes
 of actions that name no direction: to craft an axe, to eat, to harvest, and to eat twice. -/
