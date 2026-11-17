@@ -41,10 +41,13 @@ open LeanIntent WorldInterface Postcondition
 
 /-! ## The record reads the class only -/
 
-/-- **The record reads the class, not its agent or its aggregation.** A trial meets the record
-exactly when the trial with another agent and another way of aggregating reward does. -/
-theorem reads_class (w : Trial) (A : Agent w.Obs w.Act) (f : List Rat → Rat) :
-    bigClass.Meets { w with agent := A, total := f } ↔ bigClass.Meets w := by
+/-- **The record reads the class, not its agent, its aggregation or its promise of solving
+again.** A trial meets the record exactly when the trial with another agent, another way of
+aggregating reward, another horizon and another number of lapses does. -/
+theorem reads_class (w : Trial) (A : Agent w.Obs w.Act) (f : List Rat → Rat)
+    (horizon lapses : Nat) :
+    bigClass.Meets { w with agent := A, total := f, horizon := horizon, lapses := lapses } ↔
+      bigClass.Meets w := by
   rw [bigClass_meets, bigClass_meets]
   exact Iff.rfl
 

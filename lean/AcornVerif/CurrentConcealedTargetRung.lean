@@ -81,10 +81,10 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
 ## The premises on memory and on finding
 
 `rung_mission` has eight premises about the agent: that it finds by a stated visit, that it
-solves again what it has solved on every later quiet visit, two counts of its quiet visits, and
-the four of contract 3. A visit of a member's run is quiet when the executed step reports no
+solves again what it has solved on every later calm visit, two counts of its calm visits, and
+the four of contract 3. A visit of a member's run is calm when the executed step reports no
 exploration at any of its decisions
-(`AcornVerif.CurrentConcealedTargetMission.ExecutedQuiet`).
+(`AcornVerif.CurrentConcealedTargetMission.ExecutedCalm`).
 
 Two of the eight are proved for the executed agent itself. The one on memory is proved with its
 whole state as its memory: every memory of its run is the agent of a state a host runs, and
@@ -120,9 +120,9 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
   a first success at that visit's second step, which exactly seven members have
   (`AcornVerif.CurrentConcealedTargetRungFirstVisit.second_step_repeats`).
   Retention on every later visit is argued to fail of the agent as built
-  (`AcornVerif.CurrentConcealedTargetMission`, header), so it is asked on the quiet visits, with
+  (`AcornVerif.CurrentConcealedTargetMission`, header), so it is asked on the calm visits, with
   the two counts, as the owner decided on rbeauchamp/acorn#248. Nothing is proved of the agent's
-  quiet visits: which of its decisions explore is characterized only up to a first reward.
+  calm visits: which of its decisions explore is characterized only up to a first reward.
 - Anything about saving or resuming the rung's agent. Its profile is the primitive one, which the
   host neither saves nor loads (`Acorn.Checkpoint.save_refuses`,
   `AcornVerif.CurrentCheckpoint.unresumable_unloaded`). So exact resumption (`load_saved`,
@@ -252,11 +252,11 @@ theorem rung_members (mode : TaskFeatureMode)
 
 /-- **The mission theorem on the first rung, from its named premises.** In the rung's world, with
 visits of seven steps and a list of distinct counted members, call a visit of a member's run
-quiet when the rung's agent explores at no decision of it
-(`AcornVerif.CurrentConcealedTargetMission.ExecutedQuiet`). If the rung's agent finds by the
+calm when the rung's agent explores at no decision of it
+(`AcornVerif.CurrentConcealedTargetMission.ExecutedCalm`). If the rung's agent finds by the
 visit `last`, `spare` members more than the covering bound of 98 asks, and solves again on every
-later quiet visit what it has solved, and every visit before the horizon is quiet but for at most
-`lapses` of each member's, and one visit from `last` on is quiet for all but `spare` of the
+later calm visit what it has solved, and every visit before the horizon is calm but for at most
+`lapses` of each member's, and one visit from `last` on is calm for all but `spare` of the
 counted members, then every agent that takes the rung's agent's actions, and
 whose own memory and reports meet the four premises of contract 3, achieves goals over the class
 with that horizon and that number of lapses. It is
@@ -277,12 +277,12 @@ theorem rung_mission (planning : PlanningSelection) (horizon lapses last spare :
       7 counted last spare)
     (retains : ExecutedRetainsOn (rungConstruction planning).initial.agent witnessConfig
       witnessLive 7
-      (ExecutedQuiet (rungConstruction planning).initial.agent witnessConfig witnessLive 7))
-    (few : Kernel.QuietBut
-      (ExecutedQuiet (rungConstruction planning).initial.agent witnessConfig witnessLive 7)
+      (ExecutedCalm (rungConstruction planning).initial.agent witnessConfig witnessLive 7))
+    (few : Kernel.AdmitsBut
+      (ExecutedCalm (rungConstruction planning).initial.agent witnessConfig witnessLive 7)
       horizon lapses)
-    (once : Kernel.QuietOnce
-      (ExecutedQuiet (rungConstruction planning).initial.agent witnessConfig witnessLive 7)
+    (once : Kernel.AdmitsOnce
+      (ExecutedCalm (rungConstruction planning).initial.agent witnessConfig witnessLive 7)
       counted last spare)
     (memory : MemoryBounded (findRung witnessConfig
       (rungConstruction planning).profile.taskMode witnessLive 7 horizon lapses counted agent

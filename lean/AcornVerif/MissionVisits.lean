@@ -648,7 +648,7 @@ theorem visits_achieves (stated : PaysAtGoals family goals pay met)
   · obtain ⟨again, low, high, once⟩ := retains.again index attempt later order room
       ((solves_iff family goals length horizon lapses pay met counted agent stated
         (recordAgent agent) index attempt).mp solved)
-    exact ⟨again, low, Nat.lt_of_le_of_lt high room,
+    exact ⟨again, low, high,
       (solves_iff family goals length horizon lapses pay met counted agent stated
         (recordAgent agent) index again).mpr once⟩
 

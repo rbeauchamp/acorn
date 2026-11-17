@@ -26,10 +26,10 @@ unproved, never a pass:
   is not proved.
 
 The record asks nothing of the two numbers a class names, its horizon and its lapses. A class that
-allows as many lapses as it has attempts before its horizon asks no retention: `keepsSolving` and
-`learnsAgain` then hold of every agent (`keepsSolving_of_lapses`, `learnsAgain_of_lapses`). Whether
-a class's pair is one that says something is for the class to justify; no trial is exhibited here
-that meets the whole record with such a pair.
+allows as many lapses as it has attempts before its horizon, less one, asks no retention:
+`keepsSolving` and `learnsAgain` then hold of every agent (`keepsSolving_of_lapses`,
+`learnsAgain_of_lapses`). Whether a class's pair is one that says something is for the class to
+justify; no trial is exhibited here that meets the whole record with such a pair.
 
 Two checks of lean-intent were not run:
 
@@ -197,18 +197,33 @@ def firstAttemptMayFail : Consequence Trial :=
 theorem firstAttemptMayFail_holds : firstAttemptMayFail.HoldsOf postcondition :=
   ⟨base, base_meets, false, .tail _ (.head _), rfl⟩
 
-/-- **A class whose lapses cover its horizon asks no solving again.** Where a class allows as many
-lapses as it has attempts before its horizon, `keepsSolving` holds of every agent: every attempt
-before the horizon may be a lapse. -/
-theorem keepsSolving_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses) :
+/-- **A class whose lapses cover its later attempts asks no solving again.** Where a class allows
+as many lapses as it has attempts before its horizon, less one, `keepsSolving` holds of every
+agent: every attempt before the horizon but the first may be a lapse, and the first attempt is
+later than none. -/
+theorem keepsSolving_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses + 1) :
     keepsSolving.holds w :=
-  fun _ => ⟨List.range w.horizon, by rw [List.length_range]; exact covered,
-    fun _ _ _ before _ _ out => absurd (List.mem_range.mpr before) out⟩
+  fun _ => ⟨List.range' 1 (w.horizon - 1), by rw [List.length_range']; omega,
+    fun n n' hle before _ hs out => by
+      have zero : n' = 0 := by
+        rcases Nat.eq_zero_or_pos n' with h | h
+        · exact h
+        · exact absurd (List.mem_range'_1.mpr ⟨h, by omega⟩) out
+      subst zero
+      have first : n = 0 := Nat.le_zero.mp hle
+      subst first
+      exact hs⟩
 
-/-- Where a class allows as many lapses as it has attempts before its horizon, `learnsAgain` holds
-of every agent: no attempt leaves more attempts than the lapses before the horizon. -/
-theorem learnsAgain_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses) :
+/-- Where a class allows as many lapses as it has attempts before its horizon, less one,
+`learnsAgain` holds of every agent: only the first attempt leaves more attempts than the lapses
+before the horizon, and the attempt solved no later than the first is the first. -/
+theorem learnsAgain_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses + 1) :
     learnsAgain.holds w :=
-  fun _ _ _ _ room => absurd room (by omega)
+  fun _ n n' hle room _ hs => by
+    have zero : n' = 0 := by omega
+    subst zero
+    have first : n = 0 := Nat.le_zero.mp hle
+    subst first
+    exact ⟨0, Nat.le_refl 0, Nat.zero_le _, hs⟩
 
 end AcornVerif.Intent.Postcondition
