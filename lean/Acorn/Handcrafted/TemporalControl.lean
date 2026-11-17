@@ -192,25 +192,68 @@ def TemporalControl.skipMeta (state : TemporalControl interface profile config c
     TemporalControl interface profile config criterion dimension :=
   if profile.usesHierarchy && profile.mode != .frozen then state.withGap state.gap.skip else state
 
+/-- The primitive learner's rate with its work: the primitive controller's derived rate. -/
+def TemporalControl.primitiveRateCosted
+    (state : TemporalControl interface profile config criterion dimension) :
+    Costed SwiftTd.ExploreRate :=
+  state.runtime.lifecycle.consumers.control.exploreRateCosted (count := interface.actions)
+
 /-- The primitive learner's PAR-10 rate, the sole source of the explicitly shared rate. -/
 def TemporalControl.primitiveRate (state : TemporalControl interface profile config criterion dimension) : SwiftTd.ExploreRate :=
-  state.runtime.lifecycle.consumers.control.exploreRate (count := interface.actions)
+  state.primitiveRateCosted.val
+
+/-- The primitive rate is the primitive controller's derived rate. -/
+theorem TemporalControl.primitiveRate_def
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.primitiveRate =
+      state.runtime.lifecycle.consumers.control.exploreRate (count := interface.actions) := rfl
+
+/-- The meta rate with its work: the work of the source the rate policy names, the
+meta-controller's derived rate or the primitive one. -/
+def TemporalControl.metaRateCosted
+    (state : TemporalControl interface profile config criterion dimension) :
+    Costed SwiftTd.ExploreRate :=
+  state.rate.controllerCosted
+    (fun _ => state.runtime.lifecycle.consumers.metaController.exploreRateCosted
+      (count := metaCount))
+    (fun _ => state.primitiveRateCosted)
 
 /-- Resolve the meta rate against its own learner or the declared common source. -/
 def TemporalControl.metaRate (state : TemporalControl interface profile config criterion dimension) : SwiftTd.ExploreRate :=
-  state.rate.controller
-    (fun _ => state.runtime.lifecycle.consumers.metaController.exploreRate (count := metaCount))
-    (fun _ => state.primitiveRate)
+  state.metaRateCosted.val
+
+/-- The meta rate is the rate policy's controller rate, at the meta-controller's own derived
+rate and the primitive rate. -/
+theorem TemporalControl.metaRate_def
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.metaRate =
+      state.rate.controller
+        (fun _ => state.runtime.lifecycle.consumers.metaController.exploreRate (count := metaCount))
+        (fun _ => state.primitiveRate) :=
+  RateState.controllerCosted_val _ _ _
 
 /-- The primitive source cannot accidentally read a different controller. -/
 def TemporalControl.controlRate (state : TemporalControl interface profile config criterion dimension) : SwiftTd.ExploreRate :=
   state.rate.controller (fun _ => state.primitiveRate) (fun _ => state.primitiveRate)
 
+/-- The source of an option's rate with its work: the primitive rate's where the rate policy
+shares it, and nothing otherwise. -/
+def TemporalControl.skillRateCosted
+    (state : TemporalControl interface profile config criterion dimension) :
+    Costed ConsumerRate :=
+  state.rate.skillCosted (fun _ => state.primitiveRateCosted)
+
 /-- The source of an option's rate. In selection an option that starts resolves its own
 rate after its invocation reset; the draw-first dispatch resolves it for the first action
 before that reset (`Skill.frozenPolicy`). -/
 def TemporalControl.skillRate (state : TemporalControl interface profile config criterion dimension) : ConsumerRate :=
-  state.rate.skill (fun _ => state.primitiveRate)
+  state.skillRateCosted.val
+
+/-- The options' rate source is the rate policy's, at the primitive rate. -/
+theorem TemporalControl.skillRate_def
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.skillRate = state.rate.skill (fun _ => state.primitiveRate) :=
+  RateState.skillCosted_val _ _
 
 /-- Under the declared policy the primitive controller, the meta-controller and
 every option read the declared D6 word at every state, whatever any learner
@@ -220,15 +263,29 @@ theorem TemporalControl.declared_rates (state : TemporalControl interface profil
     state.controlRate = declaredRate ∧ state.metaRate = declaredRate ∧
       ∀ own, state.skillRate.resolve own = declaredRate := by
   refine ⟨RateState.declared_controller state.rate declared _ _,
-    RateState.declared_controller state.rate declared _ _, fun own => ?_⟩
-  simp only [TemporalControl.skillRate, RateState.declared_skill state.rate declared,
+    state.metaRate_def.trans (RateState.declared_controller state.rate declared _ _),
+    fun own => ?_⟩
+  simp only [TemporalControl.skillRate_def, RateState.declared_skill state.rate declared,
     ConsumerRate.resolve]
+
+/-- The current value function with its work: the meta rate's. -/
+def TemporalControl.valueFunctionCosted
+    (state : TemporalControl interface profile config criterion dimension) :
+    Costed (ValueFunction criterion dimension) := do
+  let rate ← state.metaRateCosted
+  Costed.pure ⟨state.runtime.lifecycle.consumers.metaController, rate⟩
 
 /-- The current value function: the meta-controller as it stands, with the rate its
 nominal policy resolves to now. Model targets and model caches read it. -/
 def TemporalControl.valueFunction (state : TemporalControl interface profile config criterion dimension) :
     ValueFunction criterion dimension :=
-  ⟨state.runtime.lifecycle.consumers.metaController, state.metaRate⟩
+  state.valueFunctionCosted.val
+
+/-- The value function is the meta-controller with the meta rate. -/
+theorem TemporalControl.valueFunction_def
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.valueFunction = ⟨state.runtime.lifecycle.consumers.metaController, state.metaRate⟩ :=
+  rfl
 
 /-- Replace exactly one option's managed storage. -/
 def TemporalControl.withSkill (state : TemporalControl interface profile config criterion dimension)
@@ -703,16 +760,37 @@ def TemporalControl.activeSlot (state : TemporalControl interface profile config
     Option (Fin Acorn.FeatureConstants.skillCount) :=
   state.runtime.references.phase.executing
 
+/-- The stopping estimate with its work: the comparison value of the drawn decision's snapshot,
+or the meta rate and the comparison value of the frame's meta values at it. -/
+def TemporalControl.stoppingEstimateCosted
+    (state : TemporalControl interface profile config criterion dimension)
+    (decision : TemporalDecision interface.actions) : Costed Binary32 :=
+  match decision.metaDecision with
+  | some drawn => comparisonValueCosted criterion drawn.snapshot
+  | none => do
+    let rate ← state.metaRateCosted
+    comparisonValueCosted criterion (⟨decision.metaValues, rate⟩ : PolicySnapshot metaCount)
+
 /-- The stopping estimate options that are not executing compare against: the
 nominal value of the frame's meta snapshot. When a meta decision was drawn at this
 frame it is that decision's own frozen snapshot, values and rate; otherwise no
 meta learner has changed since the values were read, and the current rate is theirs. -/
 def TemporalControl.stoppingEstimate (state : TemporalControl interface profile config criterion dimension)
     (decision : TemporalDecision interface.actions) : Binary32 :=
-  match decision.metaDecision with
-  | some drawn => comparisonValue criterion drawn.snapshot
-  | none => comparisonValue criterion
-      (⟨decision.metaValues, state.metaRate⟩ : PolicySnapshot metaCount)
+  (state.stoppingEstimateCosted decision).val
+
+/-- The stopping estimate is the comparison value of the drawn decision's snapshot, or of the
+frame's meta values at the meta rate. -/
+theorem TemporalControl.stoppingEstimate_def
+    (state : TemporalControl interface profile config criterion dimension)
+    (decision : TemporalDecision interface.actions) :
+    state.stoppingEstimate decision =
+      match decision.metaDecision with
+      | some drawn => comparisonValue criterion drawn.snapshot
+      | none => comparisonValue criterion
+          (⟨decision.metaValues, state.metaRate⟩ : PolicySnapshot metaCount) := by
+  unfold TemporalControl.stoppingEstimate TemporalControl.stoppingEstimateCosted
+  cases decision.metaDecision <;> rfl
 
 /-- One slot's share of a followed frame with its work: the executing slot's unlinked record, or
 the potential of its interest, then its off-policy following or, without a source, its unlinked
@@ -778,6 +856,31 @@ theorem followSlot_def (models : OptionModelOps criterion dimension)
     cases (skill.interest.potentialCosted features declared).val <;> rfl
   · rfl
 
+/-- The following of the option table with its work: where options learn, the stopping estimate,
+the options' rate source and the value function, then each slot's share in table order and the
+state's record with the followed table; otherwise the unchanged state. -/
+def TemporalControl.followOptionsCosted
+    (state : TemporalControl interface profile config criterion dimension)
+    (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
+    (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
+    (decision : TemporalDecision interface.actions) :
+    Costed (TemporalControl interface profile config criterion dimension) :=
+  Costed.ite ((profile.usesHierarchy && profile.mode != .frozen) = true)
+    (fun _ => do
+      let estimate ← state.stoppingEstimateCosted decision
+      let rate ← state.skillRateCosted
+      let executing := state.activeSlot
+      let value ← state.valueFunctionCosted
+      let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
+        credit, creditMatches, average, schedule, lifetime⟩ := state
+      let followed ← Costed.mapFinIdx skills fun index skill bound =>
+        followSlotCosted models value features declared goal estimate rate decision.action
+          decision.probabilities reward average.rate (executing == some ⟨index, bound⟩) skill
+      Costed.op .followTable
+        ⟨⟨⟨representation, ⟨control, metaController, followed, demons⟩⟩, references⟩,
+          credit, creditMatches, average, schedule, lifetime⟩)
+    fun _ => Costed.op .followTable state
+
 /-- Every option that is not executing learns from the frame's actual action and
 its reported behaviour masses, in table order, after selection and before the
 common completion boundary, so each reads the same pre-observation gain as the
@@ -787,19 +890,7 @@ def TemporalControl.followOptions (state : TemporalControl interface profile con
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions) :
     TemporalControl interface profile config criterion dimension :=
-  if profile.usesHierarchy && profile.mode != .frozen then
-    let estimate := state.stoppingEstimate decision
-    let rate := state.skillRate
-    let executing := state.activeSlot
-    let value := state.valueFunction
-    let ⟨⟨⟨representation, ⟨control, metaController, skills, demons⟩⟩, references⟩,
-      credit, creditMatches, average, schedule, lifetime⟩ := state
-    let followed := skills.mapFinIdx fun index skill bound =>
-      followSlot models value features declared goal estimate rate decision.action
-        decision.probabilities reward average.rate (executing == some ⟨index, bound⟩) skill
-    ⟨⟨⟨representation, ⟨control, metaController, followed, demons⟩⟩, references⟩,
-      credit, creditMatches, average, schedule, lifetime⟩
-  else state
+  (state.followOptionsCosted models features declared reward goal decision).val
 
 /-- Consuming the ensemble before the option updates preserves the complete
 composition: only the skill table changes, slot by slot. -/

@@ -1062,7 +1062,8 @@ theorem step_event_primitive
     state.step planning features observation reward first =
       state.step planning features observation reward second := by
   unfold TemporalControl.step TemporalControl.select TemporalControl.selectWithOperations
-    TemporalControl.takeoverValue TemporalControl.followOptions
-  simp only [primitive, Bool.not_false, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
+    TemporalControl.takeoverValue
+  simp only [TemporalControl.followOptions_eq, primitive, Bool.not_false, Bool.false_and,
+    Bool.false_eq_true, ↓reduceIte]
 
 end AcornVerif.CurrentOak

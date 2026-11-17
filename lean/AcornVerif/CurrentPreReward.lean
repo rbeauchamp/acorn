@@ -2754,7 +2754,7 @@ variable {interface : Interface} {profile : FeatureProfile} {config : Features.C
 /-- The stopping estimate of a quiet decision is a zero word. -/
 theorem Quiet.stoppingEstimate {decision : TemporalDecision interface.actions}
     (quiet : DecisionQuiet decision) : (state.stoppingEstimate decision).isZero = true := by
-  unfold TemporalControl.stoppingEstimate
+  rw [TemporalControl.stoppingEstimate_def]
   split
   · rename_i drawn same
     exact (quiet.metaDecision drawn same).comparison criterion
