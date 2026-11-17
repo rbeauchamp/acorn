@@ -361,9 +361,9 @@ rbeauchamp/acorn#232 with rbeauchamp/acorn#171; asked in this form by the owner'
 2026-11-17 on rbeauchamp/acorn#248). The executed agent, from the given state, solves on every
 later visit that the predicate `admits` holds of for a member, each member it has solved on one
 visit. It is a statement about the agent's one run in each member and counts nothing. The
-predicate is a parameter, and `executed_mission` holds of every predicate. The one the owner's
-decision names is `ExecutedCalm`: the agent explores at no decision of the visit. Open: no
-theorem says the agent learns a route from its first reward. -/
+predicate is a parameter, and `executed_mission` holds of every predicate. The owner's decision
+names the visits in which the agent takes no exploratory action; `ExecutedCalm` is the reading of
+that on the first rung. Open: no theorem says the agent learns a route from its first reward. -/
 def ExecutedRetainsOn
     (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)
@@ -371,20 +371,31 @@ def ExecutedRetainsOn
   Kernel.RetainsOn (feasibleFind config profile.taskMode live length)
     (fun _ => completion config profile.taskMode length) length admits (executedAgent state)
 
-/-- **A visit on which the executed agent explores at no decision.** In the executed agent's run
-in a member's visits, from the given state, the executed step reports no exploration at any of
-the visit's `length + 1` decisions: its decision carries the flag
-`Acorn.Features.TemporalDecision.explored`, which the step sets when the primitive controller or
-an option begins an exploratory run and when the agent serves a step of a run it had committed
-to, and the flag is unset at each of those decisions. A greedy choice among several candidates
-draws on the generator as well (`Acorn.Features.PolicySnapshot.greedy_def`); it sets no flag and
-is not exploration here, so a calm visit can still hold a choice drawn at random among actions
-whose values are tied. Under a profile with a hierarchy the meta-controller's own exploring
-branch is not that flag and is not read here. -/
+/-- **A visit on which the executed agent explores at no decision the world takes.** In the
+executed agent's run in a member's visits, from the given state, the executed step reports no
+exploration at any of the visit's first `length` decisions, the ones whose actions the member's
+world takes. The visit's last decision is not read: the world returns to its start whatever that
+action is (`AcornVerif.Kernel.visits`), after every state that solving the member on this visit
+reads.
+
+What "reports no exploration" means. The step's decision carries the flag
+`Acorn.Features.TemporalDecision.explored`. A decision is a served step of a run the agent had
+committed to, or the outcome of one persistent draw, whose flag is the draw's branch
+(`AcornVerif.CurrentTemporal.select_persistent`); under the declared rate that branch is a
+function of one word of the generator (`AcornVerif.TemporalSupport.select_declared`). A served
+step sets the flag as well (`AcornVerif.CurrentTemporal.serve_explored`). So a calm visit holds,
+among the decisions it reads, neither the start of an exploratory run nor a step of one.
+
+Three things in this reading were chosen on the owner's behalf, and the owner can overrule each.
+The flag is taken as the meaning of an exploratory action. A greedy choice among several
+candidates draws on the generator as well (`Acorn.Features.PolicySnapshot.greedy_def`); it sets
+no flag and is not exploration here, so a calm visit can still hold a choice drawn at random
+among actions whose values are tied. And under a profile with a hierarchy the meta-controller's
+own exploring branch is not that flag and is not read. -/
 def ExecutedCalm (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)
     (index : (feasibleFind config profile.taskMode live length).Index) (visit : ℕ) : Prop :=
-  ∀ step, step ≤ length →
+  ∀ step, step < length →
     ((Kernel.memoryAt
         (Kernel.visits ((feasibleFind config profile.taskMode live length).world index)
           ((feasibleFind config profile.taskMode live length).start index) length)
