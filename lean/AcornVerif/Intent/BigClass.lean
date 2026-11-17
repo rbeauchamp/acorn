@@ -291,7 +291,7 @@ theorem bigClass_o2Run : O2Run bigClass :=
 /-! ## Trials that fail one property each -/
 
 /-- The two-door class with the given members: both counted, attempts of two steps, rewards summed,
-and `finder`. -/
+the horizon and the lapses of the postcondition's two-door class, and `finder`. -/
 def classOf (member : Bool → Member (Option Bool) Bool) : Trial where
   Obs := Option Bool
   Act := Bool
@@ -300,6 +300,8 @@ def classOf (member : Bool → Member (Option Bool) Bool) : Trial where
   counted := [true, false]
   length := 2
   total := List.sum
+  horizon := 2
+  lapses := 0
   agent := finder
 
 /-- `base` whose members have no goal: no state of theirs meets one. -/

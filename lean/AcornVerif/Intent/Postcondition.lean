@@ -15,6 +15,9 @@ decided that day: under fork F-A the promise is stated in reward, and under fork
 is promised eventually, with a bound on how long learning takes to come next. That restatement is
 this record's only source. The agents that work on Acorn wrote it from a research report on the
 research of Rich Sutton, Khurram Javed and Oak Lab, and the owner adopted it by confirming it.
+On 2026-11-17 the owner decided how the record reads "it keeps solving it" of an agent that goes
+on exploring (rbeauchamp/acorn#248): it solves the member again on every later attempt before an
+attempt the class states, but for at most a number of attempts the class states.
 
 The record's writer had read, before writing it: the mission contract, whose design sections state
 proposed Lean forms of separation and retention over the kernel's definitions; the records of
@@ -32,7 +35,9 @@ record module.
 The subject, `Trial`, is a class of worlds with what the second sentence says a class states, and
 the agent that learns in it: the members, each a world over the class's observations and actions
 with its reward and its goal (`Member`); the members the comparison counts (`counted`); how long an
-attempt lasts (`length`); how an attempt's rewards are aggregated (`total`); and the agent. Every
+attempt lasts (`length`); how an attempt's rewards are aggregated (`total`); the attempt before
+which the class reads its promise of solving again (`horizon`) and on how many attempts before it
+the agent may fail a member it has solved (`lapses`); and the agent. Every
 quantity the properties read is computed from those by the faithful run of an agent in a member
 (`Member.run`), which is contract 1's faithful run never stopped (`run_reaches`, in the module of
 this record's consequences): the agent is given the world's
@@ -50,9 +55,12 @@ The four properties are the record's reading of sentences 2 to 5:
   earns more reward across the counted members than any agent that keeps nothing of its experience
   earns on any attempt. It names no bound on that attempt, as fork F-B decides.
 * `keepsSolving` is the first half of sentence 4, with "the problem stays the same" read as: the
-  member's attempts start from the same state of its world.
-* `learnsAgain` is the second half of sentence 4, in an eventual form: where a member's attempts
-  come back, for good, to the state from which the agent once solved it, the agent solves it again.
+  member's attempts start from the same state of its world, and "it keeps solving it" read as the
+  owner decided on 2026-11-17: on every later attempt before the class's horizon, but for at most
+  the class's number of lapses. With no lapse allowed it asks every such attempt.
+* `learnsAgain` is the second half of sentence 4: where a member's attempts come back, for good,
+  to the state from which the agent once solved it, and more attempts than the allowed lapses
+  remain before the horizon, the agent solves it again before the horizon.
 
 Sentence 1, and "success is measured as reward" of sentence 5, are carried by stating the first two
 properties in the reward each member's world generates and the run gives the agent. Sentence 6
@@ -66,10 +74,17 @@ formalization and recorded in the record's confirmation file:
 * The agents compared each run alone in each member; campaigns of several members in one stream are
   left to obligation 10 of the mission contract.
 * "The problem stays the same" is equality of the world's state at the start of the attempts.
-* `learnsAgain` is the eventual form above. Obligation 10 of the mission contract owns the precise
-  form for campaigns: from which memories, and within how many attempts.
-* `earnsMoreEventually` asks for one attempt, not for every attempt from some attempt on; with
-  `keepsSolving` the advantage lasts where the members' problems stay the same.
+* `learnsAgain` names no attempt but the horizon. Obligation 10 of the mission contract owns the
+  precise form for campaigns: from which memories, and within how many attempts.
+* The lapses are counted for each member: one list of at most the class's number of attempts, the
+  same whichever earlier attempt solved the member. The record does not say why an attempt is a
+  lapse, and reads no report of the agent's about its own exploring.
+* A class names its horizon and its number of lapses, and the record asks nothing of them. A class
+  that allows as many lapses as it has attempts before its horizon asks no retention
+  (`keepsSolving_of_lapses`, in the module of this record's consequences).
+* `earnsMoreEventually` asks for one attempt, not for every attempt from some attempt on. With
+  `keepsSolving`, each member the agent has solved it solves again on the later attempts before
+  the horizon that are not that member's lapses, where the member's problem stays the same.
 * "The attempts counted" are all of them: `rewardCountsMembers` holds on every attempt of each
   compared agent.
 * The comparison counts a finite list of members that the class names, while `keepsSolving` and
@@ -142,6 +157,11 @@ structure Trial where
   length : Nat
   /-- How the rewards of one attempt are aggregated, from the rewards in the order given. -/
   total : List Rat → Rat
+  /-- The attempt before which the class reads its promise of solving again: the promise covers
+  the attempts that come before this one. -/
+  horizon : Nat
+  /-- On how many attempts before the horizon the agent may fail a member it has solved. -/
+  lapses : Nat
   /-- The agent that learns. -/
   agent : Agent Obs Act
 
@@ -207,22 +227,29 @@ def earnsMoreEventually : Clause Trial :=
     of its experience earns on any attempt", fun w =>
     ∃ n, ∀ B, KeepsNothing B → ∀ k, w.classReward B k < w.classReward w.agent n⟩
 
-/-- Once the agent has solved a member on an attempt, it solves it on every later attempt up to
-which that member's attempts all start from the state the solved attempt started from. -/
+/-- Once the agent has solved a member on an attempt, it solves it on every later attempt before
+the class's horizon up to which that member's attempts all start from the state the solved attempt
+started from, but for at most the class's number of lapses: for each member, the attempts outside
+one list of at most that many. -/
 def keepsSolving : Clause Trial :=
-  ⟨"once the agent has solved a member, it solves it on every later attempt while the member's \
-    attempts start from the same state", fun w =>
-    ∀ i n n', n ≤ n' → (∀ k, n ≤ k → k ≤ n' → w.SameProblem i n k) →
-      w.solves w.agent i n = true → w.solves w.agent i n' = true⟩
+  ⟨"once the agent has solved a member, it solves it on every later attempt before a stated \
+    attempt while the member's attempts start from the same state, but for at most a stated \
+    number of attempts", fun w =>
+    ∀ i, ∃ lapsed : List Nat, lapsed.length ≤ w.lapses ∧
+      ∀ n n', n ≤ n' → n' < w.horizon → (∀ k, n ≤ k → k ≤ n' → w.SameProblem i n k) →
+        w.solves w.agent i n = true → n' ∉ lapsed → w.solves w.agent i n' = true⟩
 
 /-- Once the agent has solved a member on an attempt, then from any later attempt after which that
-member's attempts all start from the state the solved attempt started from, it solves the member
-again on some attempt. -/
+member's attempts all start from the state the solved attempt started from, and which leaves more
+attempts before the class's horizon than the class's number of lapses, it solves the member again
+on some attempt before the horizon. -/
 def learnsAgain : Clause Trial :=
-  ⟨"once the agent has solved a member, it solves it again on some attempt once the member's \
-    attempts have come back for good to the state the solved one started from", fun w =>
-    ∀ i n n', n ≤ n' → (∀ k, n' ≤ k → w.SameProblem i n k) →
-      w.solves w.agent i n = true → ∃ n'', n' ≤ n'' ∧ w.solves w.agent i n'' = true⟩
+  ⟨"once the agent has solved a member, it solves it again on some attempt before a stated \
+    attempt, once the member's attempts have come back for good to the state the solved one \
+    started from and more attempts than the stated number of lapses remain", fun w =>
+    ∀ i n n', n ≤ n' → n' + w.lapses < w.horizon → (∀ k, n' ≤ k → w.SameProblem i n k) →
+      w.solves w.agent i n = true →
+        ∃ n'', n' ≤ n'' ∧ n'' < w.horizon ∧ w.solves w.agent i n'' = true⟩
 
 /-- A class with one of its agents, the argument of the vocabulary's first predicate. -/
 abbrev Entrant : Type 1 :=
@@ -297,7 +324,7 @@ def door (pay : Rat) (b : Bool) : Member (Option Bool) Bool where
 
 /-- The two-door class with the aggregation `total`, the payment `pay` and the agent `A`: one member
 for each door, both counted, and attempts of two steps, one to try a door and one to see the
-outcome. -/
+outcome. Its promise of solving again covers the first two attempts and allows no lapse. -/
 def doors (total : List Rat → Rat) (pay : Rat) (A : Agent (Option Bool) Bool) : Trial where
   Obs := Option Bool
   Act := Bool
@@ -306,6 +333,8 @@ def doors (total : List Rat → Rat) (pay : Rat) (A : Agent (Option Bool) Bool) 
   counted := [true, false]
   length := 2
   total := total
+  horizon := 2
+  lapses := 0
   agent := A
 
 /-- The door the agent `A` tries on attempt `n` of its run in the member `b`: its action at the
@@ -478,8 +507,9 @@ theorem finder_solves (b : Bool) (n : Nat) :
 theorem doors_finder_meets (h : Fair total pay) :
     postcondition.Meets (doors total pay finder) := by
   refine postcondition_meets.mpr ⟨doors_rewardCounts total pay finder h,
-    ⟨1, fun (B : Agent (Option Bool) Bool) hB k => ?_⟩, fun b n n' hle _ hs => ?_,
-    fun b n n' _ _ _ => ⟨n' + 1, Nat.le_succ _, finder_solves ..⟩⟩
+    ⟨1, fun (B : Agent (Option Bool) Bool) hB k => ?_⟩,
+    fun b => ⟨[], Nat.le_refl 0, fun n n' hle _ _ hs _ => ?_⟩,
+    fun b n n' hle room _ hs => ?_⟩
   · show (doors total pay finder).classReward B k < (doors total pay finder).classReward finder 1
     rw [doors_classReward, doors_classReward, finder_solves, finder_solves, doors_solves,
       doors_solves, keepsNothing_tried pay hB, keepsNothing_tried pay hB]
@@ -487,6 +517,9 @@ theorem doors_finder_meets (h : Fair total pay) :
   · cases n' with
     | zero => exact (Nat.le_zero.mp hle) ▸ hs
     | succ n' => exact finder_solves ..
+  · cases n' with
+    | zero => exact ⟨0, Nat.le_refl 0, room, (Nat.le_zero.mp hle) ▸ hs⟩
+    | succ n' => exact ⟨n' + 1, Nat.le_refl _, room, finder_solves ..⟩
 
 /-- Summing an attempt's rewards, with a payment of one, is fair. -/
 theorem fair_sum_one : Fair List.sum 1 := by
@@ -568,12 +601,17 @@ theorem postcondition_o3 : O3 postcondition := by
     exact absurd hlt (by decide +kernel)
   · exact ⟨fixed, not_earnsMore_of_keepsNothing (w := fixed) (always_keepsNothing true)⟩
   · refine ⟨forgetful, fun h => ?_⟩
+    obtain ⟨lapsed, few, keeps⟩ := h true
+    have none : lapsed = [] := List.length_eq_zero_iff.mp (Nat.le_zero.mp few)
     have hs : forgetful.solves once true 1 = true :=
-      h true 0 1 (by decide) (fun k _ _ => doors_sameProblem List.sum 1 once true 0 k) rfl
+      keeps 0 1 (by decide) (by decide)
+        (fun k _ _ => doors_sameProblem List.sum 1 once true 0 k) rfl
+        (by rw [none]; exact List.not_mem_nil)
     exact absurd hs (by decide)
   · refine ⟨forgetful, fun h => ?_⟩
-    obtain ⟨n, hn, hs⟩ :=
-      h true 0 1 (by decide) (fun k _ => doors_sameProblem List.sum 1 once true 0 k) rfl
+    obtain ⟨n, hn, -, hs⟩ :=
+      h true 0 1 (by decide) (by decide)
+        (fun k _ => doors_sameProblem List.sum 1 once true 0 k) rfl
     obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
     exact Bool.noConfusion (hs.symm.trans (once_misses List.sum 1 once m))
 

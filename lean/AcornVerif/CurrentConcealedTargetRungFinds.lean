@@ -8,7 +8,7 @@ import AcornVerif.CurrentConcealedTargetRung
 /-!
 # The first rung's agent finds
 
-`rung_finds` proves the premise `ExecutedFinds` of the first rung's theorem
+`rung_finds` proves the premise `ExecutedFindsBy` of the first rung's theorem
 (`AcornVerif.CurrentConcealedTargetRung.rung_mission`): the rung's agent solves each of 102 listed
 members of its class on one of its first 72 visits, and 102 is more than the covering bound 98.
 It is a statement about the executed agent's run in each member's own world, with no assumption
@@ -219,9 +219,10 @@ theorem found_met (mode : TaskFeatureMode) (point : ℤ × ℤ) (listed : point 
       (pointPosition point) near⟩
 
 /-- **The first rung's agent finds.** There are 102 distinct members of the rung's class each of
-which the rung's agent solves on one of its first 72 visits. So the agent finds: 102 is more than
-the covering bound 98. This is the premise `ExecutedFinds` of
-`AcornVerif.CurrentConcealedTargetRung.rung_mission`, with those members counted. -/
+which the rung's agent solves on one of its first 72 visits. So the agent finds by the visit 72,
+three members more than the covering bound 98 asks: 102 is more than 101. This is the premise
+`ExecutedFindsBy` of `AcornVerif.CurrentConcealedTargetRung.rung_mission`, with those members
+counted, `last` at 72 and `spare` at 3. -/
 theorem rung_finds (planning : PlanningSelection) :
     ∃ counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
         witnessLive 7).Index,
@@ -231,8 +232,8 @@ theorem rung_finds (planning : PlanningSelection) :
             (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7)
             (fun _ => completion witnessConfig (rungConstruction planning).profile.taskMode 7) 7
             (executedAgent (rungConstruction planning).initial.agent) visit index) ∧
-        ExecutedFinds (rungConstruction planning).initial.agent witnessConfig witnessLive 7
-          counted := by
+        ExecutedFindsBy (rungConstruction planning).initial.agent witnessConfig witnessLive 7
+          counted 72 3 := by
   classical
   let admit : { point // point ∈ rungFound } →
       (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
@@ -263,13 +264,10 @@ theorem rung_finds (planning : PlanningSelection) :
     exact (cold_found_within (profile := (rungConstruction planning).profile) rfl rfl planning
       witnessLive rfl 7 72 (admit point)).mpr
         (found_met (rungConstruction planning).profile.taskMode point.1 point.2)
-  refine ⟨rungFound.attach.map admit, distinct, by
+  exact ⟨rungFound.attach.map admit, distinct, by
     rw [List.length_map, List.length_attach]
-    rfl, solved, (rungFound.attach.map admit).toFinset, by
-    rw [List.toFinset_card_of_nodup distinct, List.length_map, List.length_attach]
-    decide, fun index member => ?_⟩
-  have listed := List.mem_toFinset.mp member
-  obtain ⟨visit, -, once⟩ := solved index listed
-  exact ⟨listed, visit, once⟩
+    rfl, solved, Kernel.findsBy_of_each distinct (by
+      rw [List.length_map, List.length_attach]
+      decide) solved⟩
 
 end AcornVerif.CurrentConcealedTargetRungFinds

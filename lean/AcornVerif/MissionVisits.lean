@@ -28,6 +28,9 @@ the theorem `visits_mission`, whose hypotheses are the work that remains.
 - an attempt is a visit: its `length + 1` decisions;
 - an attempt's rewards are aggregated by `untilPaid`: they are summed up to and including the first
   step that pays, so an attempt is over, for the count of reward, when its goal is first met;
+- the promise of solving again is read before the visit `horizon`, and it allows `lapses` visits
+  of each member, as the postcondition's record asks a class to state
+  (`AcornVerif.Intent.Postcondition.Trial`);
 - the agent is the kernel's agent, given the percept as its observation (`recordAgent`). An agent of
   the records over percepts and actions is a kernel agent in turn (`kernelAgent`), and the run the
   records compute with is the kernel's closed loop (`run_eq_loop`). So an agent solves a member on
@@ -57,26 +60,34 @@ feasible goals and `PaysAtGoals`, the class in visits meets the record of contra
 Concealment is carried across visits by `AcornVerif.Kernel.Conceals.inVisits`. Success shows in the
 reward: the reading that says whether the goal is met is whether the reward is one.
 
-For an agent that separates and retains (`AcornVerif.Kernel.Separates`,
-`AcornVerif.Kernel.Retains`), the class in visits meets the record of the postcondition
-(`visits_achieves`).
+For an agent that separates, and that retains before the horizon but for the lapses
+(`AcornVerif.Kernel.Separates`, `AcornVerif.Kernel.RetainsBut`), the class in visits meets the
+record of the postcondition (`visits_achieves`). A member solved once is solved again within the
+lapses (`AcornVerif.Kernel.RetainsBut.again`), which is the record's clause on learning again.
 
 ## The mission from premises
 
-`visits_mission` proves `Mission` of the rung from: the class's conditions above; `Finds` and
-`Retains` of the agent; and contract 3's record of the agent's run in each member. `Finds` and
-`Retains` are what remains of obligation 9, and are what the goal-information and exploration
-premises of obligation 4 must deliver for an agent. Contract 3's record follows from the premises
+`visits_mission` proves `Mission` of the rung from: the class's conditions above; `Separates` and
+`RetainsBut` of the agent; and contract 3's record of the agent's run in each member. The two are
+what remains of obligation 9, and are what the goal-information and exploration premises of
+obligation 4 must deliver for an agent. `AcornVerif.Separation` gives them from parts: an agent
+that finds and retains on every later visit has both, with no lapse
+(`AcornVerif.Kernel.separates_of_finds`, `AcornVerif.Kernel.Retains.but`), and an agent that goes
+on exploring has them from finding by a stated visit, retention on the visits a predicate admits,
+and two counts of those visits (`AcornVerif.Kernel.separates_of_finds_on`,
+`AcornVerif.Kernel.RetainsOn.but`). Contract 3's record follows from the premises
 `AcornVerif.Intent.MissionTheorem.MemoryBounded`, `WorkBounded`, `LearnsOnArrival` and
 `KeepsDiscipline`; the first three state obligations 6 and 7, and the fourth the clauses of the
 record that no numbered obligation states.
 
 `visits_mission_allBut` joins the two premises about solving over a finite family of agents: where
-all but one fraction of them find and all but another retain, the statement holds of all but the
-sum of the fractions. It is a count, with no hypothesis about draws. What it would take to read it
-as fork F4's statement about an agent that explores with random draws is said at
-`AcornVerif.Kernel.AllBut`: a family of the agent's draw sequences, which exists only for a
-guarantee that reads finitely many draws, and `Retains` asks every later visit.
+all but one fraction of them separate and all but another retain before the horizon but for the
+lapses, the statement holds of all but the sum of the fractions. It is a count, with no hypothesis
+about draws. What it would take to read it as fork F4's statement about an agent that explores
+with random draws is said at `AcornVerif.Kernel.AllBut`: a family of the agent's draw sequences,
+which exists only for a guarantee that reads finitely many draws. `RetainsBut` reads the visits
+before its horizon. `Separates` names no last visit; it reads finitely many draws where the visit
+on which the agent solves the members is named.
 
 `retrace_mission` discharges every premise for the retracing agent with the reward as its signal,
 on every such class whose counted members its exploring walks meet. So the statement is satisfiable
@@ -217,8 +228,10 @@ structure PaysAtGoals (family : WorldClass interface) (goals : family.Goals)
 
 /-- A class of worlds in visits with one agent, as the records read it: each member in visits of
 `length` steps, the members the comparison counts, attempts of a visit's `length + 1` decisions, the
-rewards of an attempt aggregated by `untilPaid`, and the agent. -/
-def visitsTrial (family : WorldClass interface) (length : ℕ) (pay : Percept interface → ℚ)
+rewards of an attempt aggregated by `untilPaid`, the visit before which the promise of solving
+again is read and the lapses it allows, and the agent. -/
+def visitsTrial (family : WorldClass interface) (length horizon lapses : ℕ)
+    (pay : Percept interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
     (counted : List family.Index) (agent : Agent interface) : Postcondition.Trial where
   Obs := Percept interface
@@ -229,11 +242,13 @@ def visitsTrial (family : WorldClass interface) (length : ℕ) (pay : Percept in
   counted := counted
   length := length + 1
   total := untilPaid
+  horizon := horizon
+  lapses := lapses
   agent := recordAgent agent
 
 section trial
 
-variable (family : WorldClass interface) (goals : family.Goals) (length : ℕ)
+variable (family : WorldClass interface) (goals : family.Goals) (length horizon lapses : ℕ)
   (pay : Percept interface → ℚ)
   (met : (index : family.Index) → (family.world index).State → Bool)
   (counted : List family.Index) (agent : Agent interface)
@@ -242,7 +257,7 @@ variable (family : WorldClass interface) (goals : family.Goals) (length : ℕ)
 closed loop of that agent in the member's world in visits. -/
 theorem stateAt_eq (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (time : ℕ) :
-    (visitsTrial family length pay met counted agent).stateAt other index time =
+    (visitsTrial family length horizon lapses pay met counted agent).stateAt other index time =
       stateAt (visits (family.world index) (family.start index) length) (kernelAgent pay other)
         (visitStart (family.world index) (family.start index) length) time :=
   congrArg Prod.fst
@@ -251,8 +266,9 @@ theorem stateAt_eq (other : WorldInterface.Agent (Percept interface) (Act interf
 /-- Whether a member's goal is met at a time of a run, in the kernel's terms. -/
 theorem goal_eq (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (time : ℕ) :
-    ((visitsTrial family length pay met counted agent).member index).goal
-        ((visitsTrial family length pay met counted agent).stateAt other index time) =
+    ((visitsTrial family length horizon lapses pay met counted agent).member index).goal
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index
+            time) =
       (decide (1 ≤ (stateAt (visits (family.world index) (family.start index) length)
           (kernelAgent pay other)
           (visitStart (family.world index) (family.start index) length) time).2.val) &&
@@ -262,15 +278,15 @@ theorem goal_eq (other : WorldInterface.Agent (Percept interface) (Act interface
   congrArg
     (fun state : (family.world index).State × Fin (length + 1) =>
       decide (1 ≤ state.2.val) && met index state.1)
-    (stateAt_eq family length pay met counted agent other index time)
+    (stateAt_eq family length horizon lapses pay met counted agent other index time)
 
 /-- At step `step` of attempt `attempt`, a member's goal is met exactly when at least one step of
 the visit has been taken and the state satisfies the member's goal. -/
 theorem goal_iff (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (attempt step : ℕ) (within : step ≤ length) :
-    ((visitsTrial family length pay met counted agent).member index).goal
-        ((visitsTrial family length pay met counted agent).stateAt other index
+    ((visitsTrial family length horizon lapses pay met counted agent).member index).goal
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index
           ((length + 1) * attempt + step)) = true ↔
       1 ≤ step ∧ (goals index).satisfied
         (stateAt (visits (family.world index) (family.start index) length)
@@ -285,7 +301,8 @@ member on an attempt exactly when, as a kernel agent, it solves that member on t
 theorem solves_iff (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (attempt : ℕ) :
-    (visitsTrial family length pay met counted agent).solves other index attempt = true ↔
+    (visitsTrial family length horizon lapses pay met counted agent).solves other index attempt =
+        true ↔
       SolvesOnVisit family goals length (kernelAgent pay other) attempt index := by
   unfold Postcondition.Trial.solves Postcondition.Trial.attemptTimes
   rw [List.any_eq_true]
@@ -294,13 +311,15 @@ theorem solves_iff (stated : PaysAtGoals family goals pay met)
     obtain ⟨step, below, rfl⟩ := List.mem_map.mp listed
     have within : step ≤ length := Nat.le_of_lt_succ (List.mem_range.mp below)
     obtain ⟨low, satisfied⟩ :=
-      (goal_iff family goals length pay met counted agent stated other index attempt step
+      (goal_iff family goals length horizon lapses pay met counted agent stated other index attempt
+          step
         within).mp reached
     exact ⟨step, low, within, satisfied⟩
   · rintro ⟨step, low, high, satisfied⟩
     exact ⟨(length + 1) * attempt + step,
       List.mem_map.mpr ⟨step, List.mem_range.mpr (Nat.lt_succ_of_le high), rfl⟩,
-      (goal_iff family goals length pay met counted agent stated other index attempt step
+      (goal_iff family goals length horizon lapses pay met counted agent stated other index attempt
+          step
         high).mpr ⟨low, satisfied⟩⟩
 
 /-! ## The reward lemma -/
@@ -309,21 +328,23 @@ theorem solves_iff (stated : PaysAtGoals family goals pay met)
 theorem reward_eq (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (time : ℕ) :
-    ((visitsTrial family length pay met counted agent).member index).reward
-        ((visitsTrial family length pay met counted agent).stateAt other index time) =
-      if ((visitsTrial family length pay met counted agent).member index).goal
-        ((visitsTrial family length pay met counted agent).stateAt other index time)
+    ((visitsTrial family length horizon lapses pay met counted agent).member index).reward
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index
+            time) =
+      if ((visitsTrial family length horizon lapses pay met counted agent).member index).goal
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index time)
       then 1 else 0 := by
   rw [goal_eq]
-  have paid : ((visitsTrial family length pay met counted agent).member index).reward
-        ((visitsTrial family length pay met counted agent).stateAt other index time) =
+  have paid : ((visitsTrial family length horizon lapses pay met counted agent).member index).reward
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index
+            time) =
       pay ((family.world index).percept
         (stateAt (visits (family.world index) (family.start index) length)
           (kernelAgent pay other)
           (visitStart (family.world index) (family.start index) length) time).1) :=
     congrArg (fun state : (family.world index).State × Fin (length + 1) =>
         pay ((family.world index).percept state.1))
-      (stateAt_eq family length pay met counted agent other index time)
+      (stateAt_eq family length horizon lapses pay met counted agent other index time)
   rw [paid]
   rcases visits_shape (family.world index) (family.start index) length (kernelAgent pay other)
       time with ⟨zero, atStart⟩ | ⟨positive, before, action, stepped⟩
@@ -336,16 +357,19 @@ and nothing when it does not. -/
 theorem earned_eq (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (attempt : ℕ) :
-    (visitsTrial family length pay met counted agent).earned other index attempt =
-      if (visitsTrial family length pay met counted agent).solves other index attempt
+    (visitsTrial family length horizon lapses pay met counted agent).earned other index attempt =
+      if (visitsTrial family length horizon lapses pay met counted agent).solves other index attempt
       then 1 else 0 := by
   have rewards :
-      (fun time => ((visitsTrial family length pay met counted agent).member index).reward
-        ((visitsTrial family length pay met counted agent).stateAt other index time)) =
-      fun time => if ((visitsTrial family length pay met counted agent).member index).goal
-        ((visitsTrial family length pay met counted agent).stateAt other index time)
+      (fun time => ((visitsTrial family length horizon lapses pay met counted agent).member
+          index).reward
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index
+            time)) =
+      fun time => if ((visitsTrial family length horizon lapses pay met counted agent).member
+          index).goal
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index time)
         then (1 : ℚ) else 0 :=
-    funext (reward_eq family goals length pay met counted agent stated other index)
+    funext (reward_eq family goals length horizon lapses pay met counted agent stated other index)
   unfold Postcondition.Trial.earned Postcondition.Trial.solves
   rw [rewards]
   exact untilPaid_indicator _ _
@@ -355,15 +379,18 @@ exactly the number of them it solves on that attempt. So one agent earns more th
 when it solves more members, for every two agents and every two attempts. -/
 theorem classReward_eq (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface)) (attempt : ℕ) :
-    (visitsTrial family length pay met counted agent).classReward other attempt =
-      ((visitsTrial family length pay met counted agent).solvedCount other attempt : ℚ) := by
+    (visitsTrial family length horizon lapses pay met counted agent).classReward other attempt =
+      ((visitsTrial family length horizon lapses pay met counted agent).solvedCount other attempt :
+          ℚ) := by
   have each :
-      (fun index => (visitsTrial family length pay met counted agent).earned other index
+      (fun index => (visitsTrial family length horizon lapses pay met counted agent).earned other
+          index
         attempt) =
-      fun index => if (visitsTrial family length pay met counted agent).solves other index
+      fun index => if (visitsTrial family length horizon lapses pay met counted agent).solves other
+          index
         attempt then (1 : ℚ) else 0 :=
     funext fun index =>
-      earned_eq family goals length pay met counted agent stated other index attempt
+      earned_eq family goals length horizon lapses pay met counted agent stated other index attempt
   unfold Postcondition.Trial.classReward Postcondition.Trial.solvedCount
   rw [each]
   exact sum_indicator _ _
@@ -374,20 +401,28 @@ the goal stays met. -/
 theorem rewards_sum (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (attempt : ℕ) :
-    (((visitsTrial family length pay met counted agent).attemptTimes attempt).map fun time =>
-        ((visitsTrial family length pay met counted agent).member index).reward
-          ((visitsTrial family length pay met counted agent).stateAt other index time)).sum =
-      ((((visitsTrial family length pay met counted agent).attemptTimes attempt).filter
-        fun time => ((visitsTrial family length pay met counted agent).member index).goal
-          ((visitsTrial family length pay met counted agent).stateAt other index time)).length :
+    (((visitsTrial family length horizon lapses pay met counted agent).attemptTimes attempt).map
+        fun time =>
+        ((visitsTrial family length horizon lapses pay met counted agent).member index).reward
+          ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index
+              time)).sum =
+      ((((visitsTrial family length horizon lapses pay met counted agent).attemptTimes
+          attempt).filter
+        fun time => ((visitsTrial family length horizon lapses pay met counted agent).member
+            index).goal
+          ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index
+              time)).length :
         ℚ) := by
   have rewards :
-      (fun time => ((visitsTrial family length pay met counted agent).member index).reward
-        ((visitsTrial family length pay met counted agent).stateAt other index time)) =
-      fun time => if ((visitsTrial family length pay met counted agent).member index).goal
-        ((visitsTrial family length pay met counted agent).stateAt other index time)
+      (fun time => ((visitsTrial family length horizon lapses pay met counted agent).member
+          index).reward
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index
+            time)) =
+      fun time => if ((visitsTrial family length horizon lapses pay met counted agent).member
+          index).goal
+        ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index time)
         then (1 : ℚ) else 0 :=
-    funext (reward_eq family goals length pay met counted agent stated other index)
+    funext (reward_eq family goals length horizon lapses pay met counted agent stated other index)
   rw [rewards]
   exact sum_indicator _ _
 
@@ -403,34 +438,40 @@ theorem frozen_bound (stated : PaysAtGoals family goals pay met)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (frozen : Postcondition.KeepsNothing other) (attempt : ℕ) :
-    (visitsTrial family length pay met counted agent).solvedCount other attempt ≤ bound := by
+    (visitsTrial family length horizon lapses pay met counted agent).solvedCount other attempt ≤
+        bound := by
   classical
   have each : ∀ index ∈ (counted.filter fun index =>
-        (visitsTrial family length pay met counted agent).solves other index attempt).toFinset,
+        (visitsTrial family length horizon lapses pay met counted agent).solves other index
+            attempt).toFinset,
       SolvesOnVisit family goals length (kernelAgent pay other) attempt index :=
     fun index inside =>
-      (solves_iff family goals length pay met counted agent stated other index attempt).mp
+      (solves_iff family goals length horizon lapses pay met counted agent stated other index
+          attempt).mp
         (List.mem_filter.mp (List.mem_toFinset.mp inside)).2
   have few := visits_need hidden covered (keepsNothing_experienceFree pay other frozen) attempt _
     each
   have card := List.toFinset_card_of_nodup (distinct.filter fun index : family.Index =>
-    (visitsTrial family length pay met counted agent).solves other index attempt)
+    (visitsTrial family length horizon lapses pay met counted agent).solves other index attempt)
   exact le_trans (le_of_eq card.symm) few
 
 /-- An agent that separates solves, on some attempt, more of the counted members than the bound. -/
 theorem count_of_separates (stated : PaysAtGoals family goals pay met)
     (separates : Separates family goals length bound counted agent) :
     ∃ attempt, bound <
-      (visitsTrial family length pay met counted agent).solvedCount (recordAgent agent)
+      (visitsTrial family length horizon lapses pay met counted agent).solvedCount (recordAgent
+          agent)
         attempt := by
   classical
   obtain ⟨visit, solved, many, each⟩ := separates
   refine ⟨visit, Nat.lt_of_lt_of_le many ?_⟩
   have inside : solved ⊆ (counted.filter fun index =>
-      (visitsTrial family length pay met counted agent).solves (recordAgent agent) index
+      (visitsTrial family length horizon lapses pay met counted agent).solves (recordAgent agent)
+          index
         visit).toFinset :=
     fun index member => List.mem_toFinset.mpr (List.mem_filter.mpr ⟨(each index member).1,
-      (solves_iff family goals length pay met counted agent stated (recordAgent agent) index
+      (solves_iff family goals length horizon lapses pay met counted agent stated (recordAgent
+          agent) index
         visit).mpr (each index member).2⟩)
   exact le_trans (Finset.card_le_card inside) (List.toFinset_card_le _)
 
@@ -438,10 +479,10 @@ theorem count_of_separates (stated : PaysAtGoals family goals pay met)
 
 /-- Every attempt of every agent's run in a member starts from the start of a visit. -/
 theorem visits_attemptsRecur :
-    BigClass.attemptsRecur.holds (visitsTrial family length pay met counted agent) :=
+    BigClass.attemptsRecur.holds (visitsTrial family length horizon lapses pay met counted agent) :=
   fun (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) attempt => by
-    change (visitsTrial family length pay met counted agent).stateAt other index
+    change (visitsTrial family length horizon lapses pay met counted agent).stateAt other index
       ((length + 1) * attempt) = visitStart (family.world index) (family.start index) length
     rw [stateAt_eq, Nat.mul_comm]
     exact visits_period _ _ _ _ attempt
@@ -450,13 +491,14 @@ theorem visits_attemptsRecur :
 an attempt from the state every attempt starts in. -/
 theorem visits_goalsReachable (stated : PaysAtGoals family goals pay met)
     (feasible : ∀ index, Feasible (visitGoals goals length index) (family.start index)) :
-    BigClass.goalsReachable.holds (visitsTrial family length pay met counted agent) :=
+    BigClass.goalsReachable.holds (visitsTrial family length horizon lapses pay met counted
+        agent) :=
   fun (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) attempt => by
     obtain ⟨actions, low, high, reached⟩ := (feasible_iff_list _ _).mp (feasible index)
     have fits : actions.length ≤ length := high
     refine ⟨actions, Nat.lt_succ_of_le fits, ?_⟩
-    rw [visits_attemptsRecur family length pay met counted agent other index attempt]
+    rw [visits_attemptsRecur family length horizon lapses pay met counted agent other index attempt]
     change (decide (1 ≤ (actions.foldl
         (visits (family.world index) (family.start index) length).step
         (family.start index, (⟨0, Nat.succ_pos length⟩ : Fin (length + 1)))).2.val) &&
@@ -474,7 +516,8 @@ every member, what the reference world in visits gives it, until that member's g
 any attempt. -/
 theorem visits_goalsConcealed (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin) :
-    BigClass.goalsConcealed.holds (visitsTrial family length pay met counted agent) := by
+    BigClass.goalsConcealed.holds (visitsTrial family length horizon lapses pay met counted
+        agent) := by
   refine ⟨visitMember reference origin length pay (fun _ => false),
     fun (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) time unmet => ?_⟩
@@ -510,26 +553,32 @@ theorem visits_frozenShareSmall (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)
     (many : bound < counted.length) :
-    BigClass.frozenShareSmall.holds (visitsTrial family length pay met counted agent) :=
+    BigClass.frozenShareSmall.holds (visitsTrial family length horizon lapses pay met counted
+        agent) :=
   ⟨bound, many, fun (other : WorldInterface.Agent (Percept interface) (Act interface)) frozen
       attempt =>
-    frozen_bound family goals length pay met counted agent stated hidden covered distinct other
+    frozen_bound family goals length horizon lapses pay met counted agent stated hidden covered
+        distinct other
       frozen attempt⟩
 
 /-- Success shows in the reward: at every time of every run, the reward a member gives is one
 exactly when its goal is met then. -/
 theorem visits_successShows (stated : PaysAtGoals family goals pay met) :
-    BigClass.successShows.holds (visitsTrial family length pay met counted agent) := by
+    BigClass.successShows.holds (visitsTrial family length horizon lapses pay met counted
+        agent) := by
   refine ⟨fun given => decide (given.2 = 1),
     fun (other : WorldInterface.Agent (Percept interface) (Act interface))
       (index : family.Index) time => ?_⟩
-  change decide (((visitsTrial family length pay met counted agent).member index).reward
-      ((visitsTrial family length pay met counted agent).stateAt other index time) = 1) =
-    ((visitsTrial family length pay met counted agent).member index).goal
-      ((visitsTrial family length pay met counted agent).stateAt other index time)
-  rw [reward_eq family goals length pay met counted agent stated other index time]
-  cases ((visitsTrial family length pay met counted agent).member index).goal
-    ((visitsTrial family length pay met counted agent).stateAt other index time) <;> simp
+  change decide (((visitsTrial family length horizon lapses pay met counted agent).member
+      index).reward
+      ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index time) =
+          1) =
+    ((visitsTrial family length horizon lapses pay met counted agent).member index).goal
+      ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index time)
+  rw [reward_eq family goals length horizon lapses pay met counted agent stated other index time]
+  cases ((visitsTrial family length horizon lapses pay met counted agent).member index).goal
+    ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index time) <;>
+        simp
 
 /-- **A class in visits is big, as contract 2's record says.** A class that conceals its goals, with
 a covering bound for one visit's length below the count of its counted members, goals feasible
@@ -540,61 +589,68 @@ theorem visits_big (stated : PaysAtGoals family goals pay met)
     (covered : Covered family (visitGoals goals length) bound)
     (feasible : ∀ index, Feasible (visitGoals goals length index) (family.start index))
     (distinct : counted.Nodup) (many : bound < counted.length) :
-    BigClass.bigClass.Meets (visitsTrial family length pay met counted agent) :=
+    BigClass.bigClass.Meets (visitsTrial family length horizon lapses pay met counted agent) :=
   BigClass.bigClass_meets.mpr
-    ⟨visits_goalsReachable family goals length pay met counted agent stated feasible,
-      visits_goalsConcealed family goals length pay met counted agent stated hidden,
-      visits_frozenShareSmall family goals length pay met counted agent stated hidden covered
+    ⟨visits_goalsReachable family goals length horizon lapses pay met counted agent stated feasible,
+      visits_goalsConcealed family goals length horizon lapses pay met counted agent stated hidden,
+      visits_frozenShareSmall family goals length horizon lapses pay met counted agent stated hidden
+          covered
         distinct many,
-      visits_successShows family goals length pay met counted agent stated,
-      visits_attemptsRecur family length pay met counted agent⟩
+      visits_successShows family goals length horizon lapses pay met counted agent stated,
+      visits_attemptsRecur family length horizon lapses pay met counted agent⟩
 
 /-! ## The postcondition -/
 
-/-- **An agent that separates and retains achieves goals, as the postcondition's record says.** In a
-class that conceals its goals, with a covering bound for one visit's length and a reward that pays
-at its goals, the class in visits with an agent that separates from that bound and retains meets the
-record of the postcondition. -/
+/-- **An agent that separates and retains but for its lapses achieves goals, as the
+postcondition's record says.** In a class that conceals its goals, with a covering bound for one
+visit's length and a reward that pays at its goals, the class in visits with an agent that
+separates from that bound, and retains before the horizon but for the lapses, meets the record of
+the postcondition. -/
 theorem visits_achieves (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)
     (separates : Separates family goals length bound counted agent)
-    (retains : Retains family goals length agent) :
-    Postcondition.postcondition.Meets (visitsTrial family length pay met counted agent) := by
-  have kept : ∀ index attempt later, attempt ≤ later →
-      (visitsTrial family length pay met counted agent).solves (recordAgent agent) index
-        attempt = true →
-      (visitsTrial family length pay met counted agent).solves (recordAgent agent) index
-        later = true := by
-    intro index attempt later order solved
-    rcases Nat.lt_or_eq_of_le order with sooner | same
-    · exact (solves_iff family goals length pay met counted agent stated (recordAgent agent)
-        index later).mpr (retains index attempt later sooner
-          ((solves_iff family goals length pay met counted agent stated (recordAgent agent)
-            index attempt).mp solved))
-    · rw [← same]
-      exact solved
+    (retains : RetainsBut family goals length horizon lapses agent) :
+    Postcondition.postcondition.Meets
+      (visitsTrial family length horizon lapses pay met counted agent) := by
   refine Postcondition.postcondition_meets.mpr
     ⟨fun (first second : WorldInterface.Agent (Percept interface) (Act interface)) _ _ attempt
         other => ?_, ?_,
-      fun (index : family.Index) attempt later order _ solved =>
-        kept index attempt later order solved,
-      fun (index : family.Index) attempt later order _ solved =>
-        ⟨later, Nat.le_refl later, kept index attempt later order solved⟩⟩
-  · rw [classReward_eq family goals length pay met counted agent stated,
-      classReward_eq family goals length pay met counted agent stated]
+      fun (index : family.Index) => ?_,
+      fun (index : family.Index) attempt later order room _ solved => ?_⟩
+  · rw [classReward_eq family goals length horizon lapses pay met counted agent stated,
+      classReward_eq family goals length horizon lapses pay met counted agent stated]
     exact Nat.cast_lt
   · obtain ⟨attempt, more⟩ :=
-      count_of_separates family goals length pay met counted agent stated separates
+      count_of_separates family goals length horizon lapses pay met counted agent stated separates
     refine ⟨attempt, fun (other : WorldInterface.Agent (Percept interface) (Act interface))
       frozen later => ?_⟩
-    change (visitsTrial family length pay met counted agent).classReward other later <
-      (visitsTrial family length pay met counted agent).classReward (recordAgent agent) attempt
-    rw [classReward_eq family goals length pay met counted agent stated,
-      classReward_eq family goals length pay met counted agent stated]
+    change (visitsTrial family length horizon lapses pay met counted agent).classReward other
+        later <
+      (visitsTrial family length horizon lapses pay met counted agent).classReward (recordAgent
+          agent) attempt
+    rw [classReward_eq family goals length horizon lapses pay met counted agent stated,
+      classReward_eq family goals length horizon lapses pay met counted agent stated]
     exact Nat.cast_lt.mpr (Nat.lt_of_le_of_lt
-      (frozen_bound family goals length pay met counted agent stated hidden covered distinct
-        other frozen later) more)
+      (frozen_bound family goals length horizon lapses pay met counted agent stated hidden
+        covered distinct other frozen later) more)
+  · obtain ⟨lapsed, count, keeps⟩ := retains index
+    refine ⟨lapsed.toList, by rw [Finset.length_toList]; exact count,
+      fun attempt later order before _ solved out => ?_⟩
+    rcases Nat.lt_or_eq_of_le order with sooner | same
+    · exact (solves_iff family goals length horizon lapses pay met counted agent stated
+        (recordAgent agent) index later).mpr (keeps attempt later sooner before
+          ((solves_iff family goals length horizon lapses pay met counted agent stated
+            (recordAgent agent) index attempt).mp solved)
+          (fun inside => out (Finset.mem_toList.mpr inside)))
+    · rw [← same]
+      exact solved
+  · obtain ⟨again, low, high, once⟩ := retains.again index attempt later order room
+      ((solves_iff family goals length horizon lapses pay met counted agent stated
+        (recordAgent agent) index attempt).mp solved)
+    exact ⟨again, low, Nat.lt_of_le_of_lt high room,
+      (solves_iff family goals length horizon lapses pay met counted agent stated
+        (recordAgent agent) index again).mpr once⟩
 
 end trial
 
@@ -602,31 +658,32 @@ end trial
 
 /-- The rung of a class of worlds in visits and an agent, with what the agent reports of its own
 steps. -/
-def visitsRung (family : WorldClass interface) (length : ℕ) (pay : Percept interface → ℚ)
+def visitsRung (family : WorldClass interface) (length horizon lapses : ℕ)
+    (pay : Percept interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
     (counted : List family.Index) (agent : Agent interface)
     (updates : agent.Memory → Percept interface × ℚ → List OneStream.Update)
     (work : agent.Memory → Percept interface × ℚ → ℕ) (resume : agent.Memory → agent.Memory) :
     Rung where
-  toTrial := visitsTrial family length pay met counted agent
+  toTrial := visitsTrial family length horizon lapses pay met counted agent
   updates := updates
   work := work
   resume := resume
 
 section mission
 
-variable {family : WorldClass interface} {goals : family.Goals} {length bound : ℕ}
-  {pay : Percept interface → ℚ}
+variable {family : WorldClass interface} {goals : family.Goals}
+  {length horizon lapses bound : ℕ} {pay : Percept interface → ℚ}
   {met : (index : family.Index) → (family.world index).State → Bool}
   {counted : List family.Index} {reference : World interface} {origin : reference.State}
 
 /-- **The mission theorem on a class in visits, from its premises.** Take a class that conceals its
 goals, with a covering bound for one visit's length, goals feasible within a visit, a reward that
-pays at its goals and distinct counted members. An agent that finds more of the counted members than
-the bound and retains what it has solved, and whose run in every member meets contract 3's record
-under its reports, achieves goals over the class in visits: the mission's statement holds of the
-rung. That the counted members outnumber the bound follows from the agent's finding more than the
-bound of them. -/
+pays at its goals and distinct counted members. An agent that solves on one visit more of the
+counted members than the bound, and retains what it has solved before the horizon but for the
+lapses, and whose run in every member meets contract 3's record under its reports, achieves goals
+over the class in visits: the mission's statement holds of the rung. That the counted members
+outnumber the bound follows from the agent's solving more than the bound of them. -/
 theorem visits_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -634,25 +691,27 @@ theorem visits_mission (stated : PaysAtGoals family goals pay met)
     (distinct : counted.Nodup) {agent : Agent interface}
     {updates : agent.Memory → Percept interface × ℚ → List OneStream.Update}
     {work : agent.Memory → Percept interface × ℚ → ℕ} {resume : agent.Memory → agent.Memory}
-    (finds : Finds family goals length bound counted agent)
-    (retains : Retains family goals length agent)
+    (separates : Separates family goals length bound counted agent)
+    (retains : RetainsBut family goals length horizon lapses agent)
     (stream : ∀ index, OneStream.oneStream.Meets
-      ((visitsRung family length pay met counted agent updates work resume).learner index)) :
-    Mission (visitsRung family length pay met counted agent updates work resume) :=
+      ((visitsRung family length horizon lapses pay met counted agent updates work
+        resume).learner index)) :
+    Mission (visitsRung family length horizon lapses pay met counted agent updates work resume) :=
   Mission.of_records
-    (visits_big family goals length pay met counted agent stated hidden covered feasible distinct
-      finds.many)
+    (visits_big family goals length horizon lapses pay met counted agent stated hidden covered
+      feasible distinct separates.finds.many)
     stream
-    (visits_achieves family goals length pay met counted agent stated hidden covered distinct
-      (separates_of_finds finds retains) retains)
+    (visits_achieves family goals length horizon lapses pay met counted agent stated hidden
+      covered distinct separates retains)
 
 /-- **The mission's statement of all but a fraction of a family of agents.** For a finite family
 of agents with their reports, on a class as in `visits_mission`: where all but a fraction `left` of
-the agents find, all but a fraction `right` retain, and every agent's run in every member meets
-contract 3's record, the mission's statement holds of all but the fraction `left + right` of the
-agents. The theorem counts agents and reads no draw. Read as fork F4's statement, the family holds
-one agent for each sequence of ideal draws; such a family is finite only where the guarantee reads
-finitely many draws, which `Retains` does not of an agent that draws at every decision. -/
+the agents separate, all but a fraction `right` retain before the horizon but for the lapses, and
+every agent's run in every member meets contract 3's record, the mission's statement holds of all
+but the fraction `left + right` of the agents. The theorem counts agents and reads no draw. Read
+as fork F4's statement, the family holds one agent for each sequence of ideal draws; such a family
+is finite only where the guarantee reads finitely many draws, as retention before a horizon
+does. -/
 theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -662,15 +721,17 @@ theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
     (updates : (run : Run) → (agent run).Memory → Percept interface × ℚ → List OneStream.Update)
     (work : (run : Run) → (agent run).Memory → Percept interface × ℚ → ℕ)
     (resume : (run : Run) → (agent run).Memory → (agent run).Memory) (left right : ℚ)
-    (finds : AllBut left runs fun run => Finds family goals length bound counted (agent run))
-    (retains : AllBut right runs fun run => Retains family goals length (agent run))
+    (separates : AllBut left runs fun run =>
+      Separates family goals length bound counted (agent run))
+    (retains : AllBut right runs fun run =>
+      RetainsBut family goals length horizon lapses (agent run))
     (stream : ∀ run ∈ runs, ∀ index, OneStream.oneStream.Meets
-      ((visitsRung family length pay met counted (agent run) (updates run) (work run)
-        (resume run)).learner index)) :
+      ((visitsRung family length horizon lapses pay met counted (agent run) (updates run)
+        (work run) (resume run)).learner index)) :
     AllBut (left + right) runs fun run =>
-      Mission (visitsRung family length pay met counted (agent run) (updates run) (work run)
-        (resume run)) :=
-  (finds.and retains).mono fun run member both =>
+      Mission (visitsRung family length horizon lapses pay met counted (agent run) (updates run)
+        (work run) (resume run)) :=
+  (separates.and retains).mono fun run member both =>
     visits_mission stated hidden covered feasible distinct both.1 both.2 (stream run member)
 
 /-! ## The retracing agent meets the statement -/
@@ -689,9 +750,10 @@ theorem paid_decodes (stated : PaysAtGoals family goals pay met) (index : family
   rw [decide_eq_true_iff, stated.pays, ← stated.reads]
   cases met index ((family.world index).step state action) <;> simp
 
-/-- The rung of a class in visits and the retracing agent with the reward as its signal. The agent
-reports, at every step, one learning update on the experience the step was given, one other update,
-and two units of work, and it resumes with the memory it held.
+/-- The rung of a class in visits and the retracing agent with the reward as its signal, with the
+promise of solving again read before the given horizon and no lapse allowed. The agent reports, at
+every step, one learning update on the experience the step was given, one other update, and two
+units of work, and it resumes with the memory it held.
 
 That the reports describe its step is argued, not proved. Its step reads the reward of the percept
 it is given and, the first time that reward shows the goal met, keeps the count of the walk it is
@@ -701,10 +763,12 @@ It makes no planning update. It makes no reset: its walk, once kept, and its cou
 return to their first values, and its count of a visit's steps is a count modulo the visit's
 decisions, which the record of contract 3 does not count as a reset
 (`AcornVerif.Intent.OneStream.returnsToInitialWithoutReset`). -/
-def retraceRung (family : WorldClass interface) (length last : ℕ) (pay : Percept interface → ℚ)
+def retraceRung (family : WorldClass interface) (length horizon last : ℕ)
+    (pay : Percept interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
     (counted : List family.Index) (explore : ℕ → ℕ → Act interface) : Rung :=
-  visitsRung family length pay met counted (retrace interface length last (paid pay) explore)
+  visitsRung family length horizon 0 pay met counted
+    (retrace interface length last (paid pay) explore)
     (fun _ _ => [.learn (.stream 0), .other]) (fun _ _ => 2) id
 
 /-- **The mission's statement is satisfiable on a class in visits.** Take a class that conceals its
@@ -712,7 +776,7 @@ goals, with a covering bound for one visit's length below the count of its count
 feasible within a visit and a reward that pays at its goals. If, for each counted member, one of the
 exploring walks of the visits up to `last` meets that member's goal from its start within a visit,
 the retracing agent with the reward as its signal achieves goals over the class: the mission's
-statement holds of its rung, with every premise discharged. -/
+statement holds of its rung, with every premise discharged, at every horizon and with no lapse. -/
 theorem retrace_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -722,11 +786,14 @@ theorem retrace_mission (stated : PaysAtGoals family goals pay met)
     (explored : ∀ index ∈ counted, ∃ visit, visit ≤ last ∧
       ∃ step, 1 ≤ step ∧ step ≤ length ∧ (goals index).satisfied
         (path (family.world index) (family.start index) (explore visit) step)) :
-    Mission (retraceRung family length last pay met counted explore) :=
+    Mission (retraceRung family length horizon last pay met counted explore) :=
   visits_mission stated hidden covered feasible distinct
-    (retrace_finds family goals length last bound (paid pay) explore (paid_decodes stated) counted
-      distinct many explored)
-    (retrace_retains family goals length last (paid pay) explore (paid_decodes stated))
+    (separates_of_finds
+      (retrace_finds family goals length last bound (paid pay) explore (paid_decodes stated)
+        counted distinct many explored)
+      (retrace_retains family goals length last (paid pay) explore (paid_decodes stated)))
+    ((retrace_retains family goals length last (paid pay) explore (paid_decodes stated)).but
+      horizon)
     (fun _ => OneStream.learner_meets _ _ _ _ _
       (fun _ _ datum listed => by
         rcases List.mem_cons.mp listed with first | second

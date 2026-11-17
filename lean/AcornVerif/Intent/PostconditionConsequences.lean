@@ -25,6 +25,12 @@ unproved, never a pass:
   acts, yet `KeepsNothing` does not hold of it. That such an agent fails the record in every class
   is not proved.
 
+The record asks nothing of the two numbers a class names, its horizon and its lapses. A class that
+allows as many lapses as it has attempts before its horizon asks no retention: `keepsSolving` and
+`learnsAgain` then hold of every agent (`keepsSolving_of_lapses`, `learnsAgain_of_lapses`). Whether
+a class's pair is one that says something is for the class to justify; no trial is exhibited here
+that meets the whole record with such a pair.
+
 Two checks of lean-intent were not run:
 
 * Its degenerate-subject and trivial-witness checks cover a subject in `Type`, and `Trial` carries
@@ -147,12 +153,16 @@ def rulesOutUnpaidGoals : Consequence Trial :=
 theorem rulesOutUnpaidGoals_holds : rulesOutUnpaidGoals.HoldsOf postcondition :=
   fun _ hw he => unpaid_fails (he ▸ hw)
 
-theorem forgetful_fails : ¬ postcondition.Meets forgetful := fun h =>
-  absurd ((postcondition_meets.mp h).2.2.1 true 0 1 (by decide)
-    (fun k _ _ => doors_sameProblem List.sum 1 once true 0 k) rfl) (by decide)
+theorem forgetful_fails : ¬ postcondition.Meets forgetful := fun h => by
+  obtain ⟨lapsed, few, keeps⟩ := (postcondition_meets.mp h).2.2.1 true
+  have none : lapsed = [] := List.length_eq_zero_iff.mp (Nat.le_zero.mp few)
+  exact absurd (keeps 0 1 (by decide) (by decide)
+    (fun k _ _ => doors_sameProblem List.sum 1 once true 0 k) rfl
+    (by rw [none]; exact List.not_mem_nil)) (by decide)
 
 /-- **Solving a member once and never again is ruled out**, where the member's attempts start from
-the same state: the trial `forgetful`. Its neighbour is `base`. -/
+the same state and the class allows no lapse before its horizon: the trial `forgetful`. Its
+neighbour is `base`. -/
 def rulesOutSolvingOnce : Consequence Trial :=
   ⟨"the trial forgetful, whose agent solves a member on its first attempt and never again, is \
     ruled out", .entailment, fun w => w ≠ forgetful⟩
@@ -186,5 +196,19 @@ def firstAttemptMayFail : Consequence Trial :=
 
 theorem firstAttemptMayFail_holds : firstAttemptMayFail.HoldsOf postcondition :=
   ⟨base, base_meets, false, .tail _ (.head _), rfl⟩
+
+/-- **A class whose lapses cover its horizon asks no solving again.** Where a class allows as many
+lapses as it has attempts before its horizon, `keepsSolving` holds of every agent: every attempt
+before the horizon may be a lapse. -/
+theorem keepsSolving_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses) :
+    keepsSolving.holds w :=
+  fun _ => ⟨List.range w.horizon, by rw [List.length_range]; exact covered,
+    fun _ _ _ before _ _ out => absurd (List.mem_range.mpr before) out⟩
+
+/-- Where a class allows as many lapses as it has attempts before its horizon, `learnsAgain` holds
+of every agent: no attempt leaves more attempts than the lapses before the horizon. -/
+theorem learnsAgain_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses) :
+    learnsAgain.holds w :=
+  fun _ _ _ _ room => absurd room (by omega)
 
 end AcornVerif.Intent.Postcondition

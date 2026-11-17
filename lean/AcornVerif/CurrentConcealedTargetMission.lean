@@ -59,12 +59,21 @@ selection. The executed agent here is the executed decision function at the defa
 executed agent's action at every time in every world (`ActsAsExecuted`), with that agent's own
 memory and reports:
 
-- `ExecutedFinds` and `ExecutedRetains`, of the executed agent: what remains of obligation 9, and
-  what the goal-information and exploration premises of obligation 4 must deliver. For the cold
-  agent of a profile with no hierarchy under the declared rate, over a host world that carries
-  the zero reward word, `ExecutedFinds` is equivalent to a statement that reads one action
-  sequence and no learner (`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff`), and it is
-  proved on the first rung (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`);
+- `ExecutedFindsBy` and `ExecutedRetainsOn`, of the executed agent: what remains of obligation
+  9, and what the goal-information and exploration premises of obligation 4 must deliver. The
+  first says that the agent solves each of more counted members than the covering bound before
+  a stated visit. For the cold agent of a profile with no hierarchy under the declared rate,
+  over a host world that carries the zero reward word, what it gives without the visit
+  (`ExecutedFinds`) is equivalent to a statement that reads one action sequence and no learner
+  (`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff`), and it is proved on the first
+  rung (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). The second says that the
+  agent solves again what it has solved on every later visit that a predicate admits;
+- `AcornVerif.Kernel.QuietBut` and `AcornVerif.Kernel.QuietOnce`, of that predicate alone: it
+  admits every visit before the horizon but for at most the stated lapses of each member, and
+  it admits one visit, from the stated visit on, for all but a stated number of the counted
+  members, where the agent has found that many more than the covering bound asks. They read no
+  solving. The predicate is a parameter of the theorem; the one the first rung reads is
+  `ExecutedQuiet`, that the executed step reports no exploration at any decision of the visit;
 - `AcornVerif.Intent.MissionTheorem.MemoryBounded`, obligation 6, of the agent's memory. It is
   proved, for a construction of the default step order and from the agent of a state a host runs,
   of the executed agent itself, whose memory is its whole state
@@ -84,19 +93,32 @@ session is no part of the agent's state, or under a changed record. The theorem 
 a parameter and leaves that choice, which rbeauchamp/acorn#249 decides, open; the executed agent
 itself is one such agent (`executedAgent_actsAs`).
 
-No premise states obligation 4 or obligation 15. For obligation 4, no premise about the class that
-suffices for this agent's retention is known; its finding on the first rung needs none, since its
-actions up to a first reward are a function of its seed (`AcornVerif.CurrentExplorer`). For
-obligation 15, the executed agent's generator is part of its state, so a family of its states is a
-family of seeds, which is the exact count of obligation 12; a family of ideal draw sequences needs
-a model of the agent's draws, which the tree has for primitive control under the declared rate
-up to a first reward (`AcornVerif.CurrentExplorer.Explorer`) and not after one. `ExecutedRetains`
-also asks every later visit, and the executed agent explores at a constant rate at every decision
-that serves no run (departure D6 of `docs/learned-only-binding.md`). Where an exploring run can
-make a visit miss, the agent as built does not retain on every later visit, under ideal draws on
-almost every run (argued, not proved). Whether retention is asked up to a number of visits, or
-exploration ends once a member is solved, has to be decided before that premise can be met
-(rbeauchamp/acorn#248).
+How retention is asked. The owner decided on 2026-11-17 (rbeauchamp/acorn#248) that the
+postcondition's record reads "it keeps solving it" before a visit the class states, its horizon,
+and but for a number of each member's visits that the class states, its lapses
+(`AcornVerif.Intent.Postcondition.keepsSolving`), and that the executed agent is asked it in two
+parts: on a later visit in which it takes no exploratory action it solves the member again, and
+a count of the visits in which it explores. The premises above are those parts. From them the
+agent separates, on the one visit that is quiet for enough of the members it has found
+(`AcornVerif.Kernel.separates_of_finds_on`), and retains before the horizon but for the lapses
+(`AcornVerif.Kernel.RetainsOn.but`). The reason is that the executed agent explores at a
+constant rate at every decision that serves no run (departure D6 of
+`docs/learned-only-binding.md`): where an exploring run can make a visit miss, the agent as
+built does not solve a member on every later visit, under ideal draws on almost every run
+(argued, not proved).
+
+No premise states obligation 4. No premise about the class that suffices for this agent's
+retention is known; its finding on the first rung needs none, since its actions up to a first
+reward are a function of its seed (`AcornVerif.CurrentExplorer`).
+
+Obligation 15 enters through the two premises on the predicate. They are statements about the
+agent's one run in each member, with no fraction of runs and no hypothesis on the draws: the
+executed agent's generator is part of its state, so one state has one run. Proving them for
+`ExecutedQuiet` needs the agent's draws after a first reward, which no theorem characterizes:
+the tree models the draws of primitive control under the declared rate up to a first reward
+(`AcornVerif.CurrentExplorer.Explorer`) and at the one decision after it. For a family of
+states, which is a family of seeds, the count is the exact one of obligation 12, and for a
+family of ideal draw sequences it is the fraction obligation 15 asks for.
 
 What these theorems leave open, beside their premises:
 
@@ -201,37 +223,41 @@ theorem find_pays (mode : TaskFeatureMode) (live : Live config) (length : ℕ)
 /-! ## The rung -/
 
 /-- The rung of the feasible concealed targets of a host world in visits of `length` steps, with
-the members the comparison counts, an agent, and what the agent reports of its own steps. -/
+the visit before which its promise of solving again is read and the number of lapses that promise
+allows, the members the comparison counts, an agent, and what the agent reports of its own
+steps. -/
 def findRung (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
-    (length : ℕ) (counted : List (feasibleFind config mode live length).Index)
+    (length horizon lapses : ℕ) (counted : List (feasibleFind config mode live length).Index)
     (agent : Kernel.Agent Grid.interface)
     (updates : agent.Memory → Percept Grid.interface × ℚ → List OneStream.Update)
     (work : agent.Memory → Percept Grid.interface × ℚ → ℕ)
     (resume : agent.Memory → agent.Memory) : Rung :=
-  visitsRung (feasibleFind config mode live length) length reward (fun _ => goalMet) counted
-    agent updates work resume
+  visitsRung (feasibleFind config mode live length) length horizon lapses reward
+    (fun _ => goalMet) counted agent updates work resume
 
 /-- **The mission theorem on the concealed targets, from its premises about the agent.** Over a
 host world that carries a reward of zero, with a list of distinct counted members: an agent that
-finds more counted members than the covering bound `49 + 7 length` and retains what it has solved,
-and whose run in every member meets contract 3's record under its reports, achieves goals over the
-class. Every premise about the class is discharged. -/
+on one visit solves more counted members than the covering bound `49 + 7 length`, that solves
+again what it has solved on every later visit before the horizon but for at most the stated
+lapses of each member, and whose run in every member meets contract 3's record under its reports,
+achieves goals over the class. Every premise about the class is discharged. -/
 theorem find_mission (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
-    (length : ℕ) (fresh : live.carried.reward = ⟨0⟩)
+    (length horizon lapses : ℕ) (fresh : live.carried.reward = ⟨0⟩)
     (counted : List (feasibleFind config mode live length).Index) (distinct : counted.Nodup)
     {agent : Kernel.Agent Grid.interface}
     {updates : agent.Memory → Percept Grid.interface × ℚ → List OneStream.Update}
     {work : agent.Memory → Percept Grid.interface × ℚ → ℕ}
     {resume : agent.Memory → agent.Memory}
-    (finds : Kernel.Finds (feasibleFind config mode live length)
+    (separates : Kernel.Separates (feasibleFind config mode live length)
       (fun _ => completion config mode length) length (49 + 7 * length) counted agent)
-    (retains : Kernel.Retains (feasibleFind config mode live length)
-      (fun _ => completion config mode length) length agent)
+    (retains : Kernel.RetainsBut (feasibleFind config mode live length)
+      (fun _ => completion config mode length) length horizon lapses agent)
     (stream : ∀ target, OneStream.oneStream.Meets
-      ((findRung config mode live length counted agent updates work resume).learner target)) :
-    Mission (findRung config mode live length counted agent updates work resume) :=
+      ((findRung config mode live length horizon lapses counted agent updates work
+        resume).learner target)) :
+    Mission (findRung config mode live length horizon lapses counted agent updates work resume) :=
   visits_mission (find_pays mode live length fresh) (feasibleFind_conceals mode live length length)
-    (feasibleFind_covered config mode live length) (fun target => target.2) distinct finds
+    (feasibleFind_covered config mode live length) (fun target => target.2) distinct separates
     retains stream
 
 /-! ## A reference agent meets the statement -/
@@ -240,12 +266,13 @@ theorem find_mission (config : Host.WorldConfig) (mode : TaskFeatureMode) (live 
 with visits of seven steps and the covering bound 98, there is a list of 147 distinct feasible
 concealed targets such that the retracing agent, with the reward as its signal and the witness's
 three walks as its exploration, achieves goals over the class with those targets counted: the
-mission's statement holds of its rung, with every premise discharged. -/
+mission's statement holds of its rung, with every premise discharged, at every horizon and with
+no lapse. -/
 theorem witness_mission (mode : TaskFeatureMode) :
     ∃ counted : List (feasibleFind witnessConfig mode witnessLive 7).Index,
       counted.Nodup ∧ counted.length = 147 ∧
-        Mission (retraceRung (feasibleFind witnessConfig mode witnessLive 7) 7 2 reward
-          (fun _ => goalMet) counted witnessExplore) := by
+        ∀ horizon, Mission (retraceRung (feasibleFind witnessConfig mode witnessLive 7) 7 horizon
+          2 reward (fun _ => goalMet) counted witnessExplore) := by
   classical
   obtain ⟨members, count, explored⟩ := witness_explored mode
   have feasible : ∀ target ∈ members,
@@ -262,7 +289,8 @@ theorem witness_mission (mode : TaskFeatureMode) :
       (fun target : (feasibleFind witnessConfig mode witnessLive 7).Index => target.1) same)
   have size : (members.attach.map ⟨admitted, injective⟩).toList.length = 147 := by
     rw [Finset.length_toList, Finset.card_map, Finset.card_attach, count]
-  refine ⟨(members.attach.map ⟨admitted, injective⟩).toList, Finset.nodup_toList _, size, ?_⟩
+  refine ⟨(members.attach.map ⟨admitted, injective⟩).toList, Finset.nodup_toList _, size,
+    fun horizon => ?_⟩
   refine retrace_mission (find_pays mode witnessLive 7 rfl)
     (feasibleFind_conceals mode witnessLive 7 7) (feasibleFind_covered witnessConfig mode
       witnessLive 7) (fun target => target.2) (Finset.nodup_toList _) (by rw [size]; decide) 2
@@ -295,8 +323,9 @@ theorem executedAgent_actsAs
 (rbeauchamp/acorn#230, decided in rbeauchamp/acorn#232 with rbeauchamp/acorn#170). The executed
 agent, from the given state, solves each of more than `49 + 7 length` counted members on some
 visit. For the cold agent of a profile with no hierarchy under the declared rate it is a property
-of one action sequence (`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff`), and on the
-first rung it is proved (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). -/
+of one action sequence (`AcornVerif.CurrentConcealedTargetFinding.cold_finds_iff`). The premise
+of `executed_mission` is `ExecutedFindsBy`, which names a visit and gives this
+(`ExecutedFindsBy.finds`). -/
 def ExecutedFinds (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)
     (counted : List (feasibleFind config profile.taskMode live length).Index) : Prop :=
@@ -304,30 +333,93 @@ def ExecutedFinds (state : Agent Grid.interface profile features criterion dimen
     (fun _ => completion config profile.taskMode length) length (49 + 7 * length) counted
     (executedAgent state)
 
-/-- **Obligation 9, retention** (rbeauchamp/acorn#230, decided in rbeauchamp/acorn#232 with
-rbeauchamp/acorn#171). The executed agent, from the given state, solves on every later visit each
-member it has solved on one visit. Open: no theorem says the agent learns a route from its first
-reward. The premise names no last visit, and the agent as built explores at a constant rate at
-every decision that serves no run, so where an exploring run can make a visit miss the premise
-fails of it (argued, not proved): see this module's header, and rbeauchamp/acorn#248, which
-decides how retention is asked. -/
-def ExecutedRetains (state : Agent Grid.interface profile features criterion dimension planning)
-    (config : Host.WorldConfig) (live : Live config) (length : ℕ) : Prop :=
-  Kernel.Retains (feasibleFind config profile.taskMode live length)
-    (fun _ => completion config profile.taskMode length) length (executedAgent state)
+/-- **Obligation 9, first successes by a stated visit.** The executed agent, from the given state,
+solves each of more than `49 + 7 length + spare` counted members on some visit before the visit
+`last`: `spare` members more than the covering bound asks, which separation can then do without
+on the visit it names. On the first rung it is proved with `last` at 72 and `spare` at 3
+(`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). -/
+def ExecutedFindsBy (state : Agent Grid.interface profile features criterion dimension planning)
+    (config : Host.WorldConfig) (live : Live config) (length : ℕ)
+    (counted : List (feasibleFind config profile.taskMode live length).Index)
+    (last spare : ℕ) : Prop :=
+  Kernel.FindsBy (feasibleFind config profile.taskMode live length)
+    (fun _ => completion config profile.taskMode length) length (49 + 7 * length + spare) counted
+    last (executedAgent state)
 
-/-- **The executed agent achieves goals over the concealed targets, from named premises.** Over a
-host world that carries a reward of zero, with a list of distinct counted members: if the executed
-agent finds and retains, then every agent that takes its actions, and whose own memory and reports
-meet the four premises of contract 3, achieves goals over the class. The mission's statement holds
-of that agent's rung. Two premises are proved: `MemoryBounded`, where the agent is the executed
-agent itself from the agent of a state a host runs, under a construction of the default step order
-(`AcornVerif.CurrentKernelMemory.find_memory_bounded`), and `ExecutedFinds` on the first rung
-(`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). Each premise names the obligation, or
-the step of the issue, that owns it. -/
-theorem executed_mission
+/-- An executed agent that finds by a stated visit finds. -/
+theorem ExecutedFindsBy.finds
+    {state : Agent Grid.interface profile features criterion dimension planning}
+    {live : Live config} {length last spare : ℕ}
+    {counted : List (feasibleFind config profile.taskMode live length).Index}
+    (finds : ExecutedFindsBy state config live length counted last spare) :
+    ExecutedFinds state config live length counted := by
+  obtain ⟨solved, many, each⟩ := Kernel.FindsBy.finds finds
+  exact ⟨solved, by omega, each⟩
+
+/-- **Obligation 9, retention, its first part** (rbeauchamp/acorn#230, decided in
+rbeauchamp/acorn#232 with rbeauchamp/acorn#171; asked in this form by the owner's decision of
+2026-11-17 on rbeauchamp/acorn#248). The executed agent, from the given state, solves on every
+later visit that the predicate `quiet` admits for a member, each member it has solved on one
+visit. It is a statement about the agent's one run in each member and counts nothing. The
+predicate is a parameter, and `executed_mission` holds of every predicate. The one the owner's
+decision names is `ExecutedQuiet`: the agent explores at no decision of the visit. Open: no
+theorem says the agent learns a route from its first reward. -/
+def ExecutedRetainsOn
     (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)
+    (quiet : (feasibleFind config profile.taskMode live length).Index → ℕ → Prop) : Prop :=
+  Kernel.RetainsOn (feasibleFind config profile.taskMode live length)
+    (fun _ => completion config profile.taskMode length) length quiet (executedAgent state)
+
+/-- **A visit on which the executed agent explores at no decision.** In the executed agent's run
+in a member's visits, from the given state, the executed step reports no exploration at any of
+the visit's `length + 1` decisions: its decision carries the flag
+`Acorn.Features.TemporalDecision.explored`, which the step sets when the primitive controller or
+an option begins an exploratory run and when the agent serves a step of a run it had committed
+to, and the flag is unset at each of those decisions. A greedy choice among several candidates
+draws on the generator as well (`Acorn.Features.PolicySnapshot.greedy_def`); it sets no flag and
+is not exploration here, so a quiet visit can still hold a choice drawn at random among actions
+whose values are tied. Under a profile with a hierarchy the meta-controller's own exploring
+branch is not that flag and is not read here. -/
+def ExecutedQuiet (state : Agent Grid.interface profile features criterion dimension planning)
+    (config : Host.WorldConfig) (live : Live config) (length : ℕ)
+    (index : (feasibleFind config profile.taskMode live length).Index) (visit : ℕ) : Prop :=
+  ∀ step, step ≤ length →
+    ((Kernel.memoryAt
+        (Kernel.visits ((feasibleFind config profile.taskMode live length).world index)
+          ((feasibleFind config profile.taskMode live length).start index) length)
+        (executedAgent state)
+        (Kernel.visitStart ((feasibleFind config profile.taskMode live length).world index)
+          ((feasibleFind config profile.taskMode live length).start index) length)
+        (visit * (length + 1) + step)).act
+      (Kernel.perceptAt
+        (Kernel.visits ((feasibleFind config profile.taskMode live length).world index)
+          ((feasibleFind config profile.taskMode live length).start index) length)
+        (executedAgent state)
+        (Kernel.visitStart ((feasibleFind config profile.taskMode live length).world index)
+          ((feasibleFind config profile.taskMode live length).start index) length)
+        (visit * (length + 1) + step))).2.explored = false
+
+/-- **The executed agent achieves goals over the concealed targets, from named premises.** Over a
+host world that carries a reward of zero, with a list of distinct counted members, take a
+predicate `quiet` on a member's visits. If the executed agent finds by the visit `last`, `spare`
+members more than the covering bound asks (`ExecutedFindsBy`), and solves again, on every later
+visit the predicate admits, what it has solved (`ExecutedRetainsOn`), and the predicate admits
+every visit before the horizon but for at most `lapses` of each member's
+(`AcornVerif.Kernel.QuietBut`) and admits one visit from `last` on for all but `spare` of the
+counted members (`AcornVerif.Kernel.QuietOnce`), then every agent that takes its actions, and
+whose own memory and reports meet the four premises of contract 3, achieves goals over the class
+with that horizon and that number of lapses. The mission's statement holds of that agent's
+rung. Two premises are proved: `MemoryBounded`, where the agent is the executed agent itself from
+the agent of a state a host runs, under a construction of the default step order
+(`AcornVerif.CurrentKernelMemory.find_memory_bounded`), and `ExecutedFindsBy` on the first rung
+(`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). Each premise names the obligation, or
+the step of the issue, that owns it; the two on the predicate alone read no solving, and
+obligation 15 owns them for an agent that explores with random draws. The theorem holds of every
+predicate; the first rung reads `ExecutedQuiet`. -/
+theorem executed_mission
+    (state : Agent Grid.interface profile features criterion dimension planning)
+    (config : Host.WorldConfig) (live : Live config) (length horizon lapses last spare : ℕ)
     (fresh : live.carried.reward = ⟨0⟩)
     (counted : List (feasibleFind config profile.taskMode live length).Index)
     (distinct : counted.Nodup) {agent : Kernel.Agent Grid.interface}
@@ -335,19 +427,25 @@ theorem executed_mission
     {updates : agent.Memory → Percept Grid.interface × ℚ → List OneStream.Update}
     {work : agent.Memory → Percept Grid.interface × ℚ → ℕ}
     {resume : agent.Memory → agent.Memory}
-    (finds : ExecutedFinds state config live length counted)
-    (retains : ExecutedRetains state config live length)
-    (memory : MemoryBounded
-      (findRung config profile.taskMode live length counted agent updates work resume))
-    (bounded : WorkBounded
-      (findRung config profile.taskMode live length counted agent updates work resume))
-    (arrival : LearnsOnArrival
-      (findRung config profile.taskMode live length counted agent updates work resume))
-    (discipline : KeepsDiscipline
-      (findRung config profile.taskMode live length counted agent updates work resume)) :
-    Mission (findRung config profile.taskMode live length counted agent updates work resume) :=
-  find_mission config profile.taskMode live length fresh counted distinct
-    (Kernel.Finds.of_actions acts finds) (Kernel.Retains.of_actions acts retains)
+    {quiet : (feasibleFind config profile.taskMode live length).Index → ℕ → Prop}
+    (finds : ExecutedFindsBy state config live length counted last spare)
+    (retains : ExecutedRetainsOn state config live length quiet)
+    (few : Kernel.QuietBut quiet horizon lapses)
+    (once : Kernel.QuietOnce quiet counted last spare)
+    (memory : MemoryBounded (findRung config profile.taskMode live length horizon lapses
+      counted agent updates work resume))
+    (bounded : WorkBounded (findRung config profile.taskMode live length horizon lapses
+      counted agent updates work resume))
+    (arrival : LearnsOnArrival (findRung config profile.taskMode live length horizon lapses
+      counted agent updates work resume))
+    (discipline : KeepsDiscipline (findRung config profile.taskMode live length horizon lapses
+      counted agent updates work resume)) :
+    Mission (findRung config profile.taskMode live length horizon lapses counted agent updates
+      work resume) :=
+  find_mission config profile.taskMode live length horizon lapses fresh counted distinct
+    (Kernel.separates_of_finds_on (Kernel.FindsBy.of_actions acts finds)
+      (Kernel.RetainsOn.of_actions acts retains) once)
+    ((Kernel.RetainsOn.of_actions acts retains).but few)
     (Rung.stream_met memory bounded arrival discipline)
 
 end executed

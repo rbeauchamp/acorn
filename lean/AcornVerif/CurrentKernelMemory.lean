@@ -199,13 +199,13 @@ class in visits.** For a construction of the default order and a class whose wor
 percepts of its task mode: take an agent whose first memory is one function of the agent of a
 running state and whose step keeps that function of the state the executed step keeps. The rung of
 the class in visits with that agent meets the premise `MemoryBounded`, whatever the agent reports
-of its steps. -/
+of its steps and whatever horizon and number of lapses the rung names. -/
 theorem projected_memory_bounded (construction : AgentConstruction)
     (default : construction.order = .learnThenAct)
     {origin : construction.State} (running : Running construction origin)
     (family : Kernel.WorldClass Grid.interface)
     (shows : ∀ index, ShowsGrid construction.profile.taskMode (family.world index))
-    (length : ℕ) (pay : Percept Grid.interface → ℚ)
+    (length horizon lapses : ℕ) (pay : Percept Grid.interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
     (counted : List family.Index) (agent : Kernel.Agent Grid.interface)
     (project : Agent Grid.interface construction.profile construction.config
@@ -216,7 +216,8 @@ theorem projected_memory_bounded (construction : AgentConstruction)
     (updates : agent.Memory → Percept Grid.interface × ℚ → List OneStream.Update)
     (work : agent.Memory → Percept Grid.interface × ℚ → ℕ)
     (resume : agent.Memory → agent.Memory) :
-    MemoryBounded (visitsRung family length pay met counted agent updates work resume) := by
+    MemoryBounded
+      (visitsRung family length horizon lapses pay met counted agent updates work resume) := by
   obtain ⟨agents, listed⟩ := running_agents construction
   refine ⟨agents.map project, fun index ins time state memory reached => ?_⟩
   suffices held : ∃ host : construction.State,
@@ -237,42 +238,44 @@ theorem projected_memory_bounded (construction : AgentConstruction)
 /-- **The executed agent holds one of finitely many memories on a class in visits.** For a
 construction of the default order and a class whose worlds show grid percepts of its task mode:
 the rung of the class in visits with the executed agent, from the agent of a running state, meets
-the premise `MemoryBounded`, whatever the agent reports of its steps. Its memory is its whole
-state: this is `projected_memory_bounded` at the identity. -/
+the premise `MemoryBounded`, whatever the agent reports of its steps and whatever horizon and
+number of lapses the rung names. Its memory is its whole state: this is
+`projected_memory_bounded` at the identity. -/
 theorem visits_memory_bounded (construction : AgentConstruction)
     (default : construction.order = .learnThenAct)
     {origin : construction.State} (running : Running construction origin)
     (family : Kernel.WorldClass Grid.interface)
     (shows : ∀ index, ShowsGrid construction.profile.taskMode (family.world index))
-    (length : ℕ) (pay : Percept Grid.interface → ℚ)
+    (length horizon lapses : ℕ) (pay : Percept Grid.interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
     (counted : List family.Index)
     (updates : (executedAgent origin.agent).Memory → Percept Grid.interface × ℚ →
       List OneStream.Update)
     (work : (executedAgent origin.agent).Memory → Percept Grid.interface × ℚ → ℕ)
     (resume : (executedAgent origin.agent).Memory → (executedAgent origin.agent).Memory) :
-    MemoryBounded (visitsRung family length pay met counted (executedAgent origin.agent) updates
-      work resume) :=
-  projected_memory_bounded construction default running family shows length pay met counted
+    MemoryBounded (visitsRung family length horizon lapses pay met counted
+      (executedAgent origin.agent) updates work resume) :=
+  projected_memory_bounded construction default running family shows length horizon lapses pay
+    met counted
     (executedAgent origin.agent) id rfl (fun _ _ => rfl) updates work resume
 
 /-- **The executed agent holds one of finitely many memories on the concealed targets.** For a
-construction of the default order, every host world, visit length and list of counted members: the
-rung of the feasible concealed targets with the executed agent, from the agent of a running state,
-meets the premise `MemoryBounded`. -/
+construction of the default order, every host world, visit length, horizon, number of lapses and
+list of counted members: the rung of the feasible concealed targets with the executed agent, from
+the agent of a running state, meets the premise `MemoryBounded`. -/
 theorem find_memory_bounded (construction : AgentConstruction)
     (default : construction.order = .learnThenAct)
     {origin : construction.State} (running : Running construction origin)
-    (config : Host.WorldConfig) (live : Live config) (length : ℕ)
+    (config : Host.WorldConfig) (live : Live config) (length horizon lapses : ℕ)
     (counted : List (feasibleFind config construction.profile.taskMode live length).Index)
     (updates : (executedAgent origin.agent).Memory → Percept Grid.interface × ℚ →
       List OneStream.Update)
     (work : (executedAgent origin.agent).Memory → Percept Grid.interface × ℚ → ℕ)
     (resume : (executedAgent origin.agent).Memory → (executedAgent origin.agent).Memory) :
-    MemoryBounded (findRung config construction.profile.taskMode live length counted
-      (executedAgent origin.agent) updates work resume) :=
+    MemoryBounded (findRung config construction.profile.taskMode live length horizon lapses
+      counted (executedAgent origin.agent) updates work resume) :=
   visits_memory_bounded construction default running _
-    (fun _ => gridWorld_shows config construction.profile.taskMode) length reward
+    (fun _ => gridWorld_shows config construction.profile.taskMode) length horizon lapses reward
     (fun _ => goalMet) counted updates work resume
 
 /-! ## The campaign counting bound -/

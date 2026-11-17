@@ -294,13 +294,17 @@ theorem sameProblem_of_big {w : Trial} (hb : bigClass.Meets w) (i : w.Index) (n 
   ((bigClass_meets.mp hb).2.2.2.2 w.agent i k).trans
     ((bigClass_meets.mp hb).2.2.2.2 w.agent i n).symm
 
-/-- **In a big class the postcondition's retention is asked without condition.** In a class that
-meets this record, an agent that keeps solving in the postcondition's sense solves, on every later
-attempt, each member it has solved once. -/
+/-- **In a big class the postcondition's retention is asked without condition on the member's
+attempts.** In a class that meets this record, an agent that keeps solving in the postcondition's
+sense has, for each member, at most the class's number of lapses, outside which it solves the
+member on every attempt before the class's horizon that follows one on which it solved it. -/
 theorem retention_unconditional {w : Trial} (hb : bigClass.Meets w) (hk : keepsSolving.holds w)
-    (i : w.Index) (n n' : Nat) (hle : n ≤ n') (hs : w.solves w.agent i n = true) :
-    w.solves w.agent i n' = true :=
-  hk i n n' hle (fun k _ _ => sameProblem_of_big hb i n k) hs
+    (i : w.Index) :
+    ∃ lapsed : List Nat, lapsed.length ≤ w.lapses ∧ ∀ n n', n ≤ n' → n' < w.horizon →
+      w.solves w.agent i n = true → n' ∉ lapsed → w.solves w.agent i n' = true := by
+  obtain ⟨lapsed, few, keeps⟩ := hk i
+  exact ⟨lapsed, few, fun n n' hle before hs out =>
+    keeps n n' hle before (fun k _ _ => sameProblem_of_big hb i n k) hs out⟩
 
 /-- Some agent achieves the postcondition in the class of the trial `w`: the trial with that agent
 in place of its own meets the postcondition's record. -/
