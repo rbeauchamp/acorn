@@ -2,7 +2,9 @@
 
 Acorn is a Lean project working to prove that a learning agent, written as running code, achieves goals over a formally stated class of big worlds ([mission contract](mission-contract.md)).
 A *mission* is one self-contained piece of that work, posted as a GitHub issue labelled mission.
-Its *contract* is the exact statement to establish, usually a Lean theorem about a definition that runs, frozen in the issue.
+Its *contract* is the exact statement to establish, usually a Lean theorem about a definition that runs.
+A *target* is the statement of such a theorem, held in the repository as a Lean definition, in a directory that only the owner changes (`lean/AcornVerif/Targets/`). Every build checks each target against the current code, and a mission with targets is finished by proving each of them.
+A contract can also have a part that is not a statement to prove, such as a change to how a decision is registered, or the list of files a pull request may change. Such a part is frozen in the issue, and so is the whole contract of a mission with no target.
 The *proof gate* is `./scripts/gate.sh`, a script anyone can run on their own machine. It builds the project, has Lean's kernel check the proofs and runs the repository's other checks.
 A mission is finished by a pull request that establishes the contract and passes the gate.
 
@@ -60,13 +62,17 @@ If GitHub's interface cannot be reached, read the open list in the [board's data
 
 ### Step 2: choose a mission whose contract is frozen
 
-Choose one that has all of these:
+A mission with targets is frozen. Its statements are files of the repository, `.github/CODEOWNERS` gives their directory to the owner, and no edit of the issue changes them. [The registry](../lean/AcornVerif/Targets/Registry.lean) lists every target after its mission's issue number, so a mission has targets exactly when its number is there.
+
+A mission with no target is frozen when it has all of these:
 
 - a second label naming its kind, one of `mission:proof`, `mission:contract`, `mission:world` and `mission:prior-art`. An issue with only the mission label is a proposal that nobody has accepted yet;
 - a section headed Mission contract in its text;
 - no later edit by anyone but the owner, [rbeauchamp](https://github.com/rbeauchamp). The issue's page shows who edited it last.
 
-The board's data gives each mission's contract_state, which is frozen when all three hold, along with last_edited_by and a copy of the contract. It is only as current as its derived_at field, and the issue is what counts.
+The third condition also covers what a mission with targets keeps in its issue, such as the files you may change: if someone other than the owner edited the issue last, ask there before relying on those parts.
+
+The board's data gives each mission's contract_state, which is frozen for a mission with targets and otherwise when all three hold, along with last_edited_by and a copy of the issue's contract. Its targets field lists every target with its mission, its name, its file and proved_by, the theorem recorded as proving it, which is null while the target is open. The data is only as current as its derived_at field, and the repository and the issue are what count.
 
 Then read the issue's page for who is already working: a comment reading claim from the last seven days, or a linked open pull request. You may still work on it, but the first to finish wins, so prefer a mission nobody holds. To say you are working, comment claim on the issue; the claim lapses after seven days without a pull request that passes the gate.
 
@@ -74,12 +80,21 @@ Then read the issue's page for who is already working: a comment reading claim f
 
 Read the issue, `https://api.github.com/repos/rbeauchamp/acorn/issues/<number>`, field body. Under Mission contract it gives:
 
-- the target theorem or decision contract, which you must establish exactly as written. Weakening it is not a solution, and a pull request that does so may be closed;
+- what to establish. For a mission with targets that is each of its targets, which the issue names, exactly as the repository holds it. For any other mission, and for a part of a contract that is not a statement to prove, it is the theorem or decision contract in the issue, exactly as written. Weakening either is not a solution, and a pull request that does so may be closed;
 - the module touch-set, the closed list of files you may change;
 - whether the audit pins must stay unchanged;
 - the gate, which is the same for every mission.
 
-If the statement is false, say so on the issue, with the counterexample, rather than changing it.
+A target is a Lean definition whose value is a statement. Mission [#163](https://github.com/rbeauchamp/acorn/issues/163) has one, `AcornVerif.Targets.Json.parse_complete`, in [its file](../lean/AcornVerif/Targets/Json.lean):
+
+```lean
+def parse_complete : Prop :=
+  ∀ text v, Grammar.Text text.toList v → Json.parse text = .ok v
+```
+
+A target's name is the name of its file's module followed by the name its contract gives the theorem, so the name tells you the file: `AcornVerif.Targets.StateEntry.arm_letter` is in `lean/AcornVerif/Targets/StateEntry.lean`. The definitions a contract introduces are in the same file. Many targets are written with arrows, `(positive : 0 ≤ range) → …`, where a theorem lists its hypotheses before the colon; the two say the same.
+
+If a statement is false, say so on the issue, with the counterexample, rather than changing it.
 
 ### Step 4: get the code and the tools
 
@@ -96,6 +111,28 @@ Read [AGENTS](../AGENTS.md), the repository's rules for proofs and code, and [Co
 ### Step 5: do the work
 
 Change only the files the contract names. Establish the statement as written, with Lean checking the proof.
+
+To prove a target, write a theorem whose statement is the target, in a file the contract names. The simplest way is to import the target's module and give the target as the theorem's statement:
+
+```lean
+import AcornVerif.Targets.StateEntry
+
+namespace AcornVerif.StateEntry
+
+theorem arm_letter : Targets.StateEntry.arm_letter := by
+  intro armed reading
+  -- the proof
+```
+
+A theorem may instead write the same statement out in full, and it must where its file cannot import the target's module: `lean/Acorn/Json.lean`, where mission #163's theorem belongs, is itself imported by that target's module.
+
+Then record each target you proved in [the record of landed targets](../lean/AcornVerif/Landings.lean), which a mission with targets may always change. Import your module there and add one entry for each target to its list: the target's name, your theorem's name, and your theorem written with `@`.
+
+```lean
+⟨``Targets.StateEntry.arm_letter, ``StateEntry.arm_letter, @StateEntry.arm_letter⟩
+```
+
+Lean accepts an entry only when the theorem proves the statement the registry holds under that name, whichever way you stated it, so the record is how the repository knows a target is proved. Change nothing under `lean/AcornVerif/Targets/`: that directory is the contract.
 
 ### Step 6: run the gate
 
@@ -116,7 +153,7 @@ Open it against the main branch, from a fork if you have no write access. Its ti
 - `Closes #<number>.` on a line of its own, for the mission;
 - `Agent: <name>` on a line of its own, naming the agent or model that did the work, in at most 64 characters from letters, digits, spaces and . _ + - ( ) /. The board reads this line; a name in any other form is left off;
 - the gate's `gate:` lines, ending in the passing one;
-- that the frozen contract is unchanged and only the listed files were touched.
+- that the frozen contract is unchanged and only the listed files were touched, and for a mission with targets, that each has its entry in the record of landed targets.
 
 ### Step 9: afterwards
 
@@ -126,7 +163,8 @@ Keep the branch current with main until it merges. The rest is in [triage and re
 
 A mission's pull request is accepted when:
 
-- the frozen contract is unchanged and only the files it lists changed;
+- the frozen contract is unchanged, which for targets means that no file under `lean/AcornVerif/Targets/` changed, and only the files the contract lists changed;
+- each target of the mission has its entry in the record of landed targets;
 - Lean's kernel checks the proof, and the gate passes on the exact head of the pull request;
 - the owner, who alone merges, has run the gate on that head and reviewed it, with a blind read-back of any specification the pull request adds or edits.
 
@@ -134,11 +172,12 @@ A run of the agent in its worlds is a demonstration and decides nothing, and so 
 
 ## What the board counts
 
-[The board](mission-board.md) and [its data](mission-board.json) are derived from GitHub through GitHub's own interface, so no one edits a credit in by hand without the regeneration below undoing it.
+[The board](mission-board.md) and [its data](mission-board.json) are derived from GitHub through GitHub's own interface, and their list of targets from the repository itself, so no one edits a credit in by hand without the regeneration below undoing it.
 
 - A mission is an issue labelled mission.
 - A mission has landed when GitHub records it as closed because it was completed and records a merged pull request as having closed it, that pull request merged into the default branch at the hand of the repository's owner, and its squash commit's message holds the gate's last line. Lean theorems prove that every mission the board counts for anyone meets this condition, and that every closed mission meeting it is recorded as landed and counted for each holder its record names ([the board's proofs](../lean/AcornVerif/MissionBoard.lean)). They do not prove that the gate ran: GitHub keeps no record of a local run, so that rests on the owner's merge rule.
 - The account is the one GitHub records as having opened the pull request. The agent is what the `Agent:` line of the squash commit says; a commit on the main branch does not change when a pull request's description is edited later. The name is what the author declared, and the owner saw it at merge.
+- A target is listed as proved when the record of landed targets (`AcornVerif.landings`) holds an entry for it, in the checkout the board was generated from. Lean theorems prove that such a target is one the registry holds, with a statement that the entry's proof establishes, and that every entry of the record is listed (`targetRowsOf_proved`, `targetRowsOf_shown`). Credit does not read this list: it follows the rule for a landed mission above.
 - A claim, a comment, an open pull request, a run or a score counts for nothing, and a closed mission that has not landed is listed apart with its reason.
 
 Missions are the only thing counted, not theorems, because the gate accepts a lemma of any size and a count of them would reward volume.
@@ -160,3 +199,4 @@ gh api graphql --paginate --slurp -f query="$query" > "$dir/second.json"
 ```
 
 It reads GitHub twice and writes nothing unless both reads are complete and identical, so a failed page, a rate limit or a label changed between the reads leaves the existing board in place.
+The targets and their landings are those of the checkout the commands run in, so run them on the current main branch.

@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Lean.Data.Json
+import AcornVerif.Landings
 
 /-! # The mission board
 
@@ -12,9 +13,15 @@ states when a closed one has landed. This module derives the repository's copy o
 `docs/mission-board.md` and `docs/mission-board.json`, from pages of GitHub's GraphQL interface.
 `docs/missions.md` gives the commands that run it.
 
-The module imports only the toolchain and spawns no process: `gh api graphql --paginate --slurp`
-fetches the pages, and the commands fetch them twice. It defines no root `main`, since the ownership
-audit imports every non-executable module together; the commands run `run` from a one-line script.
+Beside GitHub's record the board shows the *targets*: the open statements held as definitions of
+type `Prop` under `lean/AcornVerif/Targets/`, which `AcornVerif.Targets.registry` lists, each with
+the theorem `AcornVerif.landings` records as proving it, if one is. A mission with a target is
+frozen whatever its issue says, because `.github/CODEOWNERS` gives that directory to the owner.
+
+Beyond the toolchain the module imports only that record and, through it, the registry. It spawns no
+process: `gh api graphql --paginate --slurp` fetches the pages, and the commands fetch them twice.
+It defines no root `main`, since the ownership audit imports every non-executable module together;
+the commands run `run` from a one-line script.
 
 What the proofs below establish about the executed definitions:
 
@@ -29,12 +36,19 @@ What the proofs below establish about the executed definitions:
 * Acceptance earns credit (`accepted_credited`): a closed mission of the read that meets `Accepted`
   is recorded as landed (`landedOf_complete`) and counted for each holder its record names. So an
   empty board cannot come from a `landing` that refuses what the condition accepts.
+* A mission with a target is frozen, and any other follows its issue
+  (`Mission.contractState_targets`, `Mission.contractState_issue`). A target the board marks as
+  proved is a registered target whose statement holds, by the proof a recorded landing carries, and
+  every recorded landing is marked (`targetRowsOf_proved`, `targetRowsOf_shown`).
 * Text that `escape` outputs holds no character of `active` (`escape_inert`), and `boardMarkdown`
-  passes titles through it. An agent's name uses only a closed character set (`agentName_closed`).
+  passes titles and the names of targets and theorems through it. An agent's name uses only a closed
+  character set (`agentName_closed`).
 
 What they do not establish: that GitHub answers truly; that a merge by the owner followed a passing
 gate run (`CONTRIBUTING.md` makes that the rule and nothing on GitHub enforces it; the gate's final
-line in the commit message is what the author pasted); or that the written files are not edited
+line in the commit message is what the author pasted); that a target is in the file the board
+names, which `targetFile` derives from the target's name by the rule of that directory; that the
+theorem a landing names is the proof it carries; or that the written files are not edited
 afterwards.
 -/
 
@@ -48,7 +62,8 @@ def query : String :=
   "query($endCursor: String) { repository(owner: \"rbeauchamp\", name: \"acorn\") { " ++
   "owner { login } defaultBranchRef { name } " ++
   "issues(labels: [\"mission\"], states: [OPEN, CLOSED], first: 100, after: $endCursor, " ++
-  "orderBy: {field: CREATED_AT, direction: ASC}) { totalCount pageInfo { hasNextPage endCursor } " ++
+  "orderBy: {field: CREATED_AT, direction: ASC}) { totalCount " ++
+  "pageInfo { hasNextPage endCursor } " ++
   "nodes { number title state stateReason updatedAt lastEditedAt body author { login } " ++
   "editor { login } labels(first: 100) { totalCount nodes { name } } " ++
   "timelineItems(itemTypes: [CLOSED_EVENT], last: 1) { nodes { ... on ClosedEvent { closer { " ++
@@ -293,7 +308,8 @@ def contractOf (body : String) : Option String :=
 
 /-- Whether a mission's contract can be relied on as frozen. -/
 inductive ContractState
-  /-- It carries a kind label and a contract, and nobody but the owner has edited it last. -/
+  /-- It has a target, or it carries a kind label and a contract and nobody but the owner has
+  edited it last. -/
   | frozen
   /-- It has no kind label or no contract section, so nobody has accepted a contract yet. -/
   | proposed
@@ -301,13 +317,83 @@ inductive ContractState
   | edited
   deriving DecidableEq
 
-/-- The state of a mission's contract, where `owner` is the repository's owner. An outsider's edit
-after the owner's acceptance shows as `edited`; the owner's own later edit accepts it again. -/
-def Mission.contractState (m : Mission) (owner : String) : ContractState :=
+/-- The state of a mission's contract as its issue alone gives it, where `owner` is the
+repository's owner. An outsider's edit after the owner's acceptance shows as `edited`; the owner's
+own later edit accepts it again. -/
+def Mission.issueState (m : Mission) (owner : String) : ContractState :=
   if m.kinds.isEmpty || (contractOf m.body).isNone then .proposed
   else match m.editor with
     | some editor => if editor = owner then .frozen else .edited
     | none => .frozen
+
+/-- A registered target as the board shows it. -/
+structure TargetRow where
+  /-- The issue number of the target's mission. -/
+  mission : Nat
+  /-- The target's name. -/
+  name : Lean.Name
+  /-- The name of the theorem recorded as proving it, if one is. -/
+  provedBy : Option Lean.Name
+
+/-- One row for each target of `Targets.registry`, in its order, with the theorem of the first
+landing of `record` that names the target. -/
+def targetRowsOf (record : List Targets.Landing) : List TargetRow :=
+  Targets.registry.map fun target => {
+    mission := target.mission, name := target.name
+    provedBy := (record.find? (·.target == target.name)).map (·.provedBy) }
+
+/-- A row marked as proved comes from a landing of the record that names the row's target and
+theorem, and its target is registered under the row's mission with a statement that holds. -/
+theorem targetRowsOf_proved {record : List Targets.Landing} {row : TargetRow} {proof : Lean.Name}
+    (member : row ∈ targetRowsOf record) (proved : row.provedBy = some proof) :
+    (∃ landing ∈ record, landing.target = row.name ∧ landing.provedBy = proof) ∧
+      ∃ target ∈ Targets.registry,
+        target.mission = row.mission ∧ target.name = row.name ∧ target.statement := by
+  simp only [targetRowsOf, List.mem_map] at member
+  obtain ⟨target, registered, rfl⟩ := member
+  simp only [Option.map_eq_some_iff] at proved
+  obtain ⟨landing, found, rfl⟩ := proved
+  have named : landing.target = target.name :=
+    eq_of_beq (List.find?_some (p := fun entry : Targets.Landing => entry.target == target.name)
+      found)
+  have holds : Targets.statementOf target.name := named ▸ landing.proof
+  exact ⟨⟨landing, List.mem_of_find?_eq_some found, named, rfl⟩, target, registered, rfl, rfl,
+    (Targets.statementOf_name target registered).mp holds⟩
+
+/-- Every landing of the record is shown: the row of its target is marked as proved. -/
+theorem targetRowsOf_shown {record : List Targets.Landing} {landing : Targets.Landing}
+    (member : landing ∈ record) :
+    ∃ row ∈ targetRowsOf record, row.name = landing.target ∧ row.provedBy.isSome = true := by
+  obtain ⟨target, registered, named, _⟩ := landing.proves
+  refine ⟨_, List.mem_map.mpr ⟨target, registered, rfl⟩, named, ?_⟩
+  simp only [Option.isSome_map, List.find?_isSome]
+  exact ⟨landing, member, by simp [named]⟩
+
+/-- The state of a mission's contract, where `owner` is the repository's owner and `targets` are
+the board's rows. A mission with a target is frozen: its statements are definitions in the directory
+`.github/CODEOWNERS` gives to the owner, so its issue's label, text and last editor do not decide
+it. Any other mission follows its issue. -/
+def Mission.contractState (m : Mission) (owner : String) (targets : List TargetRow) :
+    ContractState :=
+  if targets.any (·.mission == m.number) then .frozen else m.issueState owner
+
+/-- A mission with a target is frozen. -/
+theorem Mission.contractState_targets {m : Mission} {owner : String} {targets : List TargetRow}
+    (held : ∃ row ∈ targets, row.mission = m.number) :
+    m.contractState owner targets = .frozen := by
+  obtain ⟨row, member, same⟩ := held
+  have found : targets.any (·.mission == m.number) = true :=
+    List.any_eq_true.mpr ⟨row, member, by simp [same]⟩
+  simp [Mission.contractState, found]
+
+/-- A mission with no target has the state its issue gives it. -/
+theorem Mission.contractState_issue {m : Mission} {owner : String} {targets : List TargetRow}
+    (none : ∀ row ∈ targets, row.mission ≠ m.number) :
+    m.contractState owner targets = m.issueState owner := by
+  have absent : targets.any (·.mission == m.number) = false := by
+    simp only [List.any_eq_false, beq_iff_eq]
+    exact none
+  simp [Mission.contractState, absent]
 
 /-- Whether a character may stand in an agent's name. -/
 def agentChar (c : Char) : Bool :=
@@ -429,7 +515,8 @@ theorem Mission.landing_accepted {m : Mission} {owner branch : String} {l : Land
                 subst landed
                 simp only [Bool.not_eq_true', Bool.not_eq_false] at completed merged contains
                 simp only [bne_iff_ne, ne_eq, Decidable.not_not] at base mergedBy
-                exact ⟨⟨completed, c, closing, merged, base, mergedBy, commit, found, contains⟩, rfl⟩
+                exact ⟨⟨completed, c, closing, merged, base, mergedBy, commit, found, contains⟩,
+                  rfl⟩
 
 /-- A mission that meets `Accepted` is one that `landing` admits, so `landing` refuses nothing the
 condition accepts. -/
@@ -503,7 +590,8 @@ theorem landed_credited {α : Type} [DecidableEq α] {names : Landed → List α
     {landed : List Landed} {l : Landed} {holder : α} (member : l ∈ landed)
     (name : holder ∈ names l) :
     ∃ c ∈ credits names landed, c.holder = holder ∧ l.mission ∈ c.missions := by
-  refine ⟨{ holder, missions := (landed.filter (fun l => decide (holder ∈ names l))).map (·.mission) },
+  refine ⟨{ holder
+            missions := (landed.filter (fun l => decide (holder ∈ names l))).map (·.mission) },
     ?_, rfl, ?_⟩
   · simp only [credits, List.mem_mergeSort, List.mem_map]
     refine ⟨holder, ?_, rfl⟩
@@ -616,21 +704,33 @@ private def accountJson (value : Option Account) : Json :=
   | some a => Json.mkObj [("kind", .str a.kind), ("login", .str a.login)]
   | none => .null
 
+/-- The file that holds a target: its module's, by the rule of `lean/AcornVerif/Targets/` that a
+target's name is its module's name followed by one more component. -/
+def targetFile (name : Lean.Name) : String :=
+  "lean/" ++ (name.getPrefix.toString (escape := false)).replace "." "/" ++ ".lean"
+
+private def nameJson (value : Option Lean.Name) : Json :=
+  optionJson (value.map (·.toString))
+
 /-- The machine-readable copy. Titles and contracts are as GitHub returned them, and JSON encoding
 is what keeps them data. -/
-def boardJson (stamp : String) (s : Snapshot) : Json :=
+def boardJson (stamp : String) (targets : List TargetRow) (s : Snapshot) : Json :=
   let landed := landedOf s
   Json.mkObj [
-    ("authority", .str s!"GitHub ({repository}) is the record. This is a copy derived at derived_at; \
-      it may lag GitHub and never overrides it."),
+    ("authority", .str s!"GitHub ({repository}) is the record. This is a copy derived at \
+      derived_at; it may lag GitHub and never overrides it."),
     ("derived_at", .str stamp),
     ("regenerate", .str s!"{repository}/blob/main/docs/missions.md#regenerating-the-board"),
     ("untrusted_fields", toJson #["title", "contract"]),
     ("open", toJson <| (openOf s).toArray.map fun m => Json.mkObj [
       ("number", toJson m.number), ("title", .str m.title), ("url", .str (issueUrl m.number)),
-      ("kinds", toJson m.kinds.toArray), ("contract_state", .str (stateName (m.contractState s.owner))),
+      ("kinds", toJson m.kinds.toArray),
+      ("contract_state", .str (stateName (m.contractState s.owner targets))),
       ("contract", optionJson (contractOf m.body)), ("filed_by", optionJson m.author),
       ("last_edited_by", optionJson m.editor), ("last_edited_at", optionJson m.lastEditedAt)]),
+    ("targets", toJson <| targets.toArray.map fun row => Json.mkObj [
+      ("mission", toJson row.mission), ("name", .str row.name.toString),
+      ("file", .str (targetFile row.name)), ("proved_by", nameJson row.provedBy)]),
     ("landed", toJson <| landed.toArray.map fun l => Json.mkObj [
       ("mission", toJson l.mission), ("title", .str l.title), ("url", .str (issueUrl l.mission)),
       ("pull_request", .str (pullUrl l.pullRequest)), ("account", accountJson l.account),
@@ -670,19 +770,36 @@ private def kindText (m : Mission) : String :=
 
 private def rows (lines : List String) : String := "\n".intercalate lines
 
-private def openSection (s : Snapshot) : String :=
+private def openSection (targets : List TargetRow) (s : Snapshot) : String :=
   match openOf s with
   | [] => "No mission is open at this time."
   | missions =>
     let table := missions.map fun m =>
       s!"| {issueLink m.number} | {escape m.title} | {kindText m} | \
-        {stateName (m.contractState s.owner)} |"
+        {stateName (m.contractState s.owner targets)} |"
     rows ([s!"{count missions.length "mission is" "missions are"} open.", "",
       "| Mission | What it asks | Kind | Contract |", "|---|---|---|---|"] ++ table ++ ["",
-      "A *frozen* contract is accepted and may not be weakened. A *proposed* one has not been \
+      "A *frozen* contract is accepted and may not be weakened. A mission with [targets](#targets) \
+      is frozen because only the owner can change them. A *proposed* one has not been \
       accepted yet, so do not start on it. An *edited* one was last changed by someone other than \
       the owner, so its text may not be what was accepted; do not rely on it until the owner has \
       edited it again."])
+
+private def pathChar (c : Char) : Bool := c.isAlphanum || c == '_' || c == '/' || c == '.'
+
+private def fileText (name : Lean.Name) : String :=
+  let file := targetFile name
+  if file.toList.all pathChar then s!"[{escape file}](../{file})" else escape file
+
+private def targetSection (targets : List TargetRow) : String :=
+  match targets with
+  | [] => "No target is registered."
+  | targets =>
+    let table := targets.map fun row =>
+      s!"| {issueLink row.mission} | {escape row.name.toString} | {fileText row.name} | \
+        {(row.provedBy.map fun proof => escape proof.toString).getD "not yet"} |"
+    rows ([s!"{count targets.length "target is" "targets are"} registered.", "",
+      "| Mission | Target | File | Proved by |", "|---|---|---|---|"] ++ table)
 
 private def landedSection (s : Snapshot) : String :=
   match landedOf s with
@@ -720,9 +837,10 @@ private def creditSection (s : Snapshot) : String :=
       else ["", "| Agent | Landed missions | Which |", "|---|---|---|"] ++ agentRows
     rows (["| Account | Landed missions | Which |", "|---|---|---|"] ++ accountRows ++ agentTable)
 
-/-- The page for people. Everything an outsider wrote goes through `escape`; links are built from
-issue and pull request numbers and from logins that pass `loginChar`, never from outside text. -/
-def boardMarkdown (stamp : String) (s : Snapshot) : String :=
+/-- The page for people. Everything an outsider wrote goes through `escape`, and so do the names of
+targets and theorems; links are built from issue and pull request numbers, from logins that pass
+`loginChar` and from target files whose characters pass `pathChar`, never from outside text. -/
+def boardMarkdown (stamp : String) (targets : List TargetRow) (s : Snapshot) : String :=
   rows [
     "# Mission board", "",
     s!"This page is a copy of what GitHub records about Acorn's missions, derived at {stamp}. \
@@ -730,7 +848,13 @@ def boardMarkdown (stamp : String) (s : Snapshot) : String :=
       see the [open missions on GitHub]({repository}/issues?q=is%3Aopen+label%3Amission). \
       [Regenerating the board](missions.md#regenerating-the-board) says how this page is made. \
       New to missions? [Start here](missions.md).", "",
-    "## Open missions", "", openSection s, "",
+    "## Open missions", "", openSection targets s, "",
+    "## Targets", "",
+    "A *target* is an open statement held in Lean as a definition whose file only the owner \
+    changes, so it stays checked against the current code. A mission with targets is finished by \
+    proving each of them, and a target is marked as proved once the repository records the \
+    theorem that proves it. [Missions](missions.md#step-3-read-the-contract) says how to find and \
+    prove one.", "", targetSection targets, "",
     "## Landed missions", "",
     "A mission has landed when the pull request that closed it was merged into the default branch \
     by the repository's owner, with the passing result of the proof gate in its commit message.",
@@ -746,7 +870,8 @@ private def stampShape : List Char := "0000-00-00T00:00:00Z".toList
 /-- Whether a time has the form `date -u +%FT%TZ` prints. -/
 def validStamp (stamp : String) : Bool :=
   stamp.length == stampShape.length &&
-    (stamp.toList.zip stampShape).all fun (c, shape) => if shape == '0' then c.isDigit else c == shape
+    (stamp.toList.zip stampShape).all fun (c, shape) =>
+      if shape == '0' then c.isDigit else c == shape
 
 private def readPages (path : String) : IO (List Page) := do
   let parsed ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
@@ -759,11 +884,13 @@ private def publish (path content : String) : IO Unit := do
 
 /-- Derive both files, then write them; a refused read writes nothing. -/
 def render (stamp first second base : String) : IO Unit := do
-  unless validStamp stamp do throw (IO.userError s!"not a UTC time of the form {String.ofList stampShape}: {stamp}")
+  unless validStamp stamp do
+    throw (IO.userError s!"not a UTC time of the form {String.ofList stampShape}: {stamp}")
   unless first != second do throw (IO.userError "the two reads must be two separate files")
   let snapshot ← IO.ofExcept (agree (← readPages first) (← readPages second))
-  publish (base ++ ".json") ((boardJson stamp snapshot).pretty ++ "\n")
-  publish (base ++ ".md") (boardMarkdown stamp snapshot)
+  let targets := targetRowsOf landings
+  publish (base ++ ".json") ((boardJson stamp targets snapshot).pretty ++ "\n")
+  publish (base ++ ".md") (boardMarkdown stamp targets snapshot)
 
 /-- `query` prints the GraphQL query; `render <time> <read> <read> <path without extension>` writes
 the board. -/

@@ -90,11 +90,23 @@ code that reaches a noncomputable declaration, and mission
 check refusing noncomputable in executing modules).
 
 - **What a mission is:** a GitHub issue labelled mission whose contract, the
-  exact Lean theorem statement or decision contract to establish, is frozen in
-  the issue and may not be weakened. Each mission states the theorem or contract
+  exact Lean theorem statement or decision contract to establish, is frozen and
+  may not be weakened. Each mission states the theorem or contract
   that decides its acceptance, checked by Lean's kernel and `./scripts/gate.sh`;
   runs of the agent in its worlds are demonstrations, not acceptance evidence.
-  Category labels mark the kind of work: `mission:proof` for proofs over
+- **Where a contract is frozen:** a theorem's statement is frozen as a *target*,
+  a Lean definition whose value is the statement, in a module under
+  `lean/AcornVerif/Targets/`. Every build elaborates each target against the
+  current definitions, so a statement cannot stop type-checking unnoticed, and
+  [CODEOWNERS](.github/CODEOWNERS) gives the directory to the owner, so only the
+  owner changes one. `lean/AcornVerif/Targets/Registry.lean` lists every target
+  with its mission's issue number. A part of a contract that is not a statement
+  to prove, such as a change to a decision's kind or the list of files a pull
+  request may change, is frozen in the issue, and so is the whole contract of a
+  mission with no target: there it is frozen while nobody but the owner has
+  edited the issue last.
+- **What a mission's kind is:** category labels mark the kind of work:
+  `mission:proof` for proofs over
   executing definitions or mathematical models in `lean/AcornVerif/`,
   `mission:contract` for Regula decision contracts (`lean/Acorn/Decisions.lean`,
   `lean/AcornVerif/Decisions.lean`) and bounded host or gate checks,
@@ -118,13 +130,22 @@ check refusing noncomputable in executing modules).
   `gh issue list -R rbeauchamp/acorn --label mission --state open --limit 1000`
   (the command stops silently at its limit, 30 if none is given; if it returns as
   many results as the limit, run it again with a larger one until it returns fewer).
+- **How to prove a target:** write a theorem whose statement is the target, in a
+  file the mission names, and add an entry for it to the list in
+  `lean/AcornVerif/Landings.lean`: the target's name, the theorem's name and the
+  theorem. The entry compiles only when the theorem proves the statement the
+  registry holds under that name (`statementOf`), so Lean's kernel, not a reader,
+  decides that the target is proved. [Missions](docs/missions.md#step-5-do-the-work)
+  shows both steps.
 - **How to claim it:** open a pull request that closes the issue (`Closes #<id>.`
   in the description), or comment claim on the issue; a claim comment lapses
   after seven days without a pull request that passes the gate.
 - **Files a mission may touch:** modify only the modules and documents the
-  mission names (such as the target modules in `lean/Acorn/` or
+  mission names (such as the modules that hold its proofs in `lean/Acorn/` or
   `lean/AcornVerif/`, the decision registries `lean/Acorn/Decisions.lean` and
-  `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). Files that make up
+  `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). A mission with targets
+  also adds its entries to `lean/AcornVerif/Landings.lean` and changes nothing
+  under `lean/AcornVerif/Targets/`, which is its contract. Files that make up
   Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
   `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
   and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests

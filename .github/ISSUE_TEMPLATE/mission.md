@@ -5,7 +5,7 @@ title: ""
 labels: ["mission"]
 ---
 
-<!-- An Acorn mission is a self-contained unit of work whose acceptance is decided by an exact Lean theorem about an executable Acorn definition or a Regula decision contract passing `./scripts/gate.sh` (see CONTRIBUTING.md#missions-for-outside-contributors-and-agents). The owner adds the tier label (`mission:proof`, `mission:contract`, `mission:world`, or `mission:prior-art`) once the contract is exact. Write each paragraph and each list item on a single line. -->
+<!-- An Acorn mission is a self-contained unit of work whose acceptance is decided by an exact Lean theorem about an executable Acorn definition or a Regula decision contract passing `./scripts/gate.sh` (see CONTRIBUTING.md#missions-for-outside-contributors-and-agents). The owner adds the tier label (`mission:proof`, `mission:contract`, `mission:world`, or `mission:prior-art`) once the contract is exact. A theorem's statement is then held as a target: a Lean definition of type `Prop` under `lean/AcornVerif/Targets/`, which only the owner changes and which `lean/AcornVerif/Targets/Registry.lean` lists under this issue's number. Write each paragraph and each list item on a single line. -->
 
 ## Problem and mission relevance
 
@@ -15,7 +15,8 @@ labels: ["mission"]
 
 <!-- Freeze the exact contract so that Lean's kernel and `./scripts/gate.sh` decide acceptance without weakening the statement. -->
 
-- Target theorem or decision contract: <!-- exact Lean 4 theorem signature(s) over the executed definition or Regula decision contract (`lean/Acorn/Decisions.lean`, `lean/AcornVerif/Decisions.lean`) to establish -->
-- Module touch-set: <!-- closed list of files the pull request may modify (such as target modules in `lean/Acorn/` or `lean/AcornVerif/`, `lean/Acorn/Decisions.lean`, `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`); exclude trusted-base files in `.github/CODEOWNERS` unless explicitly required -->
+- Targets: <!-- once the owner has registered them, the name of each target to prove, such as `AcornVerif.Targets.Json.parse_complete`, and its file. To propose a statement, write the exact Lean 4 theorem signature(s) over the executed definition here; a proposer does not add files under `lean/AcornVerif/Targets/`. To prove a target, state a theorem whose statement is the target and add its entry to the list in `lean/AcornVerif/Landings.lean` (see docs/missions.md, steps 3 and 5). Write "none" for a mission whose whole contract is the next line -->
+- Decision contract or other part that is not a statement to prove: <!-- the exact Regula decision contract (`lean/Acorn/Decisions.lean`, `lean/AcornVerif/Decisions.lean`) or other change to establish, which stays frozen in this issue; write "none" where the targets are the whole contract -->
+- Module touch-set: <!-- closed list of files the pull request may modify (such as the modules that hold the proofs in `lean/Acorn/` or `lean/AcornVerif/`, `lean/AcornVerif/Landings.lean` for a mission with targets, `lean/Acorn/Decisions.lean`, `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`); exclude `lean/AcornVerif/Targets/` and the trusted-base files in `.github/CODEOWNERS` unless explicitly required -->
 - Audit-pin invariance: <!-- state whether the three `C-AC5` mutation-audit pins in `lean/Acorn/Host/AuditPins.lean` must remain unchanged -->
 - Verification gate: `./scripts/gate.sh` passing on the exact pull request head (see the gate requirements in CONTRIBUTING.md).
