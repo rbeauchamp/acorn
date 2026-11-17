@@ -84,6 +84,42 @@ def RateState.skill {policy : RatePolicy} (state : RateState policy)
   | .shared => .fixed (primitive ())
   | .annealed _ => .fixed (SwiftTd.ExploreRate.project ⟨Acorn.Constants.optionEpsilonBits⟩)
 
+/-- A controller's rate with its work: the declared word, which reads nothing, the work of the
+source the policy names, or the projection of the annealed rate. -/
+def RateState.controllerCosted {policy : RatePolicy} (state : RateState policy)
+    (own primitive : Unit → Costed SwiftTd.ExploreRate) : Costed SwiftTd.ExploreRate :=
+  match state with
+  | .declared => Costed.pure declaredRate
+  | .perLearner => own ()
+  | .shared => primitive ()
+  | .annealed rate => Costed.op .rateClose (SwiftTd.ExploreRate.project rate.value)
+
+/-- The costed controller rate's value is the controller rate of the callbacks' values. -/
+theorem RateState.controllerCosted_val {policy : RatePolicy} (state : RateState policy)
+    (own primitive : Unit → Costed SwiftTd.ExploreRate) :
+    (state.controllerCosted own primitive).val =
+      state.controller (fun unused => (own unused).val) fun unused => (primitive unused).val := by
+  cases state <;> rfl
+
+/-- The options' rate source with its work: the shared policy reads the primitive rate at the
+work of reading it, and every other policy reads nothing. -/
+def RateState.skillCosted {policy : RatePolicy} (state : RateState policy)
+    (primitive : Unit → Costed SwiftTd.ExploreRate) : Costed ConsumerRate :=
+  match state with
+  | .declared => Costed.pure (.fixed declaredRate)
+  | .perLearner => Costed.pure .own
+  | .shared => do
+    let rate ← primitive ()
+    Costed.pure (.fixed rate)
+  | .annealed _ =>
+    Costed.pure (.fixed (SwiftTd.ExploreRate.project ⟨Acorn.Constants.optionEpsilonBits⟩))
+
+/-- The costed rate source's value is the rate source of the callback's values. -/
+theorem RateState.skillCosted_val {policy : RatePolicy} (state : RateState policy)
+    (primitive : Unit → Costed SwiftTd.ExploreRate) :
+    (state.skillCosted primitive).val = state.skill fun unused => (primitive unused).val := by
+  cases state <;> rfl
+
 /-- Under the declared policy every controller read is the declared word, for
 every rate state and whatever the learners would derive. -/
 theorem RateState.declared_controller {policy : RatePolicy} (state : RateState policy)

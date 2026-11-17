@@ -14,9 +14,11 @@ import AcornVerif.Resource.ModelWork
 # Work of the options
 
 The bounds of the costed definitions of an option's operations in `Acorn.Options`, of its
-operations with its model in `Acorn.Temporal` and of one slot's share of a followed frame
-(`Handcrafted.followSlot`), at the model operations of `modelOperations`, the ones the agent runs,
-with the adapters the twins read. An option is a policy controller over the world's actions, an
+operations with its model in `Acorn.Temporal`, of one slot's share of a followed frame
+(`Handcrafted.followSlot`) and of the following of the option table
+(`Handcrafted.TemporalControl.followOptions`) with the rates, the value function and the stopping
+estimate it computes, at the model operations of `modelOperations`, the ones the agent runs, with
+the adapters the twins read. An option is a policy controller over the world's actions, an
 option model and an interest; `Acorn.Cost` names each costed definition.
 
 Each `_within` theorem bounds a costed definition directly. Where that bound grows with an active
@@ -968,7 +970,160 @@ theorem followSlotCosted_within_capacity (κ : Costs) (value : ValueFunction cri
 
 end Slot
 
-/-! ### Adapters -/
+/-! ## The option table's following -/
+
+section Table
+
+open Acorn.Handcrafted
+
+variable {interface : Interface} {profile : FeatureProfile}
+
+/-- Bound of any controller rate of a state. -/
+abbrev metaRateBound (κ : Costs) (rows capacity : Nat) : Nat :=
+  rateBound κ metaCount.word.toNat capacity + rateBound κ rows capacity
+
+/-- A controller's rate under a rate policy is within a bound of both of its sources that covers
+the projection of an annealed rate. -/
+theorem controllerCosted_within {policy : RatePolicy} (κ : Costs) (rate : RateState policy)
+    {own primitive : Unit → Acorn.Costed SwiftTd.ExploreRate} {bound : Nat}
+    (ownFits : (own ()).Within κ bound) (primitiveFits : (primitive ()).Within κ bound)
+    (close : κ .rateClose ≤ bound) : (rate.controllerCosted own primitive).Within κ bound := by
+  cases rate
+  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+  · exact ownFits
+  · exact primitiveFits
+  · exact (Acorn.Costed.op_within _ _ κ).mono close
+
+/-- The options' rate source under a rate policy is within a bound of the primitive rate. -/
+theorem skillCosted_within {policy : RatePolicy} (κ : Costs) (rate : RateState policy)
+    {primitive : Unit → Acorn.Costed SwiftTd.ExploreRate} {bound : Nat}
+    (primitiveFits : (primitive ()).Within κ bound) :
+    (rate.skillCosted primitive).Within κ bound := by
+  cases rate
+  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+  · exact (Acorn.Costed.bind_within primitiveFits (Acorn.Costed.pure_within _ κ)).mono
+      (Nat.le_of_eq (Nat.add_zero _))
+  · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
+
+/-- The primitive rate is within the bound of the primitive controller's derived rate. -/
+theorem primitiveRateCosted_within (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.primitiveRateCosted.Within κ
+      (rateBound κ interface.actions.word.toNat dimension.capacity) :=
+  exploreRateCosted_within κ _
+
+/-- The meta rate is within the bound of both controllers' derived rates. -/
+theorem metaRateCosted_within (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.metaRateCosted.Within κ
+      (metaRateBound κ interface.actions.word.toNat dimension.capacity) :=
+  controllerCosted_within κ state.rate
+    ((exploreRateCosted_within (count := metaCount) κ _).mono (Nat.le_add_right _ _))
+    ((primitiveRateCosted_within κ state).mono (Nat.le_add_left _ _))
+    (by simp only [metaRateBound, rateBound]; omega)
+
+/-- The options' rate source is within the bound of the primitive controller's derived rate. -/
+theorem skillSourceCosted_within (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.skillRateCosted.Within κ
+      (rateBound κ interface.actions.word.toNat dimension.capacity) :=
+  skillCosted_within κ state.rate (primitiveRateCosted_within κ state)
+
+/-- The value function is within the bound of the meta rate. -/
+theorem valueFunctionCosted_within (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.valueFunctionCosted.Within κ
+      (metaRateBound κ interface.actions.word.toNat dimension.capacity) :=
+  (Acorn.Costed.bind_within (metaRateCosted_within κ state)
+    (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _))
+
+/-- Bound of the stopping estimate: the meta rate, then a comparison value over the meta
+actions. -/
+abbrev stoppingEstimateBound (κ : Costs) (rows capacity : Nat) : Nat :=
+  metaRateBound κ rows capacity + comparisonBound κ metaCount.word.toNat
+
+/-- The stopping estimate: the comparison value of a drawn decision's snapshot, or the meta rate
+and the comparison value of the frame's meta values. -/
+theorem stoppingEstimateCosted_within (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension)
+    (decision : TemporalDecision interface.actions) :
+    (state.stoppingEstimateCosted decision).Within κ
+      (stoppingEstimateBound κ interface.actions.word.toNat dimension.capacity) := by
+  unfold TemporalControl.stoppingEstimateCosted
+  split
+  · exact (comparisonValueCosted_within κ criterion _).mono (Nat.le_add_left _ _)
+  · exact Acorn.Costed.bind_within (metaRateCosted_within κ state)
+      (comparisonValueCosted_within κ criterion _)
+
+/-- Bound of the following of the option table: the stopping estimate, the options' rate source
+and the value function, then the indexed map at one slot's share for each of the table's slots
+and the state's record. -/
+abbrev followOptionsBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
+  stoppingEstimateBound κ rows capacity + (rateBound κ rows capacity +
+    (metaRateBound κ rows capacity +
+      (Library.mapFinIdx.work (κ .visit) Acorn.FeatureConstants.skillCount
+        (followSlotBound κ rows capacity positions width) + κ .followTable)))
+
+/-- The following of the option table is within its bound at any width that bounds every slot's
+share of the frame. -/
+theorem followOptionsCosted_within_slots (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) (decision : TemporalDecision interface.actions) {width : Nat}
+    (slots : ∀ (value : ValueFunction criterion dimension) (estimate : Binary32)
+      (rate : ConsumerRate) (gain : RewardRate) (executing : Bool)
+      (skill : Skill interface.actions config criterion dimension interface.layout),
+      (followSlotCosted (modelOperations criterion dimension) value features declared goal
+        estimate rate decision.action decision.probabilities reward gain executing skill).Within κ
+        (followSlotBound κ interface.actions.word.toNat dimension.capacity
+          (rankDimension dimension).capacity width)) :
+    (state.followOptionsCosted (modelOperations criterion dimension) features declared reward
+      goal decision).Within κ
+      (followOptionsBound κ interface.actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity width) := by
+  unfold TemporalControl.followOptionsCosted
+  refine Acorn.Costed.ite_within (fun _ => ?_)
+    fun _ => (Acorn.Costed.op_within _ _ κ).mono (by simp only [followOptionsBound]; omega)
+  refine Acorn.Costed.bind_within (stoppingEstimateCosted_within κ state decision) ?_
+  refine Acorn.Costed.bind_within (skillSourceCosted_within κ state) ?_
+  refine Acorn.Costed.bind_within (valueFunctionCosted_within κ state) ?_
+  exact Acorn.Costed.bind_within
+    (Acorn.Costed.mapFinIdx_within fun _ => slots _ _ _ _ _ _) (Acorn.Costed.op_within _ _ κ)
+
+/-- The following of the option table: where options learn, the stopping estimate, the options'
+rate source and the value function, then every slot's share and the state's record; otherwise
+the unchanged state. -/
+theorem followOptionsCosted_within (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) (decision : TemporalDecision interface.actions) :
+    (state.followOptionsCosted (modelOperations criterion dimension) features declared reward
+      goal decision).Within κ
+      (followOptionsBound κ interface.actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity features.indices.length) :=
+  followOptionsCosted_within_slots κ state features declared reward goal decision
+    fun value estimate rate gain executing skill =>
+      followSlotCosted_within κ value features declared goal estimate rate decision.action
+        decision.probabilities reward gain executing skill
+
+/-- The following of the option table is within a function of the configuration alone. -/
+theorem followOptionsCosted_within_capacity (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
+    (goal : Bool) (decision : TemporalDecision interface.actions) :
+    (state.followOptionsCosted (modelOperations criterion dimension) features declared reward
+      goal decision).Within κ
+      (followOptionsBound κ interface.actions.word.toNat dimension.capacity
+        (rankDimension dimension).capacity dimension.capacity) :=
+  followOptionsCosted_within_slots κ state features declared reward goal decision
+    fun value estimate rate gain executing skill =>
+      followSlotCosted_within_capacity κ value features declared goal estimate rate
+        decision.action decision.probabilities reward gain executing skill
+
+end Table
+
+/-! ## Adapters -/
 
 /-- `Skill.beginTemporal` at the model operations the agent runs, with its bound. -/
 def beginTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
