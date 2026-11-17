@@ -45,7 +45,7 @@ of the mission contract, is discharged for this class by
 concealed targets of `AcornVerif.CurrentConcealedTarget.witness_explored` counted and the covering
 bound 98, the retracing agent with the reward as its signal and the witness's three walks as its
 exploration meets the mission's statement, with every premise discharged, with no lapse and at
-every horizon of at least five visits. So the statement is
+every horizon of at least four visits. So the statement is
 satisfiable on the executed grid world, by an agent that holds one of 96 memories (eight counts of
 a visit's steps, three counts of visits and four values of the walk found) and stores no action and
 no percept. This is a reference: it shows that the four contracts can be met together on this
@@ -121,8 +121,8 @@ reward are a function of its seed (`AcornVerif.CurrentExplorer`).
 Obligation 15 enters through the two premises on the predicate. They are statements about the
 agent's one run in each member, with no fraction of runs and no hypothesis on the draws: the
 executed agent's generator is part of its state, so one state has one run. Every premise about
-solving and about the predicate reads the visits before the horizon and no other, so the
-statement reads finitely many decisions of each run. Proving the two for `ExecutedCalm` needs
+solving and about the predicate reads the visits before the horizon and no other, so those
+premises read finitely many decisions of each run. Proving the two for `ExecutedCalm` needs
 the generator's state along the agent's run after a first reward. Each decision's flag is a
 function of the generator's state at that decision
 (`AcornVerif.TemporalSupport.select_declared`), and the tree follows that state up to a first
@@ -236,8 +236,8 @@ theorem find_pays (mode : TaskFeatureMode) (live : Live config) (length : ℕ)
 /-! ## The rung -/
 
 /-- The rung of the feasible concealed targets of a host world in visits of `length` steps, with
-the visit before which its promise of solving again is read and the number of lapses that promise
-allows, the members the comparison counts, an agent, and what the agent reports of its own
+the visit before which its promises are read and the number of lapses its promise of solving
+again allows, the members the comparison counts, an agent, and what the agent reports of its own
 steps. -/
 def findRung (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
     (length horizon lapses : ℕ) (counted : List (feasibleFind config mode live length).Index)
@@ -282,12 +282,12 @@ with visits of seven steps and the covering bound 98, there is a list of 147 dis
 concealed targets such that the retracing agent, with the reward as its signal and the witness's
 three walks as its exploration, achieves goals over the class with those targets counted: the
 mission's statement holds of its rung, with every premise discharged, with no lapse and at every
-horizon of at least five visits: the agent separates on its fourth visit, and the horizon leaves
-a visit after it. -/
+horizon of at least four visits: the agent solves every counted member on its third visit, the
+last of its exploring ones, and the horizon leaves a visit after it. -/
 theorem witness_mission (mode : TaskFeatureMode) :
     ∃ counted : List (feasibleFind witnessConfig mode witnessLive 7).Index,
       counted.Nodup ∧ counted.length = 147 ∧
-        ∀ horizon, 4 < horizon →
+        ∀ horizon, 3 < horizon →
           Mission (retraceRung (feasibleFind witnessConfig mode witnessLive 7) 7 horizon 2 reward
             (fun _ => goalMet) counted witnessExplore) := by
   classical
@@ -401,16 +401,19 @@ What "reports no exploration" means. The step's decision carries the flag
 `Acorn.Features.TemporalDecision.explored`. A decision is a served step of a run the agent had
 committed to, or the outcome of one persistent draw, whose flag is the draw's branch
 (`AcornVerif.CurrentTemporal.select_persistent`); under the declared rate that branch is a
-function of one word of the generator (`AcornVerif.TemporalSupport.select_declared`). A served
-step sets the flag as well (`AcornVerif.CurrentTemporal.serve_explored`). So a calm visit holds,
+function of one word of the generator (`AcornVerif.TemporalSupport.select_declared`). The step
+that serves a committed run sets the flag as well
+(`AcornVerif.CurrentTemporal.serve_explored`); that the selection returns that step's decision
+when it serves is its definition, and no theorem states the two together. So a calm visit holds,
 among the decisions it reads, neither the start of an exploratory run nor a step of one.
 
-Three things in this reading were chosen on the owner's behalf, and the owner can overrule each.
-The flag is taken as the meaning of an exploratory action. A greedy choice among several
-candidates draws on the generator as well (`Acorn.Features.PolicySnapshot.greedy_def`); it sets
-no flag and is not exploration here, so a calm visit can still hold a choice drawn at random
-among actions whose values are tied. And under a profile with a hierarchy the meta-controller's
-own exploring branch is not that flag and is not read. -/
+Four things in this reading were chosen on the owner's behalf, and the owner can overrule each.
+The flag is taken as the meaning of an exploratory action. The visit's last decision is not
+read, for the reason above. A greedy choice among several candidates draws on the generator as
+well (`Acorn.Features.PolicySnapshot.greedy_def`); it sets no flag and is not exploration here,
+so a calm visit can still hold a choice drawn at random among actions whose values are tied. And
+under a profile with a hierarchy the meta-controller's own exploring branch is not that flag and
+is not read. -/
 def ExecutedCalm (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config) (length : ℕ)
     (index : (feasibleFind config profile.taskMode live length).Index) (visit : ℕ) : Prop :=

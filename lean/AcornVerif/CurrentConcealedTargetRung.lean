@@ -38,9 +38,9 @@ Nor are the two numbers the class names for its promises (`AcornVerif.Intent.Pos
 the visit before which they are read, its horizon, and how many visits of each member it allows
 the agent to miss, its lapses. `rung_mission` holds at every pair that leaves room: the visit on
 which the agent separates comes before a visit `limit`, and `limit` leaves more later visits than
-the lapses before the horizon. No agent meets the statement at a pair with no such room
-(`AcornVerif.Intent.Postcondition.unmet_of_lapses`). The rung is to name a pair with the count
-of the visits on which its agent explores, which no theorem gives yet.
+the lapses before the horizon. No agent meets the statement at a pair that leaves no visit that
+room (`AcornVerif.Intent.Postcondition.unmet_of_lapses`). The rung is to name a pair with the
+count of the visits on which its agent explores, which no theorem gives yet.
 
 ## What the choices rest on
 

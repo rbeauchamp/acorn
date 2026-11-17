@@ -28,8 +28,8 @@ the theorem `visits_mission`, whose hypotheses are the work that remains.
 - an attempt is a visit: its `length + 1` decisions;
 - an attempt's rewards are aggregated by `untilPaid`: they are summed up to and including the first
   step that pays, so an attempt is over, for the count of reward, when its goal is first met;
-- the promise of solving again is read before the visit `horizon`, and it allows `lapses` visits
-  of each member, as the postcondition's record asks a class to state
+- the class's promises are read before the visit `horizon`, and its promise of solving again
+  allows `lapses` visits of each member, as the postcondition's record asks a class to state
   (`AcornVerif.Intent.Postcondition.Trial`);
 - the agent is the kernel's agent, given the percept as its observation (`recordAgent`). An agent of
   the records over percepts and actions is a kernel agent in turn (`kernelAgent`), and the run the
@@ -73,7 +73,7 @@ and `RetainsBut` of the agent, with room between the visit of the one and the ho
 other; and contract 3's record of the agent's run in each member. The two are what remains of
 obligation 9, and are what the goal-information and exploration premises of obligation 4 must
 deliver for an agent. `AcornVerif.Separation` gives them from parts: an agent that finds by a
-stated visit and retains on every later visit has both, with no lapse
+stated visit and retains on every later visit has both, before that visit and with no lapse
 (`AcornVerif.Kernel.separatesBy_of_findsBy`, `AcornVerif.Kernel.Retains.but`), and an agent that
 goes on exploring has them from finding by a stated visit, retention on the visits a predicate
 admits, and two counts of those visits (`AcornVerif.Kernel.separatesBy_of_finds_on`,
@@ -757,8 +757,8 @@ theorem paid_decodes (stated : PaysAtGoals family goals pay met) (index : family
   rw [decide_eq_true_iff, stated.pays, ← stated.reads]
   cases met index ((family.world index).step state action) <;> simp
 
-/-- The rung of a class in visits and the retracing agent with the reward as its signal, with the
-promise of solving again read before the given horizon and no lapse allowed. The agent reports, at
+/-- The rung of a class in visits and the retracing agent with the reward as its signal, with its
+promises read before the given horizon and no lapse allowed. The agent reports, at
 every step, one learning update on the experience the step was given, one other update, and two
 units of work, and it resumes with the memory it held.
 
@@ -784,13 +784,13 @@ feasible within a visit and a reward that pays at its goals. If, for each counte
 exploring walks of the visits up to `last` meets that member's goal from its start within a visit,
 the retracing agent with the reward as its signal achieves goals over the class: the mission's
 statement holds of its rung, with every premise discharged, with no lapse and at every horizon
-that leaves a visit after the one on which the agent separates, the visit `last + 1`. -/
+that leaves a visit after the visit `last`, on which the agent solves every counted member. -/
 theorem retrace_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
     (feasible : ∀ index, Feasible (visitGoals goals length index) (family.start index))
     (distinct : counted.Nodup) (many : bound < counted.length) (last : ℕ)
-    (late : last + 2 < horizon) (explore : ℕ → ℕ → Act interface)
+    (late : last + 1 < horizon) (explore : ℕ → ℕ → Act interface)
     (explored : ∀ index ∈ counted, ∃ visit, visit ≤ last ∧
       ∃ step, 1 ≤ step ∧ step ≤ length ∧ (goals index).satisfied
         (path (family.world index) (family.start index) (explore visit) step)) :
@@ -800,7 +800,7 @@ theorem retrace_mission (stated : PaysAtGoals family goals pay met)
       (retrace_finds family goals length last bound (paid pay) explore (paid_decodes stated)
         counted distinct many explored)
       (retrace_retains family goals length last (paid pay) explore (paid_decodes stated)))
-    (show last + 1 + 1 + 0 < horizon by omega)
+    (show last + 1 + 0 < horizon by omega)
     ((retrace_retains family goals length last (paid pay) explore (paid_decodes stated)).but
       horizon)
     (fun _ => OneStream.learner_meets _ _ _ _ _

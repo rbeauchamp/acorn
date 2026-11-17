@@ -41,9 +41,9 @@ open LeanIntent WorldInterface Postcondition
 
 /-! ## The record reads the class only -/
 
-/-- **The record reads the class, not its agent, its aggregation or its promise of solving
-again.** A trial meets the record exactly when the trial with another agent, another way of
-aggregating reward, another horizon and another number of lapses does. -/
+/-- **The record reads the class, not its agent, its aggregation, its horizon or its lapses.** A
+trial meets the record exactly when the trial with another agent, another way of aggregating
+reward, another horizon and another number of lapses does. -/
 theorem reads_class (w : Trial) (A : Agent w.Obs w.Act) (f : List Rat → Rat)
     (horizon lapses : Nat) :
     bigClass.Meets { w with agent := A, total := f, horizon := horizon, lapses := lapses } ↔
@@ -308,6 +308,19 @@ theorem retention_unconditional {w : Trial} (hb : bigClass.Meets w) (hk : keepsS
   obtain ⟨lapsed, few, keeps⟩ := hk i
   exact ⟨lapsed, few, fun n n' hle before hs out =>
     keeps n n' hle before (fun k _ _ => sameProblem_of_big hb i n k) hs out⟩
+
+/-- **In a big class the members solved on the attempt of the advantage are solved again.** In a
+class that meets this record, an agent that meets the postcondition's record earns its advantage
+on an attempt each of whose solved members it solves again on a later attempt before the
+horizon. So in such a class no agent meets the postcondition by an advantage it earns once and
+never follows. -/
+theorem advantage_solved_again {w : Trial} (hb : bigClass.Meets w)
+    (hp : postcondition.Meets w) :
+    ∃ n, (∀ B, KeepsNothing B → ∀ k, w.classReward B k < w.classReward w.agent n) ∧
+      ∀ i, w.solves w.agent i n = true →
+        ∃ n', n < n' ∧ n' < w.horizon ∧ w.solves w.agent i n' = true := by
+  obtain ⟨n, more, again⟩ := advantageSolvedAgain_holds w hp
+  exact ⟨n, more, fun i solved => again i solved fun k _ => sameProblem_of_big hb i n k⟩
 
 /-- Some agent achieves the postcondition in the class of the trial `w`: the trial with that agent
 in place of its own meets the postcondition's record. -/

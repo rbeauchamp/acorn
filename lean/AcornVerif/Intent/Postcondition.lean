@@ -33,19 +33,19 @@ two assessments not admitted; and the issues open on 2026-11-10, with the closed
 rbeauchamp/acorn#140, whose text derives facts about the executed agent's controller. Of the modules
 that define the kernel's worlds, classes and visits the writer had read the first line of three
 declarations (`Conceals`, `SolvesOnVisit` and `BigClass`), found by a search for their names, and no
-more; of the executing agent's code, nothing. The two properties on solving again are not written
-that blind: their form, an attempt before which they are read and a count of lapses, was chosen
-by a writer that had read how the executing agent explores, because an agent that goes on
-exploring is what the owner's decision of 2026-11-17 is about. The record imports nothing of
-Acorn's but contract 1's record module.
+more; of the executing agent's code, nothing. The two properties on solving again and the tie of
+the advantage to the horizon are not written that blind: their form, an attempt before which
+they are read and a count of lapses, was chosen by a writer that had read how the executing
+agent explores, because an agent that goes on exploring is what the owner's decisions of
+2026-11-17 are about. The record imports nothing of Acorn's but contract 1's record module.
 
 The subject, `Trial`, is a class of worlds with what the class states, and the agent that learns
 in it. What the second sentence says a class states: the members, each a world over the class's
 observations and actions with its reward and its goal (`Member`); the members the comparison
 counts (`counted`); how long an attempt lasts (`length`); and how an attempt's rewards are
-aggregated (`total`). What the decision of 2026-11-17 adds: the attempt before which the class
-reads its promise of solving again (`horizon`), and on how many attempts before it the agent may
-fail a member it has solved (`lapses`). Every
+aggregated (`total`). What the decisions of 2026-11-17 add: the attempt before which the class
+reads its promises (`horizon`), and on how many attempts before it the agent may fail a member it
+has solved (`lapses`). Every
 quantity the properties read is computed from those by the faithful run of an agent in a member
 (`Member.run`), which is contract 1's faithful run never stopped (`run_reaches`, in the module of
 this record's consequences): the agent is given the world's
@@ -92,9 +92,11 @@ formalization and recorded in the record's confirmation file:
 * The lapses are counted for each member: one list of at most the class's number of attempts, the
   same whichever earlier attempt solved the member. The record does not say why an attempt is a
   lapse, and reads no report of the agent's about its own exploring.
-* A class names its horizon and its number of lapses, and the record asks nothing of them. A class
-  that allows as many lapses as it has attempts before its horizon asks no retention
-  (`keepsSolving_of_lapses`, in the module of this record's consequences).
+* A class names its horizon and its number of lapses. The record asks of them only room for the
+  attempt of the advantage, which leaves more later attempts before the horizon than the lapses:
+  no agent meets the record in a class that allows as many lapses as it has attempts before its
+  horizon, less one (`unmet_of_lapses`, in the module of this record's consequences). The more
+  lapses a class allows, the less its promise of solving again asks.
 * `earnsMoreInTime` asks for one attempt, not for every attempt from some attempt on. With
   `keepsSolving`, each member the agent has solved it solves again on the later attempts before
   the horizon that are not that member's lapses, where the member's problem stays the same; and
@@ -156,8 +158,8 @@ read what it is given at that step. -/
 def KeepsNothing {Obs Act : Type} (A : Agent Obs Act) : Prop :=
   ∀ m o o', (A.act m o).2 = (A.act m o').2
 
-/-- A class of worlds, as the postcondition's second sentence says a class states it, with the
-agent that learns in it. -/
+/-- A class of worlds with the agent that learns in it: what the postcondition's second sentence
+says a class states, and the horizon and the lapses of the owner's decisions of 2026-11-17. -/
 structure Trial where
   /-- What the worlds of the class show an agent. -/
   Obs : Type
@@ -173,8 +175,8 @@ structure Trial where
   length : Nat
   /-- How the rewards of one attempt are aggregated, from the rewards in the order given. -/
   total : List Rat → Rat
-  /-- The attempt before which the class reads its promise of solving again: the promise covers
-  the attempts that come before this one. -/
+  /-- The attempt before which the class reads its promises: they cover the attempts that come
+  before this one. -/
   horizon : Nat
   /-- On how many attempts before the horizon the agent may fail a member it has solved. -/
   lapses : Nat

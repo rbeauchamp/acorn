@@ -30,7 +30,7 @@ The subject is the postcondition's, `AcornVerif.Intent.Postcondition.Trial`: a c
 the agent that learns in it. Sentence 2 says that bigness belongs to the pair of a world and an
 agent, and the two records then speak of one thing, so that this record's properties can be the
 preconditions under which the postcondition is asked. The five properties read the class only, not
-its agent, how it aggregates reward, or the horizon and the lapses of its promise of solving again
+its agent, how it aggregates reward, or the horizon and the lapses the postcondition reads
 (`reads_class`, in the module of this record's consequences).
 Every quantity they read is computed by the postcondition's faithful run of an agent in a member.
 

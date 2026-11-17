@@ -79,8 +79,8 @@ open Acorn.Features
 variable {interface : Interface}
 
 /-- **Separation.** On one visit the agent solves each member of a set of more than `bound` of the
-counted members. This is postcondition (i) of `docs/mission-contract.md` for a class in visits, with
-the members the comparison counts named. -/
+counted members, with the members the comparison counts named. It names no visit: `SeparatesBy` is
+the form postcondition (i) of `docs/mission-contract.md` takes. -/
 def Separates (family : WorldClass interface) (goals : family.Goals) (length bound : ℕ)
     (counted : List family.Index) (agent : Agent interface) : Prop :=
   ∃ (visit : ℕ) (solved : Finset family.Index), bound < solved.card ∧
@@ -335,17 +335,23 @@ theorem separatesBy_of_finds_on {bound last limit horizon spare : ℕ}
     exact core index visit common (Nat.lt_of_lt_of_le before late)
       (Nat.lt_of_lt_of_le early within) found (admitted index (each index inside).1 out)
 
-/-- **An agent that finds by a visit and retains on every later visit separates on that visit**:
-it solves on the visit `last` every member it has found before it. -/
+/-- **An agent that finds by a visit and retains on every later visit separates before that
+visit**: on the visit before `last` it solves every member it has found before `last`. -/
 theorem separatesBy_of_findsBy {bound last : ℕ} {counted : List family.Index}
     (finds : FindsBy family goals length bound counted last agent)
     (retains : Retains family goals length agent) :
-    SeparatesBy family goals length bound counted (last + 1) agent :=
-  separatesBy_of_finds_on (spare := 0) (admits := fun _ _ => True) finds
-    (retains.on (last + 1) _)
-    ⟨last, Nat.le_refl last, Nat.lt_succ_self last, ∅, Nat.le_of_eq Finset.card_empty,
-      fun _ _ _ => trivial⟩
-    (Nat.le_refl _)
+    SeparatesBy family goals length bound counted last agent := by
+  obtain ⟨solved, many, each⟩ := finds
+  have positive : 0 < last := by
+    obtain ⟨index, member⟩ := Finset.card_pos.mp (Nat.lt_of_le_of_lt (Nat.zero_le bound) many)
+    obtain ⟨visit, before, -⟩ := (each index member).2
+    omega
+  refine ⟨last - 1, solved, by omega, many, fun index member => ⟨(each index member).1, ?_⟩⟩
+  obtain ⟨visit, before, found⟩ := (each index member).2
+  rcases Nat.lt_or_eq_of_le (show visit ≤ last - 1 by omega) with sooner | same
+  · exact retains index visit (last - 1) sooner found
+  · rw [← same]
+    exact found
 
 /-- **Finding is a property of the run in the reference.** In a class that conceals its goals
 behind a reference, an agent finds exactly when the actions of its run in the reference's visits
