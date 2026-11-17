@@ -76,8 +76,11 @@ operations of those stretches belong to the segment of the next costed charge po
 part's last one, so the second part's segments are not yet bounded by constants of the code and its
 bound is part of obligation 7 of `docs/mission-contract.md`. `DemonRecords.observe` is one such
 stretch: a loop over the channels of the demons' lifetime records, whose trip count depends on the
-configuration, with no charge point. That is why the claim above that every segment is bounded by a
-constant of the code is limited to the first part and to each costed definition's own call.
+configuration, with no charge point. The value an interrupted option's span closes toward
+(`TemporalControl.takeoverValue`) is another: it reads the stopping estimate, a potential and a
+termination decision, values of costed definitions, with no charge point of its own. That is why
+the claim above that every segment is bounded by a constant of the code is limited to the first
+part and to each costed definition's own call.
 
 **Counting.** `op site value` is a stretch at the site's cost, `charge` puts a stretch before a
 computation, and `bind` sequences two computations and adds their work; `Pure` and `Bind` are the
@@ -216,10 +219,9 @@ computes, and their callers, where `TemporalControl.stoppingEstimateCosted`, wit
 decision, loads the constant count of the meta actions after it calls the meta rate, where the code
 without work loaded it before, and where `TemporalControl.choosePrimitive`, `TemporalControl.serve`
 and `TemporalControl.stepOption` differ only in the order of the parallel moves into a join point.
-Each is an observation of one build,
-which no gate repeats. A bound in word operations bounds the accounting under `SiteBounds`; no
-checked statement says that a segment of the executed code does at most its site's cost in word
-operations.
+Each is an observation of one build, which no gate repeats. A bound in word operations bounds the
+accounting under `SiteBounds`; no checked statement says that a segment of the executed code does
+at most its site's cost in word operations.
 
 **What is not counted:** allocation and release of objects, reference counting, the copy of an
 array that is shared when it is written (issue 84 of the repository), the copy of an array into a

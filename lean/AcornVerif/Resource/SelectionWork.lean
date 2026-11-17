@@ -19,7 +19,9 @@ and charges the twin of every operation it calls. Where the executed operation t
 option out of its table so that the runtime can reuse its storage (`detachedUpdate`), the
 run follows the listed composition the repository proves equal to it
 (`TemporalControl.dispatchMeta_eq`, `TemporalControl.stepOption_eq`,
-`TemporalControl.closeOption_eq`).
+`TemporalControl.closeOption_eq`). The primitive rate, the meta rate, the options' rate source and
+the value function are adapters instead: each pairs the executed definition's value with the bound
+proved of its costed definition, which its `_costed` theorem checks.
 -/
 
 namespace AcornVerif.Resource.Twin
@@ -51,11 +53,17 @@ theorem rateRun_work {policy : RatePolicy} (rate : RateState policy)
   · exact primitiveFits
   · exact annealedFits
 
-/-- Twin of `TemporalControl.primitiveRate`. -/
+/-- `TemporalControl.primitiveRate` with its bound, the primitive controller's derived rate's. -/
 def primitiveRate (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     Costed SwiftTd.ExploreRate :=
   exploreRate (count := interface.actions) κ state.runtime.lifecycle.consumers.control
+
+/-- The primitive rate's adapter carries a bound of the costed definition. -/
+theorem primitiveRate_costed (κ : Costs)
+    (state : TemporalControl interface profile config criterion dimension) :
+    state.primitiveRateCosted.Within κ (primitiveRate κ state).work :=
+  primitiveRateCosted_within κ state
 
 /-- `TemporalControl.metaRate` with its bound. -/
 def metaRate (κ : Costs)
@@ -68,6 +76,7 @@ theorem metaRate_work (κ : Costs)
     (metaRate κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
   Nat.le_refl _
 
+/-- The meta rate's adapter carries a bound of the costed definition. -/
 theorem metaRate_costed (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.metaRateCosted.Within κ (metaRate κ state).work := metaRateCosted_within κ state
@@ -101,6 +110,7 @@ theorem skillSource_work (κ : Costs)
     (skillSource κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
   Nat.le_add_left _ _
 
+/-- The rate source's adapter carries a bound of the costed definition. -/
 theorem skillSource_costed (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.skillRateCosted.Within κ (skillSource κ state).work := skillSourceCosted_within κ state
@@ -121,6 +131,7 @@ theorem valueFunction_work (κ : Costs)
       metaRateBound κ interface.actions.word.toNat dimension.capacity :=
   Nat.le_refl _
 
+/-- The value function's adapter carries a bound of the costed definition. -/
 theorem valueFunction_costed (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.valueFunctionCosted.Within κ (valueFunction κ state).work :=

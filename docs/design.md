@@ -407,7 +407,7 @@ slot's share for each of the table's slots and the state's record, and with the 
 the dimension in place of the active set's length it is a function of the configuration
 (`AcornVerif.Resource.Twin.followOptionsCosted_within`,
 `AcornVerif.Resource.Twin.followOptionsCosted_within_capacity`). The twins of the meta
-rate, the options' rate source and the value function that selection reads are now adapters
+rate, the options' rate source and the value function that selection reads are adapters
 checked against these costed definitions (`AcornVerif.Resource.Twin.metaRate_costed`,
 `AcornVerif.Resource.Twin.skillSource_costed`,
 `AcornVerif.Resource.Twin.valueFunction_costed`). The generated C of the definitions without
@@ -553,8 +553,11 @@ second part's segments are not yet bounded by constants of the code and its boun
 of [obligation 7](mission-contract.md#open-obligations), the executed work bound.
 `DemonRecords.observe` is one such stretch: a loop over the channels of the demons'
 lifetime records, whose trip count depends on the configuration, with no charge point.
-That is why the claim that every segment is bounded by a constant of the code is limited
-to the first part and to each costed definition's own call. The
+The value an interrupted option's span closes toward (`TemporalControl.takeoverValue`) is
+another: it reads the stopping estimate, a potential and a termination decision, values of
+costed definitions, with no charge point of its own. That is why the claim that every
+segment is bounded by a constant of the code is limited to the first part and to each
+costed definition's own call. The
 executed `detachedUpdate` is not yet the value of its costed definition
 `detachedUpdateCosted`, so its count does not yet follow the executed code; converting it
 is part of obligation 7.

@@ -1123,7 +1123,7 @@ theorem followOptionsCosted_within_capacity (κ : Costs)
 
 end Table
 
-/-! ### Adapters -/
+/-! ## Adapters -/
 
 /-- `Skill.beginTemporal` at the model operations the agent runs, with its bound. -/
 def beginTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
