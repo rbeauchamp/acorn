@@ -40,7 +40,10 @@ the agent to miss, its lapses. `rung_mission` holds at every pair that leaves ro
 which the agent separates comes before a visit `limit`, and `limit` leaves more later visits than
 the lapses before the horizon. No agent meets the statement at a pair that leaves no visit that
 room (`AcornVerif.Intent.Postcondition.unmet_of_lapses`). The rung is to name a pair with the
-count of the visits on which its agent explores, which no theorem gives yet.
+count of the visits on which its agent explores, which no theorem gives yet. The rung's discovery
+mission (rbeauchamp/acorn#283) names one in its target,
+`AcornVerif.Targets.CurrentConcealedTargetRung.rung_learns`: the advantage before visit 288, the
+horizon 864 and 144 lapses.
 
 ## What the choices rest on
 
