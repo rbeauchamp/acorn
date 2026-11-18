@@ -105,9 +105,9 @@ before the horizon but for a number of each member's visits that the class state
 horizon, which the record reads, on the owner's behalf, as a visit that leaves more later visits
 than the lapses (`AcornVerif.Intent.Postcondition.earnsMoreInTime`). The executed agent is asked
 the first in two parts: on a later visit in which it takes no exploratory action it solves the
-member again, and a count of the visits in which it explores. The premises above are those parts. From them the
-agent separates before the stated visit, on the one visit that is admitted for enough of the
-members it has found (`AcornVerif.Kernel.separatesBy_of_finds_on`), and retains before the
+member again, and a count of the visits in which it explores. The premises above are those parts.
+From them the agent separates before the stated visit, on the one visit that is admitted for enough
+of the members it has found (`AcornVerif.Kernel.separatesBy_of_finds_on`), and retains before the
 horizon but for the lapses (`AcornVerif.Kernel.RetainsOn.but`). The reason is that the executed
 agent explores at a constant rate at every decision that serves no run (departure D6 of
 `docs/learned-only-binding.md`): where an exploring run can make a visit miss, the agent as
