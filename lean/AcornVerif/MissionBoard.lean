@@ -31,6 +31,11 @@ What the proofs below establish about the executed definitions:
   page ends the pagination, and the missions read are that many distinct issues. Two reads must
   agree before anything is written (`agree_both`), which refuses most changes GitHub makes between
   pages; a label removed and restored between the two reads goes unseen.
+* A close is read as a pull request's in the two ways GitHub attributes one: the last closing
+  event names the pull request, or it names a commit, and that commit is the squash commit of a
+  merged pull request among those GitHub associates with it, and of no other of them
+  (`squashedBy_iff`). A commit that is no merged pull request's squash commit, a project and a
+  close by hand are read as no pull request's.
 * Credit follows acceptance (`credited_accepted`): every mission counted for an account or an agent
   is a mission of the read whose closing pull request was merged into the default branch by the
   repository's owner with the gate's final line on record. A claim, a comment, an open pull request
@@ -48,9 +53,11 @@ What the proofs below establish about the executed definitions:
   passes titles and the names of targets and theorems through it. An agent's name uses only a closed
   character set (`agentName_closed`).
 
-What they do not establish: that GitHub answers truly; that a merge by the owner followed a passing
-gate run (`CONTRIBUTING.md` makes that the rule and nothing on GitHub enforces it; the gate's final
-line in the commit message is what the author pasted); that nobody but the owner changes a target,
+What they do not establish: that GitHub answers truly, which includes that the pull requests it
+associates with a commit hold the one that merged as that commit; that a merge by the owner
+followed a passing gate run (`CONTRIBUTING.md` makes that the rule and nothing on GitHub enforces
+it; the gate's final line in the commit message is what the author pasted); that nobody but the
+owner changes a target,
 which rests on that merge rule, `Mission.contractState_targets` saying only what the board reads;
 that the parts of a contract a mission with targets keeps in its issue are as accepted, for which
 the board shows the issue's own state beside; that a target is in the file the board names, which
@@ -62,8 +69,17 @@ namespace AcornVerif.MissionBoard
 
 open Lean (Json toJson)
 
+/-- What a read asks of a pull request. -/
+private def pullFields : String :=
+  "number merged baseRefName mergedAt author { __typename login } mergedBy { login } " ++
+  "mergeCommit { oid message }"
+
 /-- The one GraphQL query of a read. Its one `pageInfo` makes `gh api graphql --paginate` page the
-issues, and ordering by creation keeps the pages stable while issues change. -/
+issues, and ordering by creation keeps the pages stable while issues change. GitHub attributes a
+close to a pull request, a commit or a project (its union `Closer`). The query asks a pull request
+for the fields a landing needs, and a commit for its object id and for the same fields of the pull
+requests GitHub associates with it, since a merged pull request's own squash commit is one way
+GitHub records that pull request's close of an issue. It asks a project for nothing. -/
 def query : String :=
   "query($endCursor: String) { repository(owner: \"rbeauchamp\", name: \"acorn\") { " ++
   "owner { login } defaultBranchRef { name } " ++
@@ -73,8 +89,9 @@ def query : String :=
   "nodes { number title state stateReason updatedAt lastEditedAt body author { login } " ++
   "editor { login } labels(first: 100) { totalCount nodes { name } } " ++
   "timelineItems(itemTypes: [CLOSED_EVENT], last: 1) { nodes { ... on ClosedEvent { closer { " ++
-  "__typename ... on PullRequest { number merged baseRefName mergedAt " ++
-  "author { __typename login } mergedBy { login } mergeCommit { oid message } } } } } } } } } }"
+  "__typename ... on PullRequest { " ++ pullFields ++ " } " ++
+  "... on Commit { oid associatedPullRequests(first: 100) { totalCount " ++
+  "nodes { " ++ pullFields ++ " } } } } } } } } } } }"
 
 /-- A GitHub account: its login, unique among accounts of its kind at one time, and that kind. -/
 structure Account where
@@ -92,7 +109,8 @@ structure MergeCommit where
   message : String
   deriving DecidableEq
 
-/-- The pull request GitHub records as having closed an issue. -/
+/-- A pull request as a read gives it: the one GitHub records as having closed an issue, or one
+GitHub associates with the commit it records as having closed it. -/
 structure Closer where
   /-- The pull request's number. -/
   number : Nat
@@ -109,6 +127,57 @@ structure Closer where
   /-- The squash commit, once there is one. -/
   commit : Option MergeCommit
   deriving DecidableEq
+
+/-- Whether a pull request merged and the commit with object id `oid` is its squash commit. -/
+def Closer.squashes (p : Closer) (oid : String) : Bool :=
+  p.merged && p.commit.any (·.oid == oid)
+
+/-- The pull request that closed an issue whose close GitHub attributes to the commit `oid`, given
+the pull requests GitHub associates with that commit: the one that merged with that commit as its
+squash commit, when every such pull request among them is that one. A commit that is no merged
+pull request's squash commit names nobody, and neither does one that two of them share, since
+GitHub's record then singles out no pull request to credit. -/
+def squashedBy (oid : String) (pulls : List Closer) : Option Closer :=
+  match pulls.find? (·.squashes oid) with
+  | none => none
+  | some p => if pulls.all (fun q => !q.squashes oid || decide (q = p)) then some p else none
+
+/-- `squashedBy` names a pull request exactly when it is one of those associated with the commit,
+it merged with that commit as its squash commit, and no other of them did. So a commit closer adds
+no pull request that did not merge as that commit, and it loses none that alone did. -/
+theorem squashedBy_iff {oid : String} {pulls : List Closer} {p : Closer} :
+    squashedBy oid pulls = some p ↔
+      p ∈ pulls ∧ p.squashes oid = true ∧ ∀ q ∈ pulls, q.squashes oid = true → q = p := by
+  have squashing {first : Closer} (found : pulls.find? (·.squashes oid) = some first) :
+      first ∈ pulls ∧ first.squashes oid = true :=
+    ⟨List.mem_of_find?_eq_some found,
+      List.find?_some (p := fun q : Closer => q.squashes oid) found⟩
+  unfold squashedBy
+  constructor
+  · intro named
+    split at named
+    · simp at named
+    · rename_i first found
+      split at named
+      · rename_i only
+        simp only [Option.some.injEq] at named
+        subst named
+        refine ⟨(squashing found).1, (squashing found).2, fun q member squash => ?_⟩
+        have checked := List.all_eq_true.mp only q member
+        simpa [squash] using checked
+      · simp at named
+  · rintro ⟨member, squash, only⟩
+    cases found : pulls.find? (·.squashes oid) with
+    | none => exact absurd squash (by simpa using List.find?_eq_none.mp found p member)
+    | some first =>
+      have same : first = p := only first (squashing found).1 (squashing found).2
+      subst same
+      have every : pulls.all (fun q => !q.squashes oid || decide (q = first)) = true :=
+        List.all_eq_true.mpr fun q inside => by
+          cases held : q.squashes oid with
+          | false => simp
+          | true => simp [only q inside held]
+      simp [every]
 
 /-- One issue labelled `mission`. There is no field for a claim, a comment or a run. -/
 structure Mission where
@@ -132,7 +201,8 @@ structure Mission where
   editor : Option String
   /-- Its labels. -/
   labels : List String
-  /-- The pull request GitHub records as having closed it, if one did. -/
+  /-- The pull request that closed it, if one did: the one GitHub's last closing event names, or
+  the one `squashedBy` gives for the commit that event names. -/
   closer : Option Closer
   deriving DecidableEq
 
@@ -177,19 +247,33 @@ private def account (j : Json) : Except String Account :=
 private def mergeCommit (j : Json) : Except String MergeCommit :=
   return { oid := ← text j "oid", message := ← text j "message" }
 
-private def closer (j : Json) : Except String (Option Closer) := do
+private def pullRequest (value : Json) : Except String Closer :=
+  return {
+    number := ← (← value.getObjVal? "number").getNat?
+    merged := ← (← value.getObjVal? "merged").getBool?
+    base := ← text value "baseRefName"
+    mergedAt := ← optional value "mergedAt" Json.getStr?
+    author := ← optional value "author" account
+    mergedBy := ← optional value "mergedBy" login
+    commit := ← optional value "mergeCommit" mergeCommit }
+
+/-- The pull request a closing event of issue `number` credits, over every kind of closer GitHub
+has: a pull request is itself; a commit is the pull request `squashedBy` gives among all those
+GitHub associates with it, a list that must have fit the read; a project, a kind this read does
+not know and a close by hand are nobody. -/
+private def closer (number : Nat) (j : Json) : Except String (Option Closer) := do
   match ← optional j "closer" pure with
   | none => return none
   | some value =>
-    unless (← text value "__typename") == "PullRequest" do return none
-    return some {
-      number := ← (← value.getObjVal? "number").getNat?
-      merged := ← (← value.getObjVal? "merged").getBool?
-      base := ← text value "baseRefName"
-      mergedAt := ← optional value "mergedAt" Json.getStr?
-      author := ← optional value "author" account
-      mergedBy := ← optional value "mergedBy" login
-      commit := ← optional value "mergeCommit" mergeCommit }
+    let kind ← text value "__typename"
+    if kind == "PullRequest" then return some (← pullRequest value)
+    else if kind == "Commit" then
+      let associated ← value.getObjVal? "associatedPullRequests"
+      let nodes ← (← associated.getObjVal? "nodes").getArr?
+      unless (← (← associated.getObjVal? "totalCount").getNat?) == nodes.size do
+        throw s!"issue {number}: the pull requests of its closing commit did not fit one read"
+      return squashedBy (← text value "oid") (← nodes.toList.mapM pullRequest)
+    else return none
 
 private def mission (j : Json) : Except String Mission := do
   let labels ← j.getObjVal? "labels"
@@ -200,7 +284,7 @@ private def mission (j : Json) : Except String Mission := do
   let closings ← (← (← j.getObjVal? "timelineItems").getObjVal? "nodes").getArr?
   let closing ← match closings.toList with
     | [] => pure none
-    | [event] => closer event
+    | [event] => closer number event
     | _ => throw s!"issue {number}: more than the one closing event asked for"
   return {
     number
@@ -465,9 +549,9 @@ inductive Withheld
   /-- The squash commit's message holds no passing gate result. -/
   | noGateResult
 
-/-- What a closed mission must have to have landed: it was completed, the pull request GitHub
-records as having closed it merged into the default branch at the owner's hand, and the squash
-commit, which later edits of the pull request cannot change, holds the gate's final line. -/
+/-- What a closed mission must have to have landed: it was completed, the pull request that closed
+it (`Mission.closer`) merged into the default branch at the owner's hand, and the squash commit,
+which later edits of the pull request cannot change, holds the gate's final line. -/
 def Accepted (m : Mission) (owner branch : String) : Prop :=
   m.completed = true ∧ ∃ c, m.closer = some c ∧ c.merged = true ∧ c.base = branch ∧
     c.mergedBy = some owner ∧ ∃ commit, c.commit = some commit ∧ commit.message.contains gateLine

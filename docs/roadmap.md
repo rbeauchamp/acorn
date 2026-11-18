@@ -186,9 +186,10 @@ The statements of [#163](https://github.com/rbeauchamp/acorn/issues/163), [#200]
 The rung's premises on work and on learning once (`WorkBounded`, `LearnsOnArrival`) are about what the agent reports of its steps. What [#90](https://github.com/rbeauchamp/acorn/issues/90) and [#233](https://github.com/rbeauchamp/acorn/issues/233) owe is the link from those reports to the executing code, stated over constructions so that an algorithm change does not reopen it, and [#233](https://github.com/rbeauchamp/acorn/issues/233) has no statement yet.
 The discipline premise waits on which memory contract 3 reads ([#249](https://github.com/rbeauchamp/acorn/issues/249)).
 
-Five missions are open today.
+On 2026-11-18 seven missions are open, five of them with an accepted contract.
 [#200](https://github.com/rbeauchamp/acorn/issues/200) and [#201](https://github.com/rbeauchamp/acorn/issues/201) are lemmas for a design of learned agent state that is not admitted.
 [#132](https://github.com/rbeauchamp/acorn/issues/132), [#163](https://github.com/rbeauchamp/acorn/issues/163) and [#174](https://github.com/rbeauchamp/acorn/issues/174) are off the path.
+[#272](https://github.com/rbeauchamp/acorn/issues/272) and [#273](https://github.com/rbeauchamp/acorn/issues/273), filed that day, propose targets that state the tile world's runs against the intent records of contracts 1 and 3; the board lists them as proposed until the owner accepts them.
 The [mission board](mission-board.md) is the dated list.
 
 ## Upkeep
