@@ -17,10 +17,16 @@ Research rationale: Richard S. Sutton, Michael Bowling and Patrick M. Pilarski,
 The Alberta Plan for AI Research, arXiv:2208.11173v3 (2023), section "Designing
 around a base agent", pp. 4–5: learning and planning serve the primary policy's
 reward objective. Khurram Javed and Richard S. Sutton, The Big World Hypothesis
-and its Ramifications for Artificial Intelligence, Oak Lab research article
-(2024), sections "The Big World Hypothesis" and "Benchmarking Algorithms in Big
-Worlds": limited understanding is judged by decisions in a specified environment.
-Acorn defines the curriculum fraction above for the admitted goals and budgets.
+and its Ramifications for Artificial Intelligence, Oak Lab post (2024), which is
+also a five-page paper under the same title: the agent "must learn to make sound
+decisions using its limited understanding of the environment" (post section "The
+Big World Hypothesis"; the same words in the paper, §1, PDF p. 1), and for
+benchmarks "The alternative is to restrict the computational capabilities of the
+agents instead of making the environments larger" (post section "Benchmarking
+Algorithms in Big Worlds"; the same words in the paper, §4.3, PDF p. 4). Judging
+the agent by the goals it achieves in a specified environment is Acorn's
+inference from these, not a statement of the work. Acorn defines the curriculum
+fraction above for the admitted goals and budgets.
 -/
 namespace Acorn.Host.Viewer.GoalAchievement
 

@@ -425,7 +425,8 @@ F-E left its feature-construction end inert until U3.
     assignment.
 - **Agent and world size.** "The big world hypothesis says that in many
   decision-making problems the agent is orders of magnitude smaller than the
-  environment" [[19]](#r19). Acorn's standard setting does not have that
+  environment" ([[19]](#r19), post section "The Big World Hypothesis"; the
+  same words in the paper, §1, PDF p. 1). Acorn's standard setting does not have that
   relation in bits: about 1.9 million learned parameters hold 59.8 million
   bits, and the whole state of a 1024 × 1024 world fits in fewer than 67.7
   million (argued), within the same order of magnitude.
@@ -953,8 +954,13 @@ Section, equation and page locators refer to the versions linked here.
 18. <a id="r18"></a>Oak Lab, "Mission" ([page](https://oaklab.ai/mission)),
     read 2026-09-29.
 19. <a id="r19"></a>Khurram Javed and Richard S. Sutton, "The Big World Hypothesis
-    and its Ramifications for Artificial Intelligence", 2024
-    ([Oak Lab](https://oaklab.ai/posts/the-big-world-hypothesis.html)).
+    and its Ramifications for Artificial Intelligence", in two versions under the
+    same title: the Oak Lab post, 2024
+    ([page](https://oaklab.ai/posts/the-big-world-hypothesis)), which is the
+    version quoted here, and a five-page paper
+    ([pdf](https://openreview.net/pdf?id=Sv7DazuCn8)), cited by section number
+    and PDF page. No venue is stated for the paper: its PDF prints none, and its
+    record on OpenReview has not been read.
 20. <a id="r20"></a>Richard S. Sutton, Michael Bowling and Patrick M. Pilarski,
     "The Alberta Plan for AI Research"
     ([arXiv:2208.11173v3](https://arxiv.org/abs/2208.11173v3)).

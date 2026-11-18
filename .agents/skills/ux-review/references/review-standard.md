@@ -67,7 +67,10 @@ quote page numbers they have not opened.
 - **The audience's own words.** Sutton, *The OaK Architecture: A Vision of
   SuperIntelligence from Experience*, RLC 2025 keynote (recording published by
   Amii); Javed & Sutton, *The Big World Hypothesis and its Ramifications for
-  Artificial Intelligence*, Finding the Frame workshop, RLC 2024; the mission
+  Artificial Intelligence*, the Oak Lab post, 2024
+  (oaklab.ai/posts/the-big-world-hypothesis), which is the version quoted, and
+  a five-page paper under the same title (openreview.net/pdf?id=Sv7DazuCn8), for
+  which no venue is stated because its record on OpenReview has not been read; the mission
   sentence at oaklab.ai/mission, quoted in `docs/viewer-ux.md` UX-3. The
   prior-art lens uses the pins in `docs/viewer-ux.md` §10 and the README's
   reference list; terms are used as those works use them.

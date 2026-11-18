@@ -121,7 +121,12 @@ What a newcomer must be able to say without scrolling.
   reconnect and cursor movement never change the core's snapshot. Invalid
   outcome order suppresses the score. Goal achievement rounds down to one decimal percent.
   A disclosure names the attempt/step budget, population and process scope,
-  Oak Lab mission and Javed/Sutton Big World research rationale. This operational
+  Oak Lab mission and, as research rationale, the Oak Lab post of Javed and
+  Sutton's *The Big World Hypothesis and its Ramifications for Artificial
+  Intelligence* (2024), sections "The Big World Hypothesis" and "Benchmarking
+  Algorithms in Big Worlds", which the disclosure links and names with the
+  same passages' places in the paper version of that work, §1, PDF p. 1, and
+  §4.3, PDF pp. 4–5. This operational
   fraction describes the selected curriculum, world and attempt budget.
   The research disclosure carries the standing claim
   `One agent · one unbroken stream · no replay buffer`, and one paragraph: OaK
@@ -1136,7 +1141,7 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Option model predictions (`r̂`, `ĉ_v`) | behaviour panel | PAR-13 Option Models: Sutton, Precup & Singh, AIJ 112 (1999) §2.3 / §3 p. 190 and STOMP eq. (12) expected cumulative host reward `r̂(s, o)`; Wan, Abbas, White, White & Sutton, IJCAI 2019 §4 eqs. (1)–(2) / arXiv:1904.01191 (11 pp.) and Kudashkina, Wan, Naik & Sutton, arXiv:2104.08543 (2021, 15 pp.) Theorem 1 with PAR-13 continuation value `ĉ_v(s, o)`: the current value function at the predicted ranked feature slots plus a learned shared residual and per-action deviation, combined per meta action before the nominal value: an estimate of `E[γ^K v̂(S_K) | s, o]`. Differential predictions query a fresh activation at age zero, including while an option is running; displayed start duration is not remaining duration. Emitted as `option_model_rewards[3]`, `option_model_durations[3]`, `option_model_continuations[3]`. |
 | Background planning (Dyna) | behaviour panel | PAR-14 Background Planning: Dyna planning backups over learned option models into meta-controller `q̂_meta`. Sutton 1990/1991; Sutton, Machado et al., AIJ 324 (2023) 104001, §5 eq. (19) (arXiv:2202.03466v4 PDF p. 16 eq. (19)); Kudashkina, Wan, Naik & Sutton, arXiv:2104.08543 (2021, 15 pp.) Theorem 1 & §3. Emitted as `planning_steps` backups (since the agent began, continued across checkpoint resumes) and `planning_errors[3]` per skill. |
 | G31 terminal target `c + z` | **out of viewer scope** | RRS **PDF p. 5 eq. (5)** `δ(c, z, v, v′, β) .= c + β z + γ(1−β) v′ − v`; at `β = 1` this is `c + z − v`. GVF return **PDF p. 3 eq. (2)**. SPS99 **§3, PDF p. 10 / journal p. 190 eqs. (8)–(9)** gives the option Bellman decomposition. Its eq. (14) is an improvement inequality, not the terminal target. |
-| Goal achievement | thesis | Assigned goals achieved within admitted attempt/step budgets. Oak Lab mission and Javed/Sutton Big World research motivate outcome-based evaluation; the curriculum fraction is Acorn's operational choice. |
+| Goal achievement | thesis | Assigned goals achieved within admitted attempt/step budgets. Judging the agent by the goals it achieves is Acorn's inference from Oak Lab's mission and from Javed and Sutton, *The Big World Hypothesis and its Ramifications for Artificial Intelligence*, Oak Lab post (2024), which is also a five-page paper under the same title. The work does not speak of outcome-based evaluation. It says that the agent "must learn to make sound decisions using its limited understanding of the environment" (post section "The Big World Hypothesis"; the same words in the paper, §1, PDF p. 1) and that the hypothesis "has direct implications on what we choose to study and how we evaluate our algorithms" (post section "Conclusions"; the same words in the paper, §5, PDF p. 5). The curriculum fraction is Acorn's operational choice. |
 | Predictive agreement | Knowledge | Acorn-defined equal-question finite-return RMSE complement over eleven fixed questions (D5). Oak Lab mission and Horde supply the research context. |
 | Step-size curves | plasticity panel | Alberta Plan Step 1, arXiv:2208.11173v3 **PDF p. 6**: *“All of that user expertise should be replaced by a meta-algorithm for setting the step-size parameter…”* The panel plots Acorn’s current step sizes. |
 | intra-option-credit / derived-exploration-rate studies | **out of viewer scope** | PAR-9 / PAR-10 identify the mechanisms, pinned above. |
