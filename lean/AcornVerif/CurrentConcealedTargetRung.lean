@@ -39,8 +39,11 @@ the visit before which they are read, its horizon, and how many visits of each m
 the agent to miss, its lapses. `rung_mission` holds at every pair that leaves room: the visit on
 which the agent separates comes before a visit `limit`, and `limit` leaves more later visits than
 the lapses before the horizon. No agent meets the statement at a pair that leaves no visit that
-room (`AcornVerif.Intent.Postcondition.unmet_of_lapses`). The rung is to name a pair with the
-count of the visits on which its agent explores, which no theorem gives yet.
+room (`AcornVerif.Intent.Postcondition.unmet_of_lapses`). `rung_mission` names no pair. The
+statement of the rung's discovery mission (rbeauchamp/acorn#283),
+`AcornVerif.Targets.CurrentConcealedTargetRung.rung_learns`, names the horizon 864 and 144 lapses
+and asks for the advantage before visit 288. That visit is a bound: a proof supplies the visit on
+which the agent is ahead.
 
 ## What the choices rest on
 

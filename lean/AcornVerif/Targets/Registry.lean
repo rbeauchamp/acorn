@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Targets.ColumnLatch
+import AcornVerif.Targets.CurrentConcealedTargetRung
 import AcornVerif.Targets.Json
 import AcornVerif.Targets.StateEntry
 
@@ -109,7 +110,9 @@ def registry : List Target :=
     (``ColumnLatch.envelope_decides, ColumnLatch.envelope_decides),
     (``ColumnLatch.swing_bound, ColumnLatch.swing_bound),
     (``ColumnLatch.cell_word_decides, ColumnLatch.cell_word_decides),
-    (``ColumnLatch.counts_separated, ColumnLatch.counts_separated)]
+    (``ColumnLatch.counts_separated, ColumnLatch.counts_separated)] ++
+  ofMission 283 [
+    (``CurrentConcealedTargetRung.rung_learns, CurrentConcealedTargetRung.rung_learns)]
 
 /-- The statement registered under a name: that of the first target of `registry` with the name,
 and `False` for a name the registry does not hold. -/
