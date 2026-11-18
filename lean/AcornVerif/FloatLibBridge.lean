@@ -707,6 +707,17 @@ theorem binary32_sub_relative (left right : Binary32) (leftFinite : left.Finite)
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
+/-- The executing binary32 multiplication with a finite result is within `2^(-24)` of the
+exact product relative to its magnitude, plus `2^(-150)` (`binary32_mul_roundAt`). -/
+theorem binary32_mul_relative (left right : Binary32) (leftFinite : left.Finite)
+    (rightFinite : right.Finite) (finite : (left.mul right).Finite) :
+    |numerical32 (left.mul right) - numerical32 left * numerical32 right| ≤
+      |numerical32 left * numerical32 right| / 16777216 + 1 / 2 ^ 150 := by
+  have rounded := binary32_mul_roundAt left right leftFinite rightFinite finite
+  have error := roundAt32_relative ((numerical32 left : ℝ) * (numerical32 right : ℝ))
+  rw [← rounded] at error
+  exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
+
 /-- The executing binary32 multiplication with a finite result is within `2^(-17)` of the
 exact product whenever that product has magnitude at most `2^7`: it is the product rounded
 once (`binary32_mul_roundAt`). -/
