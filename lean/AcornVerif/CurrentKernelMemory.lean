@@ -40,7 +40,10 @@ state, the cold state among them:
   state, where its first memory is that function of the first state and its step keeps that
   function of the state the executed step keeps (`projected_memory_bounded`). Where its step also
   answers as the executed step does, it takes the executed agent's actions (`projected_actsAs`).
-  So the bound does not wait on which such memory contract 3 reads (rbeauchamp/acorn#249).
+  The owner decided on 2026-11-18 that contract 3 reads the memory that the executed agent's
+  decisions read (rbeauchamp/acorn#249). The agent with that memory is not constructed here: the
+  fifth step of rbeauchamp/acorn#215 constructs it, and these two theorems apply to it where it
+  meets their hypotheses.
 - The campaign counting bound holds of the executed agent with a number in place of a set of
   memories: the assignments on which it solves every slot of one cycle number at most
   `2 ^ (8 * (maximumBytes construction + 1))`, which bounds the number of running states, times

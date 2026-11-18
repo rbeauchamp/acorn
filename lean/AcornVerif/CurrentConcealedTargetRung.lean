@@ -92,8 +92,11 @@ Two of the eight are proved for the executed agent itself. The one on memory is 
 whole state as its memory: every memory of its run is the agent of a state a host runs, and
 those are finitely many under every profile (`rung_memory_bounded`, from
 `AcornVerif.CurrentKernelMemory`). It is proved as well of every agent whose memory is one function
-of that state which its step keeps (`AcornVerif.CurrentKernelMemory.projected_memory_bounded`), so
-it does not wait on which memory of the executed agent contract 3 reads (rbeauchamp/acorn#249).
+of that state which its step keeps (`AcornVerif.CurrentKernelMemory.projected_memory_bounded`). The
+owner decided on 2026-11-18 that contract 3 reads the memory that the executed agent's decisions
+read (rbeauchamp/acorn#249). The agent with that memory is not constructed here: the fifth step of
+rbeauchamp/acorn#215 constructs it, and that theorem bounds its memory where it meets the theorem's
+hypotheses.
 
 The one on finding rests on one action sequence. With no visit stated, the rung's agent finds
 exactly when the actions of `rungExplorer`, the explorer of its seed, meet the targets of more
