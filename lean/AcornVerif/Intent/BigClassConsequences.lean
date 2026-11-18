@@ -892,6 +892,102 @@ def trapsAllowed : Consequence Trial :=
 theorem trapsAllowed_holds : trapsAllowed.HoldsOf bigClass :=
   ⟨pits, pits_big, pits_trap⟩
 
+/-! ## A class that counts two of its members -/
+
+/-- The door of the member `i` of the lopsided class: the second door for the member 1, and the
+first for every other member. -/
+def lopsidedDoor (i : Nat) : Bool := i != 1
+
+/-- The lopsided class: one two-door member for each natural number, all with the first door but
+the member 1, of which it counts the members 0 and 1. Its attempts, its rewards, its horizon, its
+lapses and its agent are those of `base`. -/
+def lopsided : Trial where
+  Obs := Option Bool
+  Act := Bool
+  Index := Nat
+  member := fun i => door 1 (lopsidedDoor i)
+  counted := [0, 1]
+  length := 2
+  total := List.sum
+  horizon := 3
+  lapses := 0
+  agent := finder
+
+/-- An agent solves a member of the lopsided class on an attempt exactly when the door it tries is
+the member's. -/
+theorem lopsided_solves (A : Agent (Option Bool) Bool) (i n : Nat) :
+    lopsided.solves A i n = (tried 1 A (lopsidedDoor i) n == lopsidedDoor i) := by
+  show ((door 1 (lopsidedDoor i)).goal ((door 1 (lopsidedDoor i)).run A (2 * n)).1 ||
+    ((door 1 (lopsidedDoor i)).goal ((door 1 (lopsidedDoor i)).run A (2 * n + 1)).1 || false)) = _
+  rw [door_tried, door_ask]
+  cases tried 1 A (lopsidedDoor i) n == lopsidedDoor i <;> rfl
+
+theorem lopsided_goalsReachable : goalsReachable.holds lopsided :=
+  fun (A : Agent (Option Bool) Bool) (i : Nat) n => ⟨[lopsidedDoor i], Nat.lt_succ_self 1, by
+    show (door 1 (lopsidedDoor i)).goal (afterActions (door 1 (lopsidedDoor i))
+      ((door 1 (lopsidedDoor i)).run A (2 * n)).1 [lopsidedDoor i]) = true
+    rw [door_ask]
+    cases lopsidedDoor i <;> rfl⟩
+
+theorem lopsided_goalsConcealed : goalsConcealed.holds lopsided :=
+  ⟨wall, fun (A : Agent (Option Bool) Bool) (i : Nat) t h => by
+    have hs : (door 1 (lopsidedDoor i)).goal ((door 1 (lopsidedDoor i)).run A t).1 = false :=
+      h t (Nat.le_refl t)
+    show ((door 1 (lopsidedDoor i)).observe ((door 1 (lopsidedDoor i)).run A t).1,
+      (door 1 (lopsidedDoor i)).reward ((door 1 (lopsidedDoor i)).run A t).1) =
+        (wall.observe (wall.run A t).1, wall.reward (wall.run A t).1)
+    rw [← door_run_wall 1 (lopsidedDoor i) A t h]
+    generalize ((door 1 (lopsidedDoor i)).run A t).1 = s at hs
+    cases s with
+    | ask => rfl
+    | hit =>
+      have hf : true = false := hs
+      exact Bool.noConfusion hf
+    | miss => rfl⟩
+
+theorem lopsided_frozenShareSmall : frozenShareSmall.holds lopsided :=
+  ⟨1, Nat.lt_succ_self 1, fun (B : Agent (Option Bool) Bool) hB n => by
+    have h0 : lopsided.solves B (0 : Nat) n = (guess B n == true) := by
+      rw [lopsided_solves, keepsNothing_tried 1 hB]
+      rfl
+    have h1 : lopsided.solves B (1 : Nat) n = (guess B n == false) := by
+      rw [lopsided_solves, keepsNothing_tried 1 hB]
+      rfl
+    have hc : lopsided.solvedCount B n =
+        tally (lopsided.solves B (0 : Nat) n) (lopsided.solves B (1 : Nat) n) := by
+      show (([0, 1] : List Nat).filter fun i => lopsided.solves B i n).length = _
+      cases h1 : lopsided.solves B (0 : Nat) n <;>
+        cases h2 : lopsided.solves B (1 : Nat) n <;> simp only [List.filter, h1, h2] <;> rfl
+    rw [hc, h0, h1]
+    cases guess B n <;> decide⟩
+
+theorem lopsided_successShows : successShows.holds lopsided :=
+  ⟨fun (o : Option Bool × Rat) => o.1 == some true,
+    fun (A : Agent (Option Bool) Bool) (i : Nat) t => by
+    show ((door 1 (lopsidedDoor i)).observe ((door 1 (lopsidedDoor i)).run A t).1 == some true) =
+      (door 1 (lopsidedDoor i)).goal ((door 1 (lopsidedDoor i)).run A t).1
+    generalize ((door 1 (lopsidedDoor i)).run A t).1 = s
+    cases s <;> rfl⟩
+
+theorem lopsided_attemptsRecur : attemptsRecur.holds lopsided :=
+  fun (A : Agent (Option Bool) Bool) (i : Nat) n => door_ask 1 (lopsidedDoor i) A n
+
+/-- **The lopsided class meets the record.** -/
+theorem lopsided_big : bigClass.Meets lopsided :=
+  bigClass_meets.mpr ⟨lopsided_goalsReachable, lopsided_goalsConcealed, lopsided_frozenShareSmall,
+    lopsided_successShows, lopsided_attemptsRecur⟩
+
+/-- In the lopsided class the agent that always tries the first door, which keeps nothing of its
+experience, solves every member but the member 1 on every attempt. -/
+theorem lopsided_always (i n : Nat) (h : i ≠ 1) :
+    lopsided.solves (always true : Agent (Option Bool) Bool) i n = true := by
+  rw [lopsided_solves]
+  have hd : lopsidedDoor i = true := by
+    show (i != 1) = true
+    exact bne_iff_ne.mpr h
+  rw [hd]
+  rfl
+
 /-! ## This record and the postcondition's -/
 
 /-- **The postcondition already asks for condition (c).** A trial that meets the postcondition's
