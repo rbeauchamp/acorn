@@ -146,7 +146,7 @@ The reasons shown for capacity first were these.
 
 - It is the first rung that an agent which only memorises routes cannot meet.
 - Its world's rules are fully proved, while the rules of ARC-AGI-3 and of the Microduck live in outside code, so their theorems rest on stated assumptions ([obligation 13](mission-contract.md#open-obligations)).
-- Javed and Sutton recommend, for benchmarks, restricting the agent instead of enlarging the world (the mission contract's contract 2 quotes the passage).
+- For benchmarks, Javed and Sutton present restricting the agent as the alternative to enlarging the world: "The alternative is to restrict the computational capabilities of the agents instead of making the environments larger", as the mission contract's contract 2 quotes them. The owner was shown this as a recommendation of theirs; the passage does not use that word.
 - The owner answered on the same day that a class of worlds is big only when it meets all four conditions of contract 2, as the first rung's tracking issue records ([#230](https://github.com/rbeauchamp/acorn/issues/230)). Under that answer capacity is the rung that gives Acorn its first result about a class that counts as big.
 
 The alternative shown, ARC-AGI-3 first, needs fewer new foundations and is one of the owner's stated interests, and would put the first result about a big class later.
