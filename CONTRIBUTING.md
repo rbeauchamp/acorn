@@ -218,7 +218,9 @@ every promise is one that an organization of one owner and its agents can keep:
 - **Keeping the board current:** whoever files or merges a mission may
   [regenerate the board](docs/missions.md#regenerating-the-board) in a pull request,
   and the organization's agents do so when they triage, with no schedule promised.
-  The board states when it was derived; GitHub stays the record.
+  The board states when it was derived; GitHub stays the record. A pull request that
+  changes how the board is derived regenerates it in that same pull request, from
+  GitHub's own pages, and its author reads the result against GitHub before it merges.
 
 ## Scientific evidence
 
