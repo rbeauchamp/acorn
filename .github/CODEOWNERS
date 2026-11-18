@@ -8,3 +8,8 @@
 /lean/Bootstrap.lean @rbeauchamp
 /lean/os/ @rbeauchamp
 /.github/ @rbeauchamp
+
+# Statements that missions are to prove, held as Lean definitions of type Prop (targets),
+# and the registry that lists them. Each is a frozen contract: a change to one is the
+# owner's to make.
+/lean/AcornVerif/Targets/ @rbeauchamp
