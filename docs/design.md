@@ -1179,9 +1179,14 @@ What these theorems do not establish:
 - **Anything about saving or resuming the first rung's agent.** Its profile is the primitive
   one, which the host neither saves nor loads (`save_refuses`, `unresumable_unloaded`), so
   exact resumption says nothing of it.
-- **That an agent's reports describe its step,** and which memory of the executed agent
-  contract 3 reads ([#249](https://github.com/rbeauchamp/acorn/issues/249)). The reports are parameters for the executed agent and
-  a declaration for the retracing agent.
+- **That an agent's reports describe its step,** or that the agent contract 3 is read of
+  takes the executed agent's actions. The owner decided on 2026-11-18 that this agent's memory
+  is what the executed agent's decisions read, the learned state without the evaluator's
+  session ([#249](https://github.com/rbeauchamp/acorn/issues/249),
+  [mission contract](mission-contract.md#contract-3-invariants-of-learning-from-one-stream)).
+  The agent is not constructed, and no theorem says of it that it takes those actions; both
+  are the fifth step of [#215](https://github.com/rbeauchamp/acorn/issues/215).
+  The reports are parameters for the executed agent and a declaration for the retracing agent.
 - **That a host runs a rung's run.** A rung's run is contract 1's faithful run by how it is
   built. [Runs of visits](#runs-of-visits-in-the-host) relates the host's loop of visits to
   the kernel's world in visits, with the same learners; no theorem ties the native entry
