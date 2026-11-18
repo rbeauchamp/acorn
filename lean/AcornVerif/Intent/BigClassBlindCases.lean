@@ -543,4 +543,428 @@ theorem c9 (counted : List (Answers 1000000)) :
     tables_not_recur _ _ _ _ (fun _ => 0) counted,
     fun h => tables_unreachable _ _ _ _ (fun _ => 0) counted (bigClass_meets.mp h).1⟩
 
+/-! ## Cases 11 and 12: a table world with a trap -/
+
+/-- The table world of case 1 with a state `dead`, here `none`, and an action `poison`, here
+`none`. Every action at `dead` stays there, and `poison` leads there from every other state. At
+`dead` the world shows the context 0 with `begin`, pays nothing and does not meet its goal. -/
+def poisoned (k : Answers 1000000) (start : Option Cell) :
+    Member Sight (Option (Fin 1000000)) where
+  State := Option Cell
+  start := start
+  observe := fun
+    | none => (0, true)
+    | some s => sight s
+  reward := fun
+    | none => 0
+    | some s => pay s
+  step := fun
+    | none, _ => none
+    | some _, none => none
+    | some s, some a => some (advance (fun c a => a == k c) s a)
+  goal := fun
+    | none => false
+    | some s => s.2.2
+
+/-- The agent of cases 11 and 12: the agent of case 1, which never takes `poison`. -/
+def careful : Agent Sight (Option (Fin 1000000)) where
+  Memory := Fin 1000000
+  initial := 0
+  act := fun m o =>
+    if o.1.2 then (some 0, 0)
+    else if o.2 = 1 ∨ o.2 = -7 then (some m, m) else (some (m + 1), m + 1)
+
+/-- Case 11: the class of case 1 with an optional trap that no member starts in. -/
+def case11 : ClassWithAgent where
+  Obs := Sight
+  Act := Option (Fin 1000000)
+  Index := Answers 1000000
+  member := fun k => poisoned k (some (0, 0, false))
+  length := 1
+  agent := careful
+
+/-- Case 12: the class of case 11 whose members start in the trap. -/
+def case12 : ClassWithAgent where
+  Obs := Sight
+  Act := Option (Fin 1000000)
+  Index := Answers 1000000
+  member := fun k => poisoned k none
+  length := 1
+  agent := careful
+
+/-- In a table world with a trap, the reward is 1 exactly where the goal is met. -/
+theorem poisoned_shows (k : Answers 1000000) (start : Option Cell) (s : Option Cell) :
+    decide ((poisoned k start).reward s = 1) = (poisoned k start).goal s := by
+  cases s with
+  | none =>
+    show decide ((0 : Rat) = 1) = false
+    decide
+  | some s => exact pay_shows s
+
+/-- A member that starts in the trap stays there, whatever the agent does. -/
+theorem poisoned_dead (k : Answers 1000000) (A : Agent Sight (Option (Fin 1000000))) :
+    ∀ t, ((poisoned k none).run A t).1 = none
+  | 0 => rfl
+  | t + 1 => by
+    show (poisoned k none).step ((poisoned k none).run A t).1 _ = none
+    rw [poisoned_dead k A t]
+    rfl
+
+/-- A member that starts outside the trap is, after an action other than `poison`, no longer in its
+start state: its time is 1. -/
+theorem poisoned_moves (k : Answers 1000000) (a : Fin 1000000) :
+    (poisoned k (some (0, 0, false))).step (some (0, 0, false)) (some a) ≠ some (0, 0, false) := by
+  intro e
+  have e' : (0 + 1 : Fin 1000000000) = 0 := congrArg (fun c : Cell => c.2.1) (Option.some.inj e)
+  exact absurd e' (by decide)
+
+/-- Case 11. The cases reading: every condition met, big; the trap is one the words permit. The
+record: (a) fails; success shows; the attempts do not recur; not met. Conditions (b) and (c) are
+not decided here. -/
+theorem c11 (counted : List (Answers 1000000)) :
+    ¬ goalsReachable.holds (counting case11 counted) ∧
+      successShows.holds (counting case11 counted) ∧
+      ¬ attemptsRecur.holds (counting case11 counted) ∧
+      ¬ bigClass.Meets (counting case11 counted) :=
+  ⟨unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl,
+    ⟨fun o => decide (o.2 = 1), fun (A : Agent Sight (Option (Fin 1000000))) k t =>
+      poisoned_shows k _ ((poisoned k (some (0, 0, false))).run A t).1⟩,
+    fun h => poisoned_moves (fun _ => 0) 0 (h careful (fun _ => 0) 1),
+    fun h => unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl (bigClass_meets.mp h).1⟩
+
+/-- Case 12. The cases reading: (a) not met, (b) and (c) met, (d) not met, the success signal met,
+temporal coherence not met, not big. The record: (a) fails, since the members start in the trap;
+success shows; the attempts recur, since the world never leaves the state it starts in; not met.
+Conditions (b) and (c) are not decided here. -/
+theorem c12 (counted : List (Answers 1000000)) :
+    ¬ goalsReachable.holds (counting case12 counted) ∧
+      successShows.holds (counting case12 counted) ∧
+      attemptsRecur.holds (counting case12 counted) ∧
+      ¬ bigClass.Meets (counting case12 counted) :=
+  ⟨unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl,
+    ⟨fun o => decide (o.2 = 1), fun (A : Agent Sight (Option (Fin 1000000))) k t =>
+      poisoned_shows k _ ((poisoned k none).run A t).1⟩,
+    fun (A : Agent Sight (Option (Fin 1000000))) k n => poisoned_dead k A (1 * n),
+    fun h => unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl (bigClass_meets.mp h).1⟩
+
+/-! ## Cases 14 and 15: worlds that never return to an earlier context -/
+
+/-- The world of cases 14 and 15 with the answers `k`: its states are a time and whether the last
+action was the answer; it shows `begin`, here `true`, when the time is divisible by 1,000,000,000;
+it pays 1 where the last action was the answer; and the answer at a time is that of `block` of the
+time. -/
+def stream (block : Nat → Nat) (k : Nat → Fin 1000000) : Member Bool (Fin 1000000) where
+  State := Nat × Bool
+  start := (0, false)
+  observe := fun s => decide (s.1 % 1000000000 = 0)
+  reward := fun s => if s.2 then 1 else 0
+  step := fun s a => (s.1 + 1, a == k (block s.1))
+  goal := fun s => s.2
+
+/-- The agent of cases 14 and 15: the agent of case 1, for a world that shows only the flag. -/
+def follower : Agent Bool (Fin 1000000) where
+  Memory := Fin 1000000
+  initial := 0
+  act := fun m o => if o.1 then (0, 0) else if o.2 = 1 ∨ o.2 = -7 then (m, m) else (m + 1, m + 1)
+
+/-- Case 14: infinitely many answers, each lasting 1,000,000,000 steps. -/
+def case14 : ClassWithAgent where
+  Obs := Bool
+  Act := Fin 1000000
+  Index := Nat → Fin 1000000
+  member := stream (· / 1000000000)
+  length := 1
+  agent := follower
+
+/-- Case 15: a fresh answer at every step. -/
+def case15 : ClassWithAgent where
+  Obs := Bool
+  Act := Fin 1000000
+  Index := Nat → Fin 1000000
+  member := stream id
+  length := 1
+  agent := follower
+
+/-- In a world of cases 14 and 15, the reward is 1 exactly where the goal is met. -/
+theorem stream_shows (block : Nat → Nat) (k : Nat → Fin 1000000) (s : Nat × Bool) :
+    decide ((stream block k).reward s = 1) = (stream block k).goal s := by
+  obtain ⟨t, b⟩ := s
+  cases b
+  · show decide ((0 : Rat) = 1) = false
+    decide
+  · show decide ((1 : Rat) = 1) = true
+    decide
+
+/-- Case 14. The cases reading: (a), (b) and (d) met, (c) not settled, since the words give no
+measure of a share of an infinite class, both parts of sentence 6 met, overall not settled. The
+record: (a) fails; success shows; the attempts do not recur; not met. Conditions (b) and (c) are
+not decided here. -/
+theorem c14 (counted : List (Nat → Fin 1000000)) :
+    ¬ goalsReachable.holds (counting case14 counted) ∧
+      successShows.holds (counting case14 counted) ∧
+      ¬ attemptsRecur.holds (counting case14 counted) ∧
+      ¬ bigClass.Meets (counting case14 counted) :=
+  ⟨unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl,
+    ⟨fun o => decide (o.2 = 1), fun (A : Agent Bool (Fin 1000000)) k t =>
+      stream_shows (· / 1000000000) k ((stream (· / 1000000000) k).run A t).1⟩,
+    fun h => by
+      have e : (0 + 1 : Nat) = 0 := congrArg Prod.fst (h follower (fun _ => 0) 1)
+      exact absurd e (by decide),
+    fun h => unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl (bigClass_meets.mp h).1⟩
+
+/-- Case 15. The cases reading: (a), (b) and (d) met, (c) not settled, the success signal met,
+temporal coherence not met, since a found answer is of no use at the next step, not big. The
+record: (a) fails; success shows; the attempts do not recur; not met. Conditions (b) and (c) are
+not decided here. -/
+theorem c15 (counted : List (Nat → Fin 1000000)) :
+    ¬ goalsReachable.holds (counting case15 counted) ∧
+      successShows.holds (counting case15 counted) ∧
+      ¬ attemptsRecur.holds (counting case15 counted) ∧
+      ¬ bigClass.Meets (counting case15 counted) :=
+  ⟨unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl,
+    ⟨fun o => decide (o.2 = 1), fun (A : Agent Bool (Fin 1000000)) k t =>
+      stream_shows id k ((stream id k).run A t).1⟩,
+    fun h => by
+      have e : (0 + 1 : Nat) = 0 := congrArg Prod.fst (h follower (fun _ => 0) 1)
+      exact absurd e (by decide),
+    fun h => unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl (bigClass_meets.mp h).1⟩
+
+/-! ## Cases 16 and 17: a goal two steps from the start -/
+
+/-- The states of a member of cases 16 and 17, which are also what it shows. -/
+inductive Lamp where
+  /-- Where the member starts. -/
+  | ready
+  /-- Where every action leads from every other state. -/
+  | armed
+  /-- The goal: the action taken at `armed` was the member's. -/
+  | hit
+  /-- The action taken at `armed` was not the member's. -/
+  | miss
+  deriving DecidableEq
+
+/-- The member of cases 16 and 17 whose button is `k`: from `armed` the button `k` leads to `hit`
+and every other to `miss`; from every other state every action leads to `armed`. It shows its
+state and pays 1 at `hit`. -/
+def lamp (k : Fin 1000000) : Member Lamp (Fin 1000000) where
+  State := Lamp
+  start := .ready
+  observe := id
+  reward := fun
+    | .hit => 1
+    | _ => 0
+  step := fun
+    | .armed, a => bif a == k then .hit else .miss
+    | _, _ => .armed
+  goal := fun
+    | .hit => true
+    | _ => false
+
+/-- The agent of cases 16 and 17. Shown `ready`, it outputs the button 0 and keeps 0; shown `miss`,
+it outputs its memory plus one and keeps that; shown `armed` or `hit`, it outputs its memory and
+keeps it. It ignores the reward. -/
+def lampAgent : Agent Lamp (Fin 1000000) where
+  Memory := Fin 1000000
+  initial := 0
+  act := fun m o =>
+    match o.1 with
+    | .ready => (0, 0)
+    | .miss => (m + 1, m + 1)
+    | _ => (m, m)
+
+/-- Case 16: a goal two steps from the start, with attempts of one step. -/
+def case16 : ClassWithAgent where
+  Obs := Lamp
+  Act := Fin 1000000
+  Index := Fin 1000000
+  member := lamp
+  length := 1
+  agent := lampAgent
+
+/-- Case 17: the class of case 16 with attempts of two steps. -/
+def case17 : ClassWithAgent where
+  Obs := Lamp
+  Act := Fin 1000000
+  Index := Fin 1000000
+  member := lamp
+  length := 2
+  agent := lampAgent
+
+/-- A member of cases 16 and 17 shows `hit` exactly where its goal is met. -/
+theorem lamp_shows (k : Fin 1000000) (s : Lamp) :
+    decide ((lamp k).observe s = Lamp.hit) = (lamp k).goal s := by
+  cases s <;> rfl
+
+/-- Case 16. The cases reading: (a) not settled, since the words do not say whether the goal must
+be reachable within an attempt, (b) and (c) met, (d) not met, both parts of sentence 6 met, not
+big. The record: (a) fails; success shows; the attempts do not recur; not met. Conditions (b) and
+(c) are not decided here. -/
+theorem c16 (counted : List (Fin 1000000)) :
+    ¬ goalsReachable.holds (counting case16 counted) ∧
+      successShows.holds (counting case16 counted) ∧
+      ¬ attemptsRecur.holds (counting case16 counted) ∧
+      ¬ bigClass.Meets (counting case16 counted) :=
+  ⟨unreachable_of_short _ (0 : Fin 1000000) (Nat.le_refl 1) rfl,
+    ⟨fun (o : Lamp × Rat) => decide (o.1 = Lamp.hit), fun (A : Agent Lamp (Fin 1000000)) k t =>
+      lamp_shows k ((lamp k).run A t).1⟩,
+    fun h => by
+      have e : Lamp.armed = Lamp.ready := h lampAgent (0 : Fin 1000000) 1
+      exact absurd e (by decide),
+    fun h => unreachable_of_short _ (0 : Fin 1000000) (Nat.le_refl 1) rfl (bigClass_meets.mp h).1⟩
+
+/-- In case 17 the record's condition (a) fails: an attempt of two steps leaves room for one action,
+and the goal is two actions from the start. -/
+theorem c17_unreachable (counted : List (Fin 1000000)) :
+    ¬ goalsReachable.holds (counting case17 counted) := by
+  intro h
+  obtain ⟨acts, hl, hg⟩ := h lampAgent (0 : Fin 1000000) 0
+  have hl' : acts.length < 2 := hl
+  match acts, hl', hg with
+  | [], _, hg =>
+    have hf : false = true := hg
+    exact Bool.noConfusion hf
+  | [_], _, hg =>
+    have hf : false = true := hg
+    exact Bool.noConfusion hf
+  | _ :: _ :: rest, hl', _ =>
+    have hl'' : rest.length + 1 + 1 < 2 := hl'
+    omega
+
+/-- Case 17. The cases reading: (a) to (c) met, (d) not met, both parts of sentence 6 met, not big;
+an attempt of two steps reaches a goal two actions away. The record: (a) fails, since it counts as
+an attempt's times its start and the states after all but its last step; success shows; the
+attempts do not recur; not met. Conditions (b) and (c) are not decided here. -/
+theorem c17 (counted : List (Fin 1000000)) :
+    ¬ goalsReachable.holds (counting case17 counted) ∧
+      successShows.holds (counting case17 counted) ∧
+      ¬ attemptsRecur.holds (counting case17 counted) ∧
+      ¬ bigClass.Meets (counting case17 counted) :=
+  ⟨c17_unreachable counted,
+    ⟨fun (o : Lamp × Rat) => decide (o.1 = Lamp.hit), fun (A : Agent Lamp (Fin 1000000)) k t =>
+      lamp_shows k ((lamp k).run A t).1⟩,
+    fun h => by
+      have e : Lamp.hit = Lamp.ready := h lampAgent (0 : Fin 1000000) 1
+      exact absurd e (by decide),
+    fun h => c17_unreachable counted (bigClass_meets.mp h).1⟩
+
+/-! ## Cases 18 to 20: attempts of no step -/
+
+/-- The one member of cases 18 and 19: a switch that is `on`, here `true`, or `off`, shows which,
+pays 1 when `on`, meets its goal exactly when `on`, and is turned `on` by its one action. -/
+def switch (start : Bool) : Member Bool Unit where
+  State := Bool
+  start := start
+  observe := id
+  reward := fun s => if s then 1 else 0
+  step := fun _ _ => true
+  goal := id
+
+/-- Case 18: one member that starts at its goal, attempts of no step, and an agent of one
+memory. -/
+def case18 : ClassWithAgent where
+  Obs := Bool
+  Act := Unit
+  Index := Unit
+  member := fun _ => switch true
+  length := 0
+  agent := always ()
+
+/-- Case 19: the class of case 18 whose member starts outside its goal. -/
+def case19 : ClassWithAgent where
+  Obs := Bool
+  Act := Unit
+  Index := Unit
+  member := fun _ => switch false
+  length := 0
+  agent := always ()
+
+/-- Case 20: a class with no member. -/
+def case20 : ClassWithAgent where
+  Obs := Bool
+  Act := Unit
+  Index := Empty
+  member := fun i => nomatch i
+  length := 0
+  agent := always ()
+
+/-- Where an attempt lasts no step and the class counts one member, the record's condition (c)
+holds: no agent solves any member, so the bound is 0. -/
+theorem share_of_zero (w : Trial) (hlen : w.length = 0) (i : w.Index) (hc : w.counted = [i]) :
+    frozenShareSmall.holds w := by
+  refine ⟨by rw [hc]; exact List.nodup_cons.mpr ⟨List.not_mem_nil, List.nodup_nil⟩, 0,
+    by rw [hc]; exact Nat.lt_succ_self 0, fun B _ n l _ hs => ?_⟩
+  match l, hs with
+  | [], _ => exact Nat.le_refl 0
+  | j :: _, hs =>
+    have ht := hs j (List.mem_cons_self ..)
+    rw [solves_of_zero w hlen B j n] at ht
+    exact Bool.noConfusion ht
+
+/-- Case 18. The cases reading: (a) and (b) met, (c) not met, since every agent succeeds at once on
+the whole class, (d) not met, the success signal met, temporal coherence not met, not big. The
+record, which gives an attempt of no step no time at which a goal could be met: (a) fails; (b)
+holds; (c) holds when the one member is counted, since nobody solves it; success shows; the
+attempts recur; not met. -/
+theorem c18 :
+    ¬ goalsReachable.holds (counting case18 [()]) ∧
+      goalsConcealed.holds (counting case18 [()]) ∧
+      frozenShareSmall.holds (counting case18 [()]) ∧
+      successShows.holds (counting case18 [()]) ∧
+      attemptsRecur.holds (counting case18 [()]) ∧
+      ¬ bigClass.Meets (counting case18 [()]) :=
+  ⟨unreachable_of_zero _ () rfl,
+    ⟨switch true, fun _ _ _ _ => rfl⟩,
+    share_of_zero _ rfl () rfl,
+    ⟨fun o => o.1, fun _ _ _ => rfl⟩,
+    fun (A : Agent Bool Unit) _ n => by
+      show ((switch true).run A (0 * n)).1 = true
+      rw [Nat.zero_mul]
+      rfl,
+    fun h => unreachable_of_zero _ () rfl (bigClass_meets.mp h).1⟩
+
+/-- Case 19. The cases reading: (a) not settled, (b) and (c) met, (d) not met, the success signal
+met, temporal coherence not met, not big. The record: (a) fails; (b) holds; (c) holds when the one
+member is counted; success shows; the attempts recur; not met. -/
+theorem c19 :
+    ¬ goalsReachable.holds (counting case19 [()]) ∧
+      goalsConcealed.holds (counting case19 [()]) ∧
+      frozenShareSmall.holds (counting case19 [()]) ∧
+      successShows.holds (counting case19 [()]) ∧
+      attemptsRecur.holds (counting case19 [()]) ∧
+      ¬ bigClass.Meets (counting case19 [()]) :=
+  ⟨unreachable_of_zero _ () rfl,
+    ⟨switch false, fun _ _ _ _ => rfl⟩,
+    share_of_zero _ rfl () rfl,
+    ⟨fun o => o.1, fun _ _ _ => rfl⟩,
+    fun (A : Agent Bool Unit) _ n => by
+      show ((switch false).run A (0 * n)).1 = false
+      rw [Nat.zero_mul]
+      rfl,
+    fun h => unreachable_of_zero _ () rfl (bigClass_meets.mp h).1⟩
+
+/-- In case 20 the record's condition (c) fails: a class with no member counts none. -/
+theorem c20_share (counted : List Empty) :
+    ¬ frozenShareSmall.holds (counting case20 counted) := fun ⟨_, k, hk, _⟩ =>
+  match counted, hk with
+  | [], hk => Nat.not_lt_zero k hk
+  | i :: _, _ => nomatch i
+
+/-- Case 20. The cases reading: (a) and (b) met, (c) not settled, since a share of an empty class
+has no meaning the words give, (d) not met, the success signal met, temporal coherence not met, not
+big. The record: (a) and (b) hold, of no member; (c) fails, since a class with no member counts
+none; success shows and the attempts recur, of no member; not met. -/
+theorem c20 (counted : List Empty) :
+    goalsReachable.holds (counting case20 counted) ∧
+      goalsConcealed.holds (counting case20 counted) ∧
+      ¬ frozenShareSmall.holds (counting case20 counted) ∧
+      successShows.holds (counting case20 counted) ∧
+      attemptsRecur.holds (counting case20 counted) ∧
+      ¬ bigClass.Meets (counting case20 counted) :=
+  ⟨(fun _ (i : Empty) _ => nomatch i),
+    ⟨switch true, (fun _ (i : Empty) _ _ => nomatch i)⟩,
+    c20_share counted,
+    ⟨fun _ => true, (fun _ (i : Empty) _ => nomatch i)⟩,
+    (fun _ (i : Empty) _ => nomatch i),
+    fun h => c20_share counted (bigClass_meets.mp h).2.2.1⟩
+
 end AcornVerif.Intent.BigClass.Cases
