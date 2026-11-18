@@ -8,7 +8,56 @@ import AcornVerif.Intent.Postcondition
 /-!
 # The blind record reading of contract 2
 
-PROVISIONAL HEADER
+This module holds the second, blind reading of contract 2's seven sentences that OpenAI's
+gpt-6-astra made for a record, on 2026-11-18, in a session given only the owner's words (the seven
+sentences and the owner's answer of 2026-11-18 that a class is big only when it meets all four
+conditions), the types below and lean-intent's record module. It is no deliverable and no part of
+the owner's intent: it is a second model's reading of the owner's words. Its comparison with the
+record `AcornVerif.Intent.BigClass.bigClass` is in `AcornVerif.Intent.BigClassBlindCompare`, and how
+each difference was settled is in the record's confirmation file,
+`lean/AcornVerif/Intent/BigClass.md`.
+
+The reply gives one record for each meaning of its qualitative vocabulary (`Meaning`): what a small
+share is, what the agent's resources suffice for, what tells the agent of its goal, what makes
+success perceptible, what makes experience coherent enough, and what a big world and a step toward
+one are. Those are what the record of contract 2 must fix, so a comparison that chose them would
+agree by construction and show nothing. Only what the reply states in closed form is compared by
+theorem: reachability (`everyGoalReachable`), what an agent that keeps nothing is and when it
+solves a member (`memorylessSolves`), the shape and the absence of a domain hypothesis. The rest
+is compared through the cases reading, in `AcornVerif.Intent.BigClassBlindCases`.
+
+`ClassWithAgent` is the type the session was given, and is declared here exactly as given: the
+record's subject, `AcornVerif.Intent.Postcondition.Trial`, without the members it counts, its
+aggregation of reward, its horizon and its lapses, which are the postcondition's record's and the
+owner's later decisions' and say nothing contract 2's words say. The session was also given
+`AcornVerif.Intent.WorldInterface.Agent` and `AcornVerif.Intent.Postcondition.Member` as they stand,
+and no definition that is not a type.
+
+The namespace `AcornOwnerIntent` is the blind reader's own name, kept as returned. Inside it this
+module declares exactly the declarations of the Lean file in the reply, with the same names,
+statements and definition bodies. Its text differs from that file only in these ways:
+
+* The import of `LeanIntent.Record` is removed: the merge gate's boundary audit admits an import of
+  lean-intent in `AcornVerif.LeanIntentBridge` alone, and `AcornVerif.Intent.Postcondition` reaches
+  lean-intent's record module through it.
+* The import of `types`, the file the session was given, is replaced by the import of
+  `AcornVerif.Intent.Postcondition`, which declares `Member` and imports the module that declares
+  `Agent`; `ClassWithAgent`, the third type of that file, is declared here, before the reply's
+  declarations, with the doc comments it was given.
+* The reply's declarations stand inside the namespace `AcornVerif.Intent.BigClassBlind`, which
+  opens the names `Agent` and `Member`.
+* This copyright header and this module docstring are added.
+* A docstring is added to each declaration the missing-docs linter flags: `Percept`,
+  `everyGoalReachable`, `memorylessSolves`, the four fields of `WorldWithAgent`, seven fields of
+  `Meaning` (`farSmallerInTaskResources`, `canFullyPerceiveState`, `canRepresentValuesEverywhere`,
+  `canRepresentBestActionsEverywhere`, `contributesTowardAnyBigWorld`, `generallyBig` and
+  `includedInLongTermAim`), `memorylessSolvesOnlySmallShare`,
+  `continuingLearningCanBeatEveryFixedSolution`, `aimIncludesEveryBigWorld`, `requirements`, the
+  eight fields of `DescriptionData`, `descriptionData`, `typedApply`, `WorldState`,
+  `WorldStepInput`, `subjectShape`, `classPredicate`, `vocabulary` and `ownerIntent`.
+
+Lean elaborates the reply's text with no other change, and no option is set before any of its
+declarations.
 -/
 
 namespace AcornVerif.Intent.BigClassBlind

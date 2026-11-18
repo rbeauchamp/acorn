@@ -9,7 +9,36 @@ import AcornVerif.Intent.BigClassConsequences
 /-!
 # The record of contract 2 compared with its blind record reading
 
-PROVISIONAL HEADER
+The blind record, `AcornVerif.Intent.BigClassBlind.AcornOwnerIntent.ownerIntent`, is one record for
+each meaning of its qualitative vocabulary, so no theorem here chooses a meaning: a comparison that
+did would agree by construction. This module compares what the blind record states in closed form
+with the record `AcornVerif.Intent.BigClass.bigClass`, through `shown`, what the blind sessions
+were given of a trial. Every class with an agent is what they were given of some trial
+(`shown_onto`). How each difference was settled is in the record's confirmation file,
+`lean/AcornVerif/Intent/BigClass.md`.
+
+* **Condition (a).** The blind record asks that every member's goal be reachable from the member's
+  start by some list of actions, of any length; the record asks that it be reachable within an
+  attempt from where each attempt starts. The record's gives the blind record's
+  (`reachable_of_mine`). Where attempts have a step and recur, the blind record's gives the
+  record's (`reachable_of_theirs`): the part of the list after the last restart it passes reaches
+  the goal. Where attempts do not recur they differ: `far`, whose goal lies two steps from its start
+  with attempts of two steps, meets the blind record's and not the record's (`far_theirs`,
+  `far_not_mine`).
+* **The agents of condition (c).** The blind record's agents that keep nothing are the memoryless
+  rules, which read what they are given at the step and nothing else. Each is an agent that keeps
+  nothing of its experience in the record's sense (`ruleAgent_keepsNothing`), with the same states
+  (`memorylessState_eq`). The record's agents are more: one that counts its steps keeps nothing of
+  its experience and is no memoryless rule. In `clocked` no memoryless rule solves both members
+  (`clocked_rule`) and a player that counts its steps solves both (`clocked_player`), so the
+  record's condition (c) fails of it (`clocked_not_mine`).
+* **When a member is solved.** The blind record counts the state after an attempt's last step, and
+  the record does not. Where attempts recur the two agree on a memoryless rule's first attempt
+  (`memorylessSolves_iff`): that state is the member's start, which both count.
+
+What the blind record takes as a parameter is not compared here: what a small share is and of
+what, the agent's resources (sentence 1 and condition (d)), what tells the agent of its goal
+(condition (b)), both parts of sentence 6, the comparison of sentence 3 and the aim of sentence 7.
 -/
 
 namespace AcornVerif.Intent.BigClass.Compare

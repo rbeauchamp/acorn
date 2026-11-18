@@ -8,7 +8,35 @@ import AcornVerif.Intent.BigClassBlindCompare
 /-!
 # The blind cases reading of contract 2, and the record's verdict on each case
 
-PROVISIONAL HEADER
+On 2026-11-18 OpenAI's gpt-6-astra read contract 2's seven sentences, with the owner's answer of
+that day that a class is big only when it meets all four conditions, in a session asked for
+concrete cases with verdicts: what the record takes as its subject, and what bigness is asked of,
+are among the things in question, and the blind record session took the qualitative terms as
+parameters (`AcornVerif.Intent.BigClassBlindReading`). The session gave 20 cases, each a class of
+worlds with an agent, and for each a verdict on conditions (a) to (d), on the two requirements of
+sentence 6 and on whether the class is big. This module writes each case as the class with an agent
+it describes (`case1` to `case20`) and proves the verdict of the record
+`AcornVerif.Intent.BigClass.bigClass` on it (`c1` to `c20`). It is no deliverable and no part of the
+owner's intent: it is a second model's reading of the owner's words. How each difference was
+settled is in the record's confirmation file, `lean/AcornVerif/Intent/BigClass.md`.
+
+The cases are transcribed, not copied: the reply gave them in words. Each is a value of
+`AcornVerif.Intent.BigClassBlind.ClassWithAgent`, the type the session was given. An integer from 0
+through `n - 1` is a `Fin n`; a 100-tuple of buttons is a function from `Fin 100`; the flags `begin`
+and `inside` are `true` and `false`; `dead` and `poison` are `none`; `on` and `off` are `true` and
+`false`; a lone action or member is `()`; a memory `blank` is `()`; and a sum modulo `n` is
+addition in `Fin n`. A case names no members as counted, since the session was not given that
+field, so `counting` adds any list of them, and every verdict is proved for every such list,
+except in cases 18 and 19, whose one member is counted.
+
+The record's verdict on the whole is the same on all 20: not met. On cases 1 to 19 its condition
+(a) fails, and on cases 1 to 11 and 13 to 17 its attempts do not recur: the cases are worlds that
+never return to their start, with attempts of one step, or two, or none, and the record asks that
+a goal be reachable in fewer actions than an attempt has steps and that every attempt start from
+the member's start. Each theorem states the verdict on every condition decided for its case.
+Condition (b) is decided for cases 1 to 10, 13 and 18 to 20; condition (c) for cases 4 and 18 to
+20; the success signal and recurrence for every case. Where a condition is not decided, the case's
+docstring says so: on those cases condition (c) depends on which members are counted.
 -/
 
 namespace AcornVerif.Intent.BigClass.Cases
