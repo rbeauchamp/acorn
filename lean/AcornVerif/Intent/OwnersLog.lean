@@ -34,14 +34,25 @@ which add nothing to the text. It holds, in order:
   their source, to the record's current revision. The owner saw the restatement, not the record or
   its rendering; the record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`, says
   so, and gives the status of every consequence of the record;
-* and, in the same way for the record of contract 3, the invariants of learning from one stream
+* in the same way for the record of contract 3, the invariants of learning from one stream
   (`AcornVerif.Intent.OneStream.oneStream`), the origin statement `contract-3-origin` and the
   owner's answer `contract-3-restatement`, attached to that record's current revision by the
-  agents' decision, as its confirmation file, `lean/AcornVerif/Intent/OneStream.md`, says.
+  agents' decision, as its confirmation file, `lean/AcornVerif/Intent/OneStream.md`, says;
+* and, for the record of the mission contract's postcondition, what achieving goals promises
+  (`AcornVerif.Intent.Postcondition.postcondition`), four origin statements and one answer. The
+  origins hold the words the owner adopted, each with the owner's answer and its day:
+  `postcondition-origin`, the six sentences confirmed on 2026-11-03;
+  `postcondition-solving-again-origin`, the reading of the fourth sentence the owner answered "yes"
+  to on 2026-11-17; `postcondition-advantage-origin`, the choice "A" of the same day; and
+  `postcondition-allowed-misses-origin`, the answer of 2026-11-18 that the stated number is how many
+  later attempts the agent may miss. The answer `postcondition-restatement` attaches those four
+  answers of the owner to the record's current revision, by the agents' decision, as its
+  confirmation file, `lean/AcornVerif/Intent/Postcondition.md`, says. The owner saw those words,
+  not the record, its rendering or any Lean form.
 
 The statements that are the owner's are the declaration, the delegation, and the origins and answers
-of 2026-11-03 for the interface record and the record of learning from one stream; every other
-answer names the agents, acting under the delegation, as its author. The decisions on the day and hash records and their reasons are
+for the interface record, the record of learning from one stream and the record of the
+postcondition; every other answer names the agents, acting under the delegation, as its author. The decisions on the day and hash records and their reasons are
 described in `AcornVerif.Intent.Decisions` and the pilot report, `docs/spec-first-pilot.md`.
 -/
 
@@ -49,8 +60,8 @@ namespace AcornVerif.Intent.Decisions
 
 open LeanIntent
 
-/-- The owners' log of the day, hash, interface and one-stream records, each statement as
-`LeanIntent.Statement.print` writes it. -/
+/-- The owners' log of the day, hash, interface, one-stream and postcondition records, each
+statement as `LeanIntent.Statement.print` writes it. -/
 def ownersLog : OwnersLog := ⟨[
   "lean-intent statement 1\n\
     kind owners\n\

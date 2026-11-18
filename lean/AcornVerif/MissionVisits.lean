@@ -63,8 +63,9 @@ reward: the reading that says whether the goal is met is whether the reward is o
 For an agent that separates before a visit that leaves more later visits than the lapses before
 the horizon, and that retains before the horizon but for the lapses
 (`AcornVerif.Kernel.SeparatesBy`, `AcornVerif.Kernel.RetainsBut`), the class in visits meets the
-record of the postcondition (`visits_achieves`). A member solved once is solved again within the
-lapses (`AcornVerif.Kernel.RetainsBut.again`), which is the record's clause on learning again.
+record of the postcondition (`visits_achieves`). Each visit starts the member's world from its
+start (`visits_attemptsRecur`), so no member's attempts leave the state of a solved attempt, and the
+record's clause on learning again asks nothing of a class in visits.
 
 ## The mission from premises
 
@@ -621,7 +622,10 @@ theorem visits_achieves (stated : PaysAtGoals family goals pay met)
     ⟨fun (first second : WorldInterface.Agent (Percept interface) (Act interface)) _ _ attempt
         other => ?_, ?_,
       fun (index : family.Index) => ?_,
-      fun (index : family.Index) attempt later order room _ solved => ?_⟩
+      fun (index : family.Index) attempt gap _ _ _ left _ _ =>
+        absurd ((visits_attemptsRecur family length horizon lapses pay met counted agent _ index
+          gap).trans (visits_attemptsRecur family length horizon lapses pay met counted agent _
+            index attempt).symm) left⟩
   · rw [classReward_eq family goals length horizon lapses pay met counted agent stated,
       classReward_eq family goals length horizon lapses pay met counted agent stated]
     exact Nat.cast_lt
@@ -649,12 +653,6 @@ theorem visits_achieves (stated : PaysAtGoals family goals pay met)
           (fun inside => out (Finset.mem_toList.mpr inside)))
     · rw [← same]
       exact solved
-  · obtain ⟨again, low, high, once⟩ := retains.again index attempt later order room
-      ((solves_iff family goals length horizon lapses pay met counted agent stated
-        (recordAgent agent) index attempt).mp solved)
-    exact ⟨again, low, high,
-      (solves_iff family goals length horizon lapses pay met counted agent stated
-        (recordAgent agent) index again).mpr once⟩
 
 end trial
 

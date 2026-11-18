@@ -32,6 +32,10 @@ build.
   contract 3 of Acorn's mission contract, has no implementation here: no theorem yet proves that
   Acorn's executing agent and host meet it, which is the fifth step of rbeauchamp/acorn#215. The
   gate lists it as awaiting an implementation.
+* **The record of the postcondition** (`AcornVerif.Intent.Decisions.postconditionDeliverable`), what
+  achieving goals promises, has no implementation here: no theorem yet proves that a class of
+  Acorn's worlds with Acorn's executing agent meets it, which is the fifth step of
+  rbeauchamp/acorn#219. The gate lists it as awaiting an implementation.
 
 That `acornStandardDay` is what Acorn's executable runs is not checked here: the value's proof
 binds that constant, and that the world's entry point calls `World.dayPhase` and that its compiled

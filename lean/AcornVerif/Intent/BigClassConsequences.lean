@@ -309,6 +309,17 @@ theorem retention_unconditional {w : Trial} (hb : bigClass.Meets w) (hk : keepsS
   exact ⟨lapsed, few, fun n n' hle before hs out =>
     keeps n n' hle before (fun k _ _ => sameProblem_of_big hb i n k) hs out⟩
 
+/-- **In a big class the postcondition's record asks the same in both forms of its fourth
+property.** In a class that meets this record, a trial meets the postcondition's record exactly when
+it has that record's first three properties and the earlier form of its fourth
+(`AcornVerif.Intent.Postcondition.PromptlyAgain`): every attempt of a member starts from one state,
+so the earlier form follows from solving again and the present form asks nothing. -/
+theorem achieves_iff_promptly {w : Trial} (hb : bigClass.Meets w) :
+    postcondition.Meets w ↔
+      rewardCountsMembers.holds w ∧ earnsMoreInTime.holds w ∧ keepsSolving.holds w ∧
+        PromptlyAgain w :=
+  meets_iff_promptly (sameProblem_of_big hb)
+
 /-- **In a big class the members solved on the attempt of the advantage are solved again.** In a
 class that meets this record, an agent that meets the postcondition's record earns its advantage
 on an attempt each of whose solved members it solves again on a later attempt before the

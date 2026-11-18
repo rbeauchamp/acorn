@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import AcornVerif.Intent.WorldInterface
+import AcornVerif.Intent.PostconditionSubject
 
 /-!
 # Intent record: what achieving goals promises
@@ -18,10 +18,11 @@ Javed and Oak Lab, and the owner adopted it by confirming it. On 2026-11-17 the 
 the record reads "it keeps solving it" of an agent that goes on exploring (rbeauchamp/acorn#248):
 once the agent has solved a member, it solves it again on every later attempt before a stated
 attempt, but for at most a stated number of them, while the member's attempts start from the same
-state. The owner decided the same day that the advantage is read before that attempt too: it
-comes on an attempt that leaves more later attempts before the stated attempt than the stated
-number, so that the promise of solving again bears on it. The restatement and those two decisions
-are this record's only sources.
+state. The owner decided the same day that the advantage is read before that stated attempt as
+well, early enough that the promise of solving again still applies to it. On 2026-11-18, asked
+whether the stated number is how many later attempts the agent may miss, the owner answered that it
+is. The restatement and those answers, in those words, are this record's only sources; the Lean
+form each takes below is the agents', made on the owner's behalf, and the owner has not seen it.
 
 The record's writer had read, before writing it: the mission contract, whose design sections state
 proposed Lean forms of separation and retention over the kernel's definitions; the records of
@@ -33,27 +34,32 @@ two assessments not admitted; and the issues open on 2026-11-10, with the closed
 rbeauchamp/acorn#140, whose text derives facts about the executed agent's controller. Of the modules
 that define the kernel's worlds, classes and visits the writer had read the first line of three
 declarations (`Conceals`, `SolvesOnVisit` and `BigClass`), found by a search for their names, and no
-more; of the executing agent's code, nothing. The two properties on solving again and the tie of
-the advantage to the horizon are not written that blind: their form, an attempt before which
-they are read and a count of lapses, was chosen by a writer that had read how the executing
-agent explores, because an agent that goes on exploring is what the owner's decisions of
-2026-11-17 are about. The record imports nothing of Acorn's but contract 1's record module.
+more; of the executing agent's code, nothing. The property on solving again and the tie of the
+advantage to the horizon are not written that blind: their form, an attempt before which they are
+read and a count of lapses, was chosen by a writer that had read how the executing agent explores,
+because an agent that goes on exploring is what the owner's decisions of 2026-11-17 are about. The
+fourth property, `learnsAgain`, has the form it was given on 2026-11-18, when the record was
+compared with two blind readings of the owner's words by another provider's model; the record's
+confirmation file, `lean/AcornVerif/Intent/Postcondition.md`, says what they found. The record
+imports nothing of Acorn's but the module of its subject's types,
+`AcornVerif.Intent.PostconditionSubject`, and through it contract 1's record module and the bridge
+to lean-intent.
 
 The subject, `Trial`, is a class of worlds with what the class states, and the agent that learns
 in it. What the second sentence says a class states: the members, each a world over the class's
 observations and actions with its reward and its goal (`Member`); the members the comparison
 counts (`counted`); how long an attempt lasts (`length`); and how an attempt's rewards are
 aggregated (`total`). What the decisions of 2026-11-17 add: the attempt before which the class
-reads its promises (`horizon`), and on how many attempts before it the agent may fail a member it
-has solved (`lapses`). Every
-quantity the properties read is computed from those by the faithful run of an agent in a member
-(`Member.run`), which is contract 1's faithful run never stopped (`run_reaches`, in the module of
-this record's consequences): the agent is given the world's
+reads its promises of the advantage and of solving again (`horizon`), and on how many attempts
+before it the agent may fail a member it has solved (`lapses`). Every quantity the properties read
+is computed from those by the faithful run of an agent in a member (`Member.run`), which is
+contract 1's faithful run never stopped
+(`run_reaches`, in the module of this record's consequences): the agent is given the world's
 observation and reward at each step, the world moves by its own dynamics on the agent's action,
 restarts included, and the agent keeps the memory its answer produced. Attempt `n` of a run is its
-`length` steps from step `length * n` on. So the record reads each compared agent in a run
-of its own in each member, from that agent's initial memory, with its memory carried across that
-member's attempts. A class that presents several members in one stream is not this subject.
+`length` steps from step `length * n` on. So the record reads each compared agent in a run of its
+own in each member, from that agent's initial memory, with its memory carried across that member's
+attempts. A class that presents several members in one stream is not this subject.
 
 The four properties are the record's reading of sentences 2 to 5:
 
@@ -61,34 +67,38 @@ The four properties are the record's reading of sentences 2 to 5:
   earns more reward across the counted members than the other exactly when it solves more of them.
 * `earnsMoreInTime` is sentence 3 with the first half of sentence 5: on some attempt the agent
   earns more reward across the counted members than any agent that keeps nothing of its experience
-  earns on any attempt. The attempt leaves more later attempts before the class's horizon than
-  the class's number of lapses, as the owner decided on 2026-11-17. The record names no bound on
-  it that holds of every class, which is the bound fork F-B leaves to the next step: each class
-  names its own horizon.
+  earns on any attempt. That attempt comes before the class's horizon, as the owner decided on
+  2026-11-17, and leaves more later attempts before it than the class's number of lapses, which is
+  how the record reads "early enough that the promise of solving again still applies to it". The
+  record names no bound on it that holds of every class, which is the bound fork F-B leaves to the
+  next step: each class names its own horizon.
 * `keepsSolving` is the first half of sentence 4, with "the problem stays the same" read as: the
   member's attempts start from the same state of its world, and "it keeps solving it" read as the
-  owner decided on 2026-11-17: on every later attempt before the class's horizon, but for at most
-  the class's number of lapses. With no lapse allowed it asks every such attempt.
-* `learnsAgain` is the second half of sentence 4: where a member's attempts come back, for good,
-  to the state from which the agent once solved it, the agent solves it again within the allowed
-  lapses and one attempt more, where those attempts come before the horizon.
+  owner decided on 2026-11-17 and confirmed on 2026-11-18: on every later attempt before the
+  class's horizon, except on at most as many of them as the class's number of lapses, which the
+  agent may miss. With no lapse allowed it asks every such attempt.
+* `learnsAgain` is the second half of sentence 4: where a member's attempts have left the state
+  from which the agent once solved it and have come back to that state for good, the agent solves
+  it again on some later attempt. No attempt is named by which it does, as sentence 4 names none,
+  and nothing is asked where the member's attempts never left that state, which is the case of
+  `keepsSolving`.
 
 Sentence 1, and "success is measured as reward" of sentence 5, are carried by stating the first two
 properties in the reward each member's world generates and the run gives the agent. Sentence 6
 promises nothing, so it adds no property; what the record allows under it is shown by its models.
 The record has no domain hypothesis.
 
-Decided on the owner's behalf in writing it, each to be checked against the second, blind
-formalization and recorded in the record's confirmation file:
+Decided on the owner's behalf, each checked against the second, blind readings and recorded in
+the record's confirmation file, with its reason:
 
 * A goal is a decidable condition on a member's states.
 * The agents compared each run alone in each member; campaigns of several members in one stream are
   left to obligation 10 of the mission contract.
 * "The problem stays the same" is equality of the world's state at the start of the attempts.
-* `learnsAgain` gives the agent the class's lapses and one attempt more to solve the member
-  again, counted from any attempt from which the member's attempts start from that state for
-  good. Obligation 10 of the mission contract owns the precise form for campaigns: from which
-  memories, and within how many attempts.
+* `learnsAgain` asks an agent to solve again, at some time, a member whose problem went away and
+  has come back for good. It does not ask how soon, and it does not ask that the agent could solve
+  a problem that is never put to it again. Whether the ability is promised for the agent's whole
+  life, and its form for campaigns, stay with obligation 10 of the mission contract.
 * The lapses are counted for each member: one list of at most the class's number of attempts, the
   same whichever earlier attempt solved the member. The record does not say why an attempt is a
   lapse, and reads no report of the agent's about its own exploring.
@@ -109,29 +119,13 @@ formalization and recorded in the record's confirmation file:
   `learnsAgain` are asked of every member.
 
 Each property's plain words were written from the finished predicate and are trusted, not proved.
-What the owner confirmed is the six sentences; that this record carries them is the agents'
-judgment.
+What the owner confirmed is the six sentences and the three answers above; that this record carries
+them is the agents' judgment.
 -/
 
 namespace AcornVerif.Intent.Postcondition
 
 open LeanIntent WorldInterface
-
-/-- One member of a class of worlds: a world over the class's observations and actions, with the
-reward it generates and the goal it poses. -/
-structure Member (Obs Act : Type) where
-  /-- The world's states: everything its future depends on. -/
-  State : Type
-  /-- The world's state when a run begins. -/
-  start : State
-  /-- The world's observation at a state. -/
-  observe : State → Obs
-  /-- The reward the world generates at a state: the member's whole reward function. -/
-  reward : State → Rat
-  /-- The world's own dynamics: its next state after an action, restarts included. -/
-  step : State → Act → State
-  /-- Whether a state meets the member's goal. -/
-  goal : State → Bool
 
 namespace Member
 
@@ -157,31 +151,6 @@ what it was given: its memory advances the same way whatever it perceives, thoug
 read what it is given at that step. -/
 def KeepsNothing {Obs Act : Type} (A : Agent Obs Act) : Prop :=
   ∀ m o o', (A.act m o).2 = (A.act m o').2
-
-/-- A class of worlds with the agent that learns in it: what the postcondition's second sentence
-says a class states, and the horizon and the lapses of the owner's decisions of 2026-11-17. -/
-structure Trial where
-  /-- What the worlds of the class show an agent. -/
-  Obs : Type
-  /-- The actions of the class. -/
-  Act : Type
-  /-- The names of the class's members. -/
-  Index : Type
-  /-- Each member: its world, its reward function and its goal. -/
-  member : Index → Member Obs Act
-  /-- The members the comparison counts. -/
-  counted : List Index
-  /-- How long an attempt lasts, in steps. -/
-  length : Nat
-  /-- How the rewards of one attempt are aggregated, from the rewards in the order given. -/
-  total : List Rat → Rat
-  /-- The attempt before which the class reads its promises: they cover the attempts that come
-  before this one. -/
-  horizon : Nat
-  /-- On how many attempts before the horizon the agent may fail a member it has solved. -/
-  lapses : Nat
-  /-- The agent that learns. -/
-  agent : Agent Obs Act
 
 namespace Trial
 
@@ -250,8 +219,8 @@ def earnsMoreInTime : Clause Trial :=
 
 /-- Once the agent has solved a member on an attempt, it solves it on every later attempt before
 the class's horizon up to which that member's attempts all start from the state the solved attempt
-started from, but for at most the class's number of lapses: for each member, the attempts outside
-one list of at most that many. -/
+started from, except on at most as many attempts as the class's number of lapses: for each member,
+it solves it on the attempts outside one list of at most that many. -/
 def keepsSolving : Clause Trial :=
   ⟨"once the agent has solved a member, it solves it again on every later attempt before a \
     stated attempt, but for at most a stated number of them, while the member's attempts start \
@@ -260,17 +229,19 @@ def keepsSolving : Clause Trial :=
       ∀ n n', n ≤ n' → n' < w.horizon → (∀ k, n ≤ k → k ≤ n' → w.SameProblem i n k) →
         w.solves w.agent i n = true → n' ∉ lapsed → w.solves w.agent i n' = true⟩
 
-/-- Once the agent has solved a member on an attempt, then from any later attempt after which that
-member's attempts all start from the state the solved attempt started from, it solves the member
-again on that attempt or on one of the next ones, as many as the class's number of lapses, where
-all of those come before the class's horizon. -/
+/-- Once the agent has solved a member on an attempt, if a later attempt of the member starts from
+another state than that attempt, and every attempt from some still later attempt on starts from the
+state the solved attempt started from, then the agent solves the member on some attempt after the
+one that started from the other state. Asked of every such attempt, this is one solve after the last
+of them, on or after the first attempt from which the member is back for good. No attempt is named
+by which it comes, and nothing is asked of a member whose attempts never leave that state or never
+come back to it for good. -/
 def learnsAgain : Clause Trial :=
-  ⟨"once the agent has solved a member, it solves it again within the stated number of lapses \
-    and one attempt more, once the member's attempts have come back for good to the state the \
-    solved one started from, where those attempts come before the stated attempt", fun w =>
-    ∀ i n n', n ≤ n' → n' + w.lapses < w.horizon → (∀ k, n' ≤ k → w.SameProblem i n k) →
-      w.solves w.agent i n = true →
-        ∃ n'', n' ≤ n'' ∧ n'' ≤ n' + w.lapses ∧ w.solves w.agent i n'' = true⟩
+  ⟨"once the agent has solved a member, and the member's attempts have left the state the solved \
+    one started from and come back to it for good, it solves the member again on some later \
+    attempt", fun w =>
+    ∀ i n g n', n < g → g < n' → ¬ w.SameProblem i n g → (∀ k, n' ≤ k → w.SameProblem i n k) →
+      w.solves w.agent i n = true → ∃ n'', g < n'' ∧ w.solves w.agent i n'' = true⟩
 
 /-- A class with one of its agents, the argument of the vocabulary's first predicate. -/
 abbrev Entrant : Type 1 :=
@@ -397,6 +368,10 @@ theorem doors_solves (b : Bool) (n : Nat) :
     ((door pay b).goal ((door pay b).run A (2 * n + 1)).1 || false)) = _
   rw [door_tried, door_ask]
   cases tried pay A b n == b <;> rfl
+
+/-- In a two-door class, every member's attempts start from the same state in the agent's run. -/
+theorem doors_sameProblem (b : Bool) (n k : Nat) : (doors total pay X).SameProblem b n k :=
+  (door_ask pay b X k).trans (door_ask pay b X n).symm
 
 /-- What a member of the two-door class pays on an attempt, by whether it is solved: the class's
 aggregate of no reward at the first step and, at the second, the payment or none. -/
@@ -530,7 +505,7 @@ theorem doors_finder_meets (h : Fair total pay) :
   refine postcondition_meets.mpr ⟨doors_rewardCounts total pay finder h,
     ⟨1, show 1 + 0 + 1 < 3 by decide, fun (B : Agent (Option Bool) Bool) hB k => ?_⟩,
     fun b => ⟨[], Nat.le_refl 0, fun n n' hle _ _ hs _ => ?_⟩,
-    fun b n n' hle room _ hs => ?_⟩
+    fun b n g _ _ _ left _ _ => absurd (doors_sameProblem total pay finder b n g) left⟩
   · show (doors total pay finder).classReward B k < (doors total pay finder).classReward finder 1
     rw [doors_classReward, doors_classReward, finder_solves, finder_solves, doors_solves,
       doors_solves, keepsNothing_tried pay hB, keepsNothing_tried pay hB]
@@ -538,9 +513,6 @@ theorem doors_finder_meets (h : Fair total pay) :
   · cases n' with
     | zero => exact (Nat.le_zero.mp hle) ▸ hs
     | succ n' => exact finder_solves ..
-  · cases n' with
-    | zero => exact ⟨0, Nat.le_refl 0, Nat.le_add_right _ _, (Nat.le_zero.mp hle) ▸ hs⟩
-    | succ n' => exact ⟨n' + 1, Nat.le_refl _, Nat.le_add_right _ _, finder_solves ..⟩
 
 /-- Summing an attempt's rewards, with a payment of one, is fair. -/
 theorem fair_sum_one : Fair List.sum 1 := by
@@ -568,6 +540,144 @@ theorem postcondition_o2 : O2 postcondition := by
 theorem postcondition_o2Run : O2Run postcondition :=
   (o2Run_correct _).mpr ⟨base, base_meets.1, base_meets.2⟩
 
+/-! ## A class whose member's problem leaves and comes back -/
+
+/-- The states of the detour world. -/
+inductive Spot where
+  /-- The world asks for the move that solves it. -/
+  | home
+  /-- The move just made solved it. -/
+  | won
+  /-- The move just made did not solve it. -/
+  | lost
+  /-- The world is away from its problem: whatever the moves, it is next at `idle` and then at
+  `home`. -/
+  | away
+  /-- The second step of an attempt that started away. -/
+  | idle
+  deriving DecidableEq
+
+/-- The moves of the detour world. -/
+inductive Move where
+  /-- The move that solves the world's problem at `home`. -/
+  | solve
+  /-- A move that neither solves nor leaves. -/
+  | wait
+  /-- The move that, from `won` or `lost`, starts the next attempt away. -/
+  | leave
+  deriving DecidableEq
+
+/-- The detour world. At `home` the move `solve` wins and every other move loses. After either, the
+move `leave` starts the next attempt `away`, and every other move starts it at `home`. An attempt
+that starts `away` ends at `home` whatever the moves. The world generates the reward one at `won`
+and none elsewhere, and its goal is `won`. -/
+def detour : Member Unit Move where
+  State := Spot
+  start := .home
+  observe := fun _ => ()
+  reward := fun
+    | .won => 1
+    | _ => 0
+  step := fun
+    | .home, .solve => .won
+    | .home, _ => .lost
+    | .won, .leave => .away
+    | .lost, .leave => .away
+    | .away, _ => .idle
+    | _, _ => .home
+  goal := fun
+    | .won => true
+    | _ => false
+
+/-- The detour class with the agent `A`: its one member, counted, and attempts of two steps. Its
+promises of the advantage and of solving again are read over its first eight attempts, and it allows
+no lapse. -/
+def detours (A : Agent Unit Move) : Trial where
+  Obs := Unit
+  Act := Move
+  Index := Unit
+  member := fun _ => detour
+  counted := [()]
+  length := 2
+  total := List.sum
+  horizon := 8
+  lapses := 0
+  agent := A
+
+/-- An agent for the detour world that solves on its first step, leaves on its second and waits
+ever after. Its memory counts its steps. -/
+def quits : Agent Unit Move where
+  Memory := Nat
+  initial := 0
+  act := fun m _ =>
+    (match m with
+      | 0 => .solve
+      | 1 => .leave
+      | _ + 2 => .wait, m + 1)
+
+/-- After `t` steps of its run in any member, `quits` has counted `t` steps. -/
+theorem quits_memory (M : Member Unit Move) : ∀ t, (M.run quits t).2 = t
+  | 0 => rfl
+  | t + 1 => congrArg (· + 1) (quits_memory M t)
+
+/-- From its third attempt on, the run of `quits` in the detour world starts each attempt at `home`
+and loses it. -/
+theorem quits_late : ∀ j, (detour.run quits (2 * j + 4)).1 = Spot.home ∧
+    (detour.run quits (2 * j + 5)).1 = Spot.lost
+  | 0 => ⟨rfl, rfl⟩
+  | j + 1 => by
+    obtain ⟨_, lost⟩ := quits_late j
+    have home : (detour.run quits (2 * (j + 1) + 4)).1 = Spot.home := by
+      show detour.step (detour.run quits (2 * j + 5)).1
+        (quits.act (detour.run quits (2 * j + 5)).2 _).1 = Spot.home
+      rw [lost, quits_memory]
+      rfl
+    refine ⟨home, ?_⟩
+    show detour.step (detour.run quits (2 * (j + 1) + 4)).1
+      (quits.act (detour.run quits (2 * (j + 1) + 4)).2 _).1 = Spot.lost
+    rw [home, quits_memory]
+    rfl
+
+/-- The detour class with `quits`: its agent solves the member on its first attempt, the member's
+second attempt starts away, every later attempt starts at `home` again, and the agent never solves
+the member again. -/
+def quitting : Trial := detours quits
+
+/-- From its third attempt on, `quits` does not solve the member of the detour class. -/
+theorem quitting_misses (n : Nat) : quitting.solves quits () (n + 2) = false := by
+  obtain ⟨home, lost⟩ := quits_late n
+  have e : 2 * (n + 2) = 2 * n + 4 := by omega
+  show (detour.goal (detour.run quits (2 * (n + 2) + 0)).1 ||
+    (detour.goal (detour.run quits (2 * (n + 2) + 1)).1 || false)) = false
+  rw [Nat.add_zero, e, home, show (detour.run quits (2 * n + 4 + 1)).1 = Spot.lost from lost]
+  rfl
+
+/-- From its third attempt on, the member of `quitting` starts each attempt from the state its first
+attempt started from. -/
+theorem quitting_back (k : Nat) (late : 2 ≤ k) : quitting.SameProblem () 0 k := by
+  obtain ⟨j, rfl⟩ : ∃ j, k = j + 2 := ⟨k - 2, by omega⟩
+  have e : 2 * (j + 2) = 2 * j + 4 := by omega
+  show (detour.run quits (2 * (j + 2))).1 = (detour.run quits (2 * 0)).1
+  rw [e, (quits_late j).1]
+  rfl
+
+/-- The second attempt of the member of `quitting` starts from another state than the first. -/
+theorem quitting_left : ¬ quitting.SameProblem () 0 1 :=
+  fun h => Spot.noConfusion (h : Spot.away = Spot.home)
+
+/-- `quitting` fails the record's fourth property: its agent solves the member on its first attempt,
+the second attempt starts from another state, every attempt from the third on starts from the first
+one's state, and the agent solves the member on none of them. -/
+theorem quitting_fails : ¬ learnsAgain.holds quitting := fun h => by
+  obtain ⟨n'', late, hs⟩ := h () 0 1 2 (by decide) (by decide) quitting_left
+    (fun k hk => quitting_back k hk) rfl
+  obtain ⟨m, rfl⟩ : ∃ m, n'' = m + 2 := ⟨n'' - 2, by omega⟩
+  exact Bool.noConfusion (hs.symm.trans (quitting_misses m))
+
+/-- `quits` keeps nothing of its experience: its memory counts its steps. -/
+theorem quits_keepsNothing : KeepsNothing quits :=
+  fun _ _ _ => rfl
+
 /-! ## Trials that fail one property each -/
 
 /-- `base` whose members pay nothing: reward does not show which members were solved. -/
@@ -587,31 +697,15 @@ def once : Agent (Option Bool) Bool where
 again. -/
 def forgetful : Trial := doors List.sum 1 once
 
-/-- After `t` steps of its run in any member, `once` has counted `t` steps. -/
-theorem once_memory (M : Member (Option Bool) Bool) : ∀ t, (M.run once t).2 = t
-  | 0 => rfl
-  | t + 1 => congrArg (· + 1) (once_memory M t)
-
-/-- After its first attempt, `once` never solves the first member of a two-door class. -/
-theorem once_misses (n : Nat) : (doors total pay X).solves once true (n + 1) = false := by
-  have h : tried pay once true (n + 1) = false := by
-    unfold tried
-    rw [once_memory]
-    rfl
-  rw [doors_solves, h]
-  rfl
-
-/-- In a two-door class, every member's attempts start from the same state in the agent's run. -/
-theorem doors_sameProblem (b : Bool) (n k : Nat) : (doors total pay X).SameProblem b n k :=
-  (door_ask pay b X k).trans (door_ask pay b X n).symm
-
 /-- An agent that keeps nothing of its experience fails `earnsMoreInTime` in every class: on no
 attempt does it earn more than itself. -/
 theorem not_earnsMore_of_keepsNothing {w : Trial} (h : KeepsNothing w.agent) :
     ¬ earnsMoreInTime.holds w :=
   fun ⟨n, _, hn⟩ => Rat.lt_irrefl (hn w.agent h n)
 
-/-- O3: each property fails of a trial that changes one part of `base`. -/
+/-- O3: each property fails of some trial. The first three fail of a trial that changes one part of
+`base`, and the fourth of `quitting`, in whose class a member's attempts leave the state of a solved
+attempt and come back to it. -/
 theorem postcondition_o3 : O3 postcondition := by
   refine (o3_correct _).mpr fun p hp => ?_
   simp only [postcondition, List.mem_cons, List.not_mem_nil, or_false] at hp
@@ -629,12 +723,7 @@ theorem postcondition_o3 : O3 postcondition := by
         (fun k _ _ => doors_sameProblem List.sum 1 once true 0 k) rfl
         (by rw [none]; exact List.not_mem_nil)
     exact absurd hs (by decide)
-  · refine ⟨forgetful, fun h => ?_⟩
-    obtain ⟨n, hn, -, hs⟩ :=
-      h true 0 1 (by decide) (by decide)
-        (fun k _ => doors_sameProblem List.sum 1 once true 0 k) rfl
-    obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
-    exact Bool.noConfusion (hs.symm.trans (once_misses List.sum 1 once m))
+  · exact ⟨quitting, quitting_fails⟩
 
 /-- O4: the subject is declared a plain value, of which O4 asks nothing: a class of worlds with an
 agent is a description, whose worlds and agent the properties read through their runs. -/

@@ -50,9 +50,10 @@ What the proposition does not say:
   agent it is the fifth step of rbeauchamp/acorn#215.
 * That a host runs the agent as the rung's run does. The run of a rung is contract 1's faithful
   run by how it is built, which says nothing of a host.
-* Two of the four records, those of contract 2 and of the postcondition, have not had their blind
-  second reading or their confirmation file (rbeauchamp/acorn#214, rbeauchamp/acorn#219), so the
-  proposition can change with them.
+* The record of contract 2 has not had its blind second reading or its confirmation file
+  (rbeauchamp/acorn#214), so the proposition can change with it. The record of the postcondition has
+  had both, and its fourth property was restated for them; `mission_iff_before` proves that the
+  proposition holds of a rung exactly when it held of it before.
 -/
 
 namespace AcornVerif.Intent.MissionTheorem
@@ -102,6 +103,39 @@ theorem Mission.of_records {r : Rung} (big : bigClass.Meets r.toTrial)
     (stream : ∀ i, oneStream.Meets (r.learner i)) (achieves : postcondition.Meets r.toTrial) :
     Mission r :=
   ⟨r.interface_met, big, stream, achieves⟩
+
+/-- The mission statement as it read while the fourth property of the postcondition's record had its
+earlier form (`AcornVerif.Intent.Postcondition.PromptlyAgain`), with that record's four properties
+written out, since the record no longer holds the earlier one. -/
+structure MissionBefore (r : Rung) : Prop where
+  /-- Contract 1, as in `Mission`. -/
+  interface : ∀ i, worldInterface.Meets (couple (r.member i).world r.agent)
+  /-- Contract 2, as in `Mission`. -/
+  big : bigClass.Meets r.toTrial
+  /-- Contract 3, as in `Mission`. -/
+  stream : ∀ i, oneStream.Meets (r.learner i)
+  /-- The postcondition's first property. -/
+  reward : rewardCountsMembers.holds r.toTrial
+  /-- The postcondition's second property. -/
+  advantage : earnsMoreInTime.holds r.toTrial
+  /-- The postcondition's third property. -/
+  keeps : keepsSolving.holds r.toTrial
+  /-- The postcondition's fourth property in its earlier form. -/
+  again : PromptlyAgain r.toTrial
+
+/-- **Restating the postcondition's fourth property left the mission statement as it was.** The
+statement holds of a rung exactly when it held of it in the earlier form: a rung that meets either
+has a class that meets the record of contract 2, where every attempt of a member starts from one
+state (`AcornVerif.Intent.BigClass.achieves_iff_promptly`). This is proved of every rung, and so of
+every class that meets the record of contract 2; it says nothing of a class that does not. -/
+theorem mission_iff_before (r : Rung) : Mission r ↔ MissionBefore r := by
+  constructor
+  · intro m
+    obtain ⟨h1, h2, h3, h4⟩ := (achieves_iff_promptly m.big).mp m.achieves
+    exact ⟨m.interface, m.big, m.stream, h1, h2, h3, h4⟩
+  · intro b
+    exact ⟨b.interface, b.big, b.stream,
+      (achieves_iff_promptly b.big).mpr ⟨b.reward, b.advantage, b.keeps, b.again⟩⟩
 
 /-! ## Contract 3 as named premises
 

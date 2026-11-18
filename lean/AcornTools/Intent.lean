@@ -52,7 +52,8 @@ retired once lean-intent can declare a deliverable awaiting its implementation i
 def awaiting : List (Name × String) :=
   [(`AcornVerif.Intent.Decisions.hashDeliverable, "rbeauchamp/acorn#184"),
     (`AcornVerif.Intent.Decisions.worldInterfaceDeliverable, "rbeauchamp/acorn#213"),
-    (`AcornVerif.Intent.Decisions.oneStreamDeliverable, "rbeauchamp/acorn#215")]
+    (`AcornVerif.Intent.Decisions.oneStreamDeliverable, "rbeauchamp/acorn#215"),
+    (`AcornVerif.Intent.Decisions.postconditionDeliverable, "rbeauchamp/acorn#219")]
 
 /-- The output of the bootstrap run with `args`, from the package directory; an error when it
 fails. -/

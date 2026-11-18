@@ -21,11 +21,12 @@ statements about attempt goals, which this module defines over the kernel's
 - `RetainsBut`: the same before a stated visit, the horizon, but for at most a stated number of
   each member's visits, its lapses. `Retains` gives it with no lapse (`Retains.but`).
 
-The postcondition asks `SeparatesBy` and `RetainsBut` together, as the owner decided on 2026-11-17
-(rbeauchamp/acorn#248): the visit of the advantage comes early enough before the horizon that
-more later visits than the lapses remain, so each member solved on it is solved again
-(`RetainsBut.again`). A horizon that leaves no such room asks no retention
-(`retainsBut_of_lapses`).
+The postcondition asks `SeparatesBy` and `RetainsBut` together. The owner decided on 2026-11-17
+(rbeauchamp/acorn#248) that the advantage is read before the horizon as well, early enough that
+the promise of solving again still applies to it; the postcondition's record reads that, on the
+owner's behalf, as a visit that leaves more later visits than the lapses before the horizon, so
+each member solved on it is solved again (`RetainsBut.again`). A horizon that leaves no such room
+asks no retention (`retainsBut_of_lapses`).
 
 `Finds` is the part of separation that is exploration: each of more than the bound's number of
 counted members is solved on some visit, each on a visit of its own. An agent that finds and retains
