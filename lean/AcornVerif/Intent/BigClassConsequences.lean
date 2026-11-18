@@ -188,6 +188,338 @@ theorem firstAttemptSmall_holds : firstAttemptSmall.HoldsOf bigClass := by
   obtain ⟨t', ht', hg'⟩ := script_meets R (w.member i) A (fun t h => hR A i t h) t hg
   exact (solves_first_iff w (script R A) i).mpr ⟨t', Nat.lt_of_le_of_lt ht' ht, hg'⟩
 
+/-! ## Continued learning pays -/
+
+/-- An agent solves a member on an attempt exactly when its run in the member is in a state that
+meets the goal at some time of the attempt. -/
+theorem solves_iff (w : Trial) (A : Agent w.Obs w.Act) (i : w.Index) (n : Nat) :
+    w.solves A i n = true ↔
+      ∃ j, j < w.length ∧ (w.member i).goal (w.stateAt A i (w.length * n + j)) = true := by
+  simp only [Trial.solves, Trial.attemptTimes, List.any_eq_true, List.mem_map, List.mem_range]
+  constructor
+  · intro ⟨t, ⟨j, hj, hjt⟩, hg⟩
+    exact ⟨j, hj, hjt ▸ hg⟩
+  · intro ⟨j, hj, hg⟩
+    exact ⟨_, ⟨j, hj, rfl⟩, hg⟩
+
+section Seeker
+
+variable {Obs Act : Type}
+
+/-- The state the member `M`'s world is in after `j` steps from the state `s` in which the plan `l`
+is followed, action by action, and the action `a` is taken once the plan is spent. -/
+def follow (M : Member Obs Act) (a : Act) : M.State → List Act → Nat → M.State
+  | s, _, 0 => s
+  | s, [], j + 1 => follow M a (M.step s a) [] j
+  | s, x :: l, j + 1 => follow M a (M.step s x) l j
+
+/-- One more step of following a plan takes the plan's next action, or `a` once it is spent. -/
+theorem follow_succ (M : Member Obs Act) (a : Act) :
+    ∀ (j : Nat) (s : M.State) (l : List Act),
+      follow M a s l (j + 1) = M.step (follow M a s l j) (l.getD j a)
+  | 0, _, [] => rfl
+  | 0, _, _ :: _ => rfl
+  | j + 1, s, [] => follow_succ M a j (M.step s a) []
+  | j + 1, s, x :: l => follow_succ M a j (M.step s x) l
+
+/-- Following a plan for as many steps as it has actions reaches the state after its actions. -/
+theorem follow_length (M : Member Obs Act) (a : Act) :
+    ∀ (l : List Act) (s : M.State), follow M a s l l.length = afterActions M s l
+  | [], _ => rfl
+  | x :: l, s => follow_length M a l (M.step s x)
+
+/-- What the seeker knows after a step: the attempt it already marked, or, when it has marked none
+and the signal says the goal is met, the attempt it is in. -/
+def marked (length : Nat) (signal : Obs × Rat → Bool) (m : Nat × Option Nat) (o : Obs × Rat) :
+    Option Nat :=
+  match m.2 with
+  | some p => some p
+  | none => bif signal o then some (m.1 / length) else none
+
+/-- The agent that tries one plan on each attempt, in the order `plans` gives them, until the
+signal says a goal is met, and from then on follows the plan of the attempt on which that happened.
+Its memory is the number of steps it has taken and the attempt it has marked, if any. It takes the
+action `a` once a plan is spent. -/
+def seeker (length : Nat) (plans : Nat → List Act) (signal : Obs × Rat → Bool) (a : Act) :
+    Agent Obs Act where
+  Memory := Nat × Option Nat
+  initial := (0, none)
+  act := fun m o =>
+    ((plans ((marked length signal m o).getD (m.1 / length))).getD (m.1 % length) a,
+      (m.1 + 1, marked length signal m o))
+
+variable (M : Member Obs Act) (length : Nat) (plans : Nat → List Act)
+  (signal : Obs × Rat → Bool) (a : Act)
+
+/-- After `t` steps of its run in any member, the seeker has counted `t` steps. -/
+theorem seeker_clock : ∀ t, ((M.run (seeker length plans signal a) t).2).1 = t
+  | 0 => rfl
+  | t + 1 => congrArg (· + 1) (seeker_clock t)
+
+/-- What the seeker has marked after one more step of its run. -/
+theorem seeker_marked (t : Nat) :
+    ((M.run (seeker length plans signal a) (t + 1)).2).2 =
+      marked length signal (M.run (seeker length plans signal a) t).2
+        (given M (seeker length plans signal a) t) :=
+  rfl
+
+/-- The state the member is in after one more step of the seeker's run: the seeker takes the action
+its current plan has for this step of the attempt. -/
+theorem seeker_state (t : Nat) :
+    (M.run (seeker length plans signal a) (t + 1)).1 =
+      M.step (M.run (seeker length plans signal a) t).1
+        ((plans (((M.run (seeker length plans signal a) (t + 1)).2).2.getD (t / length))).getD
+          (t % length) a) := by
+  have h := seeker_clock M length plans signal a t
+  show M.step _ ((plans ((marked length signal (M.run (seeker length plans signal a) t).2
+      (given M (seeker length plans signal a) t)).getD
+        ((M.run (seeker length plans signal a) t).2.1 / length))).getD
+          ((M.run (seeker length plans signal a) t).2.1 % length) a) = _
+  rw [h]
+  rfl
+
+/-- Once the seeker has marked an attempt it keeps that mark. -/
+theorem seeker_keeps (t p : Nat)
+    (h : ((M.run (seeker length plans signal a) t).2).2 = some p) :
+    ∀ d, ((M.run (seeker length plans signal a) (t + d)).2).2 = some p
+  | 0 => h
+  | d + 1 => by
+    have ih := seeker_keeps t p h d
+    show ((M.run (seeker length plans signal a) (t + d + 1)).2).2 = some p
+    rw [seeker_marked]
+    unfold marked
+    rw [ih]
+
+/-- A mark the seeker makes at a step is the attempt of that step, made because the signal said the
+goal was met there. -/
+theorem seeker_marks (t q : Nat)
+    (h : ((M.run (seeker length plans signal a) t).2).2 = none)
+    (h' : ((M.run (seeker length plans signal a) (t + 1)).2).2 = some q) :
+    signal (given M (seeker length plans signal a) t) = true ∧ q = t / length := by
+  rw [seeker_marked] at h'
+  unfold marked at h'
+  rw [h] at h'
+  have hc := seeker_clock M length plans signal a t
+  cases hs : signal (given M (seeker length plans signal a) t)
+  · rw [hs] at h'
+    exact nomatch (h' : (none : Option Nat) = some q)
+  · rw [hs] at h'
+    exact ⟨rfl, by rw [← hc]; exact (Option.some.inj h').symm⟩
+
+/-- Where the signal says the goal is met at a step, the seeker has a mark after it. -/
+theorem seeker_marks_success (t : Nat)
+    (h : signal (given M (seeker length plans signal a) t) = true) :
+    ∃ p, ((M.run (seeker length plans signal a) (t + 1)).2).2 = some p := by
+  rw [seeker_marked]
+  unfold marked
+  cases hm : ((M.run (seeker length plans signal a) t).2).2
+  · exact ⟨_, by rw [h]; rfl⟩
+  · exact ⟨_, rfl⟩
+
+/-- Following a plan for no step leaves the state as it is. -/
+theorem follow_zero (s : M.State) (l : List Act) : follow M a s l 0 = s := by
+  cases l <;> rfl
+
+/-- A mark the seeker holds after some steps and did not hold before them was made at one of
+them. -/
+theorem seeker_first_mark (t q : Nat)
+    (h : ((M.run (seeker length plans signal a) t).2).2 = none) :
+    ∀ d, ((M.run (seeker length plans signal a) (t + d)).2).2 = some q →
+      ∃ j, j < d ∧ ((M.run (seeker length plans signal a) (t + j)).2).2 = none ∧
+        ((M.run (seeker length plans signal a) (t + j + 1)).2).2 = some q
+  | 0, h' => nomatch h.symm.trans h'
+  | d + 1, h' => by
+    cases hm : ((M.run (seeker length plans signal a) (t + d)).2).2 with
+    | none => exact ⟨d, Nat.lt_succ_self d, hm, h'⟩
+    | some p =>
+      have hk : ((M.run (seeker length plans signal a) (t + (d + 1))).2).2 = some p :=
+        seeker_keeps M length plans signal a (t + d) p hm 1
+      have hpq : p = q := Option.some.inj (hk.symm.trans h')
+      obtain ⟨j, hj, hjn, hjs⟩ := seeker_first_mark t q h d (hpq ▸ hm)
+      exact ⟨j, Nat.lt_succ_of_lt hj, hjn, hjs⟩
+
+/-- Within an attempt the seeker's mark is the one it began the attempt with, or, where it began
+with none, the attempt itself. -/
+theorem seeker_within (hL : 0 < length) (n : Nat) :
+    ∀ j, j ≤ length →
+      ((M.run (seeker length plans signal a) (length * n + j)).2).2 =
+          ((M.run (seeker length plans signal a) (length * n)).2).2 ∨
+        (((M.run (seeker length plans signal a) (length * n)).2).2 = none ∧
+          ((M.run (seeker length plans signal a) (length * n + j)).2).2 = some n)
+  | 0, _ => Or.inl rfl
+  | j + 1, hj => by
+    have ih := seeker_within hL n j (Nat.le_of_succ_le hj)
+    cases hm : ((M.run (seeker length plans signal a) (length * n + j)).2).2 with
+    | some p =>
+      have hk : ((M.run (seeker length plans signal a) (length * n + (j + 1))).2).2 = some p :=
+        seeker_keeps M length plans signal a (length * n + j) p hm 1
+      rw [hm] at ih
+      rw [hk]
+      exact ih
+    | none =>
+      rw [hm] at ih
+      have h0 : ((M.run (seeker length plans signal a) (length * n)).2).2 = none := by
+        rcases ih with h | ⟨_, h⟩
+        · exact h.symm
+        · exact nomatch h
+      cases hq : ((M.run (seeker length plans signal a) (length * n + (j + 1))).2).2 with
+      | none => exact Or.inl h0.symm
+      | some q =>
+        have hs := seeker_marks M length plans signal a (length * n + j) q hm hq
+        have hdiv : (length * n + j) / length = n := by
+          rw [Nat.mul_add_div hL, Nat.div_eq_of_lt (Nat.lt_of_succ_le hj), Nat.add_zero]
+        exact Or.inr ⟨h0, by rw [hs.2, hdiv]⟩
+
+/-- Throughout an attempt the seeker follows one plan: that of the attempt it began the attempt
+having marked, or, where it had marked none, that of the attempt itself. -/
+theorem seeker_plan (hL : 0 < length) (n j : Nat) (hj : j < length) :
+    (((M.run (seeker length plans signal a) (length * n + j + 1)).2).2).getD n =
+      (((M.run (seeker length plans signal a) (length * n)).2).2).getD n := by
+  rcases seeker_within M length plans signal a hL n (j + 1) hj with h | ⟨h0, h⟩
+  · exact congrArg (·.getD n) h
+  · exact (congrArg (·.getD n) h).trans (congrArg (·.getD n) h0).symm
+
+/-- In an attempt that starts from the member's start, the member is, after each step of the
+attempt, in the state the seeker's plan for that attempt leads to. -/
+theorem seeker_follows (hL : 0 < length) (n : Nat)
+    (hstart : (M.run (seeker length plans signal a) (length * n)).1 = M.start) :
+    ∀ j, j ≤ length →
+      (M.run (seeker length plans signal a) (length * n + j)).1 =
+        follow M a M.start
+          (plans ((((M.run (seeker length plans signal a) (length * n)).2).2).getD n)) j
+  | 0, _ => hstart.trans (follow_zero M a _ _).symm
+  | j + 1, hj => by
+    have ih := seeker_follows hL n hstart j (Nat.le_of_succ_le hj)
+    have hlt : j < length := Nat.lt_of_succ_le hj
+    have hdiv : (length * n + j) / length = n := by
+      rw [Nat.mul_add_div hL, Nat.div_eq_of_lt hlt, Nat.add_zero]
+    have hmod : (length * n + j) % length = j := by
+      rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hlt]
+    show (M.run (seeker length plans signal a) (length * n + j + 1)).1 = _
+    rw [seeker_state, hdiv, hmod, seeker_plan M length plans signal a hL n j hlt, ih, follow_succ]
+
+/-- Where every attempt of the seeker's run in a member starts from the member's start, the signal
+says at every time of that run whether the member's goal is met, and the plan of attempt `m`
+reaches the goal from the start in fewer actions than an attempt has steps, the seeker's run meets
+the goal at some time of every attempt after `m`. -/
+theorem seeker_solves (hL : 0 < length) (m : Nat)
+    (hrecur : ∀ n, (M.run (seeker length plans signal a) (length * n)).1 = M.start)
+    (hsignal : ∀ t, signal (given M (seeker length plans signal a) t) =
+      M.goal (M.run (seeker length plans signal a) t).1)
+    (hlen : (plans m).length < length)
+    (hgoal : M.goal (afterActions M M.start (plans m)) = true) :
+    ∀ n, m < n →
+      ∃ j, j < length ∧ M.goal (M.run (seeker length plans signal a) (length * n + j)).1 = true := by
+  have inv : ∀ n p, ((M.run (seeker length plans signal a) (length * n)).2).2 = some p →
+      ∃ j, j < length ∧ M.goal (follow M a M.start (plans p) j) = true := by
+    intro n
+    induction n with
+    | zero =>
+      intro p h
+      exact nomatch (h : (none : Option Nat) = some p)
+    | succ n ih =>
+      intro p h
+      have h' : ((M.run (seeker length plans signal a) (length * n + length)).2).2 = some p := h
+      rcases seeker_within M length plans signal a hL n length (Nat.le_refl _) with hw | ⟨h0, hw⟩
+      · exact ih p (hw.symm.trans h')
+      · have hp : n = p := Option.some.inj (hw.symm.trans h')
+        obtain ⟨j, hj, hjn, hjs⟩ :=
+          seeker_first_mark M length plans signal a (length * n) n h0 length hw
+        have hs := (seeker_marks M length plans signal a (length * n + j) n hjn hjs).1
+        rw [hsignal, seeker_follows M length plans signal a hL n (hrecur n) j (Nat.le_of_lt hj),
+          h0] at hs
+        have hs' : M.goal (follow M a M.start (plans n) j) = true := hs
+        exact ⟨j, hj, hp ▸ hs'⟩
+  have prog : ∃ p,
+      ((M.run (seeker length plans signal a) (length * m + length)).2).2 = some p := by
+    cases hmark : ((M.run (seeker length plans signal a) (length * m)).2).2 with
+    | some p => exact ⟨p, seeker_keeps M length plans signal a (length * m) p hmark length⟩
+    | none =>
+      have hst := seeker_follows M length plans signal a hL m (hrecur m) (plans m).length
+        (Nat.le_of_lt hlen)
+      rw [hmark] at hst
+      have hst' : (M.run (seeker length plans signal a) (length * m + (plans m).length)).1 =
+          afterActions M M.start (plans m) := hst.trans (follow_length M a (plans m) M.start)
+      have hsig : signal (given M (seeker length plans signal a)
+          (length * m + (plans m).length)) = true := by
+        rw [hsignal, hst']
+        exact hgoal
+      obtain ⟨p, hp⟩ := seeker_marks_success M length plans signal a _ hsig
+      have hk := seeker_keeps M length plans signal a (length * m + (plans m).length + 1) p hp
+        (length - ((plans m).length + 1))
+      have he : length * m + (plans m).length + 1 + (length - ((plans m).length + 1)) =
+          length * m + length := by omega
+      rw [he] at hk
+      exact ⟨p, hk⟩
+  intro n hn
+  obtain ⟨p, hp⟩ := prog
+  obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_lt hn
+  have hpn : ((M.run (seeker length plans signal a) (length * n)).2).2 = some p := by
+    have hk := seeker_keeps M length plans signal a (length * m + length) p hp (length * d)
+    have he : length * n = length * m + length + length * d := by
+      rw [hd]
+      simp only [Nat.mul_add, Nat.mul_one]
+      omega
+    rw [he]
+    exact hk
+  obtain ⟨j, hj, hg⟩ := inv n p hpn
+  refine ⟨j, hj, ?_⟩
+  rw [seeker_follows M length plans signal a hL n (hrecur n) j (Nat.le_of_lt hj), hpn]
+  exact hg
+
+end Seeker
+
+/-- **Continued learning pays.** In a class that meets the record and has an action, some agent
+solves every counted member on every attempt from their count on, and so more of them than any
+agent that keeps nothing of its experience solves on any attempt. The agent is a seeker: attempt by
+attempt it tries a way to one counted member's goal, and it keeps to the way it was following when
+its percept first showed success. -/
+def learningPays : Consequence Trial :=
+  ⟨"where the class has an action, some agent solves every counted member on every attempt from \
+    their count on, more than any agent that keeps nothing of its experience solves on any \
+    attempt", .entailment, fun w =>
+    Nonempty w.Act → ∃ A : Agent w.Obs w.Act, ∀ n, w.counted.length ≤ n →
+      (∀ i ∈ w.counted, w.solves A i n = true) ∧
+        ∀ B : Agent w.Obs w.Act, KeepsNothing B → ∀ k, w.solvedCount B k < w.solvedCount A n⟩
+
+theorem learningPays_holds : learningPays.HoldsOf bigClass := by
+  intro w hw ⟨a⟩
+  obtain ⟨hreach, _, ⟨k, hk, hfrozen⟩, ⟨signal, hsignal⟩, hrecur⟩ := bigClass_meets.mp hw
+  have hplan : ∀ i : w.Index, ∃ acts : List w.Act, acts.length < w.length ∧
+      (w.member i).goal (afterActions (w.member i) (w.member i).start acts) = true := by
+    intro i
+    obtain ⟨acts, hlen, hg⟩ := hreach (always a) i 0
+    have hs : w.stateAt (always a) i (w.length * 0) = (w.member i).start := hrecur (always a) i 0
+    rw [hs] at hg
+    exact ⟨acts, hlen, hg⟩
+  let acts : w.Index → List w.Act := fun i => Classical.choose (hplan i)
+  have hacts : ∀ i, (acts i).length < w.length ∧
+      (w.member i).goal (afterActions (w.member i) (w.member i).start (acts i)) = true :=
+    fun i => Classical.choose_spec (hplan i)
+  let plans : Nat → List w.Act := fun m => ((w.counted[m]?).map acts).getD []
+  refine ⟨seeker w.length plans signal a, fun n hn => ?_⟩
+  have hall : ∀ i ∈ w.counted, w.solves (seeker w.length plans signal a) i n = true := by
+    intro i hi
+    obtain ⟨m, hm⟩ := List.mem_iff_getElem?.mp hi
+    have hmlt : m < w.counted.length := (List.getElem?_eq_some_iff.mp hm).1
+    have hpm : plans m = acts i := by
+      show ((w.counted[m]?).map acts).getD [] = acts i
+      rw [hm]
+      rfl
+    have hL : 0 < w.length := Nat.lt_of_le_of_lt (Nat.zero_le _) (hacts i).1
+    obtain ⟨j, hj, hg⟩ := seeker_solves (w.member i) w.length plans signal a hL m
+      (fun n => hrecur (seeker w.length plans signal a) i n)
+      (fun t => hsignal (seeker w.length plans signal a) i t)
+      (by rw [hpm]; exact (hacts i).1) (by rw [hpm]; exact (hacts i).2) n
+      (Nat.lt_of_lt_of_le hmlt hn)
+    exact (solves_iff w (seeker w.length plans signal a) i n).mpr ⟨j, hj, hg⟩
+  refine ⟨hall, fun B hB k' => ?_⟩
+  have hcount : w.solvedCount (seeker w.length plans signal a) n = w.counted.length := by
+    show (w.counted.filter fun i => w.solves (seeker w.length plans signal a) i n).length = _
+    rw [List.filter_eq_self.mpr hall]
+  rw [hcount]
+  exact Nat.lt_of_le_of_lt (hfrozen B hB k') hk
+
 /-! ## What the record rules out -/
 
 theorem unreachable_fails : ¬ bigClass.Meets unreachable := fun h => by
