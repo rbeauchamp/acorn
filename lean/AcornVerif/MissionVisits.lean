@@ -548,9 +548,10 @@ theorem visits_goalsConcealed (stated : PaysAtGoals family goals pay met)
   rw [given_eq, given_eq]
   exact congrArg (fun shown => (shown, pay shown)) percept
 
-/-- Condition (c): in a class that conceals its goals, with distinct counted members and a covering
-bound below their count, an agent that keeps nothing of its experience solves at most the bound of
-the class's members, counted or not, on every attempt. -/
+/-- Condition (c): in a class that conceals its goals and whose reward pays at its goals, with
+distinct counted members and a covering bound below their count, run in visits, an agent that keeps
+nothing of its experience solves at most the bound of the class's members, counted or not, on every
+attempt. -/
 theorem visits_frozenShareSmall (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)

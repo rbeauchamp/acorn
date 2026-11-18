@@ -58,7 +58,8 @@ theorem reads_class (w : Trial) (A : Agent w.Obs w.Act) (f : List Rat → Rat)
 
 /-- **Condition (c) bounds the counted members.** Where the counted members are distinct and some
 number below their count bounds how many members of the class an agent that keeps nothing of its
-experience solves on any attempt, that number bounds how many of the counted members it solves. -/
+experience solves on any attempt, some number below their count bounds how many of the counted
+members it solves. -/
 theorem counted_bound {w : Trial} (h : frozenShareSmall.holds w) :
     ∃ k, k < w.counted.length ∧
       ∀ B : Agent w.Obs w.Act, KeepsNothing B → ∀ n, w.solvedCount B n ≤ k := by
@@ -66,7 +67,7 @@ theorem counted_bound {w : Trial} (h : frozenShareSmall.holds w) :
   exact ⟨k, hk, fun B hB n => hb B hB n (w.counted.filter fun i => w.solves B i n)
     (List.Pairwise.filter _ hn) fun i hi => (List.mem_filter.mp hi).2⟩
 
-/-- **No agent that keeps nothing solves the whole class.** -/
+/-- **No agent that keeps nothing solves every counted member on an attempt.** -/
 def noFrozenAgentSolvesAll : Consequence Trial :=
   ⟨"no agent that keeps nothing of its experience solves every counted member on an attempt",
     .entailment, fun w =>
@@ -178,10 +179,9 @@ theorem filter_length_mono {α : Type} (p q : α → Bool) (h : ∀ x, p x = tru
       simp only [List.filter, hp, hq, List.length_cons]
       omega
 
-/-- **Nobody does well on a first attempt.** In a class that conceals its goals and in which an
-agent that keeps nothing of its experience solves only a small share, every agent, one that learns
-included, solves on its first attempt at most the number of counted members that bounds that
-share. -/
+/-- **Nobody does well on a first attempt.** In a class that meets the record, every agent, one
+that learns included, solves on its first attempt at most some number of the counted members
+smaller than their count. The proof uses conditions (b) and (c) only. -/
 def firstAttemptSmall : Consequence Trial :=
   ⟨"on its first attempt, every agent solves at most a number of the counted members that is \
     smaller than their count", .entailment, fun w =>
@@ -332,7 +332,7 @@ theorem seeker_marks_success (t : Nat)
 theorem follow_zero (s : M.State) (l : List Act) : follow M a s l 0 = s := by
   cases l <;> rfl
 
-/-- A mark the seeker holds after some steps and did not hold before them was made at one of
+/-- A mark the seeker holds after some steps, having held none before them, was made at one of
 them. -/
 theorem seeker_first_mark (t q : Nat)
     (h : ((M.run (seeker length plans signal a) t).2).2 = none) :
@@ -483,9 +483,9 @@ end Seeker
 
 /-- **Continued learning pays.** In a class that meets the record, some agent solves every counted
 member on every attempt from their count on, and so more of them than any agent that keeps nothing
-of its experience solves on any attempt. The agent is a seeker: attempt by attempt it tries a way to
-one counted member's goal, and it keeps to the way it was following when its percept first showed
-success. -/
+of its experience solves on any attempt. The agent is a seeker: on each of its first attempts, one
+for each counted member, it tries a way to that member's goal, and it keeps to the way it was
+following when its percept first showed success. -/
 def learningPays : Consequence Trial :=
   ⟨"some agent solves every counted member on every attempt from their count on, more than any \
     agent that keeps nothing of its experience solves on any attempt", .entailment, fun w =>
@@ -544,10 +544,10 @@ theorem run_repeats {Obs Act : Type} (M : Member Obs Act) (A : Agent Obs Act) (t
   | 0 => h
   | j + 1 => congrArg (M.next A) (run_repeats M A t h j)
 
-/-- **An agent that starts every attempt afresh does no better than on its first.** In a class that
-meets the record, an agent that begins every attempt with the memory it began its run with,
-whatever it keeps within an attempt, solves on every attempt at most the number of counted members
-that bounds what an agent that keeps nothing of its experience solves. -/
+/-- **An agent that starts every attempt afresh never solves all the counted members.** In a class
+that meets the record, an agent that begins every attempt with the memory it began its run with,
+whatever it keeps within an attempt, solves on every attempt at most some number of the counted
+members smaller than their count. -/
 def freshStartsSmall : Consequence Trial :=
   ⟨"an agent that begins every attempt with the memory it began its run with solves, on every \
     attempt, at most a number of the counted members that is smaller than their count",
@@ -590,7 +590,7 @@ theorem unreachable_fails : ¬ bigClass.Meets unreachable := fun h => by
   have hf : false = true := hg
   exact Bool.noConfusion hf
 
-/-- **A class with a goal that cannot be reached is ruled out**: the trial `unreachable`, whose
+/-- **One class with a goal that cannot be reached is ruled out**: the trial `unreachable`, whose
 members have no state that meets a goal. Its neighbour is `base`. -/
 def rulesOutUnreachableGoals : Consequence Trial :=
   ⟨"the trial unreachable, whose members' goals no state meets, is ruled out", .entailment,
@@ -606,7 +606,7 @@ theorem revealing_fails : ¬ bigClass.Meets revealing := fun h => by
   have e' : some true = some false := congrArg Prod.fst e
   exact absurd e' (by decide)
 
-/-- **A class that shows which goal the agent faces is ruled out**: the trial `revealing`, whose
+/-- **One class that shows which goal the agent faces is ruled out**: the trial `revealing`, whose
 members show their door when they ask for one. Its neighbour is `base`. -/
 def rulesOutShownGoals : Consequence Trial :=
   ⟨"the trial revealing, whose members show their door before it is tried, is ruled out",
@@ -623,7 +623,7 @@ theorem sameDoor_fails : ¬ bigClass.Meets sameDoor := fun h => by
   have h3 : ([true, false] : List Bool).length = 2 := rfl
   omega
 
-/-- **A class that one fixed way of acting solves is ruled out**: the trial `sameDoor`, whose two
+/-- **One class that one fixed way of acting solves is ruled out**: the trial `sameDoor`, whose two
 members have the same door. Its neighbour is `base`. -/
 def rulesOutOneAnswer : Consequence Trial :=
   ⟨"the trial sameDoor, whose members are all solved by trying one door, is ruled out",
@@ -638,12 +638,12 @@ theorem hidden_fails : ¬ bigClass.Meets hidden := fun h => by
   have h2 : signal (some false, 0) = false := hs (always true) false 1
   exact Bool.noConfusion (h1.symm.trans h2)
 
-/-- **A class in which success does not show is ruled out**: the trial `hidden`, whose members pay
+/-- **One class in which success does not show is ruled out**: the trial `hidden`, whose members pay
 nothing and show the same thing whether the door tried was right or wrong. Its neighbour is
 `base`. -/
 def rulesOutHiddenSuccess : Consequence Trial :=
-  ⟨"the trial hidden, whose members show and pay the same whether or not their goal is met, is \
-    ruled out", .entailment, fun w => w ≠ hidden⟩
+  ⟨"the trial hidden, whose members show and pay the same whether the door tried was right or \
+    wrong, is ruled out", .entailment, fun w => w ≠ hidden⟩
 
 theorem rulesOutHiddenSuccess_holds : rulesOutHiddenSuccess.HoldsOf bigClass :=
   fun _ hw he => hidden_fails (he ▸ hw)
@@ -652,7 +652,7 @@ theorem stuck_fails : ¬ bigClass.Meets stuck := fun h => by
   have e : Door.miss = Door.ask := (bigClass_meets.mp h).2.2.2.2 finder true 1
   exact absurd e (by decide)
 
-/-- **A class whose problems do not come back is ruled out**: the trial `stuck`, whose members
+/-- **One class whose problems do not come back is ruled out**: the trial `stuck`, whose members
 never ask for a door again after the first is tried. Its neighbour is `base`. -/
 def rulesOutNoRecurrence : Consequence Trial :=
   ⟨"the trial stuck, whose members never return to the state they start in, is ruled out",
@@ -780,8 +780,8 @@ theorem pit_next_wall (b : Bool) (A : Agent (Option Bool) Bool) (c : Pit × A.Me
   | fell => rfl
   | over => rfl
 
-/-- Up to any time before which no state has met a member's goal, an agent's run in that member of
-the class with a trap is its run in `pitWall`. -/
+/-- At every time up to and including which no state has met a member's goal, an agent's run in
+that member of the class with a trap is its run in `pitWall`. -/
 theorem pit_run_wall (b : Bool) (A : Agent (Option Bool) Bool) :
     ∀ t, (∀ u, u ≤ t → (pit b).goal ((pit b).run A u).1 = false) →
       (pit b).run A t = pitWall.run A t
@@ -965,7 +965,7 @@ theorem lopsided_attemptsRecur : attemptsRecur.holds lopsided :=
   fun (A : Agent (Option Bool) Bool) (i : Nat) n => door_ask 1 (lopsidedDoor i) A n
 
 /-- In the lopsided class the agent that always tries the first door, which keeps nothing of its
-experience, solves every member but the member 1 on every attempt. -/
+experience (`always_keepsNothing`), solves every member but the member 1 on every attempt. -/
 theorem lopsided_always (i n : Nat) (h : i ≠ 1) :
     lopsided.solves (always true : Agent (Option Bool) Bool) i n = true := by
   rw [lopsided_solves]
@@ -975,9 +975,9 @@ theorem lopsided_always (i n : Nat) (h : i ≠ 1) :
   rw [hd]
   rfl
 
-/-- **The lopsided class fails condition (c), and that condition alone.** One agent that keeps
-nothing of its experience solves three distinct members on an attempt, more than the two the class
-counts; the class meets the other four properties. -/
+/-- **The lopsided class fails condition (c).** One agent that keeps nothing of its experience
+solves three distinct members on an attempt, more than the two the class counts. That the class
+meets the other four properties is `lopsided_others`. -/
 theorem lopsided_fails : ¬ frozenShareSmall.holds lopsided := fun ⟨_, k, hk, h⟩ => by
   have hn : ([0, 2, 3] : List Nat).Nodup :=
     List.nodup_cons.mpr ⟨by simp, nodup_pair (by decide)⟩
@@ -1001,9 +1001,9 @@ theorem lopsided_others :
   ⟨lopsided_goalsReachable, lopsided_goalsConcealed, lopsided_successShows,
     lopsided_attemptsRecur⟩
 
-/-- **A class one fixed way all but solves is ruled out, however few of its members it counts**:
-the trial `lopsided`, in which trying the first door solves every member but one. Its neighbour is
-`base`. -/
+/-- **One class a fixed way all but solves is ruled out, though it counts two members of which that
+way solves one**: the trial `lopsided`, in which trying the first door solves every member but one.
+Its neighbour is `base`. -/
 def rulesOutUncountedShare : Consequence Trial :=
   ⟨"the trial lopsided, in which one fixed action solves every member but one while two members \
     are counted, is ruled out", .entailment, fun w => w ≠ lopsided⟩
@@ -1013,12 +1013,12 @@ theorem rulesOutUncountedShare_holds : rulesOutUncountedShare.HoldsOf bigClass :
 
 /-! ## This record and the postcondition's -/
 
-/-- **The postcondition gives the bound of condition (c) over the counted members only.** A trial
-that meets the postcondition's record has an agent that solves, on some attempt, more counted
-members than any agent that keeps nothing of its experience solves on any attempt, so some number
-below their count bounds how many of the counted members such an agent solves. The postcondition
-says nothing of the members a class does not count, nor that the counted members are distinct, so
-it does not give condition (c). -/
+/-- **The postcondition gives a bound over the counted members.** A trial that meets the
+postcondition's record has an agent that solves, on some attempt, more counted members than any
+agent that keeps nothing of its experience solves on any attempt, so some number below their count
+bounds how many of the counted members such an agent solves. The postcondition's comparison reads
+only the counted members and does not say they are distinct; this theorem gives the bound over the
+counted members, not condition (c). -/
 theorem countedShare_of_postcondition {w : Trial} (h : postcondition.Meets w) :
     ∃ k, k < w.counted.length ∧
       ∀ B : Agent w.Obs w.Act, KeepsNothing B → ∀ n, w.solvedCount B n ≤ k := by
@@ -1096,12 +1096,13 @@ def bigClassExplained : Explanation bigClass where
   props := [
     { requires := "For every agent, every member and every attempt, some list of actions, fewer \
         than an attempt has steps, leads from the state the member's world is in when that \
-        attempt of that agent's run starts to a state that meets the member's goal. The list may \
-        be empty: a goal already met where the attempt starts counts as reached."
+        attempt of that agent's run starts to a state that meets the member's goal. Where an \
+        attempt has a step the list may be empty: a goal already met where the attempt starts \
+        counts as reached."
       rulesOut := "A class with a member whose goal no state meets, or whose goal lies as many \
         steps from where some attempt starts as an attempt has, or more."
       allows := "An action after which the goal can no longer be reached within the attempt: the \
-        property asks nothing of the states an agent's own actions lead to."
+        property asks nothing of the states an agent's own actions lead to within an attempt."
       freedom := "Which actions reach each goal, and how many, below the attempt's length." },
     { requires := "There is one reference world, over the class's observations and actions, such \
         that for every agent, every member and every time up to and including which no state of \
@@ -1130,15 +1131,16 @@ def bigClassExplained : Explanation bigClass where
         gives the agent at that time of its run, whether the state the member's world is then in \
         meets the member's goal."
       rulesOut := "A class in which a state that meets a member's goal and a state that does \
-        not, of the same member or of two, give the same observation and reward; and a class in \
-        which success shows only after the goal is met."
+        not, of the same member or of two, each reached in some agent's run, give the same \
+        observation and reward; and a class in which success shows only after the goal is met."
       allows := "Success shown by the observation, by the reward, or by both."
       freedom := "The function, and where in what the agent is given success shows." },
     { requires := "For every agent, every member and every attempt, the member's world is, when \
         that attempt of the agent's run in it starts, in the state the world starts in."
       rulesOut := "A class with a member that is not back in its start state after every \
-        attempt's length of steps, whatever the agent does: a member with no restart, one whose \
-        restart waits on an action of the agent, or one whose attempts end early."
+        attempt's length of steps, whatever the agent does: a member that leaves its start and \
+        has no restart, one whose restart waits on an action of the agent, or one whose early \
+        restart leaves it elsewhere when the next attempt starts."
       allows := "Anything between two starts."
       freedom := "What a member's world does within an attempt." }]
   vocab := [

@@ -195,8 +195,8 @@ structure Meaning where
   /-- A world-agent pair remains in a class's long-term aim. -/
   includedInLongTermAim : ClassWithAgent → WorldWithAgent → Prop
 
-/-- Every memoryless rule solves only a small share of the class on an attempt, under the given
-meaning of a small share. -/
+/-- Every memoryless rule solves only a small share of the class within an attempt's length of steps
+from each member's start, under the given meaning of a small share. -/
 def memorylessSolvesOnlySmallShare
     (meaning : Meaning) (c : ClassWithAgent) : Prop :=
   ∀ answer : Percept c → c.Act,

@@ -113,8 +113,8 @@ def goalsReachable : Clause Trial :=
 every time up to which no state has met the member's goal, the member gives the agent what the
 reference world gives it at that time of its run there. -/
 def goalsConcealed : Clause Trial :=
-  ⟨"until a member's goal is first met, the member gives every agent what one reference world \
-    gives it", fun w =>
+  ⟨"there is one reference world such that, until a member's goal is first met, the member \
+    gives every agent what that world gives it", fun w =>
     ∃ R : Member w.Obs w.Act, ∀ (A : Agent w.Obs w.Act) (i : w.Index) (t : Nat),
       (∀ u, u ≤ t → (w.member i).goal (w.stateAt A i u) = false) →
         given (w.member i) A t = given R A t⟩
@@ -222,8 +222,8 @@ theorem door_next_wall (pay : Rat) (b : Bool) (A : Agent (Option Bool) Bool) (c 
     exact Bool.noConfusion hf
   | miss => rfl
 
-/-- Up to any time before which no state has met a door's goal, an agent's run in that member is
-its run in `wall`. -/
+/-- At every time up to and including which no state has met a door's goal, an agent's run in that
+member is its run in `wall`. -/
 theorem door_run_wall (pay : Rat) (b : Bool) (A : Agent (Option Bool) Bool) :
     ∀ t, (∀ u, u ≤ t → (door pay b).goal ((door pay b).run A u).1 = false) →
       (door pay b).run A t = wall.run A t
@@ -363,7 +363,8 @@ door leads. -/
 def stuck : Trial :=
   classOf fun b => { door 1 b with step := fun (_ : Door) (_ : Bool) => Door.miss }
 
-/-- O3: each property fails of a trial that changes one part of `base`. -/
+/-- O3: each property fails of a trial that changes one part of `base`, or, for `successShows`, two:
+what its members show and what they pay. -/
 theorem bigClass_o3 : O3 bigClass := by
   refine (o3_correct _).mpr fun p hp => ?_
   simp only [bigClass, List.mem_cons, List.not_mem_nil, or_false] at hp

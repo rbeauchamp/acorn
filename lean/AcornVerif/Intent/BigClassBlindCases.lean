@@ -30,13 +30,14 @@ field, so `counting` adds any list of them, and every verdict is proved for ever
 except in cases 18 and 19, whose one member is counted.
 
 The record's verdict on the whole is the same on all 20: not met. On cases 1 to 19 its condition
-(a) fails, and on cases 1 to 11 and 13 to 17 its attempts do not recur: the cases are worlds that
-never return to their start, with attempts of one step, or two, or none, and the record asks that
-a goal be reachable in fewer actions than an attempt has steps and that every attempt start from
-the member's start. Each theorem states the verdict on every condition decided for its case.
-Condition (b) is decided for cases 1 to 10, 13 and 18 to 20; condition (c) for cases 4 and 18 to
-20; the success signal and recurrence for every case. Where a condition is not decided, the case's
-docstring says so: on those cases condition (c) depends on which members are counted.
+(a) fails, and on cases 1 to 11 and 13 to 17 its attempts do not recur: those are worlds that are
+away from their start when their second attempt begins, with attempts of one step or two, and the
+record asks that a goal be reachable in fewer actions than an attempt has steps and that every
+attempt start from the member's start. Each theorem states the verdict on every condition decided
+for its case. Condition (b) is decided for cases 1 to 10, 13 and 18 to 20; condition (c) for cases
+4 and 18 to 20; the success signal and recurrence for every case. Where a condition is not
+decided, the case's docstring or its section's heading says so: on those cases condition (c)
+depends on which members are counted.
 -/
 
 namespace AcornVerif.Intent.BigClass.Cases
@@ -49,7 +50,7 @@ open Compare (shown ruleAgent ruleAgent_keepsNothing)
 
 /-- The trial of a class with an agent that counts the members `counted`. A case gives a class with
 an agent and says nothing of which members are counted, so each verdict below is proved for every
-list of counted members. The trial sums an attempt's rewards and has horizon and lapses 0; the
+list of counted members, except in cases 18 and 19, whose one member is counted. The trial sums an attempt's rewards and has horizon and lapses 0; the
 record reads none of the three (`reads_class`). -/
 def counting (c : ClassWithAgent) (counted : List c.Index) : Trial where
   Obs := c.Obs
@@ -144,14 +145,15 @@ section Tables
 variable {Key Act : Type} (hit : Key → Fin 100 → Act → Bool) (observe : Key → Cell → Sight)
   (reward : Key → Cell → Rat) (agent : Agent Sight Act)
 
-/-- The record's condition (a) fails of a class of table worlds with attempts of one step: a
-member's start does not meet its goal, and an attempt of one step leaves room for no action. -/
+/-- The record's condition (a) fails of a class of table worlds with a member and attempts of one
+step: a member's start does not meet its goal, and an attempt of one step leaves room for no
+action. -/
 theorem tables_unreachable (k : Key) (counted : List Key) :
     ¬ goalsReachable.holds (counting (tables hit observe reward 1 agent) counted) :=
   unreachable_of_short _ k (Nat.le_refl 1) rfl
 
-/-- The attempts of a class of table worlds with attempts of one step do not recur: after one step
-a member's time is 1, not 0. -/
+/-- The attempts of a class of table worlds with a member and attempts of one step do not recur:
+after one step a member's time is 1, not 0. -/
 theorem tables_not_recur (k : Key) (counted : List Key) :
     ¬ attemptsRecur.holds (counting (tables hit observe reward 1 agent) counted) := fun h => by
   have e : (0 : Fin 1000000000) + 1 = 0 := congrArg (fun s : Cell => s.2.1) (h agent k 1)
@@ -166,8 +168,8 @@ theorem tables_success (signal : Sight × Rat → Bool)
     h k ((table (hit k) (observe k) (reward k)).run A t).1⟩
 
 /-- Where the members of a class of table worlds show and pay the same at every state whose last
-action was not the answer, an agent's run in a member is, up to any time before which no state has
-met the goal, its run in the table world with no answer. -/
+action was not the answer, an agent's run in a member is, at every time up to and including which
+no state has met the goal, its run in the table world with no answer. -/
 theorem tables_run (observe₀ : Cell → Sight) (reward₀ : Cell → Rat)
     (h : ∀ k s, s.2.2 = false → observe k s = observe₀ s ∧ reward k s = reward₀ s) (k : Key)
     (A : Agent Sight Act) :
@@ -332,7 +334,8 @@ def case13 : ClassWithAgent :=
 
 Each theorem holds whichever members the trial counts. On each of these cases the record's
 condition (a) fails and its attempts do not recur: the case's attempts last one step, which leaves
-room for no action, and its worlds never return to their start. So the record is not met.
+room for no action, and its worlds are away from their start when their second attempt begins. So
+the record is not met.
 Condition (c) is decided here for case 4 alone; on the other cases it depends on which members are
 counted, which a case does not say. -/
 
@@ -573,8 +576,9 @@ theorem c9 (counted : List (Answers 1000000)) :
 
 /-! ## Cases 11 and 12: a table world with a trap -/
 
-/-- The table world of case 1 with a state `dead`, here `none`, and an action `poison`, here
-`none`. Every action at `dead` stays there, and `poison` leads there from every other state. At
+/-- The table world of case 1, started at `start`, with a state `dead`, here `none`, and an action
+`poison`, here `none`. Every action at `dead` stays there, and `poison` leads there from every
+other state. At
 `dead` the world shows the context 0 with `begin`, pays nothing and does not meet its goal. -/
 def poisoned (k : Answers 1000000) (start : Option Cell) :
     Member Sight (Option (Fin 1000000)) where
@@ -629,6 +633,14 @@ theorem poisoned_shows (k : Answers 1000000) (start : Option Cell) (s : Option C
     decide
   | some s => exact pay_shows s
 
+/-- A member that starts in the trap is there after every list of actions, so no list of actions,
+of any length, reaches its goal. -/
+theorem poisoned_stuck (k : Answers 1000000) :
+    ∀ acts : List (Option (Fin 1000000)),
+      afterActions (poisoned k none) (none : Option Cell) acts = none
+  | [] => rfl
+  | _ :: acts => poisoned_stuck k acts
+
 /-- A member that starts in the trap stays there, whatever the agent does. -/
 theorem poisoned_dead (k : Answers 1000000) (A : Agent Sight (Option (Fin 1000000))) :
     ∀ t, ((poisoned k none).run A t).1 = none
@@ -638,8 +650,8 @@ theorem poisoned_dead (k : Answers 1000000) (A : Agent Sight (Option (Fin 100000
     rw [poisoned_dead k A t]
     rfl
 
-/-- A member that starts outside the trap is, after an action other than `poison`, no longer in its
-start state: its time is 1. -/
+/-- A member that starts where case 1's members start is, after an action other than `poison`, no
+longer in its start state: its time is 1. -/
 theorem poisoned_moves (k : Answers 1000000) (a : Fin 1000000) :
     (poisoned k (some (0, 0, false))).step (some (0, 0, false)) (some a) ≠ some (0, 0, false) := by
   intro e
@@ -661,9 +673,10 @@ theorem c11 (counted : List (Answers 1000000)) :
     fun h => unreachable_of_short _ (fun _ => 0) (Nat.le_refl 1) rfl (bigClass_meets.mp h).1⟩
 
 /-- Case 12. The cases reading: (a) not met, (b) and (c) met, (d) not met, the success signal met,
-temporal coherence not met, not big. The record: (a) fails, since the members start in the trap;
-success shows; the attempts recur, since the world never leaves the state it starts in; not met.
-Conditions (b) and (c) are not decided here. -/
+temporal coherence not met, not big. The record: (a) fails, since an attempt of one step leaves
+room for no action and the members' start does not meet the goal, and no list of actions of any
+length reaches it (`poisoned_stuck`); success shows; the attempts recur, since the world never
+leaves the state it starts in; not met. Conditions (b) and (c) are not decided here. -/
 theorem c12 (counted : List (Answers 1000000)) :
     ¬ goalsReachable.holds (counting case12 counted) ∧
       successShows.holds (counting case12 counted) ∧

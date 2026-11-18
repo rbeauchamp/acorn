@@ -22,8 +22,8 @@ were given of a trial. Every class with an agent is what they were given of some
   attempt from where each attempt starts. The record's gives the blind record's
   (`reachable_of_mine`). Where attempts have a step and recur, the blind record's gives the
   record's (`reachable_of_theirs`): the part of the list after the last restart it passes reaches
-  the goal. Where attempts do not recur they differ: `far`, whose goal lies two steps from its start
-  with attempts of two steps, meets the blind record's and not the record's (`far_theirs`,
+  the goal. Where attempts do not recur they can differ: `far`, whose goal lies two steps from its
+  start with attempts of two steps, meets the blind record's and not the record's (`far_theirs`,
   `far_not_mine`).
 * **The agents of condition (c).** The blind record's agents that keep nothing are the memoryless
   rules, which read what they are given at the step and nothing else. Each is an agent that keeps
@@ -33,8 +33,8 @@ were given of a trial. Every class with an agent is what they were given of some
   (`clocked_rule`) and a player that counts its steps solves both (`clocked_player`), so the
   record's condition (c) fails of it (`clocked_not_mine`).
 * **When a member is solved.** The blind record counts the state after an attempt's last step, and
-  the record does not. Where attempts recur the two agree on a memoryless rule's first attempt
-  (`memorylessSolves_iff`): that state is the member's start, which both count.
+  the record does not. Where attempts have a step and recur the two agree on a memoryless rule's
+  first attempt (`memorylessSolves_iff`): that state is the member's start, which both count.
 
 What the blind record takes as a parameter is not compared here: what a small share is and of
 what, the agent's resources (sentence 1 and condition (d)), what tells the agent of its goal
@@ -121,10 +121,10 @@ theorem follow_take {Obs Act : Type} (M : Member Obs Act) (a : Act) :
   | t + 1, [], _, h => absurd h (Nat.not_succ_le_zero t)
   | t + 1, x :: l, s, h => follow_take M a t l (M.step s x) (Nat.le_of_succ_le_succ h)
 
-/-- **Where attempts recur, the blind record's condition (a) gives the record's.** In a class whose
-attempts have at least one step and all start from the member's start, a goal reachable from the
-start by any list of actions is reachable within an attempt from where each attempt starts: the
-part of the list after the last restart it passes reaches it. -/
+/-- **Where attempts have a step and recur, the blind record's condition (a) gives the record's.**
+In a class whose attempts have at least one step and all start from the member's start, a goal
+reachable from the start by any list of actions is reachable within an attempt from where each
+attempt starts: the part of the list after the last restart it passes reaches it. -/
 theorem reachable_of_theirs {w : Trial} (hL : 0 < w.length) (hrecur : attemptsRecur.holds w)
     (h : everyGoalReachable (shown w)) : goalsReachable.holds w := by
   intro A i n
@@ -176,7 +176,7 @@ theorem far_theirs : everyGoalReachable (shown far) :=
   fun _ => ⟨[(), ()], rfl⟩
 
 /-- The record's condition (a) fails of `far`: no list of fewer than two actions reaches its goal.
-Its attempts do not recur, so `reachable_of_theirs` does not apply to it. -/
+So by `reachable_of_theirs` and `far_theirs` its attempts do not recur. -/
 theorem far_not_mine : ¬ goalsReachable.holds far := by
   intro h
   obtain ⟨acts, hlen, hg⟩ := h (always ()) () 0
@@ -214,10 +214,10 @@ theorem memorylessState_eq (w : Trial) (answer : w.Obs × Rat → w.Act) (i : w.
           (w.member i).reward (w.stateAt (ruleAgent answer) i n)))
     rw [memorylessState_eq w answer i n]
 
-/-- **Where attempts recur, a memoryless rule solves a member in the blind record's sense exactly
-when its agent solves the member on its first attempt in the record's.** The blind record counts
-the state after an attempt's last step, and the record does not; where every attempt starts from
-the member's start, that state is the start, which both count. -/
+/-- **Where attempts have a step and recur, a memoryless rule solves a member in the blind record's
+sense exactly when its agent solves the member on its first attempt in the record's.** The blind
+record counts the state after an attempt's last step, and the record does not; where every attempt
+starts from the member's start, that state is the start, which both count. -/
 theorem memorylessSolves_iff {w : Trial} (hL : 0 < w.length) (hrecur : attemptsRecur.holds w)
     (answer : w.Obs × Rat → w.Act) (i : w.Index) :
     memorylessSolves (shown w) answer i ↔ w.solves (ruleAgent answer) i 0 = true := by
@@ -315,7 +315,8 @@ theorem clocked_rule (answer : Unit × Rat → Bool) :
 
 /-- **In `clocked` an agent that keeps nothing of its experience solves both members**: the player
 of the actions `false` and then `true`, which counts its steps. So the record's condition (c),
-which bounds every agent that keeps nothing of its experience, fails of `clocked`. -/
+which bounds every agent that keeps nothing of its experience, fails of `clocked`
+(`clocked_not_mine`). -/
 theorem clocked_player :
     KeepsNothing (player [false, true] true : Agent Unit Bool) ∧
       ∀ b ∈ ([true, false] : List Bool),
