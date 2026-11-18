@@ -14,7 +14,7 @@ record: what it requires of every trial that meets it, the trials it rules out, 
 the trial that differs from it only where it attacks and meets the record, what the record still
 allows, and how it stands to the postcondition's record.
 
-Three things are not proved here, and each is a consequence for the owner's confirmation labelled
+Two things are not proved here, and each is a consequence for the owner's confirmation labelled
 unproved, never a pass:
 
 * The pair of this record with the postcondition's: that in every class which meets this record,
@@ -25,8 +25,10 @@ unproved, never a pass:
   walks cover. A proof for every class needs an agent built for the class, and a class with finitely
   many actions to try.
 * Condition (d) of the restatement, which this record does not carry.
-* That the record allows a trap, as condition (a) says it may: no trial is exhibited that meets the
-  record and has an action after which a member's goal can no longer be reached.
+
+That the record allows a trap, as condition (a) says it may, is proved: the class `pits` meets the
+record (`pits_big`) and has an action, at the start of an attempt, after which a member's goal can
+no longer be reached within the attempt (`pits_trap`, `trapsAllowed_holds`).
 
 Two checks of lean-intent were not run, for the reasons the postcondition's consequences give: its
 degenerate-subject and trivial-witness checks do not cover a subject that carries its own types
@@ -275,6 +277,238 @@ def agentMayKeepNothing : Consequence Trial :=
 
 theorem agentMayKeepNothing_holds : agentMayKeepNothing.HoldsOf bigClass :=
   ⟨fixed, doors_big List.sum 1 (always true), always_keepsNothing true⟩
+
+/-! ## A class with a trap -/
+
+/-- The states of a member of the class with a trap. -/
+inductive Pit where
+  /-- The world asks for a door. -/
+  | ask
+  /-- The door just tried was the member's. -/
+  | hit
+  /-- The door just tried was not the member's: the pit. -/
+  | fell
+  /-- The attempt's last step, whichever door was tried. -/
+  | over
+  deriving DecidableEq
+
+/-- The member of the class with a trap whose door is `b`. Asked for a door, it moves to `hit` when
+the door tried is `b` and to the pit, `fell`, otherwise, and shows which. Whatever the next action,
+it then moves to `over`, and from there asks again. It generates the reward 1 at `hit` and none
+elsewhere, and its goal is `hit`. -/
+def pit (b : Bool) : Member (Option Bool) Bool where
+  State := Pit
+  start := .ask
+  observe := fun
+    | .ask => none
+    | .hit => some true
+    | _ => some false
+  reward := fun
+    | .hit => 1
+    | _ => 0
+  step := fun
+    | .ask, a => bif a == b then .hit else .fell
+    | .over, _ => .ask
+    | _, _ => .over
+  goal := fun
+    | .hit => true
+    | _ => false
+
+/-- The class with a trap: one member for each door, both counted, and attempts of three steps, one
+to try a door, one in which nothing the agent does matters, and one before the member asks again.
+Its rewards are summed, its promises are read over its first three attempts with no lapse, and its
+agent is `finder`; the record reads none of those four (`reads_class`). -/
+def pits : Trial where
+  Obs := Option Bool
+  Act := Bool
+  Index := Bool
+  member := pit
+  counted := [true, false]
+  length := 3
+  total := List.sum
+  horizon := 3
+  lapses := 0
+  agent := finder
+
+/-- A world that asks for a door and never has one: whatever door is tried it moves to the pit,
+then to `over`, and asks again. It generates no reward and has no goal. -/
+def pitWall : Member (Option Bool) Bool where
+  State := Pit
+  start := .ask
+  observe := fun
+    | .ask => none
+    | .hit => some true
+    | _ => some false
+  reward := fun _ => 0
+  step := fun
+    | .ask, _ => .fell
+    | .over, _ => .ask
+    | _, _ => .over
+  goal := fun _ => false
+
+/-- Three steps after it asks for a door, a member of the class with a trap asks again. -/
+theorem pit_restart (b a a' a'' : Bool) :
+    (pit b).step ((pit b).step ((pit b).step Pit.ask a) a') a'' = Pit.ask := by
+  cases a <;> cases b <;> rfl
+
+/-- Every attempt of every agent's run in a member of the class with a trap starts with the member
+asking for a door. -/
+theorem pit_ask (b : Bool) (A : Agent (Option Bool) Bool) :
+    ∀ n, ((pit b).run A (3 * n)).1 = Pit.ask
+  | 0 => rfl
+  | n + 1 => by
+    have h := pit_ask b A n
+    show (pit b).step ((pit b).step ((pit b).step ((pit b).run A (3 * n)).1 _) _) _ = Pit.ask
+    rw [h]
+    exact pit_restart b _ _ _
+
+/-- From a state that does not meet a member's goal, a step that does not reach it either is the
+step `pitWall` takes. -/
+theorem pit_next_wall (b : Bool) (A : Agent (Option Bool) Bool) (c : Pit × A.Memory)
+    (h : (pit b).goal c.1 = false) (h' : (pit b).goal ((pit b).next A c).1 = false) :
+    (pit b).next A c = pitWall.next A c := by
+  obtain ⟨s, m⟩ := c
+  cases s with
+  | ask =>
+    have hg : (pit b).goal
+        (bif (A.act m (none, 0)).1 == b then Pit.hit else Pit.fell) = false := h'
+    show ((bif (A.act m (none, 0)).1 == b then Pit.hit else Pit.fell), (A.act m (none, 0)).2) =
+      (Pit.fell, (A.act m (none, 0)).2)
+    cases hab : (A.act m (none, 0)).1 == b
+    · rfl
+    · rw [hab] at hg
+      have hf : true = false := hg
+      exact Bool.noConfusion hf
+  | hit =>
+    have hf : true = false := h
+    exact Bool.noConfusion hf
+  | fell => rfl
+  | over => rfl
+
+/-- Up to any time before which no state has met a member's goal, an agent's run in that member of
+the class with a trap is its run in `pitWall`. -/
+theorem pit_run_wall (b : Bool) (A : Agent (Option Bool) Bool) :
+    ∀ t, (∀ u, u ≤ t → (pit b).goal ((pit b).run A u).1 = false) →
+      (pit b).run A t = pitWall.run A t
+  | 0, _ => rfl
+  | t + 1, h => by
+    have ih := pit_run_wall b A t (fun u hu => h u (Nat.le_succ_of_le hu))
+    show (pit b).next A ((pit b).run A t) = pitWall.next A (pitWall.run A t)
+    rw [← ih]
+    exact pit_next_wall b A _ (h t (Nat.le_succ t)) (h (t + 1) (Nat.le_refl _))
+
+/-- The door the agent `A` tries on attempt `n` of its run in the member `b` of the class with a
+trap: its action at the attempt's first step. -/
+def pitTried (A : Agent (Option Bool) Bool) (b : Bool) (n : Nat) : Bool :=
+  (A.act ((pit b).run A (3 * n)).2
+    ((pit b).observe ((pit b).run A (3 * n)).1, (pit b).reward ((pit b).run A (3 * n)).1)).1
+
+/-- An agent solves a member of the class with a trap on an attempt exactly when the door it tries
+is the member's. -/
+theorem pits_solves (A : Agent (Option Bool) Bool) (b : Bool) (n : Nat) :
+    pits.solves A b n = (pitTried A b n == b) := by
+  have h1 : ((pit b).run A (3 * n + 1)).1 =
+      bif pitTried A b n == b then Pit.hit else Pit.fell := by
+    show (pit b).step ((pit b).run A (3 * n)).1 (pitTried A b n) = _
+    rw [pit_ask]
+    rfl
+  have h2 : ((pit b).run A (3 * n + 2)).1 = Pit.over := by
+    show (pit b).step ((pit b).run A (3 * n + 1)).1 _ = _
+    rw [h1]
+    cases pitTried A b n == b <;> rfl
+  show ((pit b).goal ((pit b).run A (3 * n)).1 ||
+    ((pit b).goal ((pit b).run A (3 * n + 1)).1 ||
+      ((pit b).goal ((pit b).run A (3 * n + 2)).1 || false))) = _
+  rw [h1, h2, pit_ask]
+  cases pitTried A b n == b <;> rfl
+
+/-- An agent that keeps nothing of its experience tries the same door in both members of the class
+with a trap on each attempt. -/
+theorem keepsNothing_pitTried {B : Agent (Option Bool) Bool} (h : KeepsNothing B) (b : Bool)
+    (n : Nat) : pitTried B b n = (B.act (drift B (none, 0) (3 * n)) (none, 0)).1 := by
+  unfold pitTried
+  rw [pit_ask, keepsNothing_memory h (pit b) (none, 0)]
+  rfl
+
+theorem pits_goalsReachable : goalsReachable.holds pits :=
+  fun (A : Agent (Option Bool) Bool) (b : Bool) n => ⟨[b], (by decide : 1 < 3), by
+    show (pit b).goal (afterActions (pit b) ((pit b).run A (3 * n)).1 [b]) = true
+    rw [pit_ask]
+    cases b <;> rfl⟩
+
+theorem pits_goalsConcealed : goalsConcealed.holds pits :=
+  ⟨pitWall, fun (A : Agent (Option Bool) Bool) (b : Bool) t h => by
+    have hs : (pit b).goal ((pit b).run A t).1 = false := h t (Nat.le_refl t)
+    show ((pit b).observe ((pit b).run A t).1, (pit b).reward ((pit b).run A t).1) =
+        (pitWall.observe (pitWall.run A t).1, pitWall.reward (pitWall.run A t).1)
+    rw [← pit_run_wall b A t h]
+    generalize ((pit b).run A t).1 = s at hs
+    cases s with
+    | ask => rfl
+    | hit =>
+      have hf : true = false := hs
+      exact Bool.noConfusion hf
+    | fell => rfl
+    | over => rfl⟩
+
+/-- How many members of the class with a trap an agent solves on an attempt. -/
+theorem pits_solvedCount (A : Agent (Option Bool) Bool) (n : Nat) :
+    pits.solvedCount A n = tally (pits.solves A true n) (pits.solves A false n) := by
+  show ([true, false].filter fun i => pits.solves A i n).length = _
+  cases h1 : pits.solves A true n <;>
+    cases h2 : pits.solves A false n <;> simp only [List.filter, h1, h2] <;> rfl
+
+theorem pits_frozenShareSmall : frozenShareSmall.holds pits :=
+  ⟨1, Nat.lt_succ_self 1, fun (B : Agent (Option Bool) Bool) hB n => by
+    rw [pits_solvedCount, pits_solves, pits_solves, keepsNothing_pitTried hB,
+      keepsNothing_pitTried hB]
+    cases (B.act (drift B (none, 0) (3 * n)) (none, 0)).1 <;> decide⟩
+
+theorem pits_successShows : successShows.holds pits :=
+  ⟨fun (o : Option Bool × Rat) => o.1 == some true,
+    fun (A : Agent (Option Bool) Bool) (b : Bool) t => by
+    show ((pit b).observe ((pit b).run A t).1 == some true) = (pit b).goal ((pit b).run A t).1
+    generalize ((pit b).run A t).1 = s
+    cases s <;> rfl⟩
+
+theorem pits_attemptsRecur : attemptsRecur.holds pits :=
+  fun (A : Agent (Option Bool) Bool) (b : Bool) n => pit_ask b A n
+
+/-- **The class with a trap meets the record.** -/
+theorem pits_big : bigClass.Meets pits :=
+  bigClass_meets.mpr ⟨pits_goalsReachable, pits_goalsConcealed, pits_frozenShareSmall,
+    pits_successShows, pits_attemptsRecur⟩
+
+/-- A class has a trap when some member has an action, at the start of an attempt, that leads
+somewhere its goal can no longer be reached within the attempt, and not for want of time: no
+actions that fit in the rest of the attempt reach the goal from where that action leads, though as
+few actions reach it from the member's start. -/
+def HasTrap (w : Trial) : Prop :=
+  ∃ (i : w.Index) (a : w.Act),
+    (∃ acts : List w.Act, acts.length + 1 < w.length ∧
+      (w.member i).goal (afterActions (w.member i) (w.member i).start acts) = true) ∧
+    ∀ acts : List w.Act, acts.length + 1 < w.length →
+      (w.member i).goal
+        (afterActions (w.member i) ((w.member i).step (w.member i).start a) acts) = false
+
+/-- In the class with a trap, the wrong door at the start of an attempt is a trap: from the pit no
+action reaches the goal in the step that remains, though one action reaches it from the start. -/
+theorem pits_trap : HasTrap pits :=
+  ⟨true, false, ⟨[true], (by decide : 2 < 3), rfl⟩, fun acts h =>
+    match acts, h with
+    | [], _ => rfl
+    | [_], _ => rfl
+    | _ :: _ :: rest, h => absurd h (by show ¬ (rest.length + 1 + 1 + 1 < 3); omega)⟩
+
+/-- **Reachable goals do not rule out traps**, as condition (a) says: some trial that meets the
+record has a trap. -/
+def trapsAllowed : Consequence Trial :=
+  ⟨"a class may have a trap: an action at the start of an attempt after which the member's goal \
+    can no longer be reached within the attempt, though as few actions as remain reach it from \
+    the member's start", .possibility, HasTrap⟩
+
+theorem trapsAllowed_holds : trapsAllowed.HoldsOf bigClass :=
+  ⟨pits, pits_big, pits_trap⟩
 
 /-! ## This record and the postcondition's -/
 
