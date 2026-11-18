@@ -31,8 +31,16 @@ says what each is chosen for. `rung_mission` is the statement at these constants
   either planning selection.
 
 The members the comparison counts are not fixed here: they are members the executed agent finds,
-which the premise `ExecutedFinds` names. `AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`
+which the premise `ExecutedFindsBy` names. `AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`
 lists 102 of them.
+
+Nor are the two numbers the class names for its promises (`AcornVerif.Intent.Postcondition.Trial`):
+the visit before which they are read, its horizon, and how many visits of each member it allows
+the agent to miss, its lapses. `rung_mission` holds at every pair that leaves room: the visit on
+which the agent separates comes before a visit `limit`, and `limit` leaves more later visits than
+the lapses before the horizon. No agent meets the statement at a pair that leaves no visit that
+room (`AcornVerif.Intent.Postcondition.unmet_of_lapses`). The rung is to name a pair with the
+count of the visits on which its agent explores, which no theorem gives yet.
 
 ## What the choices rest on
 
@@ -73,23 +81,32 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
 
 ## The premises on memory and on finding
 
-Of the six premises of `rung_mission`, two are proved for the executed agent itself. The one on
-memory is proved with its whole state as its memory: every memory of its run is the agent of a
-state a host runs, and those are finitely many under every profile (`rung_memory_bounded`, from
+`rung_mission` has eight premises about the agent: that it finds by a stated visit, that it
+solves again what it has solved on every later calm visit before the horizon, two counts of its
+calm visits, and the four of contract 3. A visit of a member's run is calm when the executed
+step reports no exploration at any of its decisions that the world takes
+(`AcornVerif.CurrentConcealedTargetMission.ExecutedCalm`). All four of the first read the visits
+before the horizon and no other.
+
+Two of the eight are proved for the executed agent itself. The one on memory is proved with its
+whole state as its memory: every memory of its run is the agent of a state a host runs, and
+those are finitely many under every profile (`rung_memory_bounded`, from
 `AcornVerif.CurrentKernelMemory`). It is proved as well of every agent whose memory is one function
 of that state which its step keeps (`AcornVerif.CurrentKernelMemory.projected_memory_bounded`), so
 it does not wait on which memory of the executed agent contract 3 reads (rbeauchamp/acorn#249).
 
-The one on finding is reduced here to one action sequence. The rung's agent finds exactly when
-the actions of `rungExplorer`, the explorer of its seed, meet the targets of more than 98 counted
-members, each on some visit (`rung_finds_iff`): before a first reward the agent takes the
-explorer's actions, and a member is found exactly when the agent's run in the reference, where no
-reward is paid, meets it (`AcornVerif.CurrentConcealedTargetFinding`).
+The one on finding rests on one action sequence. With no visit stated, the rung's agent finds
+exactly when the actions of `rungExplorer`, the explorer of its seed, meet the targets of more
+than 98 counted members, each on some visit (`rung_finds_iff`): before a first reward the agent
+takes the explorer's actions, and a member is found exactly when the agent's run in the
+reference, where no reward is paid, meets it (`AcornVerif.CurrentConcealedTargetFinding`). A
+member is found by a visit exactly when those actions have met its target by that visit
+(`AcornVerif.CurrentConcealedTargetFinding.cold_found_within`).
 `AcornVerif.CurrentConcealedTargetRungFinds.rung_finds` then proves the premise, by evaluating
 those actions and four of their walks: the agent solves each of 102 listed members on one of its
 first 72 visits.
 
-No theorem proves the other four. One of them, `KeepsDiscipline`, asks that the agent resume with
+No theorem proves the other six. One of them, `KeepsDiscipline`, asks that the agent resume with
 the memory it held. The host neither saves nor loads this profile, so no executed resumption fixes
 what the rung's agent resumes with; under a profile that restores, that clause fails of the whole
 state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
@@ -104,9 +121,12 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
   share (`AcornVerif.CurrentConcealedTargetRungChoice.rung_early_repeat`), and without one after
   a first success at that visit's second step, which exactly seven members have
   (`AcornVerif.CurrentConcealedTargetRungFirstVisit.second_step_repeats`).
-  `ExecutedRetains` is argued to fail of the agent as built
-  (`AcornVerif.CurrentConcealedTargetMission`, header), and rbeauchamp/acorn#248 decides how
-  retention is asked.
+  Retention on every later visit is argued to fail of the agent as built
+  (`AcornVerif.CurrentConcealedTargetMission`, header), so it is asked on the calm visits, with
+  the two counts, as the owner decided on rbeauchamp/acorn#248. Nothing is proved of the agent's
+  calm visits. Whether a decision explores is a function of the generator's state at that
+  decision (`AcornVerif.TemporalSupport.select_declared`), and that state is followed along the
+  agent's run only up to a first reward and at the one decision after it.
 - Anything about saving or resuming the rung's agent. Its profile is the primitive one, which the
   host neither saves nor loads (`Acorn.Checkpoint.save_refuses`,
   `AcornVerif.CurrentCheckpoint.unresumable_unloaded`). So exact resumption (`load_saved`,
@@ -235,13 +255,22 @@ theorem rung_members (mode : TaskFeatureMode)
   feasible_count mode witnessLive 7 members
 
 /-- **The mission theorem on the first rung, from its named premises.** In the rung's world, with
-visits of seven steps and a list of distinct counted members: if the rung's agent finds and
-retains, then every agent that takes its actions, and whose own memory and reports meet the four
-premises of contract 3, achieves goals over the class. It is
-`AcornVerif.CurrentConcealedTargetMission.executed_mission` at the rung's constants. Of its
-premises two are proved, for the executed agent itself: the one on memory (`rung_memory_bounded`)
-and the one on finding (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). -/
-theorem rung_mission (planning : PlanningSelection)
+visits of seven steps and a list of distinct counted members, call a visit of a member's run
+calm when the rung's agent explores at no decision of it that the world takes
+(`AcornVerif.CurrentConcealedTargetMission.ExecutedCalm`), and take a visit `limit` that leaves
+more later visits than the lapses before the horizon. If the rung's agent finds by the visit
+`last`, `spare` members more than the covering bound of 98 asks, and solves again on every later
+calm visit before the horizon what it has solved, and every visit before the horizon is calm but
+for at most `lapses` of each member's, and one visit from `last` on and before `limit` is calm
+for all but `spare` of the counted members, then every agent that takes the rung's agent's
+actions, and whose own memory and reports meet the four premises of contract 3, achieves goals
+over the class with that horizon and that number of lapses. It is
+`AcornVerif.CurrentConcealedTargetMission.executed_mission` at the rung's constants and at that
+predicate. Of its premises two are proved, for the executed agent itself: the one on memory
+(`rung_memory_bounded`) and the one on finding, with `last` at 72 and `spare` at 3
+(`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). The horizon, the number of lapses and
+the visit `limit` are not fixed here: the statement holds at each. -/
+theorem rung_mission (planning : PlanningSelection) (horizon lapses last limit spare : ℕ)
     (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
       witnessLive 7).Index)
     (distinct : counted.Nodup) {agent : Kernel.Agent Grid.interface}
@@ -249,26 +278,35 @@ theorem rung_mission (planning : PlanningSelection)
     {updates : agent.Memory → Percept Grid.interface × ℚ → List OneStream.Update}
     {work : agent.Memory → Percept Grid.interface × ℚ → ℕ}
     {resume : agent.Memory → agent.Memory}
-    (finds : ExecutedFinds (rungConstruction planning).initial.agent witnessConfig witnessLive 7
-      counted)
-    (retains : ExecutedRetains (rungConstruction planning).initial.agent witnessConfig
-      witnessLive 7)
+    (finds : ExecutedFindsBy (rungConstruction planning).initial.agent witnessConfig witnessLive
+      7 counted last spare)
+    (retains : ExecutedRetainsOn (rungConstruction planning).initial.agent witnessConfig
+      witnessLive 7 horizon
+      (ExecutedCalm (rungConstruction planning).initial.agent witnessConfig witnessLive 7))
+    (few : Kernel.AdmitsBut
+      (ExecutedCalm (rungConstruction planning).initial.agent witnessConfig witnessLive 7)
+      horizon lapses)
+    (once : Kernel.AdmitsOnce
+      (ExecutedCalm (rungConstruction planning).initial.agent witnessConfig witnessLive 7)
+      counted last limit spare)
+    (room : limit + lapses < horizon)
     (memory : MemoryBounded (findRung witnessConfig
-      (rungConstruction planning).profile.taskMode witnessLive 7 counted agent updates work
-      resume))
+      (rungConstruction planning).profile.taskMode witnessLive 7 horizon lapses counted agent
+      updates work resume))
     (bounded : WorkBounded (findRung witnessConfig
-      (rungConstruction planning).profile.taskMode witnessLive 7 counted agent updates work
-      resume))
+      (rungConstruction planning).profile.taskMode witnessLive 7 horizon lapses counted agent
+      updates work resume))
     (arrival : LearnsOnArrival (findRung witnessConfig
-      (rungConstruction planning).profile.taskMode witnessLive 7 counted agent updates work
-      resume))
+      (rungConstruction planning).profile.taskMode witnessLive 7 horizon lapses counted agent
+      updates work resume))
     (discipline : KeepsDiscipline (findRung witnessConfig
-      (rungConstruction planning).profile.taskMode witnessLive 7 counted agent updates work
-      resume)) :
+      (rungConstruction planning).profile.taskMode witnessLive 7 horizon lapses counted agent
+      updates work resume)) :
     Mission (findRung witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7
-      counted agent updates work resume) :=
-  executed_mission (rungConstruction planning).initial.agent witnessConfig witnessLive 7 rfl
-    counted distinct acts finds retains memory bounded arrival discipline
+      horizon lapses counted agent updates work resume) :=
+  executed_mission (rungConstruction planning).initial.agent witnessConfig witnessLive 7 horizon
+    lapses last limit spare rfl counted distinct acts finds retains few once room memory bounded
+    arrival discipline
 
 /-- The explorer of the rung's agent: over the grid's nine actions, with no committed run and the
 generator seeded from the seed of the rung's world, which is the seed of the agent's feature
@@ -308,9 +346,9 @@ theorem rung_finds_iff (planning : PlanningSelection)
 
 /-- **The rung's agent holds one of finitely many memories.** The rung of the first class with the
 executed agent itself, whose memory is its whole state, meets the premise `MemoryBounded`, whatever
-the agent reports of its steps: every memory of its run is the agent of a state a host runs, and
-those are finitely many. -/
-theorem rung_memory_bounded (planning : PlanningSelection)
+the agent reports of its steps and at every horizon and number of lapses: every memory of its run
+is the agent of a state a host runs, and those are finitely many. -/
+theorem rung_memory_bounded (planning : PlanningSelection) (horizon lapses : ℕ)
     (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
       witnessLive 7).Index)
     (updates : (executedAgent (rungConstruction planning).initial.agent).Memory →
@@ -320,8 +358,9 @@ theorem rung_memory_bounded (planning : PlanningSelection)
     (resume : (executedAgent (rungConstruction planning).initial.agent).Memory →
       (executedAgent (rungConstruction planning).initial.agent).Memory) :
     MemoryBounded (findRung witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7
-      counted (executedAgent (rungConstruction planning).initial.agent) updates work resume) :=
-  find_memory_bounded (rungConstruction planning) rfl .initial witnessConfig witnessLive 7 counted
-    updates work resume
+      horizon lapses counted (executedAgent (rungConstruction planning).initial.agent) updates
+      work resume) :=
+  find_memory_bounded (rungConstruction planning) rfl .initial witnessConfig witnessLive 7 horizon
+    lapses counted updates work resume
 
 end AcornVerif.CurrentConcealedTargetRung

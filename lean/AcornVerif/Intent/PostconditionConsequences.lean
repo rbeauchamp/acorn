@@ -20,10 +20,25 @@ unproved, never a pass:
   `keepsSolving` and `learnsAgain` then hold of every agent. No trial is exhibited that meets the
   record while its agent solves a member once and never again, and none is refuted. In a class that
   meets the record of contract 2 every attempt starts from the same state, so there retention is
-  asked without condition (`AcornVerif.Intent.BigClass.retention_unconditional`).
+  asked with no condition on the member's attempts
+  (`AcornVerif.Intent.BigClass.retention_unconditional`).
 * An agent that stores what it perceives and never reads it acts as some agent that keeps nothing
   acts, yet `KeepsNothing` does not hold of it. That such an agent fails the record in every class
   is not proved.
+
+The record ties the two numbers a class names, its horizon and its lapses, through the attempt of
+the advantage, which leaves more later attempts before the horizon than the lapses. So each
+member the agent solves on that attempt it solves again on a later one, where that member's
+later attempts start from the same state (`advantageSolvedAgain`), as they do in every class
+that meets the record of contract 2 (`AcornVerif.Intent.BigClass.advantage_solved_again`). A
+two-door agent that earns its advantage once and solves nothing afterwards fails the record
+(`rulesOutAdvantageOnce`), and so does the class whose horizon comes right after the attempt of
+its agent's advantage (`rulesOutLateAdvantage`). A class that allows as many lapses as it has
+attempts before its horizon, less one, asks no retention, since `keepsSolving` and `learnsAgain`
+then hold of every agent (`keepsSolving_of_lapses`, `learnsAgain_of_lapses`); no agent meets the
+record in such a class, because no attempt leaves that room (`unmet_of_lapses`). What the record
+still allows is anything from the horizon on, and a member first solved on the last attempt
+before the horizon and never again.
 
 Two checks of lean-intent were not run:
 
@@ -81,18 +96,40 @@ def learnerKeepsSomething : Consequence Trial :=
 theorem learnerKeepsSomething_holds : learnerKeepsSomething.HoldsOf postcondition :=
   fun _ hw hk => not_earnsMore_of_keepsNothing hk (postcondition_meets.mp hw).2.1
 
-/-- **The promise about reward is a promise about members solved.** On some attempt the agent
-solves more of the counted members than any agent that keeps nothing of its experience solves on any
-attempt. -/
-def solvesMoreEventually : Consequence Trial :=
-  ⟨"on some attempt the agent solves more members than any agent that keeps nothing of its \
+/-- **The promise about reward is a promise about members solved.** On some attempt that leaves
+more later attempts before the horizon than the lapses, the agent solves more of the counted
+members than any agent that keeps nothing of its experience solves on any attempt. -/
+def solvesMoreInTime : Consequence Trial :=
+  ⟨"on some attempt that leaves more later attempts before the stated attempt than the stated \
+    number of lapses, the agent solves more members than any agent that keeps nothing of its \
     experience solves on any attempt", .entailment, fun w =>
-    ∃ n, ∀ B, KeepsNothing B → ∀ k, w.solvedCount B k < w.solvedCount w.agent n⟩
+    ∃ n, n + w.lapses + 1 < w.horizon ∧
+      ∀ B, KeepsNothing B → ∀ k, w.solvedCount B k < w.solvedCount w.agent n⟩
 
-theorem solvesMoreEventually_holds : solvesMoreEventually.HoldsOf postcondition :=
+theorem solvesMoreInTime_holds : solvesMoreInTime.HoldsOf postcondition :=
   fun w hw =>
-    let ⟨h1, ⟨n, hn⟩, _, _⟩ := postcondition_meets.mp hw
-    ⟨n, fun B hB k => (h1 w.agent B (.inl rfl) (.inr hB) n k).mp (hn B hB k)⟩
+    let ⟨h1, ⟨n, room, hn⟩, _, _⟩ := postcondition_meets.mp hw
+    ⟨n, room, fun B hB k => (h1 w.agent B (.inl rfl) (.inr hB) n k).mp (hn B hB k)⟩
+
+/-- **The members solved on the attempt of the advantage are solved again.** On some attempt the
+agent earns more across the class than any agent that keeps nothing of its experience earns on
+any attempt, and each member it solves on that attempt it solves again on a later attempt before
+the horizon, where that member's later attempts start from the state that attempt started from. -/
+def advantageSolvedAgain : Consequence Trial :=
+  ⟨"each member the agent solves on the attempt of its advantage it solves again on a later \
+    attempt before the stated attempt, where the member's later attempts start from the same \
+    state", .entailment, fun w =>
+    ∃ n, (∀ B, KeepsNothing B → ∀ k, w.classReward B k < w.classReward w.agent n) ∧
+      ∀ i, w.solves w.agent i n = true → (∀ k, n < k → w.SameProblem i n k) →
+        ∃ n', n < n' ∧ n' < w.horizon ∧ w.solves w.agent i n' = true⟩
+
+theorem advantageSolvedAgain_holds : advantageSolvedAgain.HoldsOf postcondition :=
+  fun w hw =>
+    let ⟨_, ⟨n, room, more⟩, _, again⟩ := postcondition_meets.mp hw
+    ⟨n, more, fun i solved same =>
+      let ⟨n', low, high, hs⟩ := again i n (n + 1) (Nat.le_succ n) (by omega)
+        (fun k later => same k later) solved
+      ⟨n', low, by omega, hs⟩⟩
 
 /-- The agent that answers each thing it is given as `A` answers it from its initial memory, and
 keeps nothing of its experience. -/
@@ -111,7 +148,7 @@ def countsSomeMember : Consequence Trial :=
 
 theorem countsSomeMember_holds : countsSomeMember.HoldsOf postcondition := by
   intro w hw he
-  obtain ⟨n, hn⟩ := (postcondition_meets.mp hw).2.1
+  obtain ⟨n, -, hn⟩ := (postcondition_meets.mp hw).2.1
   have h := hn (shell w.agent) (shell_keepsNothing _) n
   unfold Trial.classReward at h
   rw [he] at h
@@ -147,18 +184,94 @@ def rulesOutUnpaidGoals : Consequence Trial :=
 theorem rulesOutUnpaidGoals_holds : rulesOutUnpaidGoals.HoldsOf postcondition :=
   fun _ hw he => unpaid_fails (he ▸ hw)
 
-theorem forgetful_fails : ¬ postcondition.Meets forgetful := fun h =>
-  absurd ((postcondition_meets.mp h).2.2.1 true 0 1 (by decide)
-    (fun k _ _ => doors_sameProblem List.sum 1 once true 0 k) rfl) (by decide)
+theorem forgetful_fails : ¬ postcondition.Meets forgetful := fun h => by
+  obtain ⟨lapsed, few, keeps⟩ := (postcondition_meets.mp h).2.2.1 true
+  have none : lapsed = [] := List.length_eq_zero_iff.mp (Nat.le_zero.mp few)
+  exact absurd (keeps 0 1 (by decide) (by decide)
+    (fun k _ _ => doors_sameProblem List.sum 1 once true 0 k) rfl
+    (by rw [none]; exact List.not_mem_nil)) (by decide)
 
 /-- **Solving a member once and never again is ruled out**, where the member's attempts start from
-the same state: the trial `forgetful`. Its neighbour is `base`. -/
+the same state, a later attempt comes before the class's horizon and the class allows no lapse:
+the trial `forgetful`. Its neighbour is `base`. -/
 def rulesOutSolvingOnce : Consequence Trial :=
   ⟨"the trial forgetful, whose agent solves a member on its first attempt and never again, is \
     ruled out", .entailment, fun w => w ≠ forgetful⟩
 
 theorem rulesOutSolvingOnce_holds : rulesOutSolvingOnce.HoldsOf postcondition :=
   fun _ hw he => forgetful_fails (he ▸ hw)
+
+/-- An agent that tries the first door on its first attempt, the member's door on its second
+attempt, and the other door ever after. Its memory counts its steps and keeps the door the first
+attempt showed. -/
+def flash : Agent (Option Bool) Bool where
+  Memory := Nat × Option Bool
+  initial := (0, none)
+  act := fun m o =>
+    (if m.1 == 0 then true else if m.1 == 2 then m.2.getD true else !(m.2.getD true),
+      (m.1 + 1, if m.1 == 1 then o.1 else m.2))
+
+/-- From its second attempt on, `flash` has counted its steps and holds the member's door. -/
+theorem flash_memory (pay : Rat) (b : Bool) :
+    ∀ t, ((door pay b).run flash (t + 2)).2 = (t + 2, some b)
+  | 0 => by cases b <;> rfl
+  | t + 1 => by
+    have ih := flash_memory pay b t
+    show (flash.act ((door pay b).run flash (t + 2)).2 _).2 = _
+    rw [ih]
+    rfl
+
+/-- On its second attempt `flash` solves each member of a two-door class. -/
+theorem flash_hits (total : List Rat → Rat) (pay : Rat) (X : Agent (Option Bool) Bool)
+    (b : Bool) : (doors total pay X).solves flash b 1 = true := by
+  rw [doors_solves]
+  cases b <;> rfl
+
+/-- From its third attempt on `flash` solves no member of a two-door class. -/
+theorem flash_misses (total : List Rat → Rat) (pay : Rat) (X : Agent (Option Bool) Bool)
+    (b : Bool) (n : Nat) : (doors total pay X).solves flash b (n + 2) = false := by
+  have h : tried pay flash b (n + 2) = !b := by
+    unfold tried
+    have e : 2 * (n + 2) = 2 * n + 2 + 2 := by omega
+    rw [e, flash_memory]
+    rfl
+  rw [doors_solves, h]
+  cases b <;> rfl
+
+/-- `base` whose agent is `flash`: it earns the advantage on its second attempt and solves no
+member afterwards. -/
+def flashy : Trial := doors List.sum 1 flash
+
+/-- `flashy` meets the record's property on the advantage: on its second attempt its agent earns
+more than any agent that keeps nothing of its experience, with a later attempt left before the
+horizon. -/
+theorem flashy_earnsMore : earnsMoreInTime.holds flashy := by
+  refine ⟨1, show 1 + 0 + 1 < 3 by decide, fun (B : Agent (Option Bool) Bool) hB k => ?_⟩
+  show (doors List.sum 1 flash).classReward B k < (doors List.sum 1 flash).classReward flash 1
+  rw [doors_classReward, doors_classReward, flash_hits, flash_hits, doors_solves, doors_solves,
+    keepsNothing_tried 1 hB, keepsNothing_tried 1 hB]
+  exact (fair_sum_one _ _ _ _).mpr (by cases guess B k <;> decide)
+
+/-- `flashy` fails the record: it solves the first member on its second attempt and not on its
+third, which comes before the horizon, and the class allows no lapse. -/
+theorem flashy_fails : ¬ postcondition.Meets flashy := fun h => by
+  obtain ⟨lapsed, few, keeps⟩ := (postcondition_meets.mp h).2.2.1 true
+  have none : lapsed = [] := List.length_eq_zero_iff.mp (Nat.le_zero.mp few)
+  have again := keeps 1 2 (by decide) (by decide)
+    (fun k _ _ => doors_sameProblem List.sum 1 flash true 1 k) (flash_hits List.sum 1 flash true)
+    (by rw [none]; exact List.not_mem_nil)
+  exact Bool.noConfusion (again.symm.trans (flash_misses List.sum 1 flash true 0))
+
+/-- **An advantage earned once and never repeated is ruled out**: the trial `flashy`, whose agent
+earns more than every agent that keeps nothing on its second attempt and solves no member from
+its third attempt on. It meets the record's first two properties (`doors_rewardCounts`,
+`flashy_earnsMore`) and fails by `keepsSolving`. Its neighbour is `base`. -/
+def rulesOutAdvantageOnce : Consequence Trial :=
+  ⟨"the trial flashy, whose agent earns the advantage on its second attempt and solves no member \
+    afterwards, is ruled out", .entailment, fun w => w ≠ flashy⟩
+
+theorem rulesOutAdvantageOnce_holds : rulesOutAdvantageOnce.HoldsOf postcondition :=
+  fun _ hw he => flashy_fails (he ▸ hw)
 
 /-- `base` with no member counted. -/
 def uncounted : Trial := { base with counted := [] }
@@ -186,5 +299,65 @@ def firstAttemptMayFail : Consequence Trial :=
 
 theorem firstAttemptMayFail_holds : firstAttemptMayFail.HoldsOf postcondition :=
   ⟨base, base_meets, false, .tail _ (.head _), rfl⟩
+
+/-- **A class whose lapses cover its later attempts asks no solving again.** Where a class allows
+as many lapses as it has attempts before its horizon, less one, `keepsSolving` holds of every
+agent: every attempt before the horizon but the first may be a lapse, and the first attempt is
+later than none. -/
+theorem keepsSolving_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses + 1) :
+    keepsSolving.holds w :=
+  fun _ => ⟨List.range' 1 (w.horizon - 1), by rw [List.length_range']; omega,
+    fun n n' hle before _ hs out => by
+      have zero : n' = 0 := by
+        rcases Nat.eq_zero_or_pos n' with h | h
+        · exact h
+        · exact absurd (List.mem_range'_1.mpr ⟨h, by omega⟩) out
+      subst zero
+      have first : n = 0 := Nat.le_zero.mp hle
+      subst first
+      exact hs⟩
+
+/-- Where a class allows as many lapses as it has attempts before its horizon, less one,
+`learnsAgain` holds of every agent: only the first attempt leaves more attempts than the lapses
+before the horizon, and the attempt solved no later than the first is the first. -/
+theorem learnsAgain_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses + 1) :
+    learnsAgain.holds w :=
+  fun _ n n' hle room _ hs => by
+    have zero : n' = 0 := by omega
+    subst zero
+    have first : n = 0 := Nat.le_zero.mp hle
+    subst first
+    exact ⟨0, Nat.le_refl 0, Nat.zero_le _, hs⟩
+
+/-- `base` with its promises read over its first two attempts only. -/
+def hurried : Trial := { base with horizon := 2 }
+
+/-- `hurried` fails the record: only its first attempt leaves a later attempt before the horizon,
+and on that attempt `finder` earns no more than the agent that always tries the first door. -/
+theorem hurried_fails : ¬ postcondition.Meets hurried := fun h => by
+  obtain ⟨n, room, more⟩ := (postcondition_meets.mp h).2.1
+  have small : n + 0 + 1 < 2 := room
+  have first : n = 0 := by omega
+  subst first
+  exact absurd (more (always true) (always_keepsNothing true) 0) (by decide +kernel)
+
+/-- **An advantage that comes too late for the horizon is ruled out**: the trial `hurried`, whose
+agent earns the advantage on its second attempt, the last before the class's horizon. Its
+neighbour is `base`, which reads one attempt more. -/
+def rulesOutLateAdvantage : Consequence Trial :=
+  ⟨"the trial hurried, whose agent earns the advantage on the last attempt before the stated \
+    attempt, is ruled out", .entailment, fun w => w ≠ hurried⟩
+
+theorem rulesOutLateAdvantage_holds : rulesOutLateAdvantage.HoldsOf postcondition :=
+  fun _ hw he => hurried_fails (he ▸ hw)
+
+/-- **No agent meets the record in a class whose lapses leave no room.** Where a class allows as
+many lapses as it has attempts before its horizon, less one, no attempt leaves more later
+attempts before the horizon than the lapses, so the record's property on the advantage fails of
+every agent. -/
+theorem unmet_of_lapses (w : Trial) (covered : w.horizon ≤ w.lapses + 1) :
+    ¬ postcondition.Meets w := fun h => by
+  obtain ⟨n, room, -⟩ := (postcondition_meets.mp h).2.1
+  omega
 
 end AcornVerif.Intent.Postcondition

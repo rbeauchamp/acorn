@@ -30,7 +30,8 @@ The subject is the postcondition's, `AcornVerif.Intent.Postcondition.Trial`: a c
 the agent that learns in it. Sentence 2 says that bigness belongs to the pair of a world and an
 agent, and the two records then speak of one thing, so that this record's properties can be the
 preconditions under which the postcondition is asked. The five properties read the class only, not
-its agent or how it aggregates reward (`reads_class`, in the module of this record's consequences).
+its agent, how it aggregates reward, or the horizon and the lapses the postcondition reads
+(`reads_class`, in the module of this record's consequences).
 Every quantity they read is computed by the postcondition's faithful run of an agent in a member.
 
 The five properties are the record's reading of sentences 4 and 6:
@@ -291,7 +292,7 @@ theorem bigClass_o2Run : O2Run bigClass :=
 /-! ## Trials that fail one property each -/
 
 /-- The two-door class with the given members: both counted, attempts of two steps, rewards summed,
-and `finder`. -/
+the horizon and the lapses of the postcondition's two-door class, and `finder`. -/
 def classOf (member : Bool → Member (Option Bool) Bool) : Trial where
   Obs := Option Bool
   Act := Bool
@@ -300,6 +301,8 @@ def classOf (member : Bool → Member (Option Bool) Bool) : Trial where
   counted := [true, false]
   length := 2
   total := List.sum
+  horizon := 3
+  lapses := 0
   agent := finder
 
 /-- `base` whose members have no goal: no state of theirs meets one. -/
