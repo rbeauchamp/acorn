@@ -149,7 +149,7 @@ The design below the contract:
   - [Obligation 2](#open-obligations), the campaign join.
   - [Obligation 3](#open-obligations), the viewer's rule as a theorem.
   - [Obligation 13](#open-obligations), the classes of ARC-AGI-3 games and Microduck scenes, each over this interface.
-  - That every world the host admits can be run. [#267](https://github.com/rbeauchamp/acorn/issues/267) reports, against sentence 1, that world admission accepts configurations whose reachable states refuse an observation or an available action. Both missions of the tile world wait for its fix.
+  - That every world the host admits can be run. [#267](https://github.com/rbeauchamp/acorn/issues/267) reports, against sentence 1, that world admission accepts configurations whose reachable states refuse an observation or an available action.
 
 ## Contract 2: what makes a class of worlds big
 
