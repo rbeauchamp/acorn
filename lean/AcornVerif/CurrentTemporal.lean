@@ -1206,6 +1206,24 @@ def Served (state next : TemporalControl interface profile config criterion dime
     next.runtime.references.phase = .exploring (.bare rest) ∧
     next.runtime.references.rng = state.runtime.references.rng
 
+/-- A served step reports exploration: the step that serves a committed run sets the flag of
+its decision, for every state and frame. -/
+theorem serve_explored (state next : TemporalControl interface profile config criterion dimension)
+    (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision interface.actions)
+    (served : state.serve features = some (next, decision)) : decision.explored = true := by
+  unfold TemporalControl.serve at served
+  cases phase : state.runtime.references.phase with
+  | idle => simp [phase] at served
+  | option slot activation => simp [phase] at served
+  | exploring committed =>
+    simp only [phase] at served
+    cases run : committed.run.serve with
+    | none => simp [run] at served
+    | some pair =>
+      simp only [run, bind, Option.bind, pure, Option.some.injEq] at served
+      cases served
+      rfl
+
 /-- A decision reached by one persistent draw of the acting layer, at the generator
 state selection hands it from the state it was given. The learners the draw reads are
 those of `origin`, the state selection holds when it draws; how its learners follow

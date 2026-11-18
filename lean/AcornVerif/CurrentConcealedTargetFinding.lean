@@ -9,11 +9,13 @@ import AcornVerif.CurrentExplorer
 /-!
 # What the executed agent finds among the concealed targets
 
-`AcornVerif.CurrentConcealedTargetMission.ExecutedFinds` is the premise that the executed agent
-solves each of more counted members than the covering bound on some visit. This module reduces
-it, for the cold agent of a profile with no hierarchy under the declared exploration rate, over a
-host world that carries the zero reward word, to a statement that reads no learner: which
-concealed targets the walks of one fixed action sequence meet.
+`AcornVerif.CurrentConcealedTargetMission.ExecutedFinds` says that the executed agent solves
+each of more counted members than the covering bound on some visit, and the premise of the
+mission theorem, `AcornVerif.CurrentConcealedTargetMission.ExecutedFindsBy`, says so with a visit
+before which each is solved. This module reduces both, for the cold agent of a profile with no
+hierarchy under the declared exploration rate, over a host world that carries the zero reward
+word, to statements that read no learner: which concealed targets the walks of one fixed action
+sequence meet, and by which visit.
 
 Two results give the reduction.
 

@@ -41,10 +41,13 @@ open LeanIntent WorldInterface Postcondition
 
 /-! ## The record reads the class only -/
 
-/-- **The record reads the class, not its agent or its aggregation.** A trial meets the record
-exactly when the trial with another agent and another way of aggregating reward does. -/
-theorem reads_class (w : Trial) (A : Agent w.Obs w.Act) (f : List Rat → Rat) :
-    bigClass.Meets { w with agent := A, total := f } ↔ bigClass.Meets w := by
+/-- **The record reads the class, not its agent, its aggregation, its horizon or its lapses.** A
+trial meets the record exactly when the trial with another agent, another way of aggregating
+reward, another horizon and another number of lapses does. -/
+theorem reads_class (w : Trial) (A : Agent w.Obs w.Act) (f : List Rat → Rat)
+    (horizon lapses : Nat) :
+    bigClass.Meets { w with agent := A, total := f, horizon := horizon, lapses := lapses } ↔
+      bigClass.Meets w := by
   rw [bigClass_meets, bigClass_meets]
   exact Iff.rfl
 
@@ -280,7 +283,7 @@ record has an agent that solves, on some attempt, more counted members than any 
 nothing of its experience solves on any attempt, so such an agent never solves them all. -/
 theorem frozenShareSmall_of_postcondition {w : Trial} (h : postcondition.Meets w) :
     frozenShareSmall.holds w := by
-  obtain ⟨n, hn⟩ := solvesMoreEventually_holds w h
+  obtain ⟨n, -, hn⟩ := solvesMoreInTime_holds w h
   have hle : w.solvedCount w.agent n ≤ w.counted.length := List.length_filter_le _ _
   have hpos := hn (shell w.agent) (shell_keepsNothing _) 0
   refine ⟨w.solvedCount w.agent n - 1, by omega, fun B hB k => ?_⟩
@@ -294,13 +297,30 @@ theorem sameProblem_of_big {w : Trial} (hb : bigClass.Meets w) (i : w.Index) (n 
   ((bigClass_meets.mp hb).2.2.2.2 w.agent i k).trans
     ((bigClass_meets.mp hb).2.2.2.2 w.agent i n).symm
 
-/-- **In a big class the postcondition's retention is asked without condition.** In a class that
-meets this record, an agent that keeps solving in the postcondition's sense solves, on every later
-attempt, each member it has solved once. -/
+/-- **In a big class the postcondition's retention is asked without condition on the member's
+attempts.** In a class that meets this record, an agent that keeps solving in the postcondition's
+sense has, for each member, at most the class's number of lapses, outside which it solves the
+member on every attempt before the class's horizon that follows one on which it solved it. -/
 theorem retention_unconditional {w : Trial} (hb : bigClass.Meets w) (hk : keepsSolving.holds w)
-    (i : w.Index) (n n' : Nat) (hle : n ≤ n') (hs : w.solves w.agent i n = true) :
-    w.solves w.agent i n' = true :=
-  hk i n n' hle (fun k _ _ => sameProblem_of_big hb i n k) hs
+    (i : w.Index) :
+    ∃ lapsed : List Nat, lapsed.length ≤ w.lapses ∧ ∀ n n', n ≤ n' → n' < w.horizon →
+      w.solves w.agent i n = true → n' ∉ lapsed → w.solves w.agent i n' = true := by
+  obtain ⟨lapsed, few, keeps⟩ := hk i
+  exact ⟨lapsed, few, fun n n' hle before hs out =>
+    keeps n n' hle before (fun k _ _ => sameProblem_of_big hb i n k) hs out⟩
+
+/-- **In a big class the members solved on the attempt of the advantage are solved again.** In a
+class that meets this record, an agent that meets the postcondition's record earns its advantage
+on an attempt each of whose solved members it solves again on a later attempt before the
+horizon. So in such a class no agent meets the postcondition by an advantage it earns once and
+never follows. -/
+theorem advantage_solved_again {w : Trial} (hb : bigClass.Meets w)
+    (hp : postcondition.Meets w) :
+    ∃ n, (∀ B, KeepsNothing B → ∀ k, w.classReward B k < w.classReward w.agent n) ∧
+      ∀ i, w.solves w.agent i n = true →
+        ∃ n', n < n' ∧ n' < w.horizon ∧ w.solves w.agent i n' = true := by
+  obtain ⟨n, more, again⟩ := advantageSolvedAgain_holds w hp
+  exact ⟨n, more, fun i solved => again i solved fun k _ => sameProblem_of_big hb i n k⟩
 
 /-- Some agent achieves the postcondition in the class of the trial `w`: the trial with that agent
 in place of its own meets the postcondition's record. -/

@@ -600,7 +600,7 @@ theorem retrace_retains (family : WorldClass interface) (goals : family.Goals) (
 
 /-- The retracing agent finds every counted member whose goal one of its exploring walks meets
 from the member's start within a visit: where that holds of each of more than `bound` counted
-members, it finds more than `bound`. -/
+members, it finds more than `bound`, each by the last of its exploring visits. -/
 theorem retrace_finds (family : WorldClass interface) (goals : family.Goals)
     (length last bound : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface)
@@ -611,13 +611,15 @@ theorem retrace_finds (family : WorldClass interface) (goals : family.Goals)
     (explored : ∀ index ∈ counted, ∃ visit, visit ≤ last ∧
       ∃ step, 1 ≤ step ∧ step ≤ length ∧ (goals index).satisfied
         (path (family.world index) (family.start index) (explore visit) step)) :
-    Finds family goals length bound counted (retrace interface length last signal explore) := by
+    FindsBy family goals length bound counted (last + 1)
+      (retrace interface length last signal explore) := by
   classical
   refine ⟨counted.toFinset, by rwa [List.toFinset_card_of_nodup distinct],
     fun index inside => ?_⟩
   have listed := List.mem_toFinset.mp inside
   obtain ⟨visit, exploring, meets⟩ := explored index listed
-  exact ⟨listed, visit, retrace_solves_explored family goals length last signal explore index
-    (decodes index) visit visit exploring (Nat.le_refl visit) meets⟩
+  exact ⟨listed, visit, Nat.lt_succ_of_le exploring,
+    retrace_solves_explored family goals length last signal explore index (decodes index) visit
+      visit exploring (Nat.le_refl visit) meets⟩
 
 end AcornVerif.Kernel
