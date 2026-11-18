@@ -85,10 +85,13 @@ The tile world the viewer shows was chosen by an agent working on Acorn, not by
 the owner. It has no standing beyond being the first world built.
 
 Choosing and shaping worlds well needs a model of what a big world is. The mission
-contract states the conditions that make a class of worlds big
-([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big)).
-Three of its four conditions are proved of one class in the tile world, with no
-claim yet that the agent learns there; proving them of chosen classes is open
+contract states four conditions that together make a class of worlds big
+([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big)),
+and Acorn calls a class big only when it is proved to meet all four, as the owner
+decided on 2026-11-18. Three of them, conditions (a) to (c), are proved of one class
+in the tile world, with no claim yet that the agent learns there. The fourth, (d), is
+proved of no class, so that class is a step toward a big class and no class is yet
+proved big. Proving the conditions of chosen classes is open
 work, in the issues on that contract's record
 ([#214](https://github.com/rbeauchamp/acorn/issues/214)), ARC-AGI-3 games
 as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a

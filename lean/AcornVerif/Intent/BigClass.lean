@@ -6,7 +6,7 @@ Authors: acorn contributors
 import AcornVerif.Intent.Postcondition
 
 /-!
-# Intent record: what makes a class of worlds big
+# Intent record of contract 2: conditions (a) to (c) of a big class, and its sentence 6
 
 Contract 2 of Acorn's mission contract (`docs/mission-contract.md`, section "Contract 2: what makes
 a class of worlds big") opens with seven plain sentences that the owner confirmed on 2026-11-03 as
@@ -15,6 +15,15 @@ The owner confirmed the restatement as a whole, and the choices in it marked as 
 on the owner's behalf. That restatement is this record's only source. The agents that work on Acorn
 wrote it from a research report on the research of Rich Sutton, Khurram Javed and Oak Lab, and the
 owner adopted it by confirming it.
+
+This record does not state what makes a class of worlds big. On 2026-11-18 the owner decided that a
+class is big only when it meets all four conditions (the mission contract records the question and
+the answer in the same section). The record states conditions (a) to (c) and sentence 6, and
+condition (d) is a condition of bigness that it does not yet state. So a trial that meets the record
+is not thereby a big class, and no theorem about the record says that a class is big. The names
+`bigClass`, `BigClass` and those formed from them are kept, by a decision made on the owner's behalf
+that the mission contract records with its reason; a name is not an account, and each declaration's
+documentation says what it states.
 
 The record's writer had read, before writing it, everything the writer of the postcondition's record
 lists in `AcornVerif.Intent.Postcondition`, and that record, whose writer it also is. In particular
@@ -51,11 +60,14 @@ The five properties are the record's reading of sentences 4 and 6:
   member poses the same problem on every attempt, every attempt starting from the state the
   member's world starts in.
 
-Condition (d) is not a property of this record. It speaks of how many separate problems the agent's
-memory can hold solutions to at once, and in this subject each compared agent runs alone in each
-member, so it never holds two members' solutions at once. Condition (d) needs a subject that
-presents several members in one stream, which obligations 5, 6 and 10 of the mission contract own;
-sentence 5 says that (d) is the target for larger classes. Sentences 1 to 3 give the reasons for the
+Condition (d) is a condition of bigness that this record does not yet state. It speaks of how many
+separate problems the agent's memory can hold solutions to at once, and in this subject each
+compared agent runs alone in each member, so it never holds two members' solutions at once.
+Stating condition (d) needs a later subject that presents several members in one stream, and is
+planned at the rung that first proves (d). That rung's place in the order of the rungs is the
+owner's decision (rbeauchamp/acorn#234), and the form (d) takes there is not decided. Obligations
+5, 6 and 10 of the mission contract own what such a statement needs; sentence 5 says that (d) is
+the target for larger classes. Sentences 1 to 3 give the reasons for the
 conditions, and sentences 5 and 7 say how the classes are chosen; none adds a property. The record
 has no domain hypothesis.
 
@@ -144,8 +156,9 @@ second predicate. -/
 abbrev Moment : Type 1 :=
   (w : Trial) × Agent w.Obs w.Act × w.Index × Nat
 
-/-- **The intent record of contract 2**: what makes a class of worlds big, of a class of worlds and
-the agent that learns in it. -/
+/-- **The intent record of contract 2**, of a class of worlds and the agent that learns in it:
+conditions (a) to (c) of what makes a class of worlds big, and the two halves of sentence 6. It
+does not yet state condition (d), so a trial that meets it is not thereby a big class. -/
 def bigClass : IntentRecord Trial where
   shape := .value _
   dom := []

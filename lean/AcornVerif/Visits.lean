@@ -50,7 +50,9 @@ uses its experience solving, on every later visit, every member it has solved on
 under a hypothesis of exploration, more members on one visit than the covering bound.
 
 `BigClass` packages conditions (a) to (c) of the mission contract's contract 2; they do not supply
-obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
+obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises. It does
+not state condition (d). A class is big only when it meets all four conditions, so a class that has
+this structure is not thereby big; the structure keeps its name, and this is what it states.
 
 A class that one action sequence solves gives no evidence of learning. `visitScript` reads no
 percept and restarts its count on every visit, with a counter of ⌈log₂ (length + 1)⌉ bits
@@ -534,7 +536,7 @@ theorem visits_ever (hidden : Conceals family goals reference origin) {length bo
         exact Nat.find_spec once
     _ = count * bound := by rw [Finset.card_range]
 
-/-! ## A big class -/
+/-! ## Conditions (a) to (c) of a big class -/
 
 /-- Conditions (a) to (c) of contract 2 of the mission contract, for a class with goals and a
 visit length: it conceals its goals behind one reference world (b); one action sequence meets
@@ -542,7 +544,10 @@ the goals of at most `k` members within a visit, and some finite set holds more 
 members (c); and every member's goal is feasible within a visit (a). These conditions establish
 the comparison bound of `visits_need`. They do not establish that experience supplies
 information from which an agent can learn a solution, which is part of obligation 4 of
-`docs/mission-contract.md`, the goal-information and exploration premises. -/
+`docs/mission-contract.md`, the goal-information and exploration premises. The structure does not
+state condition (d), that the class poses more separate problems than the agent's memory can hold
+solutions to at once. A class is big only when it meets all four conditions, so this structure does
+not say that its class is big. -/
 structure BigClass (family : WorldClass interface) (goals : family.Goals) (len k : ℕ) where
   /-- The world whose percepts each member shows until its goal is first met. -/
   reference : World interface

@@ -53,10 +53,13 @@ it rests where the goal is satisfied. That two agents can then be ordered one wa
 the other way by the members they solve is argued, not proved: no such pair is exhibited here.
 `untilPaid` is the choice made here on the owner's behalf; the owner can overrule it.
 
-## Contract 2 and the postcondition
+## Contract 2's record and the postcondition's
 
 For a class that conceals its goals, with a covering bound below the count of the counted members,
 feasible goals and `PaysAtGoals`, the class in visits meets the record of contract 2 (`visits_big`).
+That record states conditions (a) to (c) of contract 2 and the two halves of its sentence 6, and
+does not state condition (d). A class is big only when it meets all four conditions, so `visits_big`
+does not say that the class is big.
 Concealment is carried across visits by `AcornVerif.Kernel.Conceals.inVisits`. Success shows in the
 reward: the reading that says whether the goal is met is whether the reward is one.
 
@@ -477,7 +480,7 @@ theorem count_of_separates (stated : PaysAtGoals family goals pay met) {limit : 
         visit).mpr (each index member).2⟩)
   exact le_trans (Finset.card_le_card inside) (List.toFinset_card_le _)
 
-/-! ## Contract 2 -/
+/-! ## Contract 2's record -/
 
 /-- Every attempt of every agent's run in a member starts from the start of a visit. -/
 theorem visits_attemptsRecur :
@@ -582,10 +585,12 @@ theorem visits_successShows (stated : PaysAtGoals family goals pay met) :
     ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index time) <;>
         simp
 
-/-- **A class in visits is big, as contract 2's record says.** A class that conceals its goals, with
+/-- **A class in visits meets contract 2's record.** A class that conceals its goals, with
 a covering bound for one visit's length below the count of its counted members, goals feasible
 within a visit and a reward that pays at its goals, meets the record of contract 2 when it is run in
-visits, with every agent. -/
+visits, with every agent: conditions (a) to (c), that success shows and that every attempt starts
+from the member's start. The record does not state condition (d), so the theorem does not say that
+the class is big. -/
 theorem visits_big (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)

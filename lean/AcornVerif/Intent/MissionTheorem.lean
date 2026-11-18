@@ -23,7 +23,12 @@ when
 
 * the faithful run of the agent in every member meets contract 1's record
   (`AcornVerif.Intent.WorldInterface.worldInterface`);
-* the class with the agent meets contract 2's record (`AcornVerif.Intent.BigClass.bigClass`);
+* the class with the agent meets contract 2's record (`AcornVerif.Intent.BigClass.bigClass`),
+  which states conditions (a) to (c) of that contract and the two halves of its sentence 6: goals
+  that can be reached, goals concealed until first met, a small share solved by an agent that keeps
+  nothing, success that shows, and attempts that start from the member's start. The record does
+  not state condition (d), and a class is big only when it meets all four conditions, so this
+  clause does not say that the class is big;
 * the faithful run of the agent in every member, with the agent's reports, meets contract 3's
   record (`AcornVerif.Intent.OneStream.oneStream`);
 * the class with the agent meets the postcondition's record
@@ -77,13 +82,16 @@ def Rung.learner (r : Rung) (i : r.Index) : Learner :=
   OneStream.learner (r.member i).world r.agent r.updates r.work r.resume
 
 /-- **The mission theorem's statement for one class of the ladder.** The agent of the rung achieves
-goals over its class: its run in every member meets contract 1, the class is big as contract 2 says,
+goals over its class: its run in every member meets contract 1, the class meets contract 2's record,
 its run in every member keeps the invariants of contract 3, and the postcondition holds of the class
-and the agent. -/
+and the agent. Contract 2's record states conditions (a) to (c) of that contract and its sentence 6
+and does not state condition (d), so the statement does not say that the class is big. -/
 structure Mission (r : Rung) : Prop where
   /-- Contract 1: the interface every world meets, in the agent's run in each member. -/
   interface : ∀ i, worldInterface.Meets (couple (r.member i).world r.agent)
-  /-- Contract 2: what makes the class big. -/
+  /-- Contract 2's record: conditions (a) to (c) of what makes a class of worlds big, and its
+  reading of sentence 6, that success shows and attempts recur. Condition (d) is not in the record,
+  so the field, which keeps its name, does not say that the class is big. -/
   big : bigClass.Meets r.toTrial
   /-- Contract 3: the invariants of learning from one stream, in the agent's run in each member. -/
   stream : ∀ i, oneStream.Meets (r.learner i)

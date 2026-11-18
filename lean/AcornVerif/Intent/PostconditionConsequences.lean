@@ -56,7 +56,8 @@ Two checks of lean-intent were not run:
 The pair whose input is the class of worlds is not discharged here. With no domain hypothesis the
 record admits classes that no agent can serve, as `uncounted_fails` shows, so that pair needs the
 preconditions of contract 2. The record of contract 2, `AcornVerif.Intent.BigClass.bigClass`, states
-them, and the module of its consequences states the pair (`AcornVerif.Intent.BigClass.Served`) and
+those of them it carries, conditions (a) to (c) and sentence 6, and not condition (d); the module of
+its consequences states the pair (`AcornVerif.Intent.BigClass.Served`) and
 leaves it unproved for every class but the two-door ones. What is proved here is the pair with the
 trivial input (`postcondition_pairs`) and that one agent, `finder`, serves every two-door class
 with a fair aggregation and payment (`doors_finder_meets`).

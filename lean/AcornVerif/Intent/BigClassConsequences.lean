@@ -7,12 +7,14 @@ import AcornVerif.Intent.BigClass
 import AcornVerif.Intent.PostconditionConsequences
 
 /-!
-# The consequences of the record of what makes a class of worlds big
+# The consequences of the record of contract 2
 
 Each consequence of `AcornVerif.Intent.BigClass.bigClass` stated here is proved to hold of the
 record: what it requires of every trial that meets it, the trials it rules out, each beside `base`,
 the trial that differs from it only where it attacks and meets the record, what the record still
-allows, and how it stands to the postcondition's record.
+allows, and how it stands to the postcondition's record. The record states conditions (a) to (c)
+of contract 2 and its sentence 6, and not condition (d), so no consequence here says that a class
+is big.
 
 Three things are not proved here, and each is a consequence for the owner's confirmation labelled
 unproved, never a pass:
@@ -24,7 +26,7 @@ unproved, never a pass:
   the postcondition of one agent on the classes of the kernel's worlds in visits that its exploring
   walks cover. A proof for every class needs an agent built for the class, and a class with finitely
   many actions to try.
-* Condition (d) of the restatement, which this record does not carry.
+* Condition (d) of the restatement, a condition of bigness which this record does not yet state.
 * That the record allows a trap, as condition (a) says it may: no trial is exhibited that meets the
   record and has an action after which a member's goal can no longer be reached.
 
@@ -266,9 +268,9 @@ theorem rulesOutNoRecurrence_holds : rulesOutNoRecurrence.HoldsOf bigClass :=
 
 /-! ## What the record still allows -/
 
-/-- **A class is big whatever its agent**: some trial that meets the record has an agent that keeps
-nothing of its experience. With condition (d) left to a later subject, nothing in this record reads
-the agent. -/
+/-- **A class meets the record whatever its agent**: some trial that meets the record has an agent
+that keeps nothing of its experience. With condition (d) left to a later subject, nothing in this
+record reads the agent. -/
 def agentMayKeepNothing : Consequence Trial :=
   ⟨"a class may meet these conditions whatever its agent, even one that keeps nothing of its \
     experience", .possibility, fun w => KeepsNothing w.agent⟩
@@ -297,8 +299,8 @@ theorem sameProblem_of_big {w : Trial} (hb : bigClass.Meets w) (i : w.Index) (n 
   ((bigClass_meets.mp hb).2.2.2.2 w.agent i k).trans
     ((bigClass_meets.mp hb).2.2.2.2 w.agent i n).symm
 
-/-- **In a big class the postcondition's retention is asked without condition on the member's
-attempts.** In a class that meets this record, an agent that keeps solving in the postcondition's
+/-- **In a class that meets this record the postcondition's retention is asked without condition on
+the member's attempts.** In such a class, an agent that keeps solving in the postcondition's
 sense has, for each member, at most the class's number of lapses, outside which it solves the
 member on every attempt before the class's horizon that follows one on which it solved it. -/
 theorem retention_unconditional {w : Trial} (hb : bigClass.Meets w) (hk : keepsSolving.holds w)
@@ -309,8 +311,8 @@ theorem retention_unconditional {w : Trial} (hb : bigClass.Meets w) (hk : keepsS
   exact ⟨lapsed, few, fun n n' hle before hs out =>
     keeps n n' hle before (fun k _ _ => sameProblem_of_big hb i n k) hs out⟩
 
-/-- **In a big class the members solved on the attempt of the advantage are solved again.** In a
-class that meets this record, an agent that meets the postcondition's record earns its advantage
+/-- **In a class that meets this record the members solved on the attempt of the advantage are
+solved again.** In such a class, an agent that meets the postcondition's record earns its advantage
 on an attempt each of whose solved members it solves again on a later attempt before the
 horizon. So in such a class no agent meets the postcondition by an advantage it earns once and
 never follows. -/

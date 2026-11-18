@@ -48,8 +48,10 @@ exploration meets the mission's statement, with every premise discharged, with n
 every horizon of at least four visits. So the statement is
 satisfiable on the executed grid world, by an agent that holds one of 96 memories (eight counts of
 a visit's steps, three counts of visits and four values of the walk found) and stores no action and
-no percept. This is a reference: it shows that the four contracts can be met together on this
+no percept. This is a reference: it shows that the four records can be met together on this
 class, and it is not a result about Acorn's agent. Its exploration is built for this world.
+Contract 2's record states conditions (a) to (c) of that contract and not condition (d), so
+meeting it does not make this class big.
 
 ## The executed agent, from named premises
 

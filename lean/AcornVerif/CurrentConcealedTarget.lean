@@ -53,7 +53,9 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   visit. `feasibleFind` holds the concealed targets a visit can meet, so its members are feasible
   by how it is indexed; it keeps the concealment and the bound (`feasibleFind_conceals`,
   `feasibleFind_covered`). In the same world, with visits of seven steps, the 147 members above
-  make it a `Kernel.BigClass` with the bound 98 (`witness_big`). This says nothing about
+  make it a `Kernel.BigClass` with the bound 98 (`witness_big`), the structure of those three
+  conditions. Condition (d) is not proved of the class, so it is a step toward a big class and is
+  not called big. This says nothing about
   obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
   Every member's target lies within `3 + length` tiles of the start, for every terrain
   (`feasible_window`), so the class is finite, with at most `(2 (3 + length) + 1)² - 49` members
@@ -788,8 +790,9 @@ theorem feasible_count (mode : TaskFeatureMode) (live : Live config) (length : �
         rw [Finset.card_sdiff_of_subset nested, card_box, card_box]
 
 /-- In every admitted world, a finite set of more feasible concealed targets than the covering
-bound makes the class big. Feasibility holds by how the class is indexed, so the theorem's content
-is the concealment, the bound and the count. -/
+bound gives the class conditions (a) to (c) of contract 2 (`Kernel.BigClass`). Feasibility holds by
+how the class is indexed, so the theorem's content is the concealment, the bound and the count. It
+does not give condition (d), so it does not say that the class is big. -/
 theorem feasibleFind_big_of (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (length : ℕ)
     (members : Finset (feasibleFind config mode live length).Index)
@@ -805,8 +808,11 @@ theorem feasibleFind_big_of (config : Host.WorldConfig) (mode : TaskFeatureMode)
      large := many }⟩
 
 /-- **A class meeting conditions (a) to (c).** In the witness's world, at seed 1 and side 64, with
-visits of seven steps, the feasible concealed targets are a big class with the bound 98: the 147
-members of `witness_separation` are each feasible, since each is solved on a visit. This is a
+visits of seven steps, the feasible concealed targets meet conditions (a) to (c) of contract 2
+with the bound 98 (`Kernel.BigClass`): the 147 members of `witness_separation` are each feasible,
+since each is solved on a visit. Condition (d) is not proved of the class. A class is big only
+when it meets all four conditions, so this theorem does not say that the class is big; the class
+is a step toward a big class. This is a
 lemma the mission theorem on the first class of the ladder uses. It says nothing about obligation 4
 of `docs/mission-contract.md`, the goal-information and exploration premises, and it is no result
 about learning. -/

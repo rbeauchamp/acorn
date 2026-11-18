@@ -49,10 +49,13 @@ decides first (rbeauchamp/acorn#232), its criterion is the one the host's entry 
 constructs, and the seed is the least at which the host's own world was observed to start at the
 box's center, as this world does (`docs/roadmap.md`); no theorem singles these out.
 
-- **The class is proved big in this world at this visit length.** The feasible concealed targets
-  are a big class with the covering bound 98 (`AcornVerif.CurrentConcealedTarget.witness_big`), and
+- **The class is proved to meet conditions (a) to (c) of contract 2 in this world at this visit
+  length.** The feasible concealed targets meet them with the covering bound 98
+  (`AcornVerif.CurrentConcealedTarget.witness_big`), and
   147 distinct members are listed (`witness_mission`). It is the one world and visit length at
-  which the tree proves a class big; no theorem says a shorter visit fails. Every member's target
+  which the tree proves those conditions of a class; no theorem says a shorter visit fails.
+  Condition (d) is proved of no class, and a class is big only when it meets all four, so the
+  rung's class is a step toward a big class and is not called big. Every member's target
   lies within ten tiles of the start (`AcornVerif.CurrentConcealedTarget.feasible_window`), so the
   class has at most 392 members (`rung_members`); that window, tiles 22 to 42 on both axes, lies
   inside the box.
@@ -141,8 +144,9 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
   in view from part of a visit's reach and no food along a visit (`docs/roadmap.md`). No theorem
   relates a run of it to a member of this class. The class in the host's own world, deer
   included, is a later rung (rbeauchamp/acorn#256).
-- That a class of a longer visit, or of a world with deer and food, is big, or that its frames are
-  within the sizes the credit horizon assumes.
+- That a class of a longer visit, or of a world with deer and food, meets conditions (a) to (c) of
+  contract 2, or that its frames are within the sizes the credit horizon assumes. Nor condition (d)
+  of any class, this rung's included.
 
 ## What a proof about a world's layout costs
 
