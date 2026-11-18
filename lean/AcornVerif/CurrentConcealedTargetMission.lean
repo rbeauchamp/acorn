@@ -93,9 +93,12 @@ starts a new session (`AcornVerif.CurrentCheckpoint.resume_saved`), so it does n
 memory the agent held, and `KeepsDiscipline` cannot hold of that memory with the resumption the
 code performs. Resumption does return every learned field. So contract 3's record can hold of the
 executed agent only as an agent whose memory is what its decisions read, or once the evaluator's
-session is no part of the agent's state, or under a changed record. The theorem takes the agent as
-a parameter and leaves that choice, which rbeauchamp/acorn#249 decides, open; the executed agent
-itself is one such agent (`executedAgent_actsAs`).
+session is no part of the agent's state, or under a changed record. The owner decided on
+2026-11-18 that it is the first (rbeauchamp/acorn#249): contract 3 is read of an agent whose memory
+is the executed agent's learned state, without the evaluator's session. The theorem takes the agent
+as a parameter, so it applies to that agent once the fifth step of rbeauchamp/acorn#215 constructs
+it and proves `ActsAsExecuted` of it, which is not done; the executed agent itself is one agent the
+parameter admits (`executedAgent_actsAs`).
 
 How the promises are asked. The owner decided on 2026-11-17 (rbeauchamp/acorn#248) that the
 postcondition's record reads its promises before a visit the class states, its horizon. The
