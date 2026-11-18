@@ -5,7 +5,6 @@ Authors: acorn contributors
 -/
 import AcornVerif.CurrentFirstChoice
 import AcornVerif.FloatLibBridge
-import Mathlib.Tactic.IntervalCases
 
 /-!
 # Trace totals of rows taken once, and the candidate they name
@@ -87,7 +86,9 @@ frame holds of the frame laid then, lead the counted fresh traces of every other
 `last`, each with its own count and its own age, and lead a count of zero. Then the action taken
 at that time is the one candidate of the trace policy at that frame, at any rate, and the greedy
 draw returns it whatever the generator (`leading_candidate`). The count of zero covers every
-action not taken, whose total is a zero word. With
+action not taken, whose total is a zero word. Right after the step that learns a reward of one,
+the controller's own policy has the trace policy's candidates at such a frame
+(`paid_candidates`). With
 `AcornVerif.CurrentFirstChoice.first_choice`, under the declared rate at the default step order:
 when a first reward of one comes after pairwise different actions, and that holds at the frame
 the next decision reads, then outside a committed run, when the generator begins none, the
@@ -110,12 +111,12 @@ every slot of the frame, and its trace is at least one age older. The slot set a
 tie window: the share cannot be the decay itself, because the tie window is an absolute number
 and the two totals can otherwise lie within it. The age of 14 is derived from the stored
 numbers. It is the last at which the loss of one slot's trace over one step of decay exceeds the
-tie window and the rounding of the two sums (`fresh_fourteen`, `earlier_leads`). One step past
-it the statement is false without a condition on the earlier frames: in a policy whose values
-are all at most one fresh trace of age 15, an action whose value reads one fresh trace of age 16
-is a candidate as well (`stale_candidate`). Those are the totals at a frame of one slot, of the
-action taken on it 15 steps before the last and of the action taken on the frame before it,
-where that frame holds the same slot.
+tie window and the rounding of the two sums (`fresh_fourteen`, `earlier_leads`). Past it the
+statement is false without a condition on the earlier frames: at every age from 15 to 80, in a
+policy whose values are all at most one fresh trace of that age, an action whose value reads one
+fresh trace one age older is a candidate as well (`stale_candidate`). Those are the totals at a
+frame of one slot, of the action taken on it that many steps before the last and of the action
+taken on the frame before it, where that frame holds the same slot.
 
 What this does not say.
 
@@ -691,12 +692,16 @@ theorem fresh_one_value :
 
 /-- The arithmetic of the share `223/250` in whole counts: a count of at least one that is more
 than `0.892` of another exceeds it by enough to pay for the tie window and the rounding of both
-sums, in units of `2^(-43)` (`recent_leads`). The counts below 24 are checked one by one, because
+sums, in units of `2^(-43)` (`recent_leads`). The counts below 19 are checked one by one, because
 there the margin rests on the counts being whole. -/
 theorem share_counts (fewer copies : Nat) (share : 223 * fewer < 250 * copies)
     (positive : 1 ≤ copies) : fewer * 391898848 + 8828861 < copies * 439772032 := by
-  rcases Nat.lt_or_ge fewer 24 with small | large
-  · interval_cases fewer <;> omega
+  rcases Nat.lt_or_ge fewer 19 with small | large
+  · have listed : fewer = 0 ∨ fewer = 1 ∨ fewer = 2 ∨ fewer = 3 ∨ fewer = 4 ∨ fewer = 5 ∨
+        fewer = 6 ∨ fewer = 7 ∨ fewer = 8 ∨ fewer = 9 ∨ fewer = 10 ∨ fewer = 11 ∨ fewer = 12 ∨
+        fewer = 13 ∨ fewer = 14 ∨ fewer = 15 ∨ fewer = 16 ∨ fewer = 17 ∨ fewer = 18 := by omega
+    rcases listed with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+      rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> omega
   · omega
 
 /-- **Step sizes lead older traces at a share of `0.892`.** Under the discounted criterion,
@@ -766,7 +771,7 @@ one fresh trace of an age of at most 14 leads at most as many fresh traces of an
 An older trace is at most `0.89101` of it (`fresh_ratio`, `freshChain_antitone`), and at such an
 age that loss on one slot, at least `0.10899 · 9.9 · 10^(-6)`, exceeds the tie window and the
 rounding of both sums (`fresh_fourteen`). The bound on the age is needed: `stale_candidate`
-gives the failure at age 15. -/
+gives the failure at every age from 15 to 80. -/
 theorem earlier_leads (age more copies fewer : Nat) (recent : age ≤ 14) (older : 1 ≤ more)
     (positive : 1 ≤ copies) (order : fewer ≤ copies) :
     Leads (freshChain .discounted age) copies (freshChain .discounted (age + more)) fewer := by
@@ -913,34 +918,37 @@ theorem counted_candidate (snapshot : PolicySnapshot count) (winner : Action cou
   exact ⟨freshChain .discounted 1, fewer, once.1, once.2.1, once.2.2, by omega, below,
     recent_leads copies fewer 1 le_rfl positive (by omega)⟩
 
-/-- **One step past fourteen, a second candidate.** Under the discounted criterion, take a
-policy of finite values, none above one fresh trace of age 15. An action whose value reads one
-fresh trace of age 16 is a near-maximum candidate: a trace of age 15 loses less than the tie
-window over one step of decay (`fresh_step`, `fresh_bounds`). Those are the trace totals, at a
-frame of one slot, of the action taken on it 15 steps before the last and of the action taken
-one step earlier on a frame that holds the same slot, so `own_candidate` does not extend to that
-age without a condition on the earlier frames. This is a statement of values; no theorem here
-says that a run lays such frames. -/
+/-- **Past fourteen steps, a second candidate.** Under the discounted criterion, take an age
+from 15 to 80 and a policy of finite values, none above one fresh trace of that age. An action
+whose value reads one fresh trace one age older is a near-maximum candidate: a trace of such an
+age loses less than the tie window over one step of decay (`fresh_step`, `fresh_bounds`). Those
+are the trace totals, at a frame of one slot, of the action taken on it that many steps before
+the last and of the action taken one step earlier on a frame that holds the same slot, so
+`own_candidate` does not extend past 14 steps without a condition on the earlier frames. This is
+a statement of values; no theorem here says that a run lays such frames. -/
 theorem stale_candidate (snapshot : PolicySnapshot count) (earlier : Action count.word.toNat)
+    (age : Nat) (old : 15 ≤ age) (near : age ≤ 80)
     (finite : ∀ action, (snapshot.values.get action).Finite)
     (top : ∀ action, numerical32 (snapshot.values.get action) ≤
-      numerical32 (repeatSum (freshChain .discounted 15) 1))
+      numerical32 (repeatSum (freshChain .discounted age) 1))
     (second : numerical32 (snapshot.values.get earlier) =
-      numerical32 (repeatSum (freshChain .discounted 16) 1)) :
+      numerical32 (repeatSum (freshChain .discounted (age + 1)) 1)) :
     earlier ∈ snapshot.candidates := by
   obtain ⟨⟨best, bestIs⟩, keys⟩ := best_bounds snapshot finite
   have bestFinite : snapshot.best.Finite := bestIs ▸ finite best
-  have upper : numerical32 snapshot.best ≤ numerical32 (freshChain .discounted 15) := by
-    rw [bestIs, ← repeatSum_one _ (fresh_word .discounted 15).1]
+  have upper : numerical32 snapshot.best ≤ numerical32 (freshChain .discounted age) := by
+    rw [bestIs, ← repeatSum_one _ (fresh_word .discounted age).1]
     exact top best
   have lower : numerical32 (snapshot.values.get earlier) ≤ numerical32 snapshot.best :=
     (numerical32_order _ _ (finite earlier) bestFinite).mpr (keys earlier)
-  rw [repeatSum_one _ (fresh_word .discounted 16).1] at second
-  have step := (fresh_step 15 (by omega)).1
+  rw [repeatSum_one _ (fresh_word .discounted (age + 1)).1] at second
+  have step := (fresh_step age near).1
+  have far := freshChain_antitone .discounted 15 (age - 15)
+  rw [show 15 + (age - 15) = age by omega] at far
   have high := (fresh_bounds 15 (by omega)).2
   have number : (89101 / 100000 : ℚ) ^ 15 * (13743900 * (2 : ℚ) ^ (-38 : Int)) ≤
       886 / 100000000 := by norm_num
-  have nonneg := (fresh_word .discounted 16).2.1
+  have nonneg := (fresh_word .discounted (age + 1)).2.1
   have e43 : (2 : ℚ) ^ (-43 : Int) = 1 / 8796093022208 := by norm_num
   have e3 : (2 : ℚ) ^ (-3 : Int) = 1 / 8 := by norm_num
   have tieRead := tie_value
@@ -1097,6 +1105,40 @@ theorem loop_totals (primitive : profile.usesHierarchy = false)
   · exact unlaid_total ctrlPaid frame action fun held _ =>
       unlaid_window agent world start (last + 1) _ action held
         fun earlier early _ same => absurd same (untaken earlier early)
+
+/-- **Right after the step that learns a first reward of one, the controller's policy has the
+candidates of the trace policy.** For a profile with no hierarchy under per-step credit and the
+discounted criterion, from an agent state whose learners are at rest and whose primitive
+controller holds no trace: in a kernel run in which every reward word before the time `paid` is
+the zero word and that time's is the word one, before a unit of the feature bank matures and
+over frames of at most 1999 slots, at any frame of at most 1999 slots the near-maximum candidates
+of the primitive controller's own policy after the step of the time `paid` are those of the
+trace policy before it (`loop_paid`, `AcornVerif.CurrentFirstChoice.reward_candidates`). So each
+statement below of the trace policy's one candidate, read at `paid = last + 1`, is a statement
+of the controller's policy at that moment. It says nothing of the controller after a later
+step. -/
+theorem paid_candidates (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (world : Kernel.World interface) (start : world.State) (paid : Nat)
+    (young : agent.clock.toNat + paid < config.tester.maturity)
+    (silent : ∀ earlier, earlier < paid →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (pays : (Kernel.perceptAt world (executedAgent agent) start paid).reward = .one)
+    (fits : ∀ earlier, earlier < paid →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
+    (epsilon : SwiftTd.ExploreRate) :
+    ((controlOf (Kernel.memoryAt world (executedAgent agent) start (paid + 1))).snapshot frame
+        epsilon).candidates =
+      (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start paid)) frame
+        epsilon).candidates := by
+  obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent [] quiet ctrl world start paid
+    (by omega) silent fits
+  rw [List.nil_append] at ctrlPaid
+  rw [loop_paid primitive perStep agent world start paid young pays]
+  exact reward_candidates ctrlPaid _ _ frame fitsFrame epsilon
 
 /-- **The criterion: the action whose counted traces lead every other's is the one candidate.**
 Under the hypotheses of `loop_totals`, take a frame of at most 1999 slots and a time `taken` up
@@ -1450,7 +1492,7 @@ trace policy, at any rate, and the greedy draw returns it whatever the generator
 (`leading_candidate`, `later_leads`, `earlier_leads`, `own_alone`). Nothing is assumed of the
 frames laid before the time `taken`. The 14 is the age up to which one slot's loss over one step
 of decay exceeds the tie window and the rounding, by `fresh_fourteen` from the stored numbers;
-at an age of 15 the statement fails without a condition on the earlier frames
+from an age of 15 on the statement fails without a condition on the earlier frames
 (`stale_candidate`). The slot set aside is needed as well (`slack_needed`). This is a statement
 at that one frame, and it says nothing of which frames a run lays. -/
 theorem own_candidate (primitive : profile.usesHierarchy = false)
