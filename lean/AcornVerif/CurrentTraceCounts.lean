@@ -974,8 +974,9 @@ section Shared
 
 variable {dimension : Dimension}
 
-/-- How many of the slots of `frame` the frame `laid` holds, counted with the multiplicity the
-frame's own list gives them: the count `fresh_total` reads. It is not symmetric. -/
+/-- How many of the slots of `frame` the frame `laid` holds: the count `fresh_total` reads. A
+frame lists each of its slots once (`SwiftTd.ActiveSet.nodup`), so this is the number of slots
+the two frames have in common. -/
 def shared (frame laid : ActiveSet dimension) : Nat :=
   frame.indices.countP fun slot => decide (slot ∈ laid.indices)
 
