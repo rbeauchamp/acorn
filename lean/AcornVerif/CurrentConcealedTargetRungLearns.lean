@@ -10,20 +10,22 @@ import AcornVerif.Targets.CurrentConcealedTargetRung
 
 `AcornVerif.Targets.CurrentConcealedTargetRung.rung_learns` is the statement of the first rung's
 discovery mission: the rung's agent gets ahead of every agent that keeps nothing of its
-experience, and solves again what it has solved. This module proves nothing toward it but that its
-literal values are the ones the tree holds. It proves what follows from it, so that a reader can
-check what the statement asks without reading it against every definition it names.
+experience, and solves again what it has solved. This module proves nothing toward its two
+promises. It proves that they are all the target asks, and what follows from it, so that a reader
+can check what the statement asks without reading it against every definition it names.
 
-- `learns_frame`: the values the target writes as numerals and structure literals are the values
-  of the rung's definitions today. So the target is not false for a mistyped value, and what is
-  left to prove is its two promises.
+- `learns_frame`: the target follows from its two promises, for either planning selection and
+  any list of distinct members. Its proof shows each value the target writes as a numeral or a
+  structure literal to be the value of the definition the target asserts it of, so it fails if
+  one differs. So the target is not false for a mistyped value, and what is left to prove is its
+  two promises.
 - `learns_mission`: from the target, the mission theorem's statement holds of the first rung at
   the horizon 864 and 144 lapses, for every agent that takes the rung's agent's actions and whose
-  own memory and reports meet contract 3's four premises. So the target is everything
-  `AcornVerif.CurrentConcealedTargetRung.rung_mission` asks about solving: with it, that
-  theorem's premises on finding, on calm visits and on their counts are not needed.
-- `learns_again`: from the target, a member the agent has solved is solved again within every 145
-  consecutive visits that begin at or after that visit and end before visit 864.
+  own memory and reports meet contract 3's four remaining premises. The premises of
+  `AcornVerif.CurrentConcealedTargetRung.rung_mission` on finding, on calm visits and on their
+  counts are not used, and the target does not prove them.
+- `learns_again`: from the target, a member the agent has solved on a visit is solved on a later
+  visit within every 145 consecutive visits that begin after that visit and end before visit 864.
 - `learns_needs`: no agent that keeps nothing of its experience meets the target's first promise,
   at any list of members and any visit. So an agent that does nothing does not meet the target.
 - `retainsBut_iff_on`: retention before a horizon but for a number of lapses holds exactly when
@@ -43,30 +45,35 @@ open AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
 open AcornVerif.CurrentConcealedTargetMission AcornVerif.CurrentConcealedTargetRung
 open AcornVerif.Intent AcornVerif.Intent.MissionTheorem
 
-/-- **The target's literal values are the tree's.** The configuration, the start and the
-construction that the target writes out as numerals and structure literals are those of
-`witnessConfig`, `witnessLive` and `rungConstruction`, under both planning selections. -/
-theorem learns_frame (planning : PlanningSelection) :
-    witnessConfig.raw =
-        { seed := 1, side := ⟨64, by decide⟩, dayLength := 2048, regrow := 400,
-          foodInterval := 48, foodCap := 0, deerCap := 0, baseScale := ⟨0x41000000⟩ } ∧
-      witnessLive.world = Host.World.empty witnessConfig ∧
-      witnessLive.world.body.position.position.x.val = 32 ∧
-      witnessLive.world.body.position.position.y.val = 32 ∧
-      witnessLive.carried = ⟨⟨false, false, none, false, none, false, 0⟩, ⟨0⟩⟩ ∧
-      rungConstruction planning =
-        AgentConstruction.standard 1 ⟨.primitive, .discounted⟩ planning .learnThenAct ∧
-      (rungConstruction planning).profile = ⟨.primitiveOnly, .perStep, .declared, .learned⟩ ∧
-      (rungConstruction planning).criterion = .discounted ∧
-      (rungConstruction planning).order = .learnThenAct ∧
-      (rungConstruction planning).config.seed = 1 :=
-  ⟨rfl, rfl, by decide, by decide, rfl, rfl, rfl, rfl, rfl, rfl⟩
+/-- **The target follows from its two promises.** For a planning selection and a list of distinct
+members of the class, separation before visit 288 and retention before visit 864 but for 144
+lapses, of the executed agent from the rung's construction's cold state, give the target. The
+proof shows the configuration, the start and the construction that the target writes out as
+numerals and structure literals to be those of `witnessConfig`, `witnessLive` and
+`rungConstruction`. It proves neither promise. -/
+theorem learns_frame (planning : PlanningSelection)
+    (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
+      witnessLive 7).Index)
+    (distinct : counted.Nodup)
+    (separates : Kernel.SeparatesBy
+      (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7)
+      (fun _ => completion witnessConfig (rungConstruction planning).profile.taskMode 7) 7
+      98 counted 288 (executedAgent (rungConstruction planning).initial.agent))
+    (retains : Kernel.RetainsBut
+      (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7)
+      (fun _ => completion witnessConfig (rungConstruction planning).profile.taskMode 7) 7
+      864 144 (executedAgent (rungConstruction planning).initial.agent)) :
+    Targets.CurrentConcealedTargetRung.rung_learns := by
+  unfold Targets.CurrentConcealedTargetRung.rung_learns
+  exact ⟨rfl, rfl, by decide, by decide, rfl, planning, counted, rfl, rfl, rfl, rfl, rfl,
+    distinct, separates, retains⟩
 
-/-- **The target gives the rung's theorem its premises about solving.** From the target, for the
-planning selection and the list of members it gives, every agent that takes the rung's agent's
-actions, and whose own memory and reports meet the four premises of contract 3, achieves goals
-over the first rung's class with the horizon 864 and 144 lapses: the mission theorem's statement
-holds of its rung. -/
+/-- **From the target, the mission theorem's statement holds of the rung.** From the target, for
+the planning selection and the list of members it gives, every agent that takes the rung's agent's
+actions, and whose own memory and reports meet the four remaining premises of contract 3, achieves
+goals over the first rung's class with the horizon 864 and 144 lapses. The target stands where
+`AcornVerif.CurrentConcealedTargetRung.rung_mission` has its premises on finding, on calm visits
+and on their counts, and does not prove them. -/
 theorem learns_mission (learns : Targets.CurrentConcealedTargetRung.rung_learns) :
     ∃ (planning : PlanningSelection)
       (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
@@ -102,13 +109,13 @@ theorem learns_mission (learns : Targets.CurrentConcealedTargetRung.rung_learns)
           ((Kernel.solvesOnVisit_of_actions acts visit index).mp solved) out)⟩
 
 /-- **What the target asks of retention, member by member.** From the target, for the planning
-selection it gives: a member that the rung's agent has solved on a visit is solved again on one
-of the 145 visits from any visit `since` at or after it, where all of them come before visit
-864. -/
+selection it gives: a member that the rung's agent has solved on a visit is solved on one of the
+145 visits from any visit `since` after it, where all of them come before visit 864. That visit
+is later than the one on which the member was solved. -/
 theorem learns_again (learns : Targets.CurrentConcealedTargetRung.rung_learns) :
     ∃ planning : PlanningSelection,
       ∀ (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
-          witnessLive 7).Index) (visit since : ℕ), visit ≤ since → since + 144 < 864 →
+          witnessLive 7).Index) (visit since : ℕ), visit < since → since + 144 < 864 →
         Kernel.SolvesOnVisit
           (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive 7)
           (fun _ => completion witnessConfig (rungConstruction planning).profile.taskMode 7) 7
@@ -121,7 +128,7 @@ theorem learns_again (learns : Targets.CurrentConcealedTargetRung.rung_learns) :
             (executedAgent (rungConstruction planning).initial.agent) later index := by
   obtain ⟨-, -, -, -, -, planning, -, -, -, -, -, -, -, -, retains⟩ := learns
   exact ⟨planning, fun index visit since earlier room solved =>
-    retains.again index visit since earlier room solved⟩
+    retains.again index visit since (Nat.le_of_lt earlier) room solved⟩
 
 /-- **No agent that keeps nothing of its experience meets the target's first promise.** In the
 rung's world with visits of seven steps, an agent whose memory advances without reading its

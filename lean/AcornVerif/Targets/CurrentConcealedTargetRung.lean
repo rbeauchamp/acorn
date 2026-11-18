@@ -38,11 +38,33 @@ No numeral states these, and the statement means what they mean: the class and i
 (`gridWorld`), a world in visits and solving on a visit (`Kernel.visits`, `Kernel.SolvesOnVisit`),
 the two promises (`Kernel.SeparatesBy`, `Kernel.RetainsBut`), the host's empty world and standard
 construction (`Host.World.empty`, `AgentConstruction.standard`), and the wrapper that makes the
-executed step a kernel agent (`executedAgent`). The mission's issue says which declarations a
-submission leaves as they are. The agent's state, its cold start and its step
-(`Acorn.Handcrafted.Agent`, `Agent.initial`, `Agent.act`) are what a submission changes.
+executed step a kernel agent (`executedAgent`).
 
-`AcornVerif.CurrentConcealedTargetRungLearns` proves what a proof of the target gives.
+## What a submission's diff may touch
+
+Each declaration named above has one answer.
+
+- No, for `AcornVerif.Targets.registry` and this file, for the definitions the statement gives
+  literal values of (`witnessConfig`, `witnessLive`, `rungConstruction`) and for every definition
+  of the list above. `docs/missions.md` says that nothing under `lean/AcornVerif/Targets/` and no
+  definition a target names changes, and the mission's issue says the same of every declaration
+  the statement reaches through those, without following the agent's three declarations below.
+  Where a changed definition leaves the statement elaborating and its literal values true,
+  neither Lean nor the gate refuses the change: the owner's review before the merge of a
+  submission does.
+- Yes, for the agent's state, its cold start and its step (`Acorn.Handcrafted.Agent`,
+  `Agent.initial`, `Agent.act`). The statement does not name them: it reaches them through the
+  construction's cold state and through `executedAgent`. What stays the same about them is what
+  Lean checks: every build elaborates the target over them, and a change under which the
+  statement no longer elaborates fails the build.
+
+The statement asks for its two promises and for nothing about how the agent explores. No theorem
+about what the agent as it is finds, `rung_finds` among them, is part of the target or a condition
+of proving it: a submission whose agent explores on another schedule proves the target when it
+proves both promises. Such a submission removes or restates the theorems its change makes false;
+the mission's issue asks that every other theorem keep its statement.
+
+`AcornVerif.CurrentConcealedTargetRungLearns` proves what follows from a proof of the target.
 -/
 
 namespace AcornVerif.Targets.CurrentConcealedTargetRung
@@ -58,7 +80,8 @@ discounted criterion, and there is a list of distinct members of the class such 
 agent, from that construction's cold state:
 
 * on one visit before visit 288 solves each member of a set of more than 98 listed members, each
-  in that member's own run (`Kernel.SeparatesBy`); and
+  in that member's own run, where a member first solved on that visit counts as much as one
+  solved before it (`Kernel.SeparatesBy`); and
 * solves again every member it has solved, on every later visit before visit 864, but for at
   most 144 visits of that member (`Kernel.RetainsBut`).
 
