@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import AcornVerif.Intent.BigClass
 import AcornVerif.Intent.PostconditionConsequences
+import AcornVerif.Intent.WorldInterfaceConsequences
 
 /-!
 # The consequences of the record of what makes a class of worlds big
@@ -1043,5 +1044,137 @@ def Served (w : Trial) : Prop :=
 theorem doors_served (total : List Rat → Rat) (pay : Rat) (X : Agent (Option Bool) Bool)
     (h : Fair total pay) : Served (doors total pay X) :=
   ⟨finder, doors_finder_meets total pay h⟩
+
+/-! ## The explanation -/
+
+/-- The record explained in plain words, with its restatement standing as confirmed by the owner: the
+owner confirmed contract 2's seven sentences, and that this revision carries what it states of them
+is the agents' judgment, on which the owners' log attaches the owner's answer. Every consequence it
+shows is recorded as derived from that restatement. The consequences decided on the owner's behalf
+are recorded, with their reasons, in the record's confirmation file,
+`lean/AcornVerif/Intent/BigClass.md`, and are not shown here. Each statement's freedom says what
+that statement leaves open on its own subject; the shape's says what the whole record leaves
+open. -/
+def bigClassExplained : Explanation bigClass where
+  shape :=
+    { requires := "Nothing of its own: the subject is a class of worlds with what the class states \
+        and one agent, the subject of the postcondition's record, declared a plain value."
+      rulesOut := "Nothing of its own."
+      allows := "A class whose members' observations, rewards, dynamics or goals are constant, \
+        which a shape that asks every function to vary with its input would not admit."
+      freedom := "Two trials that meet the record may differ in everything the properties leave \
+        open: the members and how many there are, which of them are counted, how long an attempt \
+        lasts, and all the record does not read, which is the agent, how reward is aggregated, \
+        the horizon and the lapses." }
+  dom := []
+  props := [
+    { requires := "For every agent, every member and every attempt, some list of actions, fewer \
+        than an attempt has steps, leads from the state the member's world is in when that \
+        attempt of that agent's run starts to a state that meets the member's goal. The list may \
+        be empty: a goal already met where the attempt starts counts as reached."
+      rulesOut := "A class with a member whose goal no state meets, or whose goal lies as many \
+        steps from where some attempt starts as an attempt has, or more."
+      allows := "An action after which the goal can no longer be reached within the attempt: the \
+        property asks nothing of the states an agent's own actions lead to."
+      freedom := "Which actions reach each goal, and how many, below the attempt's length." },
+    { requires := "There is one reference world, over the class's observations and actions, such \
+        that for every agent, every member and every time up to and including which no state of \
+        the agent's run in the member has met the member's goal, the member gives the agent at \
+        that time the observation and the reward the reference world gives it at the same time \
+        of its run there."
+      rulesOut := "A class two of whose members give some agent different observations or \
+        rewards at a time up to which neither's goal has been met in its run."
+      allows := "Anything a member gives once its goal has been met in the run, the time it is \
+        first met included; and a member whose goal is met where its run starts, of which the \
+        property asks nothing."
+      freedom := "The reference world, and what the members give after their goals are met." },
+    { requires := "There is a number, smaller than the count of the counted members, such that \
+        every agent that keeps nothing of its experience solves, on every attempt, at most that \
+        many of the counted members."
+      rulesOut := "A class in which some agent that keeps nothing of its experience solves every \
+        counted member on some attempt, and a class that counts no member."
+      allows := "Such an agent solving all the counted members but one; and any number of \
+        members the class does not count, whoever solves them."
+      freedom := "The bound, which members are counted, and what happens in the others." },
+    { requires := "There is one function of an observation with a reward, the same for every \
+        member, that returns, for every agent, every member and every time, from what the member \
+        gives the agent at that time of its run, whether the state the member's world is then in \
+        meets the member's goal."
+      rulesOut := "A class in which a state that meets a member's goal and a state that does \
+        not, of the same member or of two, give the same observation and reward; and a class in \
+        which success shows only after the goal is met."
+      allows := "Success shown by the observation, by the reward, or by both."
+      freedom := "The function, and where in what the agent is given success shows." },
+    { requires := "For every agent, every member and every attempt, the member's world is, when \
+        that attempt of the agent's run in it starts, in the state the world starts in."
+      rulesOut := "A class with a member that is not back in its start state after every \
+        attempt's length of steps, whatever the agent does: a member with no restart, one whose \
+        restart waits on an action of the agent, or one whose attempts end early."
+      allows := "Anything between two starts."
+      freedom := "What a member's world does within an attempt." }]
+  vocab := [
+    { requires := "The memory the agent's answer produces is the same whatever observation and \
+        reward it was given."
+      rulesOut := "An agent whose next memory depends on what it perceives."
+      allows := "An agent whose action reads what it is given at that step, and one that counts \
+        its steps."
+      freedom := "None of its own: it is a definition the properties are written in." },
+    { requires := "At the given time of the given agent's run in the given member, the member's \
+        world is in a state that meets the member's goal."
+      rulesOut := "A time at which the state does not meet the goal."
+      allows := "Every time at which it does, the first of the run included."
+      freedom := "None of its own: it is a definition the properties are written in." }]
+  restatement := .confirmed owner
+  consequences := [
+    ⟨noFrozenAgentSolvesAll, noFrozenAgentSolvesAll_holds,
+      { requires := "Every agent that keeps nothing of its experience solves, on every attempt, fewer of the counted members than the class counts."
+        rulesOut := "A class in which some agent that keeps nothing of its experience solves every counted member on some attempt."
+        allows := "Such an agent solving all the counted members but one."
+        freedom := "How many fewer." }, .derived⟩,
+    ⟨hasCountedMember, hasCountedMember_holds,
+      { requires := "The class counts at least one member."
+        rulesOut := "A class that counts no member."
+        allows := "Nothing more."
+        freedom := "Which members the class counts." }, .derived⟩,
+    ⟨firstAttemptSmall, firstAttemptSmall_holds,
+      { requires := "There is a number, smaller than the count of the counted members, such that every agent, one that learns included, solves at most that many of the counted members on its first attempt."
+        rulesOut := "A class in which some agent solves every counted member on its first attempt."
+        allows := "Any agent doing better on a later attempt."
+        freedom := "The bound, and what agents do after their first attempt." }, .derived⟩,
+    ⟨learningPays, learningPays_holds,
+      { requires := "There is an agent that, on every attempt from the count of the counted members on, solves every counted member, and so solves on each of those attempts more counted members than any agent that keeps nothing of its experience solves on any attempt."
+        rulesOut := "A class that meets the record and in which no agent ever solves more counted members than every agent that keeps nothing of its experience."
+        allows := "An agent other than the class's own: the record reads no agent of the class."
+        freedom := "Which agent; the one the proof names counts its steps and keeps the attempt on which what it was given first showed success." }, .derived⟩,
+    ⟨rulesOutUnreachableGoals, rulesOutUnreachableGoals_holds,
+      { requires := "The trial unreachable, the two-door class base with members whose goals no state meets, does not meet the record."
+        rulesOut := "That trial; base meets the record (doors_big)."
+        allows := "Nothing more."
+        freedom := "Everything but being that one trial." }, .derived⟩,
+    ⟨rulesOutShownGoals, rulesOutShownGoals_holds,
+      { requires := "The trial revealing, base with members that show their door when they ask for one, does not meet the record."
+        rulesOut := "That trial; base meets the record (doors_big)."
+        allows := "Nothing more."
+        freedom := "Everything but being that one trial." }, .derived⟩,
+    ⟨rulesOutOneAnswer, rulesOutOneAnswer_holds,
+      { requires := "The trial sameDoor, base with two members that have the same door, so that trying that door solves both, does not meet the record."
+        rulesOut := "That trial; base meets the record (doors_big)."
+        allows := "Nothing more."
+        freedom := "Everything but being that one trial." }, .derived⟩,
+    ⟨rulesOutHiddenSuccess, rulesOutHiddenSuccess_holds,
+      { requires := "The trial hidden, base with members that pay nothing and show the same thing whether the door tried was right or wrong, does not meet the record."
+        rulesOut := "That trial; base meets the record (doors_big)."
+        allows := "Nothing more."
+        freedom := "Everything but being that one trial." }, .derived⟩,
+    ⟨rulesOutNoRecurrence, rulesOutNoRecurrence_holds,
+      { requires := "The trial stuck, base with members that never ask for a door again after the first is tried, does not meet the record."
+        rulesOut := "That trial; base meets the record (doors_big)."
+        allows := "Nothing more."
+        freedom := "Everything but being that one trial." }, .derived⟩,
+    ⟨trapsAllowed, trapsAllowed_holds,
+      { requires := "Nothing more: some trial that meets the record has a member and an action such that, from the state that action leads to from the member's start, no list of actions that fits in the rest of an attempt reaches a state that meets the member's goal, while a list no longer reaches one from the member's start."
+        rulesOut := "Nothing."
+        allows := "A trap within an attempt."
+        freedom := "Whether a class has traps." }, .derived⟩]
 
 end AcornVerif.Intent.BigClass

@@ -7,6 +7,7 @@ import AcornVerif.Intent.DayCycleConsequences
 import AcornVerif.Intent.HashConsequences
 import AcornVerif.Intent.WorldInterfaceConsequences
 import AcornVerif.Intent.OneStreamConsequences
+import AcornVerif.Intent.BigClassConsequences
 import Acorn.Host.Task
 
 /-!
@@ -195,6 +196,16 @@ against it (rbeauchamp/acorn#215). -/
 def oneStreamDeliverable : Deliverable OneStream.Learner where
   record := OneStream.oneStream
   explanation := OneStream.oneStreamExplained
+  answers := []
+  keeps := (keeps_iff _ _).mpr fun _ h => nomatch h
+
+/-- The deliverable of the record of contract 2: the record, its explanation, and no kept answer,
+since its restatement stands as the owner's and every consequence it shows is derived from it. No
+implementation is declared for it until the executing code is proved against it
+(rbeauchamp/acorn#214). -/
+def bigClassDeliverable : Deliverable Postcondition.Trial where
+  record := BigClass.bigClass
+  explanation := BigClass.bigClassExplained
   answers := []
   keeps := (keeps_iff _ _).mpr fun _ h => nomatch h
 
