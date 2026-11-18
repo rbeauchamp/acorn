@@ -56,6 +56,16 @@ theorem reads_class (w : Trial) (A : Agent w.Obs w.Act) (f : List Rat → Rat)
 
 /-! ## What the record requires -/
 
+/-- **Condition (c) bounds the counted members.** Where the counted members are distinct and some
+number below their count bounds how many members of the class an agent that keeps nothing of its
+experience solves on any attempt, that number bounds how many of the counted members it solves. -/
+theorem counted_bound {w : Trial} (h : frozenShareSmall.holds w) :
+    ∃ k, k < w.counted.length ∧
+      ∀ B : Agent w.Obs w.Act, KeepsNothing B → ∀ n, w.solvedCount B n ≤ k := by
+  obtain ⟨hn, k, hk, hb⟩ := h
+  exact ⟨k, hk, fun B hB n => hb B hB n (w.counted.filter fun i => w.solves B i n)
+    (List.Pairwise.filter _ hn) fun i hi => (List.mem_filter.mp hi).2⟩
+
 /-- **No agent that keeps nothing solves the whole class.** -/
 def noFrozenAgentSolvesAll : Consequence Trial :=
   ⟨"no agent that keeps nothing of its experience solves every counted member on an attempt",
@@ -64,7 +74,7 @@ def noFrozenAgentSolvesAll : Consequence Trial :=
 
 theorem noFrozenAgentSolvesAll_holds : noFrozenAgentSolvesAll.HoldsOf bigClass :=
   fun _ hw B hB n =>
-    let ⟨_, hk, h⟩ := (bigClass_meets.mp hw).2.2.1
+    let ⟨_, hk, h⟩ := counted_bound (bigClass_meets.mp hw).2.2.1
     Nat.lt_of_le_of_lt (h B hB n) hk
 
 /-- **The class counts at least one member.** -/
@@ -73,7 +83,7 @@ def hasCountedMember : Consequence Trial :=
 
 theorem hasCountedMember_holds : hasCountedMember.HoldsOf bigClass := by
   intro w hw he
-  obtain ⟨k, hk, _⟩ := (bigClass_meets.mp hw).2.2.1
+  obtain ⟨k, hk, _⟩ := counted_bound (bigClass_meets.mp hw).2.2.1
   rw [he] at hk
   exact Nat.not_lt_zero k hk
 
@@ -179,7 +189,8 @@ def firstAttemptSmall : Consequence Trial :=
 
 theorem firstAttemptSmall_holds : firstAttemptSmall.HoldsOf bigClass := by
   intro w hw
-  obtain ⟨_, ⟨R, hR⟩, ⟨k, hk, hfrozen⟩, _, _⟩ := bigClass_meets.mp hw
+  obtain ⟨_, ⟨R, hR⟩, hshare, _, _⟩ := bigClass_meets.mp hw
+  obtain ⟨k, hk, hfrozen⟩ := counted_bound hshare
   refine ⟨k, hk, fun A => Nat.le_trans ?_ (hfrozen (script R A) (script_keepsNothing R A) 0)⟩
   show (w.counted.filter fun i => w.solves A i 0).length ≤
     (w.counted.filter fun i => w.solves (script R A) i 0).length
@@ -484,7 +495,8 @@ def learningPays : Consequence Trial :=
 
 theorem learningPays_holds : learningPays.HoldsOf bigClass := by
   intro w hw
-  obtain ⟨hreach, _, ⟨k, hk, hfrozen⟩, ⟨signal, hsignal⟩, hrecur⟩ := bigClass_meets.mp hw
+  obtain ⟨hreach, _, hshare, ⟨signal, hsignal⟩, hrecur⟩ := bigClass_meets.mp hw
+  obtain ⟨k, hk, hfrozen⟩ := counted_bound hshare
   have first : w.Index := w.counted[0]'(Nat.lt_of_le_of_lt (Nat.zero_le k) hk)
   have a : w.Act :=
     (w.agent.act w.agent.initial ((w.member first).observe (w.member first).start, 0)).1
@@ -604,11 +616,11 @@ theorem rulesOutShownGoals_holds : rulesOutShownGoals.HoldsOf bigClass :=
   fun _ hw he => revealing_fails (he ▸ hw)
 
 theorem sameDoor_fails : ¬ bigClass.Meets sameDoor := fun h => by
-  obtain ⟨k, hk, hf⟩ := (bigClass_meets.mp h).2.2.1
-  have h2 : sameDoor.solvedCount (always true) 0 ≤ k :=
-    hf (always true) (always_keepsNothing true) 0
+  obtain ⟨_, k, hk, hf⟩ := (bigClass_meets.mp h).2.2.1
+  have h2 : ([true, false] : List Bool).length ≤ k :=
+    hf (always true) (always_keepsNothing true) 0 [true, false] nodup_true_false (by decide)
   have hk' : k < 2 := hk
-  have h3 : sameDoor.solvedCount (always true) 0 = 2 := by decide
+  have h3 : ([true, false] : List Bool).length = 2 := rfl
   omega
 
 /-- **A class that one fixed way of acting solves is ruled out**: the trial `sameDoor`, whose two
@@ -834,18 +846,13 @@ theorem pits_goalsConcealed : goalsConcealed.holds pits :=
     | fell => rfl
     | over => rfl⟩
 
-/-- How many members of the class with a trap an agent solves on an attempt. -/
-theorem pits_solvedCount (A : Agent (Option Bool) Bool) (n : Nat) :
-    pits.solvedCount A n = tally (pits.solves A true n) (pits.solves A false n) := by
-  show ([true, false].filter fun i => pits.solves A i n).length = _
-  cases h1 : pits.solves A true n <;>
-    cases h2 : pits.solves A false n <;> simp only [List.filter, h1, h2] <;> rfl
-
 theorem pits_frozenShareSmall : frozenShareSmall.holds pits :=
-  ⟨1, Nat.lt_succ_self 1, fun (B : Agent (Option Bool) Bool) hB n => by
-    rw [pits_solvedCount, pits_solves, pits_solves, keepsNothing_pitTried hB,
-      keepsNothing_pitTried hB]
-    cases (B.act (drift B (none, 0) (3 * n)) (none, 0)).1 <;> decide⟩
+  ⟨nodup_true_false, 1, Nat.lt_succ_self 1,
+    fun (B : Agent (Option Bool) Bool) hB n l hl hs =>
+    length_le_one_of_all_eq (B.act (drift B (none, 0) (3 * n)) (none, 0)).1 l hl fun i hi => by
+      have h := hs i hi
+      rw [pits_solves, keepsNothing_pitTried hB] at h
+      exact (beq_iff_eq.mp h).symm⟩
 
 theorem pits_successShows : successShows.holds pits :=
   ⟨fun (o : Option Bool × Rat) => o.1 == some true,
@@ -946,22 +953,6 @@ theorem lopsided_goalsConcealed : goalsConcealed.holds lopsided :=
       exact Bool.noConfusion hf
     | miss => rfl⟩
 
-theorem lopsided_frozenShareSmall : frozenShareSmall.holds lopsided :=
-  ⟨1, Nat.lt_succ_self 1, fun (B : Agent (Option Bool) Bool) hB n => by
-    have h0 : lopsided.solves B (0 : Nat) n = (guess B n == true) := by
-      rw [lopsided_solves, keepsNothing_tried 1 hB]
-      rfl
-    have h1 : lopsided.solves B (1 : Nat) n = (guess B n == false) := by
-      rw [lopsided_solves, keepsNothing_tried 1 hB]
-      rfl
-    have hc : lopsided.solvedCount B n =
-        tally (lopsided.solves B (0 : Nat) n) (lopsided.solves B (1 : Nat) n) := by
-      show (([0, 1] : List Nat).filter fun i => lopsided.solves B i n).length = _
-      cases h1 : lopsided.solves B (0 : Nat) n <;>
-        cases h2 : lopsided.solves B (1 : Nat) n <;> simp only [List.filter, h1, h2] <;> rfl
-    rw [hc, h0, h1]
-    cases guess B n <;> decide⟩
-
 theorem lopsided_successShows : successShows.holds lopsided :=
   ⟨fun (o : Option Bool × Rat) => o.1 == some true,
     fun (A : Agent (Option Bool) Bool) (i : Nat) t => by
@@ -972,11 +963,6 @@ theorem lopsided_successShows : successShows.holds lopsided :=
 
 theorem lopsided_attemptsRecur : attemptsRecur.holds lopsided :=
   fun (A : Agent (Option Bool) Bool) (i : Nat) n => door_ask 1 (lopsidedDoor i) A n
-
-/-- **The lopsided class meets the record.** -/
-theorem lopsided_big : bigClass.Meets lopsided :=
-  bigClass_meets.mpr ⟨lopsided_goalsReachable, lopsided_goalsConcealed, lopsided_frozenShareSmall,
-    lopsided_successShows, lopsided_attemptsRecur⟩
 
 /-- In the lopsided class the agent that always tries the first door, which keeps nothing of its
 experience, solves every member but the member 1 on every attempt. -/
@@ -989,13 +975,53 @@ theorem lopsided_always (i n : Nat) (h : i ≠ 1) :
   rw [hd]
   rfl
 
+/-- **The lopsided class fails condition (c), and that condition alone.** One agent that keeps
+nothing of its experience solves three distinct members on an attempt, more than the two the class
+counts; the class meets the other four properties. -/
+theorem lopsided_fails : ¬ frozenShareSmall.holds lopsided := fun ⟨_, k, hk, h⟩ => by
+  have hn : ([0, 2, 3] : List Nat).Nodup :=
+    List.nodup_cons.mpr ⟨by simp, nodup_pair (by decide)⟩
+  have hall : ∀ i ∈ ([0, 2, 3] : List Nat),
+      lopsided.solves (always true : Agent (Option Bool) Bool) i 0 = true := by
+    intro i hi
+    have hne : i ≠ 1 := by
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+      omega
+    exact lopsided_always i 0 hne
+  have h3 : ([0, 2, 3] : List Nat).length ≤ k :=
+    h (always true : Agent (Option Bool) Bool) (always_keepsNothing true) 0
+      ([0, 2, 3] : List Nat) hn hall
+  have hk' : k < 2 := hk
+  have hl : ([0, 2, 3] : List Nat).length = 3 := rfl
+  omega
+
+theorem lopsided_others :
+    goalsReachable.holds lopsided ∧ goalsConcealed.holds lopsided ∧
+      successShows.holds lopsided ∧ attemptsRecur.holds lopsided :=
+  ⟨lopsided_goalsReachable, lopsided_goalsConcealed, lopsided_successShows,
+    lopsided_attemptsRecur⟩
+
+/-- **A class one fixed way all but solves is ruled out, however few of its members it counts**:
+the trial `lopsided`, in which trying the first door solves every member but one. Its neighbour is
+`base`. -/
+def rulesOutUncountedShare : Consequence Trial :=
+  ⟨"the trial lopsided, in which one fixed action solves every member but one while two members \
+    are counted, is ruled out", .entailment, fun w => w ≠ lopsided⟩
+
+theorem rulesOutUncountedShare_holds : rulesOutUncountedShare.HoldsOf bigClass :=
+  fun _ hw he => lopsided_fails (bigClass_meets.mp (he ▸ hw)).2.2.1
+
 /-! ## This record and the postcondition's -/
 
-/-- **The postcondition already asks for condition (c).** A trial that meets the postcondition's
-record has an agent that solves, on some attempt, more counted members than any agent that keeps
-nothing of its experience solves on any attempt, so such an agent never solves them all. -/
-theorem frozenShareSmall_of_postcondition {w : Trial} (h : postcondition.Meets w) :
-    frozenShareSmall.holds w := by
+/-- **The postcondition gives the bound of condition (c) over the counted members only.** A trial
+that meets the postcondition's record has an agent that solves, on some attempt, more counted
+members than any agent that keeps nothing of its experience solves on any attempt, so some number
+below their count bounds how many of the counted members such an agent solves. The postcondition
+says nothing of the members a class does not count, nor that the counted members are distinct, so
+it does not give condition (c). -/
+theorem countedShare_of_postcondition {w : Trial} (h : postcondition.Meets w) :
+    ∃ k, k < w.counted.length ∧
+      ∀ B : Agent w.Obs w.Act, KeepsNothing B → ∀ n, w.solvedCount B n ≤ k := by
   obtain ⟨n, -, hn⟩ := solvesMoreInTime_holds w h
   have hle : w.solvedCount w.agent n ≤ w.counted.length := List.length_filter_le _ _
   have hpos := hn (shell w.agent) (shell_keepsNothing _) 0

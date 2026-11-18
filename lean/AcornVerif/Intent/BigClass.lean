@@ -43,8 +43,9 @@ The five properties are the record's reading of sentences 4 and 6:
 * `goalsConcealed` is condition (b): there is one reference world such that, in every agent's run in
   a member, until a state first meets the member's goal the member gives the agent what the
   reference world gives it.
-* `frozenShareSmall` is condition (c): some number smaller than the count of the counted members
-  bounds how many of them an agent that keeps nothing of its experience solves on any attempt.
+* `frozenShareSmall` is condition (c): the counted members are distinct, and some number smaller
+  than their count bounds how many members of the class, counted or not, an agent that keeps
+  nothing of its experience solves on any attempt.
 * `successShows` is the first half of sentence 6: one reading of what a member gives an agent says,
   at every time of every run, whether the member's goal is met then.
 * `attemptsRecur` is the second half of sentence 6, with "coherent enough over time" read as: each
@@ -67,8 +68,11 @@ formalization and recorded in the record's confirmation file:
   agent's run, not one fixed state.
 * Condition (b) is stated with one reference world that every member looks like, in observation and
   in reward, until its goal is first met.
-* "Only a small share", in condition (c), asks that the share is never the whole of the counted
-  members. How small the share is, is the margin between the bound and their count.
+* "Only a small share", in condition (c), is a count: an agent that keeps nothing of its
+  experience solves, on any attempt, fewer members of the class than the class counts distinct
+  members. How small the share is, is the margin between the bound and that count. The record
+  states no measure, so a class in which such an agent solves infinitely many members fails (c)
+  whatever share of the class they are.
 * "Success must show" is one reading of the observation and the reward that serves every member and
   is not told which member it reads.
 * "Coherent enough over time" is the recurrence above. A class of worlds with no restarts would need
@@ -115,13 +119,16 @@ def goalsConcealed : Clause Trial :=
       (∀ u, u ≤ t → (w.member i).goal (w.stateAt A i u) = false) →
         given (w.member i) A t = given R A t⟩
 
-/-- Condition (c): some number smaller than the count of the counted members bounds how many of
-them an agent that keeps nothing of its experience solves on any attempt. -/
+/-- Condition (c): the counted members are distinct, and some number smaller than their count
+bounds the length of every list of distinct members of the class, counted or not, that an agent
+that keeps nothing of its experience solves on one attempt. -/
 def frozenShareSmall : Clause Trial :=
-  ⟨"on every attempt, an agent that keeps nothing of its experience solves at most a number of \
-    the counted members that is smaller than their count", fun w =>
-    ∃ k, k < w.counted.length ∧
-      ∀ B : Agent w.Obs w.Act, KeepsNothing B → ∀ n, w.solvedCount B n ≤ k⟩
+  ⟨"the counted members are distinct, and on every attempt an agent that keeps nothing of its \
+    experience solves at most a number of the class's members that is smaller than the count of \
+    the counted members", fun w =>
+    w.counted.Nodup ∧ ∃ k, k < w.counted.length ∧
+      ∀ B : Agent w.Obs w.Act, KeepsNothing B → ∀ (n : Nat) (l : List w.Index), l.Nodup →
+        (∀ i ∈ l, w.solves B i n = true) → l.length ≤ k⟩
 
 /-- The first half of sentence 6: one reading of what a member gives an agent says, at every time
 of every agent's run in every member, whether the state then meets the member's goal. -/
@@ -250,11 +257,31 @@ theorem doors_goalsConcealed : goalsConcealed.holds (doors total pay X) :=
       exact Bool.noConfusion hf
     | miss => rfl⟩
 
+/-- A list of distinct elements that are all one element has at most one element. -/
+theorem length_le_one_of_all_eq {α : Type} (x : α) :
+    ∀ l : List α, l.Nodup → (∀ i ∈ l, i = x) → l.length ≤ 1
+  | [], _, _ => Nat.zero_le 1
+  | [_], _, _ => Nat.le_refl 1
+  | a :: b :: _, hn, h => by
+    have ha : a = x := h a (List.mem_cons_self ..)
+    have hb : b = x := h b (List.mem_cons_of_mem _ (List.mem_cons_self ..))
+    exact absurd (List.mem_cons_self ..) (hb ▸ ha ▸ (List.nodup_cons.mp hn).1)
+
+/-- Two different elements make a list of distinct elements. -/
+theorem nodup_pair {α : Type} {a b : α} (h : a ≠ b) : [a, b].Nodup :=
+  List.nodup_cons.mpr ⟨fun hm => h (List.mem_singleton.mp hm),
+    List.nodup_cons.mpr ⟨List.not_mem_nil, List.nodup_nil⟩⟩
+
+/-- The two doors are distinct. -/
+theorem nodup_true_false : ([true, false] : List Bool).Nodup :=
+  nodup_pair fun h => Bool.noConfusion h
+
 theorem doors_frozenShareSmall : frozenShareSmall.holds (doors total pay X) :=
-  ⟨1, Nat.lt_succ_self 1, fun (B : Agent (Option Bool) Bool) hB n => by
-    rw [doors_solvedCount, doors_solves, doors_solves, keepsNothing_tried pay hB,
-      keepsNothing_tried pay hB]
-    cases guess B n <;> decide⟩
+  ⟨nodup_true_false, 1, Nat.lt_succ_self 1, fun (B : Agent (Option Bool) Bool) hB n l hl hs =>
+    length_le_one_of_all_eq (guess B n) l hl fun i hi => by
+      have h := hs i hi
+      rw [doors_solves, keepsNothing_tried pay hB] at h
+      exact (beq_iff_eq.mp h).symm⟩
 
 theorem doors_successShows : successShows.holds (doors total pay X) :=
   ⟨fun (o : Option Bool × Rat) => o.1 == some true,
@@ -350,11 +377,11 @@ theorem bigClass_o3 : O3 bigClass := by
       (h finder false 0 (fun u hu => by cases Nat.le_zero.mp hu; rfl)).symm
     have e' : some true = some false := congrArg Prod.fst e
     exact absurd e' (by decide)
-  · refine ⟨sameDoor, fun ⟨k, hk, h⟩ => ?_⟩
-    have h2 : sameDoor.solvedCount (always true) 0 ≤ k :=
-      h (always true) (always_keepsNothing true) 0
+  · refine ⟨sameDoor, fun ⟨_, k, hk, h⟩ => ?_⟩
+    have h2 : ([true, false] : List Bool).length ≤ k :=
+      h (always true) (always_keepsNothing true) 0 [true, false] nodup_true_false (by decide)
     have hk' : k < 2 := hk
-    have h3 : sameDoor.solvedCount (always true) 0 = 2 := by decide
+    have h3 : ([true, false] : List Bool).length = 2 := rfl
     omega
   · refine ⟨hidden, fun ⟨signal, h⟩ => ?_⟩
     have h1 : signal (some false, 0) = true := h (always true) true 1

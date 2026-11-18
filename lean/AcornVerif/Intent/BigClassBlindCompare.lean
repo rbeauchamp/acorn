@@ -289,13 +289,16 @@ of the actions `false` and then `true`, which counts its steps. So the record's 
 which bounds every agent that keeps nothing of its experience, fails of `clocked`. -/
 theorem clocked_player :
     KeepsNothing (player [false, true] true : Agent Unit Bool) ∧
-      clocked.solvedCount (player [false, true] true : Agent Unit Bool) 0 = 2 :=
+      ∀ b ∈ ([true, false] : List Bool),
+        clocked.solves (player [false, true] true : Agent Unit Bool) b 0 = true :=
   ⟨player_keepsNothing _ _, by decide⟩
 
-theorem clocked_not_mine : ¬ frozenShareSmall.holds clocked := fun ⟨k, hk, h⟩ => by
-  have h2 := h (player [false, true] true : Agent Unit Bool) (player_keepsNothing _ _) 0
-  rw [clocked_player.2] at h2
+theorem clocked_not_mine : ¬ frozenShareSmall.holds clocked := fun ⟨_, k, hk, h⟩ => by
+  have h2 : ([true, false] : List Bool).length ≤ k :=
+    h (player [false, true] true : Agent Unit Bool) (player_keepsNothing _ _) 0 [true, false]
+      nodup_true_false clocked_player.2
   have hk' : k < 2 := hk
+  have hl : ([true, false] : List Bool).length = 2 := rfl
   omega
 
 end AcornVerif.Intent.BigClass.Compare

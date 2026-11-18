@@ -548,20 +548,28 @@ theorem visits_goalsConcealed (stated : PaysAtGoals family goals pay met)
   rw [given_eq, given_eq]
   exact congrArg (fun shown => (shown, pay shown)) percept
 
-/-- Condition (c): in a class that conceals its goals, with a covering bound below the count of the
-counted members, an agent that keeps nothing of its experience solves at most the bound of them on
-every attempt. -/
+/-- Condition (c): in a class that conceals its goals, with distinct counted members and a covering
+bound below their count, an agent that keeps nothing of its experience solves at most the bound of
+the class's members, counted or not, on every attempt. -/
 theorem visits_frozenShareSmall (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)
     (many : bound < counted.length) :
     BigClass.frozenShareSmall.holds (visitsTrial family length horizon lapses pay met counted
         agent) :=
-  ⟨bound, many, fun (other : WorldInterface.Agent (Percept interface) (Act interface)) frozen
-      attempt =>
-    frozen_bound family goals length horizon lapses pay met counted agent stated hidden covered
-        distinct other
-      frozen attempt⟩
+  ⟨distinct, bound, many,
+    fun (other : WorldInterface.Agent (Percept interface) (Act interface)) frozen attempt
+      (solved : List family.Index) apart each => by
+    classical
+    have every : ∀ index ∈ solved.toFinset,
+        SolvesOnVisit family goals length (kernelAgent pay other) attempt index :=
+      fun index inside =>
+        (solves_iff family goals length horizon lapses pay met counted agent stated other index
+            attempt).mp
+          (each index (List.mem_toFinset.mp inside))
+    have few := visits_need hidden covered (keepsNothing_experienceFree pay other frozen) attempt _
+      every
+    exact le_trans (le_of_eq (List.toFinset_card_of_nodup apart).symm) few⟩
 
 /-- Success shows in the reward: at every time of every run, the reward a member gives is one
 exactly when its goal is met then. -/
