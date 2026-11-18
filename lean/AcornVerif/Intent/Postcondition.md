@@ -76,6 +76,36 @@ Each consequence the explanation shows is recorded there as derived from the res
 | on its first attempt the agent may earn no more than an agent that keeps nothing of its experience | `noFirstAttemptAdvantage_holds` | sentence 6 |
 | the agent may fail to solve a member on its first attempt | `firstAttemptMayFail_holds` | sentence 6 |
 
+## The status of each consequence
+
+Each row has exactly one status: derived from what the owner confirmed, confirmed by the owner, or decided on the owner's behalf. What the owner confirmed is words; no Lean form and no theorem is the owner's.
+
+| Consequence | Status |
+|---|---|
+| The promise is stated in reward, and the advantage is promised eventually with a bound to come next | Confirmed by the owner, in words: the fork choices F-A and F-B of 2026-11-03 |
+| Once solved, a member is solved again on every later attempt before a stated attempt, but for at most a stated number of them, while its attempts start from the same state | Confirmed by the owner, in words: 2026-11-17 |
+| The advantage is read before that stated attempt as well, early enough that the promise of solving again still applies to it | Confirmed by the owner, in words: 2026-11-17 |
+| The stated number is how many later attempts the agent may miss | Confirmed by the owner, in words: 2026-11-18 |
+| `rewardCountsMembers`: among the agents compared, more reward on an attempt exactly when more members solved on it | Derived: sentence 2 and fork F-A |
+| That the lemma is asked across any two attempts and on all attempts | Decided on the owner's behalf |
+| `earnsMoreInTime`: on an attempt before the horizon the agent earns more than any agent that keeps nothing | Derived: sentences 3 and 5, choice A |
+| That the advantage is one attempt's, in that attempt's reward | Decided on the owner's behalf, the per-attempt reading being settled by fork F-B |
+| The exact room after the attempt of the advantage, with `solvesMoreInTime_holds`, `unmet_of_lapses` and `keepsSolving_of_lapses` | Decided on the owner's behalf |
+| Who keeps nothing of its experience (`KeepsNothing`) | Decided on the owner's behalf |
+| `keepsSolving`: solving again before the horizon except on at most the lapses, while the attempts start from the same state | Derived: sentence 4 as the owner read it on 2026-11-17 and 2026-11-18 |
+| That the lapses are counted once for each member, and that the same problem is the same starting state in the agent's own run | Decided on the owner's behalf |
+| `learnsAgain`: a member whose problem left and came back for good is solved again on some later attempt | Decided on the owner's behalf |
+| That nothing is asked of the ability to learn again where the problem is never put again, with `mayStopAtHorizon_holds` | Decided on the owner's behalf; the question it leaves is open under obligation 10 and is the owner's when a class with campaigns is stated |
+| The twelve consequences shown with the record | Derived, each from the words its row names in the table above |
+| The trials O3 refutes: `unpaid`, `fixed` and `forgetful` (`postcondition_o3`) | Derived, as the shown consequences that rule each out |
+| The trial `quitting`, which O3 refutes by the fourth property | Decided on the owner's behalf, with that property |
+| The freedom O5 leaves: `base` and `doubled` both meet the record and aggregate an attempt's rewards differently (`postcondition_not_o5_eq`) | Derived: sentence 2 has each class state how reward is aggregated |
+| No domain hypothesis; the shape; the subject's type; goals, runs and the members counted | Decided on the owner's behalf |
+| That an advantage on a first attempt is not excluded | Decided on the owner's behalf |
+| The three items not proved | Decided on the owner's behalf to state as they are |
+| Each difference the second readings found | As its row says below: settled by the owner's words, which is derived, or decided on the owner's behalf; point A is confirmed by the owner |
+| Each assumption that remains | Decided on the owner's behalf to accept, with what would remove it |
+
 ## Decided on the owner's behalf
 
 The restatement leaves these open below the owner's level. Each was decided by the agent that wrote the record, unless another role is named, for the reason given; none is the owner's. Each was checked against the second readings.

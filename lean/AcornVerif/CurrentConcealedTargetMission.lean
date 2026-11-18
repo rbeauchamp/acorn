@@ -98,14 +98,14 @@ a parameter and leaves that choice, which rbeauchamp/acorn#249 decides, open; th
 itself is one such agent (`executedAgent_actsAs`).
 
 How the promises are asked. The owner decided on 2026-11-17 (rbeauchamp/acorn#248) that the
-postcondition's record reads its promises before a visit the class states, its horizon. The
-agent solves again what it has solved on every later visit before the horizon but for a number
-of each member's visits that the class states, its lapses
-(`AcornVerif.Intent.Postcondition.keepsSolving`), and its advantage comes on a visit that leaves
-more later visits than the lapses before the horizon
-(`AcornVerif.Intent.Postcondition.earnsMoreInTime`). The executed agent is asked the first in two
-parts: on a later visit in which it takes no exploratory action it solves the member again, and
-a count of the visits in which it explores. The premises above are those parts. From them the
+postcondition's record reads its promises of solving again and of the advantage before a visit
+the class states, its horizon. The agent solves again what it has solved on every later visit
+before the horizon but for a number of each member's visits that the class states, its lapses
+(`AcornVerif.Intent.Postcondition.keepsSolving`), and its advantage comes early enough before the
+horizon, which the record reads, on the owner's behalf, as a visit that leaves more later visits
+than the lapses (`AcornVerif.Intent.Postcondition.earnsMoreInTime`). The executed agent is asked
+the first in two parts: on a later visit in which it takes no exploratory action it solves the
+member again, and a count of the visits in which it explores. The premises above are those parts. From them the
 agent separates before the stated visit, on the one visit that is admitted for enough of the
 members it has found (`AcornVerif.Kernel.separatesBy_of_finds_on`), and retains before the
 horizon but for the lapses (`AcornVerif.Kernel.RetainsOn.but`). The reason is that the executed
