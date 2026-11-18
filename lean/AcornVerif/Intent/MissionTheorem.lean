@@ -50,9 +50,8 @@ What the proposition does not say:
   agent it is the fifth step of rbeauchamp/acorn#215.
 * That a host runs the agent as the rung's run does. The run of a rung is contract 1's faithful
   run by how it is built, which says nothing of a host.
-* Two of the four records, those of contract 2 and of the postcondition, have not had their blind
-  second reading or their confirmation file (rbeauchamp/acorn#214, rbeauchamp/acorn#219), so the
-  proposition can change with them.
+* One of the four records, that of the postcondition, has not had its blind second reading or its
+  confirmation file (rbeauchamp/acorn#219), so the proposition can change with it.
 -/
 
 namespace AcornVerif.Intent.MissionTheorem

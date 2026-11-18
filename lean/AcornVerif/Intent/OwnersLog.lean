@@ -34,13 +34,18 @@ which add nothing to the text. It holds, in order:
   their source, to the record's current revision. The owner saw the restatement, not the record or
   its rendering; the record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`, says
   so, and gives the status of every consequence of the record;
-* and, in the same way for the record of contract 3, the invariants of learning from one stream
+* in the same way for the record of contract 3, the invariants of learning from one stream
   (`AcornVerif.Intent.OneStream.oneStream`), the origin statement `contract-3-origin` and the
   owner's answer `contract-3-restatement`, attached to that record's current revision by the
-  agents' decision, as its confirmation file, `lean/AcornVerif/Intent/OneStream.md`, says.
+  agents' decision, as its confirmation file, `lean/AcornVerif/Intent/OneStream.md`, says;
+* and, in the same way for the record of contract 2, what makes a class of worlds big
+  (`AcornVerif.Intent.BigClass.bigClass`), the origin statement `contract-2-origin` and the
+  owner's answer `contract-2-restatement`, attached to that record's current revision by the
+  agents' decision, as its confirmation file, `lean/AcornVerif/Intent/BigClass.md`, says.
 
 The statements that are the owner's are the declaration, the delegation, and the origins and answers
-of 2026-11-03 for the interface record and the record of learning from one stream; every other
+of 2026-11-03 for the interface record, the record of learning from one stream and the record of
+contract 2; every other
 answer names the agents, acting under the delegation, as its author. The decisions on the day and hash records and their reasons are
 described in `AcornVerif.Intent.Decisions` and the pilot report, `docs/spec-first-pilot.md`.
 -/
@@ -49,8 +54,8 @@ namespace AcornVerif.Intent.Decisions
 
 open LeanIntent
 
-/-- The owners' log of the day, hash, interface and one-stream records, each statement as
-`LeanIntent.Statement.print` writes it. -/
+/-- The owners' log of the day, hash, interface, one-stream and contract 2 records, each statement
+as `LeanIntent.Statement.print` writes it. -/
 def ownersLog : OwnersLog := ⟨[
   "lean-intent statement 1\n\
     kind owners\n\
@@ -24236,6 +24241,2062 @@ def ownersLog : OwnersLog := ⟨[
     mory (AcornVerif.Intent.WorldInterface.World.Obs AcornVerif.Intent.WorldInterface.attempts\
     ) (AcornVerif.Intent.WorldInterface.World.Act AcornVerif.Intent.WorldInterface.attempts) A\
     cornVerif.Intent.OneStream.lastSeen) => Bool.false)\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.HoldsOf\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (c : LeanIntent.Consequence.{u} W), ∀ (r : LeanIntent.IntentRecord.{u}\
+    \x20W), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {W : Type u} => fun (c : LeanIntent.Consequence.{u} W) => fun (r : LeanIntent.Intent\
+    Record.{u} W) => LeanIntent.Consequence.HoldsOf.match_1.{1} (fun (x : LeanIntent.Consequen\
+    ce.Kind) => Prop) (@LeanIntent.Consequence.kind.{u} W c) (fun («_» : Unit) => ∀ (w : W), @\
+    LeanIntent.IntentRecord.Meets.{u} W r w → @LeanIntent.Consequence.holds.{u} W c w) (fun («\
+    _» : Unit) => @LeanIntent.HasInstance.{u + 1} W (fun (w : W) => And (@LeanIntent.IntentRec\
+    ord.Meets.{u} W r w) (@LeanIntent.Consequence.holds.{u} W c w)))\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), Type u\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 1 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Consequence.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (name : String), ∀ (kind : LeanIntent.Consequence.Kind), ∀ (holds : W \
+    → Prop), LeanIntent.Consequence.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.Kind\n\
+    | \n\
+    | An inductive type. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Consequence.Kind.entailment\n\
+    | \n\
+    | ```lean\n\
+    | LeanIntent.Consequence.Kind\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Consequence.Kind.possibility\n\
+    | \n\
+    | ```lean\n\
+    | LeanIntent.Consequence.Kind\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.HoldsOf.match_1\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : LeanIntent.Consequence.Kind → Sort u_1), ∀ (x : LeanIntent.Consequence.Kind)\
+    , ∀ (h_1 : ∀ («_» : Unit), motive LeanIntent.Consequence.Kind.entailment), ∀ (h_2 : ∀ («_»\
+    \x20: Unit), motive LeanIntent.Consequence.Kind.possibility), motive x\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : LeanIntent.Consequence.Kind → Sort u_1) => fun (x : LeanIntent.Consequence\
+    .Kind) => fun (h_1 : ∀ («_» : Unit), motive LeanIntent.Consequence.Kind.entailment) => fun\
+    \x20(h_2 : ∀ («_» : Unit), motive LeanIntent.Consequence.Kind.possibility) => @LeanIntent.Con\
+    sequence.Kind.casesOn.{u_1} (fun (x_1 : LeanIntent.Consequence.Kind) => motive x_1) x (h_1\
+    \x20Unit.unit) (h_2 Unit.unit)\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.Kind.casesOn\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {motive : ∀ (t : LeanIntent.Consequence.Kind), Sort u}, ∀ (t : LeanIntent.Consequence.\
+    Kind), ∀ (entailment : motive LeanIntent.Consequence.Kind.entailment), ∀ (possibility : mo\
+    tive LeanIntent.Consequence.Kind.possibility), motive t\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {motive : ∀ (t : LeanIntent.Consequence.Kind), Sort u} => fun (t : LeanIntent.Conseq\
+    uence.Kind) => fun (entailment : motive LeanIntent.Consequence.Kind.entailment) => fun (po\
+    ssibility : motive LeanIntent.Consequence.Kind.possibility) => @LeanIntent.Consequence.Kin\
+    d.rec.{u} motive entailment possibility t\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.kind\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 2, counted after the parameters in the type of LeanIntent.Con\
+    sequence's constructor, of its argument number 2, a value of LeanIntent.Consequence. It ha\
+    s the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.Consequence.{u} W), LeanIntent.Consequence.Kind\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Consequence.holds\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 3, counted after the parameters in the type of LeanIntent.Con\
+    sequence's constructor, of its argument number 2, a value of LeanIntent.Consequence. It ha\
+    s the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.Consequence.{u} W), W → Prop\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.HasInstance\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {α : Sort u_1}, ∀ (P : α → Prop), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {α : Sort u_1} => fun (P : α → Prop) => @Exists.{u_1} α (fun (a : α) => P a)\n\
+    | ```\n\
+    | \n\
+    | ## Lean's own libraries\n\
+    | \n\
+    | The declarations of Lean's own libraries (Init, Std, Lean and Lake) are not printed: the\
+    y are those of Lean 4.35.0, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, which made th\
+    is text. A declaration is counted as Lean's own when Lean found the module that declares i\
+    t in that release's library directory.\n\
+    | \n\
+    consequence the record's plain restatement\n\
+    shown as entailment\n\
+    predicate 1\n\
+    | the record, as its revision prints it\n\
+    verdict confirmed\n\
+    ",
+  "lean-intent statement 1\n\
+    kind origin\n\
+    project acorn\n\
+    id contract-2-origin\n\
+    date 2026-11-03\n\
+    words 1\n\
+    | yes, and ensure that each contract has citations and links to their sources\n\
+    by owner\n\
+    as owner\n\
+    record AcornVerif.Intent.BigClass.bigClass\n\
+    written by the agents that work on Acorn, from a research report on the research of Rich S\
+    utton, Khurram Javed and Oak Lab that a second model from another provider audited\n\
+    had read 1\n\
+    | the research report and Acorn's mission contract, whose design sections describe the exe\
+    cuting kernel, host and agent; which parts of the implementation, and of the work that cha\
+    nged it, they read while writing is not recorded\n\
+    adopted 7\n\
+    | 1. A world is big relative to an agent: the agent is far smaller than the world in the r\
+    esources its task needs, so it can neither fully perceive the world's state nor represent \
+    the value or best action for every state.\n\
+    | 2. Bigness belongs to the pair, and a class can be made big by restricting the agent ins\
+    tead of enlarging the world.\n\
+    | 3. A big world need not change by itself: a fixed world can appear to change to an agent\
+    \x20that cannot represent a good solution everywhere, and when its experience is temporally c\
+    oherent, continuing to learn can then do better than any fixed solution.\n\
+    | 4. Acorn states bigness as conditions that a class of worlds can be proved to meet. (a) \
+    Every goal can be reached from where its attempt starts. This does not rule out traps: an \
+    action may still lead somewhere the goal can no longer be reached. (b) Until a goal is fir\
+    st reached, nothing the agent perceives tells it which goal it faces. (c) An agent that ke\
+    eps nothing from its experience solves only a small share of the class on any attempt. (d)\
+    \x20The class poses more separate problems than the agent's memory can hold solutions to at o\
+    nce, so the agent must keep learning and give up what it no longer needs.\n\
+    | 5. Today's proved class meets (a) to (c); (d) is the target for larger classes.\n\
+    | 6. Each class must also let the agent learn: success must show in what the agent perceiv\
+    es, and experience must be coherent enough over time for continued learning to pay.\n\
+    | 7. Each class is a step toward \"any big world\", never a narrowing of it.\n\
+    ",
+  "lean-intent statement 1\n\
+    kind answer\n\
+    project acorn\n\
+    id contract-2-restatement\n\
+    date 2026-11-03\n\
+    words 1\n\
+    | yes, and ensure that each contract has citations and links to their sources\n\
+    by owner\n\
+    as owner\n\
+    record AcornVerif.Intent.BigClass.bigClass\n\
+    revision 1210\n\
+    | # The intent record AcornVerif.Intent.BigClass.bigClass\n\
+    | \n\
+    | Each statement is printed exactly: as Lean syntax that Lean elaborates back to the term \
+    its kernel checks, binder names and metadata aside, from the root namespace with nothing o\
+    pened. The plain words after it are written by a model and are trusted, not proved.\n\
+    | \n\
+    | ## Shape\n\
+    | \n\
+    | ### The subject\n\
+    | \n\
+    | ```lean\n\
+    | LeanIntent.Shape.value.{1} AcornVerif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Nothing of its own: the subject is a class of worlds with what the class\
+    \x20states and one agent, the subject of the postcondition's record, declared a plain value.\n\
+    | - **Rules out:** Nothing of its own.\n\
+    | - **Still allows:** A class whose members' observations, rewards, dynamics or goals are \
+    constant, which a shape that asks every function to vary with its input would not admit.\n\
+    | - **Freedom O5 leaves:** Two trials that meet the record may differ in everything the pr\
+    operties leave open: the members and how many there are, which of them are counted, how lo\
+    ng an attempt lasts, and all the record does not read, which is the agent, how reward is a\
+    ggregated, the horizon and the lapses.\n\
+    | \n\
+    | ## Domain hypotheses\n\
+    | \n\
+    | None.\n\
+    | \n\
+    | ## Properties\n\
+    | \n\
+    | ### every member's goal can be reached within an attempt from the state the attempt star\
+    ts in\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => ∀ (A : AcornVerif.Intent.WorldInterfa\
+    ce.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Tr\
+    ial.Act w)), ∀ (i : AcornVerif.Intent.Postcondition.Trial.Index w), ∀ (n : Nat), @Exists.{\
+    1} (List.{0} (AcornVerif.Intent.Postcondition.Trial.Act w)) (fun (acts : List.{0} (AcornVe\
+    rif.Intent.Postcondition.Trial.Act w)) => And (@LT.lt.{0} Nat instLTNat (@List.length.{0} \
+    (AcornVerif.Intent.Postcondition.Trial.Act w) acts) (AcornVerif.Intent.Postcondition.Trial\
+    .length w)) (@Eq.{1} Bool (@AcornVerif.Intent.Postcondition.Member.goal (AcornVerif.Intent\
+    .Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Inte\
+    nt.Postcondition.Trial.member w i) (@AcornVerif.Intent.BigClass.afterActions (AcornVerif.I\
+    ntent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif\
+    .Intent.Postcondition.Trial.member w i) (AcornVerif.Intent.Postcondition.Trial.stateAt w A\
+    \x20i (@HMul.hMul.{0, 0, 0} Nat Nat Nat (@instHMul.{0} Nat instMulNat) (AcornVerif.Intent.Pos\
+    tcondition.Trial.length w) n)) acts)) Bool.true))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** For every agent, every member and every attempt, some list of actions, f\
+    ewer than an attempt has steps, leads from the state the member's world is in when that at\
+    tempt of that agent's run starts to a state that meets the member's goal. The list may be \
+    empty: a goal already met where the attempt starts counts as reached.\n\
+    | - **Rules out:** A class with a member whose goal no state meets, or whose goal lies as \
+    many steps from where some attempt starts as an attempt has, or more.\n\
+    | - **Still allows:** An action after which the goal can no longer be reached within the a\
+    ttempt: the property asks nothing of the states an agent's own actions lead to.\n\
+    | - **Freedom O5 leaves:** Which actions reach each goal, and how many, below the attempt'\
+    s length.\n\
+    | \n\
+    | ### until a member's goal is first met, the member gives every agent what one reference \
+    world gives it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Exists.{2} (AcornVerif.Intent.Postco\
+    ndition.Member (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondit\
+    ion.Trial.Act w)) (fun (R : AcornVerif.Intent.Postcondition.Member (AcornVerif.Intent.Post\
+    condition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) => ∀ (A : AcornVerif\
+    .Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Int\
+    ent.Postcondition.Trial.Act w)), ∀ (i : AcornVerif.Intent.Postcondition.Trial.Index w), ∀ \
+    (t : Nat), (∀ (u : Nat), @LE.le.{0} Nat instLENat u t → @Eq.{1} Bool (@AcornVerif.Intent.P\
+    ostcondition.Member.goal (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.\
+    Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.member w i) (AcornVerif.\
+    Intent.Postcondition.Trial.stateAt w A i u)) Bool.false) → @Eq.{1} (Prod.{0, 0} (AcornVeri\
+    f.Intent.Postcondition.Trial.Obs w) Rat) (@AcornVerif.Intent.BigClass.given (AcornVerif.In\
+    tent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.\
+    Intent.Postcondition.Trial.member w i) A t) (@AcornVerif.Intent.BigClass.given (AcornVerif\
+    .Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) R A t))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is one reference world, over the class's observations and actions,\
+    \x20such that for every agent, every member and every time up to and including which no state\
+    \x20of the agent's run in the member has met the member's goal, the member gives the agent at\
+    \x20that time the observation and the reward the reference world gives it at the same time of\
+    \x20its run there.\n\
+    | - **Rules out:** A class two of whose members give some agent different observations or \
+    rewards at a time up to which neither's goal has been met in its run.\n\
+    | - **Still allows:** Anything a member gives once its goal has been met in the run, the t\
+    ime it is first met included; and a member whose goal is met where its run starts, of whic\
+    h the property asks nothing.\n\
+    | - **Freedom O5 leaves:** The reference world, and what the members give after their goal\
+    s are met.\n\
+    | \n\
+    | ### the counted members are distinct, and on every attempt an agent that keeps nothing o\
+    f its experience solves at most a number of the class's members that is smaller than the c\
+    ount of the counted members\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => And (@List.Nodup.{0} (AcornVerif.Inte\
+    nt.Postcondition.Trial.Index w) (AcornVerif.Intent.Postcondition.Trial.counted w)) (@Exist\
+    s.{1} Nat (fun (k : Nat) => And (@LT.lt.{0} Nat instLTNat k (@List.length.{0} (AcornVerif.\
+    Intent.Postcondition.Trial.Index w) (AcornVerif.Intent.Postcondition.Trial.counted w))) (∀\
+    \x20(B : AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w)\
+    \x20(AcornVerif.Intent.Postcondition.Trial.Act w)), @AcornVerif.Intent.Postcondition.KeepsNot\
+    hing (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.\
+    Act w) B → ∀ (n : Nat), ∀ (l : List.{0} (AcornVerif.Intent.Postcondition.Trial.Index w)), \
+    @List.Nodup.{0} (AcornVerif.Intent.Postcondition.Trial.Index w) l → (∀ (i : AcornVerif.Int\
+    ent.Postcondition.Trial.Index w), @Membership.mem.{0, 0} (AcornVerif.Intent.Postcondition.\
+    Trial.Index w) (List.{0} (AcornVerif.Intent.Postcondition.Trial.Index w)) (@List.instMembe\
+    rship.{0} (AcornVerif.Intent.Postcondition.Trial.Index w)) l i → @Eq.{1} Bool (AcornVerif.\
+    Intent.Postcondition.Trial.solves w B i n) Bool.true) → @LE.le.{0} Nat instLENat (@List.le\
+    ngth.{0} (AcornVerif.Intent.Postcondition.Trial.Index w) l) k)))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The counted members are distinct, and there is a number, smaller than th\
+    eir count, such that for every agent that keeps nothing of its experience, every attempt a\
+    nd every list of distinct members of the class, counted or not, each of which that agent s\
+    olves on that attempt, the list has at most that number of members.\n\
+    | - **Rules out:** A class in which some agent that keeps nothing of its experience solves\
+    , on one attempt, as many distinct members as the class counts, or more: a class such an a\
+    gent solves whole, a class in which it solves infinitely many members whatever share of th\
+    e class they are, and a class that counts a member twice or counts none.\n\
+    | - **Still allows:** Such an agent solving, on an attempt, any number of the class's memb\
+    ers below the count of the counted members; and members the class does not count.\n\
+    | - **Freedom O5 leaves:** The bound, and which distinct members, more than the bound, the\
+    \x20class counts.\n\
+    | \n\
+    | ### one reading of what a member gives an agent says, at every time, whether the member'\
+    s goal is met then\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Exists.{1} (Prod.{0, 0} (AcornVerif.\
+    Intent.Postcondition.Trial.Obs w) Rat → Bool) (fun (signal : Prod.{0, 0} (AcornVerif.Inten\
+    t.Postcondition.Trial.Obs w) Rat → Bool) => ∀ (A : AcornVerif.Intent.WorldInterface.Agent \
+    (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w\
+    )), ∀ (i : AcornVerif.Intent.Postcondition.Trial.Index w), ∀ (t : Nat), @Eq.{1} Bool (sign\
+    al (@AcornVerif.Intent.BigClass.given (AcornVerif.Intent.Postcondition.Trial.Obs w) (Acorn\
+    Verif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.member w i)\
+    \x20A t)) (@AcornVerif.Intent.Postcondition.Member.goal (AcornVerif.Intent.Postcondition.Tria\
+    l.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Tr\
+    ial.member w i) (AcornVerif.Intent.Postcondition.Trial.stateAt w A i t)))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is one function of an observation with a reward, the same for ever\
+    y member, that returns, for every agent, every member and every time, from what the member\
+    \x20gives the agent at that time of its run, whether the state the member's world is then in \
+    meets the member's goal.\n\
+    | - **Rules out:** A class in which a state that meets a member's goal and a state that do\
+    es not, of the same member or of two, give the same observation and reward; and a class in\
+    \x20which success shows only after the goal is met.\n\
+    | - **Still allows:** Success shown by the observation, by the reward, or by both.\n\
+    | - **Freedom O5 leaves:** The function, and where in what the agent is given success show\
+    s.\n\
+    | \n\
+    | ### every attempt of every agent's run in a member starts from the state the member's wo\
+    rld starts in\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => ∀ (A : AcornVerif.Intent.WorldInterfa\
+    ce.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Tr\
+    ial.Act w)), ∀ (i : AcornVerif.Intent.Postcondition.Trial.Index w), ∀ (n : Nat), @Eq.{1} (\
+    @AcornVerif.Intent.Postcondition.Member.State (AcornVerif.Intent.Postcondition.Trial.Obs w\
+    ) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.mem\
+    ber w i)) (AcornVerif.Intent.Postcondition.Trial.stateAt w A i (@HMul.hMul.{0, 0, 0} Nat N\
+    at Nat (@instHMul.{0} Nat instMulNat) (AcornVerif.Intent.Postcondition.Trial.length w) n))\
+    \x20(@AcornVerif.Intent.Postcondition.Member.start (AcornVerif.Intent.Postcondition.Trial.Obs\
+    \x20w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.m\
+    ember w i))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** For every agent, every member and every attempt, the member's world is, \
+    when that attempt of the agent's run in it starts, in the state the world starts in.\n\
+    | - **Rules out:** A class with a member that is not back in its start state after every a\
+    ttempt's length of steps, whatever the agent does: a member with no restart, one whose res\
+    tart waits on an action of the agent, or one whose attempts end early.\n\
+    | - **Still allows:** Anything between two starts.\n\
+    | - **Freedom O5 leaves:** What a member's world does within an attempt.\n\
+    | \n\
+    | ## Vocabulary\n\
+    | \n\
+    | ### the agent keeps nothing of its experience, a predicate over `AcornVerif.Intent.Postc\
+    ondition.Entrant`\n\
+    | \n\
+    | ```lean\n\
+    | fun (c : AcornVerif.Intent.Postcondition.Entrant) => @AcornVerif.Intent.Postcondition.Ke\
+    epsNothing (AcornVerif.Intent.Postcondition.Trial.Obs (@Sigma.fst.{1, 1} AcornVerif.Intent\
+    .Postcondition.Trial (fun (w : AcornVerif.Intent.Postcondition.Trial) => AcornVerif.Intent\
+    .WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Pos\
+    tcondition.Trial.Act w)) c)) (AcornVerif.Intent.Postcondition.Trial.Act (@Sigma.fst.{1, 1}\
+    \x20AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcondition.Trial) =>\
+    \x20AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (Aco\
+    rnVerif.Intent.Postcondition.Trial.Act w)) c)) (@Sigma.snd.{1, 1} AcornVerif.Intent.Postco\
+    ndition.Trial (fun (w : AcornVerif.Intent.Postcondition.Trial) => AcornVerif.Intent.WorldI\
+    nterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondit\
+    ion.Trial.Act w)) c)\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The memory the agent's answer produces is the same whatever observation \
+    and reward it was given.\n\
+    | - **Rules out:** An agent whose next memory depends on what it perceives.\n\
+    | - **Still allows:** An agent whose action reads what it is given at that step, and one t\
+    hat counts its steps.\n\
+    | - **Freedom O5 leaves:** None of its own: it is a definition the properties are written \
+    in.\n\
+    | \n\
+    | ### the member's goal is met at the time, a predicate over `AcornVerif.Intent.BigClass.M\
+    oment`\n\
+    | \n\
+    | ```lean\n\
+    | fun (c : AcornVerif.Intent.BigClass.Moment) => @Eq.{1} Bool (@AcornVerif.Intent.Postcond\
+    ition.Member.goal (AcornVerif.Intent.Postcondition.Trial.Obs (@Sigma.fst.{1, 1} AcornVerif\
+    .Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcondition.Trial) => Prod.{1, 0\
+    } (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (A\
+    cornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (AcornVerif.Intent.Postcondition\
+    .Trial.Index w) Nat)) c)) (AcornVerif.Intent.Postcondition.Trial.Act (@Sigma.fst.{1, 1} Ac\
+    ornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcondition.Trial) => Pr\
+    od.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.O\
+    bs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (AcornVerif.Intent.Postc\
+    ondition.Trial.Index w) Nat)) c)) (AcornVerif.Intent.Postcondition.Trial.member (@Sigma.fs\
+    t.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcondition.T\
+    rial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondit\
+    ion.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (AcornVerif.I\
+    ntent.Postcondition.Trial.Index w) Nat)) c) (@Prod.fst.{0, 0} (AcornVerif.Intent.Postcondi\
+    tion.Trial.Index (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornV\
+    erif.Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (A\
+    cornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w))\
+    \x20(Prod.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c)) Nat (@Prod.snd.{1,\
+    \x200} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs (@S\
+    igma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcond\
+    ition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Pos\
+    tcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (Acorn\
+    Verif.Intent.Postcondition.Trial.Index w) Nat)) c)) (AcornVerif.Intent.Postcondition.Trial\
+    .Act (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.\
+    Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.In\
+    tent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0\
+    } (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c))) (Prod.{0, 0} (AcornVerif.Inte\
+    nt.Postcondition.Trial.Index (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun\
+    \x20(w : AcornVerif.Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterf\
+    ace.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.T\
+    rial.Act w)) (Prod.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c)) Nat) (\
+    @Sigma.snd.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postco\
+    ndition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.P\
+    ostcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (Aco\
+    rnVerif.Intent.Postcondition.Trial.Index w) Nat)) c)))) (AcornVerif.Intent.Postcondition.T\
+    rial.stateAt (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif\
+    .Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (Acorn\
+    Verif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Pr\
+    od.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c) (@Prod.fst.{1, 0} (Acor\
+    nVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs (@Sigma.fst.\
+    {1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcondition.Tri\
+    al) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postconditio\
+    n.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (AcornVerif.Int\
+    ent.Postcondition.Trial.Index w) Nat)) c)) (AcornVerif.Intent.Postcondition.Trial.Act (@Si\
+    gma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcondi\
+    tion.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Post\
+    condition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (AcornV\
+    erif.Intent.Postcondition.Trial.Index w) Nat)) c))) (Prod.{0, 0} (AcornVerif.Intent.Postco\
+    ndition.Trial.Index (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : Aco\
+    rnVerif.Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent\
+    \x20(AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act \
+    w)) (Prod.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c)) Nat) (@Sigma.sn\
+    d.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcondition.T\
+    rial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondit\
+    ion.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (AcornVerif.I\
+    ntent.Postcondition.Trial.Index w) Nat)) c)) (@Prod.fst.{0, 0} (AcornVerif.Intent.Postcond\
+    ition.Trial.Index (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : Acorn\
+    Verif.Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (\
+    AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)\
+    ) (Prod.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c)) Nat (@Prod.snd.{1\
+    , 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs (@\
+    Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcon\
+    dition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Po\
+    stcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (Acor\
+    nVerif.Intent.Postcondition.Trial.Index w) Nat)) c)) (AcornVerif.Intent.Postcondition.Tria\
+    l.Act (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent\
+    .Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.I\
+    ntent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, \
+    0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c))) (Prod.{0, 0} (AcornVerif.Int\
+    ent.Postcondition.Trial.Index (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fu\
+    n (w : AcornVerif.Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInter\
+    face.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.\
+    Trial.Act w)) (Prod.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c)) Nat) \
+    (@Sigma.snd.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postc\
+    ondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.\
+    Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (Ac\
+    ornVerif.Intent.Postcondition.Trial.Index w) Nat)) c))) (@Prod.snd.{0, 0} (AcornVerif.Inte\
+    nt.Postcondition.Trial.Index (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun\
+    \x20(w : AcornVerif.Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterf\
+    ace.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.T\
+    rial.Act w)) (Prod.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c)) Nat (@\
+    Prod.snd.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.T\
+    rial.Obs (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Int\
+    ent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVeri\
+    f.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{\
+    0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c)) (AcornVerif.Intent.Postcon\
+    dition.Trial.Act (@Sigma.fst.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornV\
+    erif.Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (A\
+    cornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w))\
+    \x20(Prod.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c))) (Prod.{0, 0} (Aco\
+    rnVerif.Intent.Postcondition.Trial.Index (@Sigma.fst.{1, 1} AcornVerif.Intent.Postconditio\
+    n.Trial (fun (w : AcornVerif.Intent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent\
+    .WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Pos\
+    tcondition.Trial.Act w)) (Prod.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)\
+    ) c)) Nat) (@Sigma.snd.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.I\
+    ntent.Postcondition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVe\
+    rif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod\
+    .{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index w) Nat)) c))))) Bool.true\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** At the given time of the given agent's run in the given member, the memb\
+    er's world is in a state that meets the member's goal.\n\
+    | - **Rules out:** A time at which the state does not meet the goal.\n\
+    | - **Still allows:** Every time at which it does, the first of the run included.\n\
+    | - **Freedom O5 leaves:** None of its own: it is a definition the properties are written \
+    in.\n\
+    | \n\
+    | ## Consequences\n\
+    | \n\
+    | ### no agent that keeps nothing of its experience solves every counted member on an atte\
+    mpt, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => ∀ (B : AcornVerif.Intent.WorldInterfa\
+    ce.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Tr\
+    ial.Act w)), @AcornVerif.Intent.Postcondition.KeepsNothing (AcornVerif.Intent.Postconditio\
+    n.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) B → ∀ (n : Nat), @LT.lt.{0} N\
+    at instLTNat (AcornVerif.Intent.Postcondition.Trial.solvedCount w B n) (@List.length.{0} (\
+    AcornVerif.Intent.Postcondition.Trial.Index w) (AcornVerif.Intent.Postcondition.Trial.coun\
+    ted w))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Every agent that keeps nothing of its experience solves, on every attemp\
+    t, fewer of the counted members than the class counts.\n\
+    | - **Rules out:** A class in which some agent that keeps nothing of its experience solves\
+    \x20every counted member on some attempt.\n\
+    | - **Still allows:** Such an agent solving all the counted members but one.\n\
+    | - **Freedom O5 leaves:** How many fewer.\n\
+    | \n\
+    | ### the class counts at least one member, an entailment: every subject that meets the re\
+    cord satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Ne.{1} (List.{0} (AcornVerif.Intent.\
+    Postcondition.Trial.Index w)) (AcornVerif.Intent.Postcondition.Trial.counted w) (@List.nil\
+    .{0} (AcornVerif.Intent.Postcondition.Trial.Index w))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The class counts at least one member.\n\
+    | - **Rules out:** A class that counts no member.\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Which members the class counts.\n\
+    | \n\
+    | ### on its first attempt, every agent solves at most a number of the counted members tha\
+    t is smaller than their count, an entailment: every subject that meets the record satisfie\
+    s it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Exists.{1} Nat (fun (k : Nat) => And\
+    \x20(@LT.lt.{0} Nat instLTNat k (@List.length.{0} (AcornVerif.Intent.Postcondition.Trial.Inde\
+    x w) (AcornVerif.Intent.Postcondition.Trial.counted w))) (∀ (A : AcornVerif.Intent.WorldIn\
+    terface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postconditi\
+    on.Trial.Act w)), @LE.le.{0} Nat instLENat (AcornVerif.Intent.Postcondition.Trial.solvedCo\
+    unt w A (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))) k))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is a number, smaller than the count of the counted members, such t\
+    hat every agent, one that learns included, solves at most that many of the counted members\
+    \x20on its first attempt.\n\
+    | - **Rules out:** A class in which some agent solves every counted member on its first at\
+    tempt.\n\
+    | - **Still allows:** Any agent doing better on a later attempt.\n\
+    | - **Freedom O5 leaves:** The bound, and what agents do after their first attempt.\n\
+    | \n\
+    | ### some agent solves every counted member on every attempt from their count on, more th\
+    an any agent that keeps nothing of its experience solves on any attempt, an entailment: ev\
+    ery subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Exists.{2} (AcornVerif.Intent.WorldI\
+    nterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondit\
+    ion.Trial.Act w)) (fun (A : AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Post\
+    condition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) => ∀ (n : Nat), @LE.\
+    le.{0} Nat instLENat (@List.length.{0} (AcornVerif.Intent.Postcondition.Trial.Index w) (Ac\
+    ornVerif.Intent.Postcondition.Trial.counted w)) n → And (∀ (i : AcornVerif.Intent.Postcond\
+    ition.Trial.Index w), @Membership.mem.{0, 0} (AcornVerif.Intent.Postcondition.Trial.Index \
+    w) (List.{0} (AcornVerif.Intent.Postcondition.Trial.Index w)) (@List.instMembership.{0} (A\
+    cornVerif.Intent.Postcondition.Trial.Index w)) (AcornVerif.Intent.Postcondition.Trial.coun\
+    ted w) i → @Eq.{1} Bool (AcornVerif.Intent.Postcondition.Trial.solves w A i n) Bool.true) \
+    (∀ (B : AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs \
+    w) (AcornVerif.Intent.Postcondition.Trial.Act w)), @AcornVerif.Intent.Postcondition.KeepsN\
+    othing (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Tria\
+    l.Act w) B → ∀ (k : Nat), @LT.lt.{0} Nat instLTNat (AcornVerif.Intent.Postcondition.Trial.\
+    solvedCount w B k) (AcornVerif.Intent.Postcondition.Trial.solvedCount w A n)))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is an agent that, on every attempt from the count of the counted m\
+    embers on, solves every counted member, and so solves on each of those attempts more count\
+    ed members than any agent that keeps nothing of its experience solves on any attempt.\n\
+    | - **Rules out:** A class that meets the record and in which no agent ever solves more co\
+    unted members than every agent that keeps nothing of its experience.\n\
+    | - **Still allows:** An agent other than the class's own: the record reads no agent of th\
+    e class.\n\
+    | - **Freedom O5 leaves:** Which agent; the one the proof names counts its steps and keeps\
+    \x20the attempt on which what it was given first showed success.\n\
+    | \n\
+    | ### the trial unreachable, whose members' goals no state meets, is ruled out, an entailm\
+    ent: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Ne.{2} AcornVerif.Intent.Postconditi\
+    on.Trial w AcornVerif.Intent.BigClass.unreachable\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The trial unreachable, the two-door class base with members whose goals \
+    no state meets, does not meet the record.\n\
+    | - **Rules out:** That trial; base meets the record (doors_big).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one trial.\n\
+    | \n\
+    | ### the trial revealing, whose members show their door before it is tried, is ruled out,\
+    \x20an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Ne.{2} AcornVerif.Intent.Postconditi\
+    on.Trial w AcornVerif.Intent.BigClass.revealing\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The trial revealing, base with members that show their door when they as\
+    k for one, does not meet the record.\n\
+    | - **Rules out:** That trial; base meets the record (doors_big).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one trial.\n\
+    | \n\
+    | ### an agent that begins every attempt with the memory it began its run with solves, on \
+    every attempt, at most a number of the counted members that is smaller than their count, a\
+    n entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Exists.{1} Nat (fun (k : Nat) => And\
+    \x20(@LT.lt.{0} Nat instLTNat k (@List.length.{0} (AcornVerif.Intent.Postcondition.Trial.Inde\
+    x w) (AcornVerif.Intent.Postcondition.Trial.counted w))) (∀ (A : AcornVerif.Intent.WorldIn\
+    terface.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postconditi\
+    on.Trial.Act w)), (∀ (i : AcornVerif.Intent.Postcondition.Trial.Index w), ∀ (n : Nat), @Eq\
+    .{1} (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.Postcondition.Tria\
+    l.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) A) (@Prod.snd.{0, 0} (@AcornVerif.I\
+    ntent.Postcondition.Member.State (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif\
+    .Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.member w i)) (@A\
+    cornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif.Intent.Postcondition.Trial.Obs w)\
+    \x20(AcornVerif.Intent.Postcondition.Trial.Act w) A) (@AcornVerif.Intent.Postcondition.Member\
+    .run (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.\
+    Act w) (AcornVerif.Intent.Postcondition.Trial.member w i) A (@HMul.hMul.{0, 0, 0} Nat Nat \
+    Nat (@instHMul.{0} Nat instMulNat) (AcornVerif.Intent.Postcondition.Trial.length w) n))) (\
+    @AcornVerif.Intent.WorldInterface.Agent.initial (AcornVerif.Intent.Postcondition.Trial.Obs\
+    \x20w) (AcornVerif.Intent.Postcondition.Trial.Act w) A)) → ∀ (n : Nat), @LE.le.{0} Nat instLE\
+    Nat (AcornVerif.Intent.Postcondition.Trial.solvedCount w A n) k))\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** There is a number, smaller than the count of the counted members, such t\
+    hat every agent whose memory, in every member, is at the start of every attempt the memory\
+    \x20it began its run with solves at most that many of the counted members on every attempt.\n\
+    | - **Rules out:** A class in which an agent that forgets everything at the start of each \
+    attempt, whatever it keeps within one, solves every counted member on some attempt.\n\
+    | - **Still allows:** Such an agent keeping what it perceives within an attempt.\n\
+    | - **Freedom O5 leaves:** The bound, and what such an agent does within an attempt.\n\
+    | \n\
+    | ### the trial sameDoor, whose members are all solved by trying one door, is ruled out, a\
+    n entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Ne.{2} AcornVerif.Intent.Postconditi\
+    on.Trial w AcornVerif.Intent.BigClass.sameDoor\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The trial sameDoor, base with two members that have the same door, so th\
+    at trying that door solves both, does not meet the record.\n\
+    | - **Rules out:** That trial; base meets the record (doors_big).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one trial.\n\
+    | \n\
+    | ### the trial lopsided, in which one fixed action solves every member but one while two \
+    members are counted, is ruled out, an entailment: every subject that meets the record sati\
+    sfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Ne.{2} AcornVerif.Intent.Postconditi\
+    on.Trial w AcornVerif.Intent.BigClass.lopsided\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The trial lopsided, a class of two-door members named by the natural num\
+    bers, all with the first door but the member 1, that counts the members 0 and 1, does not \
+    meet the record: the agent that always tries the first door solves every member but one.\n\
+    | - **Rules out:** That trial; base meets the record (doors_big).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one trial.\n\
+    | \n\
+    | ### the trial hidden, whose members show and pay the same whether or not their goal is m\
+    et, is ruled out, an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Ne.{2} AcornVerif.Intent.Postconditi\
+    on.Trial w AcornVerif.Intent.BigClass.hidden\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The trial hidden, base with members that pay nothing and show the same t\
+    hing whether the door tried was right or wrong, does not meet the record.\n\
+    | - **Rules out:** That trial; base meets the record (doors_big).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one trial.\n\
+    | \n\
+    | ### the trial stuck, whose members never return to the state they start in, is ruled out\
+    , an entailment: every subject that meets the record satisfies it\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Ne.{2} AcornVerif.Intent.Postconditi\
+    on.Trial w AcornVerif.Intent.BigClass.stuck\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** The trial stuck, base with members that never ask for a door again after\
+    \x20the first is tried, does not meet the record.\n\
+    | - **Rules out:** That trial; base meets the record (doors_big).\n\
+    | - **Still allows:** Nothing more.\n\
+    | - **Freedom O5 leaves:** Everything but being that one trial.\n\
+    | \n\
+    | ### a class may have a trap: an action at the start of an attempt after which the member\
+    's goal can no longer be reached within the attempt, though as few actions as remain reach\
+    \x20it from the member's start, a possibility: some subject that meets the record satisfies i\
+    t\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.BigClass.HasTrap\n\
+    | ```\n\
+    | \n\
+    | - **Requires:** Nothing more: some trial that meets the record has a member and an actio\
+    n such that, from the state that action leads to from the member's start, no list of actio\
+    ns that fits in the rest of an attempt reaches a state that meets the member's goal, while\
+    \x20a list no longer reaches one from the member's start.\n\
+    | - **Rules out:** Nothing.\n\
+    | - **Still allows:** A trap within an attempt.\n\
+    | - **Freedom O5 leaves:** Whether a class has traps.\n\
+    | \n\
+    | ## Definitions the record's meaning reaches\n\
+    | \n\
+    | These are not statements of the record: each is a declaration that a statement above dep\
+    ends on, or that says what it is for a subject to meet the record and for a consequence to\
+    \x20hold of it as shown, with everything those depend on in turn. Each is printed in full: it\
+    s type, a definition's value, or for a definition by structural or well-founded recursion \
+    the equation that determines it, and an inductive type's constructors, which for a structu\
+    re are its fields; a theorem's proof and an opaque constant's value are not, since no term\
+    \x20that uses them depends on more than their types. Their plain words are those of the state\
+    ments that use them.\n\
+    | \n\
+    | ### LeanIntent.Shape\n\
+    | \n\
+    | An inductive type. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type u → Type (u + 1)\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 1 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Shape.value\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), LeanIntent.Shape.{u} W\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.function\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (A : Type u), ∀ (B : A → Type u), LeanIntent.Shape.{u} (∀ (x : A), B x)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.step\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (S : Type u), LeanIntent.Shape.{u} (S → S)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.stepOn\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (S : Type u), ∀ (I : Type u), LeanIntent.Shape.{u} (S → I → S)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.action\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (S : Type u), ∀ (O : Type u), LeanIntent.Shape.{u} (S → Prod.{u, u} O S)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.actionOn\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (S : Type u), ∀ (I : Type u), ∀ (O : Type u), LeanIntent.Shape.{u} (S → I → Prod.{u, u\
+    } O S)\n\
+    | ```\n\
+    | \n\
+    | #### LeanIntent.Shape.bundle\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ {D : Type u}, ∀ (data : W → D), ∀ (first : LeanIntent.Member.{u} W), ∀\
+    \x20(rest : List.{u + 1} (LeanIntent.Member.{u} W)), LeanIntent.Shape.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Member\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), Type (u + 1)\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 1 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Member.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (name : String), ∀ (In : Type u), ∀ (Out : Type u), ∀ (get : W → In → \
+    Out), LeanIntent.Member.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type 1\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.Postcondition.Trial.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (Obs : Type), ∀ (Act : Type), ∀ (Index : Type), ∀ (member : Index → AcornVerif.Intent.\
+    Postcondition.Member Obs Act), ∀ (counted : List.{0} Index), ∀ (length : Nat), ∀ (total : \
+    List.{0} Rat → Rat), ∀ (horizon : Nat), ∀ (lapses : Nat), ∀ (agent : AcornVerif.Intent.Wor\
+    ldInterface.Agent Obs Act), AcornVerif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (Obs : Type), ∀ (Act : Type), Type 1\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 2 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.Postcondition.Member.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (State : Type), ∀ (start : State), ∀ (observe : State \
+    → Obs), ∀ (reward : State → Rat), ∀ (step : State → Act → State), ∀ (goal : State → Bool),\
+    \x20AcornVerif.Intent.Postcondition.Member Obs Act\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.Agent\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (Obs : Type), ∀ (Act : Type), Type 1\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 2 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.WorldInterface.Agent.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (Memory : Type), ∀ (initial : Memory), ∀ (act : Memory\
+    \x20→ Prod.{0, 0} Obs Rat → Prod.{0, 0} Act Memory), AcornVerif.Intent.WorldInterface.Agent O\
+    bs Act\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.Obs\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 1, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Trial's constructor, of its argument number 1, a value of AcornVerif.Int\
+    ent.Postcondition.Trial. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.Postcondition.Trial), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.Act\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 2, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Trial's constructor, of its argument number 1, a value of AcornVerif.Int\
+    ent.Postcondition.Trial. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.Postcondition.Trial), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.Index\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 3, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Trial's constructor, of its argument number 1, a value of AcornVerif.Int\
+    ent.Postcondition.Trial. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.Postcondition.Trial), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.length\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 6, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Trial's constructor, of its argument number 1, a value of AcornVerif.Int\
+    ent.Postcondition.Trial. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.Postcondition.Trial), Nat\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.goal\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 6, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Member's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.Postcondition.Member. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.Postcondition.Member Obs Act\
+    ), @AcornVerif.Intent.Postcondition.Member.State Obs Act self → Bool\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.State\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 1, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Member's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.Postcondition.Member. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.Postcondition.Member Obs Act\
+    ), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.member\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 4, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Trial's constructor, of its argument number 1, a value of AcornVerif.Int\
+    ent.Postcondition.Trial. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.Postcondition.Trial), AcornVerif.Intent.Postcondition.Trial.\
+    Index self → AcornVerif.Intent.Postcondition.Member (AcornVerif.Intent.Postcondition.Trial\
+    .Obs self) (AcornVerif.Intent.Postcondition.Trial.Act self)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.afterActions\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (M : AcornVerif.Intent.Postcondition.Member Obs Act), \
+    ∀ (s : @AcornVerif.Intent.Postcondition.Member.State Obs Act M), ∀ (acts : List.{0} Act), \
+    @AcornVerif.Intent.Postcondition.Member.State Obs Act M\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {Obs : Type} => fun {Act : Type} => fun (M : AcornVerif.Intent.Postcondition.Member \
+    Obs Act) => fun (s : @AcornVerif.Intent.Postcondition.Member.State Obs Act M) => fun (acts\
+    \x20: List.{0} Act) => @List.foldl.{0, 0} (@AcornVerif.Intent.Postcondition.Member.State Obs \
+    Act M) Act (@AcornVerif.Intent.Postcondition.Member.step Obs Act M) s acts\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.step\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 5, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Member's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.Postcondition.Member. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.Postcondition.Member Obs Act\
+    ), @AcornVerif.Intent.Postcondition.Member.State Obs Act self → Act → @AcornVerif.Intent.P\
+    ostcondition.Member.State Obs Act self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.stateAt\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.Postcondition.Trial), ∀ (A : AcornVerif.Intent.WorldInterface.A\
+    gent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.\
+    Act w)), ∀ (i : AcornVerif.Intent.Postcondition.Trial.Index w), ∀ (t : Nat), @AcornVerif.I\
+    ntent.Postcondition.Member.State (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif\
+    .Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.member w i)\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => fun (A : AcornVerif.Intent.WorldInter\
+    face.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.\
+    Trial.Act w)) => fun (i : AcornVerif.Intent.Postcondition.Trial.Index w) => fun (t : Nat) \
+    => @Prod.fst.{0, 0} (@AcornVerif.Intent.Postcondition.Member.State (AcornVerif.Intent.Post\
+    condition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Po\
+    stcondition.Trial.member w i)) (@AcornVerif.Intent.WorldInterface.Agent.Memory (AcornVerif\
+    .Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) A) (@Acor\
+    nVerif.Intent.Postcondition.Member.run (AcornVerif.Intent.Postcondition.Trial.Obs w) (Acor\
+    nVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.member w i\
+    ) A t)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.Agent.Memory\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 1, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.Agent's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.WorldInterface.Agent. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.WorldInterface.Agent Obs Act\
+    ), Type\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.run\n\
+    | \n\
+    | A definition by structural recursion. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (M : AcornVerif.Intent.Postcondition.Member Obs Act), \
+    ∀ (A : AcornVerif.Intent.WorldInterface.Agent Obs Act), Nat → Prod.{0, 0} (@AcornVerif.Int\
+    ent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterface.Agent.Memory \
+    Obs Act A)\n\
+    | ```\n\
+    | \n\
+    | Its value is not printed: Lean compiles a definition by recursion into a term its syntax\
+    \x20cannot write. In its place is the equation Lean proves for it, `AcornVerif.Intent.Postcon\
+    dition.Member.run.eq_def`, which Lean's kernel checked, stating its value at every argumen\
+    t:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (M : AcornVerif.Intent.Postcondition.Member Obs Act), \
+    ∀ (A : AcornVerif.Intent.WorldInterface.Agent Obs Act), ∀ (x : Nat), @Eq.{1} (Prod.{0, 0} \
+    (@AcornVerif.Intent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterfa\
+    ce.Agent.Memory Obs Act A)) (@AcornVerif.Intent.Postcondition.Member.run Obs Act M A x) (A\
+    cornVerif.Intent.Postcondition.Member.run.match_1.{1} (fun (x_1 : Nat) => Prod.{0, 0} (@Ac\
+    ornVerif.Intent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterface.A\
+    gent.Memory Obs Act A)) x (fun («_» : Unit) => @Prod.mk.{0, 0} (@AcornVerif.Intent.Postcon\
+    dition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A) \
+    (@AcornVerif.Intent.Postcondition.Member.start Obs Act M) (@AcornVerif.Intent.WorldInterfa\
+    ce.Agent.initial Obs Act A)) (fun (t : Nat) => @AcornVerif.Intent.Postcondition.Member.nex\
+    t Obs Act M A (@AcornVerif.Intent.Postcondition.Member.run Obs Act M A t)))\n\
+    | ```\n\
+    | \n\
+    | The equation determines AcornVerif.Intent.Postcondition.Member.run: Lean accepts a defin\
+    ition by structural recursion only when the right of the equation uses the values of Acorn\
+    Verif.Intent.Postcondition.Member.run, and of any function defined together with it, only \
+    at structural subterms of the arguments it recurses on, so only one function, or family of\
+    \x20functions defined together, satisfies their equations. AcornVerif.Intent.Postcondition.Me\
+    mber.run and its equation rest on no axiom but Lean's own.\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.run.match_1\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : Nat → Sort u_1), ∀ (x : Nat), ∀ (h_1 : ∀ («_» : Unit), motive (@OfNat.ofNat.\
+    {0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))), ∀ (h_2 : ∀ (t : Nat), motive (Nat.succ t\
+    )), motive x\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : Nat → Sort u_1) => fun (x : Nat) => fun (h_1 : ∀ («_» : Unit), motive (@Of\
+    Nat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))) => fun (h_2 : ∀ (t : Nat), moti\
+    ve (Nat.succ t)) => @Nat.casesOn.{u_1} (fun (x_1 : Nat) => motive x_1) x (h_1 Unit.unit) (\
+    fun (n : Nat) => h_2 n)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.start\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 2, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Member's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.Postcondition.Member. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.Postcondition.Member Obs Act\
+    ), @AcornVerif.Intent.Postcondition.Member.State Obs Act self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.Agent.initial\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 2, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.Agent's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.WorldInterface.Agent. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.WorldInterface.Agent Obs Act\
+    ), @AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act self\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.next\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (M : AcornVerif.Intent.Postcondition.Member Obs Act), \
+    ∀ (A : AcornVerif.Intent.WorldInterface.Agent Obs Act), ∀ (c : Prod.{0, 0} (@AcornVerif.In\
+    tent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterface.Agent.Memory\
+    \x20Obs Act A)), Prod.{0, 0} (@AcornVerif.Intent.Postcondition.Member.State Obs Act M) (@Acor\
+    nVerif.Intent.WorldInterface.Agent.Memory Obs Act A)\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {Obs : Type} => fun {Act : Type} => fun (M : AcornVerif.Intent.Postcondition.Member \
+    Obs Act) => fun (A : AcornVerif.Intent.WorldInterface.Agent Obs Act) => fun (c : Prod.{0, \
+    0} (@AcornVerif.Intent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInte\
+    rface.Agent.Memory Obs Act A)) => @Prod.mk.{0, 0} (@AcornVerif.Intent.Postcondition.Member\
+    .State Obs Act M) (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A) (@AcornVerif.\
+    Intent.Postcondition.Member.step Obs Act M (@Prod.fst.{0, 0} (@AcornVerif.Intent.Postcondi\
+    tion.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A) c)\
+    \x20(@Prod.fst.{0, 0} Act (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A) (@AcornV\
+    erif.Intent.WorldInterface.Agent.act Obs Act A (@Prod.snd.{0, 0} (@AcornVerif.Intent.Postc\
+    ondition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A\
+    ) c) (@Prod.mk.{0, 0} Obs Rat (@AcornVerif.Intent.Postcondition.Member.observe Obs Act M (\
+    @Prod.fst.{0, 0} (@AcornVerif.Intent.Postcondition.Member.State Obs Act M) (@AcornVerif.In\
+    tent.WorldInterface.Agent.Memory Obs Act A) c)) (@AcornVerif.Intent.Postcondition.Member.r\
+    eward Obs Act M (@Prod.fst.{0, 0} (@AcornVerif.Intent.Postcondition.Member.State Obs Act M\
+    ) (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A) c)))))) (@Prod.snd.{0, 0} Act\
+    \x20(@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A) (@AcornVerif.Intent.WorldInter\
+    face.Agent.act Obs Act A (@Prod.snd.{0, 0} (@AcornVerif.Intent.Postcondition.Member.State \
+    Obs Act M) (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A) c) (@Prod.mk.{0, 0} \
+    Obs Rat (@AcornVerif.Intent.Postcondition.Member.observe Obs Act M (@Prod.fst.{0, 0} (@Aco\
+    rnVerif.Intent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterface.Ag\
+    ent.Memory Obs Act A) c)) (@AcornVerif.Intent.Postcondition.Member.reward Obs Act M (@Prod\
+    .fst.{0, 0} (@AcornVerif.Intent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.\
+    WorldInterface.Agent.Memory Obs Act A) c)))))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.WorldInterface.Agent.act\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 3, counted after the parameters in the type of AcornVerif.Int\
+    ent.WorldInterface.Agent's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.WorldInterface.Agent. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.WorldInterface.Agent Obs Act\
+    ), @AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act self → Prod.{0, 0} Obs Rat → Pro\
+    d.{0, 0} Act (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act self)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.observe\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 3, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Member's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.Postcondition.Member. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.Postcondition.Member Obs Act\
+    ), @AcornVerif.Intent.Postcondition.Member.State Obs Act self → Obs\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Member.reward\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 3 argume\
+    nts and returns field number 4, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Member's constructor, of its argument number 3, a value of AcornVerif.In\
+    tent.Postcondition.Member. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (self : AcornVerif.Intent.Postcondition.Member Obs Act\
+    ), @AcornVerif.Intent.Postcondition.Member.State Obs Act self → Rat\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.given\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (M : AcornVerif.Intent.Postcondition.Member Obs Act), \
+    ∀ (A : AcornVerif.Intent.WorldInterface.Agent Obs Act), ∀ (t : Nat), Prod.{0, 0} Obs Rat\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {Obs : Type} => fun {Act : Type} => fun (M : AcornVerif.Intent.Postcondition.Member \
+    Obs Act) => fun (A : AcornVerif.Intent.WorldInterface.Agent Obs Act) => fun (t : Nat) => @\
+    Prod.mk.{0, 0} Obs Rat (@AcornVerif.Intent.Postcondition.Member.observe Obs Act M (@Prod.f\
+    st.{0, 0} (@AcornVerif.Intent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.Wo\
+    rldInterface.Agent.Memory Obs Act A) (@AcornVerif.Intent.Postcondition.Member.run Obs Act \
+    M A t))) (@AcornVerif.Intent.Postcondition.Member.reward Obs Act M (@Prod.fst.{0, 0} (@Aco\
+    rnVerif.Intent.Postcondition.Member.State Obs Act M) (@AcornVerif.Intent.WorldInterface.Ag\
+    ent.Memory Obs Act A) (@AcornVerif.Intent.Postcondition.Member.run Obs Act M A t)))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.counted\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 1 argume\
+    nts and returns field number 5, counted after the parameters in the type of AcornVerif.Int\
+    ent.Postcondition.Trial's constructor, of its argument number 1, a value of AcornVerif.Int\
+    ent.Postcondition.Trial. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (self : AcornVerif.Intent.Postcondition.Trial), List.{0} (AcornVerif.Intent.Postcondit\
+    ion.Trial.Index self)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.KeepsNothing\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {Obs : Type}, ∀ {Act : Type}, ∀ (A : AcornVerif.Intent.WorldInterface.Agent Obs Act), \
+    Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {Obs : Type} => fun {Act : Type} => fun (A : AcornVerif.Intent.WorldInterface.Agent \
+    Obs Act) => ∀ (m : @AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A), ∀ (o : Prod.\
+    {0, 0} Obs Rat), ∀ (o' : Prod.{0, 0} Obs Rat), @Eq.{1} (@AcornVerif.Intent.WorldInterface.\
+    Agent.Memory Obs Act A) (@Prod.snd.{0, 0} Act (@AcornVerif.Intent.WorldInterface.Agent.Mem\
+    ory Obs Act A) (@AcornVerif.Intent.WorldInterface.Agent.act Obs Act A m o)) (@Prod.snd.{0,\
+    \x200} Act (@AcornVerif.Intent.WorldInterface.Agent.Memory Obs Act A) (@AcornVerif.Intent.Wor\
+    ldInterface.Agent.act Obs Act A m o'))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.solves\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.Postcondition.Trial), ∀ (A : AcornVerif.Intent.WorldInterface.A\
+    gent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.\
+    Act w)), ∀ (i : AcornVerif.Intent.Postcondition.Trial.Index w), ∀ (n : Nat), Bool\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => fun (A : AcornVerif.Intent.WorldInter\
+    face.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.\
+    Trial.Act w)) => fun (i : AcornVerif.Intent.Postcondition.Trial.Index w) => fun (n : Nat) \
+    => @List.any.{0} Nat (AcornVerif.Intent.Postcondition.Trial.attemptTimes w n) (fun (t : Na\
+    t) => @AcornVerif.Intent.Postcondition.Member.goal (AcornVerif.Intent.Postcondition.Trial.\
+    Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Tria\
+    l.member w i) (AcornVerif.Intent.Postcondition.Trial.stateAt w A i t))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.attemptTimes\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.Postcondition.Trial), ∀ (n : Nat), List.{0} Nat\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => fun (n : Nat) => @List.map.{0, 0} Nat\
+    \x20Nat (fun (x : Nat) => @HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) (@H\
+    Mul.hMul.{0, 0, 0} Nat Nat Nat (@instHMul.{0} Nat instMulNat) (AcornVerif.Intent.Postcondi\
+    tion.Trial.length w) n) x) (List.range (AcornVerif.Intent.Postcondition.Trial.length w))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Entrant\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type 1\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @Sigma.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcond\
+    ition.Trial) => AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Postcondition.Tr\
+    ial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.Moment\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type 1\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @Sigma.{1, 1} AcornVerif.Intent.Postcondition.Trial (fun (w : AcornVerif.Intent.Postcond\
+    ition.Trial) => Prod.{1, 0} (AcornVerif.Intent.WorldInterface.Agent (AcornVerif.Intent.Pos\
+    tcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w)) (Prod.{0, 0} (Acorn\
+    Verif.Intent.Postcondition.Trial.Index w) Nat))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Trial.solvedCount\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.Postcondition.Trial), ∀ (A : AcornVerif.Intent.WorldInterface.A\
+    gent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.\
+    Act w)), ∀ (n : Nat), Nat\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => fun (A : AcornVerif.Intent.WorldInter\
+    face.Agent (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.\
+    Trial.Act w)) => fun (n : Nat) => @List.length.{0} (AcornVerif.Intent.Postcondition.Trial.\
+    Index w) (@List.filter.{0} (AcornVerif.Intent.Postcondition.Trial.Index w) (fun (i : Acorn\
+    Verif.Intent.Postcondition.Trial.Index w) => AcornVerif.Intent.Postcondition.Trial.solves \
+    w A i n) (AcornVerif.Intent.Postcondition.Trial.counted w))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.unreachable\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.BigClass.classOf (fun (b : Bool) => have __src : AcornVerif.Intent.Pos\
+    tcondition.Member (Option.{0} Bool) Bool := AcornVerif.Intent.Postcondition.door (@OfNat.o\
+    fNat.{0} Rat (nat_lit 1) (@Rat.instOfNat (nat_lit 1))) b; @AcornVerif.Intent.Postcondition\
+    .Member.mk (Option.{0} Bool) Bool (@AcornVerif.Intent.Postcondition.Member.State (Option.{\
+    0} Bool) Bool __src) (@AcornVerif.Intent.Postcondition.Member.start (Option.{0} Bool) Bool\
+    \x20__src) (@AcornVerif.Intent.Postcondition.Member.observe (Option.{0} Bool) Bool __src) (@A\
+    cornVerif.Intent.Postcondition.Member.reward (Option.{0} Bool) Bool __src) (@AcornVerif.In\
+    tent.Postcondition.Member.step (Option.{0} Bool) Bool __src) (fun (x : @AcornVerif.Intent.\
+    Postcondition.Member.State (Option.{0} Bool) Bool __src) => Bool.false))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.classOf\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (member : Bool → AcornVerif.Intent.Postcondition.Member (Option.{0} Bool) Bool), Acorn\
+    Verif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (member : Bool → AcornVerif.Intent.Postcondition.Member (Option.{0} Bool) Bool) => A\
+    cornVerif.Intent.Postcondition.Trial.mk (Option.{0} Bool) Bool Bool member (@List.cons.{0}\
+    \x20Bool Bool.true (@List.cons.{0} Bool Bool.false (@List.nil.{0} Bool))) (@OfNat.ofNat.{0} N\
+    at (nat_lit 2) (instOfNatNat (nat_lit 2))) (@List.sum.{0} Rat Rat.instAdd (@Zero.ofOfNat0.\
+    {0} Rat (@Rat.instOfNat (nat_lit 0)))) (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (na\
+    t_lit 3))) (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))) AcornVerif.Intent\
+    .Postcondition.finder\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.finder\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.WorldInterface.Agent (Option.{0} Bool) Bool\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | @AcornVerif.Intent.WorldInterface.Agent.mk (Option.{0} Bool) Bool (Prod.{0, 0} (Option.{\
+    0} Bool) Bool) (@Prod.mk.{0, 0} (Option.{0} Bool) Bool (@Option.none.{0} Bool) Bool.true) \
+    (fun (m : Prod.{0, 0} (Option.{0} Bool) Bool) => fun (o : Prod.{0, 0} (Option.{0} Bool) Ra\
+    t) => AcornVerif.Intent.Postcondition.finder.match_1.{1} (fun (x : Option.{0} Bool) => Pro\
+    d.{0, 0} Bool (Prod.{0, 0} (Option.{0} Bool) Bool)) (@Prod.fst.{0, 0} (Option.{0} Bool) Ra\
+    t o) (fun («_» : Unit) => @Prod.mk.{0, 0} Bool (Prod.{0, 0} (Option.{0} Bool) Bool) (@Opti\
+    on.getD.{0} Bool (@Prod.fst.{0, 0} (Option.{0} Bool) Bool m) Bool.true) (@Prod.mk.{0, 0} (\
+    Option.{0} Bool) Bool (@Prod.fst.{0, 0} (Option.{0} Bool) Bool m) (@Option.getD.{0} Bool (\
+    @Prod.fst.{0, 0} (Option.{0} Bool) Bool m) Bool.true))) (fun («_» : Unit) => @Prod.mk.{0, \
+    0} Bool (Prod.{0, 0} (Option.{0} Bool) Bool) Bool.true (@Prod.mk.{0, 0} (Option.{0} Bool) \
+    Bool (@Option.some.{0} Bool (@Prod.snd.{0, 0} (Option.{0} Bool) Bool m)) (@Prod.snd.{0, 0}\
+    \x20(Option.{0} Bool) Bool m))) (fun («_» : Unit) => @Prod.mk.{0, 0} Bool (Prod.{0, 0} (Optio\
+    n.{0} Bool) Bool) Bool.true (@Prod.mk.{0, 0} (Option.{0} Bool) Bool (@Option.some.{0} Bool\
+    \x20(Bool.not (@Prod.snd.{0, 0} (Option.{0} Bool) Bool m))) (@Prod.snd.{0, 0} (Option.{0} Boo\
+    l) Bool m))))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.finder.match_1\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : Option.{0} Bool → Sort u_1), ∀ (x : Option.{0} Bool), ∀ (h_1 : ∀ («_» : Unit\
+    ), motive (@Option.none.{0} Bool)), ∀ (h_2 : ∀ («_» : Unit), motive (@Option.some.{0} Bool\
+    \x20Bool.true)), ∀ (h_3 : ∀ («_» : Unit), motive (@Option.some.{0} Bool Bool.false)), motive \
+    x\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : Option.{0} Bool → Sort u_1) => fun (x : Option.{0} Bool) => fun (h_1 : ∀ (\
+    «_» : Unit), motive (@Option.none.{0} Bool)) => fun (h_2 : ∀ («_» : Unit), motive (@Option\
+    .some.{0} Bool Bool.true)) => fun (h_3 : ∀ («_» : Unit), motive (@Option.some.{0} Bool Boo\
+    l.false)) => @Option.casesOn.{u_1, 0} Bool (fun (x_1 : Option.{0} Bool) => motive x_1) x (\
+    h_1 Unit.unit) (fun (val : Bool) => @Bool.casesOn.{u_1} (fun (x_1 : Bool) => motive (@Opti\
+    on.some.{0} Bool x_1)) val (h_3 Unit.unit) (h_2 Unit.unit))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.door\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (pay : Rat), ∀ (b : Bool), AcornVerif.Intent.Postcondition.Member (Option.{0} Bool) Bo\
+    ol\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (pay : Rat) => fun (b : Bool) => @AcornVerif.Intent.Postcondition.Member.mk (Option.\
+    {0} Bool) Bool AcornVerif.Intent.Postcondition.Door AcornVerif.Intent.Postcondition.Door.a\
+    sk (fun (x : AcornVerif.Intent.Postcondition.Door) => AcornVerif.Intent.Postcondition.door\
+    .match_1.{1} (fun (x_1 : AcornVerif.Intent.Postcondition.Door) => Option.{0} Bool) x (fun \
+    («_» : Unit) => @Option.none.{0} Bool) (fun («_» : Unit) => @Option.some.{0} Bool Bool.tru\
+    e) (fun («_» : Unit) => @Option.some.{0} Bool Bool.false)) (fun (x : AcornVerif.Intent.Pos\
+    tcondition.Door) => AcornVerif.Intent.Postcondition.door.match_3.{1} (fun (x_1 : AcornVeri\
+    f.Intent.Postcondition.Door) => Rat) x (fun («_» : Unit) => pay) (fun (x_1 : AcornVerif.In\
+    tent.Postcondition.Door) => @OfNat.ofNat.{0} Rat (nat_lit 0) (@Rat.instOfNat (nat_lit 0)))\
+    ) (fun (x : AcornVerif.Intent.Postcondition.Door) => fun (x_1 : Bool) => AcornVerif.Intent\
+    .Postcondition.door.match_6.{1} (fun (x_2 : AcornVerif.Intent.Postcondition.Door) => fun (\
+    x_3 : Bool) => AcornVerif.Intent.Postcondition.Door) x x_1 (fun (a : Bool) => @cond.{1} Ac\
+    ornVerif.Intent.Postcondition.Door (@BEq.beq.{0} Bool (@instBEqOfDecidableEq.{0} Bool inst\
+    DecidableEqBool) a b) AcornVerif.Intent.Postcondition.Door.hit AcornVerif.Intent.Postcondi\
+    tion.Door.miss) (fun (x_2 : AcornVerif.Intent.Postcondition.Door) => fun (x_3 : Bool) => A\
+    cornVerif.Intent.Postcondition.Door.ask)) (fun (x : AcornVerif.Intent.Postcondition.Door) \
+    => AcornVerif.Intent.Postcondition.door.match_3.{1} (fun (x_1 : AcornVerif.Intent.Postcond\
+    ition.Door) => Bool) x (fun («_» : Unit) => Bool.true) (fun (x_1 : AcornVerif.Intent.Postc\
+    ondition.Door) => Bool.false))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Door\n\
+    | \n\
+    | An inductive type. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### AcornVerif.Intent.Postcondition.Door.ask\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Door\n\
+    | ```\n\
+    | \n\
+    | #### AcornVerif.Intent.Postcondition.Door.hit\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Door\n\
+    | ```\n\
+    | \n\
+    | #### AcornVerif.Intent.Postcondition.Door.miss\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Door\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.door.match_1\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : AcornVerif.Intent.Postcondition.Door → Sort u_1), ∀ (x : AcornVerif.Intent.P\
+    ostcondition.Door), ∀ (h_1 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.a\
+    sk), ∀ (h_2 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.hit), ∀ (h_3 : ∀\
+    \x20(«_» : Unit), motive AcornVerif.Intent.Postcondition.Door.miss), motive x\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : AcornVerif.Intent.Postcondition.Door → Sort u_1) => fun (x : AcornVerif.In\
+    tent.Postcondition.Door) => fun (h_1 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondit\
+    ion.Door.ask) => fun (h_2 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.hi\
+    t) => fun (h_3 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.miss) => @Aco\
+    rnVerif.Intent.Postcondition.Door.casesOn.{u_1} (fun (x_1 : AcornVerif.Intent.Postconditio\
+    n.Door) => motive x_1) x (h_1 Unit.unit) (h_2 Unit.unit) (h_3 Unit.unit)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Door.casesOn\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {motive : ∀ (t : AcornVerif.Intent.Postcondition.Door), Sort u}, ∀ (t : AcornVerif.Int\
+    ent.Postcondition.Door), ∀ (ask : motive AcornVerif.Intent.Postcondition.Door.ask), ∀ (hit\
+    \x20: motive AcornVerif.Intent.Postcondition.Door.hit), ∀ (miss : motive AcornVerif.Intent.Po\
+    stcondition.Door.miss), motive t\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {motive : ∀ (t : AcornVerif.Intent.Postcondition.Door), Sort u} => fun (t : AcornVer\
+    if.Intent.Postcondition.Door) => fun (ask : motive AcornVerif.Intent.Postcondition.Door.as\
+    k) => fun (hit : motive AcornVerif.Intent.Postcondition.Door.hit) => fun (miss : motive Ac\
+    ornVerif.Intent.Postcondition.Door.miss) => @AcornVerif.Intent.Postcondition.Door.rec.{u} \
+    motive ask hit miss t\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.door.match_3\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : AcornVerif.Intent.Postcondition.Door → Sort u_1), ∀ (x : AcornVerif.Intent.P\
+    ostcondition.Door), ∀ (h_1 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.h\
+    it), ∀ (h_2 : ∀ (x_1 : AcornVerif.Intent.Postcondition.Door), motive x_1), motive x\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : AcornVerif.Intent.Postcondition.Door → Sort u_1) => fun (x : AcornVerif.In\
+    tent.Postcondition.Door) => fun (h_1 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondit\
+    ion.Door.hit) => fun (h_2 : ∀ (x_1 : AcornVerif.Intent.Postcondition.Door), motive x_1) =>\
+    \x20@AcornVerif.Intent.Postcondition.door._sparseCasesOn_3.{u_1} (fun (x_1 : AcornVerif.Inten\
+    t.Postcondition.Door) => motive x_1) x (h_1 Unit.unit) (fun (h : Nat.hasNotBit (nat_lit 2)\
+    \x20(AcornVerif.Intent.Postcondition.Door.ctorIdx x)) => h_2 x)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.door._sparseCasesOn_3\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {motive : ∀ (t : AcornVerif.Intent.Postcondition.Door), Sort u}, ∀ (t : AcornVerif.Int\
+    ent.Postcondition.Door), ∀ (hit : motive AcornVerif.Intent.Postcondition.Door.hit), (∀ (h \
+    : Nat.hasNotBit (nat_lit 2) (AcornVerif.Intent.Postcondition.Door.ctorIdx t)), motive t) →\
+    \x20motive t\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {motive : ∀ (t : AcornVerif.Intent.Postcondition.Door), Sort u} => fun (t : AcornVer\
+    if.Intent.Postcondition.Door) => fun (hit : motive AcornVerif.Intent.Postcondition.Door.hi\
+    t) => @AcornVerif.Intent.Postcondition.Door.rec.{u} (fun (x : AcornVerif.Intent.Postcondit\
+    ion.Door) => (∀ (h : Nat.hasNotBit (nat_lit 2) (AcornVerif.Intent.Postcondition.Door.ctorI\
+    dx x)), motive x) → motive x) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit 2) (AcornVerif.\
+    Intent.Postcondition.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.ask)), motive Acorn\
+    Verif.Intent.Postcondition.Door.ask) => «else» (@Nat.ne_of_beq_eq_false (Nat.land (@OfNat.\
+    ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (Nat.shiftRight (nat_lit 2) (nat_lit\
+    \x200))) (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (@Eq.refl.{1} Bool Boo\
+    l.false))) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit 2) (AcornVerif.Intent.Postconditio\
+    n.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.hit)), motive AcornVerif.Intent.Postco\
+    ndition.Door.hit) => hit) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit 2) (AcornVerif.Inte\
+    nt.Postcondition.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.miss)), motive AcornVer\
+    if.Intent.Postcondition.Door.miss) => «else» (@Nat.ne_of_beq_eq_false (Nat.land (@OfNat.of\
+    Nat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (Nat.shiftRight (nat_lit 2) (nat_lit 2\
+    ))) (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (@Eq.refl.{1} Bool Bool.\
+    false))) t\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.Door.ctorIdx\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Door → Nat\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (x : AcornVerif.Intent.Postcondition.Door) => @AcornVerif.Intent.Postcondition.Door.\
+    casesOn.{1} (fun (x_1 : AcornVerif.Intent.Postcondition.Door) => Nat) x (nat_lit 0) (nat_l\
+    it 1) (nat_lit 2)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.door.match_6\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : AcornVerif.Intent.Postcondition.Door → Bool → Sort u_1), ∀ (x : AcornVerif.I\
+    ntent.Postcondition.Door), ∀ (x_1 : Bool), ∀ (h_1 : ∀ (a : Bool), motive AcornVerif.Intent\
+    .Postcondition.Door.ask a), ∀ (h_2 : ∀ (x_2 : AcornVerif.Intent.Postcondition.Door), ∀ (x_\
+    3 : Bool), motive x_2 x_3), motive x x_1\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : AcornVerif.Intent.Postcondition.Door → Bool → Sort u_1) => fun (x : AcornV\
+    erif.Intent.Postcondition.Door) => fun (x_1 : Bool) => fun (h_1 : ∀ (a : Bool), motive Aco\
+    rnVerif.Intent.Postcondition.Door.ask a) => fun (h_2 : ∀ (x_2 : AcornVerif.Intent.Postcond\
+    ition.Door), ∀ (x_3 : Bool), motive x_2 x_3) => @AcornVerif.Intent.Postcondition.door._spa\
+    rseCasesOn_6.{u_1} (fun (x_2 : AcornVerif.Intent.Postcondition.Door) => motive x_2 x_1) x \
+    (h_1 x_1) (fun (h : Nat.hasNotBit (nat_lit 1) (AcornVerif.Intent.Postcondition.Door.ctorId\
+    x x)) => h_2 x x_1)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.Postcondition.door._sparseCasesOn_6\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {motive : ∀ (t : AcornVerif.Intent.Postcondition.Door), Sort u}, ∀ (t : AcornVerif.Int\
+    ent.Postcondition.Door), ∀ (ask : motive AcornVerif.Intent.Postcondition.Door.ask), (∀ (h \
+    : Nat.hasNotBit (nat_lit 1) (AcornVerif.Intent.Postcondition.Door.ctorIdx t)), motive t) →\
+    \x20motive t\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {motive : ∀ (t : AcornVerif.Intent.Postcondition.Door), Sort u} => fun (t : AcornVer\
+    if.Intent.Postcondition.Door) => fun (ask : motive AcornVerif.Intent.Postcondition.Door.as\
+    k) => @AcornVerif.Intent.Postcondition.Door.rec.{u} (fun (x : AcornVerif.Intent.Postcondit\
+    ion.Door) => (∀ (h : Nat.hasNotBit (nat_lit 1) (AcornVerif.Intent.Postcondition.Door.ctorI\
+    dx x)), motive x) → motive x) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit 1) (AcornVerif.\
+    Intent.Postcondition.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.ask)), motive Acorn\
+    Verif.Intent.Postcondition.Door.ask) => ask) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit \
+    1) (AcornVerif.Intent.Postcondition.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.hit)\
+    ), motive AcornVerif.Intent.Postcondition.Door.hit) => «else» (@Nat.ne_of_beq_eq_false (Na\
+    t.land (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (Nat.shiftRight (nat_\
+    lit 1) (nat_lit 1))) (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (@Eq.re\
+    fl.{1} Bool Bool.false))) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit 1) (AcornVerif.Inte\
+    nt.Postcondition.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.miss)), motive AcornVer\
+    if.Intent.Postcondition.Door.miss) => «else» (@Nat.ne_of_beq_eq_false (Nat.land (@OfNat.of\
+    Nat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (Nat.shiftRight (nat_lit 1) (nat_lit 2\
+    ))) (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (@Eq.refl.{1} Bool Bool.\
+    false))) t\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.revealing\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.BigClass.classOf (fun (b : Bool) => let __src : AcornVerif.Intent.Post\
+    condition.Member (Option.{0} Bool) Bool := AcornVerif.Intent.Postcondition.door (@OfNat.of\
+    Nat.{0} Rat (nat_lit 1) (@Rat.instOfNat (nat_lit 1))) b; @AcornVerif.Intent.Postcondition.\
+    Member.mk (Option.{0} Bool) Bool (@AcornVerif.Intent.Postcondition.Member.State (Option.{0\
+    } Bool) Bool __src) (@AcornVerif.Intent.Postcondition.Member.start (Option.{0} Bool) Bool \
+    __src) (fun (s : AcornVerif.Intent.Postcondition.Door) => AcornVerif.Intent.BigClass.wall.\
+    match_1.{1} (fun (x : AcornVerif.Intent.Postcondition.Door) => Option.{0} Bool) s (fun («_\
+    » : Unit) => @Option.some.{0} Bool b) (fun («_» : Unit) => @Option.some.{0} Bool Bool.true\
+    ) (fun («_» : Unit) => @Option.some.{0} Bool Bool.false)) (@AcornVerif.Intent.Postconditio\
+    n.Member.reward (Option.{0} Bool) Bool __src) (@AcornVerif.Intent.Postcondition.Member.ste\
+    p (Option.{0} Bool) Bool __src) (@AcornVerif.Intent.Postcondition.Member.goal (Option.{0} \
+    Bool) Bool __src))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.wall.match_1\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : AcornVerif.Intent.Postcondition.Door → Sort u_1), ∀ (x : AcornVerif.Intent.P\
+    ostcondition.Door), ∀ (h_1 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.a\
+    sk), ∀ (h_2 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.hit), ∀ (h_3 : ∀\
+    \x20(«_» : Unit), motive AcornVerif.Intent.Postcondition.Door.miss), motive x\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : AcornVerif.Intent.Postcondition.Door → Sort u_1) => fun (x : AcornVerif.In\
+    tent.Postcondition.Door) => fun (h_1 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondit\
+    ion.Door.ask) => fun (h_2 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.hi\
+    t) => fun (h_3 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.miss) => @Aco\
+    rnVerif.Intent.Postcondition.Door.casesOn.{u_1} (fun (x_1 : AcornVerif.Intent.Postconditio\
+    n.Door) => motive x_1) x (h_1 Unit.unit) (h_2 Unit.unit) (h_3 Unit.unit)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.sameDoor\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.BigClass.classOf (fun (x : Bool) => AcornVerif.Intent.Postcondition.do\
+    or (@OfNat.ofNat.{0} Rat (nat_lit 1) (@Rat.instOfNat (nat_lit 1))) Bool.true)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.lopsided\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Trial.mk (Option.{0} Bool) Bool Nat (fun (i : Nat) => Ac\
+    ornVerif.Intent.Postcondition.door (@OfNat.ofNat.{0} Rat (nat_lit 1) (@Rat.instOfNat (nat_\
+    lit 1))) (AcornVerif.Intent.BigClass.lopsidedDoor i)) (@List.cons.{0} Nat (@OfNat.ofNat.{0\
+    } Nat (nat_lit 0) (instOfNatNat (nat_lit 0))) (@List.cons.{0} Nat (@OfNat.ofNat.{0} Nat (n\
+    at_lit 1) (instOfNatNat (nat_lit 1))) (@List.nil.{0} Nat))) (@OfNat.ofNat.{0} Nat (nat_lit\
+    \x202) (instOfNatNat (nat_lit 2))) (@List.sum.{0} Rat Rat.instAdd (@Zero.ofOfNat0.{0} Rat (@R\
+    at.instOfNat (nat_lit 0)))) (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3))) \
+    (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))) AcornVerif.Intent.Postcondit\
+    ion.finder\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.lopsidedDoor\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (i : Nat), Bool\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (i : Nat) => @bne.{0} Nat (@instBEqOfDecidableEq.{0} Nat instDecidableEqNat) i (@OfN\
+    at.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.hidden\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.BigClass.classOf (fun (b : Bool) => let __src : AcornVerif.Intent.Post\
+    condition.Member (Option.{0} Bool) Bool := AcornVerif.Intent.Postcondition.door (@OfNat.of\
+    Nat.{0} Rat (nat_lit 0) (@Rat.instOfNat (nat_lit 0))) b; @AcornVerif.Intent.Postcondition.\
+    Member.mk (Option.{0} Bool) Bool (@AcornVerif.Intent.Postcondition.Member.State (Option.{0\
+    } Bool) Bool __src) (@AcornVerif.Intent.Postcondition.Member.start (Option.{0} Bool) Bool \
+    __src) (fun (s : AcornVerif.Intent.Postcondition.Door) => AcornVerif.Intent.BigClass.hidde\
+    n.match_1.{1} (fun (x : AcornVerif.Intent.Postcondition.Door) => Option.{0} Bool) s (fun (\
+    «_» : Unit) => @Option.none.{0} Bool) (fun (x : AcornVerif.Intent.Postcondition.Door) => @\
+    Option.some.{0} Bool Bool.false)) (@AcornVerif.Intent.Postcondition.Member.reward (Option.\
+    {0} Bool) Bool __src) (@AcornVerif.Intent.Postcondition.Member.step (Option.{0} Bool) Bool\
+    \x20__src) (@AcornVerif.Intent.Postcondition.Member.goal (Option.{0} Bool) Bool __src))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.hidden.match_1\n\
+    | \n\
+    | A definition. It has the universe parameter u_1. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (motive : AcornVerif.Intent.Postcondition.Door → Sort u_1), ∀ (s : AcornVerif.Intent.P\
+    ostcondition.Door), ∀ (h_1 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondition.Door.a\
+    sk), ∀ (h_2 : ∀ (x : AcornVerif.Intent.Postcondition.Door), motive x), motive s\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (motive : AcornVerif.Intent.Postcondition.Door → Sort u_1) => fun (s : AcornVerif.In\
+    tent.Postcondition.Door) => fun (h_1 : ∀ («_» : Unit), motive AcornVerif.Intent.Postcondit\
+    ion.Door.ask) => fun (h_2 : ∀ (x : AcornVerif.Intent.Postcondition.Door), motive x) => @Ac\
+    ornVerif.Intent.BigClass.wall._sparseCasesOn_3.{u_1} (fun (x : AcornVerif.Intent.Postcondi\
+    tion.Door) => motive x) s (h_1 Unit.unit) (fun (h : Nat.hasNotBit (nat_lit 1) (AcornVerif.\
+    Intent.Postcondition.Door.ctorIdx s)) => h_2 s)\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.wall._sparseCasesOn_3\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {motive : ∀ (t : AcornVerif.Intent.Postcondition.Door), Sort u}, ∀ (t : AcornVerif.Int\
+    ent.Postcondition.Door), ∀ (ask : motive AcornVerif.Intent.Postcondition.Door.ask), (∀ (h \
+    : Nat.hasNotBit (nat_lit 1) (AcornVerif.Intent.Postcondition.Door.ctorIdx t)), motive t) →\
+    \x20motive t\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {motive : ∀ (t : AcornVerif.Intent.Postcondition.Door), Sort u} => fun (t : AcornVer\
+    if.Intent.Postcondition.Door) => fun (ask : motive AcornVerif.Intent.Postcondition.Door.as\
+    k) => @AcornVerif.Intent.Postcondition.Door.rec.{u} (fun (x : AcornVerif.Intent.Postcondit\
+    ion.Door) => (∀ (h : Nat.hasNotBit (nat_lit 1) (AcornVerif.Intent.Postcondition.Door.ctorI\
+    dx x)), motive x) → motive x) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit 1) (AcornVerif.\
+    Intent.Postcondition.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.ask)), motive Acorn\
+    Verif.Intent.Postcondition.Door.ask) => ask) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit \
+    1) (AcornVerif.Intent.Postcondition.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.hit)\
+    ), motive AcornVerif.Intent.Postcondition.Door.hit) => «else» (@Nat.ne_of_beq_eq_false (Na\
+    t.land (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (Nat.shiftRight (nat_\
+    lit 1) (nat_lit 1))) (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (@Eq.re\
+    fl.{1} Bool Bool.false))) (fun («else» : ∀ (h : Nat.hasNotBit (nat_lit 1) (AcornVerif.Inte\
+    nt.Postcondition.Door.ctorIdx AcornVerif.Intent.Postcondition.Door.miss)), motive AcornVer\
+    if.Intent.Postcondition.Door.miss) => «else» (@Nat.ne_of_beq_eq_false (Nat.land (@OfNat.of\
+    Nat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (Nat.shiftRight (nat_lit 1) (nat_lit 2\
+    ))) (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))) (@Eq.refl.{1} Bool Bool.\
+    false))) t\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.stuck\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.Postcondition.Trial\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | AcornVerif.Intent.BigClass.classOf (fun (b : Bool) => let __src : AcornVerif.Intent.Post\
+    condition.Member (Option.{0} Bool) Bool := AcornVerif.Intent.Postcondition.door (@OfNat.of\
+    Nat.{0} Rat (nat_lit 1) (@Rat.instOfNat (nat_lit 1))) b; @AcornVerif.Intent.Postcondition.\
+    Member.mk (Option.{0} Bool) Bool (@AcornVerif.Intent.Postcondition.Member.State (Option.{0\
+    } Bool) Bool __src) (@AcornVerif.Intent.Postcondition.Member.start (Option.{0} Bool) Bool \
+    __src) (@AcornVerif.Intent.Postcondition.Member.observe (Option.{0} Bool) Bool __src) (@Ac\
+    ornVerif.Intent.Postcondition.Member.reward (Option.{0} Bool) Bool __src) (fun (x : AcornV\
+    erif.Intent.Postcondition.Door) => fun (x_1 : Bool) => AcornVerif.Intent.Postcondition.Doo\
+    r.miss) (@AcornVerif.Intent.Postcondition.Member.goal (Option.{0} Bool) Bool __src))\n\
+    | ```\n\
+    | \n\
+    | ### AcornVerif.Intent.BigClass.HasTrap\n\
+    | \n\
+    | A definition. It has no universe parameter. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (w : AcornVerif.Intent.Postcondition.Trial), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun (w : AcornVerif.Intent.Postcondition.Trial) => @Exists.{1} (AcornVerif.Intent.Postco\
+    ndition.Trial.Index w) (fun (i : AcornVerif.Intent.Postcondition.Trial.Index w) => @Exists\
+    .{1} (AcornVerif.Intent.Postcondition.Trial.Act w) (fun (a : AcornVerif.Intent.Postconditi\
+    on.Trial.Act w) => And (@Exists.{1} (List.{0} (AcornVerif.Intent.Postcondition.Trial.Act w\
+    )) (fun (acts : List.{0} (AcornVerif.Intent.Postcondition.Trial.Act w)) => And (@LT.lt.{0}\
+    \x20Nat instLTNat (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) (@List.len\
+    gth.{0} (AcornVerif.Intent.Postcondition.Trial.Act w) acts) (@OfNat.ofNat.{0} Nat (nat_lit\
+    \x201) (instOfNatNat (nat_lit 1)))) (AcornVerif.Intent.Postcondition.Trial.length w)) (@Eq.{1\
+    } Bool (@AcornVerif.Intent.Postcondition.Member.goal (AcornVerif.Intent.Postcondition.Tria\
+    l.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Tr\
+    ial.member w i) (@AcornVerif.Intent.BigClass.afterActions (AcornVerif.Intent.Postcondition\
+    .Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.Postconditi\
+    on.Trial.member w i) (@AcornVerif.Intent.Postcondition.Member.start (AcornVerif.Intent.Pos\
+    tcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Act w) (AcornVerif.Intent.P\
+    ostcondition.Trial.member w i)) acts)) Bool.true))) (∀ (acts : List.{0} (AcornVerif.Intent\
+    .Postcondition.Trial.Act w)), @LT.lt.{0} Nat instLTNat (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (\
+    @instHAdd.{0} Nat instAddNat) (@List.length.{0} (AcornVerif.Intent.Postcondition.Trial.Act\
+    \x20w) acts) (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))) (AcornVerif.Inten\
+    t.Postcondition.Trial.length w) → @Eq.{1} Bool (@AcornVerif.Intent.Postcondition.Member.go\
+    al (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Trial.Ac\
+    t w) (AcornVerif.Intent.Postcondition.Trial.member w i) (@AcornVerif.Intent.BigClass.after\
+    Actions (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcondition.Tri\
+    al.Act w) (AcornVerif.Intent.Postcondition.Trial.member w i) (@AcornVerif.Intent.Postcondi\
+    tion.Member.step (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Intent.Postcond\
+    ition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.member w i) (@AcornVerif.Intent.\
+    Postcondition.Member.start (AcornVerif.Intent.Postcondition.Trial.Obs w) (AcornVerif.Inten\
+    t.Postcondition.Trial.Act w) (AcornVerif.Intent.Postcondition.Trial.member w i)) a) acts))\
+    \x20Bool.false)))\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.Meets\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (r : LeanIntent.IntentRecord.{u} W), ∀ (w : W), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {W : Type u} => fun (r : LeanIntent.IntentRecord.{u} W) => fun (w : W) => And (@Lean\
+    Intent.IntentRecord.Dom.{u} W r w) (@LeanIntent.IntentRecord.Props.{u} W r w)\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), Type (u + 1)\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 1 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.IntentRecord.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (shape : LeanIntent.Shape.{u} W), ∀ (dom : List.{u} (LeanIntent.Clause\
+    .{u} W)), ∀ (props : List.{u} (LeanIntent.Clause.{u} W)), ∀ (vocab : List.{u + 1} LeanInte\
+    nt.Pred.{u}), LeanIntent.IntentRecord.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Clause\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (W : Type u), Type u\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 1 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Clause.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (name : String), ∀ (holds : W → Prop), LeanIntent.Clause.{u} W\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Pred\n\
+    | \n\
+    | A structure: an inductive type with one constructor, whose arguments after its parameter\
+    s are the structure's fields, in order. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | Type (u + 1)\n\
+    | ```\n\
+    | \n\
+    | Of the arguments its type takes, the first 0 are parameters and the other 0 indices. Its\
+    \x20recursor is the one Lean's kernel derives from this declaration. Its constructors, in ord\
+    er, each with its type:\n\
+    | \n\
+    | #### LeanIntent.Pred.mk\n\
+    | \n\
+    | ```lean\n\
+    | ∀ (name : String), ∀ (Arg : Type u), ∀ (holds : Arg → Prop), LeanIntent.Pred.{u}\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.Dom\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (r : LeanIntent.IntentRecord.{u} W), ∀ (w : W), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {W : Type u} => fun (r : LeanIntent.IntentRecord.{u} W) => fun (w : W) => ∀ (d : Lea\
+    nIntent.Clause.{u} W), @Membership.mem.{u, u} (LeanIntent.Clause.{u} W) (List.{u} (LeanInt\
+    ent.Clause.{u} W)) (@List.instMembership.{u} (LeanIntent.Clause.{u} W)) (@LeanIntent.Inten\
+    tRecord.dom.{u} W r) d → @LeanIntent.Clause.holds.{u} W d w\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.dom\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 2, counted after the parameters in the type of LeanIntent.Int\
+    entRecord's constructor, of its argument number 2, a value of LeanIntent.IntentRecord. It \
+    has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.IntentRecord.{u} W), List.{u} (LeanIntent.Clause.{u\
+    } W)\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.Clause.holds\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 2, counted after the parameters in the type of LeanIntent.Cla\
+    use's constructor, of its argument number 2, a value of LeanIntent.Clause. It has the univ\
+    erse parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.Clause.{u} W), W → Prop\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.Props\n\
+    | \n\
+    | A definition. It has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (r : LeanIntent.IntentRecord.{u} W), ∀ (w : W), Prop\n\
+    | ```\n\
+    | \n\
+    | Its value:\n\
+    | \n\
+    | ```lean\n\
+    | fun {W : Type u} => fun (r : LeanIntent.IntentRecord.{u} W) => fun (w : W) => ∀ (p : Lea\
+    nIntent.Clause.{u} W), @Membership.mem.{u, u} (LeanIntent.Clause.{u} W) (List.{u} (LeanInt\
+    ent.Clause.{u} W)) (@List.instMembership.{u} (LeanIntent.Clause.{u} W)) (@LeanIntent.Inten\
+    tRecord.props.{u} W r) p → @LeanIntent.Clause.holds.{u} W p w\n\
+    | ```\n\
+    | \n\
+    | ### LeanIntent.IntentRecord.props\n\
+    | \n\
+    | A function that reads a field of a structure: its value is `fun` over its first 2 argume\
+    nts and returns field number 3, counted after the parameters in the type of LeanIntent.Int\
+    entRecord's constructor, of its argument number 2, a value of LeanIntent.IntentRecord. It \
+    has the universe parameter u. Its type:\n\
+    | \n\
+    | ```lean\n\
+    | ∀ {W : Type u}, ∀ (self : LeanIntent.IntentRecord.{u} W), List.{u} (LeanIntent.Clause.{u\
+    } W)\n\
     | ```\n\
     | \n\
     | ### LeanIntent.Consequence.HoldsOf\n\

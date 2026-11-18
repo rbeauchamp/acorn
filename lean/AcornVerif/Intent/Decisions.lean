@@ -22,19 +22,21 @@ settle that change what they get, and to one-way doors and quality-for-cost trad
 likened the division to an interface and its implementation: their intent is a system's contract,
 and records of internal functions such as these are the agents' own design.
 
-This module declares Acorn's four lean-intent deliverables, `dayDeliverable`, `hashDeliverable`,
-`worldInterfaceDeliverable` and `oneStreamDeliverable`: each holds its record, the record's
-explanation, the answers it keeps and the proof that the record keeps them. The first two are records
-of internal functions, the agents' design; the third is the record of contract 1 of Acorn's mission
-contract, the interface every world meets, and the fourth the record of contract 3, the invariants of
-learning from one stream, whose plain restatements the owner confirmed on 2026-11-03. The day record
+This module declares Acorn's five lean-intent deliverables, `dayDeliverable`, `hashDeliverable`,
+`worldInterfaceDeliverable`, `oneStreamDeliverable` and `bigClassDeliverable`: each holds its
+record, the record's explanation, the answers it keeps and the proof that the record keeps them. The
+first two are records of internal functions, the agents' design; the third is the record of contract
+1 of Acorn's mission contract, the interface every world meets, the fourth the record of contract 3,
+the invariants of learning from one stream, and the fifth the record of contract 2, what makes a
+class of worlds big, whose plain restatements the owner confirmed on 2026-11-03. The day record
 Acorn declares, `AcornVerif.Intent.DayCycle.dayCycle`, is the generic
 record `dayCycleFor` at the types of Acorn's world: one situation, since Acorn's day reads nothing
 of a situation but the clock (`AcornVerif.Intent.DayCycle.dayPhase_clock`), Acorn's actions, the
 day-phase byte the agent sees and energy as a natural number. The hash record,
 `AcornVerif.Intent.Hash.hashes`, the interface record,
-`AcornVerif.Intent.WorldInterface.worldInterface`, and the record of learning from one stream,
-`AcornVerif.Intent.OneStream.oneStream`, have no parameters.
+`AcornVerif.Intent.WorldInterface.worldInterface`, the record of learning from one stream,
+`AcornVerif.Intent.OneStream.oneStream`, and the record of contract 2,
+`AcornVerif.Intent.BigClass.bigClass`, have no parameters.
 
 The owners' log, `ownersLog` in `AcornVerif.Intent.OwnersLog`, holds every statement as the text
 lean-intent's `Statement.print` writes, which `LeanIntent.Confirmation.Read.check` reads from the
@@ -56,12 +58,12 @@ An answer's texts change whenever the rendering of its record or of a definition
 reaches changes, and the check then refuses it, naming it, until it is retracted and given again
 against the new texts by someone the delegation lets answer.
 
-The interface record and the record of learning from one stream are settled differently. Each
-explanation records its restatement as confirmed by the owner, whose answer of 2026-11-03 the log
-holds, and each consequence it shows as derived from that confirmation, so their deliverables keep no
-answer; the consequences decided on the owner's behalf are recorded with their reasons in each
-record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md` and
-`lean/AcornVerif/Intent/OneStream.md`.
+The interface record, the record of learning from one stream and the record of contract 2 are
+settled differently. Each explanation records its restatement as confirmed by the owner, whose
+answer of 2026-11-03 the log holds, and each consequence it shows as derived from that confirmation,
+so their deliverables keep no answer; the consequences decided on the owner's behalf are recorded
+with their reasons in each record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`,
+`lean/AcornVerif/Intent/OneStream.md` and `lean/AcornVerif/Intent/BigClass.md`.
 
 Two decisions are recorded in prose only, because they are no consequence of a record: the day
 record counts time in whole ticks with one clock for the whole world (its shape), and the hash

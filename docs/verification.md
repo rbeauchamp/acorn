@@ -525,7 +525,9 @@ deliverable that gains an implementation each fail it, and both checks refuse a
 project that declares no deliverable. The list names the hash record's
 deliverable, whose proof rbeauchamp/acorn#184 tracks, the deliverable of the
 intent record of contract 1 of the mission contract, the interface every world
-meets, whose proof rbeauchamp/acorn#213 tracks, and the deliverable of the intent
+meets, whose proof rbeauchamp/acorn#213 tracks, the deliverable of the intent
+record of contract 2, what makes a class of worlds big, whose proof
+rbeauchamp/acorn#214 tracks, and the deliverable of the intent
 record of contract 3, the invariants of learning from one stream, whose proof
 rbeauchamp/acorn#215 tracks; it was decided on the owner's
 behalf by the agent supervising Acorn's research, since the intent-first method

@@ -1114,14 +1114,17 @@ def bigClassExplained : Explanation bigClass where
         first met included; and a member whose goal is met where its run starts, of which the \
         property asks nothing."
       freedom := "The reference world, and what the members give after their goals are met." },
-    { requires := "There is a number, smaller than the count of the counted members, such that \
-        every agent that keeps nothing of its experience solves, on every attempt, at most that \
-        many of the counted members."
-      rulesOut := "A class in which some agent that keeps nothing of its experience solves every \
-        counted member on some attempt, and a class that counts no member."
-      allows := "Such an agent solving all the counted members but one; and any number of \
-        members the class does not count, whoever solves them."
-      freedom := "The bound, which members are counted, and what happens in the others." },
+    { requires := "The counted members are distinct, and there is a number, smaller than their \
+        count, such that for every agent that keeps nothing of its experience, every attempt and \
+        every list of distinct members of the class, counted or not, each of which that agent \
+        solves on that attempt, the list has at most that number of members."
+      rulesOut := "A class in which some agent that keeps nothing of its experience solves, on \
+        one attempt, as many distinct members as the class counts, or more: a class such an agent \
+        solves whole, a class in which it solves infinitely many members whatever share of the \
+        class they are, and a class that counts a member twice or counts none."
+      allows := "Such an agent solving, on an attempt, any number of the class's members below \
+        the count of the counted members; and members the class does not count."
+      freedom := "The bound, and which distinct members, more than the bound, the class counts." },
     { requires := "There is one function of an observation with a reward, the same for every \
         member, that returns, for every agent, every member and every time, from what the member \
         gives the agent at that time of its run, whether the state the member's world is then in \
@@ -1182,8 +1185,18 @@ def bigClassExplained : Explanation bigClass where
         rulesOut := "That trial; base meets the record (doors_big)."
         allows := "Nothing more."
         freedom := "Everything but being that one trial." }, .derived⟩,
+    ⟨freshStartsSmall, freshStartsSmall_holds,
+      { requires := "There is a number, smaller than the count of the counted members, such that every agent whose memory, in every member, is at the start of every attempt the memory it began its run with solves at most that many of the counted members on every attempt."
+        rulesOut := "A class in which an agent that forgets everything at the start of each attempt, whatever it keeps within one, solves every counted member on some attempt."
+        allows := "Such an agent keeping what it perceives within an attempt."
+        freedom := "The bound, and what such an agent does within an attempt." }, .derived⟩,
     ⟨rulesOutOneAnswer, rulesOutOneAnswer_holds,
       { requires := "The trial sameDoor, base with two members that have the same door, so that trying that door solves both, does not meet the record."
+        rulesOut := "That trial; base meets the record (doors_big)."
+        allows := "Nothing more."
+        freedom := "Everything but being that one trial." }, .derived⟩,
+    ⟨rulesOutUncountedShare, rulesOutUncountedShare_holds,
+      { requires := "The trial lopsided, a class of two-door members named by the natural numbers, all with the first door but the member 1, that counts the members 0 and 1, does not meet the record: the agent that always tries the first door solves every member but one."
         rulesOut := "That trial; base meets the record (doors_big)."
         allows := "Nothing more."
         freedom := "Everything but being that one trial." }, .derived⟩,

@@ -60,8 +60,8 @@ sentence 5 says that (d) is the target for larger classes. Sentences 1 to 3 give
 conditions, and sentences 5 and 7 say how the classes are chosen; none adds a property. The record
 has no domain hypothesis.
 
-Decided on the owner's behalf in writing it, each to be checked against the second, blind
-formalization and recorded in the record's confirmation file:
+Decided on the owner's behalf in writing it, each checked against the second, blind readings and
+recorded in the record's confirmation file, `lean/AcornVerif/Intent/BigClass.md`:
 
 * Condition (d) is left to a subject with several members in one stream, as above.
 * "Where its attempt starts", in condition (a), is the state in which an attempt starts in any
