@@ -32,8 +32,11 @@ worlds." The mission places no limit on which world: Acorn's agent must be able
 to learn and generalize in any big world. Acorn may restrict its worlds at first,
 to make progress practical, but each restriction is a step toward that end, not a
 narrowing of it. The [roadmap](docs/roadmap.md) gives the order of work below
-the mission: the first class of worlds is decided, and the order of the classes
-after it is not. The
+the mission: the first class of worlds is decided, and the owner decided on
+2026-11-18 that the class after it is one beyond the agent's capacity
+([#276](https://github.com/rbeauchamp/acorn/issues/276)). The order of the
+classes after that is a working choice of the agents that work on Acorn, which
+the owner can overrule. The
 [mission contract](docs/mission-contract.md) states what Acorn promises to prove
 about its agent, the decisions behind it and the sources for each.
 

@@ -40,6 +40,8 @@ On 2026-11-17 the owner reviewed the work against [Oak Lab's mission](https://oa
 - **Open statements live in the governed tree**, in one directory that `.github/CODEOWNERS` names ([#238](https://github.com/rbeauchamp/acorn/issues/238)).
 - **Work beside the retention work is handed over one piece at a time**, each to a parallel session that works from a written brief. The first was the next increment of the work bound ([#90](https://github.com/rbeauchamp/acorn/issues/90)), which has landed (`followOptionsCosted_within`). The second is the mechanism for open statements ([#238](https://github.com/rbeauchamp/acorn/issues/238)). The statement of once-only learning ([#233](https://github.com/rbeauchamp/acorn/issues/233)) stays with the retention work, because it still has to be written. Neither [#90](https://github.com/rbeauchamp/acorn/issues/90) nor [#233](https://github.com/rbeauchamp/acorn/issues/233) has a statement ready to seed: the rung's premises on work and on learning once are about what the agent reports of its steps, and what the two issues owe is the link from those reports to the executing code. No announcement is made before at least 20 open statements are seeded, most of them on the path ([#237](https://github.com/rbeauchamp/acorn/issues/237)).
 
+On 2026-11-18 the owner decided that the capacity rung comes after the first ([the rungs after the first](#the-rungs-after-the-first)).
+
 ## The active rung: concealed targets in visits
 
 The first rung is the class of concealed targets of one grid world, run in visits ([#230](https://github.com/rbeauchamp/acorn/issues/230)).
@@ -50,7 +52,7 @@ The rung's theorem says that the executed agent solves more members of the class
 The replaying reference agent already separates and retains on this class, under its own hypotheses (`witness_separation`, `replay_keeps`), and a reference agent of fixed memory that remembers which of its exploring walks met the goal meets the rung's whole statement (`witness_mission`).
 So the statement alone does not tell a continual learner from an agent built to memorise a route in this world.
 The rung's value is that Acorn's general agent, with nothing specific to this world, meets it within the contract's invariants.
-The first rung on which no agent can keep every solution is capacity, condition (d) of the mission contract.
+The first rung on which no agent can keep every solution is capacity, condition (d) of the mission contract, which is [the rung after this one](#the-rungs-after-the-first) ([#276](https://github.com/rbeauchamp/acorn/issues/276)).
 
 ### The rung's constants
 
@@ -137,23 +139,43 @@ Discovery decides whether the theorem is true; the proofs of step 3 assume it.
 
 ## The rungs after the first
 
-Their order is the owner's decision and is not yet made ([#234](https://github.com/rbeauchamp/acorn/issues/234)).
+The rung after the first is capacity: a class beyond the agent's capacity, one that meets condition (d) of the mission contract's [contract 2](mission-contract.md#contract-2-what-makes-a-class-of-worlds-big) with the other three, so that the agent cannot keep every solution at once ([#276](https://github.com/rbeauchamp/acorn/issues/276)).
+The owner decided this on 2026-11-18. The owner was shown the order recommended in [#234](https://github.com/rbeauchamp/acorn/issues/234), with its reasons, and the alternative of a class of ARC-AGI-3 games first, and was asked: "After Acorn's first rung, should the capacity rung come next?" The owner answered: "Yes, capacity first".
+
+The reasons shown for capacity first were these.
+
+- It is the first rung that an agent which only memorises routes cannot meet.
+- Its world's rules are fully proved, while the rules of ARC-AGI-3 and of the Microduck live in outside code, so their theorems rest on stated assumptions ([obligation 13](mission-contract.md#open-obligations)).
+- Javed and Sutton recommend, for benchmarks, restricting the agent instead of enlarging the world (the mission contract's contract 2 quotes the passage).
+- The owner answered on the same day that a class of worlds is big only when it meets all four conditions of contract 2, as the first rung's tracking issue records ([#230](https://github.com/rbeauchamp/acorn/issues/230)). Under that answer capacity is the rung that gives Acorn its first result about a class that counts as big.
+
+The alternative shown, ARC-AGI-3 first, needs fewer new foundations and is one of the owner's stated interests, and would put the first result about a big class later.
+
+That the capacity rung comes next is all that answer decides. Two things were shown to the owner as part of the recommendation and were not asked as questions of their own. Each is the working choice of the agents that work on Acorn, and the owner can overrule it.
+
+- **The configuration.** The capacity rung is first proved for an agent configuration of restricted capacity ([obligation 5](mission-contract.md#open-obligations)), because at full capacity the counting bound of condition (d) bites only beyond about 10.4 million slots (*argued* in the mission contract's contract 2). Which configuration is not chosen.
+- **The order after capacity.** A class of ARC-AGI-3 games ([#71](https://github.com/rbeauchamp/acorn/issues/71)), then a class of Microduck scenes ([#236](https://github.com/rbeauchamp/acorn/issues/236)), then a class of worlds with no restarts. The blocked-by links from [#71](https://github.com/rbeauchamp/acorn/issues/71) to the capacity rung and from [#236](https://github.com/rbeauchamp/acorn/issues/236) to [#71](https://github.com/rbeauchamp/acorn/issues/71) encode this working order, not a decision of the owner's.
+
+The capacity rung is not the active rung, and the first rung's [order of work](#order-of-work) is unchanged. The capacity rung re-enters when the first rung's theorem has landed, or when work on it can proceed without taking effort from the first rung.
+How condition (d) is stated over a subject that presents several members in one stream, and the precise form of keeping the ability to learn again what had to be given up ([obligation 10](mission-contract.md#open-obligations)), are that rung's own design and are not decided.
+
 The nearest class to the first rung's is the same class in the host's own world at seed 1 and side 64, deer included, which the entry `acorn-core visits` builds ([#256](https://github.com/rbeauchamp/acorn/issues/256)); [the rung's constants](#the-rungs-constants) list what it needs proved first.
-The recommendation recorded there is: capacity on an agent of restricted capacity, then a class of ARC-AGI-3 games ([#71](https://github.com/rbeauchamp/acorn/issues/71)), then a class of Microduck scenes ([#236](https://github.com/rbeauchamp/acorn/issues/236)), then a class of worlds with no restarts.
+It was not in the order the owner was shown. By the agents' working choice, which the owner can overrule, it keeps its re-entry condition below and, once it has re-entered, takes no effort from the capacity rung.
 
 ## Parked work, and when it re-enters
 
 | Issues | Re-enters when |
 |---|---|
 | [#256](https://github.com/rbeauchamp/acorn/issues/256), the first rung's class in the host's own world | The first rung is decided for the primitive profile ([#232](https://github.com/rbeauchamp/acorn/issues/232)), or a run the owner has authorized needs a world the entry runs exactly |
-| [#71](https://github.com/rbeauchamp/acorn/issues/71), ARC-AGI-3 games as a class | The order of the later rungs is decided and the first rung has landed |
-| [#236](https://github.com/rbeauchamp/acorn/issues/236), Microduck scenes, with [#173](https://github.com/rbeauchamp/acorn/issues/173), [#136](https://github.com/rbeauchamp/acorn/issues/136), [#172](https://github.com/rbeauchamp/acorn/issues/172), [#121](https://github.com/rbeauchamp/acorn/issues/121) and [#175](https://github.com/rbeauchamp/acorn/issues/175) | The same |
+| [#276](https://github.com/rbeauchamp/acorn/issues/276), the capacity rung | The first rung's theorem has landed, or work on it can proceed without taking effort from the first rung |
+| [#71](https://github.com/rbeauchamp/acorn/issues/71), ARC-AGI-3 games as a class | The capacity rung ([#276](https://github.com/rbeauchamp/acorn/issues/276)) and the first rung have landed. That it follows capacity is the agents' working order, which the owner can overrule |
+| [#236](https://github.com/rbeauchamp/acorn/issues/236), Microduck scenes, with [#173](https://github.com/rbeauchamp/acorn/issues/173), [#136](https://github.com/rbeauchamp/acorn/issues/136), [#172](https://github.com/rbeauchamp/acorn/issues/172), [#121](https://github.com/rbeauchamp/acorn/issues/121) and [#175](https://github.com/rbeauchamp/acorn/issues/175) | The rung before it in the agents' working order, ARC-AGI-3 games ([#71](https://github.com/rbeauchamp/acorn/issues/71)), has landed |
 | [#17](https://github.com/rbeauchamp/acorn/issues/17), learned agent state | The owner picks it from the design note of step 2, or a rung's class needs memory |
 | [#13](https://github.com/rbeauchamp/acorn/issues/13) and [#14](https://github.com/rbeauchamp/acorn/issues/14), reward centering and the average-reward update | The owner picks it from the design note of step 2, or at a rung with no restarts |
 | [#15](https://github.com/rbeauchamp/acorn/issues/15), search control. Its clause that planning runs on every step is also a bug against contract 3, due sooner ([#268](https://github.com/rbeauchamp/acorn/issues/268), under [upkeep](#upkeep)) | The one-step model of [#171](https://github.com/rbeauchamp/acorn/issues/171) exists, or the option models' ranking after [#48](https://github.com/rbeauchamp/acorn/issues/48) |
 | [#138](https://github.com/rbeauchamp/acorn/issues/138), the spectrum of a one-step model | The one-step model of [#171](https://github.com/rbeauchamp/acorn/issues/171) exists |
 | [#48](https://github.com/rbeauchamp/acorn/issues/48) and [#47](https://github.com/rbeauchamp/acorn/issues/47), the option models' residual | The first rung is carried to the ranked profile |
-| [#18](https://github.com/rbeauchamp/acorn/issues/18), utility feedback | The capacity rung is placed |
+| [#18](https://github.com/rbeauchamp/acorn/issues/18), utility feedback | The capacity rung ([#276](https://github.com/rbeauchamp/acorn/issues/276)) re-enters |
 | [#19](https://github.com/rbeauchamp/acorn/issues/19), nonlinear learners | The owner places it, after learned agent state |
 | [#137](https://github.com/rbeauchamp/acorn/issues/137), actor-critic control | A rung's class has a best memoryless policy that is strictly stochastic |
 | [#184](https://github.com/rbeauchamp/acorn/issues/184), the hash property behind obligation 12 | A mission theorem needs that obligation discharged |
@@ -164,7 +186,6 @@ The recommendation recorded there is: capacity on an agent of restricted capacit
 
 Each but the registration of targets is an issue labelled `needs-owner-decision`, with a recommendation in its text.
 
-- The order of the rungs after the first, and the agent configuration condition (d) is first proved for ([#234](https://github.com/rbeauchamp/acorn/issues/234)).
 - What the feature generator reads in a world with no symbol array ([#175](https://github.com/rbeauchamp/acorn/issues/175)).
 - Whether a mission may change a file of the trusted base ([#132](https://github.com/rbeauchamp/acorn/issues/132)).
 - The registration of the targets that the two missions of the fifth step propose ([#272](https://github.com/rbeauchamp/acorn/issues/272), [#273](https://github.com/rbeauchamp/acorn/issues/273)). Registering them changes `lean/AcornVerif/Targets/`, the directory only the owner changes, so it is the owner's act. The proposed statements take the first option of [#249](https://github.com/rbeauchamp/acorn/issues/249), which the owner chose on 2026-11-18, and the registration follows a proof attempt of one proposed target. That the targets are not registered yet was decided on the owner's behalf by the agent supervising the owner's projects.
@@ -184,6 +205,11 @@ Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/iss
 - The open premises of the rung's theorem are hypotheses of theorems in the governed tree. The owner kept this on 2026-11-17 ([#238](https://github.com/rbeauchamp/acorn/issues/238)).
 - Contract 3's bounds on memory and work are asked once for the whole class, where the record asks them of each member's run.
 - Separation and finding name the members the comparison counts.
+
+Two working choices about the rungs after the first were shown to the owner on 2026-11-18 as part of a recommendation, were not asked as questions of their own, and stay open to the owner ([the rungs after the first](#the-rungs-after-the-first)):
+
+- The capacity rung is first proved for an agent configuration of restricted capacity ([obligation 5](mission-contract.md#open-obligations)).
+- After capacity come a class of ARC-AGI-3 games, a class of Microduck scenes and a class of worlds with no restarts, in that order.
 
 ## Opening the work to outside contributors
 
