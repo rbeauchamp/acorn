@@ -469,22 +469,24 @@ theorem seeker_solves (hL : 0 < length) (m : Nat)
 
 end Seeker
 
-/-- **Continued learning pays.** In a class that meets the record and has an action, some agent
-solves every counted member on every attempt from their count on, and so more of them than any
-agent that keeps nothing of its experience solves on any attempt. The agent is a seeker: attempt by
-attempt it tries a way to one counted member's goal, and it keeps to the way it was following when
-its percept first showed success. -/
+/-- **Continued learning pays.** In a class that meets the record, some agent solves every counted
+member on every attempt from their count on, and so more of them than any agent that keeps nothing
+of its experience solves on any attempt. The agent is a seeker: attempt by attempt it tries a way to
+one counted member's goal, and it keeps to the way it was following when its percept first showed
+success. -/
 def learningPays : Consequence Trial :=
-  ⟨"where the class has an action, some agent solves every counted member on every attempt from \
-    their count on, more than any agent that keeps nothing of its experience solves on any \
-    attempt", .entailment, fun w =>
-    Nonempty w.Act → ∃ A : Agent w.Obs w.Act, ∀ n, w.counted.length ≤ n →
+  ⟨"some agent solves every counted member on every attempt from their count on, more than any \
+    agent that keeps nothing of its experience solves on any attempt", .entailment, fun w =>
+    ∃ A : Agent w.Obs w.Act, ∀ n, w.counted.length ≤ n →
       (∀ i ∈ w.counted, w.solves A i n = true) ∧
         ∀ B : Agent w.Obs w.Act, KeepsNothing B → ∀ k, w.solvedCount B k < w.solvedCount A n⟩
 
 theorem learningPays_holds : learningPays.HoldsOf bigClass := by
-  intro w hw ⟨a⟩
+  intro w hw
   obtain ⟨hreach, _, ⟨k, hk, hfrozen⟩, ⟨signal, hsignal⟩, hrecur⟩ := bigClass_meets.mp hw
+  have first : w.Index := w.counted[0]'(Nat.lt_of_le_of_lt (Nat.zero_le k) hk)
+  have a : w.Act :=
+    (w.agent.act w.agent.initial ((w.member first).observe (w.member first).start, 0)).1
   have hplan : ∀ i : w.Index, ∃ acts : List w.Act, acts.length < w.length ∧
       (w.member i).goal (afterActions (w.member i) (w.member i).start acts) = true := by
     intro i
@@ -519,6 +521,54 @@ theorem learningPays_holds : learningPays.HoldsOf bigClass := by
     rw [List.filter_eq_self.mpr hall]
   rw [hcount]
   exact Nat.lt_of_le_of_lt (hfrozen B hB k') hk
+
+/-! ## An agent that starts every attempt afresh -/
+
+/-- Where an agent's run in a member is, after some steps, where it began, the run repeats from
+there. -/
+theorem run_repeats {Obs Act : Type} (M : Member Obs Act) (A : Agent Obs Act) (t : Nat)
+    (h : M.run A t = M.run A 0) : ∀ j, M.run A (t + j) = M.run A j
+  | 0 => h
+  | j + 1 => congrArg (M.next A) (run_repeats M A t h j)
+
+/-- **An agent that starts every attempt afresh does no better than on its first.** In a class that
+meets the record, an agent that begins every attempt with the memory it began its run with,
+whatever it keeps within an attempt, solves on every attempt at most the number of counted members
+that bounds what an agent that keeps nothing of its experience solves. -/
+def freshStartsSmall : Consequence Trial :=
+  ⟨"an agent that begins every attempt with the memory it began its run with solves, on every \
+    attempt, at most a number of the counted members that is smaller than their count",
+    .entailment, fun w =>
+    ∃ k, k < w.counted.length ∧ ∀ A : Agent w.Obs w.Act,
+      (∀ i n, ((w.member i).run A (w.length * n)).2 = A.initial) → ∀ n, w.solvedCount A n ≤ k⟩
+
+theorem freshStartsSmall_holds : freshStartsSmall.HoldsOf bigClass := by
+  intro w hw
+  obtain ⟨k, hk, hfirst⟩ := firstAttemptSmall_holds w hw
+  have hrecur := (bigClass_meets.mp hw).2.2.2.2
+  refine ⟨k, hk, fun A hfresh n => ?_⟩
+  have hsame : ∀ i, w.solves A i n = w.solves A i 0 := by
+    intro i
+    have hrun : ∀ j, (w.member i).run A (w.length * n + j) = (w.member i).run A j :=
+      run_repeats (w.member i) A (w.length * n) (Prod.ext (hrecur A i n) (hfresh i n))
+    have hstate : ∀ j, w.stateAt A i (w.length * n + j) = w.stateAt A i (w.length * 0 + j) := by
+      intro j
+      show ((w.member i).run A (w.length * n + j)).1 = ((w.member i).run A (w.length * 0 + j)).1
+      rw [hrun j, Nat.mul_zero, Nat.zero_add]
+    apply Bool.eq_iff_iff.mpr
+    rw [solves_iff, solves_iff]
+    constructor
+    · intro ⟨j, hj, hg⟩
+      exact ⟨j, hj, hstate j ▸ hg⟩
+    · intro ⟨j, hj, hg⟩
+      exact ⟨j, hj, (hstate j).symm ▸ hg⟩
+  have hfun : (fun i => w.solves A i n) = fun i => w.solves A i 0 := funext hsame
+  have hcount : w.solvedCount A n = w.solvedCount A 0 := by
+    show (w.counted.filter fun i => w.solves A i n).length =
+      (w.counted.filter fun i => w.solves A i 0).length
+    rw [hfun]
+  rw [hcount]
+  exact hfirst A
 
 /-! ## What the record rules out -/
 
