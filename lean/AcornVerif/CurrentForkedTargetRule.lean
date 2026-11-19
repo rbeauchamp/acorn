@@ -60,6 +60,7 @@ open AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
 open AcornVerif.CurrentConcealedTargetRung AcornVerif.CurrentExplorer
 open AcornVerif.CurrentForkedTarget AcornVerif.CurrentForkedTargetRung
 open AcornVerif.CurrentPreReward
+open AcornVerif.CurrentDeclaredStep (perceivedActive)
 
 /-! ## How the agent acts and learns -/
 
@@ -94,10 +95,10 @@ theorem steps_act (planning : PlanningSelection) (rule : StepsByRule planning)
     (percept : Percept Grid.interface) :
     (agent.act percept).2.action = ((explorerOf agent.control).stepOver
         (agent.control.runtime.lifecycle.consumers.control.snapshot
-          (agent.advanceClock.frame percept.frame).active declaredRate)).1 ∧
+          (perceivedActive agent.control percept.frame) declaredRate)).1 ∧
       explorerOf (agent.act percept).1.control = ((explorerOf agent.control).stepOver
         (agent.control.runtime.lifecycle.consumers.control.snapshot
-          (agent.advanceClock.frame percept.frame).active declaredRate)).2 :=
+          (perceivedActive agent.control percept.frame) declaredRate)).2 :=
   CurrentDeclaredStep.StepsByRule.draws rule rfl rfl agent percept
 
 /-- **Until its first reward the agent takes the cold explorer's actions.** For every definition
@@ -139,7 +140,7 @@ def CalmAt (planning : PlanningSelection)
     (percept : Percept Grid.interface) : Prop :=
   (explorerOf agent.control).run.bind ExploratoryRun.serve = none ∧
     ((agent.control.runtime.lifecycle.consumers.control.snapshot
-        (agent.advanceClock.frame percept.frame).active declaredRate).drawPersistent
+        (perceivedActive agent.control percept.frame) declaredRate).drawPersistent
       (explorerOf agent.control).rng).1.explored = false
 
 /-- **A calm visit.** On a visit of a member's run under an order, each of the first seven
@@ -177,7 +178,7 @@ theorem calm_action (planning : PlanningSelection) (rule : StepsByRule planning)
     (percept : Percept Grid.interface) (calm : CalmAt planning agent percept) :
     (agent.act percept).2.action =
       ((agent.control.runtime.lifecycle.consumers.control.snapshot
-          (agent.advanceClock.frame percept.frame).active declaredRate).greedy
+          (perceivedActive agent.control percept.frame) declaredRate).greedy
         (explorerOf agent.control).rng.nextF64.2).1 := by
   rw [(steps_act planning rule agent percept).1]
   unfold Explorer.stepOver

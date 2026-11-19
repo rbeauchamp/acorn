@@ -442,9 +442,9 @@ the executing library, the tools except the axiom pins, and their dependencies;
 the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
-[Regula audit](#regula-audit) and then lean-intent's two checks on the same commit,
-each also when an earlier step failed, and passes only when both runs, the audit
-and the checks pass.
+[Regula audit](#regula-audit), then lean-intent's two checks and then the frame
+check on the same commit, each also when an earlier step failed, and passes only
+when both runs, the audit and the checks pass.
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake
@@ -474,6 +474,23 @@ lean-intent can declare a deliverable awaiting its implementation itself
 (rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
 package, and that the constant an implementation names is what an executable runs,
 are trusted.
+
+The frame check runs from `lean/AcornTools/Frame.lean`. A target's file freezes
+the target's text. A pin file beside it, a regular file ending in `.frame` in
+`lean/AcornVerif/Targets/`, freezes what that text reads: it names the target, the
+names a submission may change, the names kept and not followed, and, for every
+other declaration of the project that the target reaches through types and
+definitions, the SHA-256 digest of its printed kind, universe parameters, type and
+value. The check lists that directory and admits only regular files ending in
+`.lean` and regular files ending in `.frame`; any other entry, a subdirectory or
+a symbolic link included, fails it and is named. For each pin file it computes
+that list from the finished build and fails when a
+pinned declaration is no longer reached, has another digest, or a reached
+declaration is not pinned, naming each. With no pin file it reports that no
+target's frame is pinned and passes, so a target is pinned only once the owner
+has merged its pin file. The digest detects a change; it is no evidence of what a
+declaration means. The dependencies' declarations are not pinned here: Lake's
+manifest pins their commits.
 
 The pipeline stores the provisioned dependency checkouts and their build outputs
 once for each default-branch commit a run starts from, and gives a run a private

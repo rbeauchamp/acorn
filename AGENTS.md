@@ -119,8 +119,9 @@ Then run the complete command in the actual Git checkout:
 Sign commits and preserve license notices. The merge gate, `./scripts/gate.sh`,
 which the no-mistakes pipeline runs on the exact proposed head before a pull
 request opens, runs the same command and, outside that deadline, the Regula
-audit `./scripts/regula.sh` and lean-intent's confirmation and implementation
-checks (`lean/AcornTools/Intent.lean`); GitHub Actions runs no check on a pull
+audit `./scripts/regula.sh`, lean-intent's confirmation and implementation
+checks (`lean/AcornTools/Intent.lean`) and the check of each target's pinned frame
+(`lean/AcornTools/Frame.lean`); GitHub Actions runs no check on a pull
 request. Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.

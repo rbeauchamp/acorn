@@ -52,7 +52,8 @@ nothing about calm visits, and it does not step by the declared rule.
 
 **That the rule leaves the values room.** In every state of the rung's agent the frame laid at
 the first situation's start holds a slot that the frame laid at the second's does not
-(`AcornVerif.CurrentForkedTargetFrames.starts_differ`), so at a visit's first decision the
+(`AcornVerif.CurrentForkedTargetFrames.starts_differ`; `starts_perceived` reads it through the
+encoder the clause names), so at a visit's first decision the
 frozen policy can value the two situations differently.
 
 Not proved here or anywhere: that an agent of the executed type that steps by the declared rule
@@ -224,14 +225,14 @@ theorem calm_turn_greedy (planning : PlanningSelection) (rule : StepsByRule plan
               ((rungForks (rungConstruction planning).profile.taskMode).world pair)
               ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7 0)
             (visit * (7 + 1) + step)).control.runtime.lifecycle.consumers.control.snapshot
-          ((Kernel.memoryAt
+          (CurrentDeclaredStep.perceivedActive (Kernel.memoryAt
             (Kernel.turns ((rungForks (rungConstruction planning).profile.taskMode).world pair)
               ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7)
             (executedAgent (rungConstruction planning).initial.agent)
             (Kernel.turnStart
               ((rungForks (rungConstruction planning).profile.taskMode).world pair)
               ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7 0)
-            (visit * (7 + 1) + step)).advanceClock.frame
+            (visit * (7 + 1) + step)).control
             (Kernel.perceptAt
               (Kernel.turns ((rungForks (rungConstruction planning).profile.taskMode).world pair)
                 ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7)
@@ -240,7 +241,7 @@ theorem calm_turn_greedy (planning : PlanningSelection) (rule : StepsByRule plan
                 ((rungForks (rungConstruction planning).profile.taskMode).world pair)
                 ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7
                 0)
-              (visit * (7 + 1) + step)).frame).active declaredRate).greedy
+              (visit * (7 + 1) + step)).frame) declaredRate).greedy
         (explorerOf (Kernel.memoryAt
             (Kernel.turns ((rungForks (rungConstruction planning).profile.taskMode).world pair)
               ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7)
@@ -250,6 +251,28 @@ theorem calm_turn_greedy (planning : PlanningSelection) (rule : StepsByRule plan
               ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7 0)
             (visit * (7 + 1) + step)).control).rng.nextF64.2).1 :=
   calm_action planning rule _ _ (calm step short)
+
+/-! ## That the rule leaves the values room -/
+
+/-- **The active sets of the two situations' starts differ, in every state of the agent.** For
+either planning selection, every state of the rung's agent and every pair of installed targets,
+the active set the declared step reads at the first situation's start holds a slot that the
+active set it reads at the second's does not. It is
+`AcornVerif.CurrentForkedTargetFrames.starts_differ`, read through the encoder the clause
+names. -/
+theorem starts_perceived (planning : PlanningSelection)
+    (agent : Agent Grid.interface (rungConstruction planning).profile
+      (rungConstruction planning).config (rungConstruction planning).criterion
+      (rungConstruction planning).dimension (rungConstruction planning).planning)
+    (first second : Host.Position) :
+    ∃ slot,
+      slot ∈ (CurrentDeclaredStep.perceivedActive agent.control
+        ((gridWorld witnessConfig (rungConstruction planning).profile.taskMode).percept
+          (member witnessLive first)).frame).indices ∧
+      slot ∉ (CurrentDeclaredStep.perceivedActive agent.control
+        ((gridWorld witnessConfig (rungConstruction planning).profile.taskMode).percept
+          (member duskLive second)).frame).indices :=
+  CurrentForkedTargetFrames.starts_differ planning agent first second
 
 /-! ## That the two promises can be met -/
 
