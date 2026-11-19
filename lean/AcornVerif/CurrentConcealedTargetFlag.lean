@@ -25,7 +25,8 @@ open AcornVerif.CurrentConcealedTargetTwin
 every task mode, the replaying agent whose signal is the achievement flag and whose exploration is
 the witness's three walks solves more than 98 members of a list of distinct members on one visit
 before visit 288, and solves again every member it has solved on every later visit before visit
-864, with no lapse. -/
+864, but for at most 144 visits of that member, the target's number of lapses. The proof exhibits
+no lapse; the statement exports the 144. -/
 theorem replay_solver (mode : TaskFeatureMode) :
     ∃ counted : List (feasibleFind witnessConfig mode witnessLive 7).Index, counted.Nodup ∧
       Kernel.SeparatesBy (feasibleFind witnessConfig mode witnessLive 7)
@@ -69,7 +70,8 @@ theorem replay_solver (mode : TaskFeatureMode) :
 flag.** On the rung's class, under every task mode, there are an agent stepped by the percept's
 achievement flag and a list of distinct members such that the agent solves more than 98 listed
 members on one visit before visit 288, and solves again every member it has solved on every later
-visit before visit 864, with no lapse. The agent is the replaying agent of `replay_solver`. -/
+visit before visit 864, but for at most 144 visits of that member, the target's number of lapses.
+The agent is the replaying agent of `replay_solver`, whose proof exhibits no lapse. -/
 theorem flag_solver (mode : TaskFeatureMode) :
     ∃ (agent : Kernel.Agent Grid.interface)
       (counted : List (feasibleFind witnessConfig mode witnessLive 7).Index),

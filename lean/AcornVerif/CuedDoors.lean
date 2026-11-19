@@ -149,7 +149,7 @@ def cuedNeeded {Φ : Type} (feedback : Percept interface → Φ)
   covered := cued_covered four quiet win
   short := by decide
 
-/-! ## The frozen share -/
+/-! ## The share an agent that keeps nothing of its experience solves -/
 
 /-- The four cued doors. -/
 def cuedAll : List (Bool × Bool) := [(false, false), (false, true), (true, false), (true, true)]

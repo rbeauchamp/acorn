@@ -80,9 +80,9 @@ structure SituatedClass (family : WorldClass interface) (goals : family.Goals) (
   /-- The margin of condition (c): more members than the situations' covers add up to. -/
   large : ∑ here, cover here < members.card
 
-/-- **The frozen share of a situated class.** On every visit, an agent that keeps nothing of its
-experience solves at most the sum, over the situations, of the situations' covers, which is fewer
-than the class's counted members (`SituatedClass.large`). -/
+/-- **The share of a situated class solved without experience.** On every visit, an agent that
+keeps nothing of its experience solves at most the sum, over the situations, of the situations'
+covers, which is fewer than the class's counted members (`SituatedClass.large`). -/
 theorem SituatedClass.need {family : WorldClass interface} {goals : family.Goals} {length : ℕ}
     {Situation : Type} [Fintype Situation]
     (situated : SituatedClass family goals length Situation) {agent : Agent interface}

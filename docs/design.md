@@ -876,8 +876,8 @@ An open-loop agent reads no percept at all. A reactive agent's action is a
 function of the latest percept alone.
 
 [Issue #69](https://github.com/rbeauchamp/acorn/issues/69) asks for need against
-frozen within-envelope agents, the uniform-random comparator included. That
-class is the experience-free agents within a memory width with room for the step
+within-envelope agents that keep nothing of their experience, the uniform-random
+comparator included. That class is the experience-free agents within a memory width with room for the step
 counter (12 bits at a cap of 3000): what such an agent retains does not depend
 on what it has perceived. `experienceFree_iff_infeasible` covers it. The
 comparator is open-loop, so it is experience-free
@@ -974,7 +974,7 @@ life: the agent's state persists across every host boundary, and the world is no
 For goals whose need is to be proved on later visits, the second half gives way, and only
 for that class. In a world that persists, an experience-free agent keeps every goal it has
 met (`park_keeps`), so no bound on its later visits follows, and a learner that beats the
-first-visit bound shows nothing a frozen agent could not do. Visits keep the first half: the
+first-visit bound shows nothing an experience-free agent could not do. Visits keep the first half: the
 agent is never restarted and its memory carries from visit to visit. Each member's world
 returns to that member's own start between visits, and every visit has the same length, so
 that neither the world's state nor the step count carries what an earlier visit found. The
@@ -1213,7 +1213,7 @@ zero, keeping the agent. A refused observation or step ends the run in that refu
 visit is cap steps of the world and cap + 1 decisions.
 
 The first percept of every visit carries the start's result. A result kept across the restart
-would carry what an earlier visit found: a frozen agent reading it could solve more members
+would carry what an earlier visit found: an experience-free agent reading it could solve more members
 on a later visit than the covering bound (argued). The last step's result reaches the agent
 at the visit's last decision, so nothing is dropped. At every step order the loop evaluates
 the agent's whole step before the world's transition. The grid world waits, so one pass gives
