@@ -577,7 +577,8 @@ def visitScript (interface : Interface) (length : ℕ) (actions : ℕ → Act in
     (actions count.val,
       if within : count.val < length then ⟨count.val + 1, by omega⟩ else ⟨0, Nat.succ_pos length⟩)
 
-/-- A visit script reads no percept, so it is frozen (`OpenLoop.experienceFree`). -/
+/-- A visit script reads no percept, so it keeps nothing of its experience
+(`OpenLoop.experienceFree`). -/
 theorem visitScript_openLoop (length : ℕ) (actions : ℕ → Act interface) :
     OpenLoop (visitScript interface length actions) :=
   ⟨fun count =>
@@ -639,8 +640,9 @@ theorem visitScript_actionAt (world : World interface) (start : world.State) (le
   rw [Nat.mod_eq_of_lt (Nat.lt_succ_of_le within)] at counter
   exact congrArg actions counter
 
-/-- Where one action sequence meets every member's goal within a visit, a frozen agent solves
-every member on every visit. So such a class gives no evidence of learning. -/
+/-- Where one action sequence meets every member's goal within a visit, the visit script of that
+sequence, which reads no percept and so keeps nothing of its experience, solves every member on
+every visit. So such a class gives no evidence of learning. -/
 theorem blindSolvable_frozen {family : WorldClass interface} {goals : family.Goals} {length : ℕ}
     (actions : ℕ → Act interface)
     (solves : ∀ index, (visitGoals goals length index).MetBy (family.start index) actions)
