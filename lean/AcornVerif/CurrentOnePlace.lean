@@ -19,13 +19,15 @@ the start shows `shown`, and the step leads to a state that shows `paid` when th
 and `shown` otherwise; the next step returns to the start. Take an agent state whose learners are
 at rest and whose primitive controller holds no trace, under a profile with no hierarchy,
 per-step credit, the declared rate and the discounted criterion, before a unit of its feature
-bank matures. If its first action is the key, `shown` carries a zero reward word and `paid` a
-reward word of one, every frame it lays holds at most 1999 slots, the frames laid at the times
-zero and two share a slot, and the explorer of its state, after two decisions, holds no committed
-run with a step left and begins none, then the agent's action at the time two is the key again,
-and the percept at the time three is `paid` (`door_again`).
+bank matures, through the step that learns the reward. If its first action is the key, `shown`
+carries a zero reward word and `paid` a reward word of one, every frame it lays holds at most
+1999 slots, the frames laid at the times zero and two share a slot, and the explorer of its
+state, after two decisions, holds no committed run with a step left and begins none, then the
+agent's action at the time two is the key again, and the percept at the time three is `paid`
+(`door_again`).
 
-**The lock: no, where the visit is two decisions and the second frame holds the first.**
+**The lock: no, where the visit is two decisions and the next visit's first frame holds a slot of
+the second frame and no slot of the first frame outside the second.**
 `lock first second shown later paid` is a place of two steps: the start shows `shown`, every
 state after one step shows `later`, and the state after two steps shows `paid` when the two
 actions were `first` and then `second`, and `later` otherwise; the next step returns to the
@@ -46,10 +48,10 @@ the frame it was taken on holds one word, the stored step size decayed once for 
 (`AcornVerif.CurrentTraceCounts.loop_fresh`). At a frame that holds a slot of the last frame laid
 before the reward, and at least as many slots of it as of each earlier frame, the last action
 taken is the one candidate (`AcornVerif.CurrentTraceCounts.last_candidate`). The frame laid at
-the start of the next visit is such a frame when every slot it holds of the first visit's first
-frame is a slot of that visit's second frame. So the action that ended the rewarded visit is the
-candidate at the start, and outside an exploratory run the agent takes it
-(`first_choice_last`).
+the start of the next visit is such a frame when it shares a slot with the first visit's second
+frame and every slot it holds of that visit's first frame is a slot of the second. So the action
+that ended the rewarded visit is the candidate at the start, and outside an exploratory run the
+agent takes it (`first_choice_last`).
 
 **Both places exist for the agent on `main`.** For the first rung's cold agent
 (`AcornVerif.CurrentConcealedTargetRung.rungConstruction`), whose explorer's first two actions
@@ -78,19 +80,25 @@ What this does not say.
   trace, or holds weights. So nothing of a second place met after a first, and nothing of a
   place met again after another. The two theorems for the agent on `main` are at its cold state.
 - Nothing of a decision after the first one that follows the reward. At the door that decision is
-  the whole next visit; at the lock it is enough to lose it. Of a place of two or more steps
-  whose frames are not nested, this module says nothing: there the first choice is a comparison
-  of counted traces, which `AcornVerif.CurrentTraceCounts.loop_totals` states and no theorem
-  here decides.
+  the whole next visit; at the lock it is enough to lose it.
+- Nothing of a lock outside the two premises `lock_departs` has on slots: that the frame laid at
+  the time three shares a slot with the frame laid at the time one, and that every slot it holds
+  of the frame laid at the time zero is a slot of the frame laid at the time one. The first
+  frame's slots need not all be slots of the second. That full containment, which
+  `choose_nested` gives where `later` carries every word of `shown` and the same symbols, is the
+  sufficient condition `rung_lock` uses for the second premise. Where either premise fails, and
+  at a place of more than two steps, the first choice is a comparison of counted traces, which
+  `AcornVerif.CurrentTraceCounts.loop_totals` states and no theorem here decides.
 - Nothing of a visit on which the explorer serves or begins an exploratory run.
 - The lock's percepts are not shown to be percepts of the host's world: `places_exist` builds
   them by replacing a frame's words. The places are worlds of the agent's interface, which is
   what `first_choice_last` is stated for, and no theorem here says that the host's world shows
   two percepts of which one carries every word of the other.
 - That a change to the feature bank would alter either answer. Before a unit matures the bank
-  does not change (`AcornVerif.CurrentFirstCredit.young_bank`), and the lock's hypothesis is
-  about the slots of the frames, whatever lays them: a bank whose units fire at the start and
-  not one step later would break the nesting, and then this module is silent.
+  does not change (`AcornVerif.CurrentFirstCredit.young_bank`), and the lock's premises are
+  about the slots of the frames, whatever lays them: a unit that fires at the start and not one
+  step later breaks the second premise only where the frame laid at the time three holds its
+  slot and the frame laid at the time one does not, and there this module is silent.
 
 Degenerate instances, read for what they say. A door whose key the agent's first action is not
 gives `door_again` nothing to say. A lock with `first = second` is excluded by hypothesis: there
@@ -370,9 +378,10 @@ theorem door_again (primitive : profile.usesHierarchy = false)
   rw [key2, decide_eq_true rfl]
   rfl
 
-/-- **At a lock whose second frame holds the first, the visit after the first rewarded one begins
-with the second action.** See the module documentation for the hypotheses. The action at the time
-three is `second`, and the percept at the time five is `later`: the second visit is not paid. -/
+/-- **At a lock where the next visit's first frame holds a slot of the second frame and no slot of
+the first frame outside the second, the visit after the first rewarded one begins with the second
+action.** See the module documentation for the hypotheses. The action at the time three is
+`second`, and the percept at the time five is `later`: the second visit is not paid. -/
 theorem lock_departs (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -463,13 +472,6 @@ end Rest
 
 section Rung
 
-/-- The first rung's cold agent, at the type the theorems of a state at rest read. -/
-abbrev rungCold (planning : PlanningSelection) :
-    Agent Grid.interface (rungConstruction planning).profile (rungConstruction planning).config
-      .discounted (rungConstruction planning).dimension planning :=
-  Agent.initial Grid.interface (rungConstruction planning).profile
-    (rungConstruction planning).config .discounted (rungConstruction planning).dimension planning
-
 /-- After two decisions the rung's explorer holds no committed run with a step left, and its
 generator begins none at the declared rate. -/
 theorem door_calm :
@@ -496,12 +498,6 @@ theorem small_fits (planning : PlanningSelection)
   rw [eight, eleven, units]
   omega
 
-/-- The rung's feature configuration has a tiling. -/
-theorem rung_tiled (planning : PlanningSelection) :
-    0 < (rungConstruction planning).config.tilings.toNat := by
-  change 0 < Acorn.FeatureConstants.defaultTilings.toUInt64.toNat
-  decide
-
 /-- **The agent on `main` is paid twice running at the door its first action opens.** For the
 first rung's cold agent and the door whose key is its explorer's first action, with percepts of
 at most 174 words of which `shown` carries a word and a zero reward word and `paid` a reward word
@@ -519,56 +515,58 @@ theorem rung_door (planning : PlanningSelection) (shown paid : Percept Grid.inte
       Kernel.perceptAt (door (rungExplorer.actionAt 0) shown paid) (rungAgent planning)
         Door.start 3 = paid := by
   have opens : Kernel.actionAt (door (rungExplorer.actionAt 0) shown paid)
-      (executedAgent (rungCold planning)) Door.start 0 = rungExplorer.actionAt 0 :=
+      (rungAgent planning) Door.start 0 = rungExplorer.actionAt 0 :=
     cold_actions (profile := (rungConstruction planning).profile)
       (config := (rungConstruction planning).config)
       (dimension := (rungConstruction planning).dimension) rfl rfl planning
       (door (rungExplorer.actionAt 0) shown paid) Door.start 0
       (fun earlier before => absurd before (Nat.not_lt_zero earlier))
   obtain ⟨shows, stepped, back⟩ := door_visit (rungExplorer.actionAt 0) shown paid
-    (executedAgent (rungCold planning)) 0 rfl
+    (rungAgent planning) 0 rfl
   obtain ⟨showsNext, -, -⟩ := door_visit (rungExplorer.actionAt 0) shown paid
-    (executedAgent (rungCold planning)) (0 + 1 + 1) back
-  have fits : ∀ time, (laidAt (rungCold planning) (door (rungExplorer.actionAt 0) shown paid)
-      Door.start time).features.indices.length ≤ 1999 := fun time => by
+    (rungAgent planning) (0 + 1 + 1) back
+  have fits : ∀ time, (laidAt (rungConstruction planning).initial.agent
+      (door (rungExplorer.actionAt 0) shown paid) Door.start time).features.indices.length ≤
+      1999 := fun time => by
     refine small_fits planning
       (Kernel.memoryAt (door (rungExplorer.actionAt 0) shown paid)
-        (executedAgent (rungCold planning)) Door.start time)
+        (rungAgent planning) Door.start time)
       (Kernel.perceptAt (door (rungExplorer.actionAt 0) shown paid)
-        (executedAgent (rungCold planning)) Door.start time) ?_
+        (rungAgent planning) Door.start time) ?_
     change ((door (rungExplorer.actionAt 0) shown paid).percept
       (Kernel.stateAt (door (rungExplorer.actionAt 0) shown paid)
-        (executedAgent (rungCold planning)) Door.start time)).frame.words.length ≤ 174
+        (rungAgent planning) Door.start time)).frame.words.length ≤ 174
     rcases door_percept (rungExplorer.actionAt 0) shown paid
       (Kernel.stateAt (door (rungExplorer.actionAt 0) shown paid)
-        (executedAgent (rungCold planning)) Door.start time) with same | same
+        (rungAgent planning) Door.start time) with same | same
     · rw [same]
       exact small
     · rw [same]
       exact smallPaid
   have heldNext : word ∈ (Kernel.perceptAt (door (rungExplorer.actionAt 0) shown paid)
-      (executedAgent (rungCold planning)) Door.start (0 + 1 + 1)).frame.words := by
+      (rungAgent planning) Door.start (0 + 1 + 1)).frame.words := by
     rw [showsNext]
     exact held
   have heldFirst : word ∈ (Kernel.perceptAt (door (rungExplorer.actionAt 0) shown paid)
-      (executedAgent (rungCold planning)) Door.start 0).frame.words := by
+      (rungAgent planning) Door.start 0).frame.words := by
     rw [shows]
     exact held
   have shares := shared_slot
     (Kernel.memoryAt (door (rungExplorer.actionAt 0) shown paid)
-      (executedAgent (rungCold planning)) Door.start (0 + 1 + 1))
+      (rungAgent planning) Door.start (0 + 1 + 1))
     (Kernel.memoryAt (door (rungExplorer.actionAt 0) shown paid)
-      (executedAgent (rungCold planning)) Door.start 0) .learnThenAct .learnThenAct _ _ word
-    heldNext heldFirst (rung_tiled planning)
+      (rungAgent planning) Door.start 0) .learnThenAct .learnThenAct _ _ word
+    heldNext heldFirst (rungConstruction planning).config.tilingsPositive
   have again := door_again (profile := (rungConstruction planning).profile)
     (config := (rungConstruction planning).config)
-    (dimension := (rungConstruction planning).dimension) rfl rfl rfl (rungCold planning)
+    (dimension := (rungConstruction planning).dimension) rfl rfl rfl
+    (rungConstruction planning).initial.agent
     Quiet.initial ctrlQuiet_initial (rungExplorer.actionAt 0) shown paid opens
     (by change 0 + (0 + 1) < 1000; omega) silent pays fits shares door_calm.1 door_calm.2
   refine ⟨?_, again.1, again.2⟩
   change (door (rungExplorer.actionAt 0) shown paid).percept
     (Kernel.stateAt (door (rungExplorer.actionAt 0) shown paid)
-      (executedAgent (rungCold planning)) Door.start (0 + 1)) = paid
+      (rungAgent planning) Door.start (0 + 1)) = paid
   rw [stepped, opens, decide_eq_true rfl]
   rfl
 
@@ -596,13 +594,13 @@ theorem rung_lock (planning : PlanningSelection) (shown later paid : Percept Gri
       Kernel.perceptAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
         (rungAgent planning) Lock.start 5 = later := by
   obtain ⟨shows, next, ended, back⟩ := lock_visit (rungExplorer.actionAt 0)
-    (rungExplorer.actionAt 1) shown later paid (executedAgent (rungCold planning)) 0 rfl
+    (rungExplorer.actionAt 1) shown later paid (rungAgent planning) 0 rfl
   obtain ⟨showsNext, -, -, -⟩ := lock_visit (rungExplorer.actionAt 0)
-    (rungExplorer.actionAt 1) shown later paid (executedAgent (rungCold planning))
+    (rungExplorer.actionAt 1) shown later paid (rungAgent planning)
     (0 + 1 + 1 + 1) back
   have opens : Kernel.actionAt
       (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start 0 = rungExplorer.actionAt 0 :=
+      (rungAgent planning) Lock.start 0 = rungExplorer.actionAt 0 :=
     cold_actions (profile := (rungConstruction planning).profile)
       (config := (rungConstruction planning).config)
       (dimension := (rungConstruction planning).dimension) rfl rfl planning
@@ -610,31 +608,31 @@ theorem rung_lock (planning : PlanningSelection) (shown later paid : Percept Gri
       (fun earlier before => absurd before (Nat.not_lt_zero earlier))
   have turns : Kernel.actionAt
       (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start 1 = rungExplorer.actionAt 1 :=
+      (rungAgent planning) Lock.start 1 = rungExplorer.actionAt 1 :=
     cold_actions (profile := (rungConstruction planning).profile)
       (config := (rungConstruction planning).config)
       (dimension := (rungConstruction planning).dimension) rfl rfl planning
       (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid) Lock.start 1
       (fun earlier before => by
         obtain rfl : earlier = 0 := by omega
-        rw [shows]
-        exact (congrArg Binary32.isZero silent).trans (by decide))
+        exact (congrArg (fun percept : Percept Grid.interface => percept.reward.isZero)
+          shows).trans ((congrArg Binary32.isZero silent).trans (by decide)))
   have apart : rungExplorer.actionAt 0 ≠ rungExplorer.actionAt 1 :=
     rung_early_distinct 0 1 (by omega) (by omega) (by omega)
-  have fits : ∀ time, (laidAt (rungCold planning)
+  have fits : ∀ time, (laidAt (rungConstruction planning).initial.agent
       (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid) Lock.start
       time).features.indices.length ≤ 1999 := fun time => by
     refine small_fits planning
       (Kernel.memoryAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later
-        paid) (executedAgent (rungCold planning)) Lock.start time)
+        paid) (rungAgent planning) Lock.start time)
       (Kernel.perceptAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later
-        paid) (executedAgent (rungCold planning)) Lock.start time) ?_
+        paid) (rungAgent planning) Lock.start time) ?_
     change ((lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid).percept
       (Kernel.stateAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later
-        paid) (executedAgent (rungCold planning)) Lock.start time)).frame.words.length ≤ 174
+        paid) (rungAgent planning) Lock.start time)).frame.words.length ≤ 174
     rcases lock_percept (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid
       (Kernel.stateAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later
-        paid) (executedAgent (rungCold planning)) Lock.start time) with same | same | same
+        paid) (rungAgent planning) Lock.start time) with same | same | same
     · rw [same]
       exact small
     · rw [same]
@@ -643,75 +641,78 @@ theorem rung_lock (planning : PlanningSelection) (shown later paid : Percept Gri
       exact smallPaid
   have heldNext : word ∈ (Kernel.perceptAt
       (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start (0 + 1 + 1 + 1)).frame.words := by
+      (rungAgent planning) Lock.start (0 + 1 + 1 + 1)).frame.words := by
     rw [showsNext]
     exact held
   have heldLater : word ∈ (Kernel.perceptAt
       (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start (0 + 1)).frame.words := by
+      (rungAgent planning) Lock.start (0 + 1)).frame.words := by
     rw [next]
     exact nested word held
   have shares := shared_slot
     (Kernel.memoryAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start (0 + 1 + 1 + 1))
+      (rungAgent planning) Lock.start (0 + 1 + 1 + 1))
     (Kernel.memoryAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start (0 + 1)) .learnThenAct .learnThenAct _ _
-    word heldNext heldLater (rung_tiled planning)
-  have moved := loop_step (rungCold planning)
+      (rungAgent planning) Lock.start (0 + 1)) .learnThenAct .learnThenAct _ _
+    word heldNext heldLater (rungConstruction planning).config.tilingsPositive
+  have moved := loop_step (rungConstruction planning).initial.agent
     (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid) Lock.start 0
-  have bank : (rungCold planning).control.runtime.lifecycle.representation.bank =
+  have bank :
+      (rungConstruction planning).initial.agent.control.runtime.lifecycle.representation.bank =
       (Kernel.memoryAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later
-        paid) (executedAgent (rungCold planning)) Lock.start
+        paid) (rungAgent planning) Lock.start
         (0 + 1)).control.runtime.lifecycle.representation.bank := by
     rw [moved]
     exact (young_bank rfl _ _ (by change 0 < 1000; decide)).symm
-  have stored : (rungCold planning).control.runtime.references.demonPredictions =
+  have stored :
+      (rungConstruction planning).initial.agent.control.runtime.references.demonPredictions =
       (Kernel.memoryAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later
-        paid) (executedAgent (rungCold planning)) Lock.start
+        paid) (rungAgent planning) Lock.start
         (0 + 1)).control.runtime.references.demonPredictions := by
     rw [moved]
     exact (cold_step_predictions (primitive_learns rfl) .learnThenAct _).symm
   have wordsNested : ∀ word ∈ (Kernel.perceptAt
       (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start 0).frame.words,
+      (rungAgent planning) Lock.start 0).frame.words,
       word ∈ (Kernel.perceptAt
         (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-        (executedAgent (rungCold planning)) Lock.start (0 + 1)).frame.words := by
+        (rungAgent planning) Lock.start (0 + 1)).frame.words := by
     rw [shows, next]
     exact nested
   have symbolsSame : (Kernel.perceptAt
       (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start 0).frame.symbols =
+      (rungAgent planning) Lock.start 0).frame.symbols =
       (Kernel.perceptAt
         (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-        (executedAgent (rungCold planning)) Lock.start (0 + 1)).frame.symbols := by
+        (rungAgent planning) Lock.start (0 + 1)).frame.symbols := by
     rw [shows, next]
     exact symbols
   have calm := rung_calm 3 (by omega) (by omega)
   have departs := lock_departs (profile := (rungConstruction planning).profile)
     (config := (rungConstruction planning).config)
-    (dimension := (rungConstruction planning).dimension) rfl rfl rfl (rungCold planning)
+    (dimension := (rungConstruction planning).dimension) rfl rfl rfl
+    (rungConstruction planning).initial.agent
     Quiet.initial ctrlQuiet_initial (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown
     later paid apart opens turns (by change 0 + (1 + 1) < 1000; omega) silent still pays fits
     shares
-    (fun slot _ inFirst => choose_nested (rungCold planning)
+    (fun slot _ inFirst => choose_nested (rungConstruction planning).initial.agent
       (Kernel.memoryAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later
-        paid) (executedAgent (rungCold planning)) Lock.start (0 + 1)) .learnThenAct
+        paid) (rungAgent planning) Lock.start (0 + 1)) .learnThenAct
       .learnThenAct _ _ wordsNested symbolsSame bank stored slot inFirst)
     calm.1 calm.2
   refine ⟨?_, departs.1, fun same => apart same.symm, departs.2⟩
   change (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid).percept
     (Kernel.stateAt (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-      (executedAgent (rungCold planning)) Lock.start (0 + 1 + 1)) = paid
+      (rungAgent planning) Lock.start (0 + 1 + 1)) = paid
   rw [ended]
   change (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid).percept
     (Lock.done
       (decide (Kernel.actionAt
           (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-          (executedAgent (rungCold planning)) Lock.start 0 = rungExplorer.actionAt 0) &&
+          (rungAgent planning) Lock.start 0 = rungExplorer.actionAt 0) &&
         decide (Kernel.actionAt
           (lock (rungExplorer.actionAt 0) (rungExplorer.actionAt 1) shown later paid)
-          (executedAgent (rungCold planning)) Lock.start 1 = rungExplorer.actionAt 1))) = paid
+          (rungAgent planning) Lock.start 1 = rungExplorer.actionAt 1))) = paid
   rw [opens, turns, decide_eq_true rfl, decide_eq_true rfl]
   rfl
 
