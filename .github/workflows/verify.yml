@@ -295,3 +295,7 @@ jobs:
       # default libraries of the build the audit made (lean/AcornTools/Intent.lean).
       - name: The lean-intent checks on the exact source
         run: ./scripts/lean.sh exe intent-check
+      # Each target's pin file against the declarations the target reads in that build
+      # (lean/AcornTools/Frame.lean).
+      - name: The frame check on the exact source
+        run: ./scripts/lean.sh exe frame-check

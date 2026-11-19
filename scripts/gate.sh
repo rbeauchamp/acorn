@@ -71,8 +71,9 @@ step 'provisioned'
 # intent-check (lean/AcornTools/Intent.lean) runs the confirmation check and the implementation
 # check on one list of modules, those Lake lists for the default libraries, and passes only when the
 # first finds nothing and the second finds only the deliverables its closed list names as awaiting
-# an implementation. The audit and the checks run even when an earlier step fails, so one run
-# reports all three.
+# an implementation. Last, frame-check (lean/AcornTools/Frame.lean) compares each target's pin
+# file, if it has one, with the declarations the target reads in the finished build. The audit
+# and the checks run even when an earlier step fails, so one run reports all four.
 verified=0
 step 'verification, stage one'
 if ./scripts/verify.sh build-executing; then
@@ -87,6 +88,9 @@ audited=0
 step "Regula audit exited $audited; lean-intent checks"
 intended=0
 ( dependency_git; ./scripts/lean.sh exe intent-check ) || intended=$?
-step "lean-intent checks exited $intended"
-[[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 ]] || exit 1
+step "lean-intent checks exited $intended; frame check"
+framed=0
+( dependency_git; ./scripts/lean.sh exe frame-check ) || framed=$?
+step "frame check exited $framed"
+[[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 ]] || exit 1
 step 'every merge check passed'

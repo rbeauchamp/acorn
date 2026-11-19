@@ -320,6 +320,12 @@ lean_exe «intent-check» where
   root := `AcornTools.Intent
   supportInterpreter := true
 
+/-- The check of each target's pinned frame, which the merge gate runs on the finished build:
+every declaration a pinned target reads prints to the text its pin file records. -/
+lean_exe «frame-check» where
+  root := `AcornTools.Frame
+  supportInterpreter := true
+
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
 `PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.35.0; leanprover/lean4#15435) stores a
 facet-qualified key under its target as written, while every other route stores that

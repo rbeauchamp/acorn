@@ -49,7 +49,8 @@ def executables : Array (String × Name) := #[
   ("ownership-audit", `AcornTools.OwnershipAudit),
   ("corpus-audit", `AcornTools.Corpus.Main),
   ("acorn-gates", `AcornTools.Gate),
-  ("intent-check", `AcornTools.Intent)
+  ("intent-check", `AcornTools.Intent),
+  ("frame-check", `AcornTools.Frame)
 ]
 
 /-- Required statements about executing definitions must retain their actual execution
