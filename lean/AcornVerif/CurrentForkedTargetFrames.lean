@@ -8,12 +8,14 @@ import AcornVerif.CurrentFrameSize
 import AcornVerif.CurrentFrameSlots
 
 /-!
-# The frozen encoder tells the two situations apart
+# The declared coding tells the two situations apart
 
-The clause `AcornVerif.CurrentForkedTargetRule.StepsByRule` fixes the encoder through which the
-executed agent's action reads its percept. If that encoder laid one frame at the starts of both
-situations of `AcornVerif.CurrentForkedTargetRung.rungForks`, no agent the clause admits could
-value them differently at a visit's first decision. This module proves it does not.
+The clause `AcornVerif.CurrentForkedTargetRule.StepsByRule` fixes how the words of a percept and
+the units of the bank become the slots of the frame the executed agent's action reads, and
+leaves which units the bank holds to the step. If that coding laid one frame at the starts of
+both situations of `AcornVerif.CurrentForkedTargetRung.rungForks`, no agent the clause admits
+could value them differently at a visit's first decision. This module proves that it does not,
+whatever units the bank holds.
 
 `starts_differ`: for either planning selection, in every state of the rung's agent, reachable or
 not, and for every pair of installed targets, the frame laid on the percept at the first
@@ -293,7 +295,7 @@ theorem unit_val (planning : PlanningSelection)
         (16383 : ℕ).toUInt32).toNat := by
   cases planning <;> rfl
 
-/-- **The frozen encoder tells the two situations apart, in every state of the agent.** For
+/-- **The declared coding tells the two situations apart, in every state of the agent.** For
 either planning selection, every state of the rung's agent, reachable or not, and every pair of
 installed targets: the frame the agent's encoder lays on the percept at the first situation's
 start holds a slot that the frame it lays on the percept at the second situation's start does

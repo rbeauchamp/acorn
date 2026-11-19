@@ -39,12 +39,15 @@ meets them:
 **A calm visit.** `CalmAt` reads a state of the agent and a percept: the decision of primitive
 control at that state over the policy frozen at the percept's frame serves no committed
 exploratory run and its persistent draw begins none. `TurnCalm` says that each of the first
-seven decisions of a visit of a member's run under an order is calm. The step's own report, the
-flag `Acorn.Features.TemporalDecision.explored`, is not read: it marks a decision that begins a
-run and not one that serves a run already begun. The visit's last decision is not read, since
-the world moves to the next visit's start whatever that action is. A greedy choice among tied
-candidates draws on the generator and is calm. For an agent that steps by the rule, the action
-of a calm decision is the greedy choice among the frozen policy's values (`calm_action`).
+seven decisions of a visit of a member's run under an order is calm. `CalmAt` is over a state
+and a percept and not over the report of a step, the flag
+`Acorn.Features.TemporalDecision.explored`, so it is defined at every state `StepsByRule`
+quantifies over without a step having been taken; under `StepsByRule` the step's decision, that
+flag included, is the declared step's. The visit's last decision is not read, since the world
+moves to the next visit's start whatever that action is. A greedy choice among tied candidates
+draws on the generator and is calm. For an agent that steps by the rule, the action of a calm
+decision is the action of the greedy draw over the frozen policy, from the generator the
+persistent draw leaves after its branch word (`calm_action`).
 
 Degenerate instances, read for what they say. `CalmAt` does not hold at a state that holds a
 committed run with a step left, whatever the percept. `TurnCalm` constrains nothing about the
@@ -163,9 +166,10 @@ def TurnCalm (planning : PlanningSelection)
           ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7 0)
         (visit * (7 + 1) + step))
 
-/-- **A calm decision takes the greedy choice.** For an agent that steps by the rule, the action
-of the step at a calm decision is the action of the persistent draw that began no run: the
-greedy choice among the frozen policy's values. -/
+/-- **A calm decision takes the greedy draw.** For an agent that steps by the rule, the action
+of the step at a calm decision is the action of the greedy draw over the policy the primitive
+controller freezes at the active set of the percept's frame, at the declared rate, from the
+generator the persistent draw leaves after its branch word. -/
 theorem calm_action (planning : PlanningSelection) (rule : StepsByRule planning)
     (agent : Agent Grid.interface (rungConstruction planning).profile
       (rungConstruction planning).config (rungConstruction planning).criterion
@@ -173,10 +177,11 @@ theorem calm_action (planning : PlanningSelection) (rule : StepsByRule planning)
     (percept : Percept Grid.interface) (calm : CalmAt planning agent percept) :
     (agent.act percept).2.action =
       ((agent.control.runtime.lifecycle.consumers.control.snapshot
-          (agent.advanceClock.frame percept.frame).active declaredRate).drawPersistent
-        (explorerOf agent.control).rng).1.action := by
+          (agent.advanceClock.frame percept.frame).active declaredRate).greedy
+        (explorerOf agent.control).rng.nextF64.2).1 := by
   rw [(steps_act planning rule agent percept).1]
   unfold Explorer.stepOver
   rw [calm.1]
+  exact ((CurrentTemporal.persistent_draw _ _).2.1 calm.2).2
 
 end AcornVerif.CurrentForkedTargetRule

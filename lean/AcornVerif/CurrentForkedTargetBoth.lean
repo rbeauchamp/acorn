@@ -99,7 +99,7 @@ def secondTarget (mode : TaskFeatureMode) (first second : Live config) (length :
 
 /-- One action sequence meets, from the first situation's starts within a visit, the goals of at
 most `7 length` members no two of which have one first target. -/
-theorem forked_covered_sharp (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
+theorem forked_first_covered (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (actions : ℕ → Kernel.Act Grid.interface)
     (solved : Finset (forkedFind config mode first second length).Index)
     (distinct : ∀ one ∈ solved, ∀ two ∈ solved,
@@ -128,7 +128,7 @@ theorem forked_need_grid (mode : TaskFeatureMode) (first second : Live config) (
       (firstTarget mode first second length) (secondTarget mode first second length)
       limit horizon returns admits agent :=
   Kernel.turns_need_grid (forked_conceals mode first second length)
-    (forked_covered_sharp mode first second length) free
+    (forked_first_covered mode first second length) free
 
 /-- **No agent that goes by its clock, its reward words and its achievement flags masters a
 grid**, at any bound, keys, limit, horizon, returns and predicate. -/
@@ -213,26 +213,6 @@ theorem first_unmet_memory (mode : TaskFeatureMode) (first second : Live config)
       have unsolved := fresh visit (Nat.lt_succ_self visit) side
       rw [Kernel.solvesTurn_iff, side] at unsolved
       exact unmet_visitMemory mode first length pair.1.1.1 agent _ unsolved
-
-/-- One action sequence meets, from the first situation's starts within a visit, the goals of at
-most `7 length` members no two of which have one first target. -/
-theorem forked_first_covered (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
-    (actions : ℕ → Kernel.Act Grid.interface)
-    (solved : Finset (forkedFind config mode first second length).Index)
-    (distinct : ∀ one ∈ solved, ∀ two ∈ solved,
-      firstTarget mode first second length one = firstTarget mode first second length two →
-        one = two)
-    (each : ∀ pair ∈ solved,
-      (Kernel.turnGoal (forkedGoals config mode first second length) length pair).MetBy
-        ((forkedFind config mode first second length).start pair false) actions) :
-    solved.card ≤ 7 * length := by
-  classical
-  rw [← Finset.card_image_of_injOn (f := firstTarget mode first second length)
-    (fun one inOne two inTwo same => distinct one inOne two inTwo same)]
-  apply feasibleFind_covered_sharp config mode first length actions
-  intro target chosen
-  obtain ⟨pair, picked, rfl⟩ := Finset.mem_image.mp chosen
-  exact each pair picked
 
 /-- **What the other situation shows cannot stand in for the first situation.** Take members with
 one target in the other situation, a run under one order, and a visit. Those the agent solves in

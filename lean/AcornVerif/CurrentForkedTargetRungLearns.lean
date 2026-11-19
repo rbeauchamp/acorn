@@ -38,10 +38,10 @@ and predicate:
   (`AcornVerif.CurrentForkedTargetBoth.grid_first_experience`).
 
 **What the rule adds**, for the executed agent of a construction that steps by the declared
-rule: on a calm visit of a member's run, each of the seven actions the world takes is the greedy
-choice among the values the primitive controller holds at that decision's frame
-(`calm_turn_greedy`). With mastery on a calm visit, the visit of mastery is solved by such
-choices.
+rule: on a calm visit of a member's run, each of the seven actions the world takes is the action
+of the greedy draw over the policy the primitive controller freezes at that decision's frame,
+from the generator the persistent draw leaves after its branch word (`calm_turn_greedy`). With
+mastery on a calm visit, the visit of mastery is solved by such draws.
 
 **That the two promises can be met.** `AcornVerif.CurrentForkedTargetRungBoth.gridWitness`, a
 kernel agent built for the purpose, masters a grid before visit 576 with 288 later occasions
@@ -201,11 +201,11 @@ theorem grid_experienced
 
 /-! ## What the rule adds -/
 
-/-- **On a calm visit the agent's actions are greedy choices among its values.** For a
+/-- **On a calm visit the agent's actions are greedy draws over its frozen policy.** For a
 construction that steps by the declared rule: on a calm visit of a member's run under an order,
-each of the seven actions the world takes is the action of the persistent draw that began no
-run, over the policy the primitive controller freezes from its weights at that decision's
-frame. -/
+each of the seven actions the world takes is the action of the greedy draw over the policy the
+primitive controller freezes from its weights at the active set of that decision's frame, at the
+declared rate, from the generator the persistent draw leaves after its branch word. -/
 theorem calm_turn_greedy (planning : PlanningSelection) (rule : StepsByRule planning)
     (pair : (rungForks (rungConstruction planning).profile.taskMode).Index) (order : ℕ → Bool)
     (visit : ℕ) (calm : TurnCalm planning pair order visit) (step : ℕ) (short : step < 7) :
@@ -240,7 +240,7 @@ theorem calm_turn_greedy (planning : PlanningSelection) (rule : StepsByRule plan
                 ((rungForks (rungConstruction planning).profile.taskMode).world pair)
                 ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7
                 0)
-              (visit * (7 + 1) + step)).frame).active declaredRate).drawPersistent
+              (visit * (7 + 1) + step)).frame).active declaredRate).greedy
         (explorerOf (Kernel.memoryAt
             (Kernel.turns ((rungForks (rungConstruction planning).profile.taskMode).world pair)
               ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7)
@@ -248,7 +248,7 @@ theorem calm_turn_greedy (planning : PlanningSelection) (rule : StepsByRule plan
             (Kernel.turnStart
               ((rungForks (rungConstruction planning).profile.taskMode).world pair)
               ((rungForks (rungConstruction planning).profile.taskMode).start pair) order 7 0)
-            (visit * (7 + 1) + step)).control).rng).1.action :=
+            (visit * (7 + 1) + step)).control).rng.nextF64.2).1 :=
   calm_action planning rule _ _ (calm step short)
 
 /-! ## That the two promises can be met -/

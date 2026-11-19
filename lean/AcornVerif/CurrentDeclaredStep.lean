@@ -10,16 +10,22 @@ import AcornVerif.CurrentFirstCredit
 # The declared step, and what it is for an agent to step by it
 
 `StepsByRule` says of the executed agent's type that its step is the declared step in everything
-but the representation: the readout, the draw and every learning update are the declared ones,
-and only which units the feature bank holds is left to the step.
+but the representation and the lifetime observations: the readout, the draw and every learning
+update are the declared ones, and which units the feature bank holds is left to the step.
 
 **The declared step.** `declaredStep` is `Acorn.Handcrafted.TemporalControl.alignedStep` applied
 to the agent's clock-advanced control at the active set of the percept's frame, with the
-percept's frame, reward word and achievement flag. It selects the action by one decision of
-primitive control over the policy the primitive controller freezes from its weights, then
-learns: the primitive controller by executed-action Sarsa through SwiftTD at that active set,
-that action and that reward word, then every prediction demon, then the gain
-(`Acorn.Handcrafted.PredictionControl.advanceWith`).
+percept's frame, reward word and achievement flag. It is a selection followed by the learning
+part on what the selection returned (`declaredStep_parts`). For a profile with no hierarchy
+under the declared rate, the selection takes the action of one decision of primitive control
+over the policy the primitive controller freezes from its weights
+(`AcornVerif.CurrentExplorer.select_draws`). For a profile with no hierarchy that is not frozen,
+the learning part then learns the primitive controller by executed-action Sarsa through SwiftTD
+at that active set, that action and that reward word, then every prediction demon, then the
+gain (`Acorn.Handcrafted.PredictionControl.advanceWith`). Under a frozen profile that update
+runs neither the controller's credit step nor the demons' step. Under a profile with a
+hierarchy the meta-controller and the options take part in both the selection and the learning
+part, and this account does not cover them.
 
 **Forgetting units.** `forgetUnits` retires every learner's weight on the slot of each listed
 unit and releases every slot that holds one. It is what the executing tester does to the
@@ -37,14 +43,28 @@ learners for the units it replaces.
 What the clause does not constrain is the representation (the bank's units, their origins,
 utilities and the tester's clock and credit) and the lifetime observations. The encoder reads
 the bank, so a step may decide which units exist. A unit whose projection changes is in the
-list, so no weight learned on a unit's slot outlives the unit.
+list, so after the step every row of the primitive controller holds a zero word on that unit's
+slot (`StepsByRule.forgets`). No theorem here states the same of the meta-controller, the
+options or the demons.
 
-**The executing step meets it** (`act_steps`), for every interface, profile, configuration,
-criterion, dimension and planning selection: its list is the list of units its tester replaces.
+**Which credit is left to the step.** The state holds two things called credit. The clause
+leaves one to the step: the tester's accrued replacement credit
+(`Acorn.Features.Progress.credit`), which is part of the representation. The primitive credit
+(the field `credit` of `Acorn.Handcrafted.TemporalControl`, the credit policy's state with its
+deferred span), the gain (`average`) and the rate (`rate`) are the declared step's. The
+primitive credit and the gain are inputs to the learning update, and an input to the update
+that the step may set is a way to write the weights; the rate is the state of the exploration
+rate, which the draw reads. Which credit the clause leaves free was decided by the agents that
+maintain Acorn.
+
+**The executing step meets it** (`act_steps`), for every profile with no hierarchy and every
+interface, configuration, criterion, dimension and planning selection: its list is the list of
+units its tester replaces.
 
 A degenerate instance, read for what it says: with the empty list the clause says that the step
-is the declared step outside the representation and that no unit's projection changed. The
-executing step of a frozen profile is that instance.
+is the declared step outside the representation and the lifetime observations and that no
+unit's projection changed. The executing step of a frozen profile with no hierarchy is that
+instance.
 -/
 
 namespace AcornVerif.CurrentDeclaredStep
@@ -399,7 +419,7 @@ theorem StepsByRule.quiet_actions
   rw [stepped.1, reached.2]
   rfl
 
-/-! ## A forgotten unit carries no weight -/
+/-! ## A forgotten unit carries no weight in the primitive controller -/
 
 section Forgetting
 
@@ -482,9 +502,9 @@ theorem forgetUnits_cleared {actions : Word.Count} {discounts : List Discount}
   rw [released]
   exact retired units ensemble (Or.inl listed) row
 
-/-- **A unit that a step by the rule rewrites carries no weight.** If the step leaves a unit
-with another projection than it had, every row of the primitive controller holds a zero word on
-that unit's slot after the step. -/
+/-- **A unit that a step by the rule rewrites carries no weight in the primitive controller.**
+If the step leaves a unit with another projection than it had, every row of the primitive
+controller holds a zero word on that unit's slot after the step. -/
 theorem StepsByRule.forgets
     (rule : StepsByRule interface profile config criterion dimension planning)
     (agent : Agent interface profile config criterion dimension planning)
