@@ -859,10 +859,11 @@ variable {E Core V : Type}
 
 /-- **An agent that is feedback-driven on everything a class shows it does not master.** Take a
 chooser whose preference and memory read the percept through a feedback alone, made aloof on a
-set of percepts: on those it holds a resting preference, so over every sequence of percepts it
-is not driven by the feedback. If no member of the class delivers a percept of the set, it does
-not master, at any bound, key and limit: in every member's world in turns its closed loop is the
-chooser's own (`aloof_loop`), and the chooser is feedback-driven (`chooser_stepped`). -/
+set of percepts: on those it holds a resting preference. Over every sequence of percepts it need
+then not be driven by the feedback; whether it is depends on the set, and with an empty set it is
+the chooser itself. If no member of the class delivers a percept of the set, it does not master,
+at any bound, key and limit: in every member's world in turns its closed loop is the chooser's
+own (`aloof_loop`), and the chooser is feedback-driven (`chooser_stepped`). -/
 theorem aloof_masters {feedback : Percept interface → Φ} (select : E → V → Act interface × E)
     (core : Core) (seed : E) (prefer : Core → Φ → V)
     (advance : Core → Φ → Act interface → Core)

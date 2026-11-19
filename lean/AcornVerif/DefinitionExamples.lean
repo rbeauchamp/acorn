@@ -28,6 +28,8 @@ modules of the definitions leave out.
 * `StopsLearningAt`: `pupil_stops` is a witness and `pupil_goes_on` a failing example, both under
   the pupil's declaration of its two doors as what it has learned. Under the empty declaration
   every agent is a witness (`nothing_stops`).
+* `KeepsOnly`: its failing example is in the module of the definition, `not_keepsOnly_of_card`
+  with the instance `pupil_not_keepsOnly`.
 * `FeedbackDriven`: `pupil_not_feedbackDriven` is a failing example; every agent stepped by the
   feedback is a witness (`Stepped.feedbackDriven`).
 * `Apart` and `Mute`, the two halves of forks in time: `oneStart_not_apart` and `twoTone_not_mute`

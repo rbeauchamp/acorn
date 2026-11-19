@@ -27,7 +27,8 @@ Two results over the kernel's definitions, for every interface.
 * `PerceivingDecides`: condition (e) of contract 2. No agent whose effect on every run of the
   class is that of a clock-and-feedback agent meets the promise (`PerceivingNeeded`), and some
   agent meets it. The first half alone holds of every promise that no agent meets
-  (`not_decides_of_unmet`).
+  (`not_decides_of_unmet`). The definitions take any feedback; they compare with agents that read
+  at most their reward only where the feedback determines the reward word.
 -/
 
 namespace AcornVerif.Kernel
@@ -288,11 +289,16 @@ def PerceivingNeeded {ι : Type} (feedback : Percept interface → Φ) (run : ι
   ∀ agent, RunsAsDriven feedback run agent → ¬ promise agent
 
 /-- **Condition (e) of contract 2: perceiving decides the promise.** Perceiving is needed for the
-promise, and some agent meets it; so an agent that reads its observation does what no agent with
-the effect of a clock-and-feedback agent does. Its witnesses are the cued doors (`cued_perceiving`)
-and the day-and-night class of the grid world (`rung_fork_decides`). A promise no agent meets
-fails it (`not_decides_of_unmet`), and so does separation in a class that conceals its goals behind
-one reference world with a success signal (`not_decides_of_conceals`). -/
+promise, and some agent meets it; so some agent does what no agent with the effect of an agent
+driven by the feedback does. The definition is stated for any feedback and claims no more than
+that. It is an advantage over agents that read at most their reward only for a feedback that
+determines the reward word: for a feedback that leaves the reward word out, the agent that meets
+the promise may be one that reads nothing but its reward. Contract 2 asks the condition for a
+feedback that determines the reward. Its witnesses are the cued doors, with the reward word as the
+feedback (`cued_perceiving`), and the day-and-night class of the grid world, with the reward word
+and the achievement flag (`rung_fork_decides`). A promise no agent meets fails it
+(`not_decides_of_unmet`), and so does separation in a class that conceals its goals behind one
+reference world with a success signal (`not_decides_of_conceals`). -/
 def PerceivingDecides {ι : Type} (feedback : Percept interface → Φ) (run : ι → Run interface)
     (promise : Agent interface → Prop) : Prop :=
   PerceivingNeeded feedback run promise ∧ ∃ agent, promise agent

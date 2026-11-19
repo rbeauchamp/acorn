@@ -78,19 +78,23 @@ theorem rung_not_perceivingNeeded (mode : TaskFeatureMode) :
     fun needed => needed twin (steppedTwin.feedbackDriven.runsAsDriven _)
       ((clauses 98 288 0 0 counted).1.mpr separates)⟩
 
-/-- **The postcondition's record admits an agent that stores a rewarded visit's actions and
+/-- **The postcondition's record admits the agent that stores a rewarded visit's actions and
 replays them.** On the first rung's class, with the horizon 864 and the 144 lapses mission 283
-named, an agent stepped by the achievement flag alone meets the record of the postcondition. -/
+named, the replaying agent of `AcornVerif.Replay`, with the achievement flag as its signal and the
+witness's three walks as its exploration, is stepped by that flag alone and meets the record of the
+postcondition over some list of members. It is the agent of which
+`AcornVerif.StoredExperienceRecord.replay_not_memoryBounded` says that it fails the mission
+theorem's premise on memory. -/
 theorem rung_replay_achieves (mode : TaskFeatureMode) :
-    ∃ (agent : Kernel.Agent Grid.interface)
-      (counted : List (feasibleFind witnessConfig mode witnessLive 7).Index),
-      Kernel.Stepped achievedSignal agent ∧
+    Kernel.Stepped achievedSignal (Kernel.replay Grid.interface 7 achievedSignal witnessExplore) ∧
+      ∃ counted : List (feasibleFind witnessConfig mode witnessLive 7).Index,
         Postcondition.postcondition.Meets
           (visitsTrial (feasibleFind witnessConfig mode witnessLive 7) 7 864 144 reward
-            (fun _ => goalMet) counted agent) := by
-  obtain ⟨agent, counted, stepped, distinct, separates, retains⟩ := flag_solver mode
-  exact ⟨agent, counted, stepped,
-    visits_achieves _ _ 7 864 144 _ _ counted agent (find_pays mode witnessLive 7 rfl)
+            (fun _ => goalMet) counted
+            (Kernel.replay Grid.interface 7 achievedSignal witnessExplore)) := by
+  obtain ⟨counted, distinct, separates, retains⟩ := replay_solver mode
+  exact ⟨Kernel.replay_steppedBy 7 achievedSignal witnessExplore, counted,
+    visits_achieves _ _ 7 864 144 _ _ counted _ (find_pays mode witnessLive 7 rfl)
       (feasibleFind_conceals mode witnessLive 7 7)
       (feasibleFind_covered witnessConfig mode witnessLive 7) distinct separates (by decide)
       retains⟩

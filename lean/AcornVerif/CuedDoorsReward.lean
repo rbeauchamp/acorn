@@ -8,13 +8,15 @@ import AcornVerif.CuedDoorsPupil
 /-!
 # The cued doors over every interface with four actions and one percept
 
-The hypotheses of `cued_summary` about percepts are met from any one percept of the interface:
-the two situations' percepts are that percept's frame with the achievement flag off and on, both
-with the reward word zero, and the winning percept carries the reward word one. With the reward
-word as the feedback, `cued_reward` is then a statement with no hypothesis but four actions and a
-percept: no agent driven by its reward words separates, every experience-free agent solves at
-most two members, the pupil separates and retains, and no one reference world conceals the class's
-goals in the full percept.
+The hypotheses of `cued_summary` about percepts are met from any one percept of the interface.
+The two situations' percepts are that percept's frame with its declared potentials all off or all
+on, the achievement flag off and the reward word zero. The winning percept is that percept's frame
+with the achievement flag on and the reward word one. So the achievement flag and the reward word
+show the outcome, met or not, and the situation is shown in a part of the observation that goal
+achievement does not write. With the reward word as the feedback, `cued_reward` is then a statement
+with no hypothesis but four actions and a percept: no agent driven by its reward words separates,
+every experience-free agent solves at most two members, the pupil separates and retains, and no
+one reference world conceals the class's goals in the full percept.
 -/
 
 namespace AcornVerif.Kernel
@@ -22,22 +24,25 @@ open Acorn Acorn.Features
 
 variable {interface : Interface}
 
-/-- A frame with its achievement flag set to a situation. -/
+/-- A frame that shows a situation in its declared potentials, all off or all on, and reports no
+achievement. -/
 def cueFrame (shown : Percept interface) (situation : Bool) : Frame interface :=
-  { shown.frame with achieved := situation }
+  { shown.frame with potentials := Vector.replicate _ situation, achieved := false }
 
 /-- The percept of a situation: the frame that shows it, with the reward word zero. -/
 def cuePercept (shown : Percept interface) (situation : Bool) : Percept interface :=
   ⟨cueFrame shown situation, ⟨0⟩⟩
 
-/-- The winning percept: the reward word one. -/
-def winPercept (shown : Percept interface) : Percept interface := ⟨shown.frame, ⟨1⟩⟩
+/-- The winning percept: the achievement flag on and the reward word one. -/
+def winPercept (shown : Percept interface) : Percept interface :=
+  ⟨{ shown.frame with achieved := true }, ⟨1⟩⟩
 
 /-- Whether a percept's reward word is one. -/
 def paid (percept : Percept interface) : Bool := decide (percept.reward = (⟨1⟩ : Binary32))
 
-/-- The situation a percept's frame shows. -/
-def cue (percept : Percept interface) : Bool := percept.frame.achieved
+/-- The situation a percept's frame shows: its first declared potential. -/
+def cue (percept : Percept interface) : Bool :=
+  percept.frame.potentials[0]'(by decide)
 
 /-- The projection that keeps a percept's reward word and nothing of its frame. -/
 def rewardOnly (shown : Percept interface) (percept : Percept interface) : Percept interface :=
@@ -77,9 +82,8 @@ theorem cued_reward (four : 4 ≤ interface.actions.word.toNat) (shown : Percept
       (decide_eq_true rfl) (fun _ => decide_eq_false zero_ne_one) (fun _ => rfl)
   exact ⟨blind, frozen, separates, retains, fun reference origin =>
     cued_reveals four (cuePercept shown) (winPercept shown)
-      (fun same => absurd
-        (congrArg (fun percept : Percept interface => percept.frame.achieved) same)
-        Bool.false_ne_true) reference origin⟩
+      (fun same => absurd (congrArg cue same : false = true) Bool.false_ne_true)
+      reference origin⟩
 
 /-- **The cued doors meet condition (e)**, for separation at the bound 3 before visit 2. With the
 reward word as the feedback: no agent whose effect on every run of the class is that of a

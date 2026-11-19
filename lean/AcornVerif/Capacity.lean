@@ -25,10 +25,11 @@ import Mathlib.Data.Fintype.BigOperators
 * `CapacityDependent` (adapted from the owner's earlier work, capacity dependence): a decision
   indexed by a memory width holds at the tight width and fails at the loose one.
   `not_dependent_of_always` and `not_dependent_of_never` are its two failing examples.
-* `BeyondCapacity`: contract 2 (d) in Acorn's counted form with an explicit margin in bits, as a
-  structure a class can be proved to meet. `BeyondCapacity.unsolved`: on such a class, for every
-  agent whose memory fits the width and every cycle, some assignment of the class's members to the
-  campaign's slots has a slot the agent does not solve on that cycle.
+* `BeyondCapacity`: contract 2 (d) in Acorn's counted form with an explicit margin in bits, for a
+  class concealed behind one reference world, as a structure a class can be proved to meet.
+  `BeyondCapacity.unsolved`: on such a class, for every agent whose memory fits the width and
+  every cycle, some assignment of the class's members to the campaign's slots has a slot the
+  agent does not solve on that cycle.
 -/
 
 namespace AcornVerif.Kernel
@@ -173,7 +174,9 @@ theorem not_dependent_of_never {decision : ℕ → Prop} {tight : ℕ} (never : 
 
 /-! ## Contract 2 (d) in counted form -/
 
-/-- **Beyond capacity, by a margin.** The class conceals its goals, one action sequence meets at
+/-- **Beyond capacity, by a margin.** This is the counted form for a class concealed behind one
+reference world; no counted form is stated for a situated class of more than one situation. The
+class conceals its goals behind that reference world, one action sequence meets at
 most `cover` members within a visit, and a finite set of its members is so large that the
 assignments of its members to `slots + 1` campaign slots outnumber `2 ^ (bits + margin)` times
 the assignments one memory can solve wholly. Its witness is the first rung's class at one bit of

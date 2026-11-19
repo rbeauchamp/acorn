@@ -49,7 +49,9 @@ experience-free agent keeping every goal it has met. `AcornVerif.Replay` shows a
 uses its experience solving, on every later visit, every member it has solved once, and,
 under a hypothesis of exploration, more members on one visit than the covering bound.
 
-`ConcealedClass` packages conditions (a) to (c) of the mission contract's contract 2; they do not
+`ConcealedClass` packages conditions (a) to (c) of the mission contract's contract 2 in their form
+for a class of one situation, concealed behind one reference world; the situated form of (b) and
+(c) is `SituatedClass` in `AcornVerif.SituatedClass`. The conditions do not
 supply obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
 
 A class that one action sequence solves gives no evidence of learning. `visitScript` reads no
@@ -536,10 +538,13 @@ theorem visits_ever (hidden : Conceals family goals reference origin) {length bo
 
 /-! ## A concealed class -/
 
-/-- Conditions (a) to (c) of contract 2 of the mission contract, for a class with goals and a
-visit length: it conceals its goals behind one reference world (b); one action sequence meets
-the goals of at most `k` members within a visit, and some finite set holds more than `k`
-members (c); and every member's goal is feasible within a visit (a). These conditions establish
+/-- Conditions (a) to (c) of contract 2 of the mission contract in their form for a class of one
+situation, for a class with goals and a visit length: it conceals its goals behind one reference
+world (b); one action sequence meets the goals of at most `k` members within a visit, and some
+finite set holds more than `k` members (c); and every member's goal is feasible within a visit
+(a). The situated form of (b) and (c), with a reference world for each situation, is
+`SituatedClass` in `AcornVerif.SituatedClass`, of which this is the case of one situation
+(`ConcealedClass.situated`). These conditions establish
 the comparison bound of `visits_need`. They do not establish that experience supplies
 information from which an agent can learn a solution, which is part of obligation 4 of
 `docs/mission-contract.md`, the goal-information and exploration premises. -/

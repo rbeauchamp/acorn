@@ -21,19 +21,19 @@ open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
 open AcornVerif.CurrentConcealedTargetTwin
 
-/-- **Both promises of the frozen target are met by an agent that reads only the achievement
-flag.** On the rung's class, under every task mode, there are an agent stepped by the percept's
-achievement flag and a list of distinct members such that the agent solves more than 98 listed
-members on one visit before visit 288, and solves again every member it has solved on every later
-visit before visit 864, with no lapse. -/
-theorem flag_solver (mode : TaskFeatureMode) :
-    ∃ (agent : Kernel.Agent Grid.interface)
-      (counted : List (feasibleFind witnessConfig mode witnessLive 7).Index),
-      Kernel.Stepped achievedSignal agent ∧ counted.Nodup ∧
-        Kernel.SeparatesBy (feasibleFind witnessConfig mode witnessLive 7)
-          (fun _ => completion witnessConfig mode 7) 7 98 counted 288 agent ∧
-        Kernel.RetainsBut (feasibleFind witnessConfig mode witnessLive 7)
-          (fun _ => completion witnessConfig mode 7) 7 864 144 agent := by
+/-- **The replaying agent meets both promises of the frozen target.** On the rung's class, under
+every task mode, the replaying agent whose signal is the achievement flag and whose exploration is
+the witness's three walks solves more than 98 members of a list of distinct members on one visit
+before visit 288, and solves again every member it has solved on every later visit before visit
+864, with no lapse. -/
+theorem replay_solver (mode : TaskFeatureMode) :
+    ∃ counted : List (feasibleFind witnessConfig mode witnessLive 7).Index, counted.Nodup ∧
+      Kernel.SeparatesBy (feasibleFind witnessConfig mode witnessLive 7)
+        (fun _ => completion witnessConfig mode 7) 7 98 counted 288
+        (Kernel.replay Grid.interface 7 achievedSignal witnessExplore) ∧
+      Kernel.RetainsBut (feasibleFind witnessConfig mode witnessLive 7)
+        (fun _ => completion witnessConfig mode 7) 7 864 144
+        (Kernel.replay Grid.interface 7 achievedSignal witnessExplore) := by
   classical
   obtain ⟨members, count, explored⟩ := witness_explored mode
   have feasible : ∀ target ∈ members,
@@ -48,9 +48,7 @@ theorem flag_solver (mode : TaskFeatureMode) :
     intro first second same
     exact Subtype.ext (congrArg
       (fun target : (feasibleFind witnessConfig mode witnessLive 7).Index => target.1) same)
-  refine ⟨Kernel.replay Grid.interface 7 achievedSignal witnessExplore,
-    (members.attach.map ⟨admitted, injective⟩).toList,
-    Kernel.replay_steppedBy 7 achievedSignal witnessExplore, Finset.nodup_toList _, ?_, ?_⟩
+  refine ⟨(members.attach.map ⟨admitted, injective⟩).toList, Finset.nodup_toList _, ?_, ?_⟩
   · refine ⟨2, members.attach.map ⟨admitted, injective⟩, by decide, ?_, fun index listed => ?_⟩
     · rw [Finset.card_map, Finset.card_attach, count]
       decide
@@ -66,5 +64,22 @@ theorem flag_solver (mode : TaskFeatureMode) :
     exact Kernel.replay_solves (feasibleFind witnessConfig mode witnessLive 7)
       (fun _ => completion witnessConfig mode 7) 7 achievedSignal witnessExplore index
       (achieved_decodes witnessConfig mode 7) visit later after solved
+
+/-- **Both promises of the frozen target are met by an agent that reads only the achievement
+flag.** On the rung's class, under every task mode, there are an agent stepped by the percept's
+achievement flag and a list of distinct members such that the agent solves more than 98 listed
+members on one visit before visit 288, and solves again every member it has solved on every later
+visit before visit 864, with no lapse. The agent is the replaying agent of `replay_solver`. -/
+theorem flag_solver (mode : TaskFeatureMode) :
+    ∃ (agent : Kernel.Agent Grid.interface)
+      (counted : List (feasibleFind witnessConfig mode witnessLive 7).Index),
+      Kernel.Stepped achievedSignal agent ∧ counted.Nodup ∧
+        Kernel.SeparatesBy (feasibleFind witnessConfig mode witnessLive 7)
+          (fun _ => completion witnessConfig mode 7) 7 98 counted 288 agent ∧
+        Kernel.RetainsBut (feasibleFind witnessConfig mode witnessLive 7)
+          (fun _ => completion witnessConfig mode 7) 7 864 144 agent := by
+  obtain ⟨counted, distinct, separates, retains⟩ := replay_solver mode
+  exact ⟨Kernel.replay Grid.interface 7 achievedSignal witnessExplore, counted,
+    Kernel.replay_steppedBy 7 achievedSignal witnessExplore, distinct, separates, retains⟩
 
 end AcornVerif.CurrentConcealedTargetFlag

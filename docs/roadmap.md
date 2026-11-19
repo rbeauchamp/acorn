@@ -51,6 +51,7 @@ The replaying reference agent already separates and retains on this class, under
 So the statement alone does not tell a continual learner from an agent built to memorise a route in this world.
 The rung's value is that Acorn's general agent, with nothing specific to this world, meets it within the contract's invariants.
 The first rung on which no agent can keep every solution is capacity, condition (d) of the mission contract, which since 2026-11-18 has five parts, (d1) to (d5), and is the first rung that may be called big.
+Being big does not say that a class needs perceiving, which is the contract's separate condition (e); a rung on which the mission theorem is claimed as a result about learning from what the agent perceives is asked to meet (e) as well.
 
 ### The rung's constants
 

@@ -8,9 +8,10 @@ import AcornVerif.CuedDoorsPupil
 /-!
 # Failing examples for the kernel's forms of contract 2 and the postcondition
 
-* `muteConcealed`, `mute_unlearnable`: the kernel's `ConcealedClass`, conditions (a) to (c), holds
-  of a class of two members that show one percept at every state. In it no agent solves both
-  members on any visit, so no agent ever exceeds the covering bound: the class meets (a) to (c)
+* `muteConcealed`, `mute_unlearnable`: the kernel's `ConcealedClass`, the form of conditions (a)
+  to (c) for a class concealed behind one reference world, holds of a class of two members that
+  show one percept at every state. In it no agent solves both members on any visit, so no agent
+  ever exceeds the covering bound: the class meets (a) to (c)
   and nothing can be learned in it. This is the obstruction `docs/mission-contract.md` argues
   under contract 2, machine-checked. The intent record of contract 2 excludes the class by its
   clause that success shows.
@@ -67,8 +68,8 @@ theorem mute_met (two : 2 ≤ interface.actions.word.toNat) (shown : Percept int
   have outcome : some (actions 0) = some (pick two door) := reached
   exact Option.some.inj outcome
 
-/-- **The mute doors are a concealed class**, conditions (a) to (c), with visits of one step and
-the covering bound one. -/
+/-- **The mute doors are a concealed class**, conditions (a) to (c) behind one reference world,
+with visits of one step and the covering bound one. -/
 def muteConcealed (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface) :
     ConcealedClass (mute interface shown) (muteGoals two shown) 1 1 where
   reference := firstActionWorld interface shown

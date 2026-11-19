@@ -24,6 +24,9 @@ situation (`ConcealedClass.situated`).
 
 The witness is the cued doors, `cuedSituated` in `AcornVerif.CuedDoors`: two situations and a
 cover of one each, so the bound is two, against four members.
+
+The structure groups members by a label and does not ask that percepts tell the labels apart: a
+class whose situations show the same percepts is admitted.
 -/
 
 namespace AcornVerif.Kernel
@@ -50,7 +53,12 @@ meets, within a visit, the goals of at most `cover` members of a situation; and 
 holds more members than the covers add up to, so that the share of `SituatedClass.need` is small.
 Its witness is `cuedSituated`. Its failing examples are `cued_not_one_situation`, which fails the
 concealment, and `not_situated_of_blindSolvable` with `lone_not_situated`, which fail the
-margin. -/
+margin.
+
+The situations are labels of the members, and the structure does not ask that what an agent
+perceives tell them apart. It admits a class whose situations show the same percepts, so that the
+labels distinguish nothing an agent can observe: `cuedSituated` is such a class when both
+situations are given one percept. That impostor is admitted and not kept out. -/
 structure SituatedClass (family : WorldClass interface) (goals : family.Goals) (length : ℕ)
     (Situation : Type) [Fintype Situation] where
   /-- The situation of each member. -/

@@ -20,6 +20,10 @@ import Mathlib.Data.Fintype.Prod
 * `pupil_keepsOnly`: a witness. The pupil's two doors are what it has learned; its clock bit and
   the situation it last read are named, with their law. It is an agent whose learned part comes to
   hold what was rewarded.
+* `not_keepsOnly_of_card`, `pupil_not_keepsOnly`: the failing example. An agent whose memory takes
+  more values than the declared parts can hold keeps more than is declared, under every law; the
+  pupil, declared as its two doors and its clock bit alone, is one, since its memory also holds
+  the situation it last read.
 * `not_sealed_beside`: a recorder beside a learner, declared as the learner is, is not sealed: two
   memories that differ only in the record have the same declared parts.
 * `no_room_beside`: where the learner's declared parts already take every value its memory can,
@@ -43,7 +47,11 @@ The declaration is a parameter here and the structure does not fix it. `docs/mis
 declares what an agent has learned, for each agent of its ladder; the agent never chooses it. Left
 to the agent, the declaration would be empty: with nothing declared as learned, every agent meets
 this structure (`declaresNothing`). No such declaration is made yet for any agent of the ladder
-(obligations 19 and 22 of that document). -/
+(obligations 19 and 22 of that document).
+
+Its witness is `pupil_keepsOnly`. Its failing example is `not_keepsOnly_of_card`, with
+`pupil_not_keepsOnly` as an instance: an agent whose memory holds a record the declared parts
+cannot hold meets this structure at those parts under no law. -/
 structure KeepsOnly (agent : Agent interface) (Learned Named : Type)
     (law : Named → Learned → Percept interface → Named) where
   /-- The part of the memory declared as what the agent has learned. -/
@@ -81,6 +89,32 @@ def pupil_keepsOnly (four : 4 ≤ interface.actions.word.toNat)
   lawful := by
     rintro ⟨phase, seen, first, second⟩ percept
     cases phase <;> rfl
+
+/-- **An agent whose memory holds more than the declared parts can hold keeps more than is
+declared.** Where the learned part and the named part together take fewer values than the agent's
+memory, no declaration of those parts is a `KeepsOnly`, whatever the law: two memories would have
+the same declared parts, so something persists beside them. -/
+theorem not_keepsOnly_of_card {agent : Agent interface} {Learned Named : Type}
+    [Fintype agent.Memory] [Fintype Learned] [Fintype Named]
+    (more : Fintype.card Learned * Fintype.card Named < Fintype.card agent.Memory)
+    (law : Named → Learned → Percept interface → Named) :
+    IsEmpty (KeepsOnly agent Learned Named law) :=
+  ⟨fun keeps => by
+    have fits := Fintype.card_le_of_injective _ keeps.isSealed
+    rw [Fintype.card_prod] at fits
+    exact absurd more (Nat.not_lt.mpr fits)⟩
+
+/-- **The pupil, declared as its two doors and its clock bit alone, keeps more than is declared.**
+Its memory also holds the situation it last read, a record those parts cannot hold, so no law of
+a named clock bit makes that declaration a `KeepsOnly`. -/
+theorem pupil_not_keepsOnly (four : 4 ≤ interface.actions.word.toNat)
+    (signal sees : Percept interface → Bool)
+    (law : Bool → Bool × Bool → Percept interface → Bool) :
+    IsEmpty (KeepsOnly (pupil four signal sees) (Bool × Bool) Bool law) := by
+  have more : Fintype.card (Bool × Bool) * Fintype.card Bool <
+      Fintype.card (Bool × Bool × Bool × Bool) := by decide
+  exact @not_keepsOnly_of_card interface (pupil four signal sees) (Bool × Bool) Bool
+    (inferInstanceAs (Fintype (Bool × Bool × Bool × Bool))) _ _ more law
 
 /-- **A recorder beside a learner is not sealed.** Declared as the learner is, two memories that
 differ only in the record have the same learned and named parts. -/
