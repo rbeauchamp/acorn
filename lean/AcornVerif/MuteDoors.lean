@@ -28,7 +28,7 @@ open Acorn.Features
 
 variable {interface : Interface}
 
-/-! ## Big by (a) to (c), with nothing to learn -/
+/-! ## Concealed by (a) to (c), with nothing to learn -/
 
 /-- One of two different actions. -/
 def pick (two : 2 ≤ interface.actions.word.toNat) (door : Bool) : Act interface :=
@@ -67,8 +67,8 @@ theorem mute_met (two : 2 ≤ interface.actions.word.toNat) (shown : Percept int
   have outcome : some (actions 0) = some (pick two door) := reached
   exact Option.some.inj outcome
 
-/-- **The mute doors are big by conditions (a) to (c)**, with visits of one step and the covering
-bound one. -/
+/-- **The mute doors are a concealed class**, conditions (a) to (c), with visits of one step and
+the covering bound one. -/
 def muteConcealed (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface) :
     ConcealedClass (mute interface shown) (muteGoals two shown) 1 1 where
   reference := firstActionWorld interface shown

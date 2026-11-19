@@ -9,8 +9,10 @@ import Mathlib.Data.Fintype.BigOperators
 /-!
 # Candidates for contract 2 (d), tried against the kernel, and padded classes
 
-* Padding. `covered_copies`: repeating every member of a class raises every covering bound as
-  fast as it raises the member count, so copies buy no margin for (c) or (d).
+* Padding. `covered_copies`: repeating every member of a class the same number of times raises
+  every covering bound as fast as it raises the member count, so equal copies buy no margin for (c)
+  or (d). Repeating only some members is outside the theorem and is an admitted impostor of the
+  counted form of (d): the count reads members and not different problems.
   `not_concealed_of_blindSolvable`: a class one action sequence solves is never a `ConcealedClass`.
 * `Diverse` (adapted from the owner's earlier work, reachable diversity): a count of the states a
   world enters. `idle_not_diverse` shows it rejects states that are never entered;
@@ -46,9 +48,13 @@ abbrev WorldClass.copies (family : WorldClass interface) (count : ℕ) : WorldCl
 def copiesGoals (goals : family.Goals) (count : ℕ) : (family.copies count).Goals :=
   fun index => goals index.1
 
-/-- **Copies raise the covering bound with the member count.** Where one action sequence meets
-the goals of a set of members, every covering bound of the class with each member repeated
-`count` times is at least `count` times the size of that set. -/
+/-- **Equal copies raise the covering bound with the member count.** Where one action sequence
+meets the goals of a set of members, every covering bound of the class with each member repeated
+`count` times is at least `count` times the size of that set. So repeating every member equally
+buys no margin for the counts of conditions (c) and (d). The theorem says nothing of repeating
+only some members, which the counted form of (d) admits: `BeyondCapacity` counts members and not
+different problems, so a copy of a member outside every largest set one action sequence meets
+raises the member count and no covering bound. -/
 theorem covered_copies {count bound : ℕ}
     (covered : Covered (family.copies count) (copiesGoals goals count) bound)
     (actions : ℕ → Act interface) (solved : Finset family.Index)
@@ -58,8 +64,9 @@ theorem covered_copies {count bound : ℕ}
     (fun index member => each index.1 (Finset.mem_product.mp member).1)
   rwa [Finset.card_product, Finset.card_univ, Fintype.card_fin] at all
 
-/-- **A class one action sequence solves is not big**, at any visit length and covering bound:
-the margin of condition (c) cannot hold of it. A class of copies of one problem is such a class. -/
+/-- **A class one action sequence solves is no concealed class**, at any visit length and covering
+bound: the margin of condition (c) cannot hold of it. A class of copies of one problem is such a
+class. -/
 theorem not_concealed_of_blindSolvable {length bound : ℕ} (actions : ℕ → Act interface)
     (solves : ∀ index, (visitGoals goals length index).MetBy (family.start index) actions) :
     IsEmpty (ConcealedClass family goals length bound) :=

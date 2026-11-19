@@ -19,9 +19,11 @@ each keeps out and a witness, and one word the kernel cannot carry.
   out every agent that keeps nothing; `echo_adapts` is a witness.
 * *at what it perceives*: `ReadsObservation`, the action depends on the percept beyond the
   feedback; `LearnsAt`, on one percept the action changed with experience, and after that
-  experience it depends on the percept beyond the feedback. `Stepped.not_reads` and
-  `Stepped.not_learnsAt` keep out every agent stepped by the feedback, `ExperienceFree.not_learnsAt`
-  every agent that keeps nothing; `pupil_learnsAt` is a witness.
+  experience it depends on the percept beyond the feedback. It is the conjunction of those two
+  dependences and does not say that experience changed how the percept is read. `Stepped.not_reads`
+  and `Stepped.not_learnsAt` keep out every agent stepped by the feedback,
+  `ExperienceFree.not_learnsAt` every agent that keeps nothing; `pupil_learnsAt` is a witness, and
+  `twoBits_learnsAt` an agent it admits that carries one independent bit for each dependence.
 * *stores*: `Recalls`, the memory determines the percept received a number of steps earlier.
   `historian_recalls` is a witness at every lag; `not_recalls_of_subsingleton` a failing example.
 -/
@@ -112,8 +114,12 @@ def ReadsObservation (feedback : Percept interface → Φ) (agent : Agent interf
 
 /-- **The agent has learned at what it perceives.** On one percept its action differs after two
 experiences, and after the second it takes a different action on another percept with the same
-feedback: what it does on a percept came from experience, and reads the percept beyond the
-feedback. -/
+feedback. This is the conjunction of two dependences of the action, on the past and on the present
+percept beyond the feedback. It does not say that the second came from the first: an agent whose
+action carries one independent bit for each, a reading of its previous percept and a fixed reading
+of its present one, meets it (`twoBits_learnsAt`), though no experience changes how that agent
+reads a percept. What dependence of the learned change on the percept should mean is not
+defined. -/
 def LearnsAt (feedback : Percept interface → Φ) (agent : Agent interface) : Prop :=
   ∃ (first second : ℕ → Percept interface) (time : ℕ) (here there : Percept interface),
     feedback here = feedback there ∧
@@ -165,6 +171,29 @@ theorem pupil_learnsAt (four : 4 ≤ interface.actions.word.toNat) (shown : Perc
     intro same
     have apart := (key_inj four (congrArg Fin.val same)).1
     exact absurd apart (by decide)
+
+/-- An agent whose action carries two independent bits: a reading of the percept it received a
+step earlier, which is all its memory, and a fixed reading of its present percept. -/
+def twoBits (four : 4 ≤ interface.actions.word.toNat) (past sees : Percept interface → Bool) :
+    Agent interface where
+  Memory := Bool
+  initial := false
+  act := fun held percept => (key four held (sees percept), past percept)
+
+/-- **An agent `LearnsAt` admits, though experience never changes how it reads a percept.** Where
+the reading of the past tells two percepts apart, and the reading of the present tells apart two
+percepts with one feedback, the agent of two independent bits has learned at what it perceives by
+the definition: each of the two dependences holds, by a different bit. -/
+theorem twoBits_learnsAt (four : 4 ≤ interface.actions.word.toNat)
+    (feedback : Percept interface → Φ) (past sees : Percept interface → Bool)
+    {one other here there : Percept interface} (earlier : past one ≠ past other)
+    (same : feedback here = feedback there) (apart : sees here ≠ sees there) :
+    LearnsAt feedback (twoBits four past sees) := by
+  refine ⟨fun _ => one, fun _ => other, 1, here, there, same, ?_, ?_⟩
+  · change key four (past one) (sees here) ≠ key four (past other) (sees here)
+    exact fun equal => earlier (key_inj four (congrArg Fin.val equal)).1
+  · change key four (past other) (sees here) ≠ key four (past other) (sees there)
+    exact fun equal => apart (key_inj four (congrArg Fin.val equal)).2
 
 /-! ## Stores -/
 
