@@ -261,6 +261,19 @@ and stop it at the specification, in this order:
    statement about one arbitrary step. None names a horizon, a rate or a
    probability. A count of tries is then a bound that a result derives, never a
    threshold someone picked.
+
+   The measure as just described does not by itself give a bound: one that a
+   step which is not a mistake may raise, or whose values can fall without
+   end, allows mistakes without limit. What the derivation needs is the
+   mathematics of the agents that maintain Acorn and no part of the owner's
+   statement. These conditions are sufficient: the measure takes its values
+   in the natural numbers, every mistake strictly lowers it, and no other
+   step raises it. Each of the last two is still a statement about one
+   arbitrary step. Under them the mistakes of every run number at most the
+   measure's value where the run starts. Where a count of tries also counts
+   steps that are not mistakes, a bound on it does not follow from the
+   measure alone: it needs its own argument that the algorithm makes
+   progress.
 3. Each device of evaluation has a mathematical counterpart, listed in the
    table below.
 4. Difficulty of proof is an unresolved obligation and never a reason to lower
