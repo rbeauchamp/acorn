@@ -30,6 +30,11 @@ runs neither the controller's credit step nor the demons' step. Under a profile 
 hierarchy the meta-controller and the options take part in both the selection and the learning
 part, and this account does not cover them.
 
+**What of the representation the declared step reads.** The declared step is applied to the
+agent's own control, representation included. For a profile with no hierarchy it reads the
+representation through the active set alone
+(`declaredStep_blind` in `AcornVerif.CurrentDeclaredStepBlind`).
+
 **Forgetting units.** `forgetUnits` retires every learner's weight on the slot of each listed
 unit and releases every slot that holds one. It is what the executing tester does to the
 learners for the units it replaces.
