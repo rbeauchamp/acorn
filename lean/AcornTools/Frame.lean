@@ -26,7 +26,7 @@ constructors, a constructor's or a recursor's type. Three kinds of name bound th
 owner makes can add or change one. It names the target, its module, the free names, the stop
 names, and for each declaration of the frame the SHA-256 digest of its printed kind, universe
 parameters, type and value (`declText`). Lines are `target`, `module`, `free`, `stop` and `pin`
-followed by their words; nothing else is admitted.
+followed by their words; an empty line is skipped, and no other line is admitted.
 
 **The check** (no argument). For each pin file it imports the module, computes the frame and
 compares it with the pinned one as a set of names with digests. A declaration pinned and no
