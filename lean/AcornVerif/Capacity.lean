@@ -121,8 +121,9 @@ theorem tally_diverse (shown : Percept interface) (actions : ℕ → Act interfa
 /-! ## A tracked policy with pairwise different actions -/
 
 /-- Adapted from the owner's earlier work (policy irreducibility). Every action sequence passes
-through `count` states at which the tracked policy asks pairwise different actions. It has no
-witness beyond the interface's number of actions: `actionsDistinct_small` is its failing side. -/
+through `count` states at which the tracked policy asks pairwise different actions. Its witness,
+with two actions, is `tally_actionsDistinct`; beyond the interface's number of actions nothing
+meets it (`actionsDistinct_small`). -/
 def ActionsDistinct (world : World interface) (start : world.State)
     (policy : world.State → Act interface) (count : ℕ) : Prop :=
   ∀ actions : ℕ → Act interface, ∃ times : Fin count → ℕ, ∀ first second, first ≠ second →
@@ -168,9 +169,9 @@ theorem not_dependent_of_never {decision : ℕ → Prop} {tight : ℕ} (never : 
 /-- **Beyond capacity, by a margin.** The class conceals its goals, one action sequence meets at
 most `cover` members within a visit, and a finite set of its members is so large that the
 assignments of its members to `slots + 1` campaign slots outnumber `2 ^ (bits + margin)` times
-the assignments one memory can solve wholly. No class is yet proved to meet it, and no class is
-proved to fail it for the reason it exists: it has neither a witness nor a failing example here,
-only its consequence `BeyondCapacity.unsolved`. -/
+the assignments one memory can solve wholly. Its witness is the first rung's class at one bit of
+memory and two slots (`AcornVerif.CurrentConcealedTargetCapacity.rung_beyond`), and its failing
+example a class one action sequence solves (`not_beyond_of_blindSolvable`). -/
 structure BeyondCapacity (family : WorldClass interface) (goals : family.Goals)
     (length slots bits margin : ℕ) where
   /-- The reference world behind which the class conceals its goals. -/

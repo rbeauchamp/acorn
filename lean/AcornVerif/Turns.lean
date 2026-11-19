@@ -328,7 +328,11 @@ theorem solvesTurn_of_states {first second : Agent interface}
 /-- **Mastery before a stated visit.** Under one order, on one visit before the visit `limit`,
 the agent solves each member of a set of more than `bound` members in both situations: under the
 order with that visit's situation set to the one and to the other. No two members of the set
-have one key. -/
+have one key.
+
+This is a draft of the successor mission's promise, under revision, and no definition of the
+mission contract. It has a witness on the day-and-night class and a failing example in every
+feedback-driven agent (`FeedbackDriven.masters`). -/
 def MastersBy (family : TurnClass interface) (goals : family.Goals) (length bound : ℕ)
     {κ : Type} (key : family.Index → κ) (limit : ℕ) (agent : Agent interface) : Prop :=
   ∃ (order : ℕ → Bool) (visit : ℕ) (solved : Finset family.Index),
@@ -340,7 +344,10 @@ def MastersBy (family : TurnClass interface) (goals : family.Goals) (length boun
 /-- **Keeping what is solved, situation by situation, but for a number of lapses.** For each
 member and each order there are at most `lapses` visits outside which the agent solves the member
 on every visit before the visit `horizon` that is later than one on which it solved it and that
-brings the same situation. -/
+brings the same situation.
+
+This is a draft of the successor mission's promise, under revision, and no definition of the
+mission contract. It has a witness on the day-and-night class and no failing example. -/
 def KeepsBut (family : TurnClass interface) (goals : family.Goals)
     (length horizon lapses : ℕ) (agent : Agent interface) : Prop :=
   ∀ (index : family.Index) (order : ℕ → Bool), ∃ lapsed : Finset ℕ, lapsed.card ≤ lapses ∧

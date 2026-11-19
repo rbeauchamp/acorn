@@ -41,8 +41,8 @@ def sideOf {family : WorldClass interface} (goals : family.Goals) {Situation : T
 
 /-- **Conditions (b) and (c), situated.** The members are grouped by a situation; the members of
 each situation conceal their goals behind that situation's reference world; and one action
-sequence meets, within a visit, the goals of at most `cover` members of a situation. It has a
-witness, `cuedSituated`, and no failing example here. -/
+sequence meets, within a visit, the goals of at most `cover` members of a situation. Its witness
+is `cuedSituated` and its failing example `cued_not_one_situation`. -/
 structure SituatedClass (family : WorldClass interface) (goals : family.Goals) (length : ℕ)
     (Situation : Type) where
   /-- The situation of each member. -/

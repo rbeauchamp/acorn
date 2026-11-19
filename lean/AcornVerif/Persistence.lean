@@ -97,8 +97,8 @@ theorem no_room_beside {Memory Record State : Type} [Fintype Memory] [Fintype Re
   omega
 
 /-- **The agent stops learning at a time**, in its run in a world: from then on the part of its
-memory it declares as learned does not change. A definition only: no witness and no failing
-example of it is built here. -/
+memory it declares as learned does not change. Its witness is `pupil_stops` and its failing
+example `pupil_goes_on`. -/
 def StopsLearningAt {agent : Agent interface} {Learned Named : Type}
     {law : Named → Learned → Percept interface → Named} (keeps : KeepsOnly agent Learned Named law)
     (world : World interface) (start : world.State) (time : ℕ) : Prop :=

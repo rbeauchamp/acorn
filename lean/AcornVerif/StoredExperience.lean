@@ -129,7 +129,8 @@ theorem historian_clauses (agent : Agent interface) (family : WorldClass interfa
 /-! ## A bound on the memories of a run tells them apart -/
 
 /-- One finite list holds every memory the agent holds at any time of its run in a world. Its
-failing examples are `historian_unbounded` and `replay_unbounded`; no witness is stated here. -/
+failing examples are `historian_unbounded` and `replay_unbounded`, and a witness is
+`visitScript_holdsFinitely`. -/
 def HoldsFinitely (world : World interface) (agent : Agent interface) (start : world.State) :
     Prop :=
   ∃ held : List agent.Memory, ∀ time, memoryAt world agent start time ∈ held
