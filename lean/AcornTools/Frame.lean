@@ -294,16 +294,13 @@ def namesAfter (keyword : String) : List String → Array Name
     (if key == keyword then #[name.toName] else #[]) ++ namesAfter keyword rest
   | _ => #[]
 
-end AcornFrameCheck
-
-open AcornFrameCheck in
 /-- Check every pin file against the finished build, or print a pin file. -/
-def main (args : List String) : IO UInt32 := do
+def run (args : List String) : IO UInt32 := do
   unless vectorsHold do
     IO.eprintln "frame-check: this program's SHA-256 does not meet its test vectors"
     return 1
   try
-    Lean.initSearchPath (← Lean.findSysroot)
+    initSearchPath (← findSysroot)
     match args with
     | [] =>
       let files ← pinFiles
@@ -335,3 +332,9 @@ def main (args : List String) : IO UInt32 := do
   catch error =>
     IO.eprintln s!"frame-check: {error}"
     return 1
+
+end AcornFrameCheck
+
+/-- Check every pin file against the finished build, or print a pin file. -/
+def main (args : List String) : IO UInt32 :=
+  AcornFrameCheck.run args

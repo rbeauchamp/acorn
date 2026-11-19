@@ -738,7 +738,8 @@ def entryUses : Array (Name × Array Name) := #[
   (`AcornTools.OwnershipAudit, #[`AcornOwnershipAudit.compiled]),
   (`AcornTools.Corpus.Main, #[`AcornCorpus.check]),
   (`AcornTools.Gate, #[`AcornGate.verify]),
-  (`AcornTools.Intent, #[`AcornIntentCheck.run])
+  (`AcornTools.Intent, #[`AcornIntentCheck.run]),
+  (`AcornTools.Frame, #[`AcornFrameCheck.run])
 ]
 
 end AcornOwnership
