@@ -100,37 +100,13 @@ theorem press_path (shown : Percept interface) (wait : ℕ) (actions : ℕ → A
 
 /-! ## An agent under one percept -/
 
-/-- The memory an agent holds after a number of steps in which it is shown one percept. -/
-def steady (agent : Agent interface) (shown : Percept interface) : ℕ → agent.Memory
-  | 0 => agent.initial
-  | time + 1 => (agent.act (steady agent shown time) shown).2
-
-/-- In a world that shows one percept, the agent's memory is its steady memory. -/
-theorem steady_memoryAt (agent : Agent interface) (world : World interface)
-    (start : world.State) (shown : Percept interface)
-    (same : ∀ state, world.percept state = shown) (time : ℕ) :
-    memoryAt world agent start time = steady agent shown time := by
-  induction time with
-  | zero => rfl
-  | succ time ih =>
-    change (agent.act (memoryAt world agent start time)
-      (world.percept (stateAt world agent start time))).2 =
-        (agent.act (steady agent shown time) shown).2
-    rw [ih, same]
-
-/-- In a world that shows one percept, the agent's action is the one its steady memory gives. -/
-theorem steady_actionAt (agent : Agent interface) (world : World interface)
-    (start : world.State) (shown : Percept interface)
-    (same : ∀ state, world.percept state = shown) (time : ℕ) :
-    actionAt world agent start time = (agent.act (steady agent shown time) shown).1 := by
-  change (agent.act (memoryAt world agent start time)
-    (world.percept (stateAt world agent start time))).1 = _
-  rw [steady_memoryAt agent world start shown same, same]
-
-/-- From two times with one steady memory, the steady memories stay equal. -/
-theorem steady_shift (agent : Agent interface) (shown : Percept interface) {first second : ℕ}
-    (equal : steady agent shown first = steady agent shown second) (more : ℕ) :
-    steady agent shown (first + more) = steady agent shown (second + more) := by
+/-- From two times with one memory on a sequence that repeats one percept, the memories stay
+equal. -/
+theorem driven_shift (agent : Agent interface) (shown : Percept interface) {first second : ℕ}
+    (equal : driven agent (fun _ => shown) first = driven agent (fun _ => shown) second)
+    (more : ℕ) :
+    driven agent (fun _ => shown) (first + more) =
+      driven agent (fun _ => shown) (second + more) := by
   induction more with
   | zero => exact equal
   | succ more ih => exact congrArg (fun memory => (agent.act memory shown).2) ih
@@ -145,21 +121,21 @@ theorem press_beyond (shown : Percept interface) (bits : ℕ) (agent : Agent int
     (actionAt (pressWorld interface shown (2 ^ bits)) agent pressStart) time
   obtain ⟨press, waits⟩ := done met
   have acts : ∀ moment, actionAt (pressWorld interface shown (2 ^ bits)) agent pressStart moment =
-      (agent.act (steady agent shown moment) shown).1 :=
-    fun moment => steady_actionAt agent (pressWorld interface shown (2 ^ bits)) pressStart shown
-      (fun _ => rfl) moment
+      (agent.act (driven agent (fun _ => shown) moment) shown).1 :=
+    fun moment => actionAt_response (pressWorld interface shown (2 ^ bits)) agent pressStart moment
   rw [acts] at press
   have clash : ∀ first second, first < second → second ≤ 2 ^ bits →
-      steady agent shown first ≠ steady agent shown second := by
+      driven agent (fun _ => shown) first ≠ driven agent (fun _ => shown) second := by
     intro first second before within equal
-    have shifted := steady_shift agent shown equal (2 ^ bits - second)
+    have shifted := driven_shift agent shown equal (2 ^ bits - second)
     rw [Nat.add_sub_cancel' within] at shifted
     have early := waits (first + (2 ^ bits - second)) (by omega)
     rw [acts, shifted] at early
     exact early press
   obtain ⟨embed⟩ := fits
   obtain ⟨first, second, differ, same⟩ := Fintype.exists_ne_map_eq_of_card_lt
-    (fun moment : Fin (2 ^ bits + 1) => embed (steady agent shown moment.val)) (by simp)
+    (fun moment : Fin (2 ^ bits + 1) => embed (driven agent (fun _ => shown) moment.val))
+    (by simp)
   have equal := embed.injective same
   rcases Nat.lt_or_gt_of_ne (fun values => differ (Fin.ext values)) with before | after
   · exact clash first.val second.val before (Nat.le_of_lt_succ second.isLt) equal

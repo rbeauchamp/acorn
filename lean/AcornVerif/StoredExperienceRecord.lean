@@ -23,23 +23,6 @@ open AcornVerif.Intent.MissionTheorem
 
 variable {interface : Interface}
 
-/-- The run the records read, of a kernel agent in a world in visits, is the kernel's closed
-loop. -/
-theorem run_eq_loop (world : World interface) (start : world.State) (length : ℕ)
-    (pay : Percept interface → ℚ) (met : world.State → Bool) (agent : Agent interface)
-    (time : ℕ) :
-    (visitMember world start length pay met).run (recordAgent agent) time =
-      loop (visits world start length) agent (visitStart world start length) time := by
-  induction time with
-  | zero => rfl
-  | succ time ih =>
-    change (visitMember world start length pay met).next (recordAgent agent)
-        ((visitMember world start length pay met).run (recordAgent agent) time) =
-      interact (visits world start length) agent
-        (loop (visits world start length) agent (visitStart world start length) time)
-    rw [ih]
-    rfl
-
 /-- **The replaying agent fails the mission theorem's premise on memory**, on every class in
 visits that has a member, whatever horizon, lapses, reward reading and reports the rung names. -/
 theorem replay_not_memoryBounded (family : WorldClass interface) (length horizon lapses : ℕ)

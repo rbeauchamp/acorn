@@ -134,12 +134,8 @@ theorem pupil_solves (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool �
   · subst second
     exact ⟨1, Nat.le_refl 1, Nat.le_refl 1, run.2⟩
 
-/-- The four cued doors as a set. -/
-def cuedSet : Finset (Bool × Bool) :=
-  {(false, false), (false, true), (true, false), (true, true)}
-
 /-- There are more than three cued doors. -/
-theorem cuedSet_card : 3 < cuedSet.card := by decide
+theorem cuedAll_card : 3 < cuedAll.toFinset.card := by decide
 
 /-- **The cued doors: who separates and who cannot.** Over an interface with four actions, where
 a feedback does not tell the situations apart, a signal shows on the winning percept and on no
@@ -169,7 +165,7 @@ theorem cued_summary {Φ : Type} (feedback : Percept interface → Φ)
       (cuedNeeded feedback four quiet win canon keeps flat).need blind counted,
     fun agent free visit solved each => cued_need four quiet win free visit solved each,
     ?_, ?_⟩
-  · exact ⟨1, cuedSet, by decide, cuedSet_card, fun index _ => ⟨cuedAll_mem index,
+  · exact ⟨1, cuedAll.toFinset, by decide, cuedAll_card, fun index _ => ⟨cuedAll_mem index,
       pupil_solves four quiet win signal sees won hush reads index 1 (Or.inl rfl)⟩⟩
   · intro index
     refine ⟨∅, Nat.le_of_eq Finset.card_empty, fun visit later after before _ _ => ?_⟩

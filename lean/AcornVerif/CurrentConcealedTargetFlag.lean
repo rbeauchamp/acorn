@@ -3,7 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import AcornVerif.Replay
+import AcornVerif.Perceiving
 import AcornVerif.CurrentConcealedTargetTwin
 
 /-!
@@ -20,18 +20,6 @@ namespace AcornVerif.CurrentConcealedTargetFlag
 open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.CurrentGridWorld AcornVerif.CurrentConcealedTarget
 open AcornVerif.CurrentConcealedTargetTwin
-
-/-- The replaying agent is stepped by its signal. -/
-theorem replay_stepped {interface : Interface} (length : ℕ) (signal : Percept interface → Bool)
-    (explore : ℕ → ℕ → Kernel.Act interface) :
-    Kernel.Stepped signal (Kernel.replay interface length signal explore) :=
-  ⟨fun memory shown =>
-    (memory.choose (memory.record shown) explore,
-      if memory.step < length then
-        ⟨memory.step + 1, memory.choose (memory.record shown) explore :: memory.taken,
-          memory.count, memory.record shown⟩
-      else ⟨0, [], memory.count + 1, memory.record shown⟩),
-    fun _ _ => rfl⟩
 
 /-- **Both promises of the frozen target are met by an agent that reads only the achievement
 flag.** On the rung's class, under every task mode, there are an agent stepped by the percept's
@@ -62,7 +50,7 @@ theorem flag_solver (mode : TaskFeatureMode) :
       (fun target : (feasibleFind witnessConfig mode witnessLive 7).Index => target.1) same)
   refine ⟨Kernel.replay Grid.interface 7 achievedSignal witnessExplore,
     (members.attach.map ⟨admitted, injective⟩).toList,
-    replay_stepped 7 achievedSignal witnessExplore, Finset.nodup_toList _, ?_, ?_⟩
+    Kernel.replay_steppedBy 7 achievedSignal witnessExplore, Finset.nodup_toList _, ?_, ?_⟩
   · refine ⟨2, members.attach.map ⟨admitted, injective⟩, by decide, ?_, fun index listed => ?_⟩
     · rw [Finset.card_map, Finset.card_attach, count]
       decide
