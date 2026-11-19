@@ -31,9 +31,42 @@ hierarchy the meta-controller and the options take part in both the selection an
 part, and this account does not cover them.
 
 **What of the representation the declared step reads.** The declared step is applied to the
-agent's own control, representation included. For a profile with no hierarchy it reads the
-representation through the active set alone
-(`declaredStep_blind` in `AcornVerif.CurrentDeclaredStepBlind`).
+agent's own control, representation included. For a profile with no hierarchy, its decision and
+what it leaves outside the representation and the lifetime observations read the representation
+through the active set alone (`declaredStep_blind` in `AcornVerif.CurrentDeclaredStepBlind`).
+
+**What no theorem says of the active set once a stored prediction has changed.** The words the
+encoder reads (`perceivedWords`) end with one feedback word for each question of the interface's
+layout that has a stored prediction, and every layout holds the agent's own question about
+reward (`Acorn.Interface.layout`). The value of a feedback word is
+`Acorn.Handcrafted.predictionBucket` of the prediction the control stored at its preceding
+step: the prediction divided by the question's horizon, saturated to the unit interval,
+multiplied by the number of buckets, then `Float32.floor` and a cast. Lean declares
+`Float32.floor` as `opaque`: the kernel does not unfold it, and nothing is provable of its
+result beyond what holds of every function of its type. The conversions on either side of it, `Float32.ofBits` and `Float32.toUInt8`, are
+defined through Lean's model of binary32 and are not the obstacle. So a theorem can use of a
+bucket only what holds whatever function stands in the floor's place: that it is below
+`Acorn.FeatureConstants.predictionBuckets`, by the `min` in its definition, and that the same
+scaled word gives the same bucket.
+
+A step of a profile that learns stores the predictions its demons return on the step's frame
+before they learn from it (`AcornVerif.CurrentFirstCredit.step_predictions`). While the stored
+prediction of a question is one word from step to step, as for a cold agent's first step
+(`AcornVerif.CurrentFirstCredit.cold_step_predictions`), its feedback word is one word. Where
+the predictions stored for a question at two steps give different scaled words, no theorem
+determines whether the two feedback words of that question are equal, and so none determines
+which slots that word gives the two active sets. A statement about the executed agent that covers an active set laid after
+that point therefore does one of two things: it takes what it needs of those active sets as a
+hypothesis on the run, or it holds for every value of that feedback word. It cannot derive them
+from the percepts.
+
+What would remove the limit is a definition of the bucket that Lean can unfold: for example the
+cast alone, since the saturation leaves no scaled word below zero and Lean documents
+`Float32.toUInt8` as rounding down and gives it a logical model, or a comparison of the scaled word with the bucket
+boundaries. Either is a change to the executing encoder (`Acorn.Handcrafted.Signals`). That the
+new definition returns what the native floor returned could not be proved in Lean, for the same
+reason, and would be an assumption to name. This is open as obligation 32 of
+`docs/mission-contract.md`.
 
 **Forgetting units.** `forgetUnits` retires every learner's weight on the slot of each listed
 unit and releases every slot that holds one. It is what the executing tester does to the
