@@ -60,10 +60,14 @@ credits what has landed. This section states the rules those instructions rest o
 Acorn's missions serve [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission):
 discovering and implementing algorithms that allow agents to achieve goals in
 big worlds, and formally proving that they work—that the agent achieves goals
-over a formally modelled class of big worlds. In Acorn, missions are that work
-of discovering algorithms and proving that they work, and each mission's
+over a formally modelled class of big worlds. In Acorn, missions are the work
+that serves it, and each mission's
 acceptance is decided by the stated theorem or contract checked by Lean's
-kernel and the repository gate (`./scripts/gate.sh`).
+kernel and the repository gate (`./scripts/gate.sh`). Landing a mission is not
+by that fact a discovery: a discovery is an algorithm nobody has published, and
+a mission that implements or proves a published algorithm is prior-art work.
+[Prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery)
+states both terms and how work between them is judged.
 
 An Acorn mission is accepted by a proof rather than a benchmark score because a
 score measures a finite set of cases, while a theorem covers every world in the
@@ -231,6 +235,61 @@ proof obligation. Scientific execution requires explicitly authorized scope.
 A run is the last resort, a smoke test or a diagnostic that only chooses a
 direction included: [AGENTS](AGENTS.md#correct-by-construction) says what must be
 shown before one is proposed.
+
+### Proof-shaped specifications
+
+On 2026-11-19 the owner of the project stated where the habit of evaluation
+comes back into work on Acorn and how it is stopped. This subsection is that
+statement as the agents that maintain Acorn restate it: the substance is the
+owner's and the wording is theirs.
+
+AI agents trained on ordinary machine-learning practice rarely propose to skip
+a proof. The habit returns through the way a task is specified: a
+definition of done written as a number of tries or a success rate, with numbers
+picked from a run; generalisation tested on held-out cases; a baseline
+established by running the old agent; and then the observation that such a
+statement is too hard to prove, so part of it may rest on a run. Recognise this
+and stop it at the specification, in this order:
+
+1. When a specification seems to need a run to check it, treat that first as a
+   defect in the specification, and restate it as what the algorithm must
+   maintain.
+2. A proof-shaped specification of a learning algorithm has the parts a
+   verified program has: an invariant true of every state the agent can reach;
+   a condition under which, having nothing left to correct, its choice is the
+   right one; and a measure that every mistake strictly lowers. Each is a
+   statement about one arbitrary step. None names a horizon, a rate or a
+   probability. A count of tries is then a bound that a result derives, never a
+   threshold someone picked.
+
+   The measure as just described does not by itself give a bound: one that a
+   step which is not a mistake may raise, or whose values can fall without
+   end, allows mistakes without limit. What the derivation needs is the
+   mathematics of the agents that maintain Acorn and no part of the owner's
+   statement. These conditions are sufficient: the measure takes its values
+   in the natural numbers, every mistake strictly lowers it, and no other
+   step raises it. Each of the last two is still a statement about one
+   arbitrary step. Under them the mistakes of every run number at most the
+   measure's value where the run starts. Where a count of tries also counts
+   steps that are not mistakes, a bound on it does not follow from the
+   measure alone: it needs its own argument that the algorithm makes
+   progress.
+3. Each device of evaluation has a mathematical counterpart, listed in the
+   table below.
+4. Difficulty of proof is an unresolved obligation and never a reason to lower
+   the bar quietly. Lowering it is a trade of quality for cost and is the
+   owner's decision.
+5. A computed value is labelled computed, sets no threshold and completes
+   nothing.
+
+| Device of evaluation | Its mathematical counterpart |
+|---|---|
+| A success rate | A derived bound on mistakes that holds in every run |
+| A held-out case | The scope of a quantifier over a family of problems |
+| A baseline run of the old agent | A theorem that the old agent fails the same statement |
+| Averaging over random draws | A statement for every sequence of draws |
+| Noise | The worst case over what is irrelevant |
+| A check that the agent took no shortcut | The family of problems excludes the shortcut; no statement about behaviour at one place can exclude it |
 
 ### Deliverable placement
 

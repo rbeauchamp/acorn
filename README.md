@@ -47,6 +47,16 @@ one stream, and what achieving goals promises. The mission contract
 [records the confirmation](docs/mission-contract.md#the-owners-confirmation-of-2026-11-03),
 with a citation of that research for each sentence that rests on it.
 
+On 2026-11-19 the owner stated what the word discover in that mission means for
+Acorn's own work. A discovery is an algorithm nobody has published. Implementing
+a published algorithm, however well it is adapted and however completely it is
+proved, is prior-art work, and much of Acorn so far is that: it is never called
+a discovery or counted as one. Between the two lies a range with no bright
+line, and where a piece of work sits in it is judged by its extent, with the
+reasons written down.
+[Prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery) is
+the full statement, in the maintaining agents' wording of what the owner stated.
+
 The OaK architecture is an overall design for an agent, which Rich Sutton
 presented at the 2025 Reinforcement Learning Conference in
 [The OaK Architecture: A Vision of SuperIntelligence from Experience](https://www.youtube.com/watch?v=gEbbGyNkR2U)

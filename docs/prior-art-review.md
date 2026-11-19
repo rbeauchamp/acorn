@@ -10,6 +10,38 @@ Some entries describe local constructions inspired by prior art, rather than
 an unchanged published algorithm. Equation-level citations live with the code
 and proofs.
 
+## Prior art and discovery
+
+On 2026-11-19 the owner of the project stated how Acorn uses published research and what Acorn may call a discovery. This section is that statement as the agents that maintain Acorn restate it: the substance is the owner's and the wording is theirs. It is the one place where Acorn states it, and the [README](../README.md#purpose-and-worlds), [AGENTS](../AGENTS.md#learned-only-and-research-admission), [CONTRIBUTING](../CONTRIBUTING.md#missions-for-outside-contributors-and-agents) and the [roadmap](roadmap.md#terms) point here.
+
+**How Acorn uses prior art.** Much of Acorn so far implements algorithms that Rich Sutton, his colleagues and his students have published. Acorn cites such an algorithm, implements it in Lean and proves it, which here means proving what Acorn claims of the code that runs, and this register records it: each PAR entry below connects a mechanism to its source, Acorn's adaptation, the owners of its implementation and proofs, and the limits that remain. Acorn does not reproduce published work blindly. When whoever is working on Acorn, a person or an AI agent, finds a bug, an error or an omission in the research, they work out whether the fault can be repaired, and whether it should be, so that the work can still be used. If so, Acorn cites the work, the fault and the repair, and uses the corrected algorithm, provided that with the repair it is still an appropriate algorithm for Acorn's agent and mission. That is still using prior art. The material adaptation contract of the [admission standard](#admission-standard) says what a PAR entry records for each such change.
+
+**What discovery means.** Acorn's mission is Oak Lab's: "to discover and implement algorithms that allow agents to achieve goals in big worlds". Discovery in that sense is an algorithm nobody has published. Implementing a published algorithm is prior-art work, however well it is adapted and however completely it is proved. It is never called a discovery and never counted as one. The two ideas are not to be blurred.
+
+**The range between them, and how a case is judged.** There is no bright line between the two, and Acorn does not invent one. Between a published algorithm used as it stands and an algorithm nobody has published lies a range: a small correction, a larger repair, a missing piece supplied, a mechanism that had to be found. Where a piece of work sits in that range is a matter of extent, judged by these questions:
+
+- How large was the fault or the gap in the published work?
+- What did it take to resolve?
+- Did resolving it need something new and novel to be found?
+- Is the outcome a new algorithm or a slightly updated one?
+
+The judgment is to be honest and defensible. Its reasons are written down with the citations, where the work is recorded, so that a reader can check them and disagree. A reasoned call in the middle of the range is the opposite of blurring the two ideas.
+
+**What Acorn's labels and names mean.** Some of Acorn's names use the word for what a piece of work looks for, and they are read as follows.
+
+- The issue label prior art marks an issue about a published mechanism that Acorn's baseline agent does not yet include, and the label `mission:prior-art` marks a mission whose work is a prior-art design pass, implementation and proof.
+- The roadmap's lane discover, its label `lane:discover`, the discovery step of the roadmap's order of work and the name discovery mission say what the work looks for: an algorithm for which a rung's theorem is true. They do not say that what is found is a discovery. An issue can carry both the label prior art and `lane:discover`, as [#170](https://github.com/rbeauchamp/acorn/issues/170) and [#171](https://github.com/rbeauchamp/acorn/issues/171) did on 2026-11-19: the work then starts from a published mechanism, and using that mechanism, as it stands or corrected, is prior-art work. Where a result of that lane sits in the range is judged by the questions above once the result exists.
+- The [mission board](mission-board.md) counts landed missions. A landed mission is not by that fact a discovery.
+- Where a document says that the learning agent discovers something, such as a goal or a solution, or that a build tool discovers a file, the word has its ordinary sense and says nothing about algorithms.
+
+Some issue texts apply the word to work that is, or may be, prior-art work, and not by one of the names of the second item above. They are vocabulary follow-ups that this change does not make: no issue is edited in it, and until a text is edited it is read by this section. Read on GitHub on 2026-11-19, over the title and body of every issue, open and closed, they are these:
+
+- Open issue [#232](https://github.com/rbeauchamp/acorn/issues/232) calls the change with its theorem and the algorithms of [#170](https://github.com/rbeauchamp/acorn/issues/170) and [#171](https://github.com/rbeauchamp/acorn/issues/171) "the discovery deliverable". The roadmap calls the same thing the discover lane's deliverable.
+- Closed issue [#283](https://github.com/rbeauchamp/acorn/issues/283), the first rung's discovery mission, withdrawn on 2026-11-18, calls its task "the discovery itself" while saying that a proof of its statement for the agent as it is, with no change to the algorithm, also lands the mission; the notice at its top repeats the phrase of [#232](https://github.com/rbeauchamp/acorn/issues/232). Its wording is historical: the mission is withdrawn and the issue is closed.
+- Open issues [#170](https://github.com/rbeauchamp/acorn/issues/170) and [#171](https://github.com/rbeauchamp/acorn/issues/171), both labelled prior art, open with a notice headed "Discovery mission." The notice names the withdrawn mission [#283](https://github.com/rbeauchamp/acorn/issues/283) and not the issue's own work, which starts from a published mechanism, as the second item above says.
+
+The description of a pull request is the record of its change and is not listed: where one repeats a phrase above, it is read the same way.
+
 ## Admission standard
 
 The objective is a complete, practical integration of general learning

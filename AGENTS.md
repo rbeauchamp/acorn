@@ -46,6 +46,11 @@ question and why derivation or proof cannot answer it effectively and
 efficiently, with the cost of each, and obtain the owner's authorization.
 Computing data that a proof then checks is proof search, not a run.
 
+The habit of evaluation returns through specifications. When a specification
+seems to need a run to check it, treat that first as a defect in the
+specification and restate it as what the algorithm must maintain, as
+[proof-shaped specifications](CONTRIBUTING.md#proof-shaped-specifications) says.
+
 - Measure only irreducibly empirical claims with explicit scope, budget,
   uncertainty and prospective decision criteria.
 - Label an unresolved empirical quantity, including a gap between prediction and
@@ -72,6 +77,10 @@ theorem in source documentation. Reproduce derivations and explain material
 adaptations, their rationale, semantic consequences and composition compatibility.
 Fix defects found in prior art, with a characterization theorem or identity and
 present-tense explanation. Do not replicate a known error for fidelity.
+Implementing a published algorithm is prior-art work and is never called or
+counted as a discovery;
+[prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery)
+states both terms and how work between them is judged.
 
 Technical admission requires soundness, fit to the continuing setting, semantic
 compatibility/nondegeneracy, affordable work/storage and sufficient specification.
