@@ -912,8 +912,8 @@ What these theorems do not establish:
   blind on the class of targets, so the theorem supplies no bound for it; that
   its actions do depend on the target is not proved either. A fixed rule that
   steps toward the target needs no experience. No theorem here gives a goal
-  whose solution the observation does not show; [the next
-  section](#goals-the-observation-conceals-and-visits) does.
+  that the observation conceals, in the sense [the next
+  section](#goals-the-observation-conceals-and-visits) defines; that section does.
 - **A bound over seeds.** The reach bound counts target positions for one host
   world. The generator ties the target to the seed, so reading it as a fraction
   of seeds assumes that the seed hash places targets independently of the walk
@@ -938,8 +938,10 @@ The counting argument is [the coverage proof](../lean/AcornVerif/Coverage.lean).
 
 ### Goals the observation conceals, and visits
 
-A need bound that covers agents which read their percepts needs goals whose solution
-the percepts do not show until it is found. [Concealment](../lean/AcornVerif/Concealment.lean)
+For a covering bound to be a need bound that covers agents which read their percepts, it
+suffices that the class conceals its goals: along every action sequence, each member
+delivers the percept of a reference world at every time before that member's goal is
+first satisfied. [Concealment](../lean/AcornVerif/Concealment.lean)
 states this for any class of worlds. A class **conceals** its goals behind a reference
 world when, along every action sequence, each member delivers the reference's percepts
 until that member's goal is first met. Before a member's goal is met an agent perceives
