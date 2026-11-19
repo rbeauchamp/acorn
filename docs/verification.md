@@ -666,7 +666,7 @@ module of the library Entry, outside the claim. Its `main` applies the entry
 function of a claimed module, such as `Acorn.SwiftTdDriver.main`, and it holds
 nothing else; the theorem inventory refuses a theorem in it. AcornTools, the
 reviewed tooling trust boundary with the
-seven tool executables, and the
+eight tool executables, and the
 [documentation site](#documentation-site) are also outside the claim and hold no
 theorem.
 
