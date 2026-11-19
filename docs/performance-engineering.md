@@ -7,7 +7,7 @@ owns priorities and budgets.
 
 ## What performance is for
 
-[Oak Lab's mission](https://oaklab.ai/mission) includes continual, batch-size-one
+[Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission) includes continual, batch-size-one
 learning and planning in real time with low compute and energy use. Correctness,
 useful learning and feasible resource consumption guide the requirements below.
 

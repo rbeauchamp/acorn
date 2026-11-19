@@ -1,6 +1,6 @@
 # Acorn
 
-Acorn pursues [Oak Lab's mission](https://oaklab.ai/mission): agents that learn
+Acorn pursues [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission): agents that learn
 from experience to achieve goals in big worlds. We tackle the challenges of the
 [Alberta Plan](https://arxiv.org/abs/2208.11173v3) by developing and verifying
 continual learning and planning algorithms in Lean. The agent learns one
@@ -85,10 +85,11 @@ The tile world the viewer shows was chosen by an agent working on Acorn, not by
 the owner. It has no standing beyond being the first world built.
 
 Choosing and shaping worlds well needs a model of what a big world is. The mission
-contract states the conditions that make a class of worlds big
+contract states the conditions that make a class of worlds concealed, that make
+perceiving needed in it, and that make it big for a stated bound on the agent
 ([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big)).
-Three of its four conditions are proved of one class in the tile world, with no
-claim yet that the agent learns there; proving them of chosen classes is open
+The three that make a class concealed are proved of one class in the tile world,
+which is not a big class, with no claim yet that the agent learns there; proving them of chosen classes is open
 work, in the issues on that contract's record
 ([#214](https://github.com/rbeauchamp/acorn/issues/214)), ARC-AGI-3 games
 as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a
@@ -174,7 +175,8 @@ Lean is both the implementation language and the proof assistant. Follow the
 
 You can read the design without installing Lean.
 
-- **New to OaK?** Start with [Oak Lab's mission](https://oaklab.ai/mission), then
+- **New to OaK?** Start with [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission)
+  (the page as archived; Oak Lab has since withdrawn it), then
   Acorn's [learning loop and terminology](docs/design.md#the-learning-loop).
 - **Assessing the implementation?** Read the [scope map](docs/design.md#implementation-scope),
   then follow [mechanism owners](docs/design.md#mechanism-owners) to the source

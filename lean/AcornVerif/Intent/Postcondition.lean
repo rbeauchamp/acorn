@@ -32,12 +32,13 @@ baseline assessment, the frontier and, of the prior-art register, its qualificat
 two assessments not admitted; and the issues open on 2026-11-10, with the closed
 rbeauchamp/acorn#140, whose text derives facts about the executed agent's controller. Of the modules
 that define the kernel's worlds, classes and visits the writer had read the first line of three
-declarations (`Conceals`, `SolvesOnVisit` and `BigClass`), found by a search for their names, and no
-more; of the executing agent's code, nothing. The two properties on solving again and the tie of
-the advantage to the horizon are not written that blind: their form, an attempt before which
-they are read and a count of lapses, was chosen by a writer that had read how the executing
-agent explores, because an agent that goes on exploring is what the owner's decisions of
-2026-11-17 are about. The record imports nothing of Acorn's but contract 1's record module.
+declarations (`Conceals`, `SolvesOnVisit` and the structure then named `BigClass`, which is now
+`ConcealedClass`), found by a search for their names, and no more; of the executing agent's code,
+nothing. The two properties on solving again and the tie of the advantage to the horizon are not
+written that blind: their form, an attempt before which they are read and a count of lapses, was
+chosen by a writer that had read how the executing agent explores, because an agent that goes on
+exploring is what the owner's decisions of 2026-11-17 are about. The record imports nothing of
+Acorn's but contract 1's record module.
 
 The subject, `Trial`, is a class of worlds with what the class states, and the agent that learns
 in it. What the second sentence says a class states: the members, each a world over the class's

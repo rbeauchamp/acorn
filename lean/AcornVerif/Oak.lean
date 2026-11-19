@@ -10,7 +10,9 @@ import AcornVerif.Kernel
 # The OaK picture as a signature
 
 Oak Lab's mission page (https://oaklab.ai/mission.html, figure `assets/Oak.svg`, read on
-2026-10-06) draws the OaK architecture as five boxes and seven edges:
+2026-10-06; Oak Lab has since withdrawn the page, which is archived at
+https://web.archive.org/web/20260909143403/https://oaklab.ai/mission) draws the OaK
+architecture as five boxes and seven edges:
 
 * experience, joined to state features;
 * state features define subproblems to attain features;
