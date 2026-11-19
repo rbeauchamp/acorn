@@ -10,9 +10,11 @@ import AcornVerif.WorldClass
 
 A class of worlds conceals its goals behind a reference world when every member, along
 every action sequence, delivers the reference's percepts until that member's goal is first
-satisfied (`Conceals`). Before success nothing an agent perceives tells the members apart,
-so every agent, learning or not, keeps in each member the memory it keeps in the reference
-and takes the reference's actions until that member's goal is met (`Conceals.agree`). Every
+satisfied (`Conceals`). Before a member's goal is met an agent perceives in it what it
+perceives in the reference, so every agent, learning or not, keeps in each member the memory it
+keeps in the reference and takes the reference's actions until that member's goal is met
+(`Conceals.agree`). A member whose goal those actions have met need no longer match the
+reference, so a miss can tell the remaining members from it. Every
 agent is therefore blind on the class (`Conceals.blind`), and a covering bound is a need
 bound for every agent (`Conceals.need`): one agent, the same in every member, solves at most
 as many members as one action sequence meets. This is the first-visit bound. It covers an

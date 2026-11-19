@@ -201,9 +201,10 @@ theorem covered_masked (canon : Percept interface → Percept interface) {length
 
 /-- **Perceiving is needed, at a bound and a visit limit.** Behind a projection of percepts that
 keeps the feedback, the class conceals its goals behind one reference world: before a member's goal
-is first met, the feedback tells nothing of which member this is. One action sequence meets the
+is first met, its feedback is the reference's, so the feedback does not tell it from another member
+whose goal the same actions have not met either. One action sequence meets the
 goals of at most `cover` members within a visit. And the bound is at least `limit` times that
-cover: more than an agent that cannot tell the members apart finds in the visits before the limit.
+cover: all that an agent driven by the feedback finds, at the most, in the visits before the limit.
 The percepts themselves may differ between members; contract 2 (b) is the case in which the
 projection is the identity. -/
 structure PerceptNeeded (feedback : Percept interface → Φ) (family : WorldClass interface)
