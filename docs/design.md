@@ -942,9 +942,11 @@ A need bound that covers agents which read their percepts needs goals whose solu
 the percepts do not show until it is found. [Concealment](../lean/AcornVerif/Concealment.lean)
 states this for any class of worlds. A class **conceals** its goals behind a reference
 world when, along every action sequence, each member delivers the reference's percepts
-until that member's goal is first met. Before success nothing an agent perceives tells
-the members apart, so every agent, one that learns included, keeps the same memory and
-takes the same actions in every member until its goal is met. A covering bound is then a
+until that member's goal is first met. Before a member's goal is met an agent perceives
+in it what it perceives in the reference, so every agent, one that learns included, keeps
+the same memory and takes the same actions in every member until its goal is met. A member
+whose goal those actions have met need no longer match the reference, so a miss can tell
+the remaining members from it. A covering bound is then a
 need bound for every agent: the **first-visit bound**. It concerns an agent whose memory
 at the attempt's start is the same in every member, which is what a first visit is.
 
