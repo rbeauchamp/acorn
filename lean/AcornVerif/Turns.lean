@@ -47,7 +47,7 @@ both of its starts (`Apart`):
   (`FeedbackDriven.masters`), and of the two sides of the members of any finite set it solves at
   most as many as the set has members (`FeedbackDriven.sides`). The same holds of every agent
   whose closed loops in the class are those of a feedback-driven agent
-  (`masters_of_states`).
+  (`MastersBy.of_states`).
 - **No agent that keeps nothing masters above a covering bound.** Where the first situation's
   class conceals its goals and one action sequence meets the goals of at most `bound` members
   with different keys, an experience-free agent does not master at that bound (`turns_need`).

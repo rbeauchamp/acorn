@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Perceiving
+import AcornVerif.SituatedClass
 
 /-!
 # A class in which perceiving is needed, with a learner that meets it
@@ -19,8 +20,9 @@ that the signal and a reading of the situation tell apart:
   members on one of its first two visits.
 * `cued_summary`, in the module after this one: an agent that reads its situation and learns
   one door for each solves all four members on its second visit and on its third.
-* `cued_frozen`: every experience-free agent solves at most two of the four on any visit, so the
-  class still asks for learning.
+* `cuedSituated`, `cued_need`: the class is situated, with two situations and a cover of one
+  each, so every experience-free agent solves at most two of the four on any visit, and the class
+  still asks for learning.
 -/
 
 namespace AcornVerif.Kernel
@@ -149,71 +151,58 @@ def cuedNeeded {Φ : Type} (feedback : Percept interface → Φ)
 
 /-! ## The frozen share -/
 
-/-- The members of one situation. -/
-abbrev cuedSide (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
-    (win : Percept interface) (situation : Bool) : WorldClass interface where
-  Index := Bool
-  world := fun door => cued four quiet win situation door
-  start := fun _ => (none : Option Bool)
+/-- The four cued doors. -/
+def cuedAll : List (Bool × Bool) := [(false, false), (false, true), (true, false), (true, true)]
 
-/-- The goals of one situation's members. -/
-def sideGoals (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
-    (win : Percept interface) (situation : Bool) : (cuedSide four quiet win situation).Goals :=
-  fun _ => ⟨fun (state : Option Bool) => state = some true, 1⟩
+/-- Every cued door is listed. -/
+theorem cuedAll_mem (index : Bool × Bool) : index ∈ cuedAll := by
+  obtain ⟨situation, door⟩ := index
+  cases situation <;> cases door <;> decide
 
-/-- Within one situation the members conceal their goals in the full percept. -/
-theorem cuedSide_conceals (four : 4 ≤ interface.actions.word.toNat)
-    (quiet : Bool → Percept interface) (win : Percept interface) (situation : Bool) :
-    Conceals (cuedSide four quiet win situation) (sideGoals four quiet win situation)
-      (firstActionWorld interface (quiet situation)) none := by
-  intro door actions time unmet
-  have still : path (cued four quiet win situation door) none actions time ≠ some true := by
-    cases time with
-    | zero =>
-      intro wrong
-      have bad : (none : Option Bool) = some true := wrong
-      cases bad
-    | succ time =>
-      exact unmet (time + 1) (Nat.succ_le_succ (Nat.zero_le time)) (Nat.le_refl _)
-  exact cued_quiet four quiet win situation door _ still
+/-- The four cued doors outnumber one door for each of the two situations. -/
+theorem cuedAll_large : ∑ _situation : Bool, 1 < cuedAll.toFinset.card := by decide
 
-/-- Within one situation one action sequence meets at most one member's goal. -/
-theorem cuedSide_covered (four : 4 ≤ interface.actions.word.toNat)
-    (quiet : Bool → Percept interface) (win : Percept interface) (situation : Bool) :
-    Covered (cuedSide four quiet win situation)
-      (visitGoals (sideGoals four quiet win situation) 1) 1 := by
-  intro actions solved each
-  refine Finset.card_le_one.mpr (fun first inFirst second inSecond => ?_)
-  have keyFirst := cued_met four quiet win (situation, first) actions (each first inFirst)
-  have keySecond := cued_met four quiet win (situation, second) actions (each second inSecond)
-  exact (key_inj four (keyFirst.symm.trans keySecond)).2
+/-- **The cued doors are situated**: two situations, each concealing its two doors behind the
+world that shows that situation's percept, and one action meets one door; the four doors outnumber
+the two that the covers add up to. -/
+def cuedSituated (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
+    (win : Percept interface) :
+    SituatedClass (cuedDoors four quiet win) (cuedGoals four quiet win) 1 Bool where
+  situation := fun (index : Bool × Bool) => index.1
+  reference := fun here => firstActionWorld interface (quiet here)
+  origin := fun _ => none
+  conceals := by
+    rintro here ⟨⟨situation, door⟩, inside⟩ actions time unmet
+    have same : situation = here := inside
+    subst same
+    have still : path (cued four quiet win situation door) none actions time ≠ some true := by
+      cases time with
+      | zero =>
+        intro wrong
+        have bad : (none : Option Bool) = some true := wrong
+        cases bad
+      | succ time =>
+        exact unmet (time + 1) (Nat.succ_le_succ (Nat.zero_le time)) (Nat.le_refl _)
+    exact cued_quiet four quiet win situation door _ still
+  cover := fun _ => 1
+  covered := by
+    intro here actions solved each
+    refine Finset.card_le_one.mpr (fun first inFirst second inSecond => ?_)
+    have keyFirst := cued_met four quiet win first.1 actions (each first inFirst)
+    have keySecond := cued_met four quiet win second.1 actions (each second inSecond)
+    obtain ⟨situation, door⟩ := key_inj four (keyFirst.symm.trans keySecond)
+    exact Subtype.ext (Prod.ext situation door)
+  members := cuedAll.toFinset
+  large := cuedAll_large
 
-/-- **Every experience-free agent solves at most two of the four cued doors on any visit**: one
-for each situation, since within a situation the goals are concealed and one action meets one. -/
-theorem cued_frozen (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
+/-- In the cued doors an agent that keeps nothing solves at most two members on any visit, by the
+situated bound. -/
+theorem cued_need (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) {agent : Agent interface} (free : ExperienceFree agent)
     (visit : ℕ) (solved : Finset (Bool × Bool))
     (each : ∀ index ∈ solved, SolvesOnVisit (cuedDoors four quiet win)
       (cuedGoals four quiet win) 1 agent visit index) :
-    solved.card ≤ 2 := by
-  have apart : Set.InjOn Prod.fst (solved : Set (Bool × Bool)) := by
-    rintro ⟨situation, first⟩ inFirst ⟨other, second⟩ inSecond same
-    have equal : situation = other := same
-    subst equal
-    have one := visits_need (cuedSide_conceals four quiet win situation)
-      (cuedSide_covered four quiet win situation) free visit ({first, second} : Finset Bool)
-      (fun door member => by
-        rcases Finset.mem_insert.mp member with here | there
-        · subst here
-          exact each (situation, door) inFirst
-        · rw [Finset.mem_singleton.mp there]
-          exact each (situation, second) inSecond)
-    have doors : first = second :=
-      Finset.card_le_one.mp one first (Finset.mem_insert_self _ _) second
-        (Finset.mem_insert_of_mem (Finset.mem_singleton_self _))
-    rw [doors]
-  exact Finset.card_le_card_of_injOn Prod.fst
-    (fun index _ => show index.1 ∈ ({false, true} : Finset Bool) by
-      cases index.1 <;> decide) apart
+    solved.card ≤ 2 :=
+  (cuedSituated four quiet win).need free visit solved each
 
 end AcornVerif.Kernel

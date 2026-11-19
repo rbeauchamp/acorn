@@ -134,14 +134,6 @@ theorem pupil_solves (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool �
   · subst second
     exact ⟨1, Nat.le_refl 1, Nat.le_refl 1, run.2⟩
 
-/-- The four cued doors. -/
-def cuedAll : List (Bool × Bool) := [(false, false), (false, true), (true, false), (true, true)]
-
-/-- Every cued door is listed. -/
-theorem cuedAll_mem (index : Bool × Bool) : index ∈ cuedAll := by
-  obtain ⟨situation, door⟩ := index
-  cases situation <;> cases door <;> decide
-
 /-- The four cued doors as a set. -/
 def cuedSet : Finset (Bool × Bool) :=
   {(false, false), (false, true), (true, false), (true, true)}
@@ -175,7 +167,7 @@ theorem cued_summary {Φ : Type} (feedback : Percept interface → Φ)
       (pupil four signal sees) := by
   refine ⟨fun agent blind counted =>
       (cuedNeeded feedback four quiet win canon keeps flat).need blind counted,
-    fun agent free visit solved each => cued_frozen four quiet win free visit solved each,
+    fun agent free visit solved each => cued_need four quiet win free visit solved each,
     ?_, ?_⟩
   · exact ⟨1, cuedSet, by decide, cuedSet_card, fun index _ => ⟨cuedAll_mem index,
       pupil_solves four quiet win signal sees won hush reads index 1 (Or.inl rfl)⟩⟩

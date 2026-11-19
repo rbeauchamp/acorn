@@ -44,12 +44,6 @@ situations it solves, on visit 5, each of the 147 members in both situations (`w
 It is evidence that the promises are satisfiable, built for that purpose: it reads the percept at
 the first decision of each visit and follows a stored route by its own count for the rest, and it
 chooses by no learned value.
-
-**How the agent acts.** `ActsFromValues` and `StartsCold` state, for the rung's construction,
-that each decision of the executed step is one decision of primitive control over the policy the
-primitive controller freezes at the percept's frame, at the declared rate, and that the cold
-state holds no committed run and the seeded generator. The agent as it is meets both under either
-planning selection (`acts_met`, `starts_cold_met`).
 -/
 
 namespace AcornVerif.CurrentForkedTargetRung

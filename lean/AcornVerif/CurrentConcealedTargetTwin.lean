@@ -13,9 +13,9 @@ In a member of the class of concealed targets, the percept at a state is a funct
 reference world's state along the same actions and of the percept's own reward word: the dynamics
 do not read the goal, the observation reads it only through whether the target is met, a step's
 completion is whether the target is met after it, and the reward word is one exactly on
-completion. So every kernel agent has a twin, stepped by the reward word alone, that takes the
-agent's action at every time of every member's run in visits (`rung_twin`), and the two clauses
-of the frozen target hold of an agent exactly when they hold of its twin (`rung_twin_clauses`).
+completion. So every kernel agent has a twin, stepped by the reward word alone, that solves each
+member of the rung's class on exactly the visits on which the agent solves it, and the two clauses
+of the frozen target hold of an agent exactly when they hold of its twin (`rung_twin`).
 No statement about what happens in the rung's runs tells an agent from one whose step reads
 nothing of its percept but the reward word.
 -/
