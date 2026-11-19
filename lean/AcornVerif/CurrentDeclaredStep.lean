@@ -14,8 +14,11 @@ but the representation and the lifetime observations: the readout, the draw and 
 update are the declared ones, and which units the feature bank holds is left to the step.
 
 **The declared step.** `declaredStep` is `Acorn.Handcrafted.TemporalControl.alignedStep` applied
-to the agent's clock-advanced control at the active set of the percept's frame, with the
-percept's frame, reward word and achievement flag. It is a selection followed by the learning
+to a control with its clock advanced (`advanced`) at the active set the executing encoder lays
+for the percept's frame (`perceivedActive`), with the percept's frame, reward word and
+achievement flag. It is a function of the control and its alignment and names no other function
+of the agent's state, so a state that carries more beside its control steps by the same rule
+(`stepOf`). It is a selection followed by the learning
 part on what the selection returned (`declaredStep_parts`). For a profile with no hierarchy
 under the declared rate, the selection takes the action of one decision of primitive control
 over the policy the primitive controller freezes from its weights
@@ -75,15 +78,43 @@ variable {interface : Interface} {profile : FeatureProfile} {config : Features.C
 
 /-! ## The declared step and forgetting -/
 
-/-- **The declared step.** The executing library's local transition on the agent's
-clock-advanced control, at the active set of the percept's frame. -/
-def declaredStep (agent : Agent interface profile config criterion dimension planning)
+/-- A control with its clock advanced, as the executing step advances it before anything
+else. -/
+def advanced (control : TemporalControl interface profile config criterion dimension) :
+    TemporalControl interface profile config criterion dimension :=
+  { control with runtime := { control.runtime with
+      lifecycle := control.runtime.lifecycle.advance } }
+
+/-- The words the encoder reads at a frame: the frame's own, then the feedback words of the
+predictions the control stored at its preceding step. -/
+def perceivedWords (control : TemporalControl interface profile config criterion dimension)
+    (frame : Frame interface) : List SensorWord :=
+  frame.words ++ feedbackWords interface.feedback interface.layout
+    control.runtime.references.demonPredictions.words 0
+
+/-- **The active set at what the agent perceives.** The slots the executing encoder lays for a
+frame from a control: those of the words it reads at each tiling, and those of the bank's units
+that fire on the frame. -/
+def perceivedActive (control : TemporalControl interface profile config criterion dimension)
+    (frame : Frame interface) : SwiftTd.ActiveSet dimension :=
+  ((advanced control).runtime.encodeCurrent (perceivedWords control frame) frame.symbols).active
+
+/-- **The declared step.** The executing library's local transition on a control with its clock
+advanced, at the active set of the percept's frame. -/
+def declaredStep (control : TemporalControl interface profile config criterion dimension)
+    (aligned : control.Aligned) (planning : PlanningSelection) (percept : Percept interface) :
+    TemporalControl interface profile config criterion dimension ×
+      TemporalDecision interface.actions :=
+  ((advanced control).alignedStep aligned planning (perceivedActive control percept.frame)
+    percept.frame percept.reward percept.frame.achieved).1
+
+/-- The declared step of an agent's state: the declared step of its control. It reads the
+state's control and the alignment the state carries for it, and nothing else of the state. -/
+abbrev stepOf (agent : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
     TemporalControl interface profile config criterion dimension ×
       TemporalDecision interface.actions :=
-  (agent.advanceClock.control.alignedStep agent.advanceClock.aligned planning
-    (agent.advanceClock.frame percept.frame).active percept.frame percept.reward
-    percept.frame.achieved).1
+  declaredStep agent.control agent.aligned planning percept
 
 /-- Retire every learner's weight on the slot of each listed unit, in order. -/
 def retireUnits {actions : Word.Count} {discounts : List Discount}
@@ -110,15 +141,15 @@ def StepsByRule (interface : Interface) (profile : FeatureProfile) (config : Fea
   ∀ (agent : Agent interface profile config criterion dimension planning)
     (percept : Percept interface),
     ∃ units : List (Fin config.units.count),
-      (agent.act percept).2 = (declaredStep agent percept).2 ∧
+      (agent.act percept).2 = (stepOf agent percept).2 ∧
       (agent.act percept).1.control.runtime.lifecycle.consumers =
-        forgetUnits (declaredStep agent percept).1.runtime.lifecycle.consumers units ∧
+        forgetUnits (stepOf agent percept).1.runtime.lifecycle.consumers units ∧
       (agent.act percept).1.control.runtime.references =
-        { (declaredStep agent percept).1.runtime.references with
-          recent := (declaredStep agent percept).1.runtime.references.recent.retireAll units } ∧
-      (agent.act percept).1.control.credit = (declaredStep agent percept).1.credit ∧
-      (agent.act percept).1.control.average = (declaredStep agent percept).1.average ∧
-      (agent.act percept).1.control.rate = (declaredStep agent percept).1.rate ∧
+        { (stepOf agent percept).1.runtime.references with
+          recent := (stepOf agent percept).1.runtime.references.recent.retireAll units } ∧
+      (agent.act percept).1.control.credit = (stepOf agent percept).1.credit ∧
+      (agent.act percept).1.control.average = (stepOf agent percept).1.average ∧
+      (agent.act percept).1.control.rate = (stepOf agent percept).1.rate ∧
       ∀ unit : Fin config.units.count, unit ∉ units →
         (agent.act percept).1.control.runtime.lifecycle.representation.bank.projections.get
             unit =
@@ -192,20 +223,20 @@ theorem declaredStep_parts (agent : Agent interface profile config criterion dim
     (percept : Percept interface) :
     ∃ selected : TemporalControl interface profile config criterion dimension ×
         TemporalDecision interface.actions,
-      agent.advanceClock.control.select planning (agent.advanceClock.frame percept.frame).active
+      (advanced agent.control).select planning (perceivedActive agent.control percept.frame)
           percept.frame.declared percept.reward percept.frame.achieved = some selected ∧
-        declaredStep agent percept =
-          (selected.1.learn (agent.advanceClock.frame percept.frame).active percept.frame
+        stepOf agent percept =
+          (selected.1.learn (perceivedActive agent.control percept.frame) percept.frame
             percept.reward percept.frame.achieved selected.2, selected.2) := by
-  have executed : agent.advanceClock.control.step planning
-      (agent.advanceClock.frame percept.frame).active percept.frame percept.reward
-      percept.frame.achieved = some (declaredStep agent percept) :=
-    (agent.advanceClock.control.alignedStep agent.advanceClock.aligned planning
-      (agent.advanceClock.frame percept.frame).active percept.frame percept.reward
+  have executed : (advanced agent.control).step planning
+      (perceivedActive agent.control percept.frame) percept.frame percept.reward
+      percept.frame.achieved = some (stepOf agent percept) :=
+    ((advanced agent.control).alignedStep agent.aligned planning
+      (perceivedActive agent.control percept.frame) percept.frame percept.reward
       percept.frame.achieved).2.1
   rw [TemporalControl.step_parts] at executed
-  cases chosen : agent.advanceClock.control.select planning
-      (agent.advanceClock.frame percept.frame).active percept.frame.declared percept.reward
+  cases chosen : (advanced agent.control).select planning
+      (perceivedActive agent.control percept.frame) percept.frame.declared percept.reward
       percept.frame.achieved with
   | none =>
     rw [chosen] at executed
@@ -220,14 +251,14 @@ agent's. -/
 theorem declaredStep_representation
     (agent : Agent interface profile config criterion dimension planning)
     (primitive : profile.usesHierarchy = false) (percept : Percept interface) :
-    (declaredStep agent percept).1.runtime.lifecycle.representation =
-      agent.advanceClock.control.runtime.lifecycle.representation := by
+    (stepOf agent percept).1.runtime.lifecycle.representation =
+      (advanced agent.control).runtime.lifecycle.representation := by
   obtain ⟨selected, chosen, parts⟩ := declaredStep_parts agent percept
   rw [parts]
   unfold TemporalControl.select at chosen
   exact (CurrentFirstCredit.learn_representation selected.1 _ percept.frame percept.reward
     percept.frame.achieved selected.2).trans
-    (CurrentFirstCredit.select_representation agent.advanceClock.control selected.1 primitive _ _
+    (CurrentFirstCredit.select_representation (advanced agent.control) selected.1 primitive _ _
       _ _ _ _ selected.2 chosen)
 
 /-! ## The executing step meets the clause -/
@@ -239,18 +270,18 @@ theorem act_steps (primitive : profile.usesHierarchy = false) :
   intro agent percept
   have kept := declaredStep_representation agent primitive percept
   have stepped : agent.act percept =
-      (Agent.retire ⟨(declaredStep agent percept).1,
-          (agent.advanceClock.control.alignedStep agent.advanceClock.aligned planning
-            (agent.advanceClock.frame percept.frame).active percept.frame percept.reward
+      (Agent.retire ⟨(stepOf agent percept).1,
+          ((advanced agent.control).alignedStep agent.aligned planning
+            (perceivedActive agent.control percept.frame) percept.frame percept.reward
             percept.frame.achieved).2.2,
-          agent.advanceClock.control.step_episodes _ agent.advanceClock.episodes planning
-            (agent.advanceClock.frame percept.frame).active percept.frame percept.reward
+          (advanced agent.control).step_episodes _ agent.advanceClock.episodes planning
+            (perceivedActive agent.control percept.frame) percept.frame percept.reward
             percept.frame.achieved _
-            (agent.advanceClock.control.alignedStep agent.advanceClock.aligned planning
-              (agent.advanceClock.frame percept.frame).active percept.frame percept.reward
+            ((advanced agent.control).alignedStep agent.aligned planning
+              (perceivedActive agent.control percept.frame) percept.frame percept.reward
               percept.frame.achieved).2.1⟩
         (agent.advanceClock.frame percept.frame).units,
-      (declaredStep agent percept).2) := rfl
+      (stepOf agent percept).2) := rfl
   rw [stepped]
   unfold Agent.retire
   split
@@ -258,15 +289,15 @@ theorem act_steps (primitive : profile.usesHierarchy = false) :
     have bank := congrArg (fun held : Representation interface.symbols config =>
       held.bank.projections.get unit) kept
     exact bank
-  · refine ⟨((declaredStep agent percept).1.runtime.lifecycle.test
-        (declaredStep agent percept).1.runtime.references.phase.free
+  · refine ⟨((stepOf agent percept).1.runtime.lifecycle.test
+        (stepOf agent percept).1.runtime.references.phase.free
         (agent.advanceClock.frame percept.frame).units).2, rfl, ?_, rfl, rfl, rfl, rfl,
       fun unit absent => ?_⟩
     · exact congrArg (fun held => Ensemble.releaseAll held _)
-        (test_consumers (declaredStep agent percept).1.runtime.lifecycle _ _)
+        (test_consumers (stepOf agent percept).1.runtime.lifecycle _ _)
     · have bank := congrArg (fun held : Representation interface.symbols config =>
         held.bank.projections.get unit) kept
-      exact (test_projection (declaredStep agent percept).1.runtime.lifecycle _ _ unit
+      exact (test_projection (stepOf agent percept).1.runtime.lifecycle _ _ unit
         absent).trans bank
 
 /-! ## What follows for every agent that steps by the declared rule -/
@@ -279,7 +310,7 @@ theorem StepsByRule.explorer
     (rule : StepsByRule interface profile config criterion dimension planning)
     (agent : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
-    explorerOf (agent.act percept).1.control = explorerOf (declaredStep agent percept).1 := by
+    explorerOf (agent.act percept).1.control = explorerOf (stepOf agent percept).1 := by
   obtain ⟨units, -, -, references, -⟩ := rule agent percept
   unfold explorerOf
   rw [references]
@@ -296,15 +327,15 @@ theorem StepsByRule.draws
     (percept : Percept interface) :
     (agent.act percept).2.action = ((explorerOf agent.control).stepOver
         (agent.control.runtime.lifecycle.consumers.control.snapshot
-          (agent.advanceClock.frame percept.frame).active declaredRate)).1 ∧
+          (perceivedActive agent.control percept.frame) declaredRate)).1 ∧
       explorerOf (agent.act percept).1.control = ((explorerOf agent.control).stepOver
         (agent.control.runtime.lifecycle.consumers.control.snapshot
-          (agent.advanceClock.frame percept.frame).active declaredRate)).2 := by
+          (perceivedActive agent.control percept.frame) declaredRate)).2 := by
   obtain ⟨selected, chosen, parts⟩ := declaredStep_parts agent percept
   unfold TemporalControl.select at chosen
-  have drawn := select_draws agent.advanceClock.control selected.1 primitive declared _ _ _ _ _
+  have drawn := select_draws (advanced agent.control) selected.1 primitive declared _ _ _ _ _
     _ selected.2 chosen
-  have kept : explorerOf (declaredStep agent percept).1 = explorerOf selected.1 := by
+  have kept : explorerOf (stepOf agent percept).1 = explorerOf selected.1 := by
     rw [parts]
     change Explorer.mk _ _ = Explorer.mk _ _
     rw [learn_phase, TemporalControl.learn_rng]
@@ -334,10 +365,13 @@ theorem StepsByRule.quiet
     (unpaid : percept.reward.isZero = true) : Quiet (agent.act percept).1.control := by
   obtain ⟨selected, chosen, parts⟩ := declaredStep_parts agent percept
   unfold TemporalControl.select at chosen
-  have chose := rest.advanceClock.selectWithOperations modelOperations_quiet planning
-    (agent.advanceClock.frame percept.frame).active percept.frame.declared
+  have prepared : Quiet (advanced agent.control) :=
+    ⟨rest.control, rest.metaController, rest.skills, rest.demon, rest.gap, rest.credit,
+      rest.rate, rest.phase⟩
+  have chose := prepared.selectWithOperations modelOperations_quiet planning
+    (perceivedActive agent.control percept.frame) percept.frame.declared
     (Inert32.ofZero unpaid) percept.frame.achieved chosen
-  have learned : Quiet (declaredStep agent percept).1 := by
+  have learned : Quiet (stepOf agent percept).1 := by
     rw [parts]
     exact chose.1.learn _ percept.frame (Inert32.ofZero unpaid) percept.frame.achieved chose.2
   obtain ⟨units, -, consumers, references, credit, average, -, -⟩ := rule agent percept
@@ -368,7 +402,7 @@ theorem StepsByRule.explores
   have drawn := rule.draws primitive declared agent percept
   rw [(explorerOf agent.control).stepOver_congr
     (agent.control.runtime.lifecycle.consumers.control.snapshot
-      (agent.advanceClock.frame percept.frame).active declaredRate)
+      (perceivedActive agent.control percept.frame) declaredRate)
     (restingPolicy interface.actions) rfl
     (settled_candidates _ (still.snapshot _ declaredRate))] at drawn
   exact drawn
