@@ -16,14 +16,18 @@ way, and both answers come from `AcornVerif.CurrentTraceCounts.first_choice_last
 
 **The door: yes, where the visit is one decision.** `door key shown paid` is a place of one step:
 the start shows `shown`, and the step leads to a state that shows `paid` when the action was `key`
-and `shown` otherwise; the next step returns to the start. Take an agent state whose learners are
-at rest and whose primitive controller holds no trace, under a profile with no hierarchy,
-per-step credit, the declared rate and the discounted criterion, before a unit of its feature
-bank matures, through the step that learns the reward. If its first action is the key, `shown`
-carries a zero reward word and `paid` a reward word of one, every frame it lays holds at most
-1999 slots, the frames laid at the times zero and two share a slot, and the explorer of its
-state, after two decisions, holds no committed run with a step left and begins none, then the
-agent's action at the time two is the key again, and the percept at the time three is `paid`
+and `shown` otherwise; the next step returns to the start. Take an agent state `agent` that meets
+`Quiet agent.control` (both controllers at rest, every option at rest, Demon 0 at rest under
+learned subtasks, and every reward word the state owes inert) and
+`CtrlQuiet .discounted (controlOf agent) []` (its primitive controller against the empty
+history: zero shared lags, no pending restart, and every row quiet), under a profile with no
+hierarchy, per-step credit and the declared rate, at the discounted criterion, with its clock
+plus one below the tester's maturity (`agent.clock.toNat + (0 + 1) < config.tester.maturity`).
+If its action at the time zero is the key, `shown` carries a zero reward word and `paid` a
+reward word of one, at every time the frame it lays holds at most 1999 slots, some slot is in
+the frames laid at the times two and zero, and the explorer of its state, advanced by two
+decisions, holds no committed run with a step left and begins none at the declared rate, then
+the agent's action at the time two is the key again, and the percept at the time three is `paid`
 (`door_again`).
 
 **The lock: no, where the visit is two decisions and the next visit's first frame holds a slot of
@@ -31,15 +35,19 @@ the second frame and no slot of the first frame outside the second.**
 `lock first second shown later paid` is a place of two steps: the start shows `shown`, every
 state after one step shows `later`, and the state after two steps shows `paid` when the two
 actions were `first` and then `second`, and `later` otherwise; the next step returns to the
-start. Take an agent state as above whose first two actions are `first` and `second`, two
-different actions. If `shown` and `later` carry zero reward words and `paid` a reward word of
-one, every frame it lays holds at most 1999 slots, the frames laid at the times one and three
-share a slot, every slot that the frame laid at the time three holds of the frame laid at the
-time zero is a slot of the frame laid at the time one, and the explorer of its state, after three
-decisions, holds no committed run with a step left and begins none, then the agent's action at
-the time three, the first decision of its second visit, is `second`, and the percept at the time
-five is `later` (`lock_departs`): the second visit is not paid, whatever the agent does at the
-time four.
+start. Take an agent state `agent` that meets the same two predicates, `Quiet agent.control` and
+`CtrlQuiet .discounted (controlOf agent) []`, under a profile with no hierarchy, per-step credit
+and the declared rate, at the discounted criterion, with its clock plus two below the tester's
+maturity (`agent.clock.toNat + (1 + 1) < config.tester.maturity`), whose actions at the times
+zero and one are `first` and `second`, two different actions. If `shown` and `later` carry zero
+reward words and `paid` a reward word of one, at every time the frame it lays holds at most 1999
+slots, some slot is in the frames laid at the times three and one, every slot that is in the
+frame laid at the time three and in the frame laid at the time zero is in the frame laid at the
+time one, and the explorer of its state, advanced by three decisions, holds no committed run
+with a step left and begins none at the declared rate, then the agent's action at the time
+three, the first decision of its second visit, is `second`, and the percept at the time five is
+`later` (`lock_departs`): the second visit is not paid, whatever the agent does at the time
+four.
 
 Why the lock fails. After the step that learns a first reward of one, the value of each action
 at a frame is its row's trace total there (`AcornVerif.CurrentFirstChoice.reward_values`). Under
@@ -50,12 +58,14 @@ before the reward, and at least as many slots of it as of each earlier frame, th
 taken is the one candidate (`AcornVerif.CurrentTraceCounts.last_candidate`). The frame laid at
 the start of the next visit is such a frame when it shares a slot with the first visit's second
 frame and every slot it holds of that visit's first frame is a slot of the second. So the action
-that ended the rewarded visit is the candidate at the start, and outside an exploratory run the
-agent takes it (`first_choice_last`).
+that ended the rewarded visit is the candidate at the start, and where the explorer, advanced to
+that decision, holds no committed run with a step left and begins none, the agent takes it
+(`first_choice_last`).
 
-**Both places exist for the agent on `main`.** For the first rung's cold agent
-(`AcornVerif.CurrentConcealedTargetRung.rungConstruction`), whose explorer's first two actions
-are to craft an axe and to step south:
+**Both places exist for the agent on `main`.** For the first rung's cold agent, the state
+`(rungConstruction planning).initial.agent` of
+`AcornVerif.CurrentConcealedTargetRung.rungConstruction`, whose explorer's first two actions are
+to craft an axe and to step south:
 
 - at the door whose key is that first action, the agent is paid on its first visit and on its
   second (`rung_door`), for every pair of percepts of at most 174 words of which `shown` carries a
@@ -63,9 +73,9 @@ are to craft an axe and to step south:
 - at the lock of those two actions, the agent is paid on its first visit, begins its second
   visit with its explorer's second action, and is not paid on it (`rung_lock`;
   `AcornVerif.CurrentConcealedTargetRungFirstVisit.first_actions` names the two actions), for
-  every three percepts of at
-  most 174 words of which `later` carries every word of `shown` and the same symbols, `shown`
-  carries a word, `shown` and `later` carry zero reward words and `paid` a reward word of one.
+  every three percepts of at most 174 words of which `later` carries every word of `shown` and
+  the same symbols, `shown` carries a word, `shown` and `later` carry zero reward words and
+  `paid` a reward word of one.
   After two decisions, and after three, the explorer of the rung's seed holds no committed run
   with a step left and begins none (`door_calm`,
   `AcornVerif.CurrentConcealedTargetRungChoice.rung_calm`); those are the terms in which
@@ -76,9 +86,12 @@ are to craft an axe and to step south:
 
 What this does not say.
 
-- Nothing of an agent state that is not at rest: a state that has been rewarded before, holds a
-  trace, or holds weights. So nothing of a second place met after a first, and nothing of a
-  place met again after another. The two theorems for the agent on `main` are at its cold state.
+- Nothing of an agent state that does not meet `Quiet agent.control` and
+  `CtrlQuiet .discounted (controlOf agent) []`, or whose clock is not below the tester's
+  maturity by the bound above. No theorem here says that a state that has been rewarded meets
+  them, so nothing is claimed of a state that has been rewarded before, of a second place met
+  after a first, or of a place met again after another. The two theorems for the agent on `main`
+  are at `(rungConstruction planning).initial.agent`.
 - Nothing of a decision after the first one that follows the reward. At the door that decision is
   the whole next visit; at the lock it is enough to lose it.
 - Nothing of a lock outside the two premises `lock_departs` has on slots: that the frame laid at
@@ -86,16 +99,20 @@ What this does not say.
   of the frame laid at the time zero is a slot of the frame laid at the time one. The first
   frame's slots need not all be slots of the second. That full containment, which
   `choose_nested` gives where `later` carries every word of `shown` and the same symbols, is the
-  sufficient condition `rung_lock` uses for the second premise. Where either premise fails, and
-  at a place of more than two steps, the first choice is a comparison of counted traces, which
-  `AcornVerif.CurrentTraceCounts.loop_totals` states and no theorem here decides.
-- Nothing of a visit on which the explorer serves or begins an exploratory run.
+  sufficient condition `rung_lock` uses for the second premise.
+- Nothing of a deciding action taken while an exploratory run is served or begun. The theorems
+  take that the explorer of the agent's state, advanced by two decisions for the door and by
+  three for the lock, holds no committed run with a step left and begins none. That is a
+  condition on one action: the action at the time two at the door and at the time three at the
+  lock. At the lock the conclusion at the time five does not depend on the action at the time
+  four, whether or not that one is exploratory.
 - The lock's percepts are not shown to be percepts of the host's world: `places_exist` builds
   them by replacing a frame's words. The places are worlds of the agent's interface, which is
   what `first_choice_last` is stated for, and no theorem here says that the host's world shows
   two percepts of which one carries every word of the other.
-- That a change to the feature bank would alter either answer. Before a unit matures the bank
-  does not change (`AcornVerif.CurrentFirstCredit.young_bank`), and the lock's premises are
+- That a change to the feature bank would alter either answer. While the agent's clock is below
+  the tester's maturity, a step of a profile with no hierarchy at the default step order keeps
+  the bank (`AcornVerif.CurrentFirstCredit.young_bank`), and the lock's premises are
   about the slots of the frames, whatever lays them: a unit that fires at the start and not one
   step later breaks the second premise only where the frame laid at the time three holds its
   slot and the frame laid at the time one does not, and there this module is silent.
@@ -318,7 +335,7 @@ theorem lock_percept (first second : Kernel.Act interface) (shown later paid : P
 
 end Places
 
-/-! ## The visit after the first rewarded one, from a state at rest -/
+/-! ## The visit after the first rewarded one, under `Quiet` and `CtrlQuiet` -/
 
 section Rest
 
@@ -499,11 +516,12 @@ theorem small_fits (planning : PlanningSelection)
   omega
 
 /-- **The agent on `main` is paid twice running at the door its first action opens.** For the
-first rung's cold agent and the door whose key is its explorer's first action, with percepts of
-at most 174 words of which `shown` carries a word and a zero reward word and `paid` a reward word
-of one: the percept at the time one is `paid`, the action at the time two is the key again, and
-the percept at the time three is `paid`. The decision at the time two is outside any exploratory
-run (`door_calm`). -/
+first rung's cold agent, the state `(rungConstruction planning).initial.agent`, and the door whose
+key is its explorer's first action, with percepts of at most 174 words of which `shown` carries a
+word and a zero reward word and `paid` a reward word of one: the percept at the time one is
+`paid`, the action at the time two is the key again, and the percept at the time three is `paid`.
+After two decisions the rung's explorer holds no committed run with a step left and begins none
+(`door_calm`). -/
 theorem rung_door (planning : PlanningSelection) (shown paid : Percept Grid.interface)
     (silent : shown.reward = .zero) (pays : paid.reward = .one)
     (small : shown.frame.words.length ≤ 174) (smallPaid : paid.frame.words.length ≤ 174)
@@ -571,14 +589,14 @@ theorem rung_door (planning : PlanningSelection) (shown paid : Percept Grid.inte
   rfl
 
 /-- **The agent on `main` opens the lock of its first two actions once and then begins with the
-second.** For the first rung's cold agent and the lock of its explorer's first two actions, with
-percepts of at most 174 words of which `later` carries every word of `shown` and the same
-symbols, `shown` carries a word, `shown` and `later` carry zero reward words and `paid` a reward
-word of one: the percept at the time two is `paid`; the action at the time three, the first
-decision of the second visit, is the explorer's second action, which is not its first; and the
-percept at the time five is `later`, so the second visit is not paid. The decision at the time
-three is outside any exploratory run
-(`AcornVerif.CurrentConcealedTargetRungChoice.rung_calm`). -/
+second.** For the first rung's cold agent, the state `(rungConstruction planning).initial.agent`,
+and the lock of its explorer's first two actions, with percepts of at most 174 words of which
+`later` carries every word of `shown` and the same symbols, `shown` carries a word, `shown` and
+`later` carry zero reward words and `paid` a reward word of one: the percept at the time two is
+`paid`; the action at the time three, the first decision of the second visit, is the explorer's
+second action, which is not its first; and the percept at the time five is `later`, so the
+second visit is not paid. After three decisions the rung's explorer holds no committed run with
+a step left and begins none (`AcornVerif.CurrentConcealedTargetRungChoice.rung_calm`). -/
 theorem rung_lock (planning : PlanningSelection) (shown later paid : Percept Grid.interface)
     (silent : shown.reward = .zero) (still : later.reward = .zero) (pays : paid.reward = .one)
     (small : shown.frame.words.length ≤ 174) (smallLater : later.frame.words.length ≤ 174)
