@@ -10,10 +10,10 @@ import AcornVerif.CurrentFrameSlots
 /-!
 # The frozen encoder tells the two situations apart
 
-The clause `AcornVerif.CurrentForkedTargetActing.ActsFromValues` fixes the encoder through which
-the executed agent's action reads its percept. If that encoder laid one frame at the starts of
-both situations of `AcornVerif.CurrentForkedTargetRung.rungForks`, no agent the clause admits
-could value them differently at a visit's first decision. This module proves it does not.
+The clause `AcornVerif.CurrentForkedTargetRule.StepsByRule` fixes the encoder through which the
+executed agent's action reads its percept. If that encoder laid one frame at the starts of both
+situations of `AcornVerif.CurrentForkedTargetRung.rungForks`, no agent the clause admits could
+value them differently at a visit's first decision. This module proves it does not.
 
 `starts_differ`: for either planning selection, in every state of the rung's agent, reachable or
 not, and for every pair of installed targets, the frame laid on the percept at the first
