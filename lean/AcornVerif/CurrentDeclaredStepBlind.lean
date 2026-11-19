@@ -18,8 +18,14 @@ through the active set the encoder lays for the percept's frame.
 `declaredStep_blind`: two controls that hold the same learners, temporal references, credit,
 gain and rate (`SameLearned`), and for which the encoder lays the same active set at the
 percept's frame, have declared steps with the same decision that again hold the same there.
-So nothing a step writes into its representation or its lifetime observations reaches a later
-decision or a later learner by any other road than which slots are active.
+So in one application of the declared step, for a profile with no hierarchy, the decision and
+the learners, temporal references, credit, gain and rate the step leaves read the
+representation and the lifetime observations only through which slots are active.
+
+The theorem is about the declared step alone. Under `StepsByRule` the agent's step also forgets
+a list of units, and that list is chosen outside the declared step, by a computation that may
+read the representation: a unit whose projection the step rewrites is in it, and it may hold
+others. The theorem does not cover that choice.
 
 The proof moves a control's representation and lifetime observations aside (`regraft`) and
 shows that each part of the transition commutes with that: preparing the selection, serving a
@@ -27,9 +33,10 @@ committed run, interrupting, the primitive choice, and the learning part, whose 
 passes the representation's clock to the lifetime observations and to nothing else.
 
 Degenerate instances, read for what they say. With the two controls equal the theorem says
-nothing. With equal representations and different lifetime observations it says that the
-lifetime observations are read by no decision and no learner. It makes no claim for a profile
-with a hierarchy.
+nothing. With equal representations and different lifetime observations it says that one
+declared step's decision, and what it leaves outside the representation and the lifetime
+observations, do not read the lifetime observations. It makes no claim for a profile with a
+hierarchy.
 -/
 
 namespace AcornVerif.CurrentDeclaredStep

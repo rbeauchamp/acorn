@@ -460,20 +460,6 @@ nothing and the findings of the second are, as a set, the unimplemented findings
 the deliverables that the checker's one closed list names as awaiting an
 implementation, each with the issue that tracks its fulfilment proof
 (`AcornVerif.Intent.onlyAwaiting_iff`, `AcornVerif.Intent.implemented_of_onlyAwaiting`).
-
-The frame check runs from `lean/AcornTools/Frame.lean`. A target's file freezes
-the target's text. A pin file beside it, a file ending in `.frame` under
-`lean/AcornVerif/Targets/`, freezes what that text reads: it names the target, the
-names a submission may change, the names kept and not followed, and, for every
-other declaration of the project that the target reaches through types and
-definitions, the SHA-256 digest of its printed kind, universe parameters, type and
-value. The check computes that list from the finished build and fails when a
-pinned declaration is no longer reached, has another digest, or a reached
-declaration is not pinned, naming each. With no pin file it reports that no
-target's frame is pinned and passes, so a target is pinned only once the owner
-has merged its pin file. The digest detects a change; it is no evidence of what a
-declaration means. The dependencies' declarations are not pinned here: Lake's
-manifest pins their commits.
 Another finding, a listed name that is no declared deliverable and a listed
 deliverable that gains an implementation each fail it, and both checks refuse a
 project that declares no deliverable. The list names the hash record's
@@ -488,6 +474,23 @@ lean-intent can declare a deliverable awaiting its implementation itself
 (rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
 package, and that the constant an implementation names is what an executable runs,
 are trusted.
+
+The frame check runs from `lean/AcornTools/Frame.lean`. A target's file freezes
+the target's text. A pin file beside it, a regular file ending in `.frame` in
+`lean/AcornVerif/Targets/`, freezes what that text reads: it names the target, the
+names a submission may change, the names kept and not followed, and, for every
+other declaration of the project that the target reaches through types and
+definitions, the SHA-256 digest of its printed kind, universe parameters, type and
+value. The check lists that directory and admits only regular files ending in
+`.lean` and regular files ending in `.frame`; any other entry, a subdirectory or
+a symbolic link included, fails it and is named. For each pin file it computes
+that list from the finished build and fails when a
+pinned declaration is no longer reached, has another digest, or a reached
+declaration is not pinned, naming each. With no pin file it reports that no
+target's frame is pinned and passes, so a target is pinned only once the owner
+has merged its pin file. The digest detects a change; it is no evidence of what a
+declaration means. The dependencies' declarations are not pinned here: Lake's
+manifest pins their commits.
 
 The pipeline stores the provisioned dependency checkouts and their build outputs
 once for each default-branch commit a run starts from, and gives a run a private

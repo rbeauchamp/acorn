@@ -28,10 +28,14 @@ names, and for each declaration of the frame the SHA-256 digest of its printed k
 parameters, type and value (`declText`). Lines are `target`, `module`, `free`, `stop` and `pin`
 followed by their words; an empty line is skipped, and no other line is admitted.
 
-**The check** (no argument). For each pin file it imports the module, computes the frame and
-compares it with the pinned one as a set of names with digests. A declaration pinned and no
-longer reached, reached and not pinned, or with another digest fails the check, and each is
-printed. With no pin file it says so and passes: a target without a pin file is not pinned.
+**The check** (no argument). It lists `lean/AcornVerif/Targets/` and admits two kinds of entry:
+a regular file whose name ends in `.lean` and a regular file whose name ends in `.frame`, which
+is a pin file. Any other entry, a subdirectory or a symbolic link included, fails the check and
+is named, so a pin file that is misplaced or misnamed is refused and not passed over. For each
+pin file it imports the module, computes the frame and compares it with the pinned one as a set
+of names with digests. A declaration pinned and no longer reached, reached and not pinned, or
+with another digest fails the check, and each is printed. With no pin file it says so and
+passes: a target without a pin file is not pinned.
 
 **Printing a pin file** (`print <module> <target> [free <name>]... [stop <name>]...`) writes
 the pin file's text for those names to standard output.
@@ -39,9 +43,10 @@ the pin file's text for those names to standard output.
 What a pass means: every declaration the walk reaches prints to the text it printed when the
 file was made. It does not say what those declarations mean, that the free names were well
 chosen, or that the dependencies are unchanged. The digest is a detector of change. It is taken
-with this file's own SHA-256, which each run checks against two published test vectors before
-it reads anything; a wrong implementation that still met both would still detect a change, and
-would no longer carry SHA-256's resistance to a chosen second text.
+with this file's own SHA-256, which each run checks against three published test vectors before
+it reads anything. The vectors show that the empty message, a message of one block and a
+message of two blocks digest as published, and no more: they do not show that an implementation
+meeting them is SHA-256, or that it detects every change.
 -/
 
 namespace AcornFrameCheck
@@ -133,11 +138,14 @@ def sha256 (text : String) : String := Id.run do
     hash := compress hash data (64 * block)
   return String.join (hash.toList.map hexWord)
 
-/-- The two published test vectors this file's SHA-256 must meet before it is used: the empty
-message and `abc` (FIPS 180-4, and NIST's example values). -/
+/-- The three published test vectors this file's SHA-256 must meet before it is used: the empty
+message, `abc`, which pads to one block, and a message of 56 bytes, which pads to two (FIPS
+180-4, and NIST's example values). -/
 def vectorsHold : Bool :=
   sha256 "" == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" &&
-    sha256 "abc" == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    sha256 "abc" == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" &&
+    sha256 "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq" ==
+      "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
 
 /-! ## The frame -/
 
@@ -279,13 +287,19 @@ def verify (file : System.FilePath) : IO Bool := do
     {now.size} in the frame, {verdict}"
   return same
 
-/-- The pin files: the files ending in `.frame` under `AcornVerif/Targets`, the directory of
-the package that only the owner's merges change. -/
+/-- The pin files: the regular files ending in `.frame` in `AcornVerif/Targets`, the directory
+of the package that only the owner's merges change. The directory admits those and regular
+files ending in `.lean`; any other entry is refused by name. -/
 def pinFiles : IO (Array System.FilePath) := do
   let directory : System.FilePath := "AcornVerif" / "Targets"
-  let entries ← directory.readDir
-  let files := entries.filterMap fun entry =>
-    if entry.fileName.endsWith ".frame" then some entry.path else none
+  let mut files : Array System.FilePath := #[]
+  for entry in ← directory.readDir do
+    let regular := (← entry.path.symlinkMetadata).type == .file
+    if regular && entry.fileName.endsWith ".frame" then
+      files := files.push entry.path
+    else unless regular && entry.fileName.endsWith ".lean" do
+      throw (IO.userError s!"{entry.path} is neither a regular file ending in .lean nor a \
+        regular file ending in .frame")
   return files.qsort (·.toString < ·.toString)
 
 /-- The names that follow a keyword in the arguments of `print`. -/
