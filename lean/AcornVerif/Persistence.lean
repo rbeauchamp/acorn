@@ -10,9 +10,13 @@ import Mathlib.Data.Fintype.Prod
 /-!
 # What may persist from one decision to the next
 
-* `KeepsOnly`: an agent keeps only what it declares. Its memory is determined by a part it
-  declares as what it has learned and a part it names, and the named part follows a stated law of
-  the two parts and the percept. Only the learned part is written freely.
+* `KeepsOnly`: an agent keeps only what is declared. Its memory is determined by a part declared
+  as what it has learned and a named part, and the named part follows a stated law of the two
+  parts and the percept. Only the learned part is written freely. The declaration is the mission
+  contract's, for each agent of the ladder, and never the agent's choice.
+* `declaresNothing`, `nothing_stops`: why the choice cannot be the agent's. With nothing declared
+  as learned and its whole memory named, every agent keeps only what is declared and has stopped
+  learning from the start.
 * `pupil_keepsOnly`: a witness. The pupil's two doors are what it has learned; its clock bit and
   the situation it last read are named, with their law. It is an agent whose learned part comes to
   hold what was rewarded.
@@ -31,12 +35,18 @@ open Acorn.Features
 
 variable {interface : Interface}
 
-/-- **The agent keeps only what it declares.** Its memory is determined by the part it declares
-as learned and the part it names; and the named part after a decision is a stated law of the two
-parts before it and the percept. What the agent writes freely is its learned part alone. -/
+/-- **The agent keeps only what is declared.** Its memory is determined by the part declared as
+what it has learned and a named part; and the named part after a decision is a stated law of the
+two parts before it and the percept. What the agent writes freely is its learned part alone.
+
+The declaration is a parameter here and the structure does not fix it. `docs/mission-contract.md`
+declares what an agent has learned, for each agent of its ladder; the agent never chooses it. Left
+to the agent, the declaration would be empty: with nothing declared as learned, every agent meets
+this structure (`declaresNothing`). No such declaration is made yet for any agent of the ladder
+(obligations 19 and 22 of that document). -/
 structure KeepsOnly (agent : Agent interface) (Learned Named : Type)
     (law : Named → Learned → Percept interface → Named) where
-  /-- The part of the memory the agent declares as what it has learned. -/
+  /-- The part of the memory declared as what the agent has learned. -/
   learned : agent.Memory → Learned
   /-- The part of the memory the clause names: clocks, generators, traces and the like. -/
   named : agent.Memory → Named
@@ -97,14 +107,38 @@ theorem no_room_beside {Memory Record State : Type} [Fintype Memory] [Fintype Re
   omega
 
 /-- **The agent stops learning at a time**, in its run in a world: from then on the part of its
-memory it declares as learned does not change. Its witness is `pupil_stops` and its failing
-example `pupil_goes_on`. -/
+memory declared as learned does not change. Its witness is `pupil_stops` and its failing example
+`pupil_goes_on`.
+
+This does not yet define the agents a learner is compared with. With nothing declared as learned
+every agent has stopped from the start (`nothing_stops`), so the declaration has to be the mission
+contract's and not the agent's; and an agent that stops only at the horizon before which reward is
+counted earns before it what it would have earned had it gone on, so the time a comparator stops
+has to be stated relative to that horizon. Both are open (obligations 19 and 22 of
+`docs/mission-contract.md`). -/
 def StopsLearningAt {agent : Agent interface} {Learned Named : Type}
     {law : Named → Learned → Percept interface → Named} (keeps : KeepsOnly agent Learned Named law)
     (world : World interface) (start : world.State) (time : ℕ) : Prop :=
   ∀ later, time ≤ later →
     keeps.learned (memoryAt world agent start later) =
       keeps.learned (memoryAt world agent start time)
+
+/-- **With nothing declared as learned, every agent keeps only what is declared.** The learned
+part is empty, the whole memory is named, and the named part's law is the agent's own update. -/
+def declaresNothing (agent : Agent interface) :
+    KeepsOnly agent Unit agent.Memory (fun memory _ percept => (agent.act memory percept).2) where
+  learned := fun _ => ()
+  named := fun memory => memory
+  isSealed := fun _ _ same => congrArg Prod.snd same
+  lawful := fun _ _ => rfl
+
+/-- **With nothing declared as learned, every agent has stopped learning from the start**, in
+every world, with the memory, the actions and the rewards it has under any other declaration. So
+the agents that stop learning are a class of agents only once the declaration is fixed for each
+agent by something other than the agent. -/
+theorem nothing_stops (agent : Agent interface) (world : World interface) (start : world.State)
+    (time : ℕ) : StopsLearningAt (declaresNothing agent) world start time :=
+  fun _ _ => rfl
 
 end AcornVerif.Kernel
 

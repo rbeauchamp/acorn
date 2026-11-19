@@ -16,15 +16,18 @@ and an example that fails it for the reason it exists. This module supplies the 
 modules of the definitions leave out.
 
 * `HoldsFinitely`: `visitScript_holdsFinitely` is a witness.
-* `SituatedClass`: `cued_not_one_situation` is a failing example, the cued doors read as one
-  situation.
+* `SituatedClass`: `cued_not_one_situation` is a failing example of its concealment, the cued
+  doors read as one situation, and `lone_not_situated` one of its margin, a class that has the
+  covers and that one action sequence solves.
 * `BeyondCapacity`: `not_beyond_of_blindSolvable` is a failing example, a class one action
   sequence solves. Its witness is a class of the grid world, in
   `AcornVerif.CurrentConcealedTargetCapacity`.
 * `ActionsDistinct`: `tally_actionsDistinct` is a witness, with two different actions.
-* `ActsAsDriven`: `pupil_not_actsAsDriven` is a failing example.
+* `RunsAsDriven`: `pupil_not_runsAsDriven` is a failing example.
 * `ReadsObservation`: `pupil_reads` is a witness.
-* `StopsLearningAt`: `pupil_stops` is a witness and `pupil_goes_on` a failing example.
+* `StopsLearningAt`: `pupil_stops` is a witness and `pupil_goes_on` a failing example, both under
+  the pupil's declaration of its two doors as what it has learned. Under the empty declaration
+  every agent is a witness (`nothing_stops`).
 * `FeedbackDriven`: `pupil_not_feedbackDriven` is a failing example; every agent stepped by the
   feedback is a witness (`Stepped.feedbackDriven`).
 * `Apart` and `Mute`, the two halves of forks in time: `oneStart_not_apart` and `twoTone_not_mute`
@@ -43,9 +46,9 @@ theorem visitScript_holdsFinitely (length : ℕ) (actions : ℕ → Act interfac
     HoldsFinitely world (visitScript interface length actions) start :=
   ⟨List.finRange (length + 1), fun _ => List.mem_finRange _⟩
 
-/-- **A failing example of `SituatedClass`.** Read as a class of one situation, the cued doors are
-not situated where the two situations' percepts differ: members of both would have to show one
-reference world's percept at the start. -/
+/-- **A failing example of `SituatedClass`, by its concealment.** Read as a class of one
+situation, the cued doors are not situated where the two situations' percepts differ: members of
+both would have to show one reference world's percept at the start. -/
 theorem cued_not_one_situation (four : 4 ≤ interface.actions.word.toNat)
     (quiet : Bool → Percept interface) (win : Percept interface)
     (differ : quiet false ≠ quiet true) :
@@ -58,6 +61,27 @@ theorem cued_not_one_situation (four : 4 ≤ interface.actions.word.toNat)
       (fun _ => key four false false) 0
       (fun earlier low high => absurd (Nat.le_trans low high) (by decide))
     exact differ (first.trans second.symm)⟩
+
+/-- **A failing example of `SituatedClass`, by its margin.** One mute door alone has the covers:
+it conceals its goal behind its own world, and one action sequence meets at most one member, there
+being one. It is not situated, however its member is grouped, because that sequence solves the
+whole class: an agent that keeps nothing solves all of it on every visit, and the covers add up to
+no fewer than its members. -/
+theorem lone_not_situated (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface)
+    (Situation : Type) [Fintype Situation] :
+    Conceals ((mute interface shown).side id false) (sideOf (muteGoals two shown) id false)
+        (firstActionWorld interface shown) none ∧
+      Covered ((mute interface shown).side id false)
+        (visitGoals (sideOf (muteGoals two shown) id false) 1) 1 ∧
+      IsEmpty (SituatedClass ((mute interface shown).side id false)
+        (sideOf (muteGoals two shown) id false) 1 Situation) := by
+  refine ⟨fun _ _ _ _ => rfl, fun _ solved _ => Finset.card_le_one.mpr
+    (fun first _ second _ => Subtype.ext (first.2.trans second.2.symm)),
+    not_situated_of_blindSolvable (fun _ => pick two false) ?_⟩
+  rintro ⟨door, inside⟩
+  have same : door = false := inside
+  subst same
+  exact ⟨1, Nat.le_refl 1, Nat.le_refl 1, rfl⟩
 
 /-- **A failing example of `BeyondCapacity`.** A class one action sequence solves is beyond no
 bound, at any number of slots and any margin: the sequence covers every member, so the count
@@ -98,14 +122,14 @@ theorem tally_actionsDistinct (two : 2 ≤ interface.actions.word.toNat) (shown 
     rw [one, zero] at values
     exact pick_differ two values.symm
 
-/-- **A failing example of `ActsAsDriven`.** In the cued doors the pupil does not act as a
-clock-and-reward agent: it separates where no such agent does. -/
-theorem pupil_not_actsAsDriven (four : 4 ≤ interface.actions.word.toNat)
+/-- **A failing example of `RunsAsDriven`.** In the cued doors the pupil's effect is not that of
+a clock-and-reward agent: it separates where no agent with that effect does. -/
+theorem pupil_not_runsAsDriven (four : 4 ≤ interface.actions.word.toNat)
     (shown : Percept interface) :
-    ¬ ActsAsDriven (fun percept : Percept interface => percept.reward)
+    ¬ RunsAsDriven (fun percept : Percept interface => percept.reward)
       (visitRuns (cuedDoors four (cuePercept shown) (winPercept shown)) 1)
       (pupil four paid cue) :=
-  fun driven => (cued_perceiving four shown).1 _ driven (cued_perceiving four shown).2
+  fun driven => (cued_perceiving four shown).1 _ driven (cued_reward four shown).2.2.1
 
 /-- **A witness of `ReadsObservation`.** The pupil reads its observation beyond its reward. -/
 theorem pupil_reads (four : 4 ≤ interface.actions.word.toNat) (shown : Percept interface) :
@@ -117,7 +141,7 @@ its reward words alone. -/
 theorem pupil_not_feedbackDriven (four : 4 ≤ interface.actions.word.toNat)
     (shown : Percept interface) :
     ¬ FeedbackDriven (fun percept : Percept interface => percept.reward) (pupil four paid cue) :=
-  fun blind => pupil_not_actsAsDriven four shown (blind.actsAsDriven _)
+  fun blind => pupil_not_runsAsDriven four shown (blind.runsAsDriven _)
 
 /-! ## Forks in time: what fails each half -/
 

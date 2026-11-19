@@ -81,19 +81,16 @@ theorem cued_reward (four : 4 ≤ interface.actions.word.toNat) (shown : Percept
         (congrArg (fun percept : Percept interface => percept.frame.achieved) same)
         Bool.false_ne_true) reference origin⟩
 
-/-- **The cued doors need perceiving, and a learner meets them.** With the reward word as the
-feedback: no agent that acts as a clock-and-reward agent on everything the class shows it
-separates at the bound 3 before visit 2, and the pupil does. -/
+/-- **The cued doors meet condition (e)**, for separation at the bound 3 before visit 2. With the
+reward word as the feedback: no agent whose effect on every run of the class is that of a
+clock-and-reward agent separates there, and an agent does, the pupil. -/
 theorem cued_perceiving (four : 4 ≤ interface.actions.word.toNat) (shown : Percept interface) :
-    PerceivingNeeded (fun percept : Percept interface => percept.reward)
-        (visitRuns (cuedDoors four (cuePercept shown) (winPercept shown)) 1)
-        (SeparatesBy (cuedDoors four (cuePercept shown) (winPercept shown))
-          (cuedGoals four (cuePercept shown) (winPercept shown)) 1 3 cuedAll 2) ∧
-      SeparatesBy (cuedDoors four (cuePercept shown) (winPercept shown))
-        (cuedGoals four (cuePercept shown) (winPercept shown)) 1 3 cuedAll 2
-        (pupil four paid cue) :=
+    PerceivingDecides (fun percept : Percept interface => percept.reward)
+      (visitRuns (cuedDoors four (cuePercept shown) (winPercept shown)) 1)
+      (SeparatesBy (cuedDoors four (cuePercept shown) (winPercept shown))
+        (cuedGoals four (cuePercept shown) (winPercept shown)) 1 3 cuedAll 2) :=
   ⟨(cuedNeeded (fun percept : Percept interface => percept.reward) four (cuePercept shown)
       (winPercept shown) (rewardOnly shown) (fun _ => rfl) (fun _ => rfl)).perceivingNeeded
-      cuedAll, (cued_reward four shown).2.2.1⟩
+      cuedAll, pupil four paid cue, (cued_reward four shown).2.2.1⟩
 
 end AcornVerif.Kernel

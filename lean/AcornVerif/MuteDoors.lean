@@ -14,6 +14,9 @@ import AcornVerif.CuedDoorsPupil
   and nothing can be learned in it. This is the obstruction `docs/mission-contract.md` argues
   under contract 2, machine-checked. The intent record of contract 2 excludes the class by its
   clause that success shows.
+* `mute_not_decides`: the same class fails condition (e), `PerceivingDecides`, for separation at
+  its covering bound. No agent separates there, so perceiving is needed with nothing to exclude and
+  no agent that reads its observation does better.
 * `ExperienceFree.not_separatesBy`: an agent that keeps nothing never separates from a covering
   bound in a class that conceals its goals.
 * `fickle_forgets`: an agent that solves a cued door on its first visit and not on its second,
@@ -117,6 +120,20 @@ theorem mute_no_separation (two : 2 ≤ interface.actions.word.toNat) (shown : P
     omega
   exact mute_unlearnable two shown agent visit
     ⟨(each false (both false)).2, (each true (both true)).2⟩
+
+/-- **The mute doors fail condition (e), though perceiving is needed in them.** For every
+feedback, no agent whose effect on every run of the class is that of a clock-and-feedback agent
+separates from the covering bound there, because no agent does. The negative half of the condition
+holds with nothing to exclude, and no agent that reads its observation does better. -/
+theorem mute_not_decides {Φ : Type} (feedback : Percept interface → Φ)
+    (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface) (counted : List Bool)
+    (limit : ℕ) :
+    PerceivingNeeded feedback (visitRuns (mute interface shown) 1)
+        (SeparatesBy (mute interface shown) (muteGoals two shown) 1 1 counted limit) ∧
+      ¬ PerceivingDecides feedback (visitRuns (mute interface shown) 1)
+        (SeparatesBy (mute interface shown) (muteGoals two shown) 1 1 counted limit) :=
+  not_decides_of_unmet feedback _
+    (fun agent => mute_no_separation two shown agent counted limit)
 
 /-! ## Separation and retention -/
 

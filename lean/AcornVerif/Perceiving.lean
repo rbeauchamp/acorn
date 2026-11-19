@@ -24,6 +24,10 @@ Two results over the kernel's definitions, for every interface.
 * `not_perceptNeeded_of_conceals`: the failing example in general form. A class that conceals its
   goals in the full percept, with a success signal, in which some agent separates, does not meet
   `PerceptNeeded` for that signal at that bound and limit.
+* `PerceivingDecides`: condition (e) of contract 2. No agent whose effect on every run of the
+  class is that of a clock-and-feedback agent meets the promise (`PerceivingNeeded`), and some
+  agent meets it. The first half alone holds of every promise that no agent meets
+  (`not_decides_of_unmet`).
 -/
 
 namespace AcornVerif.Kernel
@@ -261,26 +265,51 @@ structure Run (interface : Interface) where
   /-- The state the run starts in. -/
   start : world.State
 
-/-- **The agent acts as a clock-and-feedback agent on everything the class shows it.** Some agent
-driven by the feedback passes through the agent's states at every time of every run of the class.
-An agent driven by the feedback is such an agent, and so is one that differs from it only on
-percepts no run of the class delivers. -/
-def ActsAsDriven {ι : Type} (feedback : Percept interface → Φ) (run : ι → Run interface)
+/-- **The agent's effect on every run of the class is that of a clock-and-feedback agent.** Some
+agent driven by the feedback takes the world through the agent's states at every time of every run
+of the class. The comparison is of the world's states and not of the actions taken, so an agent is
+such an agent whatever it does where the world does not listen: at the last decision of a visit,
+for instance, the world returns to its start whatever the action. An agent driven by the feedback
+is such an agent, and so is one that differs from it only on percepts no run of the class
+delivers. -/
+def RunsAsDriven {ι : Type} (feedback : Percept interface → Φ) (run : ι → Run interface)
     (agent : Agent interface) : Prop :=
   ∃ shadow : Agent interface, FeedbackDriven feedback shadow ∧ ∀ index time,
     stateAt (run index).world agent (run index).start time =
       stateAt (run index).world shadow (run index).start time
 
-/-- **Perceiving is needed**, for a feedback, the runs of a class and a promise: no agent that
-acts as a clock-and-feedback agent on everything the class shows it meets the promise. -/
+/-- **Perceiving is needed**, for a feedback, the runs of a class and a promise: no agent whose
+effect on every run of the class is that of a clock-and-feedback agent meets the promise. An agent
+is excluded by its effect on the world, whatever it does where the world does not listen. This is
+the negative half of condition (e) of contract 2 and not the condition: it holds of every promise
+that no agent meets (`not_decides_of_unmet`). The condition is `PerceivingDecides`. -/
 def PerceivingNeeded {ι : Type} (feedback : Percept interface → Φ) (run : ι → Run interface)
     (promise : Agent interface → Prop) : Prop :=
-  ∀ agent, ActsAsDriven feedback run agent → ¬ promise agent
+  ∀ agent, RunsAsDriven feedback run agent → ¬ promise agent
 
-/-- An agent driven by the feedback acts as one, on every class. -/
-theorem FeedbackDriven.actsAsDriven {ι : Type} {feedback : Percept interface → Φ}
+/-- **Condition (e) of contract 2: perceiving decides the promise.** Perceiving is needed for the
+promise, and some agent meets it; so an agent that reads its observation does what no agent with
+the effect of a clock-and-feedback agent does. Its witnesses are the cued doors (`cued_perceiving`)
+and the day-and-night class of the grid world (`rung_fork_decides`). A promise no agent meets
+fails it (`not_decides_of_unmet`), and so does separation in a class that conceals its goals behind
+one reference world with a success signal (`not_decides_of_conceals`). -/
+def PerceivingDecides {ι : Type} (feedback : Percept interface → Φ) (run : ι → Run interface)
+    (promise : Agent interface → Prop) : Prop :=
+  PerceivingNeeded feedback run promise ∧ ∃ agent, promise agent
+
+/-- **A promise no agent meets fails the condition, though perceiving is needed for it.** The
+negative half holds of such a promise with nothing to exclude, and no agent shows that reading the
+observation does better. -/
+theorem not_decides_of_unmet {ι : Type} (feedback : Percept interface → Φ)
+    (run : ι → Run interface) {promise : Agent interface → Prop}
+    (unmet : ∀ agent, ¬ promise agent) :
+    PerceivingNeeded feedback run promise ∧ ¬ PerceivingDecides feedback run promise :=
+  ⟨fun agent _ => unmet agent, fun decides => decides.2.elim unmet⟩
+
+/-- An agent driven by the feedback has the effect of one, on every class. -/
+theorem FeedbackDriven.runsAsDriven {ι : Type} {feedback : Percept interface → Φ}
     {agent : Agent interface} (blind : FeedbackDriven feedback agent) (run : ι → Run interface) :
-    ActsAsDriven feedback run agent :=
+    RunsAsDriven feedback run agent :=
   ⟨agent, blind, fun _ _ => rfl⟩
 
 /-- The runs of a class in visits: each member's world in visits, from the start of a visit. -/
@@ -288,8 +317,9 @@ def visitRuns (family : WorldClass interface) (length : ℕ) : family.Index → 
   fun index => ⟨visits (family.world index) (family.start index) length,
     visitStart (family.world index) (family.start index) length⟩
 
-/-- **The situated condition is sufficient.** A class in visits that meets `PerceptNeeded` at a
-bound and a limit needs perceiving, for separation at that bound before that limit. -/
+/-- **The situated condition is sufficient** for the negative half of the condition. In a class
+in visits that meets `PerceptNeeded` at a bound and a limit, perceiving is needed for separation
+at that bound before that limit. -/
 theorem PerceptNeeded.perceivingNeeded {feedback : Percept interface → Φ}
     {length bound limit : ℕ} (needed : PerceptNeeded feedback family goals length bound limit)
     (counted : List family.Index) :
@@ -303,16 +333,34 @@ theorem PerceptNeeded.perceivingNeeded {feedback : Percept interface → Φ}
     (fun state : (family.world index).State × Fin (length + 1) =>
       (goals index).satisfied state.1) (same index _)) met⟩
 
-/-- **The hybrid acts as a clock-and-feedback agent on a class that never shows it the percepts on
-which it differs.** A chooser whose preference and memory read the percept through the feedback
-alone, made to hold a resting preference on a set of percepts no run of the class delivers, is in
-the states of the plain chooser at every time of every run. -/
-theorem aloof_actsAsDriven {ι E V Core : Type} (feedback : Percept interface → Φ)
+/-- **A class that conceals its goals behind one reference world, with a success signal, fails
+the condition**, in visits, for that signal and for separation at every bound and limit. Where some
+agent separates, its rival is driven by the signal and separates too; so either no agent meets the
+promise, or one that reads nothing but the signal does. -/
+theorem not_decides_of_conceals (hidden : Conceals family goals reference origin) (length : ℕ)
+    (signal : Percept interface → Bool)
+    (decodes : ∀ index state action,
+      signal ((family.world index).percept ((family.world index).step state action)) = true ↔
+        (goals index).satisfied ((family.world index).step state action))
+    (bound limit : ℕ) (counted : List family.Index) :
+    ¬ PerceivingDecides signal (visitRuns family length)
+      (SeparatesBy family goals length bound counted limit) := by
+  rintro ⟨needed, agent, separates⟩
+  have blind : FeedbackDriven signal (rival reference origin length signal agent) :=
+    (replay_steppedBy length signal _).feedbackDriven
+  exact needed _ (blind.runsAsDriven _)
+    (rival_separates hidden length signal decodes separates).1
+
+/-- **The hybrid has the effect of a clock-and-feedback agent on a class that never shows it the
+percepts on which it differs.** A chooser whose preference and memory read the percept through the
+feedback alone, made to hold a resting preference on a set of percepts no run of the class
+delivers, is in the states of the plain chooser at every time of every run. -/
+theorem aloof_runsAsDriven {ι E V Core : Type} (feedback : Percept interface → Φ)
     (select : E → V → Act interface × E) (core : Core) (seed : E) (prefer : Core → Φ → V)
     (advance : Core → Φ → Act interface → Core) (alien : Percept interface → Prop)
     [DecidablePred alien] (rest : V) (run : ι → Run interface)
     (never : ∀ index state, ¬ alien ((run index).world.percept state)) :
-    ActsAsDriven feedback run
+    RunsAsDriven feedback run
       (chooser select core seed
         (aloof alien rest (fun inner percept => prefer inner (feedback percept)))
         (fun inner percept action => advance inner (feedback percept) action)) :=
@@ -333,9 +381,10 @@ def turnRuns (family : TurnClass interface) (length : ℕ) :
   fun pair => ⟨turns (family.world pair.1) (family.start pair.1) pair.2 length,
     turnStart (family.world pair.1) (family.start pair.1) pair.2 length 0⟩
 
-/-- **Forks in time are sufficient.** In a class in turns whose members are forks and whose
-situations give one feedback until the goal is met, no agent that acts as a clock-and-feedback
-agent on everything the class shows it masters, at any bound, key and limit. -/
+/-- **Forks in time are sufficient** for the negative half of the condition. In a class in turns
+whose members are forks and whose situations give one feedback until the goal is met, no agent
+whose effect on every run of the class is that of a clock-and-feedback agent masters, at any
+bound, key and limit. -/
 theorem forks_perceivingNeeded {feedback : Percept interface → Φ} {family : TurnClass interface}
     {goals : family.Goals} {length : ℕ} (mute : Mute feedback family goals)
     (apart : Apart family goals length) (bound limit : ℕ) {κ : Type} (key : family.Index → κ) :
@@ -344,5 +393,17 @@ theorem forks_perceivingNeeded {feedback : Percept interface → Φ} {family : T
   rintro agent ⟨shadow, blind, same⟩ masters
   exact blind.masters mute apart bound limit key
     (MastersBy.of_states (fun index order time => same (index, order) time) masters)
+
+/-- **Mastery before visit 0 fails the condition, in every class.** No visit is before visit 0, so
+no agent masters before it: perceiving is needed for that promise with nothing to exclude, and no
+agent shows that reading the observation does better. -/
+theorem not_decides_before_zero {ι : Type} (feedback : Percept interface → Φ)
+    (run : ι → Run interface) (family : TurnClass interface) (goals : family.Goals)
+    (length bound : ℕ) {κ : Type} (key : family.Index → κ) :
+    PerceivingNeeded feedback run (MastersBy family goals length bound key 0) ∧
+      ¬ PerceivingDecides feedback run (MastersBy family goals length bound key 0) :=
+  not_decides_of_unmet feedback run (fun _ masters => by
+    obtain ⟨_, _, _, before, _⟩ := masters
+    exact Nat.not_lt_zero _ before)
 
 end AcornVerif.Kernel

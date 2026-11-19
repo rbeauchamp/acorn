@@ -60,7 +60,8 @@ theorem rung_reward_unneeded (mode : TaskFeatureMode) :
 
 /-- **The first rung's class does not need perceiving**, by the meaning of the condition: for the
 achievement flag and for the reward word, some agent driven by that feedback meets separation at
-the bound 98 before visit 288. -/
+the bound 98 before visit 288. So it fails condition (e), `Kernel.PerceivingDecides`, by its
+negative half and not for want of an agent that separates. -/
 theorem rung_not_perceivingNeeded (mode : TaskFeatureMode) :
     ∃ counted : List (feasibleFind witnessConfig mode witnessLive 7).Index,
       ¬ Kernel.PerceivingNeeded achievedSignal
@@ -73,8 +74,8 @@ theorem rung_not_perceivingNeeded (mode : TaskFeatureMode) :
           (fun _ => completion witnessConfig mode 7) 7 98 counted 288) := by
   obtain ⟨agent, counted, stepped, -, separates, -⟩ := flag_solver mode
   obtain ⟨twin, steppedTwin, -, clauses⟩ := rung_twin mode agent
-  exact ⟨counted, fun needed => needed agent (stepped.feedbackDriven.actsAsDriven _) separates,
-    fun needed => needed twin (steppedTwin.feedbackDriven.actsAsDriven _)
+  exact ⟨counted, fun needed => needed agent (stepped.feedbackDriven.runsAsDriven _) separates,
+    fun needed => needed twin (steppedTwin.feedbackDriven.runsAsDriven _)
       ((clauses 98 288 0 0 counted).1.mpr separates)⟩
 
 /-- **The postcondition's record admits an agent that stores a rewarded visit's actions and
