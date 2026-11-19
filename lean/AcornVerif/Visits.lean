@@ -49,8 +49,8 @@ experience-free agent keeping every goal it has met. `AcornVerif.Replay` shows a
 uses its experience solving, on every later visit, every member it has solved once, and,
 under a hypothesis of exploration, more members on one visit than the covering bound.
 
-`BigClass` packages conditions (a) to (c) of the mission contract's contract 2; they do not supply
-obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
+`ConcealedClass` packages conditions (a) to (c) of the mission contract's contract 2; they do not
+supply obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
 
 A class that one action sequence solves gives no evidence of learning. `visitScript` reads no
 percept and restarts its count on every visit, with a counter of ⌈log₂ (length + 1)⌉ bits
@@ -534,7 +534,7 @@ theorem visits_ever (hidden : Conceals family goals reference origin) {length bo
         exact Nat.find_spec once
     _ = count * bound := by rw [Finset.card_range]
 
-/-! ## A big class -/
+/-! ## A concealed class -/
 
 /-- Conditions (a) to (c) of contract 2 of the mission contract, for a class with goals and a
 visit length: it conceals its goals behind one reference world (b); one action sequence meets
@@ -543,7 +543,7 @@ members (c); and every member's goal is feasible within a visit (a). These condi
 the comparison bound of `visits_need`. They do not establish that experience supplies
 information from which an agent can learn a solution, which is part of obligation 4 of
 `docs/mission-contract.md`, the goal-information and exploration premises. -/
-structure BigClass (family : WorldClass interface) (goals : family.Goals) (len k : ℕ) where
+structure ConcealedClass (family : WorldClass interface) (goals : family.Goals) (len k : ℕ) where
   /-- The world whose percepts each member shows until its goal is first met. -/
   reference : World interface
   /-- The reference world's start state. -/
@@ -663,7 +663,7 @@ theorem blindSolvable_frozen {family : WorldClass interface} {goals : family.Goa
   exact met
 
 /-- So every covering bound of such a class, for that visit length, is at least the size of
-every finite set of its members: the margin of `BigClass` cannot hold of it. -/
+every finite set of its members: the margin of `ConcealedClass` cannot hold of it. -/
 theorem blindSolvable_covered {family : WorldClass interface} {goals : family.Goals}
     {length bound : ℕ} (actions : ℕ → Act interface)
     (solves : ∀ index, (visitGoals goals length index).MetBy (family.start index) actions)

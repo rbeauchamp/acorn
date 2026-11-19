@@ -950,8 +950,8 @@ Section, equation and page locators refer to the versions linked here.
 17. <a id="r17"></a>Richard S. Sutton, "The OaK Architecture: A Vision of
     SuperIntelligence from Experience", NeurIPS 2025 invited talk
     ([abstract](https://neurips.cc/virtual/2025/invited-talk/109601)).
-18. <a id="r18"></a>Oak Lab, "Mission" ([page](https://oaklab.ai/mission)),
-    read 2026-09-29.
+18. <a id="r18"></a>Oak Lab, "Mission" ([archived page](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission)),
+    read on the live site on 2026-09-29; Oak Lab has since withdrawn the page.
 19. <a id="r19"></a>Khurram Javed and Richard S. Sutton, "The Big World Hypothesis
     and its Ramifications for Artificial Intelligence", 2024
     ([Oak Lab](https://oaklab.ai/posts/the-big-world-hypothesis.html)).

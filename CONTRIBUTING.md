@@ -56,7 +56,7 @@ release before 1.0.
 instructions an agent can follow, and how the [mission board](docs/mission-board.md)
 credits what has landed. This section states the rules those instructions rest on.
 
-Acorn's missions serve [Oak Lab's mission](https://oaklab.ai/mission):
+Acorn's missions serve [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission):
 discovering and implementing algorithms that allow agents to achieve goals in
 big worlds, and formally proving that they work—that the agent achieves goals
 over a formally modelled class of big worlds. In Acorn, missions are that work
