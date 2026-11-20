@@ -21,7 +21,9 @@ The theorems state what the instance feeds each consumer in terms of those execu
 definitions: the prediction cumulants are `evaluateCumulants cumulantOrder`, the
 declared potentials are `spatialPotentials`, and the feedback words are the
 standalone coder's `predictionWords`. No grid word uses a prediction feedback channel
-(`Grid.sensorWords_clear`), which the frame type requires of every adapter.
+(`Grid.sensorWords_clear`), which the frame type requires of every adapter. The interface
+admits `Grid.seatWords` more words than the adapter's own bound, so every grid frame leaves
+that room (`Grid.frame_room`, `Grid.percept_room`).
 `Acorn.Host.AgentInterface` carries these to the agent the host calls. They are
 equalities for every observation and reward word. `AcornVerif.GridCorrespondence`
 proves the whole composed transition equal to a frozen composition over host
@@ -74,12 +76,19 @@ abbrev actions : Word.Count := ⟨Acorn.FeatureConstants.primitiveCount.toUInt64
 context, and six inventory words. -/
 def wordBound : Nat := patchSide * patchSide * 3 + 2 + Acorn.FeatureConstants.taskContextWords + 6
 
+/-- The words of room the grid interface keeps beyond the adapter's own. The interface admits a
+frame of `wordBound + seatWords` words and a grid frame carries at most `wordBound`
+(`sensorWords_length`), so every grid frame leaves this many free (`frame_room`). The room is for
+words that a state mechanism, a memory of the stream kept beside the agent, adds to a percept.
+No definition of this library adds one. -/
+def seatWords : Nat := 32
+
 /-- The grid world's interface: the window and task context as the symbol array, the
-ten host signals after the agent's reward question, nine actions, the word bound,
-prediction feedback channels from `0x50`, and the timing of a world that waits for each
-action. -/
+ten host signals after the agent's reward question, nine actions, the adapter's word bound
+with the room after it, prediction feedback channels from `0x50`, and the timing of a world
+that waits for each action. -/
 abbrev interface : Interface :=
-  ⟨patchShape, signalLayout, actions, wordBound, 0x50, .synchronized⟩
+  ⟨patchShape, signalLayout, actions, wordBound + seatWords, 0x50, .synchronized⟩
 
 /-- The agent's layout at the grid instance is the canonical eleven horizons. -/
 theorem interface_layout : interface.layout = demonLayout := rfl
@@ -152,7 +161,7 @@ def signals (obs : Observation) : Cumulants interface.signals :=
 the host signals, the spatial potentials and the host's achievement flag. -/
 def frame (mode : TaskFeatureMode) (obs : Observation) (achieved : Bool) : Frame interface where
   words := sensorWords obs mode
-  bounded := sensorWords_length obs mode
+  bounded := Nat.le_trans (sensorWords_length obs mode) (Nat.le_add_right wordBound seatWords)
   clear := sensorWords_clear obs mode
   symbols := observationPatch obs mode
   signals := signals obs
@@ -164,6 +173,20 @@ word of the preceding transition, and whether that transition achieved the goal.
 def percept (mode : TaskFeatureMode) (obs : Observation) (reward : Binary32) (achieved : Bool) :
     Percept interface :=
   ⟨frame mode obs achieved, reward⟩
+
+/-- **Every grid frame leaves the room free.** In both task modes, for every observation and
+achievement flag, the frame the adapter builds carries at least `seatWords` fewer words than the
+interface admits. -/
+theorem frame_room (mode : TaskFeatureMode) (obs : Observation) (achieved : Bool) :
+    (frame mode obs achieved).words.length + seatWords ≤ interface.words :=
+  Nat.add_le_add_right (sensorWords_length obs mode) seatWords
+
+/-- Every grid percept leaves the room free: its frame is the adapter's frame, for every reward
+word as well. -/
+theorem percept_room (mode : TaskFeatureMode) (obs : Observation) (reward : Binary32)
+    (achieved : Bool) :
+    (percept mode obs reward achieved).frame.words.length + seatWords ≤ interface.words :=
+  frame_room mode obs achieved
 
 /-- The grid frame's cumulants are the canonical eleven host signal values. -/
 theorem signalValues_eq (mode : TaskFeatureMode) (obs : Observation) (reward : Binary32)

@@ -675,7 +675,11 @@ goal cue, the terrain fields and the generator's samples.
 The grid world is one instance of the interface
 ([`Grid.interface`](../lean/Acorn/Handcrafted/GridWorld.lean)): a symbol array of
 131 positions, ten signals after the agent's own reward question, nine actions, at
-most 381 words, feedback channels from `0x50` and the timing `synchronized`. Its adapter builds each percept
+most 413 words, feedback channels from `0x50` and the timing `synchronized`. Of those words
+the grid adapter emits at most 381 (`Grid.sensorWords_length`). The other 32 (`Grid.seatWords`)
+are room for words that a state mechanism, a memory of the stream kept beside the agent, adds
+to an observation, and every observation the adapter builds leaves that room (`Grid.frame_room`).
+Its adapter builds each percept
 from the host's observation and the preceding result. `Agent.grid_inputs` in
 [the host binding](../lean/Acorn/Host/AgentInterface.lean) states, for every
 agent state, observation and reward word, that the coder's words and symbols, the
@@ -1181,7 +1185,8 @@ What these theorems do not establish:
   action. Nothing is proved of a later decision, so nothing of whether one action is repeated.
 - **That a class of a longer visit, or of a world with deer and food, is big, or that its
   frames are within the sizes the credit horizon assumes.** Of a world with deer and food only
-  the interface's bound is proved: 3648 slots under the standard feature configuration.
+  the bound by the 381 words the grid adapter emits at most is proved (`frame_slots`,
+  `Grid.sensorWords_length`): 3648 slots under the standard feature configuration.
 - **Anything about saving or resuming the first rung's agent.** Its profile is the primitive
   one, which the host neither saves nor loads (`save_refuses`, `unresumable_unloaded`), so
   exact resumption says nothing of it.
