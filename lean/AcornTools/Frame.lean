@@ -45,8 +45,9 @@ from sources, and running this program builds the program and no module it reads
 imports a module, for the check and for printing alike, it asks Lake whether that module is
 built from the present sources (`current`), and builds nothing itself. A module that has no
 source file in the tree, a module no package of the workspace holds, and a module that is out
-of date or imports one that is are each refused by name, with status 1: a compiled file left by
-an earlier build is never read in place of the tree's source.
+of date or imports one that is are each refused by name, with status 1. So, as far as Lake's
+record of what is current is right, a compiled file left by an earlier build is not read in
+place of the tree's source; `current` lists what is trusted.
 
 What a pass means: every declaration the walk reaches prints to the text it printed when the
 file was made, read from compiled modules that Lake reports built from the sources present when
@@ -282,9 +283,10 @@ Lake reads the module's source file, so a module without one fails there, and a 
 package of the workspace holds is unknown to it. Into the module's trace it mixes, with other
 inputs, the text of that source, the options, the toolchain and the compiled files of the
 workspace's modules it imports, each of which it answers for in the same way first. It takes the
-module as current only when the trace it recorded for the compiled files is that trace and the
-files, or the archive it restores them from, exist. It exits 0 when the module and every module
-of the workspace it imports are current, and 3 when one needs a build (`Module.recFetchInput`,
+module as current only when the trace it recorded for the compiled files has that trace's hash
+and the files, or the archive it restores them from, exist. It exits 0 only when the module and
+every module of the workspace it imports are current, and 3 when one needs a build
+(`Module.recFetchInput`,
 `fetchImportInfo`, `Module.recFetchPreSetup` and `Module.recBuildLean` in Lake/Build/Module.lean,
 `buildAction` in Lake/Build/Common.lean and `finalizeBuild` in Lake/Build/Run.lean, Lake of Lean
 v4.35.0). Every other status, the bootstrap's own refusals included, is refused as well.

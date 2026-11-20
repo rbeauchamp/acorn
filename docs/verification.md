@@ -552,11 +552,12 @@ program and no module that program reads. So for each pin file it first asks
 Lake, through the bootstrap and building nothing, whether the module the file
 names is built from the present sources. It fails, naming the module, when the
 module has no source file in the tree, when no package of the workspace holds
-it, and when it or a module it imports is out of date: a compiled file that an
-earlier build left behind is never read in place of the tree's source. The
+it, and when it or a module it imports is out of date. The
 command that prints a pin file asks Lake the same question before it reads a
-module. That Lake's record of what is current is right, and that nothing but
-Lake has written the compiled files since, is trusted. The check then computes
+module. So a compiled file that an earlier build left behind is not read in
+place of the tree's source, as far as Lake's record of what is current is
+right: that record, and that nothing but Lake has written the compiled files
+since, are trusted. The check then computes
 that list from the compiled module and fails when a
 pinned declaration is no longer reached, has another digest, or a reached
 declaration is not pinned, naming each. With no pin file it reports that no
