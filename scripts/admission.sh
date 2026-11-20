@@ -330,7 +330,7 @@ record_form() {
       [[ ${lines[4]} == "admitted-by $owner_role" ]] ||
         { say "a record of the owner's words is admitted by $owner_role: ${lines[4]}"; return 1; }
       link=${lines[5]#words }
-      [[ ${lines[5]} == 'words '* ]] && [[ $link =~ $issue_form || $link =~ $comment_form ]] || {
+      [[ ${lines[5]} == 'words '* && ( $link =~ $issue_form || $link =~ $comment_form ) ]] || {
         say "the record does not say where the owner's words are, as a link to an issue of"
         say "$canonical_slug or to a comment on one of its issues or pull requests: ${lines[5]}"
         return 1
