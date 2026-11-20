@@ -42,7 +42,9 @@ surface cannot exercise it; do not audit unrelated repository code.
    permitted composition and provenance declarations are not purity defects.
    Any new hand-authored
    domain bias needs a `Provenance` witness and an entry in
-   `docs/learned-only-binding.md`. The source and compiled checks in `AcornTools/Boundary/Audit.lean` enforce module ownership;
+   `docs/learned-only-binding.md`, except as that document says of a state
+   mechanism submitted under the frame of a learned-state result.
+   The source and compiled checks in `AcornTools/Boundary/Audit.lean` enforce module ownership;
    typed origin witnesses govern the admitted producers. Neither mechanism
    proves that a provenance declaration is scientifically honest.
 6. **Observer invariant** — nothing in `NativeApp.Viewer` or `Acorn.Host.Viewer` may

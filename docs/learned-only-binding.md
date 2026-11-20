@@ -21,7 +21,9 @@ failure" (at 1:03:37, caption text from the upload's automatic captions). A
 declared departure is design-time knowledge of this kind, and each names the
 conditions for its replacement.
 
-Undeclared hand-authored bias on the action-selection path is a defect.
+Undeclared hand-authored bias on the action-selection path is a defect, except
+as this document says below of a state mechanism submitted under the frame of a
+learned-state result.
 Each declared departure identifies the authored choice and its replacement
 conditions. Review checks declarations against the code that produces them.
 
@@ -29,7 +31,9 @@ The declared interface supplies observations, actions, task reward, boundaries
 and immutable configuration. The action path includes feature construction,
 value/prediction updates, option selection/interruption and planning. Host world,
 control and observer machinery remain outside learned module ownership. No
-handcrafted policy may be hidden in an observation, shaping term or model target.
+handcrafted policy may be hidden in an observation, shaping term or model target,
+except as this document says below of a state mechanism submitted under the
+frame of a learned-state result.
 
 What executes an action belongs to the world. The grid world's step function does
 so, and in the [Microduck](https://github.com/pollen-robotics/microduck) world the control daemon does, with networks inside it.
