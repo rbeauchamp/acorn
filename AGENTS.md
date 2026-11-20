@@ -65,7 +65,9 @@ specification and restate it as what the algorithm must maintain, as
 
 ## Learned-only and research admission
 
-Every hand-authored action-path bias requires its actual departure declaration.
+Every hand-authored action-path bias requires its actual departure declaration,
+except as [learned-only binding](docs/learned-only-binding.md) says of a state
+mechanism submitted under the frame of a learned-state result.
 Review checks each provenance declaration against the producing code. Source and
 compiled ownership enforce the learned/host/handcrafted boundary and explicit
 composition roots. The viewer observes telemetry and sends lifecycle stop only;
