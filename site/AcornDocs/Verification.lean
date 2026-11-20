@@ -998,8 +998,8 @@ every module of the package that their imports reach. The default targets are
 the libraries Acorn, AcornVerif, NativeApp, Bootstrap and AcornDocument. They hold
 every Acorn theorem: the executing definitions with the theorems stated beside
 them, the proof library, the native application, the build launcher, and the
-names that the document audit admits from outside the project with the theorem
-that states what an admitted name is. A theorem can mention only declarations of
+registry of external names. The document audit reads that registry from the
+build and checks membership. A theorem can mention only declarations of
 the modules its own module imports, so every definition of the package that a
 claimed theorem is about is claimed as well. `lake lint` imports the claimed
 modules into one environment, where Lean refuses two
