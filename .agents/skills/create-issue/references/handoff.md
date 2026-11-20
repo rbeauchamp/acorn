@@ -46,7 +46,9 @@ workaround or preferred design into a universal rule.
 
 Name the implementation and proof owners to inspect, the intended deliverables,
 and the evidence that will satisfy each acceptance criterion. Define completion
-through the applicable delivery path, including independent review, local
+through the applicable delivery path, including the
+[review protocol](../../../../CONTRIBUTING.md#review-protocol), which decides
+when the work is complete and which review it gets, local
 `./scripts/verify.sh`, the merge gate `./scripts/gate.sh` that the no-mistakes
 pipeline runs on the exact proposed head, signed commits and protected merge
 when implementation is included. Preserve the current AGENTS.md hard

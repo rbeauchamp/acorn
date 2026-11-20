@@ -1,6 +1,6 @@
 <!-- Before the first section, say in a few sentences what this change does and why, for a reader who has seen none of the discussion that led to it. Give each resolved mission or issue its own closing keyword line (`Closes #<id>.`), and when an AI agent or model contributed, credit both the human contributor and the agent or model. -->
 
-<!-- This description becomes the change's commit message when it is merged, so write it as a record of the change as it stands, not a history of its review. Keep the four sections below in every pull request, with their headings unchanged and in this order, and keep each up to date as the change evolves. Never leave a section empty: where it does not apply, write one line that says so and why. Write each paragraph and each list item on a single line. A section may hold `##` subsections, for example for what was measured or for the outside behaviour the change relies on. -->
+<!-- This description becomes the change's commit message when it is merged, so write it as a record of the change as it stands, not a history of its review. Say what the change claims, and never that the work is complete: the review protocol in CONTRIBUTING.md decides that, for every author. Keep the four sections below in every pull request, with their headings unchanged and in this order, and keep each up to date as the change evolves. Never leave a section empty: where it does not apply, write one line that says so and why. Write each paragraph and each list item on a single line. A section may hold `##` subsections, for example for what was measured or for the outside behaviour the change relies on. -->
 
 # Mission accounting
 
@@ -8,6 +8,7 @@
 
 - Mission and credit: <!-- for a mission pull request, `Closes #<id>.`, the frozen theorem or contract established, the touched files, and credit for the human contributor and any AI agent or model; write "none (not a mission pull request)" otherwise -->
 - Gate result: <!-- the `./scripts/gate.sh` result on the exact pull request head: paste its `gate:` lines, the last of which begins `gate: every merge check passed` when every check passes, here or in a fenced block below -->
+- Computations on the agent: <!-- every computation made on the agent or on one of its learners in preparing this change, by any means (the binary, evaluation inside Lean, a re-implementation in any language): for each, what was computed and how, what it showed, and either the theorem of this change that checks its value or that it was a run and under what authorization (CONTRIBUTING.md, "What counts as a run"); write "none" when none was made -->
 - Mission properties: <!-- the properties of the project's purpose that this change depends on or affects, each stated so a reader could tell when it fails -->
 - Formal claims: <!-- the proofs, types and checks in the code that express those properties, each named so a reader can find it; say so plainly when the change adds none -->
 - Trusted base: <!-- the assumptions those claims rest on without proof, such as how a compiler, an operating system or an outside service behaves -->

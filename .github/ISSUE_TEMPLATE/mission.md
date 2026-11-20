@@ -13,7 +13,7 @@ labels: ["mission"]
 
 ## Mission contract
 
-<!-- Freeze the exact contract so that Lean's kernel and `./scripts/gate.sh` decide acceptance without weakening the statement. -->
+<!-- Freeze the exact contract so that Lean's kernel and `./scripts/gate.sh` decide whether it is established, without weakening the statement. The review protocol in CONTRIBUTING.md decides when a pull request for it is accepted. -->
 
 - Targets: <!-- once the owner has registered them, the name of each target to prove, such as `AcornVerif.Targets.Json.parse_complete`, and its file. To propose a statement, write the exact Lean 4 theorem signature(s) over the executed definition here; a proposer does not add files under `lean/AcornVerif/Targets/`. To prove a target, state a theorem whose statement is the target, using the contract's definitions from the target's module, and add its entry to the list in `lean/AcornVerif/Landings.lean` (see docs/missions.md, steps 3 and 5). Write "none" for a mission whose whole contract is the next line -->
 - Decision contract or other part that is not a statement to prove: <!-- the exact Regula decision contract (`lean/Acorn/Decisions.lean`, `lean/AcornVerif/Decisions.lean`) or other change to establish, which stays frozen in this issue; write "none" where the targets are the whole contract -->

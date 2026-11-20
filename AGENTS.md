@@ -44,7 +44,13 @@ test or a diagnostic that only chooses a direction. What deterministic code does
 at a fixed seed is a mathematical question. Before proposing a run, state the
 question and why derivation or proof cannot answer it effectively and
 efficiently, with the cost of each, and obtain the owner's authorization.
-Computing data that a proof then checks is proof search, not a run.
+Stepping the agent or one of its learners over a sequence of percepts by any
+means, whether the binary, evaluation inside Lean or a re-implementation in any
+language, is a run. Proof search is computing a value that a theorem in the
+pull request then checks, and nothing else is.
+[What counts as a run](CONTRIBUTING.md#what-counts-as-a-run) gives the cases,
+and every pull request lists each computation made on the agent and what it
+showed.
 
 The habit of evaluation returns through specifications. When a specification
 seems to need a run to check it, treat that first as a defect in the
@@ -90,8 +96,12 @@ negative and inconclusive evidence honest; exclusion is not a positive result.
 ## Review and delivery
 
 Use the shipped proof-review standard and pr-review-toolkit for review-and-fix.
-One independent reviewer is the default; add a specialist only for a concrete
-uncertainty. Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
+For that review, which the author runs, one independent reviewer is the
+default; add a specialist only for a concrete uncertainty. It does not decide
+when work is complete. The [review protocol](CONTRIBUTING.md#review-protocol)
+does, for every author, and it names the pull requests that a referee the
+author did not choose, of another model family, reviews.
+Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
 rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.
 

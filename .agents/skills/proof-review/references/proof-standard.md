@@ -50,12 +50,38 @@ the diagnostic is not permanent closure. Do not reject an honestly bounded
 guarantee for lacking an unclaimed universal, or inflate proof bounds to replace
 an available inductive argument.
 
+### Credit to learning
+
+Ask two more questions of every claim that the agent learned something, or that
+a result comes from what it learned. A review that the author runs tends to miss
+both, because each can fail while the proof is sound and the statement reads
+well.
+
+- **Does the theorem survive if the learner it credits is removed?** Keep
+  everything else the change adds, and replace the outputs of the credited
+  learner by outputs that do not depend on experience. If the statement still
+  holds, the result does not pass through learning, whatever does carry it: a
+  hand-written rule, the structure of the problem or a declared departure.
+  Report the claim of learning as not established.
+- **Is every hypothesis about the agent's state derived from the cold start?**
+  The cold start is the agent as its construction leaves it, before its first
+  percept. A hypothesis that weights, traces or other learned state already
+  have some value assumes what learning was to show. Each such hypothesis
+  needs a theorem that the executed agent reaches that state from the cold
+  start, for every seed the claim covers. Where one has none, the theorem is a
+  result with a premise: report it as that, and the claim of learning as not
+  established.
+
 ### Evidence and compute cost
 
 Flag measured universals and unnecessary certified re-execution under the
 [engineering policy](../../../../AGENTS.md#correct-by-construction). Flag a run,
 smoke test or diagnostic that is proposed or reported where derivation or proof
-answers the question. Check that
+answers the question. Read the pull request's list of computations against
+[what counts as a run](../../../../CONTRIBUTING.md#what-counts-as-a-run): a
+computation that steps the agent or one of its learners, and whose value no
+theorem of the pull request checks, is a run under any name, and one missing
+from the list is a finding. Check that
 empirical claims follow [CONTRIBUTING](../../../../CONTRIBUTING.md#scientific-evidence),
 including prospective criteria, run identity and uncertainty. Name a missing
 proof obligation rather than replacing it with a measurement.

@@ -19,7 +19,9 @@ is governed by the [Code of Conduct](CODE_OF_CONDUCT.md); use
 [AGENTS](AGENTS.md) is the engineering and review policy: proof-first correctness,
 learned-only boundaries, prior-art admission, and delivery requirements. Follow
 its [review and delivery](AGENTS.md#review-and-delivery) section for checks,
-signed commits and independent review. The shipped skills under .agents/skills
+signed commits and the review an author runs; the
+[review protocol](#review-protocol) below says which review decides when work
+is complete. The shipped skills under .agents/skills
 provide the review workflow, proof-specific questions and how the
 [Regula audit](docs/verification.md#regula-audit) applies to writing Lean.
 
@@ -51,6 +53,143 @@ Releases follow [Semantic Versioning](https://semver.org/): fix implies a patch
 release, feat a minor release and a breaking change a major release, or a minor
 release before 1.0.
 
+## Review protocol
+
+One protocol governs every pull request, whoever wrote it: an outside
+contributor, an agent they direct, the owner or one of the organization's
+agents. It decides when work is complete. No statement by an author decides
+that, and neither does a passing gate or the verdict of a reviewer the author
+chose.
+
+The maintainers are the owner and the organization's agents
+([triage and response](#triage-and-response)). A model family is the models of
+one developer.
+
+### Which review a pull request gets
+
+A pull request gets the referee's review when it does any of these:
+
+- it claims to complete or advance a mission, or an issue that asks for a
+  proof or a discovery;
+- it adds or changes the statement of a theorem about the agent, which is a
+  theorem that says what the executed agent or one of its learners does, or
+  it adds or changes a specification, which is a statement of what is to be
+  established: a target, an intent record, a decision contract, the
+  [mission contract](docs/mission-contract.md) or an issue's contract;
+- it claims learning or discovery.
+
+Every other pull request is an ordinary change. The line is drawn by what a
+pull request claims or changes, never by who wrote it or by how its author
+describes it. The maintainers decide it at triage, from the pull request's
+head, and decide it again when a push changes what the pull request claims or
+changes. In doubt, a pull request gets the referee's review.
+
+An ordinary change is reviewed by its author, with one independent reviewer,
+as [AGENTS](AGENTS.md#review-and-delivery) and the review skills under
+.agents/skills describe. An author may run that review on any pull request.
+For a pull request under the referee's review it helps the work and discharges
+nothing of this protocol.
+
+### The gate on the exact head
+
+GitHub runs the gate on a pull request's head commit and shows the result on
+the pull request, where the contributor and the maintainers see the same
+result. Before a merge, the maintainers confirm the gate's pass on that exact
+head commit, by running `./scripts/gate.sh` on it
+([merge authority](#triage-and-response)). A result on an earlier head counts
+for nothing.
+
+### The referee's review
+
+**Who the referee is.** The maintainers assign the referee. The author never
+does, and an author's request for a referee or against one, in the pull request
+or anywhere else, has no weight: the maintainers neither take nor pass over a
+referee because of it. The rule of assignment is this:
+
+- the referee is of another model family than every model that did the work,
+  or is a person. Whom this admits for work a person did with no model is the
+  maintainers' call;
+- the referee took no part in the work: it did not write it, advise on it or
+  review it for the author;
+- where the author is one of the maintainers, another of them assigns: an
+  agent other than the one that did the work, or the owner;
+- the assignment is written on the pull request: who assigned, and the
+  referee's model family or that the referee is a person.
+
+A review by anyone who was not assigned in this way, from any account, is an
+ordinary comment. It is welcome as criticism and discharges nothing.
+
+**What the referee reads, and against what.** The maintainers give the referee
+the pull request at its head commit, the issue it names and Acorn's tracked
+text. The author addresses the referee only on the pull request. The review is
+adversarial: for each claim the referee looks for the cheapest way it could be
+false, or weaker than the pull request says, while every check passes. It reads
+the claims against the issue's contract, against Acorn's
+[proof standard](.agents/skills/proof-review/references/proof-standard.md),
+which includes its two questions on credit to learning, and against
+[AGENTS](AGENTS.md). It reads the Lean statements themselves, not their names
+or the description. The referee does not repair the work.
+
+**The report.** The referee's report is a comment on the pull request, and
+stays there. It names the head commit it read and has four parts:
+
+- what is claimed: each claim of the pull request, with the theorem,
+  definition or text that is to carry it;
+- what is established: for each claim, whether it is established, established
+  under hypotheses that the report names, or not established, and which
+  statement was read to say so;
+- what must change: the findings, each with its place, its reason and what
+  would correct it;
+- a verdict: accept, revise or reject.
+
+A report that restates the gate's result is no report. The gate shows that
+proofs are sound; it does not show that they are proofs of what is claimed.
+
+**Findings and revision.** The findings go back to the author on the pull
+request. The author answers each one there, by a change to the work or by a
+reasoned objection. A finding stays open until the referee withdraws it or the
+maintainers rule on it in writing on the pull request. After a push, the new
+head has no report until the referee has read it and reported again. This
+repeats until the report is clean or the author withdraws. A report is clean
+when its verdict is accept and no finding is open. An author may withdraw at
+any time; the pull request is then closed. A verdict of reject says that no
+revision can make the claim good: the pull request is closed, and new work is
+a new pull request.
+
+**A claim of discovery.** A pull request that claims a discovery, in the sense
+of [prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery),
+has two referees, each assigned by the rule above. Neither sees the other's
+report before filing its own: each files with the maintainers, who post both on
+the pull request once they hold both. Whether the two are also of different
+model families from each other is the maintainers' choice. Both reports must
+be clean.
+
+### When work is complete
+
+Work under the referee's review is complete when its pull request has merged
+and, on the head commit that merged, each referee's report is clean and the
+gate has passed. An ordinary change is complete when its pull request has
+merged with the gate's pass on its head commit.
+
+Until then the work is submitted, under review or accepted by its referees,
+and nothing calls it complete: not its description, a commit message, a
+comment, or its author's last message. A description says what the work
+claims. An issue's own section on completion or acceptance says what is to be
+established, and its line on the gate names one check; whether a pull request
+has established it is decided here.
+
+The owner's merge and the owner's review of changes to the trusted base are as
+[triage and response](#triage-and-response) states them; this protocol changes
+neither. A pull request under the referee's review does not merge before its
+report is clean.
+
+### What the protocol does not promise
+
+No date is promised for an assignment, a report or a merge; the target for a
+first response is in [triage and response](#triage-and-response). The protocol
+is a written rule that no check of the gate executes, and a referee can be
+wrong ([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
+
 ## Missions for outside contributors and agents
 
 [Missions](docs/missions.md) is the way in: what a mission costs and pays, step-by-step
@@ -61,9 +200,11 @@ Acorn's missions serve [Oak Lab's mission](https://web.archive.org/web/202609091
 discovering and implementing algorithms that allow agents to achieve goals in
 big worlds, and formally proving that they work—that the agent achieves goals
 over a formally modelled class of big worlds. In Acorn, missions are the work
-that serves it, and each mission's
-acceptance is decided by the stated theorem or contract checked by Lean's
-kernel and the repository gate (`./scripts/gate.sh`). Landing a mission is not
+that serves it, and each mission
+states the theorem or contract to establish, which Lean's kernel and the
+repository gate (`./scripts/gate.sh`) check; the
+[review protocol](#review-protocol) decides when a mission's pull request is
+accepted. Landing a mission is not
 by that fact a discovery: a discovery is an algorithm nobody has published, and
 a mission that implements or proves a published algorithm is prior-art work.
 [Prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery)
@@ -97,7 +238,9 @@ check refusing noncomputable in executing modules).
 - **What a mission is:** a GitHub issue labelled mission whose contract, the
   exact Lean theorem statement or decision contract to establish, is frozen and
   may not be weakened. Each mission states the theorem or contract
-  that decides its acceptance, checked by Lean's kernel and `./scripts/gate.sh`;
+  that its pull request must establish, checked by Lean's kernel and
+  `./scripts/gate.sh` and read by a referee under the
+  [review protocol](#review-protocol);
   runs of the agent in its worlds are demonstrations, not acceptance evidence.
 - **Where a contract is frozen:** a theorem's statement is frozen as a *target*,
   a Lean definition whose value is the statement, in a module under
@@ -191,8 +334,10 @@ contribute.
   ([what the board counts](docs/missions.md#what-the-board-counts)); it counts
   nothing else and grants no repository privilege.
 - **Acceptance:** every contribution is judged by Lean's kernel, the frozen
-  theorem or decision contract, and `./scripts/gate.sh`, never by trust in the
-  author or the model.
+  theorem or decision contract, `./scripts/gate.sh` and the
+  [review protocol](#review-protocol), never by trust in the author or the
+  model. That protocol, and no statement of the author or the model, says when
+  it is complete.
 
 ### Triage and response
 
@@ -218,7 +363,9 @@ every promise is one that an organization of one owner and its agents can keep:
   only on the owner's word. Only the owner's account has write access to merge,
   after running `./scripts/gate.sh` on the exact pull request head (and a blind
   specification read-back when a pull request introduces or edits a
-  specification). Changes to the trusted-base files listed in
+  specification), and for a pull request under the referee's review of the
+  [review protocol](#review-protocol), only once each referee's report on that
+  head is clean. Changes to the trusted-base files listed in
   [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.
 - **Keeping the board current:** whoever files or merges a mission may
   [regenerate the board](docs/missions.md#regenerating-the-board) in a pull request,
@@ -235,6 +382,36 @@ proof obligation. Scientific execution requires explicitly authorized scope.
 A run is the last resort, a smoke test or a diagnostic that only chooses a
 direction included: [AGENTS](AGENTS.md#correct-by-construction) says what must be
 shown before one is proposed.
+
+### What counts as a run
+
+Stepping the agent, or one of its learners, over a sequence of percepts of any
+length is a run, by whatever means: the compiled binary, evaluation inside
+Lean, or a re-implementation in any language. The tool does not decide it. A
+learner stepped alone is a run, and so is a copy of the agent's arithmetic in
+another language. Evaluation inside Lean is a run whether an evaluation
+command, a tactic or a kernel reduction does it.
+
+Two things are not runs. Proof search is computing a value that a theorem in
+the pull request then checks: the theorem states the value and Lean's kernel
+checks it, so nothing rests on the computation having been right. And Lean's
+kernel checking a theorem of the pull request is never a run, whatever its
+proof evaluates: the gate does that for every theorem. Everything else that
+steps the agent or a learner is a run, whatever it was made for and whatever
+it is called: a computation whose value no theorem of the pull request checks,
+and a tactic or a reduction tried on the agent's own step and not kept as a
+theorem of the pull request.
+
+[AGENTS](AGENTS.md#correct-by-construction) says what a run needs before it is
+made. Every pull request lists, on the line the
+[pull request template](.github/pull_request_template.md) gives it, every
+computation made on the agent or on one of its learners in preparing the
+change: what was computed and by what means, what it showed, and either the
+theorem of the pull request that checks its value, or that it was a run and
+under what authorization. Where none was made, it says so. No check can see an
+evaluation made on a contributor's machine, so this is a written rule and the
+list is its trace
+([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
 
 ### Proof-shaped specifications
 

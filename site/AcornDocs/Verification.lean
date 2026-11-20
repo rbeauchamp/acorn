@@ -843,6 +843,39 @@ capability owners, source syntax admission, the departures register, native
 admission, the corpus checks or the required proof links. Those checks are
 Acorn's own.
 
+# Review protocol and the rule on runs
+%%%
+tag := "review-protocol-and-the-rule-on-runs"
+%%%
+
+Two of Acorn's rules are written rules. No check of the gate, of Regula or of
+GitHub executes either, and both are accepted risk in Acorn's trusted base.
+
+The first is the [review protocol](../CONTRIBUTING.md#review-protocol), which
+says which review a pull request gets, who assigns a referee, what the
+referee's report holds and when work is complete. The gate establishes that the
+proofs of a change are sound and that its checks pass on a commit. It
+establishes nothing about whether a theorem states what its pull request
+claims, which the referee reads, and nothing about whether a referee was
+assigned as the protocol requires. The trace of the protocol is the pull
+request itself: the comment that records the assignment and each referee's
+report. One GitHub account serves the owner and the organization's agents, so
+GitHub does not show that the agent that assigned a referee is another than the
+one that did the work; the comment that records the assignment states it. A
+referee can be wrong, and two referees can both be wrong. Whom the rule of
+assignment admits as a referee for work that a person did with no model is the
+maintainers' call.
+
+The second is the rule on runs
+([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)): stepping
+the agent or one of its learners over a sequence of percepts is a run by
+whatever means, and every pull request lists each computation made on the
+agent and what it showed. No cheap executable guard exists for an evaluation
+made in a scratch file or on a contributor's machine, since nothing of it need
+reach the pull request. The rule's trace is the list in the pull request's
+description, which rests on its author's account and which a referee reads
+against the change.
+
 # Documentation site
 %%%
 tag := "documentation-site"
