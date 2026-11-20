@@ -548,13 +548,20 @@ value. The check lists that directory and admits only regular files ending in
 `.lean` and regular files ending in `.frame`; any other entry, a subdirectory or
 a symbolic link included, fails it and is named. The check reads declarations
 from compiled modules, never from sources, and running it builds the checking
-program and no module that program reads. So for each pin file it first asks
-Lake, through the bootstrap and building nothing, whether the module the file
-names is built from the present sources. It fails, naming the module, when the
-module has no source file in the tree, when no package of the workspace holds
-it, and when it or a module it imports is out of date. The
-command that prints a pin file asks Lake the same question before it reads a
-module. So a compiled file that an earlier build left behind is not read in
+program and no module that program reads. So for each pin file it first
+requires the module the file names to be, under exactly that name, one of the
+package's Lean source files, a member of the inventory that verification's
+build requests from, and then asks Lake, through the bootstrap and building
+nothing, whether that module is built from the present sources. It fails,
+naming the module, when the tree holds no source file of exactly that name, a
+name that differs from a source's only in the case of its letters included,
+and when Lake does not report the module and every module of the workspace it
+imports current. A module of a dependency or of the documentation package is
+refused as no source of this package, and an entry below the package directory
+that is neither a directory nor a regular file fails the inventory and the
+check with it. The command that prints a pin file requires the same two things
+before it reads a module. So a compiled file that an earlier build left
+behind is not read in
 place of the tree's source, as far as Lake's record of what is current is
 right: that record, and that nothing but Lake has written the compiled files
 since, are trusted. The check then computes

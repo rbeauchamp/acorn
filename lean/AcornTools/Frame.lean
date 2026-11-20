@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Lean
+import AcornTools.ModuleInventory
 
 /-! # `frame-check` executable
 
@@ -42,12 +43,23 @@ the pin file's text for those names to standard output.
 
 **Compiled modules and their sources.** The declarations are read from compiled modules, never
 from sources, and running this program builds the program and no module it reads. So before it
-imports a module, for the check and for printing alike, it asks Lake whether that module is
-built from the present sources (`current`), and builds nothing itself. A module that has no
-source file in the tree, a module no package of the workspace holds, and a module that is out
-of date or imports one that is are each refused by name, with status 1. So, as far as Lake's
-record of what is current is right, a compiled file left by an earlier build is not read in
-place of the tree's source; `current` lists what is trusted.
+imports a module, for the check and for printing alike, it requires two things (`current`), and
+builds nothing itself. First, the module is, under exactly its name, one of the package's Lean
+sources: a member of the inventory of regular source files that verification's build requests
+from (`AcornModuleInventory.allModules`). Then Lake reports that module built from the present
+sources. A module that has no source file of exactly its name in the tree, a name that differs
+from a source's only in the case of its letters included, and a module that is out of date or
+imports one that is are each refused by name, with status 1. So, as far as Lake's record of
+what is current is right, a compiled file left by an earlier build is not read in place of the
+tree's source; `current` lists what is trusted.
+
+Two refusals follow from the inventory, and neither is of a module a pin can usefully name. A
+module of a dependency is no source of this package: no dependency imports the project, so the
+environment of such a module declares nothing in `Acorn` or `AcornVerif` and its frame is
+empty. A module of the documentation package in `site/` is no source of this package either,
+and its compiled files are not on this program's search path. And an entry below the package
+directory that is neither a directory nor a regular file, the build and dependency directories
+apart, makes the inventory fail and this program with it, as it fails verification.
 
 What a pass means: every declaration the walk reaches prints to the text it printed when the
 file was made, read from compiled modules that Lake reports built from the sources present when
@@ -275,8 +287,16 @@ def requestText (module : Name) : Option String :=
   if !module.isAnonymous && !text.toList.contains ':' && text.toName == module then some text
   else none
 
-/-- Refuse `module` unless Lake reports its compiled files current with the sources. The
-question is put to Lake through the bootstrap, as every build of the gate is, and it is the
+/-- Refuse `module` unless the tree holds a source file of exactly that name and Lake reports
+its compiled files current with the sources.
+
+The name is first sought in `AcornModuleInventory.allModules`, the Lean sources below the
+package directory named as the directory lists them, from which verification's build takes the
+modules it requests; Lake is asked only about a member. A file system that takes two spellings
+for one file opens a source under a name the tree does not hold, and Lake then answers for that
+name; the inventory does not hold it.
+
+The question is put to Lake through the bootstrap, as every build of the gate is, and it is the
 request the gate's build makes for a module, with `--no-build`, under which Lake builds nothing.
 
 Lake reads the module's source file, so a module without one fails there, and a module that no
@@ -289,7 +309,8 @@ every module of the workspace it imports are current, and 3 when one needs a bui
 (`Module.recFetchInput`,
 `fetchImportInfo`, `Module.recFetchPreSetup` and `Module.recBuildLean` in Lake/Build/Module.lean,
 `buildAction` in Lake/Build/Common.lean and `finalizeBuild` in Lake/Build/Run.lean, Lake of Lean
-v4.35.0). Every other status, the bootstrap's own refusals included, is refused as well.
+v4.35.0). Every status but 0, the bootstrap's own refusals included, is refused, with the module,
+the status and what Lake said.
 
 A name for which `requestText` gives nothing is refused before Lake is asked. Trusted, and not
 checked here: that Lake's recorded traces are right and that nothing but Lake has written the
@@ -297,6 +318,9 @@ compiled files since; that this program runs under the bootstrap's `lake exe`, w
 workspace's own library directories first on the path `importModules` searches; and that no
 source changes between Lake's answer and the import. -/
 def current (module : Name) : IO Unit := do
+  unless (← AcornModuleInventory.allModules).contains module do
+    throw (IO.userError s!"module {module}: not read, since the tree holds no source file of \
+      exactly this name among the package's Lean sources")
   let some text := requestText module
     | throw (IO.userError s!"module {module}: not read, since Lake cannot be asked about this \
         name (it is empty, holds a colon, or does not read back from its printed text)")
@@ -304,14 +328,9 @@ def current (module : Name) : IO Unit := do
     cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
       "Bootstrap.lean", "build", "--no-build", "+" ++ text], stdin := .null }
   let said := (output.stdout ++ output.stderr).trimAscii.toString
-  match output.exitCode with
-  | 0 => pure ()
-  | 3 => throw (IO.userError s!"module {text}: not read, since Lake reports that it or a module \
-      it imports is not built from the present sources; build it first \
-      (./scripts/lean.sh build +{text}). Lake said:\n{said}")
-  | status => throw (IO.userError s!"module {text}: not read, since Lake does not report it \
-      built from a source of this tree (status {status}); a module that has no source file is \
-      refused here. Lake said:\n{said}")
+  unless output.exitCode == 0 do
+    throw (IO.userError s!"module {text}: not read, since Lake does not report it built from \
+      the present sources (status {output.exitCode}). Lake said:\n{said}")
 
 /-- The environment of a compiled module, read only once `current` has admitted the module.
 Every environment this program reads comes from here. -/
