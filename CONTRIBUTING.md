@@ -100,8 +100,8 @@ are:
 - **Targets.** `lean/AcornVerif/Targets/`, as
   [missions](#missions-for-outside-contributors-and-agents) describes.
 - **Records of the owner's confirmed words.** `docs/mission-contract.md`, the
-  frame of the learned-state mission at `docs/learned-state-frame.md` when the
-  repository holds it, and the confirmation files
+  plain-word account of the frame of a learned-state result at
+  `docs/learned-state-frame.md`, and the confirmation files
   `lean/AcornVerif/Intent/OneStream.md` and
   `lean/AcornVerif/Intent/WorldInterface.md`. The owners' log,
   `lean/AcornVerif/Intent/OwnersLog.lean`, which the intent check reads, is not
