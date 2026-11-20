@@ -60,10 +60,8 @@ well.
 - **Does the theorem survive if the learner it credits is removed?** Keep
   everything else the change adds, and replace the outputs of the credited
   learner by outputs that do not depend on experience. If the statement still
-  holds, the theorem does not establish that the result comes from learning:
-  a hand-written rule, the structure of the problem or a declared departure
-  would yield it as well. Report the claim of learning as not established by
-  that theorem, and say so in the report.
+  holds, the theorem does not establish that the result comes from learning.
+  Report the claim of learning as not established by that theorem.
 - **Is every hypothesis about the agent's state derived from the cold start?**
   The cold start is the agent as its construction leaves it, before its first
   percept. A hypothesis that weights, traces or other learned state already

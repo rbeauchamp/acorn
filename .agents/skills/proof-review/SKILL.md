@@ -62,8 +62,11 @@ of computations against
 repair the work. Report a finding that discloses a security vulnerability
 through the private route `SECURITY.md` names, and say in the report only
 that a finding of that kind is open; the report is not clean until it is
-closed. The report counts for the head commit and for the pull request's
-title and description as you read them.
+closed. What is said of that finding afterwards, the author's answer, an
+objection, your reply or the maintainers' ruling, goes by that route too,
+and whether a finding is of that kind is the maintainers' call. The report
+counts for the head commit and for the pull request's title and description
+as you read them.
 
 Write the report in the form the protocol gives: the head commit read; what
 is claimed; what is established, claim by claim, with the statement read; what
@@ -82,6 +85,8 @@ does it leave Acorn's tracked text true, does it call for the referee's
 review. File one comment with the head commit read; a line for each of the
 three things you checked; the findings, or that there are none; and a
 verdict of accept, revise or reject. A comment with only a verdict, or only
-that there are no findings, does not count as the review.
+that there are no findings, does not count as the review. A finding that
+discloses a security vulnerability goes by the private route, as for a
+referee's report, and the comment says only that one is open.
 
 Maintain this skill under `.agents/skills/`.

@@ -876,9 +876,9 @@ change to them. A review counts only for the commit, title and description it
 read, and GitHub lets a title or a description be edited at any time, so that
 the description that merged is the one that was reviewed rests on the
 maintainers' reading at the merge. A finding that discloses a security
-vulnerability is reported by the private route and only named as open on the
-pull request; that it is closed before a merge is likewise checked by no
-tool.
+vulnerability is reported, answered and ruled on by the private route and
+only named as open or closed on the pull request; that it is closed before a
+merge is likewise checked by no tool.
 
 The second is the rule on runs
 ([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)): stepping

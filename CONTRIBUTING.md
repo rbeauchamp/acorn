@@ -132,7 +132,9 @@ ordinary comment. It is welcome as criticism and discharges nothing.
 
 **What the referee reads, and against what.** The maintainers give the referee
 the pull request at its head commit, the issue it names and Acorn's tracked
-text. The author addresses the referee only on the pull request. The review is
+text. The author addresses the referee only on the pull request, except on a
+finding that discloses a security vulnerability, where the private route
+given under the report below is the only one. The review is
 adversarial: for each claim the referee looks for the cheapest way it could be
 false, or weaker than the pull request says, while every check passes. It reads
 the claims against the issue's contract, against Acorn's
@@ -160,15 +162,22 @@ proofs are sound; it does not show that they are proofs of what is claimed.
 
 A finding that discloses a security vulnerability is not written out on the
 pull request. The referee reports it through the private route that
-[SECURITY](SECURITY.md) names, and the report on the pull request says only
-that a finding of that kind is open. The report is not clean until that
-finding is closed. The same holds for a short review and its reviewer.
+[SECURITY](SECURITY.md) names, and what is said of it afterwards goes by that
+route too: the author's answer, any objection and the maintainers' ruling.
+The pull request says only that a finding of that kind is open, or that it
+is closed, and never what the vulnerability is or where. The report is not
+clean until that finding is closed. Whether a finding discloses a security
+vulnerability is the maintainers' call: one that they judge does not is
+written out, answered and ruled on on the pull request like any other. The
+same holds for a short review and its reviewer.
 
-**Findings and revision.** The findings go back to the author on the pull
-request, a finding that discloses a vulnerability excepted, which goes back
-by the private route. The author answers each one there, by a change to the work or by a
-reasoned objection. A finding stays open until the referee withdraws it or the
-maintainers rule on it in writing on the pull request. After a push, or an edit
+**Findings and revision.** The findings written out in the report go back to
+the author on the pull request. The author answers each of them there, by a
+change to the work or by a reasoned objection, and each stays open until the
+referee withdraws it or the maintainers rule on it in writing on the pull
+request. A finding that discloses a security vulnerability goes back, is
+answered and is ruled on in the same way, by the private route and not on
+the pull request. After a push, or an edit
 of the pull request's title or description, the pull request has no clean
 report until the referee has read it again and reported: the rule covers
 every field of a pull request that becomes part of the merged commit's
@@ -209,10 +218,12 @@ place, its reason and what would correct it, or says that it has none, and a
 verdict of accept, revise or reject. A comment that gives only a verdict, or
 only that there are no findings, does not count, and the pull request has no
 clean review until one that does is posted. Findings and revision go as they do for a referee's
-report: the author answers each finding on the pull request, a finding stays
-open until the reviewer withdraws it or the maintainers rule on it there, and
-after a push, or an edit of the pull request's title or description, it has
-no clean review until the reviewer has read it again.
+report: the author answers each finding written out in the review on the pull
+request, such a finding stays open until the reviewer withdraws it or the
+maintainers rule on it there, a finding that discloses a security
+vulnerability is answered and ruled on by the private route and not on the
+pull request, and after a push, or an edit of the pull request's title or
+description, it has no clean review until the reviewer has read it again.
 A short review is clean when it counts, its verdict is accept and no finding
 is open.
 
