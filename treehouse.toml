@@ -1,0 +1,2 @@
+# Sizes the pool of working copies that the worktree tool keeps for this repository.
+max_trees = 32
