@@ -596,8 +596,8 @@ keeps the run made on its head, and nothing runs after a merge.
 The arrangement on GitHub differs from the pipeline's as follows. A step of
 the workflow downloads elan's pinned release in every run and installs it only
 after the archive's SHA-256 matches. The script's provisioning runs in a step
-of its own, whose 27-minute limit bounds a stalled download and is no check's
-deadline, and the script's provisioning in the last step then finds the
+of its own. Its 27-minute limit bounds that whole step, including a stalled
+download. The script repeats provisioning in the last step and then finds the
 dependencies current. Nothing is stored between runs: every run
 provisions everything from its pinned sources and builds from cold project
 outputs. A copy stored by an earlier head of a pull request, which controls its
@@ -666,36 +666,31 @@ no run (GitHub's documentation, Skipping workflow runs). The pull request shows
 no run of this job for that head until a commit without the instruction is
 pushed.
 
-Neither the absence of a run nor a failed run is by itself the result of a
-check. What a run says about the checks is read from the log of the job's last
-step, "The merge gate on the exact source", the only step in which a check
-runs, in the `gate:` lines that the head's own script prints there. Each of
-these lines ends with the time of day and the seconds since the script started.
-The script of this revision prints `gate: verification, stage one` before its
-first check and then, as each check ends, a line that reports its exit status:
-`gate: verification exited N; Regula audit` for verification's two stages
-together, `gate: Regula audit exited N; lean-intent checks`,
-`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`.
-It prints `gate: every merge check passed` last, and only when every status
-is 0. A head that holds another revision of the script runs that revision's
-checks and prints that revision's lines, which the head's own `scripts/gate.sh`
-gives: a revision from before the frame check prints no line for it.
+Read each attempt's log against the head's own `scripts/gate.sh`. In this
+revision both "Provision the pinned dependencies" and "The merge gate on the
+exact source" begin by running `scripts/tracked.sh`. A `tracked paths:`
+diagnostic identifies a refusal in either step. The next line from the gate,
+`gate: provisioning the pinned dependencies`, means the tracked-path check
+returned successfully. A refusal during the provisioning step ends the job
+before the final step starts.
 
-For each check, the only evidence that it ran on the head and failed is a
-`gate:` line that reports its exit status as other than 0, and the only evidence
-that it ran and passed is such a line with the status 0. The only evidence that
-every check of the head's script passed is the line
-`gate: every merge check passed`. Each attempt of a run is read by its own log.
-In the attempt being read, a check with no line that reports its status has no
-verdict, and an attempt without the passing line is no pass of the gate. So an
-attempt gives no check a verdict when GitHub marked it failed before a runner
-started, as when an approval was never given; when a step before the last
-failed; and when the last step ended before `gate: verification, stage one`, as
-when the script's own recheck of the provisioned dependencies fails. When the
-last step ends in the middle of a check, as when the job is cancelled at its
-limit, each check already reported keeps its line, and that check and those
-after it have no verdict in that attempt. A head with no run at all has no
-verdict of any check.
+In the final step, `gate: verification, stage one` marks the start of source
+admission and the first build. If that stage returns a nonzero status, the
+script prints `gate: verification stage one exited N` followed by its reason
+for stopping. No later stage runs. If stage one succeeds, the script prints
+`gate: verification, stage two`. The next status line,
+`gate: verification exited N; Regula audit`, reports stage two's status. The
+following lines report `gate: Regula audit exited N; lean-intent checks`,
+`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`.
+A zero status records success of the reported stage or check. Each `gate:`
+line ends with the time and the seconds since the script started.
+Only `gate: every merge check passed` records success of the whole gate.
+
+A missing run or an attempt that ended before the job started gives no check
+a verdict. If provisioning fails or a job stops during verification, the log
+retains the results already reported. A later check that never started has no
+result, and an interrupted check can lack a reported exit status. Earlier
+revisions report the checks their own scripts ran.
 
 Whether a merge requires this job is set in the repository's rules on GitHub,
 not in a file of the repository. Where the rules require it, a head on which it
@@ -807,22 +802,33 @@ outside the tools: it parses each source with Lean's parser under a fixed parser
 environment and admits a closed list of commands (declarations, namespaces,
 sections, the opening of a namespace, variables and the setting of a listed
 option, and in a proof source a print of axioms and a guard of a message), five
-attributes with no argument, and no word of `forbiddenWords`. The list of
-options, `allowedOptions`, holds at every depth of a source: an option set
-before a term, a tactic sequence or a grind sequence inside a declaration is
-held to it as the command is. An option that a dependency's own macro or
+attributes with no argument, and no word of `forbiddenWords`. The audit also
+checks the parsed tree inside each command. Each term, tactic and nested
+operand must use a listed syntax form. A certificate tactic that runs an
+external solver, reads a certificate or writes one beside the proof source
+has no entry. Its position inside a proof or a tactic combinator cannot admit
+it. This matters before the build because the later corpus audit reads files
+under the source directories. The only nonempty tactic configuration admitted
+is the whole form `decide +kernel`. Deriving clauses name `DecidableEq`,
+`BEq` or `Repr`. The list of options, `allowedOptions`, holds at every depth
+of a source. The command form and settings before a term, a tactic sequence
+or a grind sequence inside a declaration all use that list. An option that a dependency's own macro or
 elaborator sets is that dependency's code and is not scanned. It admits the
 inclusion of a file as text only for the pairs of module and path that
 `includedFiles` lists, the viewer's page and three records the build itself
 writes, with the path written as a string. What is admitted there is the form
 and its string: the file Lean reads is what its elaborator computes from that
 string, which an instance declared in the including module could change. That
-is accepted, because no gate check reads the embedded text. An admitted source
-therefore defines no macro, elaborator, syntax or initializer, holds no command
-that evaluates a term and names no file to include but those, so what
-elaborating it runs is the
-elaborators and tactics of the toolchain and the dependencies. The two admissions, of executing and of proof
-sources, divide the project's modules between them, so none lies outside both.
+is accepted, because no gate check reads the embedded text. The behavior of
+the pinned elaborators and their macro expansions is part of the trusted base.
+
+One proof obligation remains at elaboration. The audit checks the tree its
+fixed parser produces. Lean's compiler parses the file again using the module's
+imports, options, current namespace and opened namespaces. The gate needs to
+establish that the tree the compiler elaborates satisfies the same admission.
+
+The two admissions, of executing and of proof sources, divide the project's
+modules between them, so none lies outside both.
 The first run of the gate admits before it builds, and a failed first run ends
 the gate, so every later build of the run, the second run's, the Regula audit's
 and the site's, is of admitted sources.

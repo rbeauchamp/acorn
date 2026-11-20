@@ -124,8 +124,8 @@ jobs:
             exit 1
           fi
       # The pinned dependencies, by the script of the commit under verification, as that
-      # commit's Lake configuration and lock files name them. The limit bounds a stalled
-      # download and is no check's deadline; no check runs in this step.
+      # commit's Lake configuration and lock files name them. The script checks tracked paths
+      # before provisioning. A refusal here ends the job before the final step starts.
       - name: Provision the pinned dependencies
         timeout-minutes: 27
         run: ./scripts/gate.sh provision

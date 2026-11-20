@@ -16,9 +16,9 @@ This module imports no project module, as every gate tool must
 (`AcornBoundaryAudit.toolImports`): the boundary audit is the first program a run builds, before
 any source has been admitted. It keeps its own copy of the departures, `Departure`, and `check`
 requires the compiled `Acorn.Departure` to have exactly those constructors, by name: the same
-ones, each once, in any order. It also requires the compiled type to take no parameter and no
-index and each of its constructors to take no field, as the copy does, so a departure that gains
-a field is refused.
+ones, each once, in any order. The compiled type must take no parameter or index and its
+constructors must take no fields. Its sort must be above `Prop` at every universe
+instantiation, so proof irrelevance cannot identify constructors with different register keys.
 -/
 namespace AcornDepartureAudit
 open Lean
@@ -112,6 +112,9 @@ def check (env : Environment) (maintained : Array Name) : IO Unit := do
     .achievementEvent]
   let some (.inductInfo declaration) := env.find? `Acorn.Departure
     | throw (IO.userError "departure type is not a compiled inductive")
+  let .sort level := declaration.type
+    | throw (IO.userError "departure type must be a data sort")
+  require level.isNeverZero "departure type must be above Prop at every universe instantiation"
   let compiled := departures.map Departure.compiled
   let fieldless := declaration.ctors.all fun constructor =>
     match env.find? constructor with
