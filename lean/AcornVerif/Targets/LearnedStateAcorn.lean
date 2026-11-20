@@ -32,9 +32,10 @@ import AcornVerif.Targets.LearnedState
 `Complete` is the statement a complete submission proves.
 
 **What is not there yet.** No host calls a mechanism, so Acorn's program does not yet run the
-assembled agent, and a frame that is already full takes none of a mechanism's words. Until the
-agent's interface and host are changed for that, this module states what a complete result is
-and nobody can produce one for the program as it runs. Nothing here says that a complete result
+assembled agent. A frame that is already full takes none of a mechanism's words; every frame
+the grid adapter builds leaves room for `Grid.seatWords` of them (`Grid.frame_room`). Until a
+host calls a mechanism, this module states what a complete result is and nobody can produce
+one for the program as it runs. Nothing here says that a complete result
 exists for Acorn's agent.
 -/
 

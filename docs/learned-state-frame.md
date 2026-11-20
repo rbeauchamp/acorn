@@ -100,7 +100,7 @@ Illustrations. None of these is a rule; each depends on the rest of the task.
 
 Proved for every complete result:
 
-- What the mechanism offers during the run is not determined by the clock and what the world delivers at the current step.
+- What the mechanism offers is not determined, across the family, by the clock and what the world delivers at the current step: no one rule of those two reproduces what it offers in every world of the family. Within a single world a rule can. *(Corrected on 2026-11-20: correction 6 of part 11.)*
 - What the prediction learners hold during the run is not the same schedule in every world of the family. The same is true of the control learners.
 - The family has at least two worlds. The goal is satisfied by some run and not satisfied by another.
 - No agent whose output depends only on the current step satisfies the goal across the family.
@@ -133,13 +133,13 @@ No statement of this kind can refuse these. Items 1 and 2 are theorems.
 - The small base agent has two learners that record, from the feedback of earlier trials, which action paid and which echo followed, for each key it is handed. Alone it is handed no key. The small mechanism keeps the last cue and hands it over as the key. That mechanism is a hand-written rule; item 4 of part 6 applies to it.
 - Proved: all seven statements. Also proved: with an alternative added to the goal that a constant answer satisfies, there is no complete result; where the hidden settings are fixed so that the cue is itself the answer, there is none; and the same small agent has a complete result for the goal that grades it against itself, which is item 1 of part 6 on an example.
 
-**What this establishes:** the seven statements can be met together, and each is false of a named cheap kind of result.
+**What this establishes:** the seven statements can be met together, and each named cheap kind of result fails at least one of them. *(Corrected on 2026-11-20: correction 7 of part 11.)*
 
 **What it does not establish:** that Acorn's agent can meet them with any mechanism. Nothing here attempts that, and whether it can is open (see "The question to settle first").
 
 ## 8. Conditions on landing the frame
 
-- **Room for the mechanism's words.** Acorn's grid observation has a fixed maximum number of words, and an observation at that maximum drops every list a mechanism offers. Grid observations are not always at the maximum, but they can be. Before the frame is used, the agent's interface has to leave room for a mechanism's words. That is a change to the fixed agent, so it is the owner's.
+- **Room for the mechanism's words.** Acorn's grid observation has a fixed maximum number of words, and an observation at that maximum drops every list a mechanism offers. No observation the grid adapter builds is at the maximum: the interface admits 32 words more than the adapter emits, so each of its observations leaves room for 32 further words, which is proved, and the condition of the next sentence is met for a list of up to 32 words. *(Corrected on 2026-11-20: correction 3 of part 11.)* Before the frame is used, the agent's interface has to leave room for a mechanism's words. That is a change to the fixed agent, so it is the owner's.
 - **The fixed agent has to be pinned**, so that a submission cannot edit it, and the program has to run the assembled agent. Both are the owner's side.
 - Under the frame as written, a contributor may not change Acorn's learners within a submission. Whether that stands is the fork at the head of this document.
 
@@ -168,14 +168,20 @@ Three statements were added to the four the owner asked for: (c) after the secon
 
 **The rule.** The owner confirmed this page as written and then, on 2026-11-20, allowed it to be corrected under this rule. The tracked page may be corrected for facts about Acorn and for errors of description. Each such edit is marked on the page. The wording the owner confirmed stays recoverable, and this part keeps it for each corrected place. What the frame requires, allows or rules out never changes without the owner. An edit that is neither a fact about Acorn nor an error of description goes to the owner first.
 
-None of the corrections below changes what the frame requires, allows or rules out. Corrections 1 to 4 were allowed by the owner on 2026-11-20. Correction 5 was made under the rule and is not the owner's own wording.
+None of the corrections below changes what the frame requires, allows or rules out. Corrections 1 to 4 were allowed by the owner on 2026-11-20. Corrections 5 to 7 were made under the rule and are not the owner's own wording.
 
 **Correction 1, part 1.** Nothing was replaced: the paragraph that begins "Complete, in this page" was added. The page calls a submission complete when it proves the seven statements, which a reader could take to mean that the work is finished. The added paragraph says that here the word means that the frame is filled, and that work is complete only as Acorn's rules for review say.
 
 **Correction 2, part 6, item 8.** Confirmed wording: "*Question:* does the binary's step do exactly this, on observations that are not full?" The question named one of the three cases in which a mechanism's whole list of words is dropped, the full observation. The correction keeps the sentence and names the other two, which part 2 already states: only part of the list fits, and a word uses a channel the agent keeps for its own predictions.
 
-**Correction 3, part 8, first item. Allowed, and not made on this page yet.** The sentence "Grid observations are not always at the maximum, but they can be." stands as confirmed, because it is true of the agent this page was added with. The owner allowed it to be corrected to the fact by the change that makes it false, which is the change that gives observations room for a mechanism's words.
+**Correction 3, part 8, first item.** Confirmed wording: "Grid observations are not always at the maximum, but they can be." That was true when the owner confirmed the page and stopped being true when the grid interface was given room for a mechanism's words: it now admits 32 words more than its adapter emits. The theorem `Acorn.Handcrafted.Grid.frame_room` proves that every observation the adapter builds leaves that room. The owner allowed the sentence to be corrected to the fact by the change that makes it false.
 
 **Correction 4, the account of option 2.** Confirmed wording: "They work by overwriting the real learners' stores in the real step. If the submission writes the step, it also writes what happens when a store is overwritten, and it can write that so the statements hold for an agent that learns nothing." That described statement (d) wrongly. Statement (d) overwrites no learner's store: it replaces the mechanism by a rule that keeps no memory. The correction says so and leaves the conclusion as it was.
 
 **Correction 5, part 10, item 3.** Confirmed wording: "Other learning in the agent is not overwritten, which makes (e) to (g) harder to satisfy, never easier." The claim after the comma was an error of description. Overwriting more can restore a goal that overwriting less breaks, so neither direction holds in general. The theorem `AcornVerif.LearnedState.Small.overwriting_more_can_restore` of `lean/AcornVerif/LearnedStateRefusals.lean` proves it on the small example: for the goal that the action equals the forecast at the second asking step, over two worlds, the small agent fails with either store alone overwritten on any schedule and meets the goal with both overwritten by constant tables, so (e) and (f) hold for that goal and (g) does not. The page keeps its statement of which stores are overwritten and that other learning is not, and in place of the claim says what is established. Applying the owner's rule to this sentence was decided by the agent that coordinates the owner's agents, once the example was settled by that theorem, and it is reported to the owner as a fifth correction.
+
+**Correction 6, part 4, first item.** Confirmed wording: "What the mechanism offers during the run is not determined by the clock and what the world delivers at the current step." That left out that the statement is across the family. The theorem `AcornVerif.LearnedState.Result.handout_not_rule` of `lean/AcornVerif/LearnedStateFrame.lean` proves that, at every seed, no one rule of the clock and what the world delivers at the current step equals what the mechanism offers at every step in every world of the family. Within a single world a rule can equal it: in a small world whose cues are all the same, the small mechanism offers the same word at every step.
+
+**Correction 7, part 7.** Confirmed wording: "**What this establishes:** the seven statements can be met together, and each is false of a named cheap kind of result." That said more than the examples show. Each named refusal fails at least one of the seven statements, and not every statement is failed by one: statement (a) holds in both refused small tasks, which fail (g) and (c).
+
+Applying the owner's rule to the sentences of corrections 6 and 7 was decided by the agent that coordinates the owner's agents, after each was checked against the Lean, and both are reported to the owner.

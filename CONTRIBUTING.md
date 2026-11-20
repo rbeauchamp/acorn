@@ -204,7 +204,7 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   contribution. A change to the agent alters the type or value of definitions
   the frame pins, so the frame check fails until the pin file is made again;
   a change to a pinned theorem's proof alone does not. The pin file is in
-  the owner's directory, so the new pin is the owner's to admit with the
+  the owner's directory, so the new pin comes under the owner's review with the
   change, and the pull request merges only on the owner's word. Only then does
   a learned-state submission build its mechanism on the changed agent.
   Theorems already proved about the earlier agent have to be proved again for
@@ -220,12 +220,12 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   not prove all seven is partial, and is recorded by which of them it proved,
   with any assumption stated.
 - **What is not there yet:** Acorn's program does not yet run its agent with a
-  mechanism, and an observation that is already full takes none of a
-  mechanism's words. The work on the fixed agent that the frame needs, room in
-  the observation for a mechanism's words and the place where a mechanism plugs
-  in, is a separate change and the owner's. Until it lands, the frame states
-  what a complete result is and nobody can produce one for the program as it
-  runs. It is also not known whether any complete result exists for the agent
+  mechanism. The grid interface keeps room for a mechanism's words: every
+  observation its adapter builds leaves room for 32 of them
+  (`Acorn.Handcrafted.Grid.frame_room`). The place where a mechanism plugs into
+  the host is a separate change and the owner's. Until it lands, the frame
+  states what a complete result is and nobody can produce one for the program
+  as it runs. It is also not known whether any complete result exists for the agent
   as it stands. [#296](https://github.com/rbeauchamp/acorn/issues/296) bears on
   it: that issue asks whether the standard agent's learners can make quick use
   of one added state feature, and its answer may leave part of this open.

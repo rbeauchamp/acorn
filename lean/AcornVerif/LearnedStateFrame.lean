@@ -12,9 +12,10 @@ For every setting, mechanism and task.
 **Consequences of a complete result** (a term of `Result`).
 * `Result.history_free_refused`: a goal that an agent whose output is a function of the current
   percept meets in every world has no result.
-* `Result.handout_not_rule`: at every seed, what the mechanism hands the base agent along the
-  run is not a rule of the time and the current percept. A mechanism whose hand-out ignores its
-  memory has no result (`Result.stateless_refused`).
+* `Result.handout_not_rule`: at every seed, no one rule of the time and the current percept
+  hands the base agent what the mechanism hands it along the runs in every world of the
+  family. Within one world a rule can. A mechanism whose hand-out ignores its memory has no
+  result (`Result.stateless_refused`).
 * `Result.predictor_not_schedule`, `Result.controller_not_schedule`: at every seed, what each
   learner store holds along the run is not a schedule over time that is the same in every world
   of the family.
