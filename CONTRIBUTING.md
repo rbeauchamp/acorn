@@ -164,12 +164,22 @@ A finding that discloses a security vulnerability is not written out on the
 pull request. The referee reports it through the private route that
 [SECURITY](SECURITY.md) names, and what is said of it afterwards goes by that
 route too: the author's answer, any objection and the maintainers' ruling.
-The pull request says only that a finding of that kind is open, or that it
-is closed, and never what the vulnerability is or where. The report is not
-clean until that finding is closed. Whether a finding discloses a security
+While such a finding is open, no text on the pull request says what the
+vulnerability is or where it is, whoever writes it and wherever it stands:
+not the title, not the description or any section of it, and so not the
+commit message that the description becomes, and not a comment, a review or
+a reply. The pull request says only that a finding of that kind is open, or
+that it is closed. This rule comes before every sentence of Acorn's tracked
+text that asks for or describes what is written on a pull request. What the
+pull request template and the guides ask an author to record there, such as
+each place found, a finding accepted or a computation made, is recorded for
+such a finding in the private report, until the process that
+[SECURITY](SECURITY.md) sets out makes it public. The report is not clean
+until that finding is closed. Whether a finding discloses a security
 vulnerability is the maintainers' call: one that they judge does not is
-written out, answered and ruled on on the pull request like any other. The
-same holds for a short review and its reviewer.
+written out, answered and ruled on on the pull request like any other, and
+nothing else is kept off the pull request under this rule. The same holds
+for a short review and its reviewer.
 
 **Findings and revision.** The findings written out in the report go back to
 the author on the pull request. The author answers each of them there, by a
