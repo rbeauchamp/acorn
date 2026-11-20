@@ -110,10 +110,8 @@ protocol without that assignment and that comment.
 
 GitHub runs the gate on a pull request's head commit and shows the job's result
 on the pull request, where the contributor and the maintainers see the same
-result. Neither the absence of a run of that job nor a failed run is by itself
-the result of a check: the
-[verification guide](docs/verification.md#build-and-source-inventory) names the
-cases in which GitHub starts no run and says how to read a run's ending. Before
+result. What the absence of a run or a failed run says of the checks is under
+[working on code and proofs](#working-on-code-and-proofs). Before
 a merge, the maintainers confirm the gate's pass on that exact head commit, by running
 `./scripts/gate.sh` on it ([merge authority](#triage-and-response)). A result
 on an earlier head counts for nothing.
@@ -457,7 +455,14 @@ every promise is one that an organization of one owner and its agents can keep:
   description as they stand at the merge. A change to what the
   review protocol requires, allows or rules out merges only once the owner
   has confirmed it. Changes to the trusted-base files listed in
-  [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.
+  [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner. Until the gate
+  checks it, this holds as a practice: a change to those files prepared by the
+  owner's agents that keeps or tightens a protection is read in full by the
+  agent supervising the work and landed by the agent that coordinates them,
+  under the owner's delegation of 2026-11-20; one that loosens a protection or
+  removes a check is admitted only by the owner's own recorded words; and a
+  pull request from any other account is read on the owner's side, its whole
+  diff, before it is merged. No check enforces any of this yet.
 - **Keeping the board current:** whoever files or merges a mission may
   [regenerate the board](docs/missions.md#regenerating-the-board) in a pull request,
   and the organization's agents do so when they triage, with no schedule promised.
@@ -479,8 +484,8 @@ shown before one is proposed.
 Stepping the agent, or one of its learners, over a sequence of percepts of any
 length is a run, by whatever means: the compiled binary, evaluation inside
 Lean, or a re-implementation in any language. The tool does not decide it. A
-learner stepped alone is a run, and so is a copy of the agent's arithmetic in
-another language.
+learner stepped alone is a run, and so is stepping a copy of the agent's
+arithmetic in another language.
 
 Inside Lean, what makes a computation a run is that the step of the agent or
 of a learner is evaluated or reduced on given percepts to see what it yields,
