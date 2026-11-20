@@ -225,10 +225,11 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   (`Acorn.Handcrafted.Grid.frame_room`). The place where a mechanism plugs into
   the host is a separate change and the owner's. Until it lands, the frame
   states what a complete result is and nobody can produce one for the program
-  as it runs. It is also not known whether any complete result exists for the agent
-  as it stands. [#296](https://github.com/rbeauchamp/acorn/issues/296) bears on
-  it: that issue asks whether the standard agent's learners can make quick use
-  of one added state feature, and its answer may leave part of this open.
+  as it runs. It is also not known whether any complete result exists for the
+  agent as it stands. [#296](https://github.com/rbeauchamp/acorn/issues/296)
+  bears on it: that issue asks whether the standard agent's learners can make
+  quick use of one added state feature, and its answer may leave part of this
+  open.
 - **That the frame is not empty** is proved of a small agent of its own, not
   of Acorn's: `lean/AcornVerif/LearnedStateSmall.lean` proves all seven
   statements of it, and `lean/AcornVerif/LearnedStateRefusals.lean` shows
