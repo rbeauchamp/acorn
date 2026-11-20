@@ -25,8 +25,10 @@ commands:
 # private copy only while each file below has the same content as at that base, so the copy holds
 # the revisions the run's lock files name, built by the same toolchain. Lake then rebuilds whatever
 # its traces do not show current, and the script's provisioning builds anything missing. Acorn's own
-# modules are compiled in every run: their outputs in lean/.lake/build are read without any check,
-# and Acorn's verification keeps Lake's artifact cache off.
+# modules are compiled in every run. Acorn's own gate tools other than the frame check read their
+# outputs in lean/.lake/build without checking them against the sources, and rely on the build that
+# precedes them in the run; the frame check asks Lake whether each module it reads is built from
+# the present sources. Acorn's verification keeps Lake's artifact cache off.
 #
 # Memory, measured on 2026-10-28 on a fresh clone with 14 cores, as the summed physical footprint of
 # the command's processes sampled every 2 s: provisioning from nothing peaked at 3.1 GiB, and the
