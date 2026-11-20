@@ -94,10 +94,11 @@ nothing of this protocol.
 
 GitHub runs the gate on a pull request's head commit and shows the result on
 the pull request, where the contributor and the maintainers see the same
-result. Before a merge, the maintainers confirm the gate's pass on that exact
-head commit, by running `./scripts/gate.sh` on it
-([merge authority](#triage-and-response)). A result on an earlier head counts
-for nothing.
+result. A head on which GitHub shows no run of the gate has not been checked
+there, which is neither a pass nor a failure. Before a merge, the maintainers
+confirm the gate's pass on that exact head commit, by running
+`./scripts/gate.sh` on it ([merge authority](#triage-and-response)). A result
+on an earlier head counts for nothing.
 
 ### The referee's review
 
