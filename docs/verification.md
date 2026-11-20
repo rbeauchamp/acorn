@@ -552,14 +552,16 @@ program and no module that program reads. So for each pin file it first
 requires the module the file names to be, under exactly that name, one of the
 package's Lean source files, a member of the inventory that verification's
 build requests from. It then asks Lake, through the bootstrap and building
-nothing, for the compiled file of the root package's module of that name,
-which Lake gives only when the module is built from the present sources, and
-requires the compiled file Lean finds for the module to be that file. It
-fails, naming the module, when
+nothing, for the source file and the compiled file of the root package's
+module of that name, which Lake gives only when the module is built from the
+present sources. It requires that source file to be the inventoried file, and
+the compiled file Lean finds for the module to be the compiled file Lake
+named. It fails, naming the module, when
 the tree holds no source file of exactly that name, a name that differs from a
 source's only in the case of its letters included, when the root package does
 not hold the module, when Lake does not report the module and every module of
-the workspace it imports current, and when Lean finds the module's compiled
+the workspace it imports current, when Lake reads the module's source from
+another place, and when Lean finds the module's compiled
 file elsewhere. A module of a dependency or of the documentation package is
 refused as no source of this package, and an entry below the package directory
 that is neither a directory nor a regular file fails the inventory and the
