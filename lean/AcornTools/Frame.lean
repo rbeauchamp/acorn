@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Lean
+import AcornTools.ModuleInventory
 
 /-! # `frame-check` executable
 
@@ -40,8 +41,35 @@ passes: a target without a pin file is not pinned.
 **Printing a pin file** (`print <module> <target> [free <name>]... [stop <name>]...`) writes
 the pin file's text for those names to standard output.
 
+**Compiled modules and their sources.** The declarations are read from compiled modules, never
+from sources, and running this program builds the program and no module it reads. So before it
+imports a module, for the check and for printing alike, it requires four things (`current`),
+and builds nothing itself. First, the module is, under exactly its name, one of the package's
+Lean sources: a member of the inventory of regular source files that verification's build
+requests from (`AcornModuleInventory.allModules`). Then Lake, asked about the root package
+alone, reports that module built from the present sources and names the source file it read
+and its compiled file. Next, that source file is the inventoried file. Last, the compiled file
+Lean finds for the module is the file Lake named. A module that has no source file of exactly
+its name in the tree, a name that differs from a source's only in the case of its letters
+included, a module the root package does not hold, a module that is out of date or imports one
+that is, a module whose source Lake reads from another place, and a module whose compiled file
+Lean finds elsewhere are each refused by name, with status 1. So, under what `current` lists
+as trusted, a compiled file left by an earlier build is not read in place of the tree's source.
+
+Some refusals follow that are of no module a pin can usefully name. A module of a dependency
+is no source of this package: no dependency imports the project, so the environment of such a
+module declares nothing in `Acorn` or `AcornVerif` and its frame is empty. A source placed in
+the tree under a dependency's module name is in the inventory, and is a module of the root
+package only if one of its libraries holds it; otherwise Lake, asked about the root package
+alone, does not know it. A module of the documentation package in `site/` is no source of this
+package either, and its compiled files are not on this program's search path. And an entry
+below the package directory that is neither a directory nor a regular file, the build and
+dependency directories apart, makes the inventory fail and this program with it, as it fails
+verification.
+
 What a pass means: every declaration the walk reaches prints to the text it printed when the
-file was made. It does not say what those declarations mean, that the free names were well
+file was made, read from compiled modules that Lake reports built from the sources present when
+the program ran. It does not say what those declarations mean, that the free names were well
 chosen, or that the dependencies are unchanged. The digest is a detector of change. It is taken
 with this file's own SHA-256, which each run checks against three published test vectors before
 it reads anything. The vectors show that the empty message, a message of one block and a
@@ -252,10 +280,116 @@ def Pin.parse (text : String) : Except String Pin := do
   | some found, some declaring => return { pin with target := found, home := declaring }
   | _, _ => throw "no target line or no module line"
 
-/-- The frame of a pin's target, in the environment of its module. An unknown target is
-refused. -/
+/-! ## Compiled modules and their sources -/
+
+/-- The text by which Lake is asked about `module`, or `none` when Lake would not read that
+text back as `module`. The requests are `@/+<text>:lean` and `@/+<text>:olean`. Lake cuts a
+request at `:`, takes what
+follows `@` as explicit, cuts that at `/` into a package, the root package when the text before
+`/` is empty, and a target, and reads what follows the `+` of a module target with
+`String.toName` (`parseTargetSpec`, `resolveTargetBaseSpec`, `resolveTargetLikeSpec` and
+`parsePackageSpec`, Lake of Lean v4.35.0, Lake/CLI/Build.lean). So the printed name is returned
+only when it holds neither `:` nor `/` and `String.toName` reads `module` back from it, and
+never for the anonymous name: the module Lake answers for is then the root package's module of
+the name this program imports. -/
+def requestText (module : Name) : Option String :=
+  let text := module.toString
+  if !module.isAnonymous && !text.toList.any (fun c => c == ':' || c == '/') &&
+      text.toName == module then some text
+  else none
+
+/-- Refuse `module` unless the tree holds a source file of exactly that name, Lake reports the
+root package's module of that name current with the sources, the source file Lake read is that
+file of the tree, and the compiled file Lean finds for the module is the one Lake answered for.
+
+The name is first sought in `AcornModuleInventory.allModules`, the Lean sources below the
+package directory named as the directory lists them, from which verification's build takes the
+modules it requests; Lake is asked only about a member. A file system that takes two spellings
+for one file opens a source under a name the tree does not hold, and Lake then answers for that
+name; the inventory does not hold it.
+
+Lake is then asked, through the bootstrap as every build of the gate is, for the source file
+and the compiled file of that module of the root package, with `--no-build`, under which Lake
+builds nothing (`lake query`, which prints one line for each request it answers, in the order
+of the requests: `query` in Lake/CLI/Main.lean, `parseTargetSpecs` and `querySpecs` in
+Lake/CLI/Build.lean, `Job.collectArray` in Lake/Build/Job/Monad.lean).
+The inventory holds every Lean source below the package directory, a source under a
+dependency's module name included; asked about the workspace, Lake would answer such a name for
+the dependency's module, so it is asked about the root package.
+
+Lake reads the module's source file, so a module without one fails there, and a module that the
+root package does not hold is unknown to it. Into the module's trace it mixes, with other
+inputs, the text of that source, the options, the toolchain and the compiled files of the
+workspace's modules it imports, each of which it answers for in the same way first. It takes the
+module as current only when the trace it recorded for the compiled files has that trace's hash
+and the files, or the archive it restores them from, exist. It exits 0 only when the module and
+every module of the workspace it imports are current, and 3 when one needs a build
+(`Module.recFetchInput`, `fetchImportInfo`, `Module.recFetchPreSetup`, `Module.recBuildLean`
+and `Module.oleanFacetConfig` in Lake/Build/Module.lean, `buildAction` in Lake/Build/Common.lean
+and `finalizeBuild` in Lake/Build/Run.lean, Lake of Lean v4.35.0). Every status but 0, the
+bootstrap's own refusals included, is refused, with the module, the status and what Lake said,
+and so is an answer that is not exactly two lines, each holding a path and ending in a line
+end, with nothing before, between or after them.
+
+The source file Lake names must be the inventoried file: the file that Lean's own mapping of a
+module name to a path gives below the package directory (`Lean.modToFilePath`), which is the
+file the inventory listed under that name. Lake takes a module's source from the source
+directory its configuration gives the library (`Module.leanFile`, Lake/Config/Module.lean), so
+a configuration that points a library elsewhere would have Lake answer for a file the tree does
+not hold. Last, the file `Lean.findOLean` gives for the module, which is the file
+`importModules` reads, must be the compiled file Lake named. Each pair is compared as real
+paths, so that a symbolic link does not make two files look like one or one like two, and a
+path that cannot be resolved is refused as well.
+
+A name for which `requestText` gives nothing is refused before Lake is asked. Trusted, and not
+checked here: that Lake's recorded traces are right and that nothing but Lake has written the
+compiled files since; that the tree does not change while this program runs; and that Lean's
+search path, which the bootstrap's `lake exe` sets with the workspace's own library directories
+first, finds the modules that `module` imports where Lake answered for them, since only the
+file of `module` itself is compared. -/
+def current (module : Name) : IO Unit := do
+  unless (← AcornModuleInventory.allModules).contains module do
+    throw (IO.userError s!"module {module}: not read, since the tree holds no source file of \
+      exactly this name among the package's Lean sources")
+  let some text := requestText module
+    | throw (IO.userError s!"module {module}: not read, since Lake cannot be asked about this \
+        name (it is empty, holds a colon or a slash, or does not read back from its printed \
+        text)")
+  let output ← IO.Process.output {
+    cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
+      "Bootstrap.lean", "query", "--no-build", "@/+" ++ text ++ ":lean",
+      "@/+" ++ text ++ ":olean"], stdin := .null }
+  unless output.exitCode == 0 do
+    throw (IO.userError s!"module {text}: not read, since Lake does not report the root \
+      package's module of this name built from the present sources (status \
+      {output.exitCode}). Lake said:\n{(output.stdout ++ output.stderr).trimAscii}")
+  let unread := IO.userError s!"module {text}: not read, since Lake's answer is not exactly \
+    two lines naming its source file and its compiled file. Lake said:\n{output.stdout}"
+  let [source, answered, ""] := output.stdout.splitOn "\n" | throw unread
+  if source.isEmpty || answered.isEmpty then throw unread
+  let sameFile (one other : System.FilePath) : IO Bool :=
+    try pure ((← IO.FS.realPath one) == (← IO.FS.realPath other)) catch _ => pure false
+  let listed := modToFilePath "." module "lean"
+  unless ← sameFile source listed do
+    throw (IO.userError s!"module {text}: not read, since Lake reads its source at {source}, \
+      which is not the tree's file {listed}")
+  let found ← try findOLean module catch error =>
+    throw (IO.userError s!"module {text}: not read, since Lean finds no compiled file for it: \
+      {error}")
+  unless ← sameFile found answered do
+    throw (IO.userError s!"module {text}: not read, since Lean finds its compiled file at \
+      {found} and Lake answered for {answered}, which is not that file")
+
+/-- The environment of a compiled module, read only once `current` has admitted the module.
+Every environment this program reads comes from here. -/
+def imported (module : Name) : IO Environment := do
+  current module
+  importModules #[{ module }] {}
+
+/-- The frame of a pin's target, in the environment of its module. A module that `current`
+refuses and an unknown target are refused. -/
 def computed (pin : Pin) : IO (Std.HashMap Name String) := do
-  let env ← importModules #[{ module := pin.home }] {}
+  let env ← imported pin.home
   unless (env.find? pin.target).isSome do
     throw (IO.userError s!"{pin.home} declares no {pin.target}")
   return frame env (pin.free.foldl (·.insert ·) {}) (pin.stop.foldl (·.insert ·) {}) pin.target
