@@ -12,7 +12,11 @@ name: Verify
 #
 # A pull request's run is started by the pull_request event, never pull_request_target, so
 # the run for a fork's pull request receives no secret of this repository and a token that
-# cannot write to it; this file names no secret and asks for read access to contents only.
+# cannot write to it; this file names no secret and asks for read access to contents and to
+# pull requests only. The gate's first step, the admission check of the owner's trusted base
+# (scripts/admission.sh), needs three things here and this file adds nothing else for it: the
+# commit's full history, to find the commit the change starts from; the pull request's
+# number; and the run's own token, to read the pull request's author, head, base and reviews.
 # No filter names a base branch, so a pull request to another base that is later retargeted
 # to main keeps the run made on its head. Nothing runs after a merge.
 #
@@ -40,6 +44,7 @@ on:
     types: [opened, synchronize, reopened]
 permissions:
   contents: read
+  pull-requests: read
 env:
   # The elan release for x64 Linux. The SHA-256 of its archive admits the download.
   ELAN_VERSION: 4.2.4
@@ -76,11 +81,13 @@ jobs:
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        timeout-minutes: 2
+        timeout-minutes: 4
         with:
           ref: ${{ steps.commit.outputs.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          # The whole history: the admission check takes the merge base of this commit and the
+          # default branch, and refuses a shallow repository.
+          fetch-depth: 0
       - name: Confirm checked-out commit
         env:
           ACORN_VERIFY_SHA: ${{ steps.commit.outputs.sha }}
@@ -92,7 +99,7 @@ jobs:
         # step with its name.
         run: |
           status=0
-          for package in libc6-dev gcc g++ make dpkg-dev curl git libgmp-dev openssl shellcheck coreutils; do
+          for package in libc6-dev gcc g++ make dpkg-dev curl git gh libgmp-dev openssl shellcheck coreutils; do
             if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) == 'install ok installed' ]]; then
               dpkg-query -W -f='${Package} ${Version}\n' "$package"
             else
@@ -143,5 +150,13 @@ jobs:
       # checks (lean/AcornTools/Intent.lean) and the check of each target's pin file
       # (lean/AcornTools/Frame.lean), each also when an earlier check failed, and exits
       # non-zero when any check failed. Its `gate:` lines give the time of each part.
+      # Before all of that the script runs the admission check, and ends there on a refusal:
+      # for a pull request by another account than the owner's that touches a path
+      # CODEOWNERS gives to the owner, the step fails with `gate: admission refused` until the
+      # owner has approved this exact head, and no check has run. The check reads the pull
+      # request named below with the run's token, through the GitHub CLI of the runner image.
       - name: The merge gate on the exact source
+        env:
+          ACORN_ADMISSION_PULL: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/gate.sh

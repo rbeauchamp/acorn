@@ -62,7 +62,8 @@ which rests on that merge rule, `Mission.contractState_targets` saying only what
 that the parts of a contract a mission with targets keeps in its issue are as accepted, for which
 the board shows the issue's own state beside; that a target is in the file the board names, which
 `targetFile` derives from the target's name by the rule of that directory; that the theorem a
-landing names is the proof it carries; or that the written files are not edited afterwards.
+landing names is the proof it carries, which the merge gate's frame check establishes of every
+landing and no proof here does; or that the written files are not edited afterwards.
 -/
 
 namespace AcornVerif.MissionBoard

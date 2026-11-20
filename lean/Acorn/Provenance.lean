@@ -9,6 +9,11 @@ Authors: acorn contributors
 
 The closed register requires a declaration, not proof that the declaration is
 true. Learned module admission is independently checked after Lean elaboration.
+
+Declaring a departure is required. Admitting one is the owner's and is its own change, never
+part of a submission: `.github/CODEOWNERS` names this module, and the merge gate refuses a
+change to it that carries no admission. A declared departure is no evidence of learning, so
+nothing a departure supplies is credited to what the agent learned.
 -/
 namespace Acorn
 

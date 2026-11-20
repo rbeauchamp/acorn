@@ -25,6 +25,34 @@ Undeclared hand-authored bias on the action-selection path is a defect.
 Each declared departure identifies the authored choice and its replacement
 conditions. Review checks declarations against the code that produces them.
 
+Three rules hold of every departure.
+
+- **Declaring one is required.** A hand-authored choice on the action-selection
+  path that no entry of this register declares is a defect.
+- **Admitting one is the owner's.** A new departure is its own change, admitted
+  by the repository's owner, and is never part of a submission: a pull request
+  that offers a result does not also add the departure its result needs. The
+  definitions that decide what counts as a declared departure are this register,
+  the closed type Acorn.Departure in `lean/Acorn/Provenance.lean` and the audit in
+  `lean/AcornTools/Boundary/Departures.lean`. `.github/CODEOWNERS` names all
+  three, and the merge gate refuses a change to any of them that carries no
+  admission ([verification](verification.md#admission-of-changes-to-the-trusted-base)).
+- **A declared departure is no evidence of learning.** What a departure supplies
+  is design-time knowledge, so nothing it supplies is credited to what the agent
+  learned, in a theorem, a study or a claim.
+
+The audit decides where a mechanism is declared, by its module, and not what the
+mechanism is. A hand-written mechanism added inside a module that an admitted
+departure already covers touches no path the owner must admit, so the gate's
+admission check does not refuse it. The gate's frame check still fails if it
+changes a definition that a registered statement of a landed mission reads.
+That the admission check passes it is an accepted risk of Acorn's trusted base. The third rule
+answers it, with review against that rule: such a mechanism earns no credit for
+learning. This limit was decided by the agent supervising Acorn's research: with
+every such module under the owner's paths, a contributor's own world adapter
+would wait on the owner's admission, and a contributor is to stay free to choose
+the family of worlds.
+
 The declared interface supplies observations, actions, task reward, boundaries
 and immutable configuration. The action path includes feature construction,
 value/prediction updates, option selection/interruption and planning. Host world,
@@ -263,8 +291,9 @@ reviewed contract; usefulness requires separate prospective qualification.
 ## Standing obligations
 
 Preserve all eight declarations until an explicit replacement retires their actual
-use. Adding a provenance constructor requires updating the closed register and
-compiled quarantine inventory. Technical admission must satisfy the
+use. Adding a constructor to Acorn.Departure requires updating this register and
+the compiled quarantine inventory, each a file the owner admits a change to, in
+a change of its own. Technical admission must satisfy the
 [prior-art standard](prior-art-review.md#admission-standard), including material
 adaptations and composition. Default promotion follows the separate
 [qualification decision](prior-art-review.md#current-default-qualification):

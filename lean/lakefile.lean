@@ -321,7 +321,8 @@ lean_exe «intent-check» where
   supportInterpreter := true
 
 /-- The check of each target's pinned frame, which the merge gate runs on the finished build:
-every declaration a pinned target reads prints to the text its pin file records. -/
+every declaration a pinned target reads prints to the text its pin file records, and the
+landings on record are those `Landed.registered` registers, with their statements. -/
 lean_exe «frame-check» where
   root := `AcornTools.Frame
   supportInterpreter := true

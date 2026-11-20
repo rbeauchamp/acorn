@@ -1924,7 +1924,8 @@ beside its features and its reward (`Oak.Extra`). Its field
 `departure : Departure` is mandatory, so no extra arrow exists without a
 registered departure. The departure is a declaration and is not checked against
 what the arrow reads; review checks it against the code that produces the
-value. `Oak.toAgent` composes the
+value. A declared departure is no evidence of learning, and admitting a new one
+is the owner's ([learned-only binding](learned-only-binding.md)). `Oak.toAgent` composes the
 arrows into an agent of the kernel, each once per percept: perceive, pose,
 solve, model, plan, act. Such an agent reads a percept through what perception
 returns for it, its reward and its extra arrows only (`Oak.step_congr`).

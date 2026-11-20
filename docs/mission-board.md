@@ -1,6 +1,6 @@
 # Mission board
 
-This page is a copy of what GitHub records about Acorn's missions, derived at 2026-11-19T02:06:06Z. GitHub is the record: this copy may lag it and never overrides it. For the current state, see the [open missions on GitHub](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission). [Regenerating the board](missions.md#regenerating-the-board) says how this page is made. New to missions? [Start here](missions.md).
+This page is a copy of what GitHub records about Acorn's missions, derived at 2026-11-20T14:26:09Z. GitHub is the record: this copy may lag it and never overrides it. For the current state, see the [open missions on GitHub](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission). [Regenerating the board](missions.md#regenerating-the-board) says how this page is made. New to missions? [Start here](missions.md).
 
 ## Open missions
 
@@ -22,11 +22,20 @@ A *frozen* contract is accepted and may not be weakened. A *proposed* one has no
 
 A *target* is a statement that a mission is to prove, held in the repository as a Lean definition. Every build has Lean read it against the current code, so it cannot stop making sense unnoticed, and only the owner merges a change to it. A mission establishes its statements by proving each of its targets, and a target is marked as proved once the repository records the theorem that proves it. [Missions](missions.md#step-3-read-the-contract) says how to find one and [how to prove it](missions.md#step-5-do-the-work).
 
-44 targets are registered.
+53 targets are registered.
 
 | Mission | Target | File | Proved by |
 |---|---|---|---|
 | [#163](https://github.com/rbeauchamp/acorn/issues/163) | AcornVerif.Targets.Json.parse&#95;complete | [lean/AcornVerif/Targets/Json.lean](../lean/AcornVerif/Targets/Json.lean) | not yet |
+| [#195](https://github.com/rbeauchamp/acorn/issues/195) | AcornVerif.Targets.CurrentRunningMemory.running&#95;naturals&#95;allowed | [lean/AcornVerif/Targets/CurrentRunningMemory.lean](../lean/AcornVerif/Targets/CurrentRunningMemory.lean) | AcornVerif.CurrentRunningMemory.running&#95;naturals&#95;allowed |
+| [#195](https://github.com/rbeauchamp/acorn/issues/195) | AcornVerif.Targets.CurrentRunningMemory.running&#95;snapshot&#95;size | [lean/AcornVerif/Targets/CurrentRunningMemory.lean](../lean/AcornVerif/Targets/CurrentRunningMemory.lean) | AcornVerif.CurrentRunningMemory.running&#95;snapshot&#95;size |
+| [#195](https://github.com/rbeauchamp/acorn/issues/195) | AcornVerif.Targets.CurrentRunningMemory.running&#95;memory&#95;bits | [lean/AcornVerif/Targets/CurrentRunningMemory.lean](../lean/AcornVerif/Targets/CurrentRunningMemory.lean) | AcornVerif.CurrentRunningMemory.running&#95;memory&#95;bits |
+| [#196](https://github.com/rbeauchamp/acorn/issues/196) | AcornVerif.Targets.CurrentPreReward.pre&#95;reward&#95;weights&#95;zero | [lean/AcornVerif/Targets/CurrentPreReward.lean](../lean/AcornVerif/Targets/CurrentPreReward.lean) | AcornVerif.CurrentPreReward.pre&#95;reward&#95;weights&#95;zero |
+| [#197](https://github.com/rbeauchamp/acorn/issues/197) | AcornVerif.Targets.CurrentControl.candidates&#95;of&#95;gap | [lean/AcornVerif/Targets/CurrentControl.lean](../lean/AcornVerif/Targets/CurrentControl.lean) | AcornVerif.CurrentControl.candidates&#95;of&#95;gap |
+| [#197](https://github.com/rbeauchamp/acorn/issues/197) | AcornVerif.Targets.CurrentControl.candidates&#95;of&#95;resting | [lean/AcornVerif/Targets/CurrentControl.lean](../lean/AcornVerif/Targets/CurrentControl.lean) | AcornVerif.CurrentControl.candidates&#95;of&#95;resting |
+| [#199](https://github.com/rbeauchamp/acorn/issues/199) | AcornVerif.Targets.CurrentCreditHorizon.dormant&#95;weight&#95;rests | [lean/AcornVerif/Targets/CurrentCreditHorizon.lean](../lean/AcornVerif/Targets/CurrentCreditHorizon.lean) | AcornVerif.CurrentCreditHorizon.dormant&#95;weight&#95;rests |
+| [#199](https://github.com/rbeauchamp/acorn/issues/199) | AcornVerif.Targets.CurrentCreditHorizon.candidates&#95;read&#95;window | [lean/AcornVerif/Targets/CurrentCreditHorizon.lean](../lean/AcornVerif/Targets/CurrentCreditHorizon.lean) | AcornVerif.CurrentCreditHorizon.candidates&#95;read&#95;window |
+| [#199](https://github.com/rbeauchamp/acorn/issues/199) | AcornVerif.Targets.CurrentCreditHorizon.recent&#95;weight&#95;moves | [lean/AcornVerif/Targets/CurrentCreditHorizon.lean](../lean/AcornVerif/Targets/CurrentCreditHorizon.lean) | AcornVerif.CurrentCreditHorizon.recent&#95;weight&#95;moves |
 | [#200](https://github.com/rbeauchamp/acorn/issues/200) | AcornVerif.Targets.StateEntry.arm&#95;letter | [lean/AcornVerif/Targets/StateEntry.lean](../lean/AcornVerif/Targets/StateEntry.lean) | not yet |
 | [#200](https://github.com/rbeauchamp/acorn/issues/200) | AcornVerif.Targets.StateEntry.fold&#95;arm | [lean/AcornVerif/Targets/StateEntry.lean](../lean/AcornVerif/Targets/StateEntry.lean) | not yet |
 | [#200](https://github.com/rbeauchamp/acorn/issues/200) | AcornVerif.Targets.StateEntry.near&#95;threshold | [lean/AcornVerif/Targets/StateEntry.lean](../lean/AcornVerif/Targets/StateEntry.lean) | not yet |
