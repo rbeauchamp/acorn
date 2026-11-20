@@ -29,7 +29,8 @@ directory registers exactly its entries, with the statement of each theorem an e
 the project's declarations that statement reads (`lean/AcornTools/Frame.lean`). So adding an
 entry needs a change to that file, which is the owner's to admit, and removing one does too.
 Lean does not check that the theorem an entry names is the proof it holds. The frame check
-does: it refuses an entry whose proof is any term but the theorem the entry names.
+does: it refuses an entry whose proof is any term but the constant the entry names, and an
+entry whose constant is not a theorem.
 
 The entries of missions #195, #196, #197 and #199 record theorems that landed before their
 statements were targets; each of those targets takes its statement from its theorem.

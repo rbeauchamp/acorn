@@ -35,8 +35,8 @@ theorem's, a `lock` line for each of the package's two lock files, `lean-toolcha
 `lake-manifest.json`, with the digest of its content, and a `pin` line for each declaration of
 one frame: the walk above from every landed target and every such theorem, with no free and no
 stop name. The landings are read from the build, by reducing the value of `AcornVerif.landings`
-to its entries, so no list of names is kept in this program, and an entry whose proof is not
-the theorem it names is refused. A theorem's proof is not followed. The walk stops at
+to its entries, so no list of names is kept in this program, and an entry is refused whose
+proof is not the constant it names or whose constant is no theorem. A theorem's proof is not followed. The walk stops at
 declarations outside the project, and the lock lines stand for those: a change of toolchain or
 of a dependency's commit changes a lock file, and so fails the check until the registration is
 made again.
@@ -454,7 +454,8 @@ def Registration.parse (text : String) : Except String Registration := do
 
 /-- What the build has to register: the landings on record, which must be some, and the frame
 whose roots are every landed target and every theorem recorded as proving one, with no free and
-no stop name. A target or a theorem that the build does not declare is refused. -/
+no stop name. A target that the build does not declare is refused, and so is a name recorded as
+proving one that the build does not declare as a theorem. -/
 def landedNow : IO Registration := do
   let env ← importModules #[{ module := landingsModule }] {}
   let record ← landedOnRecord env
@@ -463,11 +464,17 @@ def landedNow : IO Registration := do
       mission would be registered")
   let mut roots : Array Name := #[]
   for (target, proved) in record do
-    for root in [target, proved] do
-      unless (env.find? root).isSome do
-        throw (IO.userError s!"the record of landings names {root}, which the build does not \
-          declare")
-      roots := roots.push root
+    unless (env.find? target).isSome do
+      throw (IO.userError s!"the record of landings names {target}, which the build does not \
+        declare")
+    match env.find? proved with
+    | some (.thmInfo _) => pure ()
+    | some _ => throw (IO.userError s!"the landing of {target} names {proved}, which is no \
+        theorem")
+    | none => throw (IO.userError s!"the record of landings names {proved}, which the build \
+        does not declare")
+    roots := roots.push target
+    roots := roots.push proved
   let pins ← IO.ofExcept ((printed (frame env {} {} roots)).mapError IO.userError)
   let mut locks : Array (String × String) := #[]
   for path in lockFiles do

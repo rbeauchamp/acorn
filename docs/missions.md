@@ -175,7 +175,7 @@ Then, after step 8 and once the owner has approved that commit, run the gate on 
 ACORN_ADMISSION_PULL=<number> ./scripts/gate.sh
 ```
 
-A push after the approval needs a new approval before the gate passes again.
+On GitHub the pull request's gate job fails at its admission step, with no check run, until the owner's approval; it is then run again from the pull request, on the same commit. A push after the approval needs a new approval before the gate passes again.
 
 ### Step 7: commit
 

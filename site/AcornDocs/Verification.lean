@@ -616,9 +616,24 @@ its own edit. GitHub uses the version of a workflow in the commit of the event
 that starts it (GitHub's documentation, Workflows), which for a pull request is
 its merge with its base, and the job runs the script of the head. Such a pull
 request can show the job as passed while it runs fewer checks than the gate on
-main has. A reader sees that only in the pull request's changed files, under
-the paths that [CODEOWNERS](../.github/CODEOWNERS) gives to the owner; nothing
-in the run refuses the edit.
+main has. A reader sees that only in the pull request's changed files, under the
+paths that [CODEOWNERS](../.github/CODEOWNERS) gives to the owner. A head whose
+script is intact refuses an unadmitted edit of those paths at the gate's first
+step, the [admission check](#admission-of-changes-to-the-trusted-base); nothing
+in the run refuses a head that edits the script or the workflow to leave that
+check out, and what binds such a pull request from another account is the
+default branch's rule.
+
+A pull request that touches a path CODEOWNERS gives to the owner shows one more
+ending before the owner's review. The job provisions the dependencies and then
+runs the gate, whose first step is the admission check. For an author other than
+the owner's account that check reads the pull request's author, head and base
+and its reviews, finds no approving review of the head by the owner, and
+refuses: the job fails at the gate step with the line `gate: admission refused`,
+and no check has run. That failure is no result of a check of the change. Once
+the owner has approved that exact head, the job is run again from the pull
+request, on the same commit, and the gate goes on to its checks. A push after
+the approval gives a new head, which needs a new approval.
 
 Fourth, a head whose event came before this workflow ran on pull requests, or whose
 merge with the base it then had did not hold this workflow, has no run, since
@@ -767,9 +782,11 @@ head and base from GitHub, before anything can pass: the head must be the
 checked commit and the base the default branch of Acorn's repository. A record
 admits a pull request only when its author is the owner's account. For any other
 author a record does not count: the admission is the owner's approving review on
-that exact head commit, read from GitHub's list of reviews, and the default
-branch's rule that requires a code owner's review is what enforces it at the
-merge. A run given no pull request, which is the pipeline's run before a pull
+that exact head commit, read from GitHub's list of reviews. GitHub's rule for
+the default branch, once set, requires a code owner's approval at the merge and
+dismisses it when the diff changes; it does not compare the approved commit with
+the head, so the comparison with the exact head is this check's and not the
+rule's. A run given no pull request, which is the pipeline's run before a pull
 request exists and a plain local run, cannot know the author and reads a record
 only. Whoever checks another author's commit on their own machine runs the check
 from the default branch's copy, as [contributing](../CONTRIBUTING.md) shows, and
@@ -791,31 +808,31 @@ that holds the account can write a record of either form. The gate checks that a
 record exists, of which kind, and for which transition. It does not check that
 the agent who recorded it is another than the change's author, that this agent
 read the change, or that the change keeps or tightens protection: the record
-states these and review checks them. On GitHub a pull request's workflow is
-taken from the pull request, so it can drop the admission job, and the hosted
-jobs run the change's code on GitHub's runner with a read-only token whether or
-not that job refuses; what a refusal withholds is a run on a contributor's or
-maintainer's own machine and in the pipeline. The default branch's rule, a
-setting of the repository and no tracked file, is what binds a pull request from
-another account, and it cannot bind the owner's account, which cannot review its
-own pull request. A change whose starting commit predates the check carries the
-gate script of that time, so a local run of that script does not refuse it; the
-pipeline's command, read from the default branch, does. The pipeline's command
-selects the copy of the check by the default branch as the pipeline fetched it,
-and a local run that cannot reach Acorn's repository selects it, and reads the
-starting commit, by the checkout's copy of that branch, which may be stale or
-another repository's, so such a run convinces only whoever ran it. After a
-refused Test command the pipeline still lists the change's tests, and that
-listing loads the change's Lake package configurations: a refusal stops the gate
-script and what it runs, not that step of the pipeline. A local run does not see
-an ignored, untracked file under an owner path. Two changes that make the same
-transition of the owner paths share one record. The frame check requires a
-landing's proof to be the constant the landing names, which may be a definition
-whose type is the statement as well as a theorem. A mission whose contract has
-no registered target lands with no landing, so its statements are not registered
-until the owner registers targets for them. A hand-written mechanism added
-inside a module that an admitted departure already covers touches no owner path
-([learned-only binding](learned-only-binding.md)).
+states these and review checks them. On GitHub the job runs the pull request's
+own workflow and gate script, so a pull request can edit either to leave the
+check out, and the job provisions the change's dependencies, by the change's own
+script, before the gate and its admission check run. That happens on GitHub's
+runner with a token that cannot write and no secret; what a refusal withholds is
+a run on a contributor's or maintainer's own machine and in the pipeline. The
+default branch's rule, a setting of the repository and no tracked file, is what
+binds a pull request from another account, and it cannot bind the owner's
+account, which cannot review its own pull request. A change whose starting
+commit predates the check carries the gate script of that time, so a local run
+of that script does not refuse it; the pipeline's command, read from the default
+branch, does. The pipeline's command selects the copy of the check by the
+default branch as the pipeline fetched it, and a local run that cannot reach
+Acorn's repository selects it, and reads the starting commit, by the checkout's
+copy of that branch, which may be stale or another repository's, so such a run
+convinces only whoever ran it. After a refused Test command the pipeline still
+lists the change's tests, and that listing loads the change's Lake package
+configurations: a refusal stops the gate script and what it runs, not that step
+of the pipeline. A local run does not see an ignored, untracked file under an
+owner path. Two changes that make the same transition of the owner paths share
+one record. A mission whose contract has no registered target lands with no
+landing, so its statements are not registered until the owner registers targets
+for them. A hand-written mechanism added inside a module that an admitted
+departure already covers touches no owner path ([learned-only
+binding](learned-only-binding.md)).
 
 # Regula audit
 %%%

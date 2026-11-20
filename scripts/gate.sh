@@ -43,11 +43,16 @@ dependency_git() {
 # below has its own failure branch, and no failed read of the starting commit's copy ends in a
 # pass: only a tree that Git lists without the file selects this tree's copy.
 admission() {
-  local url=https://github.com/rbeauchamp/acorn.git listing tip='' start entry script
-  if listing=$(git ls-remote "$url" refs/heads/main 2>/dev/null) &&
-      [[ $listing =~ ^([0-9a-f]{40})[[:space:]] ]]; then
-    tip=${BASH_REMATCH[1]}
-    git fetch --quiet --no-tags --no-write-fetch-head "$url" refs/heads/main 2>/dev/null || tip=''
+  local url=https://github.com/rbeauchamp/acorn.git listing object ref tip='' start entry script
+  # Git matches a listing's pattern against trailing components of ref names, so only the line
+  # whose ref name is exactly refs/heads/main is read.
+  if listing=$(git ls-remote "$url" refs/heads/main 2>/dev/null); then
+    while read -r object ref; do
+      if [[ $ref == refs/heads/main && $object =~ ^[0-9a-f]{40}$ ]]; then tip=$object; fi
+    done <<< "$listing"
+  fi
+  if [[ -n $tip ]]; then
+    git fetch --quiet --no-tags --no-write-fetch-head "$url" "$tip" 2>/dev/null || tip=''
   fi
   if [[ -z $tip ]]; then
     tip=refs/remotes/origin/main
@@ -78,7 +83,7 @@ admission() {
 if [[ "$provision_only" == 0 ]]; then
   step 'admission of changes to the owner paths'
   if ! admission; then
-    step 'admission refused: nothing of this change was provisioned, built or run'
+    step 'admission refused: this run of the gate provisioned, built and ran nothing of this change'
     exit 1
   fi
   step 'admitted'

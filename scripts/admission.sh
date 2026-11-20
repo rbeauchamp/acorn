@@ -13,8 +13,9 @@
 #                                     the record that would admit it, and check nothing
 #
 # What it reads, each through its owner:
-#  - The default branch: the tip of refs/heads/main of the canonical repository below, fetched
-#    without writing a ref. Only when that repository cannot be reached does it use
+#  - The default branch: the tip of refs/heads/main of the canonical repository below, taken
+#    from the line of Git's listing whose ref name is exactly that, and fetched without writing
+#    a ref. Only when that repository cannot be reached does it use
 #    refs/remotes/origin/main, and it says so: that copy may be stale or another repository's.
 #  - The starting commit: Git's merge base of HEAD and that tip. A shallow repository and
 #    unrelated histories are refused.
@@ -103,15 +104,30 @@ cd "$(git rev-parse --show-toplevel)"
 work=$(mktemp -d "${TMPDIR:-/tmp}/acorn-admission.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
+# The object a listing of `git ls-remote` gives for one ref. Git matches the pattern it is given
+# against the trailing components of ref names, so a listing can hold other refs, and in any
+# order: only a line whose ref name is exactly the one asked for is read.
+listed() {
+  local want=$1 object ref
+  while read -r object ref; do
+    if [[ $ref == "$want" && $object =~ ^[0-9a-f]{40}$ ]]; then
+      printf '%s\n' "$object"
+      return 0
+    fi
+  done <<< "$2"
+  return 1
+}
+
 # The default branch's tip and the starting commit.
 [[ $(git rev-parse --is-shallow-repository) == false ]] ||
   refuse 'this repository is shallow, so the commit the change starts from cannot be determined'
 tip=''
 if listing=$(git ls-remote "$canonical_url" "refs/heads/$default_branch" 2> /dev/null) &&
-    [[ $listing =~ ^([0-9a-f]{40})[[:space:]] ]]; then
-  tip=${BASH_REMATCH[1]}
-  git fetch --quiet --no-tags --no-write-fetch-head "$canonical_url" \
-    "refs/heads/$default_branch" 2> /dev/null || tip=''
+    tip=$(listed "refs/heads/$default_branch" "$listing"); then
+  git fetch --quiet --no-tags --no-write-fetch-head "$canonical_url" "$tip" 2> /dev/null ||
+    tip=''
+else
+  tip=''
 fi
 if [[ -z $tip ]]; then
   tip=$(git rev-parse --verify --quiet "$local_ref^{commit}") ||
@@ -332,9 +348,8 @@ record_form() {
 }
 recorded=''
 if listing=$(git ls-remote "$canonical_url" "$record_ref" 2> "$work/remote"); then
-  if [[ -n $listing ]]; then
-    record=${listing%%[[:space:]]*}
-    git fetch --quiet --no-tags --no-write-fetch-head "$canonical_url" "$record_ref" ||
+  if record=$(listed "$record_ref" "$listing"); then
+    git fetch --quiet --no-tags --no-write-fetch-head "$canonical_url" "$record" ||
       refuse "could not fetch the record at $record_ref"
     [[ $(git cat-file -t "$record") == commit ]] || refuse "$record_ref is not a commit"
     body=$(git show -s --format=%B "$record") || refuse "could not read the record at $record_ref"

@@ -196,7 +196,9 @@ check refusing noncomputable in executing modules).
   description and open the pull request. Once the owner has approved its exact
   head commit, run `ACORN_ADMISSION_PULL=<number> ./scripts/gate.sh` on that
   commit, which reads the review with the GitHub CLI, and add its `gate:`
-  lines. A push after the approval needs a new approval. Whoever checks
+  lines. On GitHub the pull request's gate job fails at its admission step,
+  with no check run, until that approval, and is then run again from the pull
+  request on the same commit. A push after the approval needs a new approval. Whoever checks
   another author's commit on their own machine first runs the admission check
   from the default branch's copy, never that commit's own `gate.sh`: from a
   checkout of the commit, with `origin` fetched from Acorn's repository,
