@@ -25,12 +25,10 @@ name: Verify
 # GitHub runs the version of this file in the pull request's merge with its base, so a pull
 # request that edits this file is checked by its own edit. GitHub starts no run for a head
 # that conflicts with its base or whose commit message carries a skip instruction, and can
-# hold a fork's run until a maintainer approves it. A head for which no run of this job is
-# shown has not been checked here. A failed run tells by its failed step whether a check
-# ran: a failure of any step before the last, "The merge gate on the exact source", means
-# that no check ran, and only a failure of that last step can mean that a check ran on the
-# head and failed, where the script's `gate:` lines name the check (docs/verification.md,
-# "Build and source inventory", gives each case and what the pull request then shows).
+# hold a fork's run until a maintainer approves it. Neither the absence of a run of this
+# job nor a failed run is by itself the result of a check: docs/verification.md, "Build and
+# source inventory", gives each case, what the pull request then shows and how to read a
+# run's ending.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -135,7 +133,8 @@ jobs:
       # stages, each under verify.sh's own 360-second deadline: the cold build fills all four
       # CPUs, and with the checks beside it a slow runner came within 40 seconds of one
       # deadline. Stage one admits the sources and builds cold every module outside the
-      # proof library AcornVerif, its native object and every executable. Stage two is the
+      # proof library AcornVerif except AcornTools.AxiomPins, with native objects where
+      # applicable, and every executable. Stage two is the
       # complete command unchanged: Lake reuses a stage one output only where its trace
       # matches the checked-out source, toolchain and options, and builds everything else.
       # The script then runs the Regula audit (scripts/regula.sh,

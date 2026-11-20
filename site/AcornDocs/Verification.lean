@@ -551,8 +551,8 @@ that writes (GitHub's documentation, Events that trigger workflows). That
 a fork's run holds no secret is the owner's requirement; naming the limits as
 accepted was decided on the owner's behalf by the agent supervising Acorn's
 research. In every one but the third, the pull request shows no run of this job
-for its head. Such a head is unchecked on GitHub. The absence of a run is never
-a pass, and it is no result of a check either.
+for its head. Such a head is unchecked on GitHub. What the absence of a run and
+each ending of a run say about the checks is stated after the fifth limit.
 
 First, a head that conflicts with its base gets no run. GitHub starts no
 workflow for activity on a pull request that has a merge conflict (GitHub's
@@ -591,15 +591,26 @@ no run (GitHub's documentation, Skipping workflow runs). The pull request shows
 no run of this job for that head until a commit without the instruction is
 pushed.
 
-A failed run does not by itself say that a check failed: its failed step tells
-whether a check ran. The job's last step, "The merge gate on the exact source",
-runs the script with no argument, and no other step runs a check. A failure
-before that step means that no check ran on the head: GitHub marked the run
-failed while it waited for an approval, or an earlier step failed, which
-identifies or checks out the commit, admits the runner image's packages,
-installs elan or provisions the dependencies. Only a failure of the last step
-can mean that a check ran on the head and failed, and the script's `gate:`
-lines in that step's log name the check.
+Neither the absence of a run nor a failed run is by itself the result of a
+check. What a run says about the checks is read from the log of the job's last
+step, "The merge gate on the exact source", the only step in which a check
+runs. There the script prints `gate: verification, stage one` before its first
+check. After the checks it prints one line for each that reports its exit
+status: `gate: verification exited N; Regula audit` for verification's two
+stages together, `gate: Regula audit exited N; lean-intent checks`,
+`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`.
+It prints `gate: every merge check passed` only when every status is 0. Each
+of these lines ends with the time of day and the seconds since the script
+started. The only evidence that a check ran on the head and failed is a `gate:`
+line that reports that check's exit status as other than 0. The only evidence
+that every check passed is the line
+`gate: every merge check passed`. Every other ending is no verdict of a check
+on that head: no run at all; a run that GitHub marked failed before a runner
+started, as when an approval was never given; a failure of any step before the
+last; the last step ending before `gate: verification, stage one`, as when the
+script's own recheck of the provisioned dependencies fails; and the last step
+ending without the passing line and without a line that reports a status other
+than 0, as when the job is cancelled at its limit in the middle of a check.
 
 Whether a merge requires this job is set in the repository's rules on GitHub,
 not in a file of the repository. Where the rules require it, a head on which it
