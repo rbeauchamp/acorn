@@ -40,8 +40,17 @@ passes: a target without a pin file is not pinned.
 **Printing a pin file** (`print <module> <target> [free <name>]... [stop <name>]...`) writes
 the pin file's text for those names to standard output.
 
+**Compiled modules and their sources.** The declarations are read from compiled modules, never
+from sources, and running this program builds the program and no module it reads. So before it
+imports a module, for the check and for printing alike, it asks Lake whether that module is
+built from the present sources (`current`), and builds nothing itself. A module that has no
+source file in the tree, a module no package of the workspace holds, and a module that is out
+of date or imports one that is are each refused by name, with status 1: a compiled file left by
+an earlier build is never read in place of the tree's source.
+
 What a pass means: every declaration the walk reaches prints to the text it printed when the
-file was made. It does not say what those declarations mean, that the free names were well
+file was made, read from compiled modules that Lake reports built from the sources present when
+the program ran. It does not say what those declarations mean, that the free names were well
 chosen, or that the dependencies are unchanged. The digest is a detector of change. It is taken
 with this file's own SHA-256, which each run checks against three published test vectors before
 it reads anything. The vectors show that the empty message, a message of one block and a
@@ -252,10 +261,75 @@ def Pin.parse (text : String) : Except String Pin := do
   | some found, some declaring => return { pin with target := found, home := declaring }
   | _, _ => throw "no target line or no module line"
 
-/-- The frame of a pin's target, in the environment of its module. An unknown target is
-refused. -/
+/-! ## Compiled modules and their sources -/
+
+/-- The text of a module name whose every component is an ASCII letter or `_` followed by ASCII
+letters, digits and `_`, the components joined by dots; `none` for every other name, the
+anonymous name included. Lake reads a request `+<text>` by cutting it at `:` and `/` and reading
+what is left with `String.toName` (`parseTargetSpec` and `resolveTargetBaseSpec`, Lake of Lean
+v4.35.0, Lake/CLI/Build.lean). A text of this form holds neither character, and it is returned
+only when `String.toName` reads `module` back from it, so the module Lake answers for is the
+module this program imports. -/
+def plainModule (module : Name) : Option String := do
+  let parts ← module.components.mapM fun
+    | .str .anonymous part =>
+      match part.toList with
+      | first :: rest =>
+        if (first.isAlpha || first == '_') && rest.all (fun c => c.isAlphanum || c == '_') then
+          some part
+        else none
+      | [] => none
+    | _ => none
+  let text := String.intercalate "." parts
+  if !parts.isEmpty && text.toName == module then some text else none
+
+/-- Refuse `module` unless Lake reports its compiled files current with the sources. The
+question is put to Lake through the bootstrap, as every build of the gate is, and it is the
+request the gate's build makes for a module, with `--no-build`, under which Lake builds nothing.
+
+Lake reads the module's source file, so a module without one fails there, and a module that no
+package of the workspace holds is unknown to it. Into the module's trace it mixes, with other
+inputs, the text of that source, the options, the toolchain and the compiled files of the
+workspace's modules it imports, each of which it answers for in the same way first. It takes the
+module as current only when the trace it recorded for the compiled files is that trace and the
+files, or the archive it restores them from, exist. It exits 0 when the module and every module
+of the workspace it imports are current, and 3 when one needs a build (`Module.recFetchInput`,
+`fetchImportInfo`, `Module.recFetchPreSetup` and `Module.recBuildLean` in Lake/Build/Module.lean,
+`buildAction` in Lake/Build/Common.lean and `finalizeBuild` in Lake/Build/Run.lean, Lake of Lean
+v4.35.0). Every other status, the bootstrap's own refusals included, is refused as well.
+
+A name that `plainModule` does not admit is refused before Lake is asked. Trusted, and not
+checked here: that Lake's recorded traces are right and that nothing but Lake has written the
+compiled files since; that this program runs under the bootstrap's `lake exe`, which puts the
+workspace's own library directories first on the path `importModules` searches; and that no
+source changes between Lake's answer and the import. -/
+def current (module : Name) : IO Unit := do
+  let some text := plainModule module
+    | throw (IO.userError s!"module {module}: not read, since its name is not made of plain \
+        components (ASCII letters, digits and _, none starting with a digit)")
+  let output ← IO.Process.output {
+    cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
+      "Bootstrap.lean", "build", "--no-build", "+" ++ text], stdin := .null }
+  let said := (output.stdout ++ output.stderr).trimAscii.toString
+  match output.exitCode with
+  | 0 => pure ()
+  | 3 => throw (IO.userError s!"module {text}: not read, since Lake reports that it or a module \
+      it imports is not built from the present sources; build it first \
+      (./scripts/lean.sh build +{text}). Lake said:\n{said}")
+  | status => throw (IO.userError s!"module {text}: not read, since Lake does not report it \
+      built from a source of this tree (status {status}); a module that has no source file is \
+      refused here. Lake said:\n{said}")
+
+/-- The environment of a compiled module, read only once `current` has admitted the module.
+Every environment this program reads comes from here. -/
+def imported (module : Name) : IO Environment := do
+  current module
+  importModules #[{ module }] {}
+
+/-- The frame of a pin's target, in the environment of its module. A module that `current`
+refuses and an unknown target are refused. -/
 def computed (pin : Pin) : IO (Std.HashMap Name String) := do
-  let env ← importModules #[{ module := pin.home }] {}
+  let env ← imported pin.home
   unless (env.find? pin.target).isSome do
     throw (IO.userError s!"{pin.home} declares no {pin.target}")
   return frame env (pin.free.foldl (·.insert ·) {}) (pin.stop.foldl (·.insert ·) {}) pin.target

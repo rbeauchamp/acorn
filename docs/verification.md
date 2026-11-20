@@ -546,8 +546,18 @@ other declaration of the project that the target reaches through types and
 definitions, the SHA-256 digest of its printed kind, universe parameters, type and
 value. The check lists that directory and admits only regular files ending in
 `.lean` and regular files ending in `.frame`; any other entry, a subdirectory or
-a symbolic link included, fails it and is named. For each pin file it computes
-that list from the finished build and fails when a
+a symbolic link included, fails it and is named. The check reads declarations
+from compiled modules, never from sources, and running it builds the checking
+program and no module that program reads. So for each pin file it first asks
+Lake, through the bootstrap and building nothing, whether the module the file
+names is built from the present sources. It fails, naming the module, when the
+module has no source file in the tree, when no package of the workspace holds
+it, and when it or a module it imports is out of date: a compiled file that an
+earlier build left behind is never read in place of the tree's source. The
+command that prints a pin file asks Lake the same question before it reads a
+module. That Lake's record of what is current is right, and that nothing but
+Lake has written the compiled files since, is trusted. The check then computes
+that list from the compiled module and fails when a
 pinned declaration is no longer reached, has another digest, or a reached
 declaration is not pinned, naming each. With no pin file it reports that no
 target's frame is pinned and passes, so a target is pinned only once the owner
