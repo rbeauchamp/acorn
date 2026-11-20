@@ -3,10 +3,11 @@
 # default branch, so a change to it governs the runs that follow its merge, not its own.
 #
 # The pipeline's Test step runs scripts/gate.sh, Acorn's merge gate, in a checkout of the exact
-# commit it validates, holding only tracked files. The script provisions the pinned dependencies
-# and runs every merge check: both stages of ./scripts/verify.sh, the Regula audit
-# ./scripts/regula.sh, lean-intent's confirmation and implementation checks
-# (lean/AcornTools/Intent.lean), and the check of each target's pinned frame
+# commit it validates, holding only tracked files. The script runs the admission check of the
+# owner's trusted base (scripts/admission.sh), provisions the pinned dependencies and runs every
+# merge check: both stages of ./scripts/verify.sh, the Regula audit ./scripts/regula.sh,
+# lean-intent's confirmation and implementation checks (lean/AcornTools/Intent.lean), and the
+# check of each target's pinned frame and of the registered statements of landed missions
 # (lean/AcornTools/Frame.lean). Any failing check fails the step.
 #
 # GitHub runs the same script on a pull request's head commit at each event that gives the pull
@@ -16,8 +17,16 @@
 # pull request's head commit has passed, and never while GitHub registers none there
 # (no-mistakes' repo-config reference, "no_ci").
 
+# The Test command. Before anything of the change runs, it runs the admission check of the owner's
+# trusted base (scripts/admission.sh) from the commit the change starts from, the merge base of the
+# commit under validation and the default branch as fetched for the run. no-mistakes takes this
+# command from the default branch, and the command takes the check from the starting commit, so a
+# change that edits the gate script, the check or CODEOWNERS is checked by what it started from and
+# cannot skip the check by editing them. A starting commit whose check cannot be read or is empty
+# fails the step, and so does a refusal: the change's own gate then never runs.
 commands:
-  test: ./scripts/gate.sh
+  test: |
+    start=$(git merge-base HEAD refs/remotes/origin/main) && script=$(git show "$start:scripts/admission.sh") && [ -n "$script" ] && bash -c "$script" acorn-admission && ./scripts/gate.sh
 
 # Dependency provisioning, the largest part of a run from nothing, is reused across runs. For each
 # run's base commit on the default branch, no-mistakes runs the command once and stores

@@ -12,11 +12,20 @@ The closed departure type and complete compiled quarantine-module/type inventory
 are bound to the maintained register. Composite state types declare all consumed
 origins here; signal producers additionally carry their executable Provenance
 contracts. Review checks each declared origin against the producing code.
+
+Declaring a departure is required. Admitting one is the owner's and is its own change: the
+closed type `Acorn.Departure`, which this audit requires to be declared in `Acorn.Provenance`,
+the register `docs/learned-only-binding.md` and this module are each named by
+`.github/CODEOWNERS`, and the merge gate refuses a change to one that carries no admission
+(`scripts/admission.sh`). A declared departure is no evidence of learning. What this audit
+accepts is where a mechanism is declared, never what it is: a mechanism added inside a module
+that an admitted departure already covers passes it.
 -/
 namespace AcornDepartureAudit
 open Lean Acorn
 
-/-- Every constructor has a register key; adding a departure requires this total match. -/
+/-- Every constructor has a register key; adding a departure requires this total match, a change
+to this module, which is the owner's to admit. -/
 def key : Departure → String
   | .featureChannels => "D1"
   | .spatialPotentials => "D2"
@@ -27,7 +36,8 @@ def key : Departure → String
   | .featureTester => "D7"
   | .achievementEvent => "D8"
 
-/-- Maintained loci include compositions; adding a quarantined module requires admission. -/
+/-- Maintained loci include compositions; adding a quarantined module requires a change to this
+list, which is the owner's to admit. -/
 def modules : List (Name × List Departure) :=
   [(`Acorn.Handcrafted.Signals, [.featureChannels, .cumulants]),
    (`Acorn.Handcrafted.Observation, [.featureChannels, .spatialPotentials, .cumulants]),
@@ -74,6 +84,11 @@ def check (env : Environment) (maintained : Array Name) : IO Unit := do
     .achievementEvent]
   let some (.inductInfo declaration) := env.find? `Acorn.Departure
     | throw (IO.userError "departure type is not a compiled inductive")
+  -- The register is declared in the module `.github/CODEOWNERS` names, so a change that moves
+  -- it to a module outside the owner's paths fails here.
+  let home := (env.getModuleIdxFor? `Acorn.Departure).bind fun index =>
+    (env.header.modules[index.toNat]?).map (·.module)
+  require (home == some `Acorn.Provenance) "the departure type is declared outside Acorn.Provenance"
   require (declaration.ctors.length == departures.length &&
     (departures.map key).eraseDups.length == departures.length) "closed departure domain differs"
   let owners := maintained.toList.filter (`Acorn.Handcrafted).isPrefixOf

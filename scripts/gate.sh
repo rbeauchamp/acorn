@@ -1,14 +1,19 @@
 #!/bin/bash
-# The merge gate: provision the pinned dependencies, then run every merge check, in a
-# Git checkout that may hold nothing but tracked files. no-mistakes runs it as the
-# Test step's command (.no-mistakes.yaml); `./scripts/gate.sh provision` stops after
-# provisioning, as the build that no-mistakes stores for later runs does.
+# The merge gate: run the admission check of the owner's trusted base, provision the pinned
+# dependencies, then run every merge check, in a Git checkout that may hold nothing but tracked
+# files. no-mistakes runs it in the Test step's command (.no-mistakes.yaml).
+# `./scripts/gate.sh admission` runs the admission check alone. `./scripts/gate.sh provision`
+# provisions and stops, as the build that no-mistakes stores for later runs does, on a commit of
+# the default branch; it runs no admission check, so it is not for a change under review.
 set -euo pipefail
 
-usage='usage: ./scripts/gate.sh [provision]'
+usage='usage: ./scripts/gate.sh [provision|admission]'
+provision_only=0
+admission_only=0
 case "$*" in
-  '') provision_only=0 ;;
+  '') ;;
   provision) provision_only=1 ;;
+  admission) admission_only=1 ;;
   *) echo "$usage" >&2; exit 2 ;;
 esac
 cd "$(dirname "$0")/.."
@@ -26,6 +31,59 @@ dependency_git() {
   local n=${GIT_CONFIG_COUNT:-0}
   export GIT_CONFIG_COUNT=$((n + 1)) "GIT_CONFIG_KEY_$n=core.symlinks" "GIT_CONFIG_VALUE_$n=false"
 }
+
+# The admission check comes first, before anything of this change is provisioned, built or run:
+# a refusal ends the gate here. It is the copy of scripts/admission.sh that the commit this change
+# starts from holds, never this tree's copy, so a change that edits the check is checked by the
+# one it started from. Only where that commit holds no copy (it predates the check) does this
+# tree's own copy run, and it still requires an admission. The starting commit is the merge base
+# with the default branch of Acorn's own repository, fetched without writing a ref; the local copy
+# of that branch is used, with a printed notice, only when the repository cannot be reached. Bash
+# does not stop a function on a failed command while a condition is calling it, so every step
+# below has its own failure branch, and no failed read of the starting commit's copy ends in a
+# pass: only a tree that Git lists without the file selects this tree's copy.
+admission() {
+  local url=https://github.com/rbeauchamp/acorn.git listing tip='' start entry script
+  if listing=$(git ls-remote "$url" refs/heads/main 2>/dev/null) &&
+      [[ $listing =~ ^([0-9a-f]{40})[[:space:]] ]]; then
+    tip=${BASH_REMATCH[1]}
+    git fetch --quiet --no-tags --no-write-fetch-head "$url" refs/heads/main 2>/dev/null || tip=''
+  fi
+  if [[ -z $tip ]]; then
+    tip=refs/remotes/origin/main
+    echo "admission: could not reach $url, so the check is selected by the checkout's copy of the default branch, which may be stale or another repository's"
+  fi
+  start=$(git merge-base HEAD "$tip") || {
+    echo "admission: HEAD and the default branch have no merge base, so the change has no starting commit" >&2
+    return 1
+  }
+  entry=$(git ls-tree "$start" -- scripts/admission.sh) || {
+    echo "admission: could not list the tree of the starting commit $start" >&2
+    return 1
+  }
+  if [[ -z $entry ]]; then
+    ./scripts/admission.sh
+    return
+  fi
+  script=$(git show "$start:scripts/admission.sh") || {
+    echo "admission: could not read the admission check of the starting commit $start" >&2
+    return 1
+  }
+  [[ -n $script ]] || {
+    echo "admission: the admission check of the starting commit $start is empty" >&2
+    return 1
+  }
+  bash -c "$script" acorn-admission
+}
+if [[ "$provision_only" == 0 ]]; then
+  step 'admission of changes to the owner paths'
+  if ! admission; then
+    step 'admission refused: nothing of this change was provisioned, built or run'
+    exit 1
+  fi
+  step 'admitted'
+  [[ "$admission_only" == 0 ]] || exit 0
+fi
 
 step 'provisioning the pinned dependencies'
 (
@@ -72,10 +130,11 @@ step 'provisioned'
 # check on one list of modules, those Lake lists for the default libraries, and passes only when the
 # first finds nothing and the second finds only the deliverables its closed list names as awaiting
 # an implementation. Last, frame-check (lean/AcornTools/Frame.lean) compares each target's pin
-# file, if it has one, with the declarations the target reads in the finished build. The audit
-# and the checks run even when an earlier step fails, so one run reports all four.
-verified=0
+# file, if it has one, with the declarations the target reads in the finished build, and the
+# registration of the landed missions' statements with the record of landings. The audit and the
+# checks run even when an earlier step fails, so one run reports all four.
 step 'verification, stage one'
+verified=0
 if ./scripts/verify.sh build-executing; then
   step 'verification, stage two'
   ./scripts/verify.sh || verified=$?

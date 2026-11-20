@@ -5,6 +5,10 @@ Authors: acorn contributors
 -/
 import AcornVerif.Targets.ColumnLatch
 import AcornVerif.Targets.CurrentConcealedTargetRung
+import AcornVerif.Targets.CurrentControl
+import AcornVerif.Targets.CurrentCreditHorizon
+import AcornVerif.Targets.CurrentPreReward
+import AcornVerif.Targets.CurrentRunningMemory
 import AcornVerif.Targets.Json
 import AcornVerif.Targets.StateEntry
 
@@ -28,8 +32,14 @@ theorem that is to prove it, so `AcornVerif.Targets.StateEntry.arm_letter` is in
 
 `Landing` is the record that a target is proved: the target's name, the name of the theorem that
 proves it, and a proof of `statementOf` that name, which Lean's kernel checks. The record itself,
-`AcornVerif.landings`, is outside this directory, so that a mission's pull request adds to it and
-changes nothing here.
+`AcornVerif.landings`, is outside this directory. A mission's pull request adds to it, and the
+merge gate's frame check then fails until the landing is registered in `Landed.registered` in
+this directory, which pins the target, the theorem and the project's declarations their
+statement reads (`lean/AcornTools/Frame.lean`).
+
+The targets of missions #195, #196, #197 and #199 were registered after those missions landed,
+each with the statement of the theorem the mission names as its result, taken from the theorem
+by `type_of%`. That was decided by the agent supervising Acorn's research, on the owner's behalf.
 
 What the proofs below establish: no two targets have one name (`registry_distinct`), so the
 statement registered under each target's name is that target's statement (`statementOf_name`), and
@@ -44,7 +54,9 @@ What they do not establish:
   elaborated by the build and is no target.
 * That a mission's number is the right issue. Nothing joins it to GitHub's record.
 * That a target keeps its meaning. A target fixes its own text, and the definitions it names are
-  outside this directory: a change to one of them changes what the target says.
+  outside this directory: a change to one of them changes what the target says. The frame check
+  fails on such a change for a target with a pin file and for every target `Landed.registered`
+  registers, and for no other.
 * That a target states what its mission means. Review reads each statement.
 -/
 
@@ -67,6 +79,20 @@ def ofMission (mission : Nat) (statements : List (Lean.Name × Prop)) : List Tar
 def registry : List Target :=
   ofMission 163 [
     (``Json.parse_complete, Json.parse_complete)] ++
+  ofMission 195 [
+    (``CurrentRunningMemory.running_naturals_allowed,
+      CurrentRunningMemory.running_naturals_allowed),
+    (``CurrentRunningMemory.running_snapshot_size, CurrentRunningMemory.running_snapshot_size),
+    (``CurrentRunningMemory.running_memory_bits, CurrentRunningMemory.running_memory_bits)] ++
+  ofMission 196 [
+    (``CurrentPreReward.pre_reward_weights_zero, CurrentPreReward.pre_reward_weights_zero)] ++
+  ofMission 197 [
+    (``CurrentControl.candidates_of_gap, CurrentControl.candidates_of_gap),
+    (``CurrentControl.candidates_of_resting, CurrentControl.candidates_of_resting)] ++
+  ofMission 199 [
+    (``CurrentCreditHorizon.dormant_weight_rests, CurrentCreditHorizon.dormant_weight_rests),
+    (``CurrentCreditHorizon.candidates_read_window, CurrentCreditHorizon.candidates_read_window),
+    (``CurrentCreditHorizon.recent_weight_moves, CurrentCreditHorizon.recent_weight_moves)] ++
   ofMission 200 [
     (``StateEntry.arm_letter, StateEntry.arm_letter),
     (``StateEntry.fold_arm, StateEntry.fold_arm),

@@ -34,9 +34,12 @@ the [pull request template](.github/pull_request_template.md). Run
 `./scripts/verify.sh` from the checkout and report its actual result and
 material limits. The merge gate,
 `./scripts/gate.sh`, which the no-mistakes pipeline runs before a pull request
-opens, also requires the [Regula audit](docs/verification.md#regula-audit),
+opens, also requires the
+[admission](docs/verification.md#admission-of-changes-to-the-trusted-base) of any
+change to the trusted base, the [Regula audit](docs/verification.md#regula-audit),
 lean-intent's confirmation and implementation checks of Acorn's intent records, and
-the check that the declarations a pinned target reads are unchanged. When a pull
+the check that the declarations a pinned target reads, and the registered
+statements of landed missions with what they read, are unchanged. When a pull
 request is opened or reopened and at every push to it, from a branch of the
 repository or of a fork, GitHub runs the gate on its head commit and shows the
 job's result on the pull request. Neither the absence of a run of that job nor a
@@ -113,7 +116,10 @@ check refusing noncomputable in executing modules).
   owner's review on every pull request that changes it, and only the owner
   merges, so a change to a target is the owner's to make. A target fixes its
   own text: the definitions it names are outside the directory, and a mission
-  does not change them either. `lean/AcornVerif/Targets/Registry.lean` lists the
+  does not change them either. Once a target is proved, the frame check holds
+  the statement and the definitions it reads to the registration in
+  `lean/AcornVerif/Targets/Landed.registered`
+  ([verification](docs/verification.md#build-and-source-inventory)). `lean/AcornVerif/Targets/Registry.lean` lists the
   targets under each mission's issue number. A part of a contract that is not a statement
   to prove, such as a change to a decision's kind or the list of files a pull
   request may change, is frozen in the issue, and so is the whole contract of a
@@ -149,8 +155,10 @@ check refusing noncomputable in executing modules).
   `lean/AcornVerif/Landings.lean`: the target's name, the theorem's name and the
   theorem. The entry compiles only when the theorem proves the statement the
   registry holds under that name (`statementOf`), so Lean's kernel, not a reader,
-  decides that the target is proved. [Missions](docs/missions.md#step-5-do-the-work)
-  shows both steps.
+  decides that the target is proved. The gate then fails until the landing is
+  registered in `lean/AcornVerif/Targets/Landed.registered`, a file the owner
+  admits a change to. [Missions](docs/missions.md#step-5-do-the-work)
+  shows the steps.
 - **How to claim it:** open a pull request that closes the issue (`Closes #<id>.`
   in the description), or comment claim on the issue; a claim comment lapses
   after seven days without a pull request that passes the gate.
@@ -158,22 +166,53 @@ check refusing noncomputable in executing modules).
   mission names (such as the modules that hold its proofs in `lean/Acorn/` or
   `lean/AcornVerif/`, the decision registries `lean/Acorn/Decisions.lean` and
   `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). A mission with targets
-  also adds its entries to `lean/AcornVerif/Landings.lean`, and changes nothing
+  also adds its entries to `lean/AcornVerif/Landings.lean` and registers them in
+  `lean/AcornVerif/Targets/Landed.registered`, and changes nothing else
   under `lean/AcornVerif/Targets/` and no definition that a target names, which
   together are its contract. Files that make up
-  Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
-  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
-  and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
+  Acorn's trusted base are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
   the owner's review on every pull request that changes them, and only the
   owner's account, the one with write access, merges outside pull requests; do
   not touch them unless the mission contract explicitly requires it.
+- **Changes to the trusted base:** the gate's first step refuses a change that
+  touches a file [CODEOWNERS](.github/CODEOWNERS) names until an admission of it
+  is on record: for a pull request from your account, the owner's approving
+  review on its exact head commit; for a change the owner's agents prepare
+  under the owner's account, a record outside the change, made by the agent
+  supervising that work. Until then the gate stops at that step, and the gate
+  script provisions, builds and runs nothing of the change; no edit to the
+  change clears it. `./scripts/admission.sh describe` prints the owner paths a change
+  touches.
+  [Verification](docs/verification.md#admission-of-changes-to-the-trusted-base)
+  states both forms and what the gate cannot establish. A new
+  [departure](docs/learned-only-binding.md) is such a change and is never part
+  of a submission.
+- **A pull request that awaits admission:** any pull request from your account
+  that touches a file [CODEOWNERS](.github/CODEOWNERS) names is one. A mission
+  with targets always is, since it registers its landings in
+  `lean/AcornVerif/Targets/Landed.registered`, and so is a mission whose contract
+  names another such file. Follow [step 6 of the mission guide](docs/missions.md#step-6-run-the-gate)
+  to provision the dependencies and run the five checks. Put their results in the
+  description and open the pull request. Once the owner has approved its exact
+  head commit, run `ACORN_ADMISSION_PULL=<number> ./scripts/gate.sh` on that
+  commit, which reads the review with the GitHub CLI, and add its `gate:`
+  lines. A push after the approval needs a new approval. Whoever checks
+  another author's commit on their own machine first runs the admission check
+  from the default branch's copy, never that commit's own `gate.sh`: from a
+  checkout of the commit, with `origin` fetched from Acorn's repository,
+  `check=$(git show origin/main:scripts/admission.sh) && [ -n "$check" ] && ACORN_ADMISSION_PULL=<number> bash -c "$check" acorn-admission`.
+  The command fails when the check cannot be read or is empty, and runs nothing
+  of the commit before the check has passed.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
-  (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
+  (which first runs the admission check `scripts/admission.sh`, then
+  provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
-  audit `./scripts/regula.sh`), keep the sections of the
+  audit `./scripts/regula.sh`, lean-intent's checks and the frame check), keep the sections of the
   [pull request template](.github/pull_request_template.md), name its mission
   with `Closes #<id>.` in the description, and paste the output of
-  `./scripts/gate.sh` from the exact pull request head.
+  `./scripts/gate.sh` from the exact pull request head. A pull request that
+  awaits admission passes the gate only after the owner's review, in the
+  sequence above.
 
 ### AI-generated contributions
 
@@ -188,7 +227,7 @@ contribute.
   external claims against primary sources rather than submitting unverified
   model output, keeping within the mission's frozen contract and touched files,
   and running `./scripts/gate.sh` locally before opening or updating a pull
-  request.
+  request, or the gate's other checks where the pull request awaits admission.
 - **Credit:** squash merges keep the human contributor's Git authorship on main,
   and the pull request description credits both the human contributor and the AI
   agent or model, the agent or model on a line of the form `Agent: <name>`. The
@@ -211,8 +250,9 @@ every promise is one that an organization of one owner and its agents can keep:
   target initial response within seven days, without promising 24/7 coverage or
   a fixed merge date. Pull requests that do not name an issue or mission, omit
   the sections of the [pull request template](.github/pull_request_template.md),
-  omit a passing `./scripts/gate.sh` result, or weaken a frozen mission contract
-  may be closed on triage with a note explaining what is needed to reopen.
+  omit a passing `./scripts/gate.sh` result (for a pull request that awaits
+  admission, the results of the gate's other checks), or weaken a frozen mission
+  contract may be closed on triage with a note explaining what is needed to reopen.
 - **How a mission claim lapses:** as stated above under claiming, a contributor
   claims a mission by opening a pull request with `Closes #<id>.` or by
   commenting claim on the issue; a claim comment lapses after seven days without

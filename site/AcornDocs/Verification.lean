@@ -429,8 +429,10 @@ The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
 validates, in a checkout that holds only tracked files. GitHub runs the same
 script at each event that gives a pull request its head, within the limits
-described after the frame check below. The gate provisions the pinned dependencies,
-then runs the command twice, from cold project outputs, each run under its own
+described after the frame check below. The gate first runs the
+[admission check](#admission-of-changes-to-the-trusted-base) of the trusted base
+and ends there on a refusal. It then provisions the pinned dependencies and
+runs the command twice, from cold project outputs, each run under its own
 360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
 sources as the complete command does, then selects every module outside the proof
 library `AcornVerif` except `AcornTools.AxiomPins`, and every executable. It builds
@@ -446,8 +448,8 @@ the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
 [Regula audit](#regula-audit), then lean-intent's two checks and then the frame
-check on the same commit, each also when an earlier step failed, and passes only
-when both runs, the audit and the checks pass.
+check on the same commit, each also when an earlier of these steps failed, and
+passes only when the admission check, both runs, the audit and the checks pass.
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake
@@ -484,16 +486,44 @@ the target's text. A pin file beside it, a regular file ending in `.frame` in
 names a submission may change, the names kept and not followed, and, for every
 other declaration of the project that the target reaches through types and
 definitions, the SHA-256 digest of its printed kind, universe parameters, type and
-value. The check lists that directory and admits only regular files ending in
-`.lean` and regular files ending in `.frame`; any other entry, a subdirectory or
-a symbolic link included, fails it and is named. For each pin file it computes
+value, followed by its string literals, which Lean's printer alone does not tell
+apart after a zero byte. The check lists that directory and admits only regular files ending in
+`.lean`, regular files ending in `.frame` and the one registration file named
+below; any other entry, a subdirectory or a symbolic link included, fails it and
+is named. For each pin file it computes
 that list from the finished build and fails when a
 pinned declaration is no longer reached, has another digest, or a reached
-declaration is not pinned, naming each. With no pin file it reports that no
-target's frame is pinned and passes, so a target is pinned only once the owner
-has merged its pin file. The digest detects a change; it is no evidence of what a
-declaration means. The dependencies' declarations are not pinned here: Lake's
-manifest pins their commits.
+declaration is not pinned, naming each. An open target is pinned only once the
+owner has merged its pin file. The digest detects a change; it is no evidence of
+what a declaration means. The dependencies' declarations are not pinned here:
+Lake's manifest pins their commits, and `.github/CODEOWNERS` names the manifest.
+
+The same check registers the statements of landed missions. From the finished
+build it reads the record of landings, `AcornVerif.landings`, as the list of each
+landed target with the theorem recorded as proving it, and compares it with
+`lean/AcornVerif/Targets/Landed.registered`. That file lists those pairs and pins,
+as a pin file does and with no name left free, every declaration of the project
+that those targets and theorems reach through types and definitions. It also
+holds the SHA-256 digest of the two files that select the toolchain and the
+dependencies' commits, `lean/lean-toolchain` and `lean/lake-manifest.json`, which
+stand for the declarations outside the project that the walk does not follow.
+The check fails when the record holds no landing, when the file is missing, when
+a landing on record is not registered or a registered one is no longer on
+record, when a landing's proof is not the theorem the landing names, when one of
+the two files no longer has its registered content, and when a pinned
+declaration is no longer reached, has another digest, or a reached declaration
+is not pinned. So a change to the statement of a theorem recorded as
+proving a landed target, or to a definition of the project that the statement
+reads, fails the gate until the registration changes with it, and the
+registration is in a directory `.github/CODEOWNERS` names. A change of the
+toolchain or of a dependency's commit fails it in the same way. A theorem's
+proof is not followed, so a change to a proof alone leaves the registration as
+it is. The record is read by reducing its value with Lean's elaborator, which is
+trusted to return the names the kernel admitted. The registration does not
+establish what a statement means. The targets of the missions that landed
+before targets existed take their statements from the theorems themselves, and
+registering them was decided by the agent supervising Acorn's research, on the
+owner's behalf; the owner has not confirmed them one by one.
 
 The pipeline stores the provisioned dependency checkouts and their build outputs
 once for each default-branch commit a run starts from, and gives a run a private
@@ -661,6 +691,131 @@ first.
 Each compiler process of the build uses at most two threads, where the default
 is one for each processor; this limits how far the processes Lake runs at once
 compete for the same processors.
+
+## Admission of changes to the trusted base
+%%%
+tag := "admission-of-changes-to-the-trusted-base"
+%%%
+
+The files `.github/CODEOWNERS` names are Acorn's trusted base: the gate and
+build scripts, the Lake configurations and dependency locks, Acorn's own
+verification tools, the native primitive, the GitHub and pipeline configuration,
+the targets with their pins and registration, and the definitions that decide
+what counts as a declared departure. The gate's first step,
+`scripts/admission.sh`, refuses a change that touches one of them unless an
+admission of that change is on record outside the change. A refusal ends the
+gate script, which then provisions, builds and runs nothing of the change.
+
+What is compared. The change is compared with the commit it starts from, the
+merge base of the checked commit and the tip of the default branch of Acorn's
+own repository, which the check fetches without writing a ref. Only when that
+repository cannot be reached does it read the checkout's copy of the branch, and
+it says so. The owner paths are read from the starting commit's
+`.github/CODEOWNERS`, in a closed subset of GitHub's syntax: a rooted path of
+letters, digits, dots, underscores, hyphens and slashes, then the one owner the
+check accepts, the account that owns Acorn's repository. Any other line, another
+owner included, a missing file, a file that names no path and a file of
+3,000,000 bytes or more fail the check, where GitHub would skip a line it cannot
+read, assign no owner for a login it does not know, and not load so large a
+file. A path matches when it is a named path or lies under one, byte for byte,
+case included. The change is Git's list of the entries that differ, with rename
+detection off, so a file moved out of an owner path counts as deleted there. An
+uncommitted file under an owner path fails the check. A change that adds or
+modifies a path which is no owner path and differs from one only in letter case
+is refused too: on a file system that ignores case, Git writes both to one
+place, so the unowned file could replace the owned one in a working tree. The
+file the change proposes must itself be readable by the check and name the
+check's own files, the workflow that runs the admission job among them, so an
+admitted change cannot leave a file that every later run refuses.
+
+Which copy runs. The gate runs the copy of the script that the starting commit
+holds, and the pipeline's Test command in `.no-mistakes.yaml`, which the
+pipeline reads from the default branch, runs that copy before anything of the
+change and stops at a refusal. So a change that edits the script, the gate or
+`.github/CODEOWNERS` is checked by what it started from. Where the starting
+commit holds no copy, which is so of the change that installs the check and of
+any change that starts before it, the gate runs the change's own copy, and that
+copy requires an admission like any other.
+
+A record. For a change the owner's agents prepare, the admission is a record: a
+commit in Acorn's repository on GitHub at a ref outside every branch, named
+after the SHA-256 of what the change does to the owner paths, which is, for each
+touched path, what it held at the starting commit and what it holds after. So a
+record admits one transition and no other: not the reverse change, and not a
+different change that ends in the same content. Its message is seven lines, and
+every field takes one of the values the check holds: the form and the effect;
+the admitting role, which is the agent supervising the work for a record by
+delegation and the owner for a record of the owner's own words; the owner's
+delegation of 2026-11-20, or a link to the issue of Acorn's repository, or to
+the comment on one of its issues or pull requests, that holds the owner's words;
+and a day of the calendar. Free text in a field admits nothing. A record by
+delegation admits only a change it says keeps or tightens protection. A change
+that loosens a protection or removes a check is admitted only by a record of the
+owner's own words. The header of `scripts/admission.sh` gives the record's
+lines, and its describe mode prints a change's identity and the record's form.
+
+Who records. For a change the owner's agents prepare, the agent supervising that
+work records the admission before any of the change's own gate or provisioning
+code runs in validation. The record names the admitting role, the owner's
+delegation of 2026-11-20 and the date. It is made by an agent other than the
+change's author, after reading what the change does to the owner paths, and the
+agent that lands the change reads the record and that change again. A fix that
+changes an owner path is another transition and needs a new record.
+
+A pull request. Given a pull request's number, the check first reads its author,
+head and base from GitHub, before anything can pass: the head must be the
+checked commit and the base the default branch of Acorn's repository. A record
+admits a pull request only when its author is the owner's account. For any other
+author a record does not count: the admission is the owner's approving review on
+that exact head commit, read from GitHub's list of reviews, and the default
+branch's rule that requires a code owner's review is what enforces it at the
+merge. A run given no pull request, which is the pipeline's run before a pull
+request exists and a plain local run, cannot know the author and reads a record
+only. Whoever checks another author's commit on their own machine runs the check
+from the default branch's copy, as [contributing](../CONTRIBUTING.md) shows, and
+never that commit's own gate script.
+
+The owner's agents open pull requests under the owner's own GitHub account and
+act as the owner within what the owner has delegated to them: to prepare,
+validate and merge changes on the owner's behalf, and to admit a change to the
+trusted base that keeps or tightens protection. Loosening a protection, waiving
+or removing a check and widening access stay with the owner. The bar for the work
+itself is the same for every author.
+
+These limits are accepted risk in Acorn's trusted base. Neither GitHub nor the
+gate enforces what they leave open.
+
+One account and one signing key serve the owner and the owner's agents, so
+neither GitHub nor the gate can tell the owner's act from an agent's. An agent
+that holds the account can write a record of either form. The gate checks that a
+record exists, of which kind, and for which transition. It does not check that
+the agent who recorded it is another than the change's author, that this agent
+read the change, or that the change keeps or tightens protection: the record
+states these and review checks them. On GitHub a pull request's workflow is
+taken from the pull request, so it can drop the admission job, and the hosted
+jobs run the change's code on GitHub's runner with a read-only token whether or
+not that job refuses; what a refusal withholds is a run on a contributor's or
+maintainer's own machine and in the pipeline. The default branch's rule, a
+setting of the repository and no tracked file, is what binds a pull request from
+another account, and it cannot bind the owner's account, which cannot review its
+own pull request. A change whose starting commit predates the check carries the
+gate script of that time, so a local run of that script does not refuse it; the
+pipeline's command, read from the default branch, does. The pipeline's command
+selects the copy of the check by the default branch as the pipeline fetched it,
+and a local run that cannot reach Acorn's repository selects it, and reads the
+starting commit, by the checkout's copy of that branch, which may be stale or
+another repository's, so such a run convinces only whoever ran it. After a
+refused Test command the pipeline still lists the change's tests, and that
+listing loads the change's Lake package configurations: a refusal stops the gate
+script and what it runs, not that step of the pipeline. A local run does not see
+an ignored, untracked file under an owner path. Two changes that make the same
+transition of the owner paths share one record. The frame check requires a
+landing's proof to be the constant the landing names, which may be a definition
+whose type is the statement as well as a theorem. A mission whose contract has
+no registered target lands with no landing, so its statements are not registered
+until the owner registers targets for them. A hand-written mechanism added
+inside a module that an admitted departure already covers touches no owner path
+([learned-only binding](learned-only-binding.md)).
 
 # Regula audit
 %%%

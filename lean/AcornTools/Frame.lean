@@ -18,35 +18,60 @@ constructors, a constructor's or a recursor's type. Three kinds of name bound th
 
 - A *free* name is not followed and not part of the frame: a submission may change it.
 - A *stop* name is part of the frame, and what it names is not followed.
-- A name outside the project's own modules (`Acorn`, `AcornVerif`) is not followed and not part
-  of the frame. The dependencies' commits are pinned by Lake's manifest, which this program does
-  not read.
+- The walk skips declarations outside the project's own modules (`Acorn`, `AcornVerif`).
+  Lake's manifest pins the dependency commits. The check for landed statements compares the
+  manifest's SHA-256 digest with the one in `Landed.registered`.
 
 **A pin file** is a file `<name>.frame` under `lean/AcornVerif/Targets/`, so only a merge the
 owner makes can add or change one. It names the target, its module, the free names, the stop
 names, and for each declaration of the frame the SHA-256 digest of its printed kind, universe
-parameters, type and value (`declText`). Lines are `target`, `module`, `free`, `stop` and `pin`
+parameters, type and value, followed by its string literals (`declText`). Lines are `target`, `module`, `free`, `stop` and `pin`
 followed by their words; an empty line is skipped, and no other line is admitted.
 
-**The check** (no argument). It lists `lean/AcornVerif/Targets/` and admits two kinds of entry:
-a regular file whose name ends in `.lean` and a regular file whose name ends in `.frame`, which
-is a pin file. Any other entry, a subdirectory or a symbolic link included, fails the check and
-is named, so a pin file that is misplaced or misnamed is refused and not passed over. For each
-pin file it imports the module, computes the frame and compares it with the pinned one as a set
-of names with digests. A declaration pinned and no longer reached, reached and not pinned, or
-with another digest fails the check, and each is printed. With no pin file it says so and
-passes: a target without a pin file is not pinned.
+**The registration of landed statements** is the file `Landed.registered` in the same
+directory. A landing is an entry of `AcornVerif.landings`: a target with the theorem recorded as
+proving it. The registration has a `landing` line for each landing, the target's name and the
+theorem's, a `lock` line for each of the package's two lock files, `lean-toolchain` and
+`lake-manifest.json`, with the digest of its content, and a `pin` line for each declaration of
+one frame: the walk above from every landed target and every such theorem, with no free and no
+stop name. The landings are read from the build, by reducing the value of `AcornVerif.landings`
+to its entries, so no list of names is kept in this program, and an entry whose proof is not
+the theorem it names is refused. A theorem's proof is not followed. The walk stops at
+declarations outside the project, and the lock lines stand for those: a change of toolchain or
+of a dependency's commit changes a lock file, and so fails the check until the registration is
+made again.
 
-**Printing a pin file** (`print <module> <target> [free <name>]... [stop <name>]...`) writes
-the pin file's text for those names to standard output.
+**The check** (no argument). It lists `lean/AcornVerif/Targets/` and admits three kinds of
+entry: a regular file whose name ends in `.lean`, a regular file whose name ends in `.frame`,
+which is a pin file, and the regular file `Landed.registered`. Any other entry, a subdirectory
+or a symbolic link included, fails the check and is named, so a file that is misplaced or
+misnamed is refused and not passed over.
+
+- For the registration it imports the module of the record, reads the landings and computes
+  their frame. It fails when the record holds no landing, when the file is missing, when a
+  landing on record is not registered, when a registered landing is no longer on record, when
+  a lock file's content is not the registered one, and when the frame differs from the pinned
+  one. So a pass never comes from finding nothing to
+  register.
+- For each pin file it imports the module, computes the frame and compares it with the pinned
+  one. With no pin file it says so: an open target without a pin file is not pinned.
+
+Frames are compared as sets of printed names with digests. A declaration pinned and no longer
+reached, reached and not pinned, or with another digest fails the check, and each is printed.
+
+**Printing** (`print <module> <target> [free <name>]... [stop <name>]...`) writes a pin file's
+text for those names to standard output, and `print-landed` writes the registration's text for
+the landings the build has on record.
 
 What a pass means: every declaration the walk reaches prints to the text it printed when the
-file was made. It does not say what those declarations mean, that the free names were well
-chosen, or that the dependencies are unchanged. The digest is a detector of change. It is taken
-with this file's own SHA-256, which each run checks against three published test vectors before
-it reads anything. The vectors show that the empty message, a message of one block and a
-message of two blocks digest as published, and no more: they do not show that an implementation
-meeting them is SHA-256, or that it detects every change.
+file was made, the landings on record are the registered ones, each landing's proof is the
+theorem it names, and the two lock files hold the registered content. It does not say what those
+declarations mean or that the free names were well chosen. Reading the record trusts Lean's
+elaborator to reduce the list to the names the kernel admitted. The digest is a detector of
+change. It is taken with this file's own SHA-256, which each run checks against three published
+test vectors before it reads anything. The vectors show that the empty message, a message of one
+block and a message of two blocks digest as published, and no more: they do not show that an
+implementation meeting them is SHA-256, or that it detects every change.
 -/
 
 namespace AcornFrameCheck
@@ -169,8 +194,30 @@ def named (info : ConstantInfo) : Array Name :=
   | .inductInfo value => inType ++ value.ctors.toArray
   | _ => inType
 
+/-- The string literals an expression holds, in the order of a walk over its whole tree. -/
+partial def literals (expr : Expr) (found : Array String) : Array String :=
+  match expr with
+  | .lit (.strVal text) => found.push text
+  | .app function argument => literals argument (literals function found)
+  | .lam _ domain body _ => literals body (literals domain found)
+  | .forallE _ domain body _ => literals body (literals domain found)
+  | .letE _ type value body _ => literals body (literals value (literals type found))
+  | .mdata _ body => literals body found
+  | .proj _ _ body => literals body found
+  | _ => found
+
+/-- String literals written so that the list can be read back: each as the number of bytes of
+its UTF-8 form, a colon and the literal itself. -/
+def literalText (found : Array String) : String :=
+  String.join (found.toList.map fun text => s!"{text.utf8ByteSize}:{text}")
+
 /-- The printed text of a declaration that its digest is taken of: its kind, its universe
-parameters, its type, and a definition's value or an inductive type's constructors. -/
+parameters, its type, a definition's value or an inductive type's constructors, and then every
+string literal of the type and the value in the order they occur. Lean's printer of
+expressions, `Expr.dbgToString`, writes a string literal as a C string, which ends at the
+literal's first zero byte (Lean v4.35.0, `src/library/print.cpp`, the case of a string
+literal), so two literals that agree up to a zero byte print alike. The list of literals after
+the printed text tells them apart. -/
 def declText (info : ConstantInfo) : String :=
   let kind := match info with
     | .defnInfo _ => "def"
@@ -186,15 +233,20 @@ def declText (info : ConstantInfo) : String :=
     | .opaqueInfo value => value.value.dbgToString
     | .inductInfo value => toString value.ctors
     | _ => ""
-  s!"{kind}\n{info.levelParams}\n{info.type.dbgToString}\n{body}"
+  let inValue := match info with
+    | .defnInfo value => literals value.value #[]
+    | .opaqueInfo value => literals value.value #[]
+    | _ => #[]
+  s!"{kind}\n{info.levelParams}\n{info.type.dbgToString}\n{body}\n\
+    {literalText (literals info.type #[] ++ inValue)}"
 
-/-- The frame of a target: every owned constant the walk reaches, with its digest. A free name
-is left out and not followed; a stop name is kept and not followed. -/
-partial def frame (env : Environment) (free stop : NameSet) (target : Name) :
+/-- The frame of some roots: every owned constant the walk reaches from any of them, with its
+digest. A free name is left out and not followed; a stop name is kept and not followed. -/
+partial def frame (env : Environment) (free stop : NameSet) (roots : Array Name) :
     Std.HashMap Name String := Id.run do
   let mut pinned : Std.HashMap Name String := {}
   let mut seen : NameSet := {}
-  let mut work : Array Name := #[target]
+  let mut work : Array Name := roots
   while h : 0 < work.size do
     let name := work[work.size - 1]
     work := work.pop
@@ -206,6 +258,47 @@ partial def frame (env : Environment) (free stop : NameSet) (target : Name) :
     unless stop.contains name do
       work := work ++ named info
   return pinned
+
+/-- A frame as it is written and compared: each declaration's printed name with its digest, in
+the order of the names. A pin holds printed names, and reading one back as a name would not
+return every name (a private declaration's name has a numeric component), so frames are compared
+as printed. Two declarations that print alike are refused, since one line could not pin both. -/
+def printed (computed : Std.HashMap Name String) : Except String (Array (String × String)) := do
+  let entries := (computed.toArray.map fun entry => (entry.1.toString, entry.2)).qsort
+    fun left right => left.1 < right.1
+  for index in [1:entries.size] do
+    if entries[index - 1]!.1 == entries[index]!.1 then
+      throw s!"two declarations of the frame print as {entries[index]!.1}"
+  for (name, _) in entries do
+    if name.any fun character => character == ' ' || character == '\n' then
+      throw s!"a declaration of the frame prints with a space or a line break: {name}"
+  return entries
+
+/-- Compare pinned declarations with a frame the build has. Prints each difference under
+`label` and returns whether there is none. -/
+def compare (label : String) (pins now : Array (String × String)) : IO Bool := do
+  let mut same := true
+  let current : Std.HashMap String String :=
+    now.foldl (fun map entry => map.insert entry.1 entry.2) {}
+  let mut pinned : Std.HashSet String := {}
+  for (name, digest) in pins do
+    if pinned.contains name then
+      same := false
+      IO.println s!"frame: {label}: {name} is pinned twice"
+    pinned := pinned.insert name
+    match current[name]? with
+    | none =>
+      same := false
+      IO.println s!"frame: {label}: {name} is pinned and no longer part of the frame"
+    | some digestNow =>
+      unless digestNow == digest do
+        same := false
+        IO.println s!"frame: {label}: {name} has changed"
+  for (name, _) in now do
+    unless pinned.contains name do
+      same := false
+      IO.println s!"frame: {label}: {name} is part of the frame and not pinned"
+  return same
 
 /-! ## Pin files -/
 
@@ -219,12 +312,12 @@ structure Pin where
   free : Array Name := #[]
   /-- Names kept in the frame and not followed. -/
   stop : Array Name := #[]
-  /-- The frame: each declaration with its digest. -/
-  pins : Array (Name × String) := #[]
+  /-- The frame: each declaration's printed name with its digest. -/
+  pins : Array (String × String) := #[]
 
 /-- A pin file's text, one statement a line, the declarations in the order of their names. -/
 def Pin.text (pin : Pin) : String :=
-  let sorted := pin.pins.qsort fun left right => left.1.toString < right.1.toString
+  let sorted := pin.pins.qsort fun left right => left.1 < right.1
   String.intercalate "\n"
     ([s!"target {pin.target}", s!"module {pin.home}"] ++
       pin.free.toList.map (s!"free {·}") ++ pin.stop.toList.map (s!"stop {·}") ++
@@ -246,7 +339,7 @@ def Pin.parse (text : String) : Except String Pin := do
       home := some name.toName
     | ["free", name] => pin := { pin with free := pin.free.push name.toName }
     | ["stop", name] => pin := { pin with stop := pin.stop.push name.toName }
-    | ["pin", digest, name] => pin := { pin with pins := pin.pins.push (name.toName, digest) }
+    | ["pin", digest, name] => pin := { pin with pins := pin.pins.push (name, digest) }
     | _ => throw s!"a line that is none of the five statements: {line}"
   match target, home with
   | some found, some declaring => return { pin with target := found, home := declaring }
@@ -254,11 +347,13 @@ def Pin.parse (text : String) : Except String Pin := do
 
 /-- The frame of a pin's target, in the environment of its module. An unknown target is
 refused. -/
-def computed (pin : Pin) : IO (Std.HashMap Name String) := do
+def computed (pin : Pin) : IO (Array (String × String)) := do
   let env ← importModules #[{ module := pin.home }] {}
   unless (env.find? pin.target).isSome do
     throw (IO.userError s!"{pin.home} declares no {pin.target}")
-  return frame env (pin.free.foldl (·.insert ·) {}) (pin.stop.foldl (·.insert ·) {}) pin.target
+  IO.ofExcept ((printed (frame env (pin.free.foldl (·.insert ·) {})
+    (pin.stop.foldl (·.insert ·) {}) #[pin.target])).mapError
+      fun error => IO.userError s!"{pin.target}: {error}")
 
 /-- Compare a pin file with the frame the build has. Prints each difference and returns whether
 there is none. -/
@@ -266,41 +361,175 @@ def verify (file : System.FilePath) : IO Bool := do
   let pin ← IO.ofExcept ((Pin.parse (← IO.FS.readFile file)).mapError
     fun error => IO.userError s!"{file}: {error}")
   let now ← computed pin
-  let mut same := true
-  let mut pinned : NameSet := {}
-  for (name, digest) in pin.pins do
-    pinned := pinned.insert name
-    match now[name]? with
-    | none =>
-      same := false
-      IO.println s!"frame: {pin.target}: {name} is pinned and no longer part of the frame"
-    | some current =>
-      unless current == digest do
-        same := false
-        IO.println s!"frame: {pin.target}: {name} has changed"
-  for (name, _) in now.toArray.qsort (fun left right => left.1.toString < right.1.toString) do
-    unless pinned.contains name do
-      same := false
-      IO.println s!"frame: {pin.target}: {name} is part of the frame and not pinned"
+  let same ← compare (toString pin.target) pin.pins now
   let verdict := if same then "unchanged" else "CHANGED"
   IO.println s!"frame: {pin.target}: {pin.pins.size} declarations pinned by {file}, \
     {now.size} in the frame, {verdict}"
   return same
 
-/-- The pin files: the regular files ending in `.frame` in `AcornVerif/Targets`, the directory
-of the package that only the owner's merges change. The directory admits those and regular
+/-! ## The statements of landed missions -/
+
+/-- The module that holds the record of landings. -/
+def landingsModule : Name := `AcornVerif.Landings
+
+/-- The name of the registration file in `AcornVerif/Targets`. -/
+def registrationName : String := "Landed.registered"
+
+/-- The entries of a list of landings, each as its target's name and its theorem's name, read
+from a term by reducing it: the list to its constructors, each entry to the constructor of
+`AcornVerif.Targets.Landing`, and each name to a name. A term of any other shape is refused,
+and so is an entry whose proof is not the constant its theorem's name names, at whatever
+universes: the name a landing records is then the declaration that proves its target, which the
+kernel checked against the target's statement when it admitted the entry. -/
+partial def landingEntries (list : Expr) (found : Array (Name × Name)) :
+    MetaM (Array (Name × Name)) := do
+  let list ← Meta.whnf list
+  match list.getAppFnArgs with
+  | (``List.nil, _) => return found
+  | (``List.cons, #[_, head, tail]) =>
+    let head ← Meta.whnf head
+    match head.getAppFnArgs with
+    | (`AcornVerif.Targets.Landing.mk, #[target, proved, proof]) =>
+      let target : Name ← Meta.reduceEval target
+      let proved : Name ← Meta.reduceEval proved
+      unless proof.consumeMData.isConstOf proved do
+        throwError "the landing of {target} names {proved} as its theorem, and its proof is \
+          another term: {proof}"
+      landingEntries tail (found.push (target, proved))
+    | _ => throwError "an entry of the record of landings is no application of Landing.mk: {head}"
+  | _ => throwError "the record of landings does not reduce to a list: {list}"
+
+/-- The landings on record: the entries of `AcornVerif.landings` as the build's environment
+holds it. The definition's value is read, so no list of names is kept here. -/
+def landedOnRecord (env : Environment) : IO (Array (Name × Name)) := do
+  unless (env.find? `AcornVerif.landings).isSome do
+    throw (IO.userError s!"{landingsModule} declares no AcornVerif.landings")
+  let (found, _, _) ← (landingEntries (mkConst `AcornVerif.landings) #[]).toIO
+    { fileName := "<frame-check>", fileMap := default } { env }
+  return found
+
+/-- The files whose content selects the toolchain and the dependencies' commits, relative to the
+package directory. The frame stops at declarations outside the project, so the registration
+binds these files instead: what a pinned declaration calls in Lean or a dependency can change
+only with one of them. -/
+def lockFiles : Array String := #["lean-toolchain", "lake-manifest.json"]
+
+/-- The registration's content: the landings whose statements are registered, each a target's
+printed name with its theorem's, the digests of the lock files, and the frame of all the
+landings. -/
+structure Registration where
+  /-- Each registered landing: the target's printed name and the theorem's. -/
+  landings : Array (String × String) := #[]
+  /-- Each lock file's path with the SHA-256 digest of its content. -/
+  locks : Array (String × String) := #[]
+  /-- The frame: each declaration's printed name with its digest. -/
+  pins : Array (String × String) := #[]
+
+/-- The registration's text: a `landing` line for each landing in the order of the targets'
+names, a `lock` line for each lock file in the order of their paths, then a `pin` line for each
+declaration in the order of their names. -/
+def Registration.text (registration : Registration) : String :=
+  let landings := registration.landings.qsort fun left right => left.1 < right.1
+  let locks := registration.locks.qsort fun left right => left.1 < right.1
+  let pins := registration.pins.qsort fun left right => left.1 < right.1
+  String.intercalate "\n"
+    (landings.toList.map (fun entry => s!"landing {entry.1} {entry.2}") ++
+      locks.toList.map (fun entry => s!"lock {entry.2} {entry.1}") ++
+      pins.toList.map (fun entry => s!"pin {entry.2} {entry.1}")) ++ "\n"
+
+/-- Read a registration's text. Every line must be a `landing`, a `lock` or a `pin`
+statement. -/
+def Registration.parse (text : String) : Except String Registration := do
+  let mut registration : Registration := {}
+  for line in (text.splitOn "\n").filter (!·.isEmpty) do
+    match line.splitOn " " with
+    | ["landing", target, proved] =>
+      registration := { registration with landings := registration.landings.push (target, proved) }
+    | ["lock", digest, path] =>
+      registration := { registration with locks := registration.locks.push (path, digest) }
+    | ["pin", digest, name] =>
+      registration := { registration with pins := registration.pins.push (name, digest) }
+    | _ => throw s!"a line that is neither a landing, a lock nor a pin: {line}"
+  return registration
+
+/-- What the build has to register: the landings on record, which must be some, and the frame
+whose roots are every landed target and every theorem recorded as proving one, with no free and
+no stop name. A target or a theorem that the build does not declare is refused. -/
+def landedNow : IO Registration := do
+  let env ← importModules #[{ module := landingsModule }] {}
+  let record ← landedOnRecord env
+  if record.isEmpty then
+    throw (IO.userError "AcornVerif.landings records no landing, so no statement of a landed \
+      mission would be registered")
+  let mut roots : Array Name := #[]
+  for (target, proved) in record do
+    for root in [target, proved] do
+      unless (env.find? root).isSome do
+        throw (IO.userError s!"the record of landings names {root}, which the build does not \
+          declare")
+      roots := roots.push root
+  let pins ← IO.ofExcept ((printed (frame env {} {} roots)).mapError IO.userError)
+  let mut locks : Array (String × String) := #[]
+  for path in lockFiles do
+    locks := locks.push (path, sha256 (← IO.FS.readFile path))
+  return { landings := record.map fun entry => (entry.1.toString, entry.2.toString), locks, pins }
+
+/-- Compare the registration with what the build has: the registered landings with the landings
+on record, as sets, and the registered frame with the frame of those landings. Prints each
+difference and returns whether there is none. -/
+def verifyLanded (file : System.FilePath) : IO Bool := do
+  let now ← landedNow
+  let registered ← IO.ofExcept ((Registration.parse (← IO.FS.readFile file)).mapError
+    fun error => IO.userError s!"{file}: {error}")
+  let mut same := true
+  for entry in now.landings do
+    unless registered.landings.contains entry do
+      same := false
+      IO.println s!"frame: landed: {entry.1} is on record as proved by {entry.2} and that is \
+        not registered"
+  for entry in registered.landings do
+    unless now.landings.contains entry do
+      same := false
+      IO.println s!"frame: landed: {entry.1} is registered as proved by {entry.2} and that is \
+        no longer on record"
+  unless registered.landings.size == now.landings.size do
+    same := false
+    IO.println s!"frame: landed: {registered.landings.size} landings are registered and \
+      {now.landings.size} are on record"
+  for entry in now.locks do
+    unless registered.locks.contains entry do
+      same := false
+      IO.println s!"frame: landed: {entry.1} is not registered with its present content, so \
+        the toolchain or a dependency may differ from the registered one"
+  unless registered.locks.size == now.locks.size do
+    same := false
+    IO.println s!"frame: landed: {registered.locks.size} lock files are registered and \
+      {now.locks.size} are read"
+  unless ← compare "landed" registered.pins now.pins do same := false
+  let verdict := if same then "unchanged" else "CHANGED"
+  IO.println s!"frame: landed: {registered.landings.size} landings registered by {file}, \
+    {now.landings.size} on record, {registered.locks.size} lock files, \
+    {registered.pins.size} declarations pinned, {now.pins.size} in the frame, {verdict}"
+  return same
+
+/-- The pin files and the registration: the regular files ending in `.frame` in
+`AcornVerif/Targets`, the directory of the package that only the owner's merges change, and
+whether it holds the regular file `Landed.registered`. The directory admits those and regular
 files ending in `.lean`; any other entry is refused by name. -/
-def pinFiles : IO (Array System.FilePath) := do
+def pinFiles : IO (Array System.FilePath × Option System.FilePath) := do
   let directory : System.FilePath := "AcornVerif" / "Targets"
   let mut files : Array System.FilePath := #[]
+  let mut registration : Option System.FilePath := none
   for entry in ← directory.readDir do
     let regular := (← entry.path.symlinkMetadata).type == .file
     if regular && entry.fileName.endsWith ".frame" then
       files := files.push entry.path
+    else if regular && entry.fileName == registrationName then
+      registration := some entry.path
     else unless regular && entry.fileName.endsWith ".lean" do
-      throw (IO.userError s!"{entry.path} is neither a regular file ending in .lean nor a \
-        regular file ending in .frame")
-  return files.qsort (·.toString < ·.toString)
+      throw (IO.userError s!"{entry.path} is neither a regular file ending in .lean, a \
+        regular file ending in .frame nor the regular file {registrationName}")
+  return (files.qsort (·.toString < ·.toString), registration)
 
 /-- The names that follow a keyword in the arguments of `print`. -/
 def namesAfter (keyword : String) : List String → Array Name
@@ -308,7 +537,7 @@ def namesAfter (keyword : String) : List String → Array Name
     (if key == keyword then #[name.toName] else #[]) ++ namesAfter keyword rest
   | _ => #[]
 
-/-- Check every pin file against the finished build, or print a pin file. -/
+/-- Check the registration and every pin file against the finished build, or print one. -/
 def run (args : List String) : IO UInt32 := do
   unless vectorsHold do
     IO.eprintln "frame-check: this program's SHA-256 does not meet its test vectors"
@@ -317,18 +546,28 @@ def run (args : List String) : IO UInt32 := do
     initSearchPath (← findSysroot)
     match args with
     | [] =>
-      let files ← pinFiles
-      if files.isEmpty then
-        IO.println "frame: no pin file under AcornVerif/Targets, so no target's frame is pinned"
-        return 0
+      let (files, registration) ← pinFiles
       let mut same := true
+      match registration with
+      | some file => unless ← verifyLanded file do same := false
+      | none =>
+        same := false
+        IO.println s!"frame: landed: AcornVerif/Targets holds no {registrationName}, so the \
+          statements of landed missions are not registered"
+      if files.isEmpty then
+        IO.println "frame: no pin file under AcornVerif/Targets, so no open target's frame is \
+          pinned"
       for file in files do
         unless ← verify file do same := false
       if same then
-        IO.println s!"frame: every pinned frame is unchanged ({files.size} pin files)"
+        IO.println s!"frame: the registration of landed statements and every pinned frame are \
+          unchanged ({files.size} pin files)"
         return 0
-      IO.println "frame: a pinned frame has changed"
+      IO.println "frame: a registered or pinned frame has changed"
       return 1
+    | ["print-landed"] =>
+      IO.print (← landedNow).text
+      return 0
     | "print" :: declaring :: target :: rest =>
       unless rest.length % 2 == 0 && rest.zipIdx.all (fun (word, index) =>
           index % 2 == 1 || word == "free" || word == "stop") do
@@ -337,11 +576,12 @@ def run (args : List String) : IO UInt32 := do
       let pin : Pin :=
         ⟨target.toName, declaring.toName, namesAfter "free" rest, namesAfter "stop" rest, #[]⟩
       let now ← computed pin
-      let filled : Pin := ⟨pin.target, pin.home, pin.free, pin.stop, now.toArray⟩
+      let filled : Pin := ⟨pin.target, pin.home, pin.free, pin.stop, now⟩
       IO.print filled.text
       return 0
     | _ =>
-      IO.eprintln "usage: frame-check [print <module> <target> [free <name>]... [stop <name>]...]"
+      IO.eprintln "usage: frame-check [print-landed | print <module> <target> [free <name>]... \
+        [stop <name>]...]"
       return 2
   catch error =>
     IO.eprintln s!"frame-check: {error}"
@@ -349,6 +589,6 @@ def run (args : List String) : IO UInt32 := do
 
 end AcornFrameCheck
 
-/-- Check every pin file against the finished build, or print a pin file. -/
+/-- Check the registration and every pin file against the finished build, or print one. -/
 def main (args : List String) : IO UInt32 :=
   AcornFrameCheck.run args

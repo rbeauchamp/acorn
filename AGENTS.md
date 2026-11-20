@@ -66,6 +66,9 @@ specification and restate it as what the algorithm must maintain, as
 ## Learned-only and research admission
 
 Every hand-authored action-path bias requires its actual departure declaration.
+Admitting a departure is the owner's and is its own change, never part of a
+submission. A declared departure is no evidence of learning: nothing it supplies
+is credited to what the agent learned.
 Review checks each provenance declaration against the producing code. Source and
 compiled ownership enforce the learned/host/handcrafted boundary and explicit
 composition roots. The viewer observes telemetry and sends lifecycle stop only;
@@ -127,9 +130,11 @@ Then run the complete command in the actual Git checkout:
 
 Sign commits and preserve license notices. The merge gate, `./scripts/gate.sh`,
 which the no-mistakes pipeline runs on the exact proposed head before a pull
-request opens, runs the same command and, outside that deadline, the Regula
+request opens, runs the same command and, outside that deadline, the admission
+check of the trusted base (`scripts/admission.sh`), the Regula
 audit `./scripts/regula.sh`, lean-intent's confirmation and implementation
 checks (`lean/AcornTools/Intent.lean`) and the check of each target's pinned frame
+and of the registered statements of landed missions
 (`lean/AcornTools/Frame.lean`); GitHub runs the same checks on a pull request's
 head commit when it is opened or reopened and at every push to it
 (`.github/workflows/verify.yml`). Resolve required checks,
