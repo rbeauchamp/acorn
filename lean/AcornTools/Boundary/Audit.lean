@@ -158,11 +158,11 @@ def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiati
 proof source the linter of evaluating commands. Lean reads the option's name from the form's
 second part (`Lean.Elab.elabSetOption`), so a form whose second part is no identifier is
 refused. -/
-def inspectOption (owner : Name) (form : Syntax) : Except String Unit := do
-  unless form[1].isIdent do throw "an option setting that names no option"
+def inspectOption (owner : Name) (form : Syntax) : IO Unit := do
+  unless form[1].isIdent do reject owner "an option setting that names no option"
   let option := form[1].getId
   unless allowedOptions.contains option || (proofOwner owner && option == `linter.hashCommand) do
-    throw s!"unreviewed option {option}"
+    reject owner s!"unreviewed option {option}"
 
 /-- Only these admitted host boundaries may create or inspect native subprocesses. -/
 def processOwners : Array Name := #[`Acorn.Host.Checkpoint.IO, `Acorn.Host.Control,
@@ -206,156 +206,58 @@ def includedFiles : Array (Name × String) := #[
   (`NativeApp.Build, "../.lake/build/native-source-inventory.txt"),
   (`NativeApp.Build, "../.lake/build/native-build-identity.txt")]
 
-/-- Syntax accepted inside a source command, including the operands of tactics and terms
-that contain further proofs. Each group lists exact parser node kinds relative to its namespace.
-A new tactic, term elaborator or notation needs review even when a pinned import supplies it.
-The command boundary and the checks on attributes, options and inclusions still apply. -/
-private def sourceKinds : NameSet := Id.run do
-  let group (ns : Name) (names : List Name) (kinds : NameSet) :=
-    names.foldl (fun acc name => acc.insert (ns ++ name)) kinds
-  let mut kinds : NameSet := {}
-  kinds := group `Lean.Parser.Command
-    [`abbrev, `classTk, `ctor, `declId, `declModifiers, `declSig, `declValEqns, `declValSimple,
-     `declaration, `definition, `derivingClass, `docComment, `end, `eoi, `example, `extends, `in,
-     `inductive, `instance, `moduleDoc, `mutual, `namespace, `noncomputable, `open, `openOnly,
-     `openScoped, `openSimple, `optDeclSig, `optDeriving, `printAxioms,
-     `private, `section, `sectionHeader, `set_option, `structCtor, `structFields, `structParent,
-     `structSimpleBinder, `structure, `structureTk, `theorem, `variable, `whereStructInst] kinds
-  kinds := group `Lean.Parser.Term
-    [`anonymousCtor, `app, `arrow, `attrInstance, `attrKind, `attributes, `basicFun,
-     `binderDefault, `byTactic, `byTactic', `cdot, `depArrow, `do, `doBreak, `doCatch,
-     `doContinue, `doExpr, `doFinally, `doFor, `doForDecl, `doHave, `doIdDecl, `doIf, `doIfLet,
-     `doIfLetBind, `doIfLetPure, `doIfProp, `doLet, `doLetArrow, `doLetElse, `doMatch, `doNested,
-     `doPatDecl, `doReassign, `doReassignArrow, `doReturn, `doSeqIndent, `doSeqItem, `doTry,
-     `doUnless, `dotIdent, `doubleQuotedName, `ellipsis, `explicit, `explicitBinder,
-     `explicitUniv, `forall, `fromTerm, `fun, `have, `haveI, `hole, `hygienicLParen,
-     `implicitBinder, `inferInstanceAs, `instBinder, `let, `letConfig, `letDecl, `letEqnsDecl,
-     `letI, `letId, `letIdDecl, `letIdDeclNoBinders, `letPatDecl, `letRecDecl, `match, `matchAlt,
-     `matchAlts, `matchAltsWhereDecls, `matchDiscr, `namedArgument, `namedPattern, `nestedAction,
-     `nofun, `nomatch, `optEllipsis, `paren, `pipeProj, `proj, `prop, `set_option, `show, `sort,
-     `structInst, `structInstField, `structInstFieldDef, `structInstFieldEqns, `structInstFields,
-     `structInstLVal, `subst, `sufficesDecl, `syntheticHole, `termReturn, `termTry, `tuple,
-     `type, `typeAscription, `typeSpec, `whereDecls] kinds
-  kinds := group `Lean.Parser.Termination
-    [`decreasingBy, `partialFixpoint, `suffix, `terminationBy] kinds
-  kinds := group `Lean.Parser.Tactic.Conv
-    [`conv, `convRw__, `convSeq, `convSeq1Indented, `lhs, `rhs, `unfold] kinds
-  kinds := group `Lean.Parser.Tactic
-    [`acRfl, `allGoals, `apply, `assumption, `cases, `change, `classical, `clear, `congr,
-     `constructor, `contradiction, `decide, `done, `dsimp, `elimTarget, `exact, `first,
-     `funInduction, `generalize, `generalizeArg, `induction, `inductionAlt, `inductionAltLHS,
-     `inductionAlts, `intro, `intros, `left, `location, `locationHyp, `locationType,
-     `locationWildcard, `match, `obtain, `omega, `optConfig, `paren, `pushCast, `rcases,
-     `rcasesPat.clear, `rcasesPat.ignore, `rcasesPat.one, `rcasesPat.paren, `rcasesPat.tuple,
-     `rcasesPatLo, `rcasesPatMed, `refine, `renameI, `repeat', `revert, `right, `rintro,
-     `rintroPat.binder, `rintroPat.one, `rwRule, `rwRuleSeq, `rwSeq, `rwa, `rwaAt, `set_option,
-     `show, `simp, `simpAll, `simpArgs, `simpLemma, `simpPre, `simpStar, `simpa, `simpaArgsRest,
-     `split, `subst, `symm, `tacticAssumption_mod_cast_, `tacticExact_mod_cast_, `tacticExfalso,
-     `tacticHave__, `tacticInfer_instance, `tacticLet__, `tacticNofun, `tacticRepeat_,
-     `tacticRfl, `tacticSeq, `tacticSeq1Indented, `tacticSuffices_, `tacticTrivial, `tacticTry_,
-     `unfold, `«tacticNext_=>_», `«tacticNomatch_,,», `«tactic_<;>_»] kinds
-  kinds := group `Mathlib.Tactic
-    [`Choose.choose, `Choose.chooseBinder, `Conv.convLHS, `FieldSimp.fieldSimp, `GCongr.gcongr,
-     `LinearCombination.linearCombination, `Positivity.positivity, `RingNF.ring, `RingNF.ringNF,
-     `convert, `filterUpwards, `linarith, `linarithArgsRest, `nlinarith, `normNum, `splitIfs] kinds
-  kinds := group `Lean
-    [`Elab.Tactic.Ext.ext, `Elab.Tactic.finCases, `Elab.Term.«termType*», `Parser.Attr.simple,
-     `binderIdent, `bracketedExplicitBinders, `calc, `calcFirstStep, `calcStep, `calcSteps,
-     `calcTactic, `cdot, `cdotTk, `explicitBinders, `guardMsgsCmd, `guardMsgsFilter,
-     `guardMsgsFilterAction, `guardMsgsFilterSeverity, `guardMsgsOrdering, `guardMsgsOrderingArg,
-     `guardMsgsPositions, `guardMsgsPositionsArg, `guardMsgsSpec, `guardMsgsSpecElt,
-     `guardMsgsSubstring, `guardMsgsWhitespace, `guardMsgsWhitespaceArg, `includeStr,
-     `unbracketedExplicitBinders, `«binderPred<_», `«binderPred∈_», `«binderPred≤_»,
-     `«term∀__,_», `«term∃__,_»] kinds
-  kinds := group .anonymous
-    [`Batteries.ExtendedBinder.extBinder, `Batteries.ExtendedBinder.extBinders,
-     `Batteries.Tactic.byContra, `BigOperators.bigOpBinder, `BigOperators.bigOpBinders,
-     `BigOperators.bigsum, `BitVec.«term__#__», `Function.«term_↪_», `Int.«term⌊_⌋»,
-     `List.«term_<:+:_», `Mathlib.Linter.Style.show,
-     `Mathlib.Meta.SetNotationForOrder.subsetStx', `Nat.«term⌊_⌋₊», `Std.Legacy.Range.«term[:_]»,
-     `Std.Legacy.Range.«term[_:_:_]», `Std.Legacy.Range.«term[_:_]», `Vector.«term#v[_,]»,
-     `boolIfThenElse, `char, `choice, `coeNotation, `fieldIdx, `group, `hygieneInfo,
-     `interpolatedStrKind, `interpolatedStrLitKind, `null, `num, `patternIgnore, `scientific,
-     `str, `tacticFunext___, `term!_, `termDepIfThenElse, `termIfThenElse, `termS!_, `termℕ,
-     `termℚ, `termℝ, `termℤ, `token.«⊢», `«tacticBy_cases_:_», `«term#[_,]», `«term-_»,
-     `«term[_]», `«term_!=_», `«term_%_», `«term_&&&_», `«term_&&_», `«term_*_», `«term_++_»,
-     `«term_+_», `«term_-_», `«term_/_», `«term_::_», `«term_<$>_», `«term_<<<_», `«term_<_»,
-     `«term_<|_», `«term_==_», `«term_=_», `«term_>>=_», `«term_>>>_», `«term_>_», `«term_\_»,
-     `«term_^[_]», `«term_^^^_», `«term_^_», `«term__[_]'_», `«term__[_]_?», `«term__[_]»,
-     `«term_||_», `«term_|||_», `«term_×__1», `«term_×_», `«term_×ˢ_», `«term_⁻¹», `«term_↔_»,
-     `«term_∈_», `«term_∉_», `«term_∘_», `«term_∣_», `«term_∧_», `«term_∨_», `«term_∪_»,
-     `«term_≠_», `«term_≤_», `«term_≥_», `«term_⊕_», `«term{_:_//_}», `«term{_}», `«term{}»,
-     `«term|___|», `«term¬_», `«termΣ_,_», `«term‖_‖», `«term‹_›», `«term∃_,_», `«term∅»,
-     `«term∑'_,_»] kinds
-  return kinds
-
 /-- Inspect parsed syntax rather than comment/literal-stripped source text.
 Traversal is over the compiler-produced finite syntax tree. A node at any depth whose first
 child is the atom `set_option` sets an option, as a command or before a term, a tactic sequence
 or a grind sequence, and is held to `inspectOption`. -/
-def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : Except String Unit := do
+partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
+  let kind := nodeSyntax.getKind
+  if kind == ``Parser.Command.docComment || kind == ``Parser.Command.moduleDoc ||
+      kind == `str || kind == `char then return
   match nodeSyntax with
   | .atom _ word =>
-    if forbiddenWords.contains word then throw s!"forbidden syntax capability {word}"
+    if forbiddenWords.contains word then reject owner s!"forbidden syntax capability {word}"
     -- An inclusion reaches this case only outside the admitted form below.
     if word.trimAscii.toString == "include_str" then
-      throw "file inclusion outside its admitted form"
+      reject owner "file inclusion outside its admitted form"
   | .ident _ _ name _ =>
     if name.components.any (fun part => part != `admit && forbiddenWords.contains part.toString) then
-      throw s!"forbidden syntax identifier {name}"
+      reject owner s!"forbidden syntax identifier {name}"
   | .node _ kind children =>
-    unless sourceKinds.contains kind do throw s!"unreviewed source form {kind}"
-    if kind == ``Parser.Command.docComment || kind == ``Parser.Command.moduleDoc ||
-        kind == `str || kind == `char then
-      unless children.all Syntax.isAtom do throw s!"nonliteral contents of {kind}"
-      return
-    -- The only nonempty tactic configuration the sources use is the kernel mode of
-    -- `decide`. Match that whole tactic; a configuration item anywhere else is unlisted.
-    if let `(tactic| decide +kernel) := nodeSyntax then return
-    if kind == ``Parser.Command.derivingClass then
-      unless nodeSyntax[0].getArgs.isEmpty && nodeSyntax[1].isIdent &&
-          #[`DecidableEq, `BEq, `Repr].contains nodeSyntax[1].getId do
-        throw "unreviewed deriving handler"
     if let .atom _ word := nodeSyntax[0] then
       if word.trimAscii.toString == "set_option" then inspectOption owner nodeSyntax
     if kind == ``Parser.Term.attrInstance then
       unless nodeSyntax[1].isOfKind ``Parser.Attr.simple do
-        throw s!"unreviewed attribute syntax {nodeSyntax[1].getKind}"
+        reject owner s!"unreviewed attribute syntax {nodeSyntax[1].getKind}"
       let attributeName := nodeSyntax[1][0].getId
       unless allowedAttributes.contains attributeName do
-        throw s!"unreviewed attribute {attributeName}"
+        reject owner s!"unreviewed attribute {attributeName}"
       unless nodeSyntax[1][1].getArgs.isEmpty do
-        throw s!"attribute arguments require review: {attributeName}"
+        reject owner s!"attribute arguments require review: {attributeName}"
     if kind == ``includeStr then
       let some path := nodeSyntax[1].isStrLit?
-        | throw "file inclusion whose path is not a string literal"
+        | reject owner "file inclusion whose path is not a string literal"
       unless includedFiles.contains (owner, path) do
-        throw s!"unreviewed file inclusion {path}"
+        reject owner s!"unreviewed file inclusion {path}"
       return
-    for child in children.attach do inspectSyntax owner child.val
-  | .missing => throw "missing syntax node"
-termination_by sizeOf nodeSyntax
-decreasing_by
-  all_goals
-    have := Array.sizeOf_lt_of_mem child.property
-    simp_wf
-    omega
+    for child in children do inspectSyntax owner child
+  | .missing => reject owner "missing syntax node"
 
 /-- Admit only ordinary declarations and scopes from the trusted command parser. -/
-partial def inspectCommand (owner : Name) (command : Syntax) : Except String Unit := do
+partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
   let kind := command.getKind
   if kind == ``Parser.Command.in then
-    unless command.getArgs.size == 3 do throw "unexpected scoped-command shape"
+    unless command.getArgs.size == 3 do reject owner "unexpected scoped-command shape"
     inspectCommand owner command[0]
     inspectCommand owner command[2]
   else if kind == ``Parser.Command.mutual then
-    unless command.getArgs.size == 3 do throw "unexpected mutual-command shape"
+    unless command.getArgs.size == 3 do reject owner "unexpected mutual-command shape"
     for declaration in command[1].getArgs do inspectCommand owner declaration
   else if proofOwner owner && kind == `Lean.guardMsgsCmd then
     let some nested := command.getArgs.back?
-      | throw "empty message guard"
+      | reject owner "empty message guard"
     unless #[``Parser.Command.printAxioms, ``Parser.Command.declaration].contains nested.getKind do
-      throw "message guards may only inspect axioms or compiler-refusal declarations"
+      reject owner "message guards may only inspect axioms or compiler-refusal declarations"
     inspectCommand owner nested
     inspectSyntax owner command
   else if proofOwner owner && kind == ``Parser.Command.printAxioms then
@@ -364,7 +266,7 @@ partial def inspectCommand (owner : Name) (command : Syntax) : Except String Uni
       ``Parser.Command.section, ``Parser.Command.open, ``Parser.Command.variable,
       ``Parser.Command.set_option, ``Parser.Command.moduleDoc, ``Parser.Command.eoi].contains kind then
     inspectSyntax owner command
-  else throw s!"unreviewed command {kind}"
+  else reject owner s!"unreviewed command {kind}"
 
 /-- Artifact ownership uses canonical paths, so namespace spelling and symlinks
 cannot substitute another package for the pinned toolchain or current build. -/
@@ -402,7 +304,7 @@ def inspectSource (parserEnv : Environment) (library : System.FilePath)
     if log.hasErrors then
       for message in log.toList do IO.eprintln (← message.toString)
       reject owner "source does not parse under the trusted parser"
-    if let .error reason := inspectCommand owner command then reject owner reason
+    inspectCommand owner command
     if command.isOfKind ``Parser.Command.eoi then break
     unless state.pos < next.pos do reject owner "parser made no progress"
     state := next

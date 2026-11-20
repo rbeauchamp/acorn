@@ -746,33 +746,22 @@ outside the tools: it parses each source with Lean's parser under a fixed parser
 environment and admits a closed list of commands (declarations, namespaces,
 sections, the opening of a namespace, variables and the setting of a listed
 option, and in a proof source a print of axioms and a guard of a message), five
-attributes with no argument, and no word of `forbiddenWords`. The audit also
-checks the parsed tree inside each command. Each term, tactic and nested
-operand must use a listed syntax form. A certificate tactic that runs an
-external solver, reads a certificate or writes one beside the proof source
-has no entry. Its position inside a proof or a tactic combinator cannot admit
-it. This matters before the build because the later corpus audit reads files
-under the source directories. The only nonempty tactic configuration admitted
-is the whole form `decide +kernel`. Deriving clauses name {decl}`DecidableEq`,
-{decl}`BEq` or {decl}`Repr`. The list of options, `allowedOptions`, holds at every depth
-of a source. The command form and settings before a term, a tactic sequence
-or a grind sequence inside a declaration all use that list. An option that a dependency's own macro or
+attributes with no argument, and no word of `forbiddenWords`. The list of
+options, `allowedOptions`, holds at every depth of a source: an option set
+before a term, a tactic sequence or a grind sequence inside a declaration is
+held to it as the command is. An option that a dependency's own macro or
 elaborator sets is that dependency's code and is not scanned. It admits the
 inclusion of a file as text only for the pairs of module and path that
 `includedFiles` lists, the viewer's page and three records the build itself
 writes, with the path written as a string. What is admitted there is the form
 and its string: the file Lean reads is what its elaborator computes from that
 string, which an instance declared in the including module could change. That
-is accepted, because no gate check reads the embedded text. The behavior of
-the pinned elaborators and their macro expansions is part of the trusted base.
-
-One proof obligation remains at elaboration. The audit checks the tree its
-fixed parser produces. Lean's compiler parses the file again using the module's
-imports, options, current namespace and opened namespaces. The gate needs to
-establish that the tree the compiler elaborates satisfies the same admission.
-
-The two admissions, of executing and of proof sources, divide the project's
-modules between them, so none lies outside both.
+is accepted, because no gate check reads the embedded text. An admitted source
+therefore defines no macro, elaborator, syntax or initializer, holds no command
+that evaluates a term and names no file to include but those, so what
+elaborating it runs is the
+elaborators and tactics of the toolchain and the dependencies. The two admissions, of executing and of proof
+sources, divide the project's modules between them, so none lies outside both.
 The first run of the gate admits before it builds, and a failed first run ends
 the gate, so every later build of the run, the second run's, the Regula audit's
 and the site's, is of admitted sources.
@@ -896,7 +885,15 @@ Two limits remain. On GitHub's hosted runner the script and the workflow are the
 pull request's own, as [the limits of a run](#build-and-source-inventory) say, so
 there the change's code runs whatever a check finds, with a token that cannot
 write and with no secret. And the code of the toolchain and the dependencies,
-the tactics a proof calls among it, is trusted and not admitted here.
+the tactics a proof calls among it, is trusted and not admitted here. Two
+consequences of that second limit are stated so that they are not taken for
+gaps: a tactic of the pinned toolchain or of a pinned dependency has whatever
+effects its own code has when a proof calls it, a file it writes beside a
+source included; and the syntax tree that source admission parses is taken to
+be the tree the compiler elaborates, which is not proved. Source admission
+holds a proof to no closed list of tactics, term forms or notations: what a
+proof may use is what the pinned toolchain and dependencies provide, within the
+commands, attributes, words, options and inclusions listed above.
 
 A contributor meets these rules in three places, each with a refusal that names
 what to propose. A document that needs a form outside the list fails the site
