@@ -3,6 +3,14 @@
 # call of the gate (scripts/gate.sh) and of verification (scripts/verify.sh). Git's index is the
 # authority: a commit carries tracked files only.
 #
+# 0. Every tracked path is spelled with letters, digits, `.`, `_`, `-` and `/` alone, the
+#    characters the tree's paths use. This is checked first and over the whole index, read
+#    NUL-separated. A file system can take several spellings for one name: it can ignore letter
+#    case, and it can fold a character outside ASCII onto a letter (the Kelvin sign onto k), so
+#    a path spelled with such a character could be a build directory or an owner path under
+#    another name while Git lists it as another path. For paths in this set letter case is the
+#    only such equivalence, and the checks below compare without regard to it. A new file whose
+#    name holds another character is refused by name: rename it.
 # 1. Lake's build directories and the site's output directory track nothing. Lake trusts an
 #    output whose trace matches, and the renderer writes through what the output directory
 #    holds, so a tracked file there could hand the gate a compiled module, a tool, a compiled
@@ -21,9 +29,19 @@
 #    (lean/AcornTools/Boundary/Audit.lean): an empty line, a line that starts with `#`, or
 #    `/path @owner`; any other line fails.
 set -euo pipefail
+export LC_ALL=C
 cd "$(dirname "$0")/.."
 
 refuse() { printf 'tracked paths: %s\n' "$1" >&2; exit 1; }
+
+# First, and over the whole index: every tracked path is spelled in the closed set of characters.
+count=0
+while IFS= read -r -d '' path; do
+  count=$((count + 1))
+  [[ "$path" =~ ^[A-Za-z0-9._/-]+$ ]] ||
+    refuse "the tracked path $(printf '%q' "$path") holds a character outside letters, digits, '.', '_', '-' and '/': rename it"
+done < <(git ls-files -z)
+(( count > 0 )) || refuse 'Git listed no tracked path'
 
 for directory in lean/.lake site/.lake site/_out; do
   tracked=$(git ls-files -- ":(icase)$directory")

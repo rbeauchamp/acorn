@@ -702,7 +702,13 @@ files.
 
 *What the checkout tracks.* Before its first Lake call the gate runs
 `scripts/tracked.sh`, and so does `./scripts/verify.sh`. It reads Git's index and
-refuses three things. A tracked file under a package's build directory or under
+refuses four things. First, over the whole index, a tracked path that holds a
+character other than a letter, a digit, a dot, an underscore, a hyphen or a
+slash, which are the characters the tree's paths use: a file system can fold a
+character outside ASCII onto a letter, as it can ignore letter case, so a path
+so spelled could be a build directory or an owner path under another name, and
+for the paths that remain letter case is the only such equivalence. Then a
+tracked file under a package's build directory or under
 the site's output directory: Lake trusts an output there whose trace matches, and
 the renderer writes through what the output directory holds, so such a file
 could hand the gate a compiled module, a tool, a compiled configuration or a
@@ -715,7 +721,10 @@ it is the owner's file or directory while Git and CODEOWNERS take it for
 another, so a change could add Lake's configuration under another spelling or
 replace an owner's file at checkout. For the owner paths the guard on owner paths
 refuses the same from the commit a change starts from, where the gate has that
-guard; this check is the one that covers the build and output directories. The
+guard; this check is the one that covers the build and output directories.
+Where that guard refuses an added or modified path that holds a byte outside
+ASCII, every path it refuses for that reason this check refuses too, since the
+set here is narrower. The
 script is the checkout's own, so a path that replaced it at checkout would
 escape it: only that guard refuses such a path.
 
@@ -756,7 +765,9 @@ inclusion of a file as text only for the pairs of module and path that
 writes, with the path written as a string. What is admitted there is the form
 and its string: the file Lean reads is what its elaborator computes from that
 string, which an instance declared in the including module could change. That
-is accepted, because no gate check reads the embedded text. An admitted source
+is accepted, because no check's verdict depends on the embedded text, and it
+can reach a check's output only through a definition of the change itself,
+which review reads. An admitted source
 therefore defines no macro, elaborator, syntax or initializer, holds no command
 that evaluates a term and names no file to include but those, so what
 elaborating it runs is the

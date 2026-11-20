@@ -71,12 +71,14 @@ gate check that refuses an unadmitted change to an owner path is a separate
 change, and the protection these paths give is complete only with it. The groups
 are:
 
-- **The gate.** `scripts/` (the gate refuses a tracked path that differs from an
-  owner path only by letter case, and tracked files under a build or output
-  directory), `.github/`, each package's Lake configuration under
-  either of its names (`lean/lakefile.lean`, `site/lakefile.toml` and the two
-  names not in use), `lean/Bootstrap.lean`, `lean/os/`, and the tools under
-  `lean/AcornTools/` with `lean/AcornTools.lean`.
+- **The gate.** `scripts/` (the gate holds every tracked path to letters,
+  digits, ., _, - and /, so name a new file with those; it refuses a tracked
+  path that differs from an owner path only by letter case, and tracked files
+  under a build or output directory), `.github/`, each package's Lake
+  configuration under either of its names (`lean/lakefile.lean`,
+  `site/lakefile.toml` and the two names not in use), `lean/Bootstrap.lean`,
+  `lean/os/`, and the tools under `lean/AcornTools/` with
+  `lean/AcornTools.lean`.
 - **The lock files.** `lean/lean-toolchain`, `lean/lake-manifest.json`,
   `site/lean-toolchain` and `site/lake-manifest.json` select the toolchain and
   the dependencies, whose code the checks run.

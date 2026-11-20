@@ -198,8 +198,9 @@ viewer's page, and the three records the Lake configuration's provenance target 
 build directory. What is admitted is the form and its string literal: every other inclusion is
 refused, and so is one whose path is not a string literal. The file Lean reads when it elaborates
 the term is what its elaborator computes from that literal, as a file path, and an instance
-declared in the including module could change that computation. This is accepted: no gate check
-reads the embedded text. -/
+declared in the including module could change that computation. This is accepted: no check's
+verdict depends on the embedded text, and it can reach a check's output only through a definition of
+the change itself, which review reads. -/
 def includedFiles : Array (Name × String) := #[
   (`NativeApp.Assets, "../../viewer/static/index.html"),
   (`NativeApp.Build, "../.lake/build/native-provenance.txt"),
