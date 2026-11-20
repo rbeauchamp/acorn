@@ -680,28 +680,34 @@ that starts it (GitHub's documentation, Workflows), which for a pull request is
 its merge with its base, and the job runs the script of the head. Such a pull
 request can show the job as passed while it runs fewer checks than the gate on
 main has. A reader sees that only in the pull request's changed files, under the
-paths that [CODEOWNERS](../.github/CODEOWNERS) gives to the owner. A head whose
-script is intact refuses an unadmitted edit of those paths at the gate's first
-step, the [admission check](#admission-of-changes-to-the-trusted-base); nothing
-in the run refuses a head that edits the script or the workflow to leave that
-check out. For such a head from another account the job is no protection. The
-default branch's rule, once set, requires a code owner's approval of every
-merger that does not hold its bypass; the owner's account holds the bypass and
-is the only account that merges an outside pull request. So what keeps such a
-head out of the default branch is that the owner's account does not merge it
-unreviewed, and the pull request's changed files, all under the owner's paths,
-show the edit.
+paths that [CODEOWNERS](../.github/CODEOWNERS) gives to the owner. A head that
+leaves intact the workflow and everything the job runs before the admission
+check refuses an unadmitted edit of those paths at the gate's first step, the
+[admission check](#admission-of-changes-to-the-trusted-base). What the job runs
+before that check is the gate script and all that provisioning runs: the
+scripts, the Lake configurations, and the locked dependencies and toolchain. The
+provisioning step comes before the gate step and does not run the check, so a
+head can leave the gate script and the workflow as they are and still have its
+provisioning change what the gate step runs. Nothing in the run refuses a head
+that edits any of these to leave the check out. For such a head from another
+account the job is no protection. The default branch's rule, once set, requires
+a code owner's approval of every merger that does not hold its bypass; the
+owner's account holds the bypass and is the only account that merges an outside
+pull request. So what keeps such a head out of the default branch is that the
+owner's account does not merge it unreviewed, and the pull request's changed
+files, all under the owner's paths, show the edit.
 
-A pull request that touches a path CODEOWNERS gives to the owner shows one more
-ending before the owner's review. The job provisions the dependencies and then
-runs the gate, whose first step is the admission check. For an author other than
-the owner's account that check reads the pull request's author, head and base
-and its reviews, finds no approving review of the head by the owner, and
-refuses: the job fails at the gate step with the line `gate: admission refused`,
-and no check has run. That failure is no result of a check of the change. Once
-the owner has approved that exact head, the job is run again from the pull
-request, on the same commit, and the gate goes on to its checks. A push after
-the approval gives a new head, which needs a new approval.
+On a head that leaves those files intact, a pull request that touches a path
+CODEOWNERS gives to the owner shows one more ending before the owner's review.
+The job provisions the dependencies and then runs the gate, whose first step is
+the admission check. For an author other than the owner's account that check
+reads the pull request's author, head and base and its reviews, finds no
+approving review of the head by the owner, and refuses: the job fails at the
+gate step with the line `gate: admission refused`, and no check has run. That
+failure is no result of a check of the change. Once the owner has approved that
+exact head, the job is run again from the pull request, on the same commit, and
+the gate goes on to its checks. A push after the approval gives a new head,
+which needs a new approval.
 
 Fourth, a head whose event came before this workflow ran on pull requests, or whose
 merge with the base it then had did not hold this workflow, has no run, since
@@ -853,15 +859,17 @@ an account that does not hold the rule's bypass, and dismisses an approval when
 the diff changes. The bypass goes with the account that merges, whoever wrote
 the pull request, and the owner's account, the only one that merges an outside
 pull request, holds it. So the rule does not by itself refuse an outside change
-that the owner has not reviewed. This check does: on a head whose gate script
-and workflow are intact, the pull request's gate job fails until the owner's
-approving review is on that exact head, and where the repository's rules require
-that job, a head on which it has not passed does not merge. The rule does not
-compare the approved commit with the head, so the comparison with the exact head
-is this check's and not the rule's. A run given no pull request, which is the
-pipeline's run before a pull request exists and a plain local run, cannot know
-the author and reads a record only. Whoever checks another author's commit on
-their own machine runs the check from the default branch's copy, as
+that the owner has not reviewed. This check does: on a head that leaves intact
+the workflow and everything the job runs before the check, which is the gate
+script and all that provisioning runs (the scripts, the Lake configurations, and
+the locked dependencies and toolchain), the pull request's gate job fails until
+the owner's approving review is on that exact head, and where the repository's
+rules require that job, a head on which it has not passed does not merge. The
+rule does not compare the approved commit with the head, so the comparison with
+the exact head is this check's and not the rule's. A run given no pull request,
+which is the pipeline's run before a pull request exists and a plain local run,
+cannot know the author and reads a record only. Whoever checks another author's
+commit on their own machine runs the check from the default branch's copy, as
 [contributing](../CONTRIBUTING.md) shows, and never that commit's own gate
 script.
 
@@ -893,8 +901,13 @@ The owner's account cannot review its own pull request, so it holds the bypass,
 and the bypass goes with the account that merges and not with the author: the
 owner's account can merge an outside pull request past the rule. What refuses an
 unreviewed outside change is then the gate job, where the rules require it, on a
-head that left the check intact; on a head that edited the check out, only the
-owner's account declining to merge it. A change whose starting
+head that left intact the workflow and everything the job runs before the check.
+A pull request controls its own hosted run: a head that edits the workflow, the
+gate script or anything that provisioning runs can have the job pass without the
+check. Every file such a head must edit is an owner path, so the edit shows
+among the pull request's changed files, and against such a head what protects
+the default branch is the owner reading those files before merging, not the job.
+A change whose starting
 commit predates the check carries the gate script of that time, so a local run
 of that script does not refuse it; the pipeline's command, read from the default
 branch, does. The pipeline's command selects the copy of the check by the
