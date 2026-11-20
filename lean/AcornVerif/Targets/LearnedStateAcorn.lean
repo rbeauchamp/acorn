@@ -13,19 +13,21 @@ import AcornVerif.Targets.LearnedState
 
 * **The seeds** are the words of `UInt64`: the standard construction admits every one.
 * **The base agent** (`base`) is Acorn's agent: it starts at the cold construction of the
-  standard construction at the seed and steps by `Agent.act`. A result needs no change to it,
-  and a submission makes none. Its names are gathered in the namespace `Base`.
+  standard construction at the seed and steps by `Agent.actOrdered`, the whole step of the
+  configuration's step order. A result needs no change to it, and a submission makes none. Its
+  names are gathered in the namespace `Base`.
 * **What a mechanism hands the base agent** is a list of sensor words, appended to the words of
-  the frame (`extend`). The coder reads them as it reads the world's words, so they reach every
-  learner as features, beside the current ones. A list that would overfill the frame, or that
-  uses a prediction feedback channel, is not appended. A mechanism does not touch the reward,
-  the symbols, the signals, the potentials or the achievement flag.
+  the frame (`extend`). Words that are appended are coded like the world's own words. Two words
+  can fall on the same feature, and nothing here says that an appended word gives a new feature
+  or that any learner comes to use it. A list that would overfill the frame, or that uses a
+  prediction feedback channel, is not appended. A mechanism does not touch the reward, the
+  symbols, the signals, the potentials or the achievement flag.
 * **The prediction learners' store** is the demon bank, and **the control learners' store** is
   the primitive controller with the meta controller (`predictor`, `controller`).
 * **A step emits** its action and the prediction words it stored (`Emitted`). A goal reads
   those and a world's states.
-* **A submission chooses** the research profile, the criterion and the planning selection
-  (`Configuration`), a mechanism and a task.
+* **A submission chooses** the research profile, the criterion, the planning selection and the
+  step order (`Configuration`), a mechanism and a task.
 
 `Complete` is the statement a complete submission proves.
 
@@ -39,18 +41,20 @@ exists for Acorn's agent.
 namespace AcornVerif.LearnedState.Acorn
 open _root_.Acorn _root_.Acorn.Handcrafted _root_.Acorn.Features
 
-/-- The choices of a standard construction other than its seed and its step order. -/
+/-- The choices of a standard construction other than its seed. -/
 structure Configuration where
   /-- The research profile and the criterion. -/
   selection : Host.AgentSelection
   /-- The planning selection. -/
   planning : PlanningSelection
+  /-- The order of the two parts of a step. -/
+  order : StepOrder
 
-/-- The standard construction of a configuration at a seed, in the order `learnThenAct`, which
-is the order of `Agent.act`. -/
+/-- The standard construction of a configuration at a seed. -/
 def Configuration.construction (configuration : Configuration) (seed : UInt64) :
     AgentConstruction :=
-  AgentConstruction.standard seed configuration.selection configuration.planning .learnThenAct
+  AgentConstruction.standard seed configuration.selection configuration.planning
+    configuration.order
 
 /-- What a step of the agent emits, which a goal may read: the action the world receives, and
 the prediction words the agent stored for its own feedback. A goal reads nothing else of the
@@ -74,11 +78,12 @@ abbrev State (construction : AgentConstruction) : Type :=
 def cold (construction : AgentConstruction) : State construction :=
   Handcrafted.Agent.initial _ _ _ _ _ _
 
-/-- The step of the base agent. -/
+/-- The step of the base agent: the whole step of the construction's step order, which is its
+first part and then its second part on what the first returned. -/
 def step {construction : AgentConstruction} (state : State construction)
     (percept : Percept Grid.interface) :
     State construction × TemporalDecision Grid.interface.actions :=
-  state.act percept
+  state.actOrdered construction.order percept
 
 /-- The prediction words the base agent stored. -/
 def predictions {construction : AgentConstruction} (state : State construction) : List Binary32 :=
@@ -169,7 +174,8 @@ def ofKernel (world : Kernel.World Grid.interface) (start : world.State) :
   step := world.step
   percept := world.percept
 
-/-- **A complete learned-state result on Acorn's agent.** -/
+/-- **A complete result on Acorn's agent**: the seven necessary conditions, at Acorn's
+setting. -/
 def Complete (configuration : Configuration) (mechanism : Mechanism (setting configuration))
     (task : Task (setting configuration)) : Prop :=
   Result (setting configuration) mechanism task

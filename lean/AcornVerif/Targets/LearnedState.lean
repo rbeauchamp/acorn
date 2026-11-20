@@ -6,10 +6,11 @@ Authors: acorn contributors
 
 /-! # The frame of a learned-state result
 
-A *learned-state result* says that an agent, by its own learning from a cold start on one
-stream, uses state that it needs. This module fixes how such a result is stated. It does not
-fix which goal is posed, over which family of worlds, or how the state is built: those are the
-submission's.
+A result on learned agent state is about an agent that, from a cold start on one stream, uses
+state that it needs. This module fixes the statements such a result has to prove. A term of
+`Result` is a *complete result*: seven necessary conditions, and no more than that. The module
+does not fix which goal is posed, over which family of worlds, or how the state is built: those
+are the submission's.
 
 **What is fixed.** A `Setting` holds everything about the agent: the seeds its construction
 admits, the base agent with its cold construction and its step, what a state mechanism may hand
@@ -43,11 +44,11 @@ that the goal cannot be satisfied across the family without the past, and the la
 say that neither a memory that ignores the stream, nor weights fixed in advance, give a run
 that satisfies it across the family.
 
-**What a result certifies, and what it does not.** `AcornVerif.LearnedStateFrame` proves that a
-goal with a result exists exactly when the assembled agent's traces differ, in some world, from
-the base agent's, from each responder's and from each replaced agent's (`separated_iff`). So a result certifies that
-what the agent emits depends on the stream through the mechanism's memory, and on the world
-through each learner store. It does not certify that the goal is a task anyone would pose, that
+**What a complete result certifies, and what it does not.** `AcornVerif.LearnedStateFrame`
+proves that some goal has a complete result exactly when the goal that only recognizes the
+assembled agent's own traces has one (`recognized_iff`). So a complete result certifies that
+the assembled agent's trace satisfies the goal and that each compared agent's trace, in some
+world, does not. It does not certify that the goal is a task anyone would pose, that
 the worlds of the family occur where the agent is run, or that the mechanism's memory was
 learned and not written by hand. Those are read by a referee.
 -/
@@ -225,8 +226,8 @@ def Fails (S : Setting) (agent : Agent S.Seed S.Percept S.Output) (task : Task S
     (seed : S.Seed) : Prop :=
   ∃ member, ¬ task.goal member (trace S agent seed (task.world member))
 
-/-- **A learned-state result.** A submission that gives no term of this structure is partial:
-it is recorded by the fields it proves. -/
+/-- **A complete result**: the seven necessary conditions. A submission that gives no term of
+this structure is partial: it is recorded by the fields it proves. -/
 structure Result (S : Setting) (mechanism : Mechanism S) (task : Task S) : Prop where
   /-- The assembled agent meets the goal. -/
   meets : Meets S (assembled S mechanism) task

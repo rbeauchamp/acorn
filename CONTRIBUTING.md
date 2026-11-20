@@ -114,8 +114,9 @@ check refusing noncomputable in executing modules).
   merges, so a change to a target is the owner's to make. A target fixes its
   own text: the definitions it names are outside the directory, and a mission
   does not change them either. Where a pin file stands beside a frozen
-  statement, the gate's frame check also refuses a change to any definition
-  the statement reads until the owner pins again (`lean/AcornTools/Frame.lean`);
+  statement, the gate's frame check also refuses a change to any declaration
+  of the project's own modules that the statement reaches and the pin records,
+  until the owner pins again (`lean/AcornTools/Frame.lean`);
   the frame of a learned-state result, below, is pinned in this way.
   `lean/AcornVerif/Targets/Registry.lean` lists the
   targets under each mission's issue number. A part of a contract that is not a statement

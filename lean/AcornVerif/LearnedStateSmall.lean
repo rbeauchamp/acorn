@@ -5,10 +5,10 @@ Authors: acorn contributors
 -/
 import AcornVerif.LearnedStateFrame
 
-/-! # A small learner that has a learned-state result
+/-! # A small agent with a complete result
 
-The frame of `AcornVerif.LearnedState` is not empty: `inhabited` is a result of a small base
-agent with a state mechanism. It shows that the seven obligations can be met together. It says
+The frame of `AcornVerif.LearnedState` is not empty: `inhabited` is a complete result of a
+small base agent with a state mechanism. It shows that the seven obligations can be met together. It says
 nothing of Acorn's agent.
 
 **The worlds.** A world runs in trials of two steps. At the first it shows a cue, one bit. At
@@ -20,10 +20,10 @@ action that pays, and `shift`, which with the cue decides the echo.
 **The goal.** At every asking step whose cue was the cue of an earlier trial, the action pays
 and the forecast is the echo that follows.
 
-**The base agent** has two learners, keyed by what a mechanism hands it with the percept. The
-prediction learner keeps the echo that followed each key. The control learner keeps the action
-that pays after each key, read from whether its own action paid. Both start empty. Alone, the
-base agent is handed nothing, so it has one key.
+**The base agent** has two tables, keyed by what a mechanism hands it with the percept, which
+are its two stores. The prediction table keeps the echo that followed each key. The control
+table keeps the action that pays after each key, written from whether its own action paid. Both
+start empty. Alone, the base agent is handed nothing, so it has one key.
 
 **The mechanism** (`latch`) holds the last cue and hands it to the base agent.
 
@@ -106,17 +106,17 @@ def write (table : Option Bool → Option Bool) (key : Option Bool) (value : Boo
 
 /-- What the base agent holds. -/
 structure Mind where
-  /-- The seed: the action taken when the control learner has no entry. -/
+  /-- The seed: the action taken when the control table has no entry. -/
   draw : Bool
   /-- The key and the action of the trial whose feedback is due. -/
   pending : Option (Option Bool × Bool)
-  /-- The prediction learner: the echo that followed each key. -/
+  /-- The prediction table: the echo that followed each key. -/
   echoes : Option Bool → Option Bool
-  /-- The control learner: the action that pays after each key. -/
+  /-- The control table: the action that pays after each key. -/
   payers : Option Bool → Option Bool
 
-/-- Both learners learn from the feedback of the pending trial. -/
-def Mind.learn (mind : Mind) (paid echo : Bool) : Mind :=
+/-- Both tables are written from the feedback of the pending trial. -/
+def Mind.record (mind : Mind) (paid echo : Bool) : Mind :=
   match mind.pending with
   | some (key, action) =>
     { mind with
@@ -125,14 +125,14 @@ def Mind.learn (mind : Mind) (paid echo : Bool) : Mind :=
       payers := write mind.payers key (if paid then action else !action) }
   | none => mind
 
-/-- The base agent. With a cue it learns. Asked, it emits the control learner's action at the
-key it is handed, or the seed's, and the prediction learner's forecast, or false. -/
+/-- The base agent. With a cue it records the feedback. Asked, it emits the control table's
+action at the key it is handed, or the seed's, and the prediction table's forecast, or false. -/
 def base : Agent Bool Percept Output where
   State := Mind
   cold draw := ⟨draw, none, fun _ => none, fun _ => none⟩
   step mind percept :=
     match percept.cue with
-    | some _ => (⟨false, false⟩, mind.learn percept.paid percept.echo)
+    | some _ => (⟨false, false⟩, mind.record percept.paid percept.echo)
     | none =>
       (⟨(mind.payers percept.held).getD mind.draw, (mind.echoes percept.held).getD false⟩,
         { mind with
@@ -193,13 +193,13 @@ def Tracks (member : Member) (mind : Mind) (count : Nat) : Prop :=
 
 /-- What holds of the board, the mind and the latch before each step: asked, the latch holds
 the trial's cue and the mind tracks every earlier trial; shown a cue, the mind tracks every
-earlier trial once it has learned from the feedback shown. -/
+earlier trial once it has recorded the feedback shown. -/
 def Sound (member : Member) (board : Board) (mind : Mind) (held : Option Bool) : Prop :=
   if board.asking then held = some (member.cues board.trial) ∧ Tracks member mind board.trial
-  else Tracks member (mind.learn board.paid board.echo) board.trial
+  else Tracks member (mind.record board.paid board.echo) board.trial
 
-/-- The entry learned from whether an action paid is the action that pays. -/
-theorem learned_payer (action wanted : Bool) :
+/-- The entry written from whether an action paid is the action that pays. -/
+theorem written_payer (action wanted : Bool) :
     (if action == wanted then action else !action) = wanted := by
   cases action <;> cases wanted <;> rfl
 
@@ -222,9 +222,9 @@ theorem sound_step (member : Member) (board : Board) (state : (Mind × Option Bo
     intro earlier less
     change earlier < trial + 1 at less
     by_cases same : member.cues earlier = member.cues trial
-    · have payer := learned_payer ((mind.payers (some (member.cues trial))).getD mind.draw)
+    · have payer := written_payer ((mind.payers (some (member.cues trial))).getD mind.draw)
         (need member trial)
-      simp only [world, setting, base, latch, Mind.learn, write, same, need, echo,
+      simp only [world, setting, base, latch, Mind.record, write, same, need, echo,
         ite_true] at payer ⊢
       exact ⟨trivial, congrArg some payer⟩
     · have earlier' : earlier < trial := by
@@ -233,7 +233,7 @@ theorem sound_step (member : Member) (board : Board) (state : (Mind × Option Bo
         · exact absurd (congrArg member.cues equal) same
       have differs : some (member.cues earlier) ≠ some (member.cues trial) :=
         fun equal => same (Option.some.inj equal)
-      simp only [world, setting, base, latch, Mind.learn, write, differs, ite_false, ite_true]
+      simp only [world, setting, base, latch, Mind.record, write, differs, ite_false, ite_true]
       exact tracks earlier earlier'
 
 /-- Soundness holds along every run of the assembled agent. -/
@@ -314,9 +314,9 @@ theorem stateNeeded (draw : Bool) (rule : Nat → Percept → Option Bool) :
   have differs : ∀ action : Bool, action ≠ (!action != false) := by decide
   exact differs _ third
 
-/-! ## The learners' stores are needed -/
+/-! ## The two stores are needed -/
 
-/-- **The control learners' store is needed.** -/
+/-- **The control store is needed.** -/
 theorem controlNeeded (draw : Bool) (schedule : Nat → Option Bool → Option Bool) :
     Fails setting (withoutControl setting latch schedule) task draw := by
   refine ⟨⟨!(schedule 3 (some false)).getD draw, false, fun _ => false⟩, fun answered => ?_⟩
@@ -324,7 +324,7 @@ theorem controlNeeded (draw : Bool) (schedule : Nat → Option Bool → Option B
   have differs : ∀ action : Bool, action ≠ (false != !action) := by decide
   exact differs _ second
 
-/-- **The prediction learners' store is needed.** -/
+/-- **The prediction store is needed.** -/
 theorem predictionNeeded (draw : Bool) (schedule : Nat → Option Bool → Option Bool) :
     Fails setting (withoutPrediction setting latch schedule) task draw := by
   refine ⟨⟨false, !(schedule 3 (some false)).getD false, fun _ => false⟩, fun answered => ?_⟩
@@ -332,7 +332,7 @@ theorem predictionNeeded (draw : Bool) (schedule : Nat → Option Bool → Optio
   have differs : ∀ forecast : Bool, forecast ≠ (false != !forecast) := by decide
   exact differs _ second
 
-/-- **Learning is needed.** With both stores on schedules the agent fails. -/
+/-- **Both stores together are needed.** With both on schedules the agent fails. -/
 theorem learningNeeded (draw : Bool) (predictions controls : Nat → Option Bool → Option Bool) :
     Fails setting (withoutLearning setting latch predictions controls) task draw := by
   refine ⟨⟨!(controls 3 (some false)).getD draw, false, fun _ => false⟩, fun answered => ?_⟩

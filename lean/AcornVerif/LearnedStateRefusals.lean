@@ -5,7 +5,7 @@ Authors: acorn contributors
 -/
 import AcornVerif.LearnedStateSmall
 
-/-! # What the frame of a learned-state result refuses, and what it admits
+/-! # What the frame refuses, and what it admits
 
 **Refused, by the property every member of the kind has.**
 * *The agent's own step is supplied or changed by the submission.* A result is about
@@ -22,16 +22,16 @@ import AcornVerif.LearnedStateSmall
   goal with an added alternative that a constant emitter satisfies is of this kind
   (`Small.alternative_refused`), and so is a goal that a responder copying part of the current
   percept satisfies.
-* *The mechanism holds nothing of the stream.* `Result.memory_from_stream` and
+* *The mechanism holds nothing of the stream.* `Result.handout_not_rule` and
   `Result.stateless_refused`: a hand-out that is a rule of the time and the current percept,
   as a clock's is, has no result.
 
 **Admitted.**
 * *A goal that only recognizes the submission.* `Small.recognizer_admitted` is a result of the
-  small learner for the goal "the trace is this agent's at some seed". `separated_iff` shows
+  small agent for the goal "the trace is this agent's at some seed". `recognized_iff` shows
   this is general.
 * *A memory written by an authored rule.* `Small.latch` holds the last cue by a rule written by
-  hand, and `Small.inhabited` is its result. What is learned there is the use of the cue.
+  hand, and `Small.inhabited` is its result. The frame says nothing of how a memory is written.
 -/
 
 namespace AcornVerif.LearnedState
@@ -39,7 +39,7 @@ namespace AcornVerif.LearnedState
 variable {S : Setting} {mechanism : Mechanism S} {task : Task S}
 
 /-- If, at some seed, stores fixed in advance meet the goal in every world, there is no
-result: what the goal needs was not learned. -/
+result: a preset schedule of the two stores suffices for the goal. -/
 theorem fixed_stores_refused (seed : S.Seed) (predictions : Nat → S.Predictor)
     (controls : Nat → S.Controller)
     (met : ∀ member, task.goal member
@@ -125,7 +125,7 @@ theorem alternative_refused : ¬ Result setting latch alternativeTask := by
   obtain ⟨member, fails⟩ := result.historyNeeded false fun _ _ => ⟨false, true⟩
   exact fails (Or.inr rfl)
 
-/-- **Admitted: a goal that only recognizes the submission.** The small learner has a result for
+/-- **Admitted: a goal that only recognizes the submission.** The small agent has a result for
 the goal "the trace is this agent's at some seed", over the same worlds. -/
 theorem recognizer_admitted :
     Result setting latch ⟨Member, world, recognizer setting latch world⟩ :=
