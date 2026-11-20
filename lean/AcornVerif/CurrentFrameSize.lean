@@ -14,9 +14,12 @@ The theorems on how far back a first reward reaches assume frames of at most 199
 (`AcornVerif.CurrentCreditHorizon.dormant_weight_rests`, `candidates_read_window`) or 1900
 (`recent_weight_moves`). The interface alone bounds a frame by its tilings times the most words it
 allows and its prediction questions, and its units (`Acorn.Handcrafted.Agent.frame_length`): for
-the grid interface under the standard feature configuration that is eight tilings of 381 words and
-eleven questions, and 512 units, 3648 slots. This module bounds a frame by the words its percept
-carries (`frame_slots`), and bounds those words in a grid world that holds no deer and no food.
+the grid interface under the standard feature configuration that is eight tilings of 413 words and
+eleven questions, and 512 units, 3904 slots. The grid adapter emits at most 381 of those words
+(`Acorn.Handcrafted.Grid.sensorWords_length`); the other 32 are room the interface keeps
+(`Acorn.Handcrafted.Grid.frame_room`). This module bounds a frame by the words its percept
+carries (`frame_slots`), which for a frame the adapter builds is at most 3648 slots under that
+configuration, and bounds those words in a grid world that holds no deer and no food.
 
 A grid frame carries one word for each of the 121 tiles of its window, one more where the tile
 holds food and one more where it holds a deer, then energy and day, at most ten task words and six
@@ -29,9 +32,10 @@ feature configuration (`standard_slots`). So for percepts of such a world the cr
 holds with no hypothesis on frames (`unpopulated_weight_rests`).
 
 What this does not say. No theorem here bounds a frame of a world with deer or food below the
-interface's bound: that needs a bound on how many deer and how much food a window can hold along a
-run. `unpopulated_weight_rests` discharges the hypothesis of `dormant_weight_rests` alone;
-`recent_weight_moves` is about a controller's run and takes the size of its frames as given.
+3648 slots of the adapter's 381 words: that needs a bound on how many deer and how much food a
+window can hold along a run. `unpopulated_weight_rests` discharges the hypothesis of
+`dormant_weight_rests` alone; `recent_weight_moves` is about a controller's run and takes the size
+of its frames as given.
 -/
 
 namespace AcornVerif.CurrentFrameSize
