@@ -56,6 +56,8 @@ def rememberedTask : Task setting where
   Family := Nat → Bool
   world cues := world ⟨false, false, cues⟩
   goal cues := Answered ⟨false, false, cues⟩
+  sameWorld := sameWorld_of_injective (S := setting) _ _ fun first second same =>
+    congrArg Member.cues (world_injective ⟨false, false, first⟩ ⟨false, false, second⟩ same)
 
 /-- A table that returns its key. -/
 def obey (_ : Nat) (key : Option Bool) : Option Bool := key
@@ -118,6 +120,7 @@ def alternativeTask : Task setting where
   Family := Member
   world := world
   goal member trace := Answered member trace ∨ (trace 0).2.forecast = true
+  sameWorld := sameWorld_of_injective (S := setting) world _ world_injective
 
 /-- **An added alternative that a constant emitter satisfies: refused.** -/
 theorem alternative_refused : ¬ Result setting latch alternativeTask := by
@@ -127,8 +130,7 @@ theorem alternative_refused : ¬ Result setting latch alternativeTask := by
 
 /-- **Admitted: a goal that only recognizes the submission.** The small agent has a result for
 the goal "the trace is this agent's at some seed", over the same worlds. -/
-theorem recognizer_admitted :
-    Result setting latch ⟨Member, world, recognizer setting latch world⟩ :=
+theorem recognizer_admitted : Result setting latch (recognizer setting latch world) :=
   inhabited.recognized
 
 end Small

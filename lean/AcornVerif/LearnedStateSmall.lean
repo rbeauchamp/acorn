@@ -177,11 +177,36 @@ def Answered (member : Member) (trace : Nat → Board × Output) : Prop :=
     (trace time).2.action = need member (trace time).1.trial ∧
       (trace time).2.forecast = echo member (trace time).1.trial
 
+/-- A member is determined by its world: the world shows the cues, pays by `swap` and echoes by
+`shift`. -/
+theorem world_injective (first second : Member) (same : world first = world second) :
+    first = second := by
+  unfold world at same
+  injection same with _ _ steps percepts
+  have cue : ∀ trial, first.cues trial = second.cues trial := fun trial =>
+    Option.some.inj (congrArg Percept.cue (congrFun percepts ⟨trial, false, false, false⟩))
+  have paid : (false == need first 0) = (false == need second 0) :=
+    congrArg Board.paid (congrFun (congrFun steps ⟨0, true, false, false⟩) false)
+  have heard : echo first 0 = echo second 0 :=
+    congrArg Board.echo (congrFun (congrFun steps ⟨0, true, false, false⟩) false)
+  obtain ⟨swap, shift, cues⟩ := first
+  obtain ⟨swap', shift', cues'⟩ := second
+  obtain rfl : cues = cues' := funext cue
+  simp only [need, echo] at paid heard
+  have swaps : swap = swap' := by
+    revert paid
+    cases cues 0 <;> cases swap <;> cases swap' <;> decide
+  have shifts : shift = shift' := by
+    revert heard
+    cases cues 0 <;> cases shift <;> cases shift' <;> decide
+  rw [swaps, shifts]
+
 /-- The task: every member, and the goal. -/
 def task : Task setting where
   Family := Member
   world := world
   goal := Answered
+  sameWorld := sameWorld_of_injective (S := setting) world Answered world_injective
 
 /-! ## The assembled agent meets the goal -/
 

@@ -114,10 +114,12 @@ check refusing noncomputable in executing modules).
   merges, so a change to a target is the owner's to make. A target fixes its
   own text: the definitions it names are outside the directory, and a mission
   does not change them either. Where a pin file stands beside a frozen
-  statement, the gate's frame check also refuses a change to any declaration
-  of the project's own modules that the statement reaches and the pin records,
-  until the owner pins again (`lean/AcornTools/Frame.lean`);
-  the frame of a learned-state result, below, is pinned in this way.
+  statement, the gate's frame check also refuses a change to the statement of
+  a pinned theorem, or to the type or value of a pinned definition, among the
+  declarations of the project's own modules that the frozen statement reaches,
+  until the owner pins again (`lean/AcornTools/Frame.lean`). A theorem's proof
+  is not part of the pin, so a change to a proof alone is not refused.
+  The frame of a learned-state result, below, is pinned in this way.
   `lean/AcornVerif/Targets/Registry.lean` lists the
   targets under each mission's issue number. A part of a contract that is not a statement
   to prove, such as a change to a decision's kind or the list of files a pull
@@ -199,8 +201,9 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
 - **How a learner change lands:** separately, and first. It is its own pull
   request to the agent, which states and proves what the change is for on its
   own terms and passes the same review and the same gate as any other
-  contribution. A change to the agent alters declarations the frame pins, so
-  the frame check fails until the pin file is made again. The pin file is in
+  contribution. A change to the agent alters the type or value of definitions
+  the frame pins, so the frame check fails until the pin file is made again;
+  a change to a pinned theorem's proof alone does not. The pin file is in
   the owner's directory, so the new pin is the owner's to admit with the
   change, and the pull request merges only on the owner's word. Only then does
   a learned-state submission build its mechanism on the changed agent.
@@ -223,8 +226,9 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   in, is a separate change and the owner's. Until it lands, the frame states
   what a complete result is and nobody can produce one for the program as it
   runs. It is also not known whether any complete result exists for the agent
-  as it stands: that is the open question of
-  [#296](https://github.com/rbeauchamp/acorn/issues/296).
+  as it stands. [#296](https://github.com/rbeauchamp/acorn/issues/296) bears on
+  it: that issue asks whether the standard agent's learners can make quick use
+  of one added state feature, and its answer may leave part of this open.
 - **That the frame is not empty** is proved of a small agent of its own, not
   of Acorn's: `lean/AcornVerif/LearnedStateSmall.lean` proves all seven
   statements of it, and `lean/AcornVerif/LearnedStateRefusals.lean` shows

@@ -18,8 +18,8 @@ For every setting, mechanism and task.
 * `Result.predictor_not_schedule`, `Result.controller_not_schedule`: at every seed, what each
   learner store holds along the run is not a schedule over time that is the same in every world
   of the family.
-* `Result.family_inhabited`, `Result.family_varied`, `Result.goal_separates`: the family has two
-  worlds, and the goal holds of one trace and fails of another.
+* `Result.family_varied`, `Result.goal_separates`: the family has two worlds, and the goal holds
+  of one trace and fails of another.
 
 **All that a complete result certifies about its goal.** `Result.recognized`: every complete
 result is also one for the goal "the trace is the assembled agent's at some seed", which
@@ -231,23 +231,18 @@ theorem Result.controller_not_schedule (result : Result S mechanism task) (seed 
       exact S.controller_same _)
   exact same ▸ result.meets seed member
 
-/-- The family of a result has a world. -/
-theorem Result.family_inhabited (result : Result S mechanism task) : Nonempty task.Family := by
-  obtain ⟨seed⟩ := S.seeded
-  obtain ⟨member, _⟩ := result.baseFails seed
-  exact ⟨member⟩
-
-/-- A family of one world has no result: what the prediction learners hold in that world, at
-each time, is a schedule. -/
+/-- A family whose members all have one world has no result: what the prediction learners hold
+in that world, at each time, is a schedule. So the family of a result has two worlds. -/
 theorem Result.family_varied (result : Result S mechanism task)
-    (single : ∀ first second : task.Family, first = second) : False := by
+    (single : ∀ first second : task.Family, task.world first = task.world second) : False := by
   obtain ⟨seed⟩ := S.seeded
   obtain ⟨only, _⟩ := result.baseFails seed
   refine result.predictor_not_schedule seed ⟨fun time =>
     S.predictor (run S (assembled S mechanism) seed (task.world only) time).2.1.1, ?_⟩
   intro member time
-  obtain rfl := single member only
-  rfl
+  exact congrArg
+    (fun world => S.predictor (run S (assembled S mechanism) seed world time).2.1.1)
+    (single member only)
 
 /-- The goal of a result holds of one trace and fails of another, in one world. -/
 theorem Result.goal_separates (result : Result S mechanism task) :
@@ -259,21 +254,48 @@ theorem Result.goal_separates (result : Result S mechanism task) :
 
 /-! ## All that a complete result certifies -/
 
-/-- The goal that only recognizes the submission: the trace is the assembled agent's, in that
-world, at some seed. -/
-def recognizer (S : Setting) (mechanism : Mechanism S) {Family : Type}
-    (world : Family → World S.Percept S.Action) (member : Family)
-    (trace : Nat → (world member).State × S.Output) : Prop :=
-  ∃ other, AcornVerif.LearnedState.trace S (assembled S mechanism) other (world member) = trace
+/-- A goal over a family whose members are determined by their worlds reads a member only
+through its world. -/
+theorem sameWorld_of_injective {S : Setting} {Family : Type}
+    (world : Family → World S.Percept S.Action)
+    (goal : (member : Family) → (Nat → (world member).State × S.Output) → Prop)
+    (injective : ∀ first second, world first = world second → first = second)
+    (first second : Family) (same : world first = world second)
+    (trace : Nat → (world first).State × S.Output) (holds : goal first trace) :
+    goal second (same ▸ trace) := by
+  obtain rfl := injective first second same
+  exact holds
 
-/-- **Every complete result is also one for the goal that only recognizes the submission**,
+/-- The trace is the assembled agent's, in a world, at some seed. -/
+def Recognized (S : Setting) (mechanism : Mechanism S) (world : World S.Percept S.Action)
+    (trace : Nat → world.State × S.Output) : Prop :=
+  ∃ other, AcornVerif.LearnedState.trace S (assembled S mechanism) other world = trace
+
+/-- Being the assembled agent's trace is read off the world alone. -/
+theorem Recognized.cast {S : Setting} {mechanism : Mechanism S}
+    {first second : World S.Percept S.Action} (same : first = second)
+    (trace : Nat → first.State × S.Output) (holds : Recognized S mechanism first trace) :
+    Recognized S mechanism second (same ▸ trace) := by
+  subst same
+  exact holds
+
+/-- The task that only recognizes the submission: over a family of worlds, the goal "the trace
+is the assembled agent's, in that world, at some seed". -/
+def recognizer (S : Setting) (mechanism : Mechanism S) {Family : Type}
+    (world : Family → World S.Percept S.Action) : Task S where
+  Family := Family
+  world := world
+  goal member := Recognized S mechanism (world member)
+  sameWorld _ _ same trace holds := holds.cast same trace
+
+/-- **Every complete result is also one for the task that only recognizes the submission**,
 over the same worlds: an agent that fails the goal has, in that world, a trace that is the
 assembled agent's at no seed. So no field depends on the goal being a task. -/
 theorem Result.recognized {S : Setting} {mechanism : Mechanism S} {task : Task S}
     (result : Result S mechanism task) :
-    Result S mechanism ⟨task.Family, task.world, recognizer S mechanism task.world⟩ := by
+    Result S mechanism (recognizer S mechanism task.world) := by
   have fails : ∀ agent seed, Fails S agent task seed →
-      Fails S agent ⟨task.Family, task.world, recognizer S mechanism task.world⟩ seed := by
+      Fails S agent (recognizer S mechanism task.world) seed := by
     rintro agent seed ⟨member, failed⟩
     refine ⟨member, ?_⟩
     rintro ⟨other, same⟩
@@ -288,12 +310,12 @@ theorem Result.recognized {S : Setting} {mechanism : Mechanism S} {task : Task S
       fails _ seed (result.learningNeeded seed predictions controls)⟩
 
 /-- **All that a complete result certifies about its goal.** For a mechanism and a family of
-worlds, some goal has a complete result exactly when the goal that only recognizes the
-submission has one. -/
+worlds, some task over those worlds has a complete result exactly when the task that only
+recognizes the submission has one. -/
 theorem recognized_iff (S : Setting) (mechanism : Mechanism S) {Family : Type}
     (world : Family → World S.Percept S.Action) :
-    (∃ goal, Result S mechanism ⟨Family, world, goal⟩) ↔
-      Result S mechanism ⟨Family, world, recognizer S mechanism world⟩ :=
-  ⟨fun ⟨_, result⟩ => result.recognized, fun result => ⟨_, result⟩⟩
+    (∃ goal sameWorld, Result S mechanism ⟨Family, world, goal, sameWorld⟩) ↔
+      Result S mechanism (recognizer S mechanism world) :=
+  ⟨fun ⟨_, _, result⟩ => result.recognized, fun result => ⟨_, _, result⟩⟩
 
 end AcornVerif.LearnedState

@@ -19,7 +19,8 @@ control learners hold (`predictor`, `controller`, with the operations that overw
 submission supplies none of it and changes none of it.
 
 **What a submission supplies.** A `Mechanism`: a memory, and what it hands the base agent with
-each percept. And a `Task`: a family of worlds and a goal. The agent a result is about is
+each percept. And a `Task`: a family of worlds and a goal, which is given which world it is
+judging and reads a member of the family only through its world. The agent a result is about is
 `assembled`: the base agent, stepping on each percept extended by what the mechanism hands it.
 Nothing else about the step is the submission's.
 
@@ -150,8 +151,8 @@ structure Mechanism (S : Setting) where
   /-- Its memory after the step's output. -/
   note : Memory → S.Output → Memory
 
-/-- A family of worlds and a goal. The goal reads a world of the family and the trace of a run
-in it. It reads no seed and no state of an agent. -/
+/-- A family of worlds and a goal. The goal is given which world it is judging, and reads that
+world and the trace of a run in it. It reads no seed and no state of an agent. -/
 structure Task (S : Setting) where
   /-- The worlds the goal is posed over. -/
   Family : Type
@@ -159,6 +160,10 @@ structure Task (S : Setting) where
   world : Family → World S.Percept S.Action
   /-- The goal, of a member and the trace of a run in its world. -/
   goal : (member : Family) → (Nat → (world member).State × S.Output) → Prop
+  /-- Two members with the same world give the same verdict on the same trace: the goal reads a
+  member only through its world. -/
+  sameWorld : ∀ (first second : Family) (same : world first = world second)
+    (trace : Nat → (world first).State × S.Output), goal first trace → goal second (same ▸ trace)
 
 /-! ## The agents a result compares -/
 
