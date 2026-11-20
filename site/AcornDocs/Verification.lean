@@ -67,8 +67,10 @@ The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
 
-The [verification workflow](../.github/workflows/verify.yml) runs only when
-started by hand, on GitHub's standard `ubuntu-24.04` x64 image. It installs no
+The [verification workflow](../.github/workflows/verify.yml) runs the
+[merge gate's](#build-and-source-inventory) checks on every pull request, on
+every push to main and when started by hand, on GitHub's standard `ubuntu-24.04`
+x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
 elan from a release pinned by the SHA-256 of its archive, which the dependency
 cache keeps. Every workflow step that reaches the network has its own time
@@ -425,8 +427,9 @@ Primitive IEEE interpretation remains a native assumption.
 
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
-validates, in a checkout that holds only tracked files; GitHub Actions runs no
-check on a pull request or a push. The gate provisions the pinned dependencies,
+validates, in a checkout that holds only tracked files. GitHub runs the same
+checks on every pull request and on every push to main, as described after the
+frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
 360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
 sources as the complete command does, then selects every module outside the proof
@@ -496,9 +499,47 @@ The pipeline stores the provisioned dependency checkouts and their build outputs
 once for each default-branch commit a run starts from, and gives a run a private
 copy only while the run's toolchain and lock files equal that commit's; Lake
 rebuilds whatever its traces do not show current. Acorn's own outputs are never
-carried from one run to another. The workflows that ran these checks on GitHub
-stay available to start by hand; they have read-only repository permissions,
-no secrets, no privileged pull-request trigger, and pinned action revisions.
+carried from one run to another.
+
+GitHub runs the gate's checks through the
+[verification workflow](../.github/workflows/verify.yml): when a pull request is
+opened or reopened and at every push to its branch, whether that branch is in
+the repository or in a fork, on the pull request's head commit; on every push to
+main; and when started by hand. The script holds its checks in groups, each a
+sequence of checks on one build: verification's two stages are one group, and
+the audit, the lean-intent checks and the frame check are the other. It prints
+the groups' names when given the argument groups, and runs one group's checks,
+without provisioning, when given the argument group and a name. The workflow
+makes one job of each name the script prints and runs that group by the script
+in it, so the checks GitHub runs are the script's own, with no second list to
+keep equal to it. A failing check fails its job, each job's result is shown on
+the pull request, and one group's failure does not stop the other.
+
+The arrangement on GitHub differs from the script's complete run in four ways.
+The groups run in separate jobs side by side, each on its own machine from cold
+project outputs, where the complete run takes them in order on one. The workflow
+provisions the dependencies by its own steps, which restore them from GitHub's
+cache, bound every download and take elan from the pinned release; the script's
+own provisioning does not run there. Only the verification job provisions the
+documentation site's dependencies, since no other check reads them. And each
+job has a 30-minute limit, which the complete run does not. The key of GitHub's
+cache includes the toolchain and lock files. A run on main saves it where every pull
+request's run can restore it, and a pull request's run where only runs of that
+pull request can, so a pull request cannot change what another one restores.
+
+A pull request's run is started by GitHub's ordinary event for pull requests,
+never the privileged one that runs with the base repository's rights, so the run
+for a fork's pull request receives none of the repository's secrets and a token
+that cannot write to the repository. The workflow names no secret, asks for read
+access to contents only, keeps no credentials in its checkout and pins each
+action by revision. GitHub runs the version of the workflow in the pull
+request's merge with its base, so a pull request that edits the workflow, the
+script or a check is checked by its own edit: nothing in the run refuses such an
+edit, which shows only in the pull request's changed files. GitHub starts no run
+for a head that conflicts with its base and may hold the run of a contributor's
+fork until a maintainer approves it, and the workflow cancels a run when a newer
+push replaces its head. Whether a merge requires these jobs is set in the
+repository's rules on GitHub, not in a file of the repository.
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners

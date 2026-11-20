@@ -2,14 +2,19 @@
 # reaches GitHub. no-mistakes reads every setting below only from the copy of this file on the
 # default branch, so a change to it governs the runs that follow its merge, not its own.
 #
-# The local pipeline is Acorn's merge gate; GitHub Actions runs no check on a pull request or a
-# push. Its Test step runs scripts/gate.sh in a checkout of the exact commit it validates, holding
-# only tracked files. The script provisions the pinned dependencies and runs every check the
-# verification workflows run: both stages of ./scripts/verify.sh, the Regula audit
+# The pipeline's Test step runs scripts/gate.sh, Acorn's merge gate, in a checkout of the exact
+# commit it validates, holding only tracked files. The script provisions the pinned dependencies
+# and runs every merge check: both stages of ./scripts/verify.sh, the Regula audit
 # ./scripts/regula.sh, lean-intent's confirmation and implementation checks
 # (lean/AcornTools/Intent.lean), and the check of each target's pinned frame
 # (lean/AcornTools/Frame.lean). Any failing check fails the step.
-no_ci: true
+#
+# GitHub runs the same checks on every pull request and on every push to main, taking them from
+# that script (.github/workflows/verify.yml). This file sets no `no_ci`, the declaration that a
+# repository has no checks on its forge, so the pipeline expects them: once it has opened a pull
+# request it reports the pull request ready only when every check that GitHub registers on the
+# pull request's head commit has passed, and never while GitHub registers none there
+# (no-mistakes' repo-config reference, "no_ci").
 
 commands:
   test: ./scripts/gate.sh
