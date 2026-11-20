@@ -16,16 +16,10 @@ export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PAT
 
 step() { printf 'gate: %s at %s (%d s)\n' "$1" "$(date -u +%H:%M:%SZ)" "$SECONDS"; }
 
-# Lake's build directories hold only what a run's own Lake builds, and Lake trusts an output
-# there whose trace matches. Git ignores them, which stops no deliberate add: a change that
-# tracked a file there could hand Lake a compiled module, a tool or a compiled configuration that
-# no run built from admitted sources. So a checkout whose index holds such a file is refused
-# before the first Lake call. Git lists none in the ordinary case.
-tracked_outputs=$(git ls-files -- lean/.lake site/.lake)
-if [[ -n "$tracked_outputs" ]]; then
-  printf 'gate: the checkout tracks files under a build directory:\n%s\n' "$tracked_outputs" >&2
-  exit 1
-fi
+# Before the first Lake call: the checkout tracks nothing under a build or output directory,
+# nothing in the site's directory but its sources, configuration and lock files, and no path that
+# differs only by letter case from an owner path (scripts/tracked.sh gives the reasons).
+./scripts/tracked.sh
 
 # Dependency checkouts hold a symbolic link as a plain file holding its target (Git's
 # core.symlinks), so lean/.lake/packages holds only directories and regular files, the

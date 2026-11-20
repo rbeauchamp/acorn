@@ -134,11 +134,11 @@ def site (write : Bool) (whole : Bool := false) : IO Unit := do
   interpret "Main.lean" (if write then #["write"] else #[])
   IO.println "site: documents admitted, then elaborated against their Lean owners; kept Markdown matches"
 
-/-- Source admission precedes application compilation. Every discovered module is admitted;
-the build requests each one that `keep` accepts, with its native object where it has one,
-and every declared executable. The two source admissions run at once with Lake's target
-inventory, since none depends on another. -/
-def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
+/-- Source admission, before anything of the project but the boundary audit is built. Every
+discovered module is admitted. The two source admissions run at once with Lake's target
+inventory, since none depends on another. Returns the discovered modules and the executables
+whose configuration names a target they need. -/
+def admit : IO (Array Lean.Name × Array String) := do
   lake #["build", "lean-boundary-audit"]
   let modules ← AcornOwnershipAudit.sources
   let waiting ← IO.mkRef #[]
@@ -148,6 +148,13 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
     run ".lake/build/bin/lean-boundary-audit" #["proof-source"] (whole := true)]
   IO.println "ownership: source modules and Lake entries admitted"
   (← IO.getStdout).flush
+  return (modules, ← waiting.get)
+
+/-- Source admission precedes application compilation (`admit`). The build then requests each
+admitted module that `keep` accepts, with its native object where it has one, and every declared
+executable. -/
+def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
+  let (modules, waiting) ← admit
   let modules := modules.filter keep
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
@@ -156,7 +163,6 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
   -- its root module, are requested last: every other job is already scheduled when Lake
   -- starts to wait. The modules lead the rest, so that the proof modules, whose import chain
   -- is the longest in the build, are scheduled first.
-  let waiting ← waiting.get
   let late := AcornOwnership.executables.filter fun entry => waiting.contains entry.1
   let (lateModules, modules) := modules.partition fun name => late.any (·.2 == name)
   let (lateTargets, executableTargets) := AcornOwnership.executables.partition late.contains
@@ -206,7 +212,15 @@ def main (args : List String) : IO UInt32 := do
       IO.println "Optional mutation diagnostics passed; this is not ordinary merge verification."
     | ["site"] => AcornGate.site false
     | ["site", "write"] => AcornGate.site true
-    | _ => throw (IO.userError "usage: acorn-gates [build-executing | diagnostics | site [write]]")
+    -- Write the kept browser kernel from the reading of its emitter that the gate checks: the
+    -- sources are admitted, the emitter's module and the corpus audit are built, and the audit
+    -- writes the file.
+    | ["browser-kernel", "write"] =>
+      discard AcornGate.admit
+      AcornGate.lake #["build", "+Acorn.Host.Viewer.BrowserKernel", "corpus-audit"]
+      AcornGate.run "lean/.lake/build/bin/corpus-audit" #["browser-kernel", "write"] (some "..")
+    | _ => throw (IO.userError
+        "usage: acorn-gates [build-executing | diagnostics | site [write] | browser-kernel write]")
     return 0
   catch error =>
     IO.eprintln s!"acorn-gates: {error}"

@@ -36,13 +36,11 @@ structure Program where
 /-- Read the audit arms' pins and the program's option parser from the finished build `env`. -/
 unsafe def program (env : Lean.Environment) : IO Program := do
   let arms ← AcornSubjects.read (List (String × String × String)) env
-    "List (String × String × String)"
     "[NativeApp.AuditArm.declared, NativeApp.AuditArm.annealed, \
       NativeApp.AuditArm.differential].map (fun arm => \
       (NativeApp.auditWord arm.receipt.digest, NativeApp.hexWord arm.receipt.digest, \
         NativeApp.hexWord arm.receipt.checksum))"
   let options ← AcornSubjects.read (List String → Option String) env
-    "List String → Option String"
     "fun words => (NativeApp.auditOptions words).toOption.map \
       (fun arm => NativeApp.hexWord arm.receipt.checksum)"
   return { arms, options }

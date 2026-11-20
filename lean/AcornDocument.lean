@@ -6,9 +6,11 @@ Authors: acorn contributors
 
 /-! # External names of maintained prose
 
-The names that maintained prose may cite from outside the project, which the corpus audit in
-`AcornTools.Corpus.Documents` admits, and the theorem that states what an admitted name is. This
-module imports nothing beyond Lean's prelude, so the proof claim covers it and its theorem.
+The names that maintained prose may cite from outside the project. The corpus audit in
+`AcornTools.Corpus.Documents` reads this registry from the finished build and decides itself
+whether a name is registered: a name is admitted when it equals a listed name, with `::` read as
+`.`, so a listed name admits no other name of its namespace and every qualified external name a
+document uses is listed in full. This module imports nothing beyond Lean's prelude.
 -/
 
 namespace AcornDocument
@@ -97,16 +99,5 @@ def externalSymbols : List String := [
   "lintDriverArgs",
   "REGULA_FULL",
   "missingDocs"]
-
-/-- Whether a name is one of the external symbols. Admission is equality with a listed name,
-so a listed name admits no other name of its namespace: every qualified external name a
-document uses is listed in full. -/
-def external (name : String) : Bool :=
-  (externalSymbols.map (·.replace "::" ".")).contains name
-
-/-- An admitted external name is one of the listed symbols. -/
-theorem external_listed (name : String) (admitted : external name = true) :
-    name ∈ externalSymbols.map (·.replace "::" ".") := by
-  simpa [external] using admitted
 
 end AcornDocument

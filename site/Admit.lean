@@ -22,7 +22,8 @@ ends the run with a refusal, before it has been elaborated.
 
 - imports of `VersoManual`, of `AcornSite`, of a module of the Lean package in `lean/`, and, in
   the root document `AcornDocs` alone, of the documents it includes;
-- before the text, `open` of the namespaces `openNamespaces`, and `#doc (Manual) "Title" =>`;
+- before the text, `open` of the namespaces `openNamespaces`, and `#doc (Manual) "Title" =>`,
+  whose title is plain text (`titleCharacter`), since Verso reads a title as text of the document;
 - in the text: paragraphs, headings, links to a URL, bold text, inline code, line breaks, and a
   metadata block that sets `tag` to a string;
 - the roles `roleNames`: `{decl}` and `{leanModule}` around one code span holding a name,
@@ -48,6 +49,12 @@ namespace AcornSiteAdmission
 
 /-- The namespaces a document may open. -/
 def openNamespaces : Array Name := #[`Verso.Genre, `Manual, `AcornSite]
+
+/-- The characters a document's title may hold: letters, digits, spaces and four marks of
+punctuation. Verso parses a title as text of a document and elaborates each part of it, so a
+title holds no character that begins a role, code, a link, emphasis or an escape. -/
+def titleCharacter (c : Char) : Bool :=
+  c.isAlphanum || c == ' ' || c == ',' || c == '.' || c == '\'' || c == '-'
 
 /-- The roles a document may use. -/
 def roleNames : Array Name := #[`decl, `leanModule, `splice, `spliceCode]
@@ -174,6 +181,10 @@ def Reader.admitCommand (reader : Reader) (command : Syntax) : IO Unit := do
     closed reader.file "the `#doc` line" documentKinds command
     unless command[2].isIdent && command[2].getId == `Manual do
       refuse reader.file "a document of a genre other than `Manual`"
+    -- Verso reads the title as text of a document and elaborates what it finds there, so a
+    -- title is plain: characters that begin no form of the text.
+    unless (command[4].isStrLit?.getD "{").toList.all titleCharacter do
+      refuse reader.file "a title that is not plain text"
   else if kind == `Verso.Doc.Concrete.addBlockCmd || kind == `Verso.Doc.Concrete.addLastBlockCmd then
     reader.admit command
   else unless kind == ``Parser.Command.eoi do

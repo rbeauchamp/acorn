@@ -14,9 +14,9 @@ names replace lexical declaration inference; IO and Lean environment loading are
 the reviewed tooling boundary.
 
 The names a document may cite from the viewer's protocol, and the registry of names from
-outside the project (`AcornDocument.external`, in the library `AcornDocument`, which any change
-may extend), are subjects read from the finished build (`AcornSubjects.read`); this module
-imports neither.
+outside the project (`AcornDocument.externalSymbols`, in the library `AcornDocument`, which any
+change may extend), are subjects read from the finished build (`AcornSubjects.read`); this module
+imports neither. Whether a name is registered is decided here, by equality with a listed name.
 -/
 namespace AcornDocument
 open Lean
@@ -234,7 +234,7 @@ unsafe def symbolsFrom (env : Environment) (selection : Array Name) :
       "(Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules).flatMap \
         (fun entry => entry.1 :: (match entry.2 with \
           | Acorn.Host.Viewer.BrowserRule.tags tags => tags | _ => []))"] do
-    for name in ← AcornSubjects.read (List String) env "List String" term do
+    for name in ← AcornSubjects.read (List String) env term do
       names := names.insert name
   names := names.insert "main"
   let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
@@ -293,7 +293,11 @@ otherwise missing project declaration appear present. -/
 unsafe def check (env : Environment) (documents : Array (String × String))
     (selection : Array Name) : IO Unit := do
   let names ← symbolsFrom env selection
-  let external ← AcornSubjects.read (String → Bool) env "String → Bool" "AcornDocument.external"
+  -- The registry of names from outside the project is a subject; normalising its spellings and
+  -- the test of membership, equality with a listed name, are this audit's own.
+  let registered := (← AcornSubjects.read (List String) env "AcornDocument.externalSymbols").map
+    (·.replace "::" ".")
+  let external (name : String) : Bool := registered.contains name
   let mut failures := 0
   for (path, text) in documents do
     for span in (spans text).eraseDups do

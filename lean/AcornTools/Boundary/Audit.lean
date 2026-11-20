@@ -179,6 +179,17 @@ def forbiddenWords : Array String := #["unsafe", "partial", "meta", "axiom", "so
   "native_decide", "run_tac", "run_elab", "by_elab", "extern", "implemented_by", "csimp",
   "simproc", "builtin_simproc", "elab", "macro", "initialize", "builtin_initialize", "_unsafe_rec"]
 
+/-- The files a source may include as text while it is elaborated (`include_str`), each with the
+one module that includes it and the path as that module writes it, relative to its own file: the
+viewer's page, and the three records the Lake configuration's provenance target writes into the
+build directory. Lean reads the file when it elaborates the term, so every other inclusion is
+refused, and so is one whose path is not a string literal, which Lean would evaluate. -/
+def includedFiles : Array (Name × String) := #[
+  (`NativeApp.Assets, "../../viewer/static/index.html"),
+  (`NativeApp.Build, "../.lake/build/native-provenance.txt"),
+  (`NativeApp.Build, "../.lake/build/native-source-inventory.txt"),
+  (`NativeApp.Build, "../.lake/build/native-build-identity.txt")]
+
 /-- Inspect parsed syntax rather than comment/literal-stripped source text.
 Traversal is over the compiler-produced finite syntax tree. -/
 partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
@@ -188,6 +199,9 @@ partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
   match nodeSyntax with
   | .atom _ word =>
     if forbiddenWords.contains word then reject owner s!"forbidden syntax capability {word}"
+    -- An inclusion reaches this case only outside the admitted form below.
+    if word.trimAscii.toString == "include_str" then
+      reject owner "file inclusion outside its admitted form"
   | .ident _ _ name _ =>
     if name.components.any (fun part => part != `admit && forbiddenWords.contains part.toString) then
       reject owner s!"forbidden syntax identifier {name}"
@@ -200,6 +214,12 @@ partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
         reject owner s!"unreviewed attribute {attributeName}"
       unless nodeSyntax[1][1].getArgs.isEmpty do
         reject owner s!"attribute arguments require review: {attributeName}"
+    if kind == ``includeStr then
+      let some path := nodeSyntax[1].isStrLit?
+        | reject owner "file inclusion whose path is not a string literal"
+      unless includedFiles.contains (owner, path) do
+        reject owner s!"unreviewed file inclusion {path}"
+      return
     for child in children do inspectSyntax owner child
   | .missing => reject owner "missing syntax node"
 
@@ -432,10 +452,12 @@ it names, so it is the root of no executable and no other tool module imports it
 print axioms and declare nothing. -/
 def axiomPins : Name := `AcornTools.AxiomPins
 
-/-- No gate tool imports a module from outside the owner's paths. Starting from every tool
-module but the axiom pins, each module's own import lines are read with Lean's header parser and
-followed through the project's modules: every module reached lies under a path that
-`.github/CODEOWNERS` names, and none is the axiom pins. A tool's own code is then elaborated with
+/-- No gate tool, and no module of the documentation site's own tooling, imports a module from
+outside the owner's paths. Starting from every tool module but the axiom pins, and from the
+modules of this package that the site's tooling imports, each module's own import lines are read
+with Lean's header parser and followed through the project's modules: every module reached lies
+under a path that `.github/CODEOWNERS` names, and none is the axiom pins. The site's tooling is
+itself under owner paths and imports no document, but for the renderer's root. A tool's own code is then elaborated with
 no declaration of an unowned project module in scope, so no such declaration (an instance, a name
 in a namespace the tool opens) can be what the tool's code resolves to, and a tool links no such
 module. The modules of the toolchain and of the dependencies are not followed: the lock files,
@@ -447,6 +469,22 @@ def toolImports : IO Unit := do
     reject axiomPins "the axiom pins are the root of an executable"
   unless ownerCovered paths axiomPins do reject axiomPins "tool module under no owner path"
   let mut pending := AcornModuleInventory.toolingModules.filter (· != axiomPins)
+  -- The site's own tooling is every module of the site that is no document. It decides the
+  -- site's check and holds the elaborators of the documents' references, so the same holds
+  -- of it: under an owner path, and every module of this package it imports is followed with
+  -- the gate tools' own. It imports no document; the renderer's root alone does, to apply the
+  -- check to them.
+  let mut tooling := 0
+  for module in ← AcornModuleInventory.siteModules do
+    if siteDocument module then continue
+    tooling := tooling + 1
+    unless ownerCovered paths module "site" do
+      reject module "a module of the site's tooling under no owner path"
+    let path := System.FilePath.mk ".." / "site" / (module.toString.replace "." "/" ++ ".lean")
+    for imported in ← declaredImports module path do
+      if project.contains imported then pending := pending.push imported
+      if siteDocument imported && module != siteRenderer then
+        reject module s!"the site's tooling imports the document {imported}"
   let mut seen : NameSet := {}
   while !pending.isEmpty do
     let some module := pending.back? | reject Name.anonymous "lost tool import work item"
@@ -455,26 +493,10 @@ def toolImports : IO Unit := do
     seen := seen.insert module
     if module == axiomPins then reject module "a gate tool imports the axiom pins"
     unless ownerCovered paths module do
-      reject module "a gate tool imports this module, which is under no owner path"
+      reject module
+        "a gate tool or the site's tooling imports this module, which is under no owner path"
     for imported in ← declaredImports module (module.toString.replace "." "/" ++ ".lean") do
       if project.contains imported then pending := pending.push imported
-  -- The site's own tooling is every module of the site that is no document. It decides the
-  -- site's check and holds the elaborators of the documents' references, so the same holds
-  -- of it: under an owner path, importing no module of this package outside them and no
-  -- document. The renderer's root alone imports the documents, to apply the check to them.
-  let site ← AcornModuleInventory.siteModules
-  let mut tooling := 0
-  for module in site do
-    if siteDocument module then continue
-    tooling := tooling + 1
-    unless ownerCovered paths module "site" do
-      reject module "a module of the site's tooling under no owner path"
-    let path := System.FilePath.mk ".." / "site" / (module.toString.replace "." "/" ++ ".lean")
-    for imported in ← declaredImports module path do
-      if project.contains imported && !seen.contains imported then
-        reject module s!"the site's tooling imports {imported}, which no gate tool imports under an owner path"
-      if siteDocument imported && module != siteRenderer then
-        reject module s!"the site's tooling imports the document {imported}"
   IO.println s!"lean-boundary-audit: {seen.size} modules of the gate's tools and {tooling} of the site's tooling, each under an owner path"
 
 /-- Run source admission before build, or source plus compiled admission afterward.

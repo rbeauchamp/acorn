@@ -13,10 +13,9 @@ import Acorn.Host.Viewer.BrowserNat
 
 One generated resource carries everything the page takes from Lean: its named
 dimensions, refusal vocabulary and lifecycle labels, the frame store, admission,
-the record conversion and the numeric programs. The `browser-kernel` executable
-prints it. Verification compares the maintained file byte for byte with the text of
-`browserKernelJavascript`, which it evaluates from the finished build, and does not run that
-executable.
+the record conversion and the numeric programs. Verification evaluates
+`browserKernelJavascript` from the finished build and compares the maintained file with it byte
+for byte; `./scripts/verify.sh browser-kernel write` writes the file from the same evaluation.
 Nothing here relates the emitted JavaScript to the Lean semantics of the
 definitions it is printed from; the browser's JavaScript engine and these
 structural emitters remain trusted.

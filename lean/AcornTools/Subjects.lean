@@ -16,8 +16,11 @@ refuses such an import before anything but the gate program and itself is built
 are statements about a definition of the project itself: a table in a document must equal the
 viewer's constants, a published audit command must be one the program's own option parser admits.
 Such a definition is a *subject* of the check. It stays where any change may edit it, and a tool
-reads it from the compiled environment through `read`, the one way a tool executes a project
-definition from outside the owner's paths.
+reads it from the compiled environment through `read`, the route by which the tools read every
+subject. Where a check's verdict is a test of membership or a comparison, the test is the tool's
+and only the data it is applied to is a subject. What holds a tool to this route is that the
+tools are themselves under the owner's paths: a tool that evaluated a definition of the change
+another way would be a change to an owner path. No check scans the tools for it.
 
 `subjects` is the closed list of those definitions: the list of what a tool may evaluate by
 name. `read` elaborates a term a tool writes, in
@@ -64,10 +67,10 @@ about, each with the check that reads it. A listed inductive type admits its con
 eliminators Lean generates for it. -/
 def subjects : Array Name := #[
   -- The document audit: the names a document may cite from the viewer's protocol, and the
-  -- registry of names from outside the project with its membership test.
+  -- registry of names from outside the project. Membership in it is the audit's own test.
   `Acorn.Host.Viewer.browserSchema, `Acorn.Host.Viewer.TelemetryShape,
   `Acorn.Host.Viewer.browserRules, `Acorn.Host.Viewer.browserControlRules,
-  `Acorn.Host.Viewer.BrowserRule, `AcornDocument.external,
+  `Acorn.Host.Viewer.BrowserRule, `AcornDocument.externalSymbols,
   -- The browser audit: the constants a document's table must equal, and the text of the generated
   -- kernel that the kept file must equal.
   `Acorn.Host.Viewer.BrowserConstant, `Acorn.Host.Viewer.BrowserConstant.all,
@@ -134,15 +137,33 @@ partial def admit (original current : Environment) (seen : IO.Ref NameSet) (term
       admit original current seen info.type
       if let some value := info.value? then admit original current seen value
 
-/-- The value of `term`, a Lean term of the type `type`, in the environment of the finished
-build. Both are elaborated; a message of the elaborator, an unresolved part or a project
-declaration outside the tools that is no listed subject (`admit`) refuses the reading before
-anything is evaluated. Unsafe because Lean cannot check that `α` is the type that `type` spells:
-each caller writes the two side by side. -/
-unsafe def read (α : Type) (env : Environment) (type term : String) : IO α := do
+/-- A type a tool may read a subject at, with its spelling as a Lean term. The instances below
+are the whole of it: text, numbers, truth values, and lists, pairs, options and functions of
+those. A caller of `read` names the Lean type alone, and the term it reads is elaborated against
+the spelling this class gives for that type, so the two cannot disagree at a call. -/
+class Readable (α : Type) where
+  /-- The type, as a Lean term. -/
+  spelling : String
+
+instance : Readable String := ⟨"String"⟩
+instance : Readable Nat := ⟨"Nat"⟩
+instance : Readable Bool := ⟨"Bool"⟩
+instance {α : Type} [Readable α] : Readable (List α) := ⟨s!"(List {Readable.spelling α})"⟩
+instance {α : Type} [Readable α] : Readable (Option α) := ⟨s!"(Option {Readable.spelling α})"⟩
+instance {α β : Type} [Readable α] [Readable β] : Readable (α × β) :=
+  ⟨s!"({Readable.spelling α} × {Readable.spelling β})"⟩
+instance {α β : Type} [Readable α] [Readable β] : Readable (α → β) :=
+  ⟨s!"({Readable.spelling α} → {Readable.spelling β})"⟩
+
+/-- The value of `term`, a Lean term of the type `α`, in the environment of the finished build.
+The term is elaborated against the spelling of `α` (`Readable`); a message of the elaborator, an
+unresolved part or a project declaration outside the tools that is no listed subject (`admit`)
+refuses the reading before anything is evaluated. Unsafe because the evaluation trusts that each
+instance of `Readable` spells its own type, which the seven instances above do. -/
+unsafe def read (α : Type) [Readable α] (env : Environment) (term : String) : IO α := do
   let parse (text : String) : IO Syntax :=
     IO.ofExcept (Parser.runParserCategory env `term text "<subject>")
-  let typeSyntax ← parse type
+  let typeSyntax ← parse (Readable.spelling α)
   let termSyntax ← parse term
   let action : MetaM α := do
     let (expected, value) ← Term.TermElabM.run' do

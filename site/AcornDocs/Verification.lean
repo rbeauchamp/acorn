@@ -656,7 +656,8 @@ Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
 native and ownership admission after it. The ownership audit also requires the kept
 browser kernel to hold the bytes of its Lean emitter, which it evaluates from the
-finished build; the gate does not run the program that prints them. Each of these
+finished build; `./scripts/verify.sh browser-kernel write` writes the kept file from the
+same evaluation, and no program prints the kernel. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
 before a failure is reported. The site check runs after these admissions, also
 when one of them fails, because building the documents can rebuild this
@@ -704,12 +705,24 @@ targets of the Lake configuration read the import lines of five project files as
 text, to choose the modules of a dependency they build, and run nothing of those
 files.
 
-*Build outputs.* Lake builds into the directory .lake of each package and trusts
-an output there whose trace matches. Git ignores those directories, so a
-checkout of a commit holds nothing in them. The gate, before its first Lake call,
-and `./scripts/verify.sh` refuse a checkout whose index holds a file under either
-one, so a change cannot hand Lake a compiled module, a tool or a compiled
-configuration that the run did not build.
+*What the checkout tracks.* Before its first Lake call the gate runs
+`scripts/tracked.sh`, and so does `./scripts/verify.sh`. It reads Git's index and
+refuses three things. A tracked file under a package's build directory or under
+the site's output directory: Lake trusts an output there whose trace matches, and
+the renderer writes through what the output directory holds, so such a file
+could hand the gate a compiled module, a tool, a compiled configuration or a
+link that no run made. A tracked file of the site that is none of its Lean
+sources, its Lake configuration, its two lock files and its ignore file: Verso's
+renderer reads a remote configuration from the site's directory when one is
+there, and none may be tracked. And a tracked path that differs only by letter
+case from a path at or under an owner path: on a file system that ignores case
+it is the owner's file or directory while Git and CODEOWNERS take it for
+another, so a change could add Lake's configuration under another spelling or
+replace an owner's file at checkout. For the owner paths the guard on owner paths
+refuses the same from the commit a change starts from, where the gate has that
+guard; this check is the one that covers the build and output directories. The
+script is the checkout's own, so a path that replaced it at checkout would
+escape it: only that guard refuses such a path.
 
 *The toolchain and the dependencies.* Lean, Lake, the tactics and elaborators of
 Mathlib and the other dependencies, Regula's lint, lean-intent's readers and Verso
@@ -738,10 +751,13 @@ outside the tools: it parses each source with Lean's parser under a fixed parser
 environment and admits a closed list of commands (declarations, namespaces,
 sections, the opening of a namespace, variables and the setting of a listed
 option, and in a proof source a print of axioms and a guard of a message), five
-attributes with no argument, and no word of `forbiddenWords`. An admitted source therefore defines
-no macro, elaborator, syntax or initializer and holds no command that evaluates
-a term, so what elaborating it runs is the elaborators and tactics of the
-toolchain and the dependencies. The two admissions, of executing and of proof
+attributes with no argument, and no word of `forbiddenWords`. It admits the
+inclusion of a file as text only for the pairs of module and path that
+`includedFiles` lists, the viewer's page and three records the build itself
+writes, with the path written as a string. An admitted source therefore defines
+no macro, elaborator, syntax or initializer, holds no command that evaluates
+a term and reads no file but those, so what elaborating it runs is the
+elaborators and tactics of the toolchain and the dependencies. The two admissions, of executing and of proof
 sources, divide the project's modules between them, so none lies outside both.
 The first run of the gate admits before it builds, and a failed first run ends
 the gate, so every later build of the run, the second run's, the Regula audit's
@@ -759,11 +775,16 @@ viewer's constants, a published audit command must be one that the program's own
 option parser admits, the kept browser kernel must be the text its emitter
 produces. Such a definition is a subject of the check, and stays where any
 change may edit it. `AcornSubjects.subjects` is the one closed list of them, and
-`AcornSubjects.read` is the one way a tool runs a definition from outside the
-owner paths: it elaborates a term the tool writes, refuses it when it names a
+`AcornSubjects.read` is the route by which the tools read every subject: it
+elaborates a term the tool writes, refuses it when it names a
 declaration of a changeable module that is not listed, and evaluates it. Every
 other definition a tool executes is part of how the check judges, and is under
-an owner path.
+an owner path. Where a check's verdict is a test of membership or a comparison,
+the test is the tool's and only the data it is applied to is a subject: the
+document audit reads the registry of external names and decides itself whether
+a name is in it. What holds a tool to this route is that the tools are owner
+paths: a tool that evaluated a definition of the change another way would be a
+change to an owner path. No check scans the tools for it.
 
 The evaluation is this. The tool has loaded the compiled modules of the finished
 build into one environment. The reading adds the elaborated term to that
@@ -807,19 +828,24 @@ adding it to the list is the owner's change, and it holds for a definition in a
 module that source admission covers whose type is data.
 
 *Compiled programs of the change.* The build compiles every executable, and the
-gate runs none of them. The mutation audits run the agent's core only in the
+gate runs none of them. The kept browser kernel is compared with the text its
+emitter evaluates to, and is written from that evaluation, by no program of the
+change. The mutation audits run the agent's core only in the
 optional diagnostics. The C compiler compiles the generated C and the one
 maintained C file, which is under the owner path `lean/os/`.
 
 *The site's documents.* The site step admits each document with `site/Admit.lean`
 before Lake builds it, as [Documentation site](#documentation-site) describes. A
+document's title is plain text, since Verso reads a title as text of the document
+and elaborates what it finds there. A
 spliced term is evaluated when the pages are rendered and has the type of a
 string, so it computes a value.
 
 *The site's tooling.* `site/Admit.lean`, `site/Main.lean` and the modules under
 `site/AcornSite/` run with input and output: they are the site's check. They are
 owner paths, and `AcornBoundaryAudit.toolImports` holds them to the rule of the
-gate's tools. A change to one of them still runs in the site step and is refused
+gate's tools: every module of the project that one of them imports, at any
+remove, is an owner path. A change to one of them still runs in the site step and is refused
 by nothing here, as the first paragraph says of every owner path.
 
 `site/Main.lean` is the exception to that rule: it must import the documents,
@@ -855,17 +881,18 @@ A contributor meets these rules in three places, each with a refusal that names
 what to propose. A document that needs a form outside the list fails the site
 step with a line that names the document and the form, which for a list reads
 `the document holds the unadmitted form Lean.Doc.Syntax.ul`. The form is added to
-the list in `site/Admit.lean` by a pull request of its own, which changes an
-owner path and so is the owner's to review and merge; once it is on the default
-branch, the document passes and the step prints the number of commands it
+the list in `site/Admit.lean`, an owner path, by a change the owner admits, and
+that change has to be admitted before a document can use the form; the document
+then passes and the step prints the number of commands it
 admitted. A check that needs to read another definition of the project fails the
 ownership audit with `subjects:` and the name of the definition, which is no
 listed subject. The name is added to `AcornSubjects.subjects` in
-`lean/AcornTools/Subjects.lean`, with the check that reads it, by the same kind
-of pull request. A tool or a module of the site's tooling that imports a
+`lean/AcornTools/Subjects.lean`, with the check that reads it, by a change the
+owner admits. A tool or a module of the site's tooling that imports a
 changeable module fails the first run with that module's name; the import is
 removed, or the module becomes an owner path by a line of CODEOWNERS that the
-owner admits.
+owner admits. An owner path needs the owner's admission; a pull request of its
+own is the simple way to ask for it, and is no rule.
 
 # Regula audit
 %%%

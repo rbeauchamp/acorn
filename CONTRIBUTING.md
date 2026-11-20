@@ -64,14 +64,16 @@ GitHub requests the owner's review on a pull request that touches one, and only
 the owner's account merges. They are the files by which Acorn's checks judge a
 change, so that a change cannot alter its own check, and the files that record
 what the owner confirmed. A contribution leaves them alone. When your work needs
-one changed, propose that change as a pull request of its own, say what needs it,
-and build on it once the owner has merged it. Nothing in `./scripts/gate.sh` at
+one changed, the change needs the owner's admission: say what needs it. A pull
+request of its own is the simple way to ask, and is no rule. Nothing in `./scripts/gate.sh` at
 this commit refuses a change to one of these paths: the owner's review does. A
 gate check that refuses an unadmitted change to an owner path is a separate
 change, and the protection these paths give is complete only with it. The groups
 are:
 
-- **The gate.** `scripts/`, `.github/`, each package's Lake configuration under
+- **The gate.** `scripts/` (the gate refuses a tracked path that differs from an
+  owner path only by letter case, and tracked files under a build or output
+  directory), `.github/`, each package's Lake configuration under
   either of its names (`lean/lakefile.lean`, `site/lakefile.toml` and the two
   names not in use), `lean/Bootstrap.lean`, `lean/os/`, and the tools under
   `lean/AcornTools/` with `lean/AcornTools.lean`.
@@ -94,7 +96,12 @@ are:
   frame of the learned-state mission at `docs/learned-state-frame.md` when the
   repository holds it, and the confirmation files
   `lean/AcornVerif/Intent/OneStream.md` and
-  `lean/AcornVerif/Intent/WorldInterface.md`.
+  `lean/AcornVerif/Intent/WorldInterface.md`. The owners' log,
+  `lean/AcornVerif/Intent/OwnersLog.lean`, which the intent check reads, is not
+  one of them: it holds the owner's statements beside the answers that agents
+  append under delegation. A check that the log is only appended to is a
+  separate, later change, and until it lands nothing refuses an edit of an
+  answer recorded there.
 
 Two closed lists in those paths bound what a contribution may write elsewhere,
 and each has a refusal that tells you what to propose.
@@ -107,12 +114,14 @@ spliced Lean terms built from names, applications, parentheses and strings. Its
 prose is free. If your document needs another form, such as a list, the site
 step of `./scripts/verify.sh` fails before the document is elaborated, with a
 line that names the document and the form, for a list
-`the document holds the unadmitted form Lean.Doc.Syntax.ul`. Propose the form in
-a pull request that adds it to the list in `site/Admit.lean` (and to the Markdown
+`the document holds the unadmitted form Lean.Doc.Syntax.ul`. Propose the form as
+a change that adds it to the list in `site/Admit.lean` (and to the Markdown
 rendering in `site/AcornSite/Markdown.lean` when it has none), and say which
-document needs it. The owner reviews and merges that pull request. After it is
-on `main`, the same document passes, and the step prints
-`each admitted before it was elaborated` for it.
+document needs it. That change needs the owner's admission, and it has to be
+admitted first: a document can use the form only once the list holds it. The
+same document then passes, and the step prints
+`each admitted before it was elaborated` for it. A document's title is plain
+text.
 
 **A new subject of a check.** A gate tool imports no module of the project
 outside the owner paths. Where a check is a statement about a definition of the
@@ -121,10 +130,11 @@ definition from the build, and the definition must be named in
 `AcornSubjects.subjects` in `lean/AcornTools/Subjects.lean`. If a check you add
 or change reads a definition that is not listed, the ownership audit fails with
 `subjects:`, the definition's name and `is no listed subject of a gate check`.
-Propose the name, with the check that reads it, in a pull request that changes
-that list; the owner reviews and merges it, and the check then passes. A
+Propose the name, with the check that reads it, as a change to that list; the
+owner admits it, and the check then passes. A
 definition that a check judges with, as opposed to one it is about, is not a
-subject: it belongs in a tool module. A listed subject is evaluated as your
+subject: it belongs in a tool module, and so does a test of membership or a
+comparison, of which only the data is a subject. A listed subject is evaluated as your
 change defines it, with every definition it calls; the list bounds what a tool
 may evaluate by name, not what a subject may call.
 
