@@ -52,13 +52,14 @@ decides first (rbeauchamp/acorn#232), its criterion is the one the host's entry 
 constructs, and the seed is the least at which the host's own world was observed to start at the
 box's center, as this world does (`docs/roadmap.md`); no theorem singles these out.
 
-- **The class is proved concealed in this world at this visit length.** The feasible concealed
-  targets are a concealed class with the covering bound 98
+- **The class is proved to meet `Kernel.ConcealedClass` in this world at this visit length.** The
+  feasible concealed targets meet it with the covering bound 98
   (`AcornVerif.CurrentConcealedTarget.witness_concealed`), and 147 distinct members are listed
-  (`witness_mission`); what that proves of condition (c), and what it leaves open, is said under
-  sentence 5 of contract 2 in `docs/mission-contract.md`.
+  (`witness_mission`). That structure states condition (c) as fewer than all, so the class is not
+  thereby shown to be a concealed class (sentence 5 of contract 2 in `docs/mission-contract.md`).
   Of the executed grid world it is the one world and visit length at which
-  the tree proves a class concealed; no theorem says a shorter visit fails. Every member's
+  the tree proves a class to meet that structure; no theorem says a shorter visit fails. Every
+  member's
   target lies within ten tiles of the start
   (`AcornVerif.CurrentConcealedTarget.feasible_window`), so the class has at most 392 members
   (`rung_members`); that window, tiles 22 to 42 on both axes, lies inside the box.

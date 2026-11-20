@@ -97,8 +97,11 @@ Choosing and shaping worlds well needs a model of what a big world is. The missi
 contract states the conditions that make a class of worlds concealed, that make
 perceiving needed in it, and that make it big for a stated bound on the agent
 ([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big)).
-The three that make a class concealed are proved of one class in the tile world,
-which is not a big class, with no claim yet that the agent learns there; proving them of chosen classes is open
+Of one class in the tile world the first two of the three that make a class
+concealed are proved, and a weaker form of the third: an agent that keeps nothing
+of its experience solves fewer than all of the class, a share not shown to be small.
+So that class is not yet shown to be concealed, and it is not a big class, with no
+claim yet that the agent learns there; proving them of chosen classes is open
 work, in the issues on that contract's record
 ([#214](https://github.com/rbeauchamp/acorn/issues/214)), ARC-AGI-3 games
 as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a
