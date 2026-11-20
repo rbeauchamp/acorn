@@ -23,7 +23,7 @@ declared potentials are `spatialPotentials`, and the feedback words are the
 standalone coder's `predictionWords`. No grid word uses a prediction feedback channel
 (`Grid.sensorWords_clear`), which the frame type requires of every adapter. The interface
 admits `Grid.seatWords` more words than the adapter's own bound, so every grid frame leaves
-that room (`Grid.frame_room`, `Grid.percept_room`).
+that room (`Grid.frame_room`).
 `Acorn.Host.AgentInterface` carries these to the agent the host calls. They are
 equalities for every observation and reward word. `AcornVerif.GridCorrespondence`
 proves the whole composed transition equal to a frozen composition over host
@@ -180,13 +180,6 @@ interface admits. -/
 theorem frame_room (mode : TaskFeatureMode) (obs : Observation) (achieved : Bool) :
     (frame mode obs achieved).words.length + seatWords ≤ interface.words :=
   Nat.add_le_add_right (sensorWords_length obs mode) seatWords
-
-/-- Every grid percept leaves the room free: its frame is the adapter's frame, for every reward
-word as well. -/
-theorem percept_room (mode : TaskFeatureMode) (obs : Observation) (reward : Binary32)
-    (achieved : Bool) :
-    (percept mode obs reward achieved).frame.words.length + seatWords ≤ interface.words :=
-  frame_room mode obs achieved
 
 /-- The grid frame's cumulants are the canonical eleven host signal values. -/
 theorem signalValues_eq (mode : TaskFeatureMode) (obs : Observation) (reward : Binary32)
