@@ -1070,7 +1070,12 @@ The [mission contract](mission-contract.md#the-mission-theorem-and-its-ladder) a
 theorem for each class of worlds of a ladder. [The statement](../lean/AcornVerif/Intent/MissionTheorem.lean)
 is one proposition over the four intent records, and
 [a class in visits](../lean/AcornVerif/MissionVisits.lean) is read as the records' subject, so
-that the statement is proved of it from named premises. A **rung** is the subject: a class of
+that the statement is proved of it from named premises. The statement is the mission as the
+records word it, that of 2026-11-03: more reward on an attempt than every agent that keeps
+nothing of its experience earns on any. It is not the postcondition as the owner confirmed it on
+2026-11-20, which has no Lean form yet
+([mission contract, obligation 22](mission-contract.md#open-obligations)); where this section
+says that an agent meets the statement, the Lean statement is meant. A **rung** is the subject: a class of
 worlds with the agent that learns in it, and what that agent reports of its own steps (its
 internal updates, its work and how it resumes), which is what contract 3's record reads. The
 premises about the agent are stated over the kernel's `SolvesOnVisit` in

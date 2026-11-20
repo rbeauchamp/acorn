@@ -53,6 +53,13 @@ What the proposition does not say:
 * Two of the four records, those of contract 2 and of the postcondition, have not had their blind
   second reading or their confirmation file (rbeauchamp/acorn#214, rbeauchamp/acorn#219), so the
   proposition can change with them.
+* It is the statement as the four records word it, the wording of 2026-11-03: the postcondition's
+  record compares the reward of one attempt of the agent with the reward of every attempt of each
+  agent that keeps nothing of its experience
+  (`AcornVerif.Intent.Postcondition.earnsMoreInTime`). It is not the postcondition as the owner
+  confirmed it on 2026-11-20, more reward in total up to the horizon than each of three kinds of
+  agent, which has no Lean form yet (obligation 22 of `docs/mission-contract.md`). A theorem that
+  concludes `Mission` proves the earlier statement and not that promise.
 -/
 
 namespace AcornVerif.Intent.MissionTheorem

@@ -14,7 +14,10 @@ The first class of the mission's ladder is the concealed targets of one grid wor
 (`docs/mission-contract.md`, section "The mission theorem and its ladder"). This module states the
 mission theorem on it, in the terms of the four intent records
 (`AcornVerif.Intent.MissionTheorem.Mission`), proves the statement for a reference agent, and
-proves it for the executed agent from named premises.
+proves it for the executed agent from named premises. That statement is the wording of
+2026-11-03, more reward on an attempt than every agent that keeps nothing of its experience earns
+on any, and not the postcondition as the owner confirmed it on 2026-11-20
+(`AcornVerif.Intent.MissionTheorem`, under what the proposition does not say).
 
 ## The class
 
