@@ -57,6 +57,94 @@ Releases follow [Semantic Versioning](https://semver.org/): fix implies a patch
 release, feat a minor release and a breaking change a major release, or a minor
 release before 1.0.
 
+## Owner paths, document forms and subjects of a check
+
+[CODEOWNERS](.github/CODEOWNERS) names the paths that only the owner changes:
+GitHub requests the owner's review on a pull request that touches one, and only
+the owner's account merges. They are the files by which Acorn's checks judge a
+change, so that a change cannot alter its own check, and the files that record
+what the owner confirmed. A contribution leaves them alone. When your work needs
+one changed, the change needs the owner's admission: say what needs it. A pull
+request of its own is the simple way to ask, and is no rule. Nothing in `./scripts/gate.sh` at
+this commit refuses a change to one of these paths: the owner's review does. A
+gate check that refuses an unadmitted change to an owner path is a separate
+change, and the protection these paths give is complete only with it. The groups
+are:
+
+- **The gate.** `scripts/` (the gate holds every tracked path to letters,
+  digits, ., _, - and /, so name a new file with those; it refuses a tracked
+  path that differs from an owner path only by letter case, and tracked files
+  under a build or output directory), `.github/`, each package's Lake
+  configuration under either of its names (`lean/lakefile.lean`,
+  `site/lakefile.toml` and the two names not in use), `lean/Bootstrap.lean`,
+  `lean/os/`, and the tools under `lean/AcornTools/` with
+  `lean/AcornTools.lean`.
+- **The lock files.** `lean/lean-toolchain`, `lean/lake-manifest.json`,
+  `site/lean-toolchain` and `site/lake-manifest.json` select the toolchain and
+  the dependencies, whose code the checks run.
+- **Proof modules a gate tool imports.**
+  `lean/AcornVerif/Intent/Awaiting.lean`,
+  `lean/AcornVerif/LeanIntentBridge.lean` and
+  `lean/AcornVerif/Resource/WordKernel.lean` hold definitions that a check
+  judges with.
+- **The site's own tooling.** `site/Admit.lean`, `site/Main.lean`,
+  `site/AcornSite.lean` and `site/AcornSite/` are the documentation site's
+  check, the elaborators of the documents' references and the admission of the
+  documents. The documents themselves, under `site/AcornDocs/`, are yours to
+  edit. `site/Main.lean` must import the documents, so it is elaborated with
+  what they declare in scope. That nothing a document declares can be what its
+  one application resolves to is argued from the closed forms a document may
+  hold and is not checked by a tool, as the
+  [verification guide](docs/verification.md#what-of-a-change-runs-in-a-gate-run)
+  states it.
+- **Targets.** `lean/AcornVerif/Targets/`, as
+  [missions](#missions-for-outside-contributors-and-agents) describes.
+- **Records of the owner's confirmed words.** `docs/mission-contract.md`, the
+  plain-word account of the frame of a learned-state result at
+  `docs/learned-state-frame.md`, and the confirmation files
+  `lean/AcornVerif/Intent/OneStream.md` and
+  `lean/AcornVerif/Intent/WorldInterface.md`. The owners' log,
+  `lean/AcornVerif/Intent/OwnersLog.lean`, which the intent check reads, is not
+  one of them: it holds the owner's statements beside the answers that agents
+  append under delegation. A check that the log is only appended to is a
+  separate, later change, and until it lands nothing refuses an edit of an
+  answer recorded there.
+
+Two closed lists in those paths bound what a contribution may write elsewhere,
+and each has a refusal that tells you what to propose.
+
+**A new form in a document.** A document under `site/AcornDocs/` may hold the
+forms that `site/Admit.lean` lists: prose, headings, bold text, inline code,
+links, a tag, the references the
+[verification guide](docs/verification.md#documentation-site) describes, and
+spliced Lean terms built from names, applications, parentheses and strings. Its
+prose is free. If your document needs another form, such as a list, the site
+step of `./scripts/verify.sh` fails before the document is elaborated, with a
+line that names the document and the form, for a list
+`the document holds the unadmitted form Lean.Doc.Syntax.ul`. Propose the form as
+a change that adds it to the list in `site/Admit.lean` (and to the Markdown
+rendering in `site/AcornSite/Markdown.lean` when it has none), and say which
+document needs it. That change needs the owner's admission, and it has to be
+admitted first: a document can use the form only once the list holds it. The
+same document then passes, and the step prints
+`each admitted before it was elaborated` for it. A document's title is plain
+text.
+
+**A new subject of a check.** A gate tool imports no module of the project
+outside the owner paths. Where a check is a statement about a definition of the
+project, such as a constant a document must quote, the tool reads that
+definition from the build, and the definition must be named in
+`AcornSubjects.subjects` in `lean/AcornTools/Subjects.lean`. If a check you add
+or change reads a definition that is not listed, the ownership audit fails with
+`subjects:`, the definition's name and `is no listed subject of a gate check`.
+Propose the name, with the check that reads it, as a change to that list; the
+owner admits it, and the check then passes. A
+definition that a check judges with, as opposed to one it is about, is not a
+subject: it belongs in a tool module, and so does a test of membership or a
+comparison, of which only the data is a subject. A listed subject is evaluated as your
+change defines it, with every definition it calls; the list bounds what a tool
+may evaluate by name, not what a subject may call.
+
 ## Missions for outside contributors and agents
 
 [Missions](docs/missions.md) is the way in: what a mission costs and pays, step-by-step
@@ -168,12 +256,16 @@ check refusing noncomputable in executing modules).
   also adds its entries to `lean/AcornVerif/Landings.lean`, and changes nothing
   under `lean/AcornVerif/Targets/` and no definition that a target names, which
   together are its contract. Files that make up
-  Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
-  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
-  and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
+  Acorn's trusted base (among them `scripts/`, `lean/lakefile.lean`,
+  `site/lakefile.toml`, `lean/AcornTools/`, `lean/AcornTools.lean`,
+  `lean/Bootstrap.lean`, `lean/os/`, `.github/`, the lock files, the site's own
+  tooling and the records of the owner's confirmed words) are listed in
+  [CODEOWNERS](.github/CODEOWNERS), which requests
   the owner's review on every pull request that changes them, and only the
   owner's account, the one with write access, merges outside pull requests; do
   not touch them unless the mission contract explicitly requires it.
+  [Owner paths](#owner-paths-document-forms-and-subjects-of-a-check) says what
+  each group is and how to get a change to one admitted.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula

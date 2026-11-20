@@ -1,15 +1,53 @@
 # Trusted base of Acorn: build and gate scripts, Lake package configurations,
-# Acorn's own build/verification tools, native C primitive, and GitHub config.
+# Acorn's own build/verification tools, the documentation site's own tooling (the
+# admission of its documents, the elaborators of their references and its check),
+# native C primitive, and GitHub config. Lake reads a package's `lakefile.lean` before its
+# `lakefile.toml`, so both names are listed for both packages, whichever exists.
 /scripts/ @rbeauchamp
 /lean/lakefile.lean @rbeauchamp
+/lean/lakefile.toml @rbeauchamp
+/site/lakefile.lean @rbeauchamp
 /site/lakefile.toml @rbeauchamp
+/site/AcornSite/ @rbeauchamp
+/site/AcornSite.lean @rbeauchamp
+/site/Admit.lean @rbeauchamp
+/site/Main.lean @rbeauchamp
 /lean/AcornTools/ @rbeauchamp
 /lean/AcornTools.lean @rbeauchamp
 /lean/Bootstrap.lean @rbeauchamp
 /lean/os/ @rbeauchamp
 /.github/ @rbeauchamp
 
+# The files that lock the toolchains and the dependencies' commits, which select the code of the
+# toolchain, of the tactics a proof may call and of the dependencies' checks (Regula's audit,
+# lean-intent's checks).
+/lean/lean-toolchain @rbeauchamp
+/lean/lake-manifest.json @rbeauchamp
+/site/lean-toolchain @rbeauchamp
+/site/lake-manifest.json @rbeauchamp
+
+# Modules of the proof library that a gate tool imports, so that the definitions a check judges
+# with are the owner's while their theorems stay in the proof claim: the acceptance of the
+# intent check with the one module through which it reaches lean-intent, and the resource model
+# of the native audit. The boundary audit refuses a gate tool that imports a module of the
+# project outside the paths this file names (lean/AcornTools/Boundary/Audit.lean, `toolImports`),
+# and reads this file in a closed form: an empty line, a line that starts with `#`, or
+# `/path @owner`, where a path that ends in `/` is a directory.
+/lean/AcornVerif/Intent/Awaiting.lean @rbeauchamp
+/lean/AcornVerif/LeanIntentBridge.lean @rbeauchamp
+/lean/AcornVerif/Resource/WordKernel.lean @rbeauchamp
+
 # Statements that missions are to prove, held as Lean definitions of type Prop (targets),
 # and the registry that lists them. Each is a frozen contract: a change to one is the
 # owner's to make.
 /lean/AcornVerif/Targets/ @rbeauchamp
+
+# Files whose purpose is to record words the owner confirmed: the mission contract, whose four
+# contracts open with the restatements the owner confirmed, the frame of the learned-state
+# mission, and the confirmation file of each intent record. A change to one changes what the
+# record says the owner confirmed, so it is the owner's to make. Files where such words share the
+# page with much other text are not named here.
+/docs/mission-contract.md @rbeauchamp
+/docs/learned-state-frame.md @rbeauchamp
+/lean/AcornVerif/Intent/OneStream.md @rbeauchamp
+/lean/AcornVerif/Intent/WorldInterface.md @rbeauchamp

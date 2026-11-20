@@ -18,6 +18,12 @@ The Regula audit of the claimed libraries, not this tool, checks compiled declar
 for project axioms, proof holes, compiler-trusting proofs and `unsafe` or `partial`
 definitions; the theorem inventory refuses a compiled native replacement.
 
+Source admission covers every project module outside the tools: the executing sources and
+the proof sources divide them (`proofSide`). Before anything else is built it also requires
+that no gate tool, and no module of the documentation site's own tooling, imports a module of
+the project from outside the owner's paths (`toolImports`), so the code that judges a change is
+elaborated and linked without the change's own modules.
+
 This verification tool and the pinned Lean/Init toolchain are trusted. The gate
 does not prove compiler correctness or the truth of a provenance declaration.
 -/
@@ -41,6 +47,11 @@ def governed (name : Name) : Bool := ((`Acorn).isPrefixOf name ||
 
 /-- Mathematical proofs have separate import admission. -/
 def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name
+
+/-- The project modules that proof-source admission admits: the proof library, and the decision
+registry, which states contracts. Source admission admits every other project module, so the two
+admissions divide the project modules between them and none lies outside both. -/
+def proofSide (name : Name) : Bool := proofOwner name || registry name
 
 /-- Native entry/resource owners and the executables' roots are checked as host code, never
 learned algorithms. -/
@@ -120,6 +131,8 @@ def importAllowed (owner imported : Name) : Bool :=
         (owner == proofContracts && imported == `Regula.Contract))
   else if nativeBootstrap owner then
     (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported
+  -- A module of no library named above, such as `AcornDocument`, imports only `Init` modules.
+  else if !(`Acorn).isPrefixOf owner then false
   else if owner == `Acorn.Constants then false
   else if (`Std).isPrefixOf imported then
     (`Acorn.Host).isPrefixOf owner || compositionRoots.contains owner
@@ -135,8 +148,21 @@ def reject {α : Type} (owner : Name) (reason : String) : IO α :=
 /-- A small reviewed attribute domain has no native replacement or metaprogram registration. -/
 def allowedAttributes : Array Name := #[`simp, `inline, `noinline, `reducible, `irreducible]
 
-/-- These options change proof resource limits, never kernel checking or parser admission. -/
+/-- These options change proof resource limits, never kernel checking or parser admission. The
+list holds at every depth of a source: for the command, and for an option set before a term, a
+tactic sequence or a grind sequence (`inspectOption`). An option that a dependency's own macro or
+elaborator sets is that dependency's code and is not scanned. -/
 def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiation.threshold]
+
+/-- The option that a form beginning with the atom `set_option` sets is a listed one, or in a
+proof source the linter of evaluating commands. Lean reads the option's name from the form's
+second part (`Lean.Elab.elabSetOption`), so a form whose second part is no identifier is
+refused. -/
+def inspectOption (owner : Name) (form : Syntax) : IO Unit := do
+  unless form[1].isIdent do reject owner "an option setting that names no option"
+  let option := form[1].getId
+  unless allowedOptions.contains option || (proofOwner owner && option == `linter.hashCommand) do
+    reject owner s!"unreviewed option {option}"
 
 /-- Only these admitted host boundaries may create or inspect native subprocesses. -/
 def processOwners : Array Name := #[`Acorn.Host.Checkpoint.IO, `Acorn.Host.Control,
@@ -166,8 +192,25 @@ def forbiddenWords : Array String := #["unsafe", "partial", "meta", "axiom", "so
   "native_decide", "run_tac", "run_elab", "by_elab", "extern", "implemented_by", "csimp",
   "simproc", "builtin_simproc", "elab", "macro", "initialize", "builtin_initialize", "_unsafe_rec"]
 
+/-- The files a source may include as text while it is elaborated (`include_str`), each with the
+one module that includes it and the path as that module writes it, relative to its own file: the
+viewer's page, and the three records the Lake configuration's provenance target writes into the
+build directory. What is admitted is the form and its string literal: every other inclusion is
+refused, and so is one whose path is not a string literal. The file Lean reads when it elaborates
+the term is what its elaborator computes from that literal, as a file path, and an instance
+declared in the including module could change that computation. This is accepted: no check's
+verdict depends on the embedded text, and it can reach a check's output only through a definition of
+the change itself, which review reads. -/
+def includedFiles : Array (Name × String) := #[
+  (`NativeApp.Assets, "../../viewer/static/index.html"),
+  (`NativeApp.Build, "../.lake/build/native-provenance.txt"),
+  (`NativeApp.Build, "../.lake/build/native-source-inventory.txt"),
+  (`NativeApp.Build, "../.lake/build/native-build-identity.txt")]
+
 /-- Inspect parsed syntax rather than comment/literal-stripped source text.
-Traversal is over the compiler-produced finite syntax tree. -/
+Traversal is over the compiler-produced finite syntax tree. A node at any depth whose first
+child is the atom `set_option` sets an option, as a command or before a term, a tactic sequence
+or a grind sequence, and is held to `inspectOption`. -/
 partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
   let kind := nodeSyntax.getKind
   if kind == ``Parser.Command.docComment || kind == ``Parser.Command.moduleDoc ||
@@ -175,10 +218,15 @@ partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
   match nodeSyntax with
   | .atom _ word =>
     if forbiddenWords.contains word then reject owner s!"forbidden syntax capability {word}"
+    -- An inclusion reaches this case only outside the admitted form below.
+    if word.trimAscii.toString == "include_str" then
+      reject owner "file inclusion outside its admitted form"
   | .ident _ _ name _ =>
     if name.components.any (fun part => part != `admit && forbiddenWords.contains part.toString) then
       reject owner s!"forbidden syntax identifier {name}"
   | .node _ kind children =>
+    if let .atom _ word := nodeSyntax[0] then
+      if word.trimAscii.toString == "set_option" then inspectOption owner nodeSyntax
     if kind == ``Parser.Term.attrInstance then
       unless nodeSyntax[1].isOfKind ``Parser.Attr.simple do
         reject owner s!"unreviewed attribute syntax {nodeSyntax[1].getKind}"
@@ -187,6 +235,12 @@ partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
         reject owner s!"unreviewed attribute {attributeName}"
       unless nodeSyntax[1][1].getArgs.isEmpty do
         reject owner s!"attribute arguments require review: {attributeName}"
+    if kind == ``includeStr then
+      let some path := nodeSyntax[1].isStrLit?
+        | reject owner "file inclusion whose path is not a string literal"
+      unless includedFiles.contains (owner, path) do
+        reject owner s!"unreviewed file inclusion {path}"
+      return
     for child in children do inspectSyntax owner child
   | .missing => reject owner "missing syntax node"
 
@@ -200,10 +254,6 @@ partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
   else if kind == ``Parser.Command.mutual then
     unless command.getArgs.size == 3 do reject owner "unexpected mutual-command shape"
     for declaration in command[1].getArgs do inspectCommand owner declaration
-  else if kind == ``Parser.Command.set_option then
-    let option := command[1].getId
-    unless allowedOptions.contains option || (proofOwner owner && option == `linter.hashCommand) do
-      reject owner s!"unreviewed option {option}"
   else if proofOwner owner && kind == `Lean.guardMsgsCmd then
     let some nested := command.getArgs.back?
       | reject owner "empty message guard"
@@ -215,7 +265,7 @@ partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
     inspectSyntax owner command
   else if #[``Parser.Command.declaration, ``Parser.Command.namespace, ``Parser.Command.end,
       ``Parser.Command.section, ``Parser.Command.open, ``Parser.Command.variable,
-      ``Parser.Command.moduleDoc, ``Parser.Command.eoi].contains kind then
+      ``Parser.Command.set_option, ``Parser.Command.moduleDoc, ``Parser.Command.eoi].contains kind then
     inspectSyntax owner command
   else reject owner s!"unreviewed command {kind}"
 
@@ -371,6 +421,101 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
     if included.contains owner then continue
     withImportModules #[{ module := owner }] {} fun env => inspect env #[owner]
 
+/-- The paths `.github/CODEOWNERS` names, read in a closed form. A line is empty, starts with
+`#`, or is `/path @owner`: one space, a path of letters, digits, `.`, `_`, `-` and `/` after its
+leading `/`, and an owner of letters, digits and `-` after its `@`. Any other line is refused, a
+pattern with `*` included, and so is a file that names no path: this reader decides which modules
+the owner holds, so it reads nothing it cannot read exactly. -/
+def ownerPaths (file : System.FilePath := "../.github/CODEOWNERS") : IO (Array String) := do
+  let word (allowed : Char → Bool) (text : String) : Bool :=
+    !text.isEmpty && text.toList.all allowed
+  let mut paths := #[]
+  for line in (← IO.FS.readFile file).splitOn "\n" do
+    if line.isEmpty || line.startsWith "#" then continue
+    let [path, owner] := line.splitOn " "
+      | reject Name.anonymous s!"{file}: a line that is not `/path @owner`: {line}"
+    unless path.startsWith "/" && owner.startsWith "@" &&
+        word (fun c => c.isAlphanum || "._-/".contains c) (path.drop 1).toString &&
+        word (fun c => c.isAlphanum || c == '-') (owner.drop 1).toString do
+      reject Name.anonymous s!"{file}: a line that is not `/path @owner`: {line}"
+    paths := paths.push path
+  if paths.isEmpty then reject Name.anonymous s!"{file} names no path"
+  return paths
+
+/-- Whether the source of a module of this package lies under one of the owner's paths: the
+path is the module's file itself, or ends in `/` and the file lies below that directory. -/
+def ownerCovered (paths : Array String) (module : Name) (package : String := "lean") : Bool :=
+  let file := s!"/{package}/" ++ module.toString.replace "." "/" ++ ".lean"
+  paths.any fun path => path == file || (path.endsWith "/" && file.startsWith path)
+
+/-- The root document of the site and the library of its documents: the sources under
+`site/AcornDocs` and `site/AcornDocs.lean`, which any change may edit and which
+`site/Admit.lean` admits before they are elaborated. -/
+def siteDocument (module : Name) : Bool := (`AcornDocs).isPrefixOf module
+
+/-- The one module of the site's tooling that imports the documents: the renderer's root, which
+applies the check to them. -/
+def siteRenderer : Name := `Main
+
+/-- The imports a source file declares, read with Lean's header parser. -/
+def declaredImports (owner : Name) (path : System.FilePath) : IO (Array Name) := do
+  let context := Parser.mkInputContext (← IO.FS.readFile path) path.toString
+  let (header, _, messages) ← Parser.parseHeader context
+  if messages.hasErrors then reject owner "header parse failed"
+  return (Elab.headerToImports header).map (·.module)
+
+/-- The tool module that pins the axioms of named theorems. It imports the modules whose theorems
+it names, so it is the root of no executable and no other tool module imports it; its commands
+print axioms and declare nothing. -/
+def axiomPins : Name := `AcornTools.AxiomPins
+
+/-- No gate tool, and no module of the documentation site's own tooling, imports a module from
+outside the owner's paths. Starting from every tool module but the axiom pins, and from the
+modules of this package that the site's tooling imports, each module's own import lines are read
+with Lean's header parser and followed through the project's modules: every module reached lies
+under a path that `.github/CODEOWNERS` names, and none is the axiom pins. The site's tooling is
+itself under owner paths and imports no document, but for the renderer's root. A tool's own code is then elaborated with
+no declaration of an unowned project module in scope, so no such declaration (an instance, a name
+in a namespace the tool opens) can be what the tool's code resolves to, and a tool links no such
+module. The modules of the toolchain and of the dependencies are not followed: the lock files,
+which are owner paths, select them. -/
+def toolImports : IO Unit := do
+  let paths ← ownerPaths
+  let project ← AcornModuleInventory.allModules
+  if AcornOwnership.executables.any (·.2 == axiomPins) then
+    reject axiomPins "the axiom pins are the root of an executable"
+  unless ownerCovered paths axiomPins do reject axiomPins "tool module under no owner path"
+  let mut pending := AcornModuleInventory.toolingModules.filter (· != axiomPins)
+  -- The site's own tooling is every module of the site that is no document. It decides the
+  -- site's check and holds the elaborators of the documents' references, so the same holds
+  -- of it: under an owner path, and every module of this package it imports is followed with
+  -- the gate tools' own. It imports no document; the renderer's root alone does, to apply the
+  -- check to them.
+  let mut tooling := 0
+  for module in ← AcornModuleInventory.siteModules do
+    if siteDocument module then continue
+    tooling := tooling + 1
+    unless ownerCovered paths module "site" do
+      reject module "a module of the site's tooling under no owner path"
+    let path := System.FilePath.mk ".." / "site" / (module.toString.replace "." "/" ++ ".lean")
+    for imported in ← declaredImports module path do
+      if project.contains imported then pending := pending.push imported
+      if siteDocument imported && module != siteRenderer then
+        reject module s!"the site's tooling imports the document {imported}"
+  let mut seen : NameSet := {}
+  while !pending.isEmpty do
+    let some module := pending.back? | reject Name.anonymous "lost tool import work item"
+    pending := pending.pop
+    if seen.contains module then continue
+    seen := seen.insert module
+    if module == axiomPins then reject module "a gate tool imports the axiom pins"
+    unless ownerCovered paths module do
+      reject module
+        "a gate tool or the site's tooling imports this module, which is under no owner path"
+    for imported in ← declaredImports module (module.toString.replace "." "/" ++ ".lean") do
+      if project.contains imported then pending := pending.push imported
+  IO.println s!"lean-boundary-audit: {seen.size} modules of the gate's tools and {tooling} of the site's tooling, each under an owner path"
+
 /-- Run source admission before build, or source plus compiled admission afterward.
 Initializer execution is restricted to the trusted parser; compiled admission
 reads project metadata without initializing project extensions. This tool is part of the reviewed verification trust boundary. -/
@@ -380,9 +525,12 @@ unsafe def command (args : List String) : IO UInt32 := do
     return 1
   Lean.initSearchPath (← Lean.findSysroot)
   let proofs := args == ["proof-source"]
-  -- The decision registry states contracts, so it is admitted with the proof sources.
+  -- The decision registry states contracts, so it is admitted with the proof sources. Every
+  -- other project module is admitted with the executing sources, whatever its library.
   let owners := (← AcornModuleInventory.projectModules).filter
-    (if proofs then fun name => proofOwner name || registry name else governed)
+    (if proofs then proofSide else fun name => !proofSide name)
+  -- Before anything but this tool is built: no gate tool imports a module outside the owner's paths.
+  if args == ["source"] then toolImports
   -- Compiled admission goes first. Source admission keeps its parser environment mapped
   -- until exit, and a module that is already mapped cannot be mapped again: it is read
   -- and relocated in full by every later environment that imports it.

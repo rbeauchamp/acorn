@@ -26,7 +26,7 @@ filesystem discovery rejects missing or extra owners. The site is documentation 
 pinned Verso, a trust boundary outside the application's proof claim. -/
 def siteModules : Array Name := #[
   `AcornDocs, `AcornDocs.Verification, `AcornSite, `AcornSite.Markdown, `AcornSite.Owners,
-  `AcornSite.Reference, `Main
+  `AcornSite.Reference, `AcornSite.Render, `Admit, `Main
 ]
 
 /-- Native entry points, checked against both evaluated Lake targets and compiled `main`. -/
@@ -38,7 +38,6 @@ def executables : Array (String × Name) := #[
   ("agent-native", `Entry.AgentNative),
   ("acorn-core", `Entry.AcornCore),
   ("acorn-viewer", `Entry.AcornViewer),
-  ("browser-kernel", `Entry.BrowserKernel),
   ("checkpoint-native", `Entry.CheckpointNative),
   ("world-native", `Entry.WorldNative),
   ("world-certificates", `Entry.WorldCertificates),
@@ -54,9 +53,9 @@ def executables : Array (String × Name) := #[
 ]
 
 /-- Required statements about executing definitions must retain their actual execution
-references. The entries are the critical entry and transition obligations, the decision
-contracts of `Acorn.Decisions` and `AcornVerif.Decisions` that no registration requires,
-and the theorem `AcornDocument.external_listed`. The list is not a
+references. The entries are the critical entry and transition obligations
+and the decision contracts of `Acorn.Decisions` and `AcornVerif.Decisions` that no
+registration requires. The list is not a
 quota or a claim that all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Host.AgentConstruction, `Acorn.Handcrafted.AgentConstruction.admit_iff,
@@ -648,7 +647,6 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Discount.predictionRange),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.quantity_limit, `Acorn.Lifetime.Quantity.bound),
   (`AcornVerif.Decisions, `AcornVerif.Decisions.envelope_units, `Acorn.Agreement.envelopeUnits),
-  (`AcornDocument, `AcornDocument.external_listed, `AcornDocument.external),
   (`Acorn.Host.Viewer.Admission, `Acorn.Host.Viewer.Admission.rejected_preserves_history,
     `Acorn.Host.Viewer.Admission.receive),
   (`Acorn.Host.Viewer.Admission, `Acorn.Host.Viewer.Admission.stored_capture,
@@ -717,8 +715,6 @@ def entryUses : Array (Name × Array Name) := #[
   (`Entry.AcornViewer, #[`NativeApp.Viewer.main, `NativeApp.runViewer,
     `Acorn.Host.Viewer.ViewerOptions.decode,
     `Acorn.Host.Viewer.Supervisor.new, `Acorn.Host.Viewer.Supervisor.step]),
-  (`Entry.BrowserKernel, #[`NativeApp.BrowserKernel.main,
-    `Acorn.Host.Viewer.browserKernelJavascript]),
   (`Entry.SwiftTdNative, #[`Acorn.SwiftTdDriver.main, `Acorn.SwiftTdDriver.execute]),
   (`Entry.FeatureNative, #[`Acorn.FeatureDriver.main, `Acorn.FeatureDriver.execute]),
   (`Entry.ControlNative, #[`Acorn.ControlDriver.main, `Acorn.ControlDriver.execute]),

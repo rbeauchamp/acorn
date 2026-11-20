@@ -3,56 +3,41 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import VersoManual
-import AcornSite.Markdown
+import AcornSite.Render
 import AcornDocs
 
 /-! # Documentation renderer
 
 Run in Lean's interpreter from `site/` by the site step of verification
-(`./scripts/verify.sh site`), after the documents are built. With no argument it requires
-each kept Markdown file to equal the Markdown rendering of its document, then renders the
-pages as HTML into `_out`; Verso's rendering fails on an unresolved cross-reference. With
-`write` it writes the Markdown files first. Nothing is published.
+(`./scripts/verify.sh site`), after each document has been admitted (`site/Admit.lean`) and
+built. It applies `AcornSite.check`, which holds the whole check, to the documents: with no
+argument each kept Markdown file must equal the Markdown rendering of its document, and the pages
+are then rendered as HTML into `_out`; with `write` the Markdown files are written first.
+
+This is the one file of the site's tooling that imports the documents, and so the modules of the
+project that they import; it is elaborated with their declarations in scope. That none of them
+can stand in for a part of the check is argued from this file, and no tool checks it:
+
+- The single declaration is an application of `AcornSite.check`, written by its full name with
+  no namespace opened, to string literals, a list, tuples and the documents' constants (`%doc`
+  names a document's constant and takes its part). Each argument has exactly the type the
+  function declares, so elaborating the application asks for no instance and inserts no
+  coercion: no instance that a changeable module declares is consulted.
+- A second declaration of a name written here cannot be imported beside the first, since Lean
+  refuses an import in which one name has two declarations.
+- A document admitted by `site/Admit.lean` declares only its document constant and helpers
+  whose names no source can write: its forms hold no command that declares an instance or a
+  definition.
+
+Keep it to that one application: any other code here would be elaborated with the same
+declarations in scope.
 
 It is not a linked executable: linking would compile the native code of every proof
 module a document imports, and of the Mathlib modules below them.
 -/
 
-open Verso.Genre Manual
-
-/-- Each ported document: its Verso source, its elaborated value and the Markdown file kept
-for readers of the repository. Paths are relative to the repository root. -/
-def pages : List (String × Verso.Doc.Part Manual × String) :=
-  [("site/AcornDocs/Verification.lean", %doc AcornDocs.Verification, "docs/verification.md")]
-
-/-- Write, or compare with, the kept Markdown rendering of every ported document. -/
-def markdown (write : Bool) : IO Bool := do
-  let mut current := true
-  for (source, document, kept) in pages do
-    let path := System.FilePath.mk ".." / kept
-    match AcornSite.Markdown.page source document with
-    | .error refusal =>
-      IO.eprintln s!"site: {source}: {refusal}"
-      current := false
-    | .ok text =>
-      if write then
-        IO.FS.writeFile path text
-      else if (← IO.FS.readFile path) != text then
-        IO.eprintln s!"site: {kept} differs from the rendering of {source}; run ./scripts/verify.sh site write"
-        current := false
-  return current
-
-/-- A stale Markdown file or a rendering failure is a failure of the whole command. -/
-def main (args : List String) : IO UInt32 := do
-  let write ← match args with
-    | [] => pure false
-    | ["write"] => pure true
-    | _ =>
-      IO.eprintln "usage: lean --run Main.lean [write]"
-      return 1
-  unless ← markdown write do return 1
-  manualMain (%doc AcornDocs) (options := []) (config := {
-    emitTeX := false, emitHtmlSingle := .no, emitHtmlMulti := .immediately, htmlDepth := 1,
-    sourceLink := some "https://github.com/rbeauchamp/acorn",
-    issueLink := some "https://github.com/rbeauchamp/acorn/issues" })
+/-- Check each ported document against the Markdown file kept for it, then render the manual. -/
+def main (args : List String) : IO UInt32 :=
+  AcornSite.check
+    [("site/AcornDocs/Verification.lean", %doc AcornDocs.Verification, "docs/verification.md")]
+    (%doc AcornDocs) args

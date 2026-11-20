@@ -231,11 +231,6 @@ lean_exe «acorn-viewer» where
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
   needs := #[«acorn-core»]
 
-/-- Deterministic JavaScript kernel generated for the viewer. -/
-lean_exe «browser-kernel» where
-  root := `Entry.BrowserKernel
-  moreLeancArgs := nativeFloatFlags
-
 /-- Native current-agent checkpoint writer, receiver-bound loader and resume consumer. -/
 lean_exe «checkpoint-native» where
   root := `Entry.CheckpointNative
@@ -283,8 +278,8 @@ local suite also compiles it. -/
 @[default_target]
 lean_lib «Bootstrap» where
 
-/-- The names that maintained prose may cite from outside the project, which the corpus
-audit admits, with the theorem that states what an admitted name is. -/
+/-- The names that maintained prose may cite from outside the project: the registry that the
+corpus audit reads and tests membership in. -/
 @[default_target]
 lean_lib «AcornDocument» where
 

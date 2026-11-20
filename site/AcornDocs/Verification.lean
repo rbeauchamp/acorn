@@ -19,6 +19,7 @@ import Acorn.Host.Microduck.Session
 import Acorn.Host.Microduck.Loop
 import Acorn.Host.Microduck.Wire
 import Acorn.Host.Viewer.Supervision
+import NativeApp.MutationAudit
 import AcornVerif.Decimal
 
 open Verso.Genre Manual
@@ -444,10 +445,15 @@ build and the checks no longer share one deadline: the first bounds the build of
 the executing library, the tools except the axiom pins, and their dependencies;
 the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
-it inside one deadline left too little margin. The gate then runs the
+it inside one deadline left too little margin. When the first run fails, the gate
+ends there and fails: the first run is where every source is admitted, and each
+later step builds or loads the project's sources. After a first run that passed,
+the gate runs the second, then the
 [Regula audit](#regula-audit), then lean-intent's two checks and then the frame
-check on the same commit, each also when an earlier step failed, and passes only
-when both runs, the audit and the checks pass.
+check on the same commit, each also when an earlier one of these failed, and passes only
+when both runs, the audit and the checks pass. [What of a change runs in a gate
+run](#what-of-a-change-runs-in-a-gate-run) lists each point at which the change's own
+code runs.
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake
@@ -558,8 +564,8 @@ keeps the run made on its head, and nothing runs after a merge.
 The arrangement on GitHub differs from the pipeline's as follows. A step of
 the workflow downloads elan's pinned release in every run and installs it only
 after the archive's SHA-256 matches. The script's provisioning runs in a step
-of its own, whose 27-minute limit bounds a stalled download and is no check's
-deadline, and the script's provisioning in the last step then finds the
+of its own. Its 27-minute limit bounds that whole step, including a stalled
+download. The script repeats provisioning in the last step and then finds the
 dependencies current. Nothing is stored between runs: every run
 provisions everything from its pinned sources and builds from cold project
 outputs. A copy stored by an earlier head of a pull request, which controls its
@@ -628,36 +634,31 @@ no run (GitHub's documentation, Skipping workflow runs). The pull request shows
 no run of this job for that head until a commit without the instruction is
 pushed.
 
-Neither the absence of a run nor a failed run is by itself the result of a
-check. What a run says about the checks is read from the log of the job's last
-step, "The merge gate on the exact source", the only step in which a check
-runs, in the `gate:` lines that the head's own script prints there. Each of
-these lines ends with the time of day and the seconds since the script started.
-The script of this revision prints `gate: verification, stage one` before its
-first check and then, as each check ends, a line that reports its exit status:
-`gate: verification exited N; Regula audit` for verification's two stages
-together, `gate: Regula audit exited N; lean-intent checks`,
-`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`.
-It prints `gate: every merge check passed` last, and only when every status
-is 0. A head that holds another revision of the script runs that revision's
-checks and prints that revision's lines, which the head's own `scripts/gate.sh`
-gives: a revision from before the frame check prints no line for it.
+Read each attempt's log against the head's own `scripts/gate.sh`. In this
+revision both "Provision the pinned dependencies" and "The merge gate on the
+exact source" begin by running `scripts/tracked.sh`. A `tracked paths:`
+diagnostic identifies a refusal in either step. The next line from the gate,
+`gate: provisioning the pinned dependencies`, means the tracked-path check
+returned successfully. A refusal during the provisioning step ends the job
+before the final step starts.
 
-For each check, the only evidence that it ran on the head and failed is a
-`gate:` line that reports its exit status as other than 0, and the only evidence
-that it ran and passed is such a line with the status 0. The only evidence that
-every check of the head's script passed is the line
-`gate: every merge check passed`. Each attempt of a run is read by its own log.
-In the attempt being read, a check with no line that reports its status has no
-verdict, and an attempt without the passing line is no pass of the gate. So an
-attempt gives no check a verdict when GitHub marked it failed before a runner
-started, as when an approval was never given; when a step before the last
-failed; and when the last step ended before `gate: verification, stage one`, as
-when the script's own recheck of the provisioned dependencies fails. When the
-last step ends in the middle of a check, as when the job is cancelled at its
-limit, each check already reported keeps its line, and that check and those
-after it have no verdict in that attempt. A head with no run at all has no
-verdict of any check.
+In the final step, `gate: verification, stage one` marks the start of source
+admission and the first build. If that stage returns a nonzero status, the
+script prints `gate: verification stage one exited N` followed by its reason
+for stopping. No later stage runs. If stage one succeeds, the script prints
+`gate: verification, stage two`. The next status line,
+`gate: verification exited N; Regula audit`, reports stage two's status. The
+following lines report `gate: Regula audit exited N; lean-intent checks`,
+`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`.
+A zero status records success of the reported stage or check. Each `gate:`
+line ends with the time and the seconds since the script started.
+Only `gate: every merge check passed` records success of the whole gate.
+
+A missing run or an attempt that ended before the job started gives no check
+a verdict. If provisioning fails or a job stops during verification, the log
+retains the results already reported. A later check that never started has no
+result, and an interrupted check can lack a reported exit status. Earlier
+revisions report the checks their own scripts ran.
 
 Whether a merge requires this job is set in the repository's rules on GitHub,
 not in a file of the repository. Where the rules require it, a head on which it
@@ -675,7 +676,10 @@ available for focused diagnostics.
 
 Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
-native, browser-kernel and ownership admission after it. Each of these
+native and ownership admission after it. The ownership audit also requires the kept
+browser kernel to hold the bytes of its Lean emitter, which it evaluates from the
+finished build; `./scripts/verify.sh browser-kernel write` writes the kept file from the
+same evaluation, and no program prints the kernel. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
 before a failure is reported. The site check runs after these admissions, also
 when one of them fails, because building the documents can rebuild this
@@ -688,6 +692,263 @@ first.
 Each compiler process of the build uses at most two threads, where the default
 is one for each processor; this limits how far the processes Lake runs at once
 compete for the same processors.
+
+# What of a change runs in a gate run
+%%%
+tag := "what-of-a-change-runs-in-a-gate-run"
+%%%
+
+The merge gate checks a change by running programs, and part of what runs is the
+change's own text. This section lists every point of a gate run at which code of
+the change under check runs, other than Lean's kernel checking its proofs, and
+what stops that code from altering what a check reads or reports. It was derived
+on 2026-11-20 from `scripts/gate.sh`, `scripts/verify.sh`, `scripts/regula.sh`, the
+[Lake configuration](../lean/lakefile.lean) and the gate's tools, in the order of
+a run, and is to be derived again when one of them changes. An owner path is a
+path that [CODEOWNERS](../.github/CODEOWNERS) names. The code of a change means
+what it holds outside those paths; a change to an owner path is the owner's to
+admit and is no part of this list. Nothing in the gate at this commit refuses a
+change to an owner path: GitHub requests the owner's review of one, and only the
+owner merges. A gate check that refuses an unadmitted change to an owner path is
+a separate change, and each route below that ends at an owner path, the site's
+tooling among them, is closed in the gate only when that check and this section
+are both on the default branch.
+
+*The scripts.* `scripts/gate.sh`, `scripts/verify.sh`, `scripts/lean.sh` and
+`scripts/regula.sh` run throughout. They are owner paths. ShellCheck reads them
+with no configuration file from the checkout.
+
+*Lake's configuration and the bootstrap.* Every Lake call compiles and runs
+`lean/lakefile.lean`, `scripts/lean.sh` interprets `lean/Bootstrap.lean`, and Lake
+reads `site/lakefile.toml` as data. All three are owner paths, and so is the other
+name under which Lake would read each package's configuration, since it reads a
+configuration in Lean before one in TOML. The provisioning
+targets of the Lake configuration read the import lines of five project files as
+text, to choose the modules of a dependency they build, and run nothing of those
+files.
+
+*What the checkout tracks.* Before its first Lake call the gate runs
+`scripts/tracked.sh`, and so does `./scripts/verify.sh`. It reads Git's index and
+refuses four things. First, over the whole index, a tracked path that holds a
+character other than a letter, a digit, a dot, an underscore, a hyphen or a
+slash, which are the characters the tree's paths use: a file system can fold a
+character outside ASCII onto a letter, as it can ignore letter case, so a path
+so spelled could be a build directory or an owner path under another name, and
+for the paths that remain letter case is the only such equivalence. Then a
+tracked file under a package's build directory or under
+the site's output directory: Lake trusts an output there whose trace matches, and
+the renderer writes through what the output directory holds, so such a file
+could hand the gate a compiled module, a tool, a compiled configuration or a
+link that no run made. A tracked file of the site that is none of its Lean
+sources, its Lake configuration, its two lock files and its ignore file: Verso's
+renderer reads a remote configuration from the site's directory when one is
+there, and none may be tracked. And a tracked path that differs only by letter
+case from a path at or under an owner path: on a file system that ignores case
+it is the owner's file or directory while Git and CODEOWNERS take it for
+another, so a change could add Lake's configuration under another spelling or
+replace an owner's file at checkout. For the owner paths the guard on owner paths
+refuses the same from the commit a change starts from, where the gate has that
+guard; this check is the one that covers the build and output directories.
+Where that guard refuses an added or modified path that holds a byte outside
+ASCII, every path it refuses for that reason this check refuses too, since the
+set here is narrower. The
+script is the checkout's own, so a path that replaced it at checkout would
+escape it: only that guard refuses such a path.
+
+*The toolchain and the dependencies.* Lean, Lake, the tactics and elaborators of
+Mathlib and the other dependencies, Regula's lint, lean-intent's readers and Verso
+run at most of the points below. The files that select their code are owner
+paths: `lean/lean-toolchain`, `lean/lake-manifest.json`, `site/lean-toolchain` and
+`site/lake-manifest.json`. What that code does is trusted with the dependencies.
+
+*The gate's tools.* The first things a run builds are the gate program and the
+boundary audit, then the other tools with the project. Every tool module, and
+every module of the project that one imports, is an owner path, and
+`AcornBoundaryAudit.toolImports` refuses a run in which that is not so: it reads
+each module's own import lines with Lean's header parser, follows them through
+the project's modules, and requires each module reached to lie under a path that
+CODEOWNERS names, which it reads in a closed form (an empty line, a line that
+starts with a number sign, or a path and an owner; a path that ends in a slash is
+a directory). So a tool's code is elaborated with no declaration of a changeable
+module in scope: no instance of such a module and no name it declares can be
+what the tool's own code resolves to, and no such module is linked into a tool.
+`AcornTools.AxiomPins` is the exception that the check names: it imports the
+modules whose theorems it pins, is the root of no executable, is imported by no
+tool and declares nothing.
+
+*Elaboration of the project's sources.* Building a module elaborates it. Before
+anything of the project is built, the boundary audit admits every project module
+outside the tools: it parses each source with Lean's parser under a fixed parser
+environment and admits a closed list of commands (declarations, namespaces,
+sections, the opening of a namespace, variables and the setting of a listed
+option, and in a proof source a print of axioms and a guard of a message), five
+attributes with no argument, and no word of `forbiddenWords`. The list of
+options, `allowedOptions`, holds at every depth of a source: an option set
+before a term, a tactic sequence or a grind sequence inside a declaration is
+held to it as the command is. An option that a dependency's own macro or
+elaborator sets is that dependency's code and is not scanned. It admits the
+inclusion of a file as text only for the pairs of module and path that
+`includedFiles` lists, the viewer's page and three records the build itself
+writes, with the path written as a string. What is admitted there is the form
+and its string: the file Lean reads is what its elaborator computes from that
+string, which an instance declared in the including module could change. That
+is accepted, because no check's verdict depends on the embedded text, and it
+can reach a check's output only through a definition of the change itself,
+which review reads. An admitted source
+therefore defines no macro, elaborator, syntax or initializer, holds no command
+that evaluates a term and names no file to include but those, so what
+elaborating it runs is the
+elaborators and tactics of the toolchain and the dependencies. The two admissions, of executing and of proof
+sources, divide the project's modules between them, so none lies outside both.
+The first run of the gate admits before it builds, and a failed first run ends
+the gate, so every later build of the run, the second run's, the Regula audit's
+and the site's, is of admitted sources.
+
+*Initializers.* Lean runs the initializers of the modules it imports when it
+elaborates a file, and so does a tool that loads the build with its extensions:
+the ownership audit, the intent check, Regula's reader and the site's programs.
+An admitted source declares none, so the initializers that run are those of the
+tool modules and of the dependencies.
+
+*Subjects that a tool evaluates.* Some checks are statements about a definition of
+the project: the constants table of the viewer specification must equal the
+viewer's constants, a published audit command must be one that the program's own
+option parser admits, the kept browser kernel must be the text its emitter
+produces. Such a definition is a subject of the check, and stays where any
+change may edit it. `AcornSubjects.subjects` is the one closed list of them, and
+`AcornSubjects.read` is the route by which the tools read every subject: it
+elaborates a term the tool writes, refuses it when it names a
+declaration of a changeable module that is not listed, and evaluates it. Before
+it parses or elaborates anything, it refuses a listed subject whose type marks an
+argument that Lean fills in when a call omits it, by a tactic block or by a
+default value (`AcornSubjects.admitType`), since elaborating a call would fill
+that argument before the term has been checked. Every
+other definition a tool executes is part of how the check judges, and is under
+an owner path. Where a check's verdict is a test of membership or a comparison,
+the test is the tool's and only the data it is applied to is a subject: the
+document audit reads the registry of external names and decides itself whether
+a name is in it. What holds a tool to this route is that the tools are owner
+paths: a tool that evaluated a definition of the change another way would be a
+change to an owner path. No check scans the tools for it.
+
+The evaluation is this. The tool has loaded the compiled modules of the finished
+build into one environment. The reading adds the elaborated term to that
+environment as a definition, Lean's compiler translates it, and Lean's
+interpreter runs it with the compiled code that each module's file stores for
+the subject and for what it calls. No module of the project is linked into a
+tool, so no native initializer of the subject's module exists in the tool's
+process, and the interpreter computes only what the term reaches. The list is of
+what a tool may evaluate by name: a listed subject is evaluated as the change
+defines it, with every definition it calls, and those are not listed.
+
+That evaluation acts on no file, no process and nothing else outside the tool,
+by this argument. For a subject, or a definition it calls, to act, one of four
+things would have to hold. It is an unsafe definition: source admission refuses
+that word in every project source (`forbiddenWords`), and Lean refuses a safe
+definition that names an unsafe one. It has a native replacement, by an
+implemented-by, extern or compiler-simplification attribute: source admission
+refuses each as a word and admits five attributes, none of them one of these,
+and the theorem inventory refuses a project declaration that carries a
+replacement (`AcornTheoremCount.countEnvironment`), in the same audit before a
+subject is read. It runs an action: in Lean an action is a function of a state
+token, the token of the real world has an opaque type with no inhabitant a
+compiled definition can produce, and the library's runners of a state action
+take only an action that works for every token (Init/System/IO.lean and
+Init/System/ST.lean of the pinned Lean v4.35.0, read on 2026-11-20); the tool
+itself applies no action, since a listed subject whose type names an action type
+is refused and the tools read data and functions on data. Or it is code that
+runs when a module is compiled or loaded: source admission admits no macro,
+elaborator, syntax, initializer or evaluating command in a project source. Two
+parts of this are trusted and not established here: that source admission's
+lists are complete for the pinned Lean, and that no other definition of Lean's
+library lets a safe definition run an action.
+
+What remains is accepted. The evaluation can fail to end or can stop the tool,
+and a safe definition can call the runtime's panic and debugging primitives,
+which write to standard error or wait. Neither turns a failing check into a
+pass: a tool that stops, or that outlasts the deadline, fails its check, and a
+check's result is the tool's exit status after its own comparisons, which read
+nothing from standard error. A new subject is admitted against this argument:
+adding it to the list is the owner's change, and it holds for a definition in a
+module that source admission covers whose type is data.
+
+*Compiled programs of the change.* The build compiles every executable, and the
+gate runs none of them. The kept browser kernel is compared with the text its
+emitter evaluates to, and is written from that evaluation, by no program of the
+change. The mutation audits run the agent's core only in the
+optional diagnostics. The C compiler compiles the generated C and the one
+maintained C file, which is under the owner path `lean/os/`.
+
+*The site's documents.* The site step admits each document with `site/Admit.lean`
+before Lake builds it, as [Documentation site](#documentation-site) describes. A
+document's title is plain text, since Verso reads a title as text of the document
+and elaborates what it finds there. A
+spliced term is evaluated when the pages are rendered and has the type of a
+string, so it computes a value.
+
+*The site's tooling.* `site/Admit.lean`, `site/Main.lean` and the modules under
+`site/AcornSite/` run with input and output: they are the site's check. They are
+owner paths, and `AcornBoundaryAudit.toolImports` holds them to the rule of the
+gate's tools: every module of the project that one of them imports, at any
+remove, is an owner path. A change to one of them still runs in the site step and is refused
+by nothing here, as the first paragraph says of every owner path.
+
+`site/Main.lean` is the exception to that rule: it must import the documents,
+and with them the modules of the project that they import, so it is elaborated
+with changeable declarations in scope. That none of them can stand in for a part
+of the check is argued here and not checked by a tool. The file holds one
+declaration, an application of the site's check, the function that
+`site/AcornSite/Render.lean` defines, written by its full name with
+no namespace opened, to string literals, a list, tuples and the documents'
+constants. Elaborating those forms asks for no instance and inserts no coercion,
+since each argument has exactly the type the function declares, so no instance
+of a changeable module is consulted. A second declaration of a name written
+there cannot be imported beside the first: Lean refuses an import in which one
+name has two declarations. And an admitted document declares nothing but its own
+document constant and helpers whose names no source can write, because its forms
+hold no command that declares an instance or a definition. It declares that
+constant exactly once: the admission refuses a file that holds no document or a
+second one, and elaborates the file under its own module name, so a module it
+imports cannot supply the constant in its place.
+
+*The Regula audit, the intent check and the frame check.* The audit's build is a
+build of admitted sources, and its lint is Regula's program reading that build.
+The intent check loads the build and gives it to lean-intent's readers, which
+reduce terms in Lean's kernel; the definition that decides what it accepts,
+`AcornVerif.Intent.onlyAwaiting`, is in a module under an owner path, as is the
+resource model of the native audit, `AcornVerif.Resource.WordTree`. The frame
+check reads declarations and runs nothing of the change.
+
+Two limits remain. On GitHub's hosted runner the script and the workflow are the
+pull request's own, as [the limits of a run](#build-and-source-inventory) say, so
+there the change's code runs whatever a check finds, with a token that cannot
+write and with no secret. And the code of the toolchain and the dependencies,
+the tactics a proof calls among it, is trusted and not admitted here. Two
+consequences of that second limit are stated so that they are not taken for
+gaps: a tactic of the pinned toolchain or of a pinned dependency has whatever
+effects its own code has when a proof calls it, a file it writes beside a
+source included; and the syntax tree that source admission parses is taken to
+be the tree the compiler elaborates, which is not proved. Source admission
+holds a proof to no closed list of tactics, term forms or notations: what a
+proof may use is what the pinned toolchain and dependencies provide, within the
+commands, attributes, words, options and inclusions listed above.
+
+A contributor meets these rules in three places, each with a refusal that names
+what to propose. A document that needs a form outside the list fails the site
+step with a line that names the document and the form, which for a list reads
+`the document holds the unadmitted form Lean.Doc.Syntax.ul`. The form is added to
+the list in `site/Admit.lean`, an owner path, by a change the owner admits, and
+that change has to be admitted before a document can use the form; the document
+then passes and the step prints the number of commands it
+admitted. A check that needs to read another definition of the project fails the
+ownership audit with `subjects:` and the name of the definition, which is no
+listed subject. The name is added to `AcornSubjects.subjects` in
+`lean/AcornTools/Subjects.lean`, with the check that reads it, by a change the
+owner admits. A tool or a module of the site's tooling that imports a
+changeable module fails the first run with that module's name; the import is
+removed, or the module becomes an owner path by a line of CODEOWNERS that the
+owner admits. An owner path needs the owner's admission; a pull request of its
+own is the simple way to ask for it, and is no rule.
 
 # Regula audit
 %%%
@@ -764,8 +1025,8 @@ every module of the package that their imports reach. The default targets are
 the libraries Acorn, AcornVerif, NativeApp, Bootstrap and AcornDocument. They hold
 every Acorn theorem: the executing definitions with the theorems stated beside
 them, the proof library, the native application, the build launcher, and the
-names that the document audit admits from outside the project with the theorem
-that states what an admitted name is. A theorem can mention only declarations of
+registry of external names. The document audit reads that registry from the
+build and checks membership. A theorem can mention only declarations of
 the modules its own module imports, so every definition of the package that a
 claimed theorem is about is claimed as well. `lake lint` imports the claimed
 modules into one environment, where Lean refuses two
@@ -1027,7 +1288,10 @@ build. The other documents under docs are Markdown and are not built this way.
 
 The site check runs after the project build and the other admissions of the
 finished build, inside the deadline of `./scripts/verify.sh`; the command above
-runs it alone. It builds the documents, renders the pages
+admits the project's sources and builds the project, as the complete command
+does, and then runs the site check without the other admissions. The check
+builds the site's own tooling, admits each document and only
+then builds it, renders the pages
 and requires `docs/verification.md` to equal the Markdown rendering of this
 document; `./scripts/verify.sh site write` writes that file. The Markdown file is
 kept so that existing links and readers on GitHub are served, and so that the
@@ -1044,7 +1308,26 @@ inventory and requires `site/lake-manifest.json` to lock every dependency of
 `lean/lake-manifest.json` to the same revision, because both packages share one
 set of dependency checkouts.
 
-The site package is documentation tooling outside the Regula claim.
+A document is a Lean file, and elaborating one runs whatever its commands call,
+so no document is elaborated before `site/Admit.lean` has admitted it. That
+program reads a document as Lean does, one command at a time with Verso's own
+parser, inspects each command and elaborates it only when it is admitted. A
+document may hold what Acorn's documents use and nothing else: paragraphs,
+headings, bold text, inline code, links to a URL and a metadata block that sets a
+tag; the references this section describes, which are a declaration's or a
+module's name, a spliced Lean term, a shell block, a spliced block, an included
+document and a printed statement; and, where a Lean
+term is spliced, a term built from names, applications, parentheses, strings and
+interpolated strings alone. Anything else, a list or a tactic block included, is
+refused by the name of its form before it is elaborated. The prose of a document
+is not bounded. [What of a change runs in a gate
+run](#what-of-a-change-runs-in-a-gate-run) says how a new form is admitted.
+
+The site package is documentation tooling outside the Regula claim. Its own
+modules, which are the admission, the elaborators of the references, the Markdown
+rendering and the check, are owner paths, and the boundary audit requires that
+they import no module of the project outside the owner paths and no document;
+`site/Main.lean` alone imports the documents, to apply the check to them.
 [Verso](https://github.com/leanprover/verso), pinned in `site/lakefile.toml`, and
 Lean's elaborator are trusted to build it. The build establishes that each
 reference exists, has the stated type and shows its owner's current value; review
@@ -1055,18 +1338,18 @@ still decides whether the prose describes that owner faithfully.
 tag := "mutation-diagnostics"
 %%%
 
-*Pinned digest: {spliceCode}`digest .declared`*
+*Pinned digest: {spliceCode}`NativeApp.auditWord NativeApp.AuditArm.declared.receipt.digest`*
 
 ```spliced sh
-s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect {digest .declared}"
+s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect {NativeApp.auditWord NativeApp.AuditArm.declared.receipt.digest}"
 ```
 
 The expected digest has one form, `0x` and exactly sixteen lowercase hexadecimal digits:
 it is a hash identifier, not a number, so it is not read as a command-line number and
 digit-only text such as `10` is refused.
-Paired checksum {spliceCode}`checksum .declared`. The deployed arm runs the ranked profile
+Paired checksum {spliceCode}`NativeApp.hexWord NativeApp.AuditArm.declared.receipt.checksum`. The deployed arm runs the ranked profile
 with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
-command runs all {splice}`numberWord auditArms.length` fixed arms under the same deadline. All {splice}`numberWord auditArms.length` pins record
+command runs all {splice}`numberWord NativeApp.AuditArm.all.length` fixed arms under the same deadline. All {splice}`numberWord NativeApp.AuditArm.all.length` pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
 off-policy option learning (PAR-17) and option expectation models with planning under
 the current values (PAR-13, PAR-14). Every pin also records persistent exploration by whichever layer

@@ -21,7 +21,10 @@ acorn_verify_checks() {
   cd "$(dirname "$1")/.."
   git diff --check
   git diff --cached --check
-  shellcheck scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
+  # Before the first Lake call, as in scripts/gate.sh: what the checkout may track.
+  ./scripts/tracked.sh
+  # --norc: a .shellcheckrc in the checkout cannot switch a check off.
+  shellcheck --norc scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh scripts/tracked.sh
   shift 2
   ./scripts/lean.sh exe acorn-gates "$@"
 }

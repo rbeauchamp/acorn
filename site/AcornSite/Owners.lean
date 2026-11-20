@@ -3,15 +3,16 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import NativeApp.MutationAudit
 import AcornTools.ModuleInventory
 import AcornTools.Ownership
 
 /-! # Values the documents splice from Acorn's Lean owners
 
 Each definition reads the declaration that owns a fact the documents state: the ownership
-inventory and the audit arms and their pins. The documents splice
-these values and hold no copy of them.
+inventory. The documents splice these values and hold no copy of them. A value owned by a
+module outside the owner's paths, such as an audit pin, is spliced by a term in the document
+itself, which imports that module: this module imports only tool modules, as the boundary audit
+requires of the site's own tooling (`AcornBoundaryAudit.toolImports`).
 -/
 
 namespace AcornSite
@@ -34,19 +35,6 @@ def applicationExecutables : List String :=
 def toolExecutables : List String :=
   (AcornOwnership.executables.toList.filter fun entry =>
     AcornModuleInventory.toolingModules.contains entry.2).map (·.1)
-
-/-- Every fixed audit arm: `NativeApp.AuditArm.all`, which omits no arm
-(`NativeApp.AuditArm.mem_all`). -/
-def auditArms : List NativeApp.AuditArm := NativeApp.AuditArm.all
-
-/-- The pinned action digest of an audit arm, as the audit command prints and `--expect` reads
-it. -/
-def digest (arm : NativeApp.AuditArm) : String :=
-  NativeApp.auditWord arm.receipt.digest
-
-/-- The pinned knowledge checksum paired with an audit arm's digest. -/
-def checksum (arm : NativeApp.AuditArm) : String :=
-  NativeApp.hexWord arm.receipt.checksum
 
 /-- A small count as an English word; larger counts stay decimal. -/
 def numberWord (count : Nat) : String :=

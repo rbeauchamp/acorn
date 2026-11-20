@@ -16,6 +16,11 @@ export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PAT
 
 step() { printf 'gate: %s at %s (%d s)\n' "$1" "$(date -u +%H:%M:%SZ)" "$SECONDS"; }
 
+# Before the first Lake call: the checkout tracks nothing under a build or output directory,
+# nothing in the site's directory but its sources, configuration and lock files, and no path that
+# differs only by letter case from an owner path (scripts/tracked.sh gives the reasons).
+./scripts/tracked.sh
+
 # Dependency checkouts hold a symbolic link as a plain file holding its target (Git's
 # core.symlinks), so lean/.lake/packages holds only directories and regular files, the
 # only entries no-mistakes stores. This assumes no dependency builds through a link: a
@@ -72,15 +77,22 @@ step 'provisioned'
 # check on one list of modules, those Lake lists for the default libraries, and passes only when the
 # first finds nothing and the second finds only the deliverables its closed list names as awaiting
 # an implementation. Last, frame-check (lean/AcornTools/Frame.lean) compares each target's pin
-# file, if it has one, with the declarations the target reads in the finished build. The audit
-# and the checks run even when an earlier step fails, so one run reports all four.
+# file, if it has one, with the declarations the target reads in the finished build.
+#
+# Stage one admits every source before it builds anything of the project but the boundary audit,
+# whose modules are all under the owner's paths. When stage one fails, the gate ends there: every
+# later step builds or loads the project's sources (the Regula audit begins with a build of the
+# default libraries), and none may do so to a source that no admission has passed. After a stage
+# one that passed, the audit and the checks run even when an earlier step fails, so one run
+# reports all four.
 verified=0
 step 'verification, stage one'
 if ./scripts/verify.sh build-executing; then
   step 'verification, stage two'
   ./scripts/verify.sh || verified=$?
 else
-  verified=$?
+  step "verification stage one exited $?; no later check builds or loads sources that it did not admit"
+  exit 1
 fi
 step "verification exited $verified; Regula audit"
 audited=0

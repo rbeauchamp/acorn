@@ -4,10 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import Lean
-import AcornDocument
-import Acorn.Digits
 import AcornTools.Ownership
-import Acorn.Host.Viewer.BrowserSchema
 import AcornTools.Corpus.Browser
 
 /-! # Compiled declaration and document path admission
@@ -15,6 +12,11 @@ import AcornTools.Corpus.Browser
 Code spans identify maintained declarations or complete path claims. Compiler-owned
 names replace lexical declaration inference; IO and Lean environment loading are
 the reviewed tooling boundary.
+
+The names a document may cite from the viewer's protocol, and the registry of names from
+outside the project (`AcornDocument.externalSymbols`, in the library `AcornDocument`, which any
+change may extend), are subjects read from the finished build (`AcornSubjects.read`); this module
+imports neither. Whether a name is registered is decided here, by equality with a listed name.
 -/
 namespace AcornDocument
 open Lean
@@ -146,6 +148,14 @@ private def braceExpand (path : String) : Except String (List String) := do
     return (choices.splitOn ",").map (fun c => head ++ c.trimAscii.toString ++ tail)
   | _ => throw "more than one path brace group"
 
+/-- The value of a text of decimal digits, `0` to `9` and at least one, in positional notation;
+nothing for any other text. This is the audit's own reader of a line number: Lean core's
+`String.toNat?` also accepts `_` between digits. -/
+private def decimal (text : String) : Option Nat :=
+  if text.isEmpty then none else
+    text.toList.foldlM (fun total c =>
+      if '0' ≤ c && c ≤ '9' then some (10 * total + (c.toNat - 48)) else none) 0
+
 private def pathClaim (span : String) : IO Unit := do
   let (path, revision, lines) ← match span.splitOn "@" with
     | [plain] => match plain.splitOn ":" with
@@ -156,8 +166,8 @@ private def pathClaim (span : String) : IO Unit := do
           | [single] => pure (single, single)
           | [first, last] => pure (first, last)
           | _ => throw (IO.userError "invalid line range")
-        let some first := Acorn.Digits.read first | throw (IO.userError "invalid first line")
-        let some last := Acorn.Digits.read last | throw (IO.userError "invalid last line")
+        let some first := decimal first | throw (IO.userError "invalid first line")
+        let some last := decimal last | throw (IO.userError "invalid last line")
         unless 0 < first && first ≤ last do throw (IO.userError "invalid line interval")
         pure (path, none, some last)
       | _ => throw (IO.userError "invalid path anchor")
@@ -202,8 +212,11 @@ private def symbol (span : String) : Option String := do
   return name
 
 /-- Derive document symbols from the admitted compiler environment. Every selected
-non-entry owner must be present; unrelated imports cannot supply owned names. -/
-def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet String) := do
+non-entry owner must be present; unrelated imports cannot supply owned names. The names of the
+viewer's protocol (the keys of its schema, the names of its page constants, the keys of its rules
+and the spellings of their tag rules) are subjects read from that environment. -/
+unsafe def symbolsFrom (env : Environment) (selection : Array Name) :
+    IO (Std.HashSet String) := do
   let owners := selection.filter fun owner =>
     !AcornOwnership.executables.any (fun entry => entry.2 == owner)
   for owner in owners do
@@ -216,12 +229,13 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
     let parts := owner.toString.splitOn "."
     for start in [:parts.length] do
       names := names.insert (String.intercalate "." (parts.drop start))
-  for (key, _) in Acorn.Host.Viewer.browserSchema do names := names.insert key
-  for constant in Acorn.Host.Viewer.BrowserConstant.all do names := names.insert constant.name
-  for (key, rule) in Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules do
-    names := names.insert key
-    if let .tags tags := rule then
-      for tag in tags do names := names.insert tag
+  for term in ["Acorn.Host.Viewer.browserSchema.map Prod.fst",
+      "Acorn.Host.Viewer.BrowserConstant.all.map Acorn.Host.Viewer.BrowserConstant.name",
+      "(Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules).flatMap \
+        (fun entry => entry.1 :: (match entry.2 with \
+          | Acorn.Host.Viewer.BrowserRule.tags tags => tags | _ => []))"] do
+    for name in ← AcornSubjects.read (List String) env term do
+      names := names.insert name
   names := names.insert "main"
   let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
   let words := (String.ofList (browser.toList.map (fun c =>
@@ -241,10 +255,9 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
               names := names.insert (String.intercalate "." (suffix.take count))
   return names
 
-/-- Load compiler declarations once, excluding executable `main` collisions.
-Only maintained module owners contribute names; imported libraries do not make
-an otherwise missing project declaration appear present. -/
-unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
+/-- Load the compiled declarations of the selected modules once, excluding executable `main`
+collisions, for a run of the audit that receives no environment. -/
+unsafe def environment (selection : Array Name) : IO Environment := do
   let package : System.FilePath := "lean"
   let setup ← IO.Process.output {
     cmd := "./scripts/lean.sh", args := #["env", "lean", "--print-prefix"] }
@@ -262,11 +275,11 @@ unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
   enableInitializersExecution
   let owners := selection.filter fun owner =>
     !AcornOwnership.executables.any (fun entry => entry.2 == owner)
-  let env ← importModules (owners.map fun owner => { module := owner }) {}
+  importModules (owners.map fun owner => { module := owner }) {}
     (leakEnv := true) (loadExts := true)
-  symbolsFrom env selection
 
-private def resolves (names : Std.HashSet String) (name : String) : Bool :=
+private def resolves (external : String → Bool) (names : Std.HashSet String)
+    (name : String) : Bool :=
   let name := name.replace "::" "."
   external name ||
     (proseTokens ++ keywords ++ standardMacros).contains name || names.contains name ||
@@ -274,12 +287,17 @@ private def resolves (names : Std.HashSet String) (name : String) : Bool :=
       candidate.startsWith (name.dropEnd 1).toString))
 
 /-- Every applicable path and declaration claim is checked, reporting all stale
-references together; archive paths and external study citations are refused. -/
-unsafe def check (documents : Array (String × String)) (selection : Array Name)
-    (env? : Option Environment := none) : IO Unit := do
-  let names ← match env? with
-    | some env => symbolsFrom env selection
-    | none => symbols selection
+references together; archive paths and external study citations are refused. Only maintained
+module owners of the finished build `env` contribute names; imported libraries do not make an
+otherwise missing project declaration appear present. -/
+unsafe def check (env : Environment) (documents : Array (String × String))
+    (selection : Array Name) : IO Unit := do
+  let names ← symbolsFrom env selection
+  -- The registry of names from outside the project is a subject; normalising its spellings and
+  -- the test of membership, equality with a listed name, are this audit's own.
+  let registered := (← AcornSubjects.read (List String) env "AcornDocument.externalSymbols").map
+    (·.replace "::" ".")
+  let external (name : String) : Bool := registered.contains name
   let mut failures := 0
   for (path, text) in documents do
     for span in (spans text).eraseDups do
@@ -289,7 +307,7 @@ unsafe def check (documents : Array (String × String)) (selection : Array Name)
         else if span.startsWith "study:" then
           throw (IO.userError "unresolved study citation")
         else if let some name := symbol span then
-          unless resolves names name do throw (IO.userError "unresolved maintained declaration")
+          unless resolves external names name do throw (IO.userError "unresolved maintained declaration")
       catch error =>
         IO.eprintln s!"{path}: `{span}`: {error}"
         failures := failures + 1
