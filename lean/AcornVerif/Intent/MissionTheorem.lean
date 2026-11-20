@@ -13,7 +13,11 @@ The mission contract (`docs/mission-contract.md`, section "The mission theorem a
 for one theorem for each class of a ladder of classes: that Acorn's agent achieves goals over that
 class. Its four contracts each have an intent record. This module puts the four records together
 into the one proposition such a theorem proves, `Mission`, so that the way the theorem depends on
-its contracts is checked by Lean and not argued in prose.
+its contracts is checked by Lean and not argued in prose. The statement meant is the Lean one,
+`Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on 2026-11-17,
+and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say.
 
 The subject, `Rung`, is one class of the ladder as the records read it: a class of worlds with the
 agent that learns in it (`AcornVerif.Intent.Postcondition.Trial`, the subject of the records of
@@ -53,13 +57,14 @@ What the proposition does not say:
 * Two of the four records, those of contract 2 and of the postcondition, have not had their blind
   second reading or their confirmation file (rbeauchamp/acorn#214, rbeauchamp/acorn#219), so the
   proposition can change with them.
-* It is the statement as the four records word it, the wording of 2026-11-03: the postcondition's
-  record compares the reward of one attempt of the agent with the reward of every attempt of each
-  agent that keeps nothing of its experience
-  (`AcornVerif.Intent.Postcondition.earnsMoreInTime`). It is not the postcondition as the owner
-  confirmed it on 2026-11-20, more reward in total up to the horizon than each of three kinds of
-  agent, which has no Lean form yet (obligation 22 of `docs/mission-contract.md`). A theorem that
-  concludes `Mission` proves the earlier statement and not that promise.
+* It is the statement as the four records word it. The comparison is that of 2026-11-03, and the
+  horizon and the lapses are as the owner decided on 2026-11-17: the postcondition's record compares
+  the reward of one attempt of the agent with the reward of every attempt of each agent that keeps
+  nothing of its experience (`AcornVerif.Intent.Postcondition.earnsMoreInTime`). It is not the
+  postcondition as the owner confirmed it on 2026-11-20, more reward in total up to the horizon than
+  each of three kinds of agent, which has no Lean form yet (obligation 22 of
+  `docs/mission-contract.md`). A theorem that concludes `Mission` proves the earlier statement and
+  not that promise.
 -/
 
 namespace AcornVerif.Intent.MissionTheorem
@@ -86,7 +91,10 @@ def Rung.learner (r : Rung) (i : r.Index) : Learner :=
 /-- **The mission theorem's statement for one class of the ladder.** The agent of the rung achieves
 goals over its class: its run in every member meets contract 1, the class is big as contract 2 says,
 its run in every member keeps the invariants of contract 3, and the postcondition holds of the class
-and the agent. -/
+and the agent. The statement meant is the Lean one, `Mission`: it keeps the comparison of
+2026-11-03, read before the horizon as decided on 2026-11-17, and is not the postcondition as the
+owner confirmed it on 2026-11-20; `lean/AcornVerif/Intent/MissionTheorem.lean` sets out the
+difference under what the proposition does not say. -/
 structure Mission (r : Rung) : Prop where
   /-- Contract 1: the interface every world meets, in the agent's run in each member. -/
   interface : ∀ i, worldInterface.Meets (couple (r.member i).world r.agent)
@@ -104,7 +112,11 @@ theorem Rung.interface_met (r : Rung) (i : r.Index) :
   couple_meets _ _ (fun _ _ _ => Iff.rfl) (fun _ _ _ => trivial)
 
 /-- The mission's statement holds of a rung whose class meets the records of contract 2 and of the
-postcondition and whose agent's runs meet the record of contract 3. -/
+postcondition and whose agent's runs meet the record of contract 3. The statement meant is the Lean
+one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on
+2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say. -/
 theorem Mission.of_records {r : Rung} (big : bigClass.Meets r.toTrial)
     (stream : ∀ i, oneStream.Meets (r.learner i)) (achieves : postcondition.Meets r.toTrial) :
     Mission r :=
@@ -183,7 +195,11 @@ def doorsRung (total : List Rat → Rat) (pay : Rat) : Rung where
   resume := id
 
 /-- **The four records are jointly satisfiable.** The two-door class with the agent `finder` meets
-the mission's statement, for every fair aggregation and payment. -/
+the mission's statement, for every fair aggregation and payment. The statement meant is the Lean
+one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on
+2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say. -/
 theorem doors_mission (total : List Rat → Rat) (pay : Rat) (h : Fair total pay) :
     Mission (doorsRung total pay) :=
   Mission.of_records (doors_big total pay finder)

@@ -15,7 +15,11 @@ import AcornVerif.CurrentKernelMemory
 of the executed agent from named premises, for every host world that carries a reward of zero,
 every visit length and every agent state. This module fixes those for the first rung of the
 mission's ladder (`docs/mission-contract.md`, section "The mission theorem and its ladder") and
-says what each is chosen for. `rung_mission` is the statement at these constants.
+says what each is chosen for. `rung_mission` is the statement at these constants. The statement
+meant is the Lean one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as
+decided on 2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say.
 
 ## The constants
 
@@ -280,7 +284,11 @@ over the class with that horizon and that number of lapses. It is
 predicate. Of its premises two are proved, for the executed agent itself: the one on memory
 (`rung_memory_bounded`) and the one on finding, with `last` at 72 and `spare` at 3
 (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). The horizon, the number of lapses and
-the visit `limit` are not fixed here: the statement holds at each. -/
+the visit `limit` are not fixed here: the statement holds at each. The statement meant is the Lean
+one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on
+2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say. -/
 theorem rung_mission (planning : PlanningSelection) (horizon lapses last limit spare : ℕ)
     (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
       witnessLive 7).Index)

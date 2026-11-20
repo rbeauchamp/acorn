@@ -14,10 +14,11 @@ The first class of the mission's ladder is the concealed targets of one grid wor
 (`docs/mission-contract.md`, section "The mission theorem and its ladder"). This module states the
 mission theorem on it, in the terms of the four intent records
 (`AcornVerif.Intent.MissionTheorem.Mission`), proves the statement for a reference agent, and
-proves it for the executed agent from named premises. That statement is the wording of
-2026-11-03, more reward on an attempt than every agent that keeps nothing of its experience earns
-on any, and not the postcondition as the owner confirmed it on 2026-11-20
-(`AcornVerif.Intent.MissionTheorem`, under what the proposition does not say).
+proves it for the executed agent from named premises. The statement meant is the Lean one,
+`Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on 2026-11-17,
+and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say.
 
 ## The class
 
@@ -260,7 +261,11 @@ solves more counted members than the covering bound `49 + 7 length` on one visit
 `limit`, where `limit` leaves more later visits than the lapses before the horizon, that solves
 again what it has solved on every later visit before the horizon but for at most the stated
 lapses of each member, and whose run in every member meets contract 3's record under its reports,
-achieves goals over the class. Every premise about the class is discharged. -/
+achieves goals over the class. Every premise about the class is discharged. The statement meant is
+the Lean one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided
+on 2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say. -/
 theorem find_mission (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
     (length horizon lapses limit : ℕ) (fresh : live.carried.reward = ⟨0⟩)
     (counted : List (feasibleFind config mode live length).Index) (distinct : counted.Nodup)
@@ -289,7 +294,11 @@ concealed targets such that the retracing agent, with the reward as its signal a
 three walks as its exploration, achieves goals over the class with those targets counted: the
 mission's statement holds of its rung, with every premise discharged, with no lapse and at every
 horizon of at least four visits: the agent solves every counted member on its third visit, the
-last of its exploring ones, and the horizon leaves a visit after it. -/
+last of its exploring ones, and the horizon leaves a visit after it. The statement meant is the Lean
+one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on
+2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say. -/
 theorem witness_mission (mode : TaskFeatureMode) :
     ∃ counted : List (feasibleFind witnessConfig mode witnessLive 7).Index,
       counted.Nodup ∧ counted.length = 147 ∧
@@ -458,7 +467,10 @@ runs, under a construction of the default step order
 (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). Each premise names the obligation, or
 the step of the issue, that owns it; the two on the predicate alone read no solving, and
 obligation 15 owns them for an agent that explores with random draws. The theorem holds of every
-predicate; the first rung reads `ExecutedCalm`. -/
+predicate; the first rung reads `ExecutedCalm`. The statement meant is the Lean one, `Mission`: it
+keeps the comparison of 2026-11-03, read before the horizon as decided on 2026-11-17, and is not the
+postcondition as the owner confirmed it on 2026-11-20; `lean/AcornVerif/Intent/MissionTheorem.lean`
+sets out the difference under what the proposition does not say. -/
 theorem executed_mission
     (state : Agent Grid.interface profile features criterion dimension planning)
     (config : Host.WorldConfig) (live : Live config)

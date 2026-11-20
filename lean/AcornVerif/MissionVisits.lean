@@ -15,7 +15,11 @@ import Mathlib.Tactic.NormNum
 worlds, in the terms of the four intent records. This module reads a class of the kernel's worlds,
 run in visits, as such a class, and proves the statement of it from named premises about the class
 and about the agent. The way the mission theorem on a class in visits depends on its obligations is
-the theorem `visits_mission`, whose hypotheses are the work that remains.
+the theorem `visits_mission`, whose hypotheses are the work that remains. The statement meant is the
+Lean one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on
+2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say.
 
 ## The class as the records read it
 
@@ -688,7 +692,11 @@ than the bound on one visit before the visit `limit`, where `limit` leaves more 
 the lapses before the horizon, and retains what it has solved before the horizon but for the
 lapses, and whose run in every member meets contract 3's record under its reports, achieves goals
 over the class in visits: the mission's statement holds of the rung. That the counted members
-outnumber the bound follows from the agent's solving more than the bound of them. -/
+outnumber the bound follows from the agent's solving more than the bound of them. The statement
+meant is the Lean one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as
+decided on 2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say. -/
 theorem visits_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -717,7 +725,11 @@ but for the lapses, and every agent's run in every member meets contract 3's rec
 statement holds of all but the fraction `left + right` of the agents. The theorem counts agents
 and reads no draw. Read as fork F4's statement, the family holds one agent for each sequence of
 ideal draws; such a family is finite only where the guarantee reads finitely many draws, as
-separation before a stated visit and retention before a horizon do. -/
+separation before a stated visit and retention before a horizon do. The statement meant is the Lean
+one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on
+2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say. -/
 theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -784,7 +796,11 @@ feasible within a visit and a reward that pays at its goals. If, for each counte
 exploring walks of the visits up to `last` meets that member's goal from its start within a visit,
 the retracing agent with the reward as its signal achieves goals over the class: the mission's
 statement holds of its rung, with every premise discharged, with no lapse and at every horizon
-that leaves a visit after the visit `last`, on which the agent solves every counted member. -/
+that leaves a visit after the visit `last`, on which the agent solves every counted member. The
+statement meant is the Lean one, `Mission`: it keeps the comparison of 2026-11-03, read before the
+horizon as decided on 2026-11-17, and is not the postcondition as the owner confirmed it on
+2026-11-20; `lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the
+proposition does not say. -/
 theorem retrace_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)

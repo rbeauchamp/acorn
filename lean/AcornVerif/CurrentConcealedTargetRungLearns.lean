@@ -23,7 +23,11 @@ can check what the statement asks without reading it against every definition it
   the horizon 864 and 144 lapses, for every agent that takes the rung's agent's actions and whose
   own memory and reports meet contract 3's four remaining premises. The premises of
   `AcornVerif.CurrentConcealedTargetRung.rung_mission` on finding, on calm visits and on their
-  counts are not used, and the target does not prove them.
+  counts are not used, and the target does not prove them. The statement meant is the Lean one,
+  `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on
+  2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+  `lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition
+  does not say.
 - `learns_again`: from the target, a member the agent has solved on a visit is solved on a later
   visit within every 145 consecutive visits that begin after that visit and end before visit 864.
 - `learns_needs`: no agent that keeps nothing of its experience meets the target's first promise,
@@ -73,7 +77,10 @@ the planning selection and the list of members it gives, every agent that takes 
 actions, and whose own memory and reports meet the four remaining premises of contract 3, achieves
 goals over the first rung's class with the horizon 864 and 144 lapses. The target stands where
 `AcornVerif.CurrentConcealedTargetRung.rung_mission` has its premises on finding, on calm visits
-and on their counts, and does not prove them. -/
+and on their counts, and does not prove them. The statement meant is the Lean one, `Mission`: it
+keeps the comparison of 2026-11-03, read before the horizon as decided on 2026-11-17, and is not the
+postcondition as the owner confirmed it on 2026-11-20; `lean/AcornVerif/Intent/MissionTheorem.lean`
+sets out the difference under what the proposition does not say. -/
 theorem learns_mission (learns : Targets.CurrentConcealedTargetRung.rung_learns) :
     ∃ (planning : PlanningSelection)
       (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode

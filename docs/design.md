@@ -1071,9 +1071,10 @@ theorem for each class of worlds of a ladder. [The statement](../lean/AcornVerif
 is one proposition over the four intent records, and
 [a class in visits](../lean/AcornVerif/MissionVisits.lean) is read as the records' subject, so
 that the statement is proved of it from named premises. The statement is the mission as the
-records word it, that of 2026-11-03: more reward on an attempt than every agent that keeps
-nothing of its experience earns on any. It is not the postcondition as the owner confirmed it on
-2026-11-20, which has no Lean form yet
+records word it. Its comparison is that of 2026-11-03, more reward on an attempt than every agent
+that keeps nothing of its experience earns on any, and its horizon and lapses are as the owner
+decided on 2026-11-17. It is not the postcondition as the owner confirmed it on 2026-11-20, which
+has no Lean form yet
 ([mission contract, obligation 22](mission-contract.md#open-obligations)); where this section
 says that an agent meets the statement, the Lean statement is meant. A **rung** is the subject: a class of
 worlds with the agent that learns in it, and what that agent reports of its own steps (its
@@ -1082,6 +1083,11 @@ premises about the agent are stated over the kernel's `SolvesOnVisit` in
 [Separation](../lean/AcornVerif/Separation.lean), and the lemmas that carry concealment and
 action lists from a world to that world in visits are in
 [VisitsClass](../lean/AcornVerif/VisitsClass.lean).
+
+The statement meant is the Lean one, `Mission`: it keeps the comparison of 2026-11-03, read before
+the horizon as decided on 2026-11-17, and is not the postcondition as the owner confirmed it on
+2026-11-20; `lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the
+proposition does not say.
 
 | Property | What is proved | Theorems |
 |---|---|---|
