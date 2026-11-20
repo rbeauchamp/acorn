@@ -68,11 +68,12 @@ box's center, as this world does (`docs/roadmap.md`); no theorem singles these o
   of the rung's agent has at most 1712 active slots (`rung_frame`), and the credit horizon holds
   of it with no hypothesis on frames (`rung_weight_rests`). Every frame holds at least one slot
   (`rung_frame_slot`). Of a world with deer and food the tree
-  proves only the interface's bound of 3648 slots (`AcornVerif.CurrentFrameSize`), which is above
-  the 1999 that horizon assumes. A smaller bound for the host's own world along a visit of seven
-  steps is not proved. It looks within reach: from a generated world no food is due at the times
-  one to seven, and a box of side 64 admits at most eight deer, which would give 147 words and
-  1776 slots (argued).
+  proves only the bound of 3648 slots by the 381 words the grid adapter emits at most
+  (`AcornVerif.CurrentFrameSize.frame_slots`, `Acorn.Handcrafted.Grid.sensorWords_length`),
+  which is above the 1999 that horizon assumes. A smaller bound for the host's own world along a
+  visit of seven steps is not proved. It looks within reach: from a generated world no food is
+  due at the times one to seven, and a box of side 64 admits at most eight deer, which would give
+  147 words and 1776 slots (argued).
 - **A visit of seven steps is within the proved reach of a first reward.** On a primitive
   controller's cold run, a slot laid at most 81 steps before a first reward of one has a weight
   the reward moves (`AcornVerif.CurrentCreditHorizon.recent_weight_moves`); `rung_reach` is that
