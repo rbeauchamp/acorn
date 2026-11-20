@@ -813,7 +813,9 @@ seed 1 and side 64, with visits of seven steps, the feasible concealed targets a
 lemma the mission theorem on the first class of the ladder uses. It says nothing about obligation 4
 of `docs/mission-contract.md`, the goal-information and exploration premises, and it is no result
 about learning. That structure states condition (c) as fewer than all, so the class is not thereby
-shown to be a concealed class (sentence 5 of contract 2 there). -/
+shown to be a concealed class (sentence 5 of contract 2 there). The bound 98 is the one this
+theorem is stated at; `AcornVerif.CurrentForkedTargetBoth.feasibleFind_covered_sharp` proves the
+sharper covering bound 49 of the same class. -/
 theorem witness_concealed (mode : TaskFeatureMode) :
     Nonempty (Kernel.ConcealedClass (feasibleFind witnessConfig mode witnessLive 7)
       (fun _ => completion witnessConfig mode 7) 7 (49 + 7 * 7)) := by

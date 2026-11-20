@@ -257,8 +257,9 @@ theorem rung_reach (criterion : Criterion) (dimension : Dimension) {actions : Na
 
 /-- **The members of the first rung.** Every member's target lies within ten tiles of the start
 on both axes, so the class has at most 392 members. It has at least 147
-(`AcornVerif.CurrentConcealedTargetMission.witness_mission` lists that many distinct members), and
-its covering bound is 98. -/
+(`AcornVerif.CurrentConcealedTargetMission.witness_mission` lists that many distinct members). The
+covering bound its theorems are stated at is 98, and
+`AcornVerif.CurrentForkedTargetBoth.feasibleFind_covered_sharp` proves the sharper bound 49. -/
 theorem rung_members (mode : TaskFeatureMode)
     (members : Finset (feasibleFind witnessConfig mode witnessLive 7).Index) :
     members.card ≤ 392 :=
