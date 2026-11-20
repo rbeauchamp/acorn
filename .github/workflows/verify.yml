@@ -12,9 +12,13 @@ name: Verify
 # No filter names a base branch: changing a pull request's base changes no head, so a run
 # already made on that head stays the one shown. GitHub runs the version of this file in the
 # pull request's merge with its base, so a pull request that edits this file is checked by
-# its own edit, and GitHub starts no run for a head that conflicts with the base. A run on
-# main saves the pinned dependencies where every pull request's run can restore them; a pull
-# request's own run saves them where only runs of that pull request can.
+# its own edit. GitHub starts no run for a head that conflicts with its base or whose commit
+# message carries a skip instruction, and can hold a fork's run until a maintainer approves
+# it; a head that shows no passing result of these jobs has not been checked here
+# (docs/verification.md, "Build and source inventory", gives each case and what the pull
+# request then shows). A run on main saves the pinned dependencies where every pull
+# request's run can restore them; a pull request's own run saves them where only runs of
+# that pull request can.
 on:
   pull_request:
     types: [opened, synchronize, reopened]

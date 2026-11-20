@@ -130,8 +130,9 @@ which the no-mistakes pipeline runs on the exact proposed head before a pull
 request opens, runs the same command and, outside that deadline, the Regula
 audit `./scripts/regula.sh`, lean-intent's confirmation and implementation
 checks (`lean/AcornTools/Intent.lean`) and the check of each target's pinned frame
-(`lean/AcornTools/Frame.lean`); GitHub runs the same checks on every pull
-request's head commit (`.github/workflows/verify.yml`). Resolve required checks,
+(`lean/AcornTools/Frame.lean`); GitHub runs the same checks on a pull request's
+head commit when it is opened or reopened and at every push to it
+(`.github/workflows/verify.yml`). Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need
