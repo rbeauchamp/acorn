@@ -54,7 +54,9 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   by how it is indexed; it keeps the concealment and the bound (`feasibleFind_conceals`,
   `feasibleFind_covered`). In the same world, with visits of seven steps, the 147 members above
   make it a `Kernel.ConcealedClass` with the bound 98 (`witness_concealed`). This says nothing about
-  obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
+  obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises. What
+  it proves of condition (c), and what it leaves open, is said there under sentence 5 of
+  contract 2.
   Every member's target lies within `3 + length` tiles of the start, for every terrain
   (`feasible_window`), so the class is finite, with at most `(2 (3 + length) + 1)² - 49` members
   (`feasible_count`): at most 392 for visits of seven steps.
@@ -809,7 +811,8 @@ visits of seven steps, the feasible concealed targets are a concealed class with
 147 members of `witness_separation` are each feasible, since each is solved on a visit. This is a
 lemma the mission theorem on the first class of the ladder uses. It says nothing about obligation 4
 of `docs/mission-contract.md`, the goal-information and exploration premises, and it is no result
-about learning. -/
+about learning. What it proves of condition (c), and what it leaves open, is said there under
+sentence 5 of contract 2. -/
 theorem witness_concealed (mode : TaskFeatureMode) :
     Nonempty (Kernel.ConcealedClass (feasibleFind witnessConfig mode witnessLive 7)
       (fun _ => completion witnessConfig mode 7) 7 (49 + 7 * 7)) := by

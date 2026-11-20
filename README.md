@@ -1,7 +1,7 @@
 # Acorn
 
-Acorn pursues [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission): agents that learn
-from experience to achieve goals in big worlds. We tackle the challenges of the
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. We tackle the challenges of the
 [Alberta Plan](https://arxiv.org/abs/2208.11173v3) by developing and verifying
 continual learning and planning algorithms in Lean. The agent learns one
 observation at a time, without replay buffers or curated training data.
@@ -26,10 +26,9 @@ each person and agent with what has landed.
 
 ## Purpose and worlds
 
-Acorn's highest-level goal is Oak Lab's mission, in its own words: "Our goal is
-to discover and implement algorithms that allow agents to achieve goals in big
-worlds." The mission places no limit on which world: Acorn's agent must be able
-to learn and generalize in any big world. Acorn may restrict its worlds at first,
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. The mission places no limit on which world: Acorn's
+agent must be able to learn and generalize in any big world. Acorn may restrict its worlds at first,
 to make progress practical, but each restriction is a step toward that end, not a
 narrowing of it. The [roadmap](docs/roadmap.md) gives the order of work below
 the mission: the first class of worlds is decided, and the order of the classes

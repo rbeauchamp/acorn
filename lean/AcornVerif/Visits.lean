@@ -53,6 +53,8 @@ under a hypothesis of exploration, more members on one visit than the covering b
 for a class of one situation, concealed behind one reference world; the situated form of (b) and
 (c) is `SituatedClass` in `AcornVerif.SituatedClass`. The conditions do not
 supply obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
+For (c) both structures state a count, more members than one action sequence meets, which is less
+than the contract's sentence asks: fewer than all, not a small share (obligation 32 there).
 
 A class that one action sequence solves gives no evidence of learning. `visitScript` reads no
 percept and restarts its count on every visit, with a counter of ⌈log₂ (length + 1)⌉ bits
@@ -544,7 +546,9 @@ world (b); one action sequence meets the goals of at most `k` members within a v
 finite set holds more than `k` members (c); and every member's goal is feasible within a visit
 (a). The situated form of (b) and (c), with a reference world for each situation, is
 `SituatedClass` in `AcornVerif.SituatedClass`, of which this is the case of one situation
-(`ConcealedClass.situated`). These conditions establish
+(`ConcealedClass.situated`). For (c) the structure states that count and no more: fewer than all,
+where the contract's sentence asks a small share (obligation 32 of `docs/mission-contract.md`).
+These conditions establish
 the comparison bound of `visits_need`. They do not establish that experience supplies
 information from which an agent can learn a solution, which is part of obligation 4 of
 `docs/mission-contract.md`, the goal-information and exploration premises. -/

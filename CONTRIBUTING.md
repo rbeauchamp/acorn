@@ -63,11 +63,10 @@ release before 1.0.
 instructions an agent can follow, and how the [mission board](docs/mission-board.md)
 credits what has landed. This section states the rules those instructions rest on.
 
-Acorn's missions serve [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission):
-discovering and implementing algorithms that allow agents to achieve goals in
-big worlds, and formally proving that they work—that the agent achieves goals
-over a formally modelled class of big worlds. In Acorn, missions are the work
-that serves it, and each mission's
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. Pursuing it here means formally proving that they
+work—that the agent achieves goals over a formally modelled class of big worlds.
+In Acorn, missions are the work that serves it, and each mission's
 acceptance is decided by the stated theorem or contract checked by Lean's
 kernel and the repository gate (`./scripts/gate.sh`). Landing a mission is not
 by that fact a discovery: a discovery is an algorithm nobody has published, and
