@@ -86,9 +86,10 @@ worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
 [Microduck](https://github.com/pollen-robotics/microduck)) still
 matters as a smoke test and demonstration, never acceptance evidence.
 
-Because the mission is to discover and implement algorithms, a mission's
-theorem is about an executable Acorn definition—the algorithm itself. A proof
-that some algorithm merely exists, without exhibiting an executable definition,
+Because the mission stated above asks for algorithms that are discovered and
+implemented, a mission's theorem is about an executable Acorn definition—the
+algorithm itself. A proof that some algorithm merely exists, without exhibiting
+an executable definition,
 is not a mission result, though it may serve as a lemma. Proofs about that
 executable definition may use Lean's standard classical axioms (propext,
 Quot.sound and Classical.choice, the standard-logical profile enforced by the
