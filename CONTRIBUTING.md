@@ -389,26 +389,34 @@ Stepping the agent, or one of its learners, over a sequence of percepts of any
 length is a run, by whatever means: the compiled binary, evaluation inside
 Lean, or a re-implementation in any language. The tool does not decide it. A
 learner stepped alone is a run, and so is a copy of the agent's arithmetic in
-another language. Evaluation inside Lean is a run whether an evaluation
-command, a tactic or a kernel reduction does it.
+another language.
 
-Two things are not runs. Proof search is computing a value that a theorem in
+Inside Lean, what makes a computation a run is that the step of the agent or
+of a learner is evaluated or reduced on given percepts to see what it yields,
+and no theorem of the pull request checks what it yielded. The command does
+not decide it: an evaluation command, a reduction command, a tactic, and an
+example stated to print or inspect a value all count.
+
+Three things are not runs. Proof search is computing a value that a theorem in
 the pull request then checks: the theorem states the value and Lean's kernel
-checks it, so nothing rests on the computation having been right. And Lean's
+checks it, so nothing rests on the computation having been right. Lean's
 kernel checking a theorem of the pull request is never a run, whatever its
-proof evaluates: the gate does that for every theorem. Everything else that
-steps the agent or a learner is a run, whatever it was made for and whatever
-it is called: a computation whose value no theorem of the pull request checks,
-and a tactic or a reduction tried on the agent's own step and not kept as a
-theorem of the pull request.
+proof evaluates: the gate does that for every theorem. And trying to prove a
+stated proposition and failing is proof work: a tactic that fails on a lemma
+about every percept has evaluated no step on given percepts. Stating
+propositions about what the step yields on given percepts and discarding them
+is different. Each is an evaluation of the step, and it is a run unless a
+theorem kept in the pull request checks the value.
 
 [AGENTS](AGENTS.md#correct-by-construction) says what a run needs before it is
 made. Every pull request lists, on the line the
 [pull request template](.github/pull_request_template.md) gives it, every
 computation made on the agent or on one of its learners in preparing the
-change: what was computed and by what means, what it showed, and either the
-theorem of the pull request that checks its value, or that it was a run and
-under what authorization. Where none was made, it says so. No check can see an
+change, every evaluation of the step on given percepts included, whether or
+not anything of it was kept: what was computed and by what means, what it
+showed, and either the theorem of the pull request that checks its value, or
+that it was a run and under what authorization. Where none was made, it says
+so. No check can see an
 evaluation made on a contributor's machine, so this is a written rule and the
 list is its trace
 ([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).

@@ -5,7 +5,7 @@ title: ""
 labels: ["mission"]
 ---
 
-<!-- An Acorn mission is a self-contained unit of work whose acceptance is decided by an exact Lean theorem about an executable Acorn definition or a Regula decision contract passing `./scripts/gate.sh` (see CONTRIBUTING.md#missions-for-outside-contributors-and-agents). The owner adds the tier label (`mission:proof`, `mission:contract`, `mission:world`, or `mission:prior-art`) once the contract is exact. A theorem's statement is then held as a target: a Lean definition of type `Prop` under `lean/AcornVerif/Targets/`, where a change is the owner's to make, listed in `lean/AcornVerif/Targets/Registry.lean` under this issue's number. Write each paragraph and each list item on a single line. -->
+<!-- An Acorn mission is a self-contained unit of work whose contract is an exact Lean theorem about an executable Acorn definition or a Regula decision contract, to be established with `./scripts/gate.sh` passing (see CONTRIBUTING.md#missions-for-outside-contributors-and-agents); a pull request for it is accepted as CONTRIBUTING.md#review-protocol states. The owner adds the tier label (`mission:proof`, `mission:contract`, `mission:world`, or `mission:prior-art`) once the contract is exact. A theorem's statement is then held as a target: a Lean definition of type `Prop` under `lean/AcornVerif/Targets/`, where a change is the owner's to make, listed in `lean/AcornVerif/Targets/Registry.lean` under this issue's number. Write each paragraph and each list item on a single line. -->
 
 ## Problem and mission relevance
 
