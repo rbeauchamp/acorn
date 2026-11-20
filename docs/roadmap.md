@@ -2,7 +2,7 @@
 
 This page says what Acorn works on now, in what order, and why.
 GitHub's issues are the record of each piece of work; this page is the order between them.
-It was last set on 2026-11-18, and a change to the order changes this page in the same pull request.
+It was last set on 2026-11-20, and a change to the order changes this page in the same pull request.
 
 ## Terms
 
@@ -146,6 +146,23 @@ Their order is the owner's decision and is not yet made ([#234](https://github.c
 The nearest class to the first rung's is the same class in the host's own world at seed 1 and side 64, deer included, which the entry `acorn-core visits` builds ([#256](https://github.com/rbeauchamp/acorn/issues/256)); [the rung's constants](#the-rungs-constants) list what it needs proved first.
 The recommendation recorded there is: capacity on an agent of restricted capacity, then a class of ARC-AGI-3 games ([#71](https://github.com/rbeauchamp/acorn/issues/71)), then a class of Microduck scenes ([#236](https://github.com/rbeauchamp/acorn/issues/236)), then a class of worlds with no restarts.
 
+## Learned agent state, beside the active rung
+
+[#295](https://github.com/rbeauchamp/acorn/issues/295) asks a contributor to state a goal about learned agent state as a theorem, to find the algorithm and to prove it of the agent that runs.
+It takes its research question from [#17](https://github.com/rbeauchamp/acorn/issues/17), which stays parked ([parked work](#parked-work-and-when-it-re-enters)).
+It has no frozen contract, so it is not a mission, and its text says that it does not announce that the roadmap has resumed.
+
+Two open questions about Acorn's own learners, raised in review of [#295](https://github.com/rbeauchamp/acorn/issues/295), come directly ahead of it in order.
+The reason given for that order is that a result about the existing learners on learned state rests on both.
+
+1. [#296](https://github.com/rbeauchamp/acorn/issues/296): whether the standard agent's learners can make quick use of one added state feature. That they cannot is a hypothesis that nobody has verified. The issue asks for it to be settled by a theorem about the executed agent: an obstruction within a stated horizon, or its refutation.
+2. [#297](https://github.com/rbeauchamp/acorn/issues/297): what Acorn lacks for a positive result about learning. The issue asks for a reusable theorem about what the executed learners acquire after a first reward, in a form that composes over steps, and for one designed place where a state feature enters the default agent, with a proof that an empty state leaves the agent as it was and with the existing theorems stated over the frame's width and not a literal.
+3. [#295](https://github.com/rbeauchamp/acorn/issues/295).
+
+Each of the two is an open question and not a mission with a frozen statement: writing its statement is part of its work.
+Neither blocks [#295](https://github.com/rbeauchamp/acorn/issues/295). A submission there may need them and is not required to wait for them, so no blocked-by link joins the three. None of the three is on a milestone, and none carries the label parked.
+On 2026-11-20 the owner directed that the two questions go on the record as issues. Their place directly ahead of [#295](https://github.com/rbeauchamp/acorn/issues/295) and the comment that links them from it were decided on the owner's behalf by the agent supervising Acorn's research, and the text of the two issues, with what each says would settle it, was written on the owner's behalf by the agents that maintain Acorn. The owner can overrule each.
+
 ## Parked work, and when it re-enters
 
 | Issues | Re-enters when |
@@ -230,8 +247,10 @@ Four more bugs were filed on 2026-11-18, found in the work of the fifth step of 
 ## How the issues encode this
 
 - **Milestones.** [Rung 1: concealed targets in visits](https://github.com/rbeauchamp/acorn/milestone/1) holds the active rung. [Later rungs](https://github.com/rbeauchamp/acorn/milestone/2) holds what waits for it. [Open the roadmap](https://github.com/rbeauchamp/acorn/milestone/3) holds the work for outside contributors.
-- **Labels.** One lane on each issue: `lane:state`, `lane:discover`, `lane:prove`, `lane:world`, `lane:theory`, `lane:community` or `lane:upkeep`. A tracking issue of a rung carries the label rung. An issue off the active rung carries the label parked. `needs-owner-decision` and `needs-statement` say what an issue waits on: the second marks work that needs an exact statement before it can be posted as a mission.
+- **Labels.** One lane on each issue: `lane:state`, `lane:discover`, `lane:prove`, `lane:world`, `lane:theory`, `lane:community` or `lane:upkeep`. A tracking issue of a rung carries the label rung. A parked issue carries the label parked. `needs-owner-decision` and `needs-statement` say what an issue waits on: the second marks work that needs an exact statement before it can be posted as a mission.
 - **Sub-issues** group the parts of one deliverable under its tracking issue.
 - **Blocked-by links** give the order between issues.
 
 The issues that can be worked on now are the open issues of the first milestone that no open issue blocks, less what the [order of work](#order-of-work) suspends while the successor of the withdrawn discovery mission ([#283](https://github.com/rbeauchamp/acorn/issues/283)) is designed. Suspended, until the owner has confirmed the successor's plain-word account, are the remaining work of [#232](https://github.com/rbeauchamp/acorn/issues/232) from its design note on, the change with its theorem included, and the algorithms of [#170](https://github.com/rbeauchamp/acorn/issues/170) and [#171](https://github.com/rbeauchamp/acorn/issues/171); the agent supervising the owner's projects decided that on the owner's behalf, and the owner can overrule it. Work that only informs the suspended work can be worked on, such as the criterion that is the first item of the remaining work of [#232](https://github.com/rbeauchamp/acorn/issues/232).
+
+Outside the first milestone, [#295](https://github.com/rbeauchamp/acorn/issues/295) takes submissions as its own text says, and the two questions placed ahead of it, [#296](https://github.com/rbeauchamp/acorn/issues/296) and [#297](https://github.com/rbeauchamp/acorn/issues/297), are open with no open issue blocking them ([learned agent state](#learned-agent-state-beside-the-active-rung)).
