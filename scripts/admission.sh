@@ -37,7 +37,12 @@
 #    every later run of this check refuses, with no change able to repair it.
 #  - The change: Git's own list of the entries that differ between the starting commit and HEAD,
 #    with rename detection off, so a file moved out of an owner path counts as deleted there.
-#    An uncommitted or untracked file under an owner path is refused: the gate would run it.
+#    A submodule entry under an owner path is such an entry. No listing depends on a file the
+#    change tracks: the submodule ignore setting of `.gitmodules` is overridden, attributes
+#    are read from the starting commit, untracked files are listed without the ignore files,
+#    and a configured order of entries is cancelled.
+#    An uncommitted or untracked file under an owner path is refused, an ignored one included:
+#    the gate would run it.
 #    A change that adds or modifies a path which is no owner path and differs from one only in
 #    letter case is refused: on a file system that ignores case, Git writes both to one place,
 #    so the unowned file can replace the owned one in a working tree. Ownership itself stays
@@ -124,7 +129,8 @@ listed() {
 tip=''
 if listing=$(git ls-remote "$canonical_url" "refs/heads/$default_branch" 2> /dev/null) &&
     tip=$(listed "refs/heads/$default_branch" "$listing"); then
-  git fetch --quiet --no-tags --no-write-fetch-head "$canonical_url" "$tip" 2> /dev/null ||
+  git fetch --quiet --no-tags --no-write-fetch-head --no-recurse-submodules \
+    "$canonical_url" "$tip" 2> /dev/null ||
     tip=''
 else
   tip=''
@@ -241,16 +247,28 @@ else
 before it, and is checked against that commit's CODEOWNERS as it is"
 fi
 
-# Uncommitted and untracked files under an owner path.
-git diff --no-renames --name-only -z HEAD -- > "$work/uncommitted"
-git ls-files --others --exclude-standard -z >> "$work/uncommitted"
+# Uncommitted and untracked files under an owner path. Neither listing may depend on a file the
+# change tracks, so attributes are read from the starting commit and not from the working
+# tree, a submodule's ignore setting is overridden, and untracked files are listed under the
+# owner paths without the ignore files.
+git --attr-source="$start" diff --no-renames --name-only -z --ignore-submodules=none HEAD -- \
+  > "$work/uncommitted" ||
+  refuse "could not list the uncommitted files: this Git must accept --attr-source"
+under=()
+for pattern in "${patterns[@]}"; do
+  under+=(":(literal)${pattern%/}")
+done
+git ls-files --others -z -- "${under[@]}" >> "$work/uncommitted"
 while IFS= read -r -d '' path; do
   owned "$path" && refuse "$path is under an owner path and is not committed: the check reads \
 the commit at HEAD, and the gate would run this file"
 done < "$work/uncommitted"
 
-# The change: every entry that differs between the starting commit and HEAD.
-git diff --no-renames --raw -z --no-abbrev "$start" "$head" -- > "$work/change"
+# The change: every entry that differs between the starting commit and HEAD, a submodule entry
+# included whatever the change's own `.gitmodules` says, in Git's own order whatever order
+# file the machine's configuration names.
+git diff --no-renames --raw -z --no-abbrev --ignore-submodules=none -O/dev/null \
+  "$start" "$head" -- > "$work/change"
 touched=()
 touched_entries=()
 while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
@@ -349,7 +367,8 @@ record_form() {
 recorded=''
 if listing=$(git ls-remote "$canonical_url" "$record_ref" 2> "$work/remote"); then
   if record=$(listed "$record_ref" "$listing"); then
-    git fetch --quiet --no-tags --no-write-fetch-head "$canonical_url" "$record" ||
+    git fetch --quiet --no-tags --no-write-fetch-head --no-recurse-submodules \
+      "$canonical_url" "$record" ||
       refuse "could not fetch the record at $record_ref"
     [[ $(git cat-file -t "$record") == commit ]] || refuse "$record_ref is not a commit"
     body=$(git show -s --format=%B "$record") || refuse "could not read the record at $record_ref"

@@ -754,14 +754,24 @@ owner included, a missing file, a file that names no path and a file of
 read, assign no owner for a login it does not know, and not load so large a
 file. A path matches when it is a named path or lies under one, byte for byte,
 case included. The change is Git's list of the entries that differ, with rename
-detection off, so a file moved out of an owner path counts as deleted there. An
-uncommitted file under an owner path fails the check. A change that adds or
-modifies a path which is no owner path and differs from one only in letter case
-is refused too: on a file system that ignores case, Git writes both to one
-place, so the unowned file could replace the owned one in a working tree. The
-file the change proposes must itself be readable by the check and name the
-check's own files, the workflow that runs the admission job among them, so an
-admitted change cannot leave a file that every later run refuses.
+detection off, so a file moved out of an owner path counts as deleted there. A
+submodule entry under an owner path is an owner-path change like any other. The
+check sees every path the change adds, removes, modifies or replaces, whatever
+any file tracked by the change says: it overrides the submodule ignore setting
+of `.gitmodules`, reads attributes from the starting commit and not from the
+working tree, lists untracked files under the owner paths without the ignore
+files, and cancels a configured order of entries, on which the change's identity
+would otherwise depend. That was derived command by command from the manual of
+Git 2.54.0. A later version of Git that adds a setting which one of these
+commands reads from a tracked file is the limit of that derivation, and nothing
+in the check detects it. An uncommitted or untracked file under an owner path
+fails the check, an ignored one included. A change that adds or modifies a path
+which is no owner path and differs from one only in letter case is refused too:
+on a file system that ignores case, Git writes both to one place, so the unowned
+file could replace the owned one in a working tree. The file the change proposes
+must itself be readable by the check and name the check's own files, the
+workflow that runs the admission job among them, so an admitted change cannot
+leave a file that every later run refuses.
 
 Which copy runs. The gate runs the copy of the script that the starting commit
 holds, and the pipeline's Test command in `.no-mistakes.yaml`, which the
@@ -881,13 +891,14 @@ checkout's copy of that branch, which may be stale or another repository's, so
 such a run convinces only whoever ran it. After a refused Test command the
 pipeline still lists the change's tests, and that listing loads the change's
 Lake package configurations: a refusal stops the gate script and what it runs,
-not that step of the pipeline. A local run does not see an ignored, untracked
-file under an owner path. Two changes that make the same transition of the owner
-paths share one record. A mission whose contract has no registered target lands
-with no landing, so its statements are not registered until the owner registers
-targets for them. A hand-written mechanism added inside a module that an
-admitted departure already covers touches no owner path ([learned-only
-binding](learned-only-binding.md)).
+not that step of the pipeline. The check's independence of the change's own
+files covers the settings that the manual of Git 2.54.0 names for its commands;
+a setting a later Git adds is not detected. Two changes that make the same
+transition of the owner paths share one record. A mission whose contract has no
+registered target lands with no landing, so its statements are not registered
+until the owner registers targets for them. A hand-written mechanism added
+inside a module that an admitted departure already covers touches no owner path
+([learned-only binding](learned-only-binding.md)).
 
 # Regula audit
 %%%

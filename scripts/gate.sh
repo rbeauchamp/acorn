@@ -52,7 +52,8 @@ admission() {
     done <<< "$listing"
   fi
   if [[ -n $tip ]]; then
-    git fetch --quiet --no-tags --no-write-fetch-head "$url" "$tip" 2>/dev/null || tip=''
+    git fetch --quiet --no-tags --no-write-fetch-head --no-recurse-submodules "$url" "$tip" \
+      2>/dev/null || tip=''
   fi
   if [[ -z $tip ]]; then
     tip=refs/remotes/origin/main
