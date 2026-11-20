@@ -68,14 +68,14 @@ the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
 
 The [verification workflow](../.github/workflows/verify.yml) runs the
-[merge gate's](#build-and-source-inventory) checks when a pull request is opened
-or reopened and at every push to it, on every push to main and when started by
-hand, on GitHub's standard `ubuntu-24.04` x64 image. It installs no
+[merge gate](#build-and-source-inventory) when a pull request is opened or
+reopened and at every push to it, and when started by hand, on GitHub's standard
+`ubuntu-24.04` x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
-elan from a release pinned by the SHA-256 of its archive, which the dependency
-cache keeps. Every workflow step that reaches the network has its own time
-limit, so a stalled download fails that step. Dependency caches include the
-Ubuntu release and runner architecture. Automatic local setup supports macOS and
+elan from a release pinned by the SHA-256 of its archive. Every workflow step
+that reaches the network before the gate has its own time limit, so a stalled
+download fails that step. The workflow keeps no cache: each run provisions the
+dependencies from their pinned sources. Automatic local setup supports macOS and
 Ubuntu/Debian Linux.
 
 For manual setup, install macOS command-line tools and the packages below
@@ -428,8 +428,8 @@ Primitive IEEE interpretation remains a native assumption.
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
 validates, in a checkout that holds only tracked files. GitHub runs the same
-checks at each event that gives a pull request its head and on every push to
-main, within the limits described after the frame check below. The gate provisions the pinned dependencies,
+script at each event that gives a pull request its head, within the limits
+described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
 360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
 sources as the complete command does, then selects every module outside the proof
@@ -501,39 +501,42 @@ copy only while the run's toolchain and lock files equal that commit's; Lake
 rebuilds whatever its traces do not show current. Acorn's own outputs are never
 carried from one run to another.
 
-GitHub runs the gate's checks through the
+GitHub runs the gate through the
 [verification workflow](../.github/workflows/verify.yml): when a pull request is
 opened or reopened and at every push to its branch, whether that branch is in
-the repository or in a fork, on the pull request's head commit; on every push to
-main; and when started by hand, within the limits given below. The script holds
-its checks in groups, each a
-sequence of checks on one build: verification's two stages are one group, and
-the audit, the lean-intent checks and the frame check are the other. It prints
-the groups' names when given the argument groups, and runs one group's checks,
-without provisioning, when given the argument group and a name. The workflow
-makes one job of each name the script prints and runs that group by the script
-in it, so the checks GitHub runs are the script's own, with no second list to
-keep equal to it. A failing check fails its job, each job's result is shown on
-the pull request, and one group's failure does not stop the other.
+the repository or in a fork, on the pull request's head commit, and when started
+by hand, within the limits given below. The workflow is one job. It takes the
+head commit from the event, fails before any check when the event names none,
+and never falls back to the merge of the head with its base. It then provisions
+the pinned dependencies and runs the script of that commit with no argument, the
+same command the pipeline's Test step runs. So the checks GitHub runs are the
+script's own, with no second list to keep equal to it, and a head whose script
+is older or newer than the one on main is checked by its own script. A failing
+check fails the job, and the job's result is shown on the pull request. The job
+runs for a pull request to any base branch, so that one later retargeted to main
+keeps the run made on its head, and nothing runs after a merge.
 
-The arrangement on GitHub differs from the script's complete run in four ways.
-The groups run in separate jobs side by side, each on its own machine from cold
-project outputs, where the complete run takes them in order on one. The workflow
-provisions the dependencies by its own steps, which restore them from GitHub's
-cache, bound every download and take elan from the pinned release; the script's
-own provisioning does not run there. Only the verification job provisions the
-documentation site's dependencies, since no other check reads them. And each
-job has a 30-minute limit, which the complete run does not. The key of GitHub's
-cache includes the toolchain and lock files. A run on main saves it where every pull
-request's run can restore it, and a pull request's run where only runs of that
-pull request can, so a pull request cannot change what another one restores.
+The arrangement on GitHub differs from the pipeline's as follows. The
+workflow provisions the dependencies by its own steps before the script, which
+bound every download and take elan from the pinned release; the script's own
+provisioning then finds them current. Nothing is stored between runs: every run
+provisions everything from its pinned sources and builds from cold project
+outputs. A copy stored by an earlier head of a pull request, which controls its
+own workflow, could otherwise be restored and trusted by a later head whose own
+changes show nothing of it. The job has a 60-minute limit, where the
+pipeline's Test step has none. That limit is the sum of the limits of the two
+jobs that ran these checks side by side before 2026-10-28; no check's own
+deadline changed, and each of verification's two stages keeps its 360-second
+deadline. This shape, slower than two jobs with stored dependencies, was decided
+on the owner's behalf by the agent supervising Acorn's research.
 
 A pull request's run is started by GitHub's ordinary event for pull requests,
 never the privileged one that runs with the base repository's rights, so the run
 for a fork's pull request receives none of the repository's secrets and a token
 that cannot write to the repository. The workflow names no secret, asks for read
-access to contents only, keeps no credentials in its checkout and pins each
-action by revision.
+access to contents only, keeps no credentials in its checkout and pins the
+checkout action by revision. No setting cancels or skips a run because a newer
+head arrived: each head's run finishes, and its result stays on that commit.
 
 That event has five limits, which Acorn accepts: GitHub's other event for pull
 requests, which does start a run for a conflicting head, runs in the base
@@ -541,52 +544,52 @@ repository's own context, where a fork's code can reach its secrets and a token
 that writes (GitHub's documentation, Events that trigger workflows). That
 a fork's run holds no secret is the owner's requirement; naming the limits as
 accepted was decided on the owner's behalf by the agent supervising Acorn's
-research. In every one but the third, the pull request shows no passing result
-of these jobs for its head. Such a head is unchecked on GitHub, and the absence
-of a result is never a pass.
+research. In every one but the third, the pull request shows no run of this job
+for its head. Such a head is unchecked on GitHub. The absence of a run is never
+a pass, and it is not a failure either: a failed run means the checks ran on
+that head and at least one of them failed.
 
-First, a head that conflicts with its base gets no run. GitHub starts no workflow for
-activity on a pull request that has a merge conflict (GitHub's documentation,
-Events that trigger workflows, in the notes on the event for pull requests). The
-pull request shows no result of these jobs for that head, and still none when
-the conflict clears without a push, as when main changes; a push or a reopening
-starts the run.
+First, a head that conflicts with its base gets no run. GitHub starts no
+workflow for activity on a pull request that has a merge conflict (GitHub's
+documentation, Events that trigger workflows, in the notes on the event for pull
+requests). The pull request shows no run of this job for that head, and still
+none when the conflict clears without a push, as when main changes; a push or a
+reopening starts the run.
 
-Second, a fork's run can wait for a maintainer. Under the repository's setting, read on
-2026-11-20, GitHub holds the workflows of a first-time contributor's fork until
-someone with write access approves them, and marks a run left unapproved for 30
-days as failed (GitHub's documentation, Approving workflow runs from forks).
-Until then the pull request shows the workflow as awaiting approval, with no
-result. The approval lets the jobs start and nothing more: it is no review of
-the change and no result of a check. GitHub holds in the same way the run of a
-pull request that a workflow opens or updates with its own token (the same
-notes); no workflow of Acorn does that.
+Second, a fork's run can wait for a maintainer. Under the repository's setting,
+read on 2026-11-20, GitHub holds the workflows of a first-time contributor's
+fork until someone with write access approves them, and marks a run left
+unapproved for 30 days as failed (GitHub's documentation, Approving workflow
+runs from forks). Until then the pull request shows the workflow as awaiting
+approval, with no result. The approval lets the job start and nothing more: it
+is no review of the change and no result of a check. GitHub holds in the same
+way the run of a pull request that a workflow opens or updates with its own
+token (the same notes); no workflow of Acorn does that.
 
 Third, a pull request that edits the workflow or the gate script is checked by
-its own edit. GitHub uses the version of a workflow in the commit of the event that
-starts it (GitHub's documentation, Workflows), which for a pull request is its
-merge with its base, and the jobs run the script of the head. Such a pull
-request can show every job as passed while it runs fewer checks than the gate on
+its own edit. GitHub uses the version of a workflow in the commit of the event
+that starts it (GitHub's documentation, Workflows), which for a pull request is
+its merge with its base, and the job runs the script of the head. Such a pull
+request can show the job as passed while it runs fewer checks than the gate on
 main has. A reader sees that only in the pull request's changed files, under
 the paths that [CODEOWNERS](../.github/CODEOWNERS) gives to the owner; nothing
 in the run refuses the edit.
 
 Fourth, a head whose event came before this workflow ran on pull requests, or whose
 merge with the base it then had did not hold this workflow, has no run, since
-GitHub repeats no event. A pull request open at that time shows no result of
-these jobs until its next push or reopening.
+GitHub repeats no event. A pull request open at that time shows no run of this
+job until its next push or reopening, and then runs like any other, by its own
+head's script.
 
 Fifth, a head whose commit message carries one of GitHub's skip instructions gets
-no run (GitHub's documentation, Skipping workflow runs). The pull request shows no
-result of these jobs for that head until a commit without the instruction is
+no run (GitHub's documentation, Skipping workflow runs). The pull request shows
+no run of this job for that head until a commit without the instruction is
 pushed.
 
-The workflow also cancels a run when a newer push replaces its head, and the
-replaced commit then shows its jobs as cancelled. Whether a merge requires these
-jobs is set in the repository's rules on GitHub, not in a file of the
-repository. Where the rules require them, a head on which they have not passed
-does not merge: GitHub requires a required check to pass on the latest commit
-(GitHub's documentation, Troubleshooting required status checks).
+Whether a merge requires this job is set in the repository's rules on GitHub,
+not in a file of the repository. Where the rules require it, a head on which it
+has not passed does not merge: GitHub requires a required check to pass on the
+latest commit (GitHub's documentation, Troubleshooting required status checks).
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners

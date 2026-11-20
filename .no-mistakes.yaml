@@ -9,8 +9,8 @@
 # (lean/AcornTools/Intent.lean), and the check of each target's pinned frame
 # (lean/AcornTools/Frame.lean). Any failing check fails the step.
 #
-# GitHub runs the same checks at each event that gives a pull request its head and on every push
-# to main, taking them from that script (.github/workflows/verify.yml). This file sets no `no_ci`, the declaration that a
+# GitHub runs the same script on a pull request's head commit at each event that gives the pull
+# request its head (.github/workflows/verify.yml). This file sets no `no_ci`, the declaration that a
 # repository has no checks on its forge, so the pipeline expects them: once it has opened a pull
 # request it reports the pull request ready only when every check that GitHub registers on the
 # pull request's head commit has passed, and never while GitHub registers none there

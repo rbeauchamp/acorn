@@ -38,9 +38,9 @@ opens, also requires the [Regula audit](docs/verification.md#regula-audit),
 lean-intent's confirmation and implementation checks of Acorn's intent records, and
 the check that the declarations a pinned target reads are unchanged. When a pull
 request is opened or reopened and at every push to it, from a branch of the
-repository or of a fork, GitHub runs the gate's checks on its head commit and
-shows each job's result on the pull request. A head that shows no passing result
-there has not been checked on GitHub; the
+repository or of a fork, GitHub runs the gate on its head commit and shows the
+job's result on the pull request. A head for which GitHub shows no run of that
+job has not been checked there, which is not the same as a run that failed; the
 [verification guide](docs/verification.md#build-and-source-inventory) names the
 cases in which GitHub starts no run.
 

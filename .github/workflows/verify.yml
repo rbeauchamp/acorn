@@ -1,106 +1,86 @@
 name: Verify
-# GitHub runs the merge gate's checks here: on a pull request when it is opened or reopened
-# and at every push to its branch, whether that branch is in this repository or in a fork,
-# always on the pull request's head commit; on every push to main; and when started by hand.
-# The checks are those of scripts/gate.sh, which the no-mistakes pipeline also runs before a
-# pull request opens (.no-mistakes.yaml): the first job below asks that script for its groups
-# of checks, and one job for each group runs it by that script.
+# GitHub runs the merge gate here, on a pull request's head commit, when the pull request is
+# opened or reopened and at every push to its branch, whether that branch is in this
+# repository or in a fork, and when started by hand. The one job provisions the pinned
+# dependencies and then runs the checked-out commit's own ./scripts/gate.sh with no argument,
+# the command the no-mistakes pipeline also runs before a pull request opens
+# (.no-mistakes.yaml). So the checks GitHub runs are that script's, and a head whose script
+# is older or newer than main's is checked by its own.
 #
 # A pull request's run is started by the pull_request event, never pull_request_target, so
 # the run for a fork's pull request receives no secret of this repository and a token that
 # cannot write to it; this file names no secret and asks for read access to contents only.
-# No filter names a base branch: changing a pull request's base changes no head, so a run
-# already made on that head stays the one shown. GitHub runs the version of this file in the
-# pull request's merge with its base, so a pull request that edits this file is checked by
-# its own edit. GitHub starts no run for a head that conflicts with its base or whose commit
-# message carries a skip instruction, and can hold a fork's run until a maintainer approves
-# it; a head that shows no passing result of these jobs has not been checked here
+# No filter names a base branch, so a pull request to another base that is later retargeted
+# to main keeps the run made on its head. Nothing runs after a merge.
+#
+# No step restores or saves a cache: every run provisions everything from its pinned
+# sources. A copy stored by an earlier head of a pull request, which controls its own
+# workflow, could otherwise be restored and trusted by a later head. No setting cancels or
+# skips a run because a later head arrived: each head's run finishes, and its result stays
+# on that commit.
+#
+# GitHub runs the version of this file in the pull request's merge with its base, so a pull
+# request that edits this file is checked by its own edit. GitHub starts no run for a head
+# that conflicts with its base or whose commit message carries a skip instruction, and can
+# hold a fork's run until a maintainer approves it. A head for which no run of this job is
+# shown has not been checked here, which is not the same as a run that failed
 # (docs/verification.md, "Build and source inventory", gives each case and what the pull
-# request then shows). A run on main saves the pinned dependencies where every pull
-# request's run can restore them; a pull request's own run saves them where only runs of
-# that pull request can.
+# request then shows).
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
-# A new push cancels the run on the head it replaces, whose jobs then show as cancelled on
-# that commit.
-concurrency:
-  group: verify-${{ github.ref }}
-  cancel-in-progress: true
 env:
-  # The elan release for x64 Linux. The SHA-256 of its archive admits the download
-  # and is part of the dependency cache key, so a restored cache holds this elan.
+  # The elan release for x64 Linux. The SHA-256 of its archive admits the download.
   ELAN_VERSION: 4.2.4
   ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
-# Every step that reaches the network declares timeout-minutes, so a stalled
-# transfer fails that step at its own limit and never holds a job to the job's.
-# Each limit exceeds the slowest time observed for its step. No step continues
-# after a failure.
+# Every step that reaches the network before the gate declares timeout-minutes, so a
+# stalled transfer fails that step at its own limit and never holds the job to the job's.
+# Each limit exceeds the slowest time observed for its step. No step continues after a
+# failure.
 jobs:
-  groups:
-    # The names of the merge gate's groups of checks, as scripts/gate.sh at the verified
-    # commit prints them. They are the next job's matrix, so GitHub runs every group the
-    # script has and none it lacks. An empty list fails this job.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    env:
-      ACORN_VERIFY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-    outputs:
-      groups: ${{ steps.list.outputs.groups }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        timeout-minutes: 2
-        with:
-          ref: ${{ env.ACORN_VERIFY_SHA }}
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Confirm checked-out commit
-        run: test "$(git rev-parse HEAD)" = "$ACORN_VERIFY_SHA"
-      - name: List the merge gate's groups of checks
-        id: list
-        run: |
-          set -o pipefail
-          groups="$(./scripts/gate.sh groups | jq --raw-input --null-input --compact-output '[inputs]')"
-          echo "$groups"
-          test "$groups" != '[]'
-          echo "groups=$groups" >> "$GITHUB_OUTPUT"
   gate:
-    # One job for each group, named after it, running that group's checks by
-    # `./scripts/gate.sh group`. A failed group does not cancel the others, so one run
-    # reports every group, as the script's own complete run does.
-    #
-    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. Verification's cold
-    # build is timed in two stages, each under verify.sh's own deadline. The Regula audit
-    # (scripts/regula.sh: Regula's proof verdict, by the two commands its release publishes,
-    # docs/verification.md#regula-audit) builds the modules that the default targets of
-    # lean/lakefile.lean claim and runs Regula's checker, which replays the claim's cone in
-    # Lean's kernel and takes longer than verification's deadline allows, so it runs in the
-    # other group's job, under this job's timeout. Regula's contract names Ubuntu 24.04.5 LTS
-    # on x86-64, the release that this runner image held when Regula observed it; an image of
-    # another release is outside that contract.
-    name: ${{ matrix.group }}
-    needs: groups
-    strategy:
-      fail-fast: false
-      matrix:
-        group: ${{ fromJSON(needs.groups.outputs.groups) }}
+    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's limit is the
+    # sum of the limits of the two jobs that ran these checks side by side before; no
+    # check's own deadline is changed, and each of verification's two stages keeps
+    # verify.sh's 360-second deadline. Regula's contract names Ubuntu 24.04.5 LTS on x86-64,
+    # the release that this runner image held when Regula observed it; an image of another
+    # release is outside that contract.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      ACORN_VERIFY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    timeout-minutes: 60
     steps:
+      - name: Identify the commit to verify
+        id: commit
+        # For a pull request, the head commit that the event itself carries (GitHub's
+        # documentation, Events that trigger workflows, pull_request: github.sha is the
+        # merge commit, and github.event.pull_request.head.sha the last commit of the head
+        # branch). The same page says the event's payload is empty for a pull request from
+        # a fork; an event that carries no head fails here, before any check, and never
+        # falls back to the merge commit. A run started by hand verifies its own commit.
+        env:
+          ACORN_PULL_REQUEST_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ $GITHUB_EVENT_NAME == pull_request ]]; then
+            sha="$ACORN_PULL_REQUEST_HEAD"
+          else
+            sha="$GITHUB_SHA"
+          fi
+          if [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::The $GITHUB_EVENT_NAME event names no commit to verify."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         timeout-minutes: 2
         with:
-          ref: ${{ env.ACORN_VERIFY_SHA }}
+          ref: ${{ steps.commit.outputs.sha }}
           persist-credentials: false
           fetch-depth: 1
       - name: Confirm checked-out commit
+        env:
+          ACORN_VERIFY_SHA: ${{ steps.commit.outputs.sha }}
         run: test "$(git rev-parse HEAD)" = "$ACORN_VERIFY_SHA"
       - name: Admit the runner image's system packages
         # The image provides these, so the step installs nothing and uses no
@@ -119,35 +99,12 @@ jobs:
           done
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
           exit "$status"
-      - name: Identify the FloatLib modules the proof bridge imports
-        id: bridge
-        # The import lines select what the FloatLib step below builds, so they
-        # belong to the cache identity; the proofs that follow them do not.
-        run: |
-          set -o pipefail
-          imports="$(sed -n '/^import FloatLib\./p' lean/AcornVerif/FloatLibBridge.lean | sort)"
-          echo "imports=$(printf '%s\n' "$imports" | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-      - name: Restore pinned dependencies only
-        id: dependencies
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 6
-        with:
-          path: |
-            ~/.elan
-            lean/.lake/packages
-          key: lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
-          # A changed import set restores the same locked dependencies, builds
-          # only the added modules below and saves them under the new key.
-          restore-keys: |
-            lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
       - name: Provision pinned elan
         timeout-minutes: 2
-        # A restored cache already holds elan, and then this step downloads
-        # nothing. Otherwise curl's own limits end the download: no attempt lasts
-        # more than 30 seconds and none starts more than 62 seconds after the
-        # first began, so curl exits within 92 seconds with its error. The archive
-        # is admitted by its SHA-256 before anything in it runs, and the installer
-        # downloads no toolchain.
+        # curl's own limits end the download: no attempt lasts more than 30 seconds
+        # and none starts more than 62 seconds after the first began, so curl exits
+        # within 92 seconds with its error. The archive is admitted by its SHA-256
+        # before anything in it runs, and the installer downloads no toolchain.
         run: |
           if [[ ! -x "$HOME/.elan/bin/elan" ]]; then
             archive="$RUNNER_TEMP/elan.tar.gz"
@@ -166,12 +123,10 @@ jobs:
             exit 1
           fi
       - name: Provision pinned Lean, Mathlib and Regula
-        if: steps.dependencies.outputs.cache-hit != 'true'
         timeout-minutes: 15
         working-directory: lean
         # The upstream cache can omit modules; Lake compiles only those it lacks.
-        # Regula's lint driver is compiled here, so every group's job provisions the
-        # same dependency cache.
+        # Regula's lint driver is compiled here.
         run: lake exe cache get && lake build Mathlib regula/lint
       - name: Provision the FloatLib, lean-intent and Regula modules the project imports
         working-directory: lean
@@ -181,71 +136,33 @@ jobs:
         # that AcornTools.Intent links, and the Regula interface modules that the
         # decision registries import, so verification never compiles a dependency
         # inside its deadline.
-        # On an exact cache hit it has nothing to build.
         run: lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
       - name: Admit provisioned dependencies
         run: ./scripts/lean.sh provision-status
-      - name: Save admitted dependencies before the group's checks
-        if: steps.dependencies.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 5
-        with:
-          path: |
-            ~/.elan
-            lean/.lake/packages
-          key: ${{ steps.dependencies.outputs.cache-primary-key }}
       # The documentation site's own dependencies (Verso, SubVerso, MD4Lean and
       # illuminate), locked by site/lake-manifest.json into the shared
-      # lean/.lake/packages. Only verification reads them, so only its job takes the
-      # three steps below, and they are cached apart from the dependencies above, which
-      # the other job restores without them. Verification requires Verso built already
-      # and never compiles it inside its deadline.
-      - name: Restore pinned Verso dependencies only
-        id: verso
-        if: matrix.group == 'verification'
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 3
-        with:
-          path: |
-            lean/.lake/packages/verso
-            lean/.lake/packages/subverso
-            lean/.lake/packages/MD4Lean
-            lean/.lake/packages/illuminate
-          key: verso-deps-v2-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('site/lean-toolchain', 'site/lake-manifest.json') }}
+      # lean/.lake/packages. Verification requires Verso built already and never
+      # compiles it inside its deadline.
       - name: Provision pinned Verso
-        if: matrix.group == 'verification'
         timeout-minutes: 12
         working-directory: site
         # Verso precompiles its modules, so the documents load VersoManual's shared
         # library, which the library's default target does not build. This step
         # builds both and configures the site workspace over every locked
-        # dependency, so verification does neither inside its deadline. On an exact
-        # cache hit it has nothing to build.
+        # dependency, so verification does neither inside its deadline.
         run: lake build verso/VersoManual verso/VersoManual:shared
-      - name: Save pinned Verso dependencies before the group's checks
-        if: matrix.group == 'verification' && steps.verso.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 3
-        with:
-          path: |
-            lean/.lake/packages/verso
-            lean/.lake/packages/subverso
-            lean/.lake/packages/MD4Lean
-            lean/.lake/packages/illuminate
-          key: ${{ steps.verso.outputs.cache-primary-key }}
-      # The group's checks, by the script that the merge gate itself is. Verification runs
-      # as two timed stages on this runner, each under verify.sh's own 360-second deadline:
-      # the cold build fills all four CPUs, and with the checks beside it a slow runner came
-      # within 40 seconds of one deadline. Stage one admits the sources and builds cold every
-      # module outside the proof library AcornVerif, its native object and every executable.
-      # Stage two is the complete command unchanged: Lake reuses a stage one output only
-      # where its trace matches the checked-out source, toolchain and options, and builds
-      # everything else. The audit group runs the Regula audit, then lean-intent's
-      # confirmation and implementation checks on the modules of the default libraries of the
-      # build the audit made (lean/AcornTools/Intent.lean), then the check of each target's
-      # pin file against the declarations the target reads in that build
-      # (lean/AcornTools/Frame.lean). Nothing of the project's own is carried between runs.
-      - name: The group's checks on the exact source
-        env:
-          ACORN_GATE_GROUP: ${{ matrix.group }}
-        run: ./scripts/gate.sh group "$ACORN_GATE_GROUP"
+      # The merge gate itself, by the script of the commit under verification. Its own
+      # provisioning finds the dependencies current. It then runs verification as two timed
+      # stages, each under verify.sh's own 360-second deadline: the cold build fills all four
+      # CPUs, and with the checks beside it a slow runner came within 40 seconds of one
+      # deadline. Stage one admits the sources and builds cold every module outside the
+      # proof library AcornVerif, its native object and every executable. Stage two is the
+      # complete command unchanged: Lake reuses a stage one output only where its trace
+      # matches the checked-out source, toolchain and options, and builds everything else.
+      # The script then runs the Regula audit (scripts/regula.sh,
+      # docs/verification.md#regula-audit), lean-intent's confirmation and implementation
+      # checks (lean/AcornTools/Intent.lean) and the check of each target's pin file
+      # (lean/AcornTools/Frame.lean), each also when an earlier check failed, and exits
+      # non-zero when any check failed. Its `gate:` lines give the time of each part.
+      - name: The merge gate on the exact source
+        run: ./scripts/gate.sh
