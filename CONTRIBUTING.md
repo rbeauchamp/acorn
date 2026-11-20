@@ -221,7 +221,7 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   with any assumption stated.
 - **What is not there yet:** Acorn's program does not yet run its agent with a
   mechanism. The grid interface keeps room for a mechanism's words: every
-  observation its adapter builds leaves room for 32 of them
+  observation its adapter builds leaves room for at least 32 of them
   (`Acorn.Handcrafted.Grid.frame_room`). The place where a mechanism plugs into
   the host is a separate change and the owner's. Until it lands, the frame
   states what a complete result is and nobody can produce one for the program
