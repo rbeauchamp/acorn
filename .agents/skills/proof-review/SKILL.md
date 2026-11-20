@@ -59,7 +59,11 @@ questions on [credit to learning](references/proof-standard.md#credit-to-learnin
 of every claim that the agent learned something. Read the pull request's list
 of computations against
 [what counts as a run](../../../CONTRIBUTING.md#what-counts-as-a-run). Do not
-repair the work.
+repair the work. Report a finding that discloses a security vulnerability
+through the private route `SECURITY.md` names, and say in the report only
+that a finding of that kind is open; the report is not clean until it is
+closed. The report counts for the head commit and for the pull request's
+title and description as you read them.
 
 Write the report in the form the protocol gives: the head commit read; what
 is claimed; what is established, claim by claim, with the statement read; what

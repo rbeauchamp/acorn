@@ -85,8 +85,9 @@ does any of these:
 Every other pull request is an ordinary change and gets the short review. The
 line is drawn by what a pull request claims or changes, never by who wrote it
 or by how its author describes it. The maintainers decide it at triage, from the pull request's
-head, and decide it again when a push changes what the pull request claims or
-changes. In doubt, a pull request gets the referee's review.
+head, title and description, and decide it again whenever what the pull
+request claims or changes changes, by a push or by an edit of its title or
+description. In doubt, a pull request gets the referee's review.
 
 An author may run a review of their own on any pull request, with a reviewer
 of their choice, as [AGENTS](AGENTS.md#review-and-delivery) and the review
@@ -141,7 +142,9 @@ which includes its two questions on credit to learning, and against
 or the description. The referee does not repair the work.
 
 **The report.** The referee's report is a comment on the pull request, and
-stays there. It names the head commit it read and has four parts:
+stays there. It names the head commit it read, counts only for that commit
+and for the pull request's title and description as it read them, and has
+four parts:
 
 - what is claimed: each claim of the pull request, with the theorem,
   definition or text that is to carry it;
@@ -155,11 +158,21 @@ stays there. It names the head commit it read and has four parts:
 A report that restates the gate's result is no report. The gate shows that
 proofs are sound; it does not show that they are proofs of what is claimed.
 
+A finding that discloses a security vulnerability is not written out on the
+pull request. The referee reports it through the private route that
+[SECURITY](SECURITY.md) names, and the report on the pull request says only
+that a finding of that kind is open. The report is not clean until that
+finding is closed. The same holds for a short review and its reviewer.
+
 **Findings and revision.** The findings go back to the author on the pull
-request. The author answers each one there, by a change to the work or by a
+request, a finding that discloses a vulnerability excepted, which goes back
+by the private route. The author answers each one there, by a change to the work or by a
 reasoned objection. A finding stays open until the referee withdraws it or the
-maintainers rule on it in writing on the pull request. After a push, the new
-head has no report until the referee has read it and reported again. This
+maintainers rule on it in writing on the pull request. After a push, or an edit
+of the pull request's title or description, the pull request has no clean
+report until the referee has read it again and reported: the rule covers
+every field of a pull request that becomes part of the merged commit's
+message or states a claim. This
 repeats until the report is clean or the author withdraws. A report is clean
 when its verdict is accept and no finding is open. An author may withdraw at
 any time; the pull request is then closed. A verdict of reject says that no
@@ -198,17 +211,18 @@ only that there are no findings, does not count, and the pull request has no
 clean review until one that does is posted. Findings and revision go as they do for a referee's
 report: the author answers each finding on the pull request, a finding stays
 open until the reviewer withdraws it or the maintainers rule on it there, and
-after a push the new head has no review until the reviewer has read it again.
+after a push, or an edit of the pull request's title or description, it has
+no clean review until the reviewer has read it again.
 A short review is clean when it counts, its verdict is accept and no finding
 is open.
 
 ### When work is complete
 
 Work under the referee's review is complete when its pull request has merged
-and, on the head commit that merged, each referee's report is clean and the
-gate has passed. An ordinary change is complete when its pull request has
-merged and, on the head commit that merged, its short review is clean and the
-gate has passed.
+and, on the head commit that merged and for the title and description it
+merged with, each referee's report is clean and the gate has passed. An ordinary change is complete when its pull request has
+merged and, on the head commit that merged and for the title and description
+it merged with, its short review is clean and the gate has passed.
 
 Until then the work is submitted, under review or accepted by its referees or
 its reviewer, and nothing calls it complete: not its description, a commit message, a
@@ -410,7 +424,8 @@ every promise is one that an organization of one owner and its agents can keep:
   specification read-back when a pull request introduces or edits a
   specification), and only once the review that the
   [review protocol](#review-protocol) gives the pull request, each referee's
-  report or the short review, is clean on that head. A change to what the
+  report or the short review, is clean on that head and for the title and
+  description as they stand at the merge. A change to what the
   review protocol requires, allows or rules out merges only once the owner
   has confirmed it. Changes to the trusted-base files listed in
   [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.

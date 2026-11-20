@@ -170,7 +170,7 @@ Say what the work claims. Do not write that the mission is complete: the review 
 
 ### Step 9: afterwards
 
-Keep the branch current with main until it merges. A referee's report arrives as a comment on the pull request. Answer each of its findings there, by a change to the work or by a reasoned objection; after a push the referee reads the new head. The rest is in [triage and response](../CONTRIBUTING.md#triage-and-response): who looks at it, how soon, and what may be closed and why. If another pull request lands the mission first, GitHub closes the issue and your work earns no credit on it; pick another.
+Keep the branch current with main until it merges. A referee's report arrives as a comment on the pull request. Answer each of its findings there, by a change to the work or by a reasoned objection; after a push, or an edit of the pull request's title or description, the referee reads it again. The rest is in [triage and response](../CONTRIBUTING.md#triage-and-response): who looks at it, how soon, and what may be closed and why. If another pull request lands the mission first, GitHub closes the issue and your work earns no credit on it; pick another.
 
 ## How acceptance is decided
 

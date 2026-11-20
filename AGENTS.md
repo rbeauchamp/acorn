@@ -48,9 +48,8 @@ Stepping the agent or one of its learners over a sequence of percepts by any
 means, whether the binary, evaluation inside Lean or a re-implementation in any
 language, is a run. Proof search is computing a value that a theorem in the
 pull request then checks, and nothing else is.
-[What counts as a run](CONTRIBUTING.md#what-counts-as-a-run) gives the cases,
-and every pull request lists each computation made on the agent and what it
-showed.
+[What counts as a run](CONTRIBUTING.md#what-counts-as-a-run) gives the cases
+and what every pull request lists of the computations made on the agent.
 
 The habit of evaluation returns through specifications. When a specification
 seems to need a run to check it, treat that first as a defect in the

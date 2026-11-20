@@ -872,13 +872,19 @@ maintainers' call. A change to what the protocol requires, allows or rules
 out merges only once the owner has confirmed it, and no check enforces that
 either: [CODEOWNERS](../.github/CODEOWNERS) names neither the contributor
 guide nor the review skills, so GitHub requests the owner's review of no
-change to them.
+change to them. A review counts only for the commit, title and description it
+read, and GitHub lets a title or a description be edited at any time, so that
+the description that merged is the one that was reviewed rests on the
+maintainers' reading at the merge. A finding that discloses a security
+vulnerability is reported by the private route and only named as open on the
+pull request; that it is closed before a merge is likewise checked by no
+tool.
 
 The second is the rule on runs
 ([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)): stepping
 the agent or one of its learners over a sequence of percepts is a run by
-whatever means, and every pull request lists each computation made on the
-agent and what it showed. No cheap executable guard exists for an evaluation
+whatever means, and every pull request lists the computations made on the
+agent, with the parts that section gives for each entry. No cheap executable guard exists for an evaluation
 made in a scratch file or on a contributor's machine, since nothing of it need
 reach the pull request. The rule's trace is the list in the pull request's
 description, which rests on its author's account and which the referee or

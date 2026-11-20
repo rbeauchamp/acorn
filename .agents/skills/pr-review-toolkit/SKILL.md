@@ -15,8 +15,8 @@ author chooses. It discharges nothing of the
 request. There the maintainers assign a reviewer of another model family, and
 [which review a pull request gets](../../../CONTRIBUTING.md#which-review-a-pull-request-gets)
 says whether that is the referee's review or the short review. That review, a comment
-on the pull request, decides whether the work is accepted. Run this review
-before submitting, and never report work as complete on the strength of it.
+on the pull request, decides whether the work is accepted. Never report work as complete on the
+strength of this review.
 
 1. Identify the intended diff, relevant callers and claimed behavior. Preserve
    unrelated changes. Follow changed guarantees to their actual enforcement and
