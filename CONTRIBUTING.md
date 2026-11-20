@@ -67,7 +67,10 @@ one developer.
 
 ### Which review a pull request gets
 
-A pull request gets the referee's review when it does any of these:
+Every pull request is reviewed by a reviewer the maintainers assign, of
+another model family than the author's, and never by one the author chose.
+What differs is the depth. A pull request gets the referee's review when it
+does any of these:
 
 - it claims to complete or advance a mission, or an issue that asks for a
   proof or a discovery;
@@ -78,17 +81,22 @@ A pull request gets the referee's review when it does any of these:
   [mission contract](docs/mission-contract.md) or an issue's contract;
 - it claims learning or discovery.
 
-Every other pull request is an ordinary change. The line is drawn by what a
-pull request claims or changes, never by who wrote it or by how its author
-describes it. The maintainers decide it at triage, from the pull request's
+Every other pull request is an ordinary change and gets the short review. The
+line is drawn by what a pull request claims or changes, never by who wrote it
+or by how its author describes it. The maintainers decide it at triage, from the pull request's
 head, and decide it again when a push changes what the pull request claims or
 changes. In doubt, a pull request gets the referee's review.
 
-An ordinary change is reviewed by its author, with one independent reviewer,
-as [AGENTS](AGENTS.md#review-and-delivery) and the review skills under
-.agents/skills describe. An author may run that review on any pull request.
-For a pull request under the referee's review it helps the work and discharges
-nothing of this protocol.
+An author may run a review of their own on any pull request, with a reviewer
+of their choice, as [AGENTS](AGENTS.md#review-and-delivery) and the review
+skills under .agents/skills describe. It helps the work and discharges nothing
+of this protocol, for any pull request.
+
+This holds for the organization's own changes as for anyone's. The review this
+protocol requires is a comment on the pull request by a reviewer assigned as
+the rule of assignment says. A review that a validation pipeline or any other
+tool makes before or after a pull request opens discharges nothing of the
+protocol without that assignment and that comment.
 
 ### The gate on the exact head
 
@@ -165,15 +173,37 @@ the pull request once they hold both. Whether the two are also of different
 model families from each other is the maintainers' choice. Both reports must
 be clean.
 
+### The short review
+
+The maintainers assign the reviewer of an ordinary change by the rule of
+assignment above, as they assign a referee, and write the assignment on the
+pull request. The reviewer reads the change at its head commit, adversarially,
+against what the description says the change does and against Acorn's rules
+([AGENTS](AGENTS.md)), asking three things:
+
+- does the change do what its description says, and nothing else;
+- does it leave Acorn's tracked text true;
+- does it claim or change anything that calls for the referee's review.
+
+The short review is one comment on the pull request, and stays there. It names
+the head commit it read, gives its findings, each with its place, its reason
+and what would correct it, or says that it has none, and gives a verdict of
+accept, revise or reject. Findings and revision go as they do for a referee's
+report: the author answers each finding on the pull request, a finding stays
+open until the reviewer withdraws it or the maintainers rule on it there, and
+after a push the new head has no review until the reviewer has read it again.
+A short review is clean when its verdict is accept and no finding is open.
+
 ### When work is complete
 
 Work under the referee's review is complete when its pull request has merged
 and, on the head commit that merged, each referee's report is clean and the
 gate has passed. An ordinary change is complete when its pull request has
-merged with the gate's pass on its head commit.
+merged and, on the head commit that merged, its short review is clean and the
+gate has passed.
 
-Until then the work is submitted, under review or accepted by its referees,
-and nothing calls it complete: not its description, a commit message, a
+Until then the work is submitted, under review or accepted by its referees or
+its reviewer, and nothing calls it complete: not its description, a commit message, a
 comment, or its author's last message. A description says what the work
 claims. An issue's own section on completion or acceptance says what is to be
 established, and its line on the gate names one check; whether a pull request
@@ -181,12 +211,12 @@ has established it is decided here.
 
 The owner's merge and the owner's review of changes to the trusted base are as
 [triage and response](#triage-and-response) states them; this protocol changes
-neither. A pull request under the referee's review does not merge before its
-report is clean.
+neither. No pull request merges before the review this protocol gives it is
+clean: each referee's report, or the short review.
 
 ### What the protocol does not promise
 
-No date is promised for an assignment, a report or a merge; the target for a
+No date is promised for an assignment, a report, a short review or a merge; the target for a
 first response is in [triage and response](#triage-and-response). The protocol
 is a written rule that no check of the gate executes, and a referee can be
 wrong ([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
@@ -364,9 +394,9 @@ every promise is one that an organization of one owner and its agents can keep:
   only on the owner's word. Only the owner's account has write access to merge,
   after running `./scripts/gate.sh` on the exact pull request head (and a blind
   specification read-back when a pull request introduces or edits a
-  specification), and for a pull request under the referee's review of the
-  [review protocol](#review-protocol), only once each referee's report on that
-  head is clean. Changes to the trusted-base files listed in
+  specification), and only once the review that the
+  [review protocol](#review-protocol) gives the pull request, each referee's
+  report or the short review, is clean on that head. Changes to the trusted-base files listed in
   [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.
 - **Keeping the board current:** whoever files or merges a mission may
   [regenerate the board](docs/missions.md#regenerating-the-board) in a pull request,

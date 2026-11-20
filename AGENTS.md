@@ -98,9 +98,10 @@ negative and inconclusive evidence honest; exclusion is not a positive result.
 Use the shipped proof-review standard and pr-review-toolkit for review-and-fix.
 For that review, which the author runs, one independent reviewer is the
 default; add a specialist only for a concrete uncertainty. It does not decide
-when work is complete. The [review protocol](CONTRIBUTING.md#review-protocol)
-does, for every author, and it names the pull requests that a referee the
-author did not choose, of another model family, reviews.
+when work is complete and discharges no review that Acorn requires. The
+[review protocol](CONTRIBUTING.md#review-protocol) does, for every author:
+every pull request is reviewed by a reviewer the author did not choose, of
+another model family.
 Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
 rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.

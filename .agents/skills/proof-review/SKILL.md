@@ -7,8 +7,9 @@ description: Review Acorn diffs and PRs against proofs, typed invariants, and co
 
 Use this standard for Acorn reviews. When `pr-review-toolkit` loads it as a
 scoring standard, apply these criteria inside that workflow; do not launch a
-second review or simplification cycle. A referee assigned under the review
-protocol uses it as [referee's review](#referees-review) below says.
+second review or simplification cycle. A referee or a reviewer
+assigned under the review protocol uses it as
+[referee's review](#referees-review) below says.
 
 ## Scoring and relevant context
 
@@ -66,5 +67,13 @@ claim, with the statement read; what must change, each finding with its place,
 its reason and the correction it needs; and a verdict of accept, revise or
 reject. A report that restates the gate's result is no report. The report is
 kept with the pull request.
+
+A reviewer assigned to an ordinary change gives the protocol's short review
+with the same standard. Read the change at its head commit, adversarially,
+against what its description says and against `AGENTS.md`, asking the
+protocol's three things: does the change do what it says and nothing else,
+does it leave Acorn's tracked text true, does it call for the referee's
+review. File one comment with the head commit read, the findings or that there
+are none, and a verdict of accept, revise or reject.
 
 Maintain this skill under `.agents/skills/`.

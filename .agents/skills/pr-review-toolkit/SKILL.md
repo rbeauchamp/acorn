@@ -1,6 +1,6 @@
 ---
 name: pr-review-toolkit
-description: Review and fix an Acorn diff or PR using its proof standards and proportionate independent review. Use for review-and-fix or pre-PR quality passes that the author runs, not read-only reviews and not the referee's review.
+description: Review and fix an Acorn diff or PR using its proof standards and proportionate independent review. Use for review-and-fix or pre-PR quality passes that the author runs, not read-only reviews and not the review that the review protocol assigns.
 ---
 
 # Review and fix
@@ -10,15 +10,15 @@ comes from the actual types, executable definitions and proofs; no scenario test
 Apply current `AGENTS.md` for verification, merge authority and record retention.
 
 This is the review an author runs on their own change, with a reviewer the
-author chooses. For an ordinary change it is the review Acorn asks for. It does
-not discharge the [review protocol](../../../CONTRIBUTING.md#review-protocol)
-for a pull request under the referee's review: one that claims to complete or
-advance a mission or an issue that asks for a proof or a discovery, that adds
-or changes the statement of a theorem about the agent or a specification, or
-that claims learning or discovery. There the maintainers assign a referee of
-another model family, and that referee's report on the pull request decides
-whether the work is accepted. Run this review on such work before submitting
-it, and never report the work as complete on the strength of it.
+author chooses. It discharges nothing of the
+[review protocol](../../../CONTRIBUTING.md#review-protocol), for any pull
+request. There the maintainers assign a reviewer of another model family: a
+referee for a pull request that claims to complete or advance a mission or an
+issue that asks for a proof or a discovery, that adds or changes the statement
+of a theorem about the agent or a specification, or that claims learning or
+discovery, and a reviewer for every other pull request. That review, a comment
+on the pull request, decides whether the work is accepted. Run this review
+before submitting, and never report work as complete on the strength of it.
 
 1. Identify the intended diff, relevant callers and claimed behavior. Preserve
    unrelated changes. Follow changed guarantees to their actual enforcement and
