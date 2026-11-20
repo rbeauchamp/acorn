@@ -151,7 +151,12 @@ The recommendation recorded there is: capacity on an agent of restricted capacit
 
 [#295](https://github.com/rbeauchamp/acorn/issues/295) asks a contributor to state a goal about learned agent state as a theorem, to find the algorithm and to prove it of the agent that runs.
 It takes its research question from [#17](https://github.com/rbeauchamp/acorn/issues/17), which stays parked ([parked work](#parked-work-and-when-it-re-enters)).
-It has no frozen contract, so it is not a mission, and its text says that it does not announce that the roadmap has resumed.
+It has no frozen statement to prove, so it is not a mission, and its text says that it does not announce that the roadmap has resumed.
+A result there is stated in a fixed frame, frozen under `lean/AcornVerif/Targets/` with a pin of the agent it names; [the frame of a learned-state result](learned-state-frame.md) is its plain-word account, which the owner confirmed on 2026-11-20.
+The frame fixes the form of a result and leaves the goal, the family of worlds and the state mechanism to the contributor.
+Under it the agent stays fixed for a submission, and a change to the learners lands separately, first, as its own pull request ([contributing](../CONTRIBUTING.md#learned-state-results-and-changes-to-the-agents-learners)).
+That is narrower than the issue's text, which asks a contributor to change how the agent learns; the issue's text is revised by a separate change.
+A complete result in the frame is necessary and not sufficient for a learned-state result, and goes to a referee. It is not known whether one exists for the agent as it stands.
 
 Two open questions about Acorn's own learners, raised in review of [#295](https://github.com/rbeauchamp/acorn/issues/295), come directly ahead of it in order.
 The reason given for that order is that a result about the existing learners on learned state rests on both.
@@ -161,7 +166,7 @@ The reason given for that order is that a result about the existing learners on 
 3. [#295](https://github.com/rbeauchamp/acorn/issues/295).
 
 Each of the two is an open question and not a mission with a frozen statement: writing its statement is part of its work.
-Neither blocks [#295](https://github.com/rbeauchamp/acorn/issues/295). A submission there may need them and is not required to wait for them, so no blocked-by link joins the three. None of the three is on a milestone, and none carries the label parked.
+Neither blocks [#295](https://github.com/rbeauchamp/acorn/issues/295). A submission there may need them and is not required to wait for them, so no blocked-by link joins the three. Under the frame a submission cannot change the learners itself, so a complete result may have to wait for what the two questions settle. None of the three is on a milestone, and none carries the label parked.
 On 2026-11-20 the owner directed that the two questions go on the record as issues. Their place directly ahead of [#295](https://github.com/rbeauchamp/acorn/issues/295) and the comment that links them from it were decided on the owner's behalf by the agent supervising Acorn's research, and the text of the two issues, with what each says would settle it, was written on the owner's behalf by the agents that maintain Acorn. The owner can overrule each.
 
 ## Parked work, and when it re-enters
