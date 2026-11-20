@@ -507,11 +507,11 @@ opened or reopened and at every push to its branch, whether that branch is in
 the repository or in a fork, on the pull request's head commit, and when started
 by hand, within the limits given below. The workflow is one job. It takes the
 head commit from the event, fails before any check when the event names none,
-and never falls back to the merge of the head with its base. It then runs the
-script of that commit twice: with the argument `provision`, which provisions the
-pinned dependencies and stops, and with no argument, the same command the
-pipeline's Test step runs. No step of the workflow names a Lake target, a
-module, a package or another script of the project, so the job relies on the
+and never falls back to the merge of the head with its base. From that checkout
+it runs `./scripts/gate.sh provision` to provision the pinned dependencies, then
+`./scripts/gate.sh` to run the same gate as the pipeline's Test step.
+No step of the workflow names a Lake target, a module, a package or another
+script of the project, so the job relies on the
 head only for that script and its two forms. So the dependencies and the checks
 on GitHub are the script's own, with no second list to keep equal to it, and a
 head whose script or Lake configuration is older or newer than the one on main
