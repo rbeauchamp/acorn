@@ -263,25 +263,16 @@ def Pin.parse (text : String) : Except String Pin := do
 
 /-! ## Compiled modules and their sources -/
 
-/-- The text of a module name whose every component is an ASCII letter or `_` followed by ASCII
-letters, digits and `_`, the components joined by dots; `none` for every other name, the
-anonymous name included. Lake reads a request `+<text>` by cutting it at `:` and `/` and reading
-what is left with `String.toName` (`parseTargetSpec` and `resolveTargetBaseSpec`, Lake of Lean
-v4.35.0, Lake/CLI/Build.lean). A text of this form holds neither character, and it is returned
-only when `String.toName` reads `module` back from it, so the module Lake answers for is the
-module this program imports. -/
-def plainModule (module : Name) : Option String := do
-  let parts ← module.components.mapM fun
-    | .str .anonymous part =>
-      match part.toList with
-      | first :: rest =>
-        if (first.isAlpha || first == '_') && rest.all (fun c => c.isAlphanum || c == '_') then
-          some part
-        else none
-      | [] => none
-    | _ => none
-  let text := String.intercalate "." parts
-  if !parts.isEmpty && text.toName == module then some text else none
+/-- The text by which Lake is asked about `module`, or `none` when Lake would not read that
+text back as `module`. Lake cuts a request at `:` and reads what follows the `+` of a module
+request with `String.toName` (`parseTargetSpec` and `resolveTargetBaseSpec`, Lake of Lean v4.35.0,
+Lake/CLI/Build.lean). So the printed name is returned only when it holds no `:` and
+`String.toName` reads `module` back from it, and never for the anonymous name: the module Lake
+answers for is then the module this program imports. -/
+def requestText (module : Name) : Option String :=
+  let text := module.toString
+  if !module.isAnonymous && !text.toList.contains ':' && text.toName == module then some text
+  else none
 
 /-- Refuse `module` unless Lake reports its compiled files current with the sources. The
 question is put to Lake through the bootstrap, as every build of the gate is, and it is the
@@ -298,15 +289,15 @@ of the workspace it imports are current, and 3 when one needs a build (`Module.r
 `buildAction` in Lake/Build/Common.lean and `finalizeBuild` in Lake/Build/Run.lean, Lake of Lean
 v4.35.0). Every other status, the bootstrap's own refusals included, is refused as well.
 
-A name that `plainModule` does not admit is refused before Lake is asked. Trusted, and not
+A name for which `requestText` gives nothing is refused before Lake is asked. Trusted, and not
 checked here: that Lake's recorded traces are right and that nothing but Lake has written the
 compiled files since; that this program runs under the bootstrap's `lake exe`, which puts the
 workspace's own library directories first on the path `importModules` searches; and that no
 source changes between Lake's answer and the import. -/
 def current (module : Name) : IO Unit := do
-  let some text := plainModule module
-    | throw (IO.userError s!"module {module}: not read, since its name is not made of plain \
-        components (ASCII letters, digits and _, none starting with a digit)")
+  let some text := requestText module
+    | throw (IO.userError s!"module {module}: not read, since Lake cannot be asked about this \
+        name (it is empty, holds a colon, or does not read back from its printed text)")
   let output ← IO.Process.output {
     cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
       "Bootstrap.lean", "build", "--no-build", "+" ++ text], stdin := .null }
