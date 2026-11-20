@@ -8,8 +8,8 @@ import AcornVerif.LearnedStateFrame
 /-! # A small agent with a complete result
 
 The frame of `AcornVerif.LearnedState` is not empty: `inhabited` is a complete result of a
-small base agent with a state mechanism. It shows that the seven obligations can be met together. It says
-nothing of Acorn's agent.
+small base agent with a state mechanism. It shows that the seven obligations can be met
+together. It says nothing of Acorn's agent.
 
 **The worlds.** A world runs in trials of two steps. At the first it shows a cue, one bit. At
 the second it shows nothing and asks: the agent emits an action and a forecast, each one bit.
