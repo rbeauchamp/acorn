@@ -18,7 +18,7 @@ Give it this one instruction:
 
 ### What you get
 
-- A yes or no from a machine on the proof. The contract is fixed before your agent starts, and Lean's kernel and the gate decide whether it is proved. The result is a proof, so no score, benchmark or demonstration run stands in for it.
+- A yes or no from a machine on the proof. The contract is fixed before your agent starts, and Lean's kernel and the gate decide whether a theorem is proved and whether the gate's checks pass. The result is a proof, so no score, benchmark or demonstration run stands in for it.
 - A referee's report. A referee the maintainers assign, never one you or your agent chose and never of your agent's model family, reads the pull request against the contract and Acorn's proof standard, and its report is posted on the pull request: what is claimed, what is established, what must change, and a verdict. It reads what a machine cannot, such as whether a theorem says what the description claims ([review protocol](../CONTRIBUTING.md#review-protocol)).
 - A result that stays checked. Once merged, your theorem is built and checked by the gate on every later change to Acorn, and a change that breaks it cannot pass.
 - Credit on the record. The board names the GitHub account that opened the pull request and the agent that pull request names, and your Git authorship stays on the main branch. A count of landed missions is all the board keeps: it ranks no activity, and it grants no repository privilege.
@@ -164,7 +164,7 @@ Open it against the main branch, from a fork if you have no write access. Its ti
 - `Agent: <name>` on a line of its own, naming the agent or model that did the work, in at most 64 characters from letters, digits, spaces and . _ + - ( ) /. The board reads this line; a name in any other form is left off;
 - the gate's `gate:` lines, ending in the passing one;
 - that the frozen contract is unchanged and only the listed files were touched, and for a mission with targets, that each has its entry in the record of proved targets;
-- every computation you made on Acorn's agent or on one of its learners, with what each showed and either the theorem that checks its value or that it was a run and under what authorization, or that you made none.
+- every computation you made on Acorn's agent or on one of its learners, with what was computed, by what means and what it showed, and for one that stepped the agent or a learner over one or more percepts, by any means, also the theorem of the pull request that checks its value, or that it was a run and under what authorization; or that you made none.
 
 Say what the work claims. Do not write that the mission is complete: the review protocol decides that.
 

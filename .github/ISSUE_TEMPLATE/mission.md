@@ -5,7 +5,7 @@ title: ""
 labels: ["mission"]
 ---
 
-<!-- An Acorn mission is a self-contained unit of work whose contract is an exact Lean theorem about an executable Acorn definition or a Regula decision contract, to be established with `./scripts/gate.sh` passing (see CONTRIBUTING.md#missions-for-outside-contributors-and-agents); a pull request for it is accepted as CONTRIBUTING.md#review-protocol states. The owner adds the tier label (`mission:proof`, `mission:contract`, `mission:world`, or `mission:prior-art`) once the contract is exact. A theorem's statement is then held as a target: a Lean definition of type `Prop` under `lean/AcornVerif/Targets/`, where a change is the owner's to make, listed in `lean/AcornVerif/Targets/Registry.lean` under this issue's number. Write each paragraph and each list item on a single line. -->
+<!-- An Acorn mission is a self-contained unit of work whose contract is an exact Lean theorem about an executable Acorn definition or a Regula decision contract, to be established with `./scripts/gate.sh` passing (see CONTRIBUTING.md#missions-for-outside-contributors-and-agents); a referee reads a pull request for it against the whole contract, and it is accepted as CONTRIBUTING.md#review-protocol states. The owner adds the tier label (`mission:proof`, `mission:contract`, `mission:world`, or `mission:prior-art`) once the contract is exact. A theorem's statement is then held as a target: a Lean definition of type `Prop` under `lean/AcornVerif/Targets/`, where a change is the owner's to make, listed in `lean/AcornVerif/Targets/Registry.lean` under this issue's number. Write each paragraph and each list item on a single line. -->
 
 ## Problem and mission relevance
 
@@ -13,7 +13,7 @@ labels: ["mission"]
 
 ## Mission contract
 
-<!-- Freeze the exact contract so that Lean's kernel and `./scripts/gate.sh` decide whether it is established, without weakening the statement. The review protocol in CONTRIBUTING.md decides when a pull request for it is accepted. -->
+<!-- Freeze the exact contract, without weakening the statement. Lean's kernel and `./scripts/gate.sh` decide whether a theorem is proved and whether the gate's checks pass; a referee reads the pull request against the whole contract, the module touch-set included, which no check reads. The review protocol in CONTRIBUTING.md decides when a pull request for it is accepted. -->
 
 - Targets: <!-- once the owner has registered them, the name of each target to prove, such as `AcornVerif.Targets.Json.parse_complete`, and its file. To propose a statement, write the exact Lean 4 theorem signature(s) over the executed definition here; a proposer does not add files under `lean/AcornVerif/Targets/`. To prove a target, state a theorem whose statement is the target, using the contract's definitions from the target's module, and add its entry to the list in `lean/AcornVerif/Landings.lean` (see docs/missions.md, steps 3 and 5). Write "none" for a mission whose whole contract is the next line -->
 - Decision contract or other part that is not a statement to prove: <!-- the exact Regula decision contract (`lean/Acorn/Decisions.lean`, `lean/AcornVerif/Decisions.lean`) or other change to establish, which stays frozen in this issue; write "none" where the targets are the whole contract -->

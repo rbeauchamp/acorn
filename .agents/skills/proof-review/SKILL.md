@@ -61,12 +61,14 @@ of computations against
 [what counts as a run](../../../CONTRIBUTING.md#what-counts-as-a-run). Do not
 repair the work.
 
-File the report as a comment on the pull request, in the form the protocol
-gives: the head commit read; what is claimed; what is established, claim by
-claim, with the statement read; what must change, each finding with its place,
-its reason and the correction it needs; and a verdict of accept, revise or
-reject. A report that restates the gate's result is no report. The report is
-kept with the pull request.
+Write the report in the form the protocol gives: the head commit read; what
+is claimed; what is established, claim by claim, with the statement read; what
+must change, each finding with its place, its reason and the correction it
+needs; and a verdict of accept, revise or reject. A report that restates the
+gate's result is no report. The report reaches the pull request as a comment
+and is kept there: post it there, except for a pull request that claims a
+discovery, where each of the two referees files its report with the
+maintainers, who post both once they hold both.
 
 A reviewer assigned to an ordinary change gives the protocol's short review
 with the same standard. Read the change at its head commit, adversarially,

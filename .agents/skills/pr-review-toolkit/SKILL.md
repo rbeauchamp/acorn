@@ -12,11 +12,9 @@ Apply current `AGENTS.md` for verification, merge authority and record retention
 This is the review an author runs on their own change, with a reviewer the
 author chooses. It discharges nothing of the
 [review protocol](../../../CONTRIBUTING.md#review-protocol), for any pull
-request. There the maintainers assign a reviewer of another model family: a
-referee for a pull request that claims to complete or advance a mission or an
-issue that asks for a proof or a discovery, that adds or changes the statement
-of a theorem about the agent or a specification, or that claims learning or
-discovery, and a reviewer for every other pull request. That review, a comment
+request. There the maintainers assign a reviewer of another model family, and
+[which review a pull request gets](../../../CONTRIBUTING.md#which-review-a-pull-request-gets)
+says whether that is the referee's review or the short review. That review, a comment
 on the pull request, decides whether the work is accepted. Run this review
 before submitting, and never report work as complete on the strength of it.
 

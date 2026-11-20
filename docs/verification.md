@@ -919,7 +919,11 @@ its three lines were written after reading, and not copied as a formula, is
 something no rule can see. Whom the rule of
 assignment admits as a referee or a reviewer for work that a person did with
 no model is the
-maintainers' call.
+maintainers' call. A change to what the protocol requires, allows or rules
+out merges only once the owner has confirmed it, and no check enforces that
+either: [CODEOWNERS](../.github/CODEOWNERS) names neither the contributor
+guide nor the review skills, so GitHub requests the owner's review of no
+change to them.
 
 The second is the rule on runs
 ([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)): stepping

@@ -77,8 +77,9 @@ does any of these:
 - it adds or changes the statement of a theorem about the agent, which is a
   theorem that says what the executed agent or one of its learners does, or
   it adds or changes a specification, which is a statement of what is to be
-  established: a target, an intent record, a decision contract, the
-  [mission contract](docs/mission-contract.md) or an issue's contract;
+  established, such as a target, an intent record, a decision contract, the
+  [mission contract](docs/mission-contract.md), an issue's contract or the
+  [viewer specification](docs/viewer-ux.md);
 - it claims learning or discovery.
 
 Every other pull request is an ordinary change and gets the short review. The
@@ -93,8 +94,8 @@ skills under .agents/skills describe. It helps the work and discharges nothing
 of this protocol, for any pull request.
 
 This holds for the organization's own changes as for anyone's. The review this
-protocol requires is a comment on the pull request by a reviewer assigned as
-the rule of assignment says. A review that a validation pipeline or any other
+protocol requires is the review of a reviewer assigned as the rule of
+assignment says, posted as a comment on the pull request. A review that a validation pipeline or any other
 tool makes before or after a pull request opens discharges nothing of the
 protocol without that assignment and that comment.
 
@@ -242,10 +243,12 @@ discovering and implementing algorithms that allow agents to achieve goals in
 big worlds, and formally proving that they work—that the agent achieves goals
 over a formally modelled class of big worlds. In Acorn, missions are the work
 that serves it, and each mission
-states the theorem or contract to establish, which Lean's kernel and the
-repository gate (`./scripts/gate.sh`) check; the
-[review protocol](#review-protocol) decides when a mission's pull request is
-accepted. Landing a mission is not
+states the theorem or contract to establish. Lean's kernel and the
+repository gate (`./scripts/gate.sh`) decide whether a theorem is proved and
+whether the gate's checks pass. A referee reads the pull request against the
+whole contract, the list of files it may change included, which no check
+reads, and the [review protocol](#review-protocol) decides when a mission's
+pull request is accepted. Landing a mission is not
 by that fact a discovery: a discovery is an algorithm nobody has published, and
 a mission that implements or proves a published algorithm is prior-art work.
 [Prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery)
@@ -279,9 +282,10 @@ check refusing noncomputable in executing modules).
 - **What a mission is:** a GitHub issue labelled mission whose contract, the
   exact Lean theorem statement or decision contract to establish, is frozen and
   may not be weakened. Each mission states the theorem or contract
-  that its pull request must establish, checked by Lean's kernel and
-  `./scripts/gate.sh` and read by a referee under the
-  [review protocol](#review-protocol);
+  that its pull request must establish. Lean's kernel and
+  `./scripts/gate.sh` decide whether a theorem is proved and whether the
+  gate's checks pass, and a referee reads the pull request against the whole
+  contract under the [review protocol](#review-protocol);
   runs of the agent in its worlds are demonstrations, not acceptance evidence.
 - **Where a contract is frozen:** a theorem's statement is frozen as a *target*,
   a Lean definition whose value is the statement, in a module under
@@ -406,7 +410,9 @@ every promise is one that an organization of one owner and its agents can keep:
   specification read-back when a pull request introduces or edits a
   specification), and only once the review that the
   [review protocol](#review-protocol) gives the pull request, each referee's
-  report or the short review, is clean on that head. Changes to the trusted-base files listed in
+  report or the short review, is clean on that head. A change to what the
+  review protocol requires, allows or rules out merges only once the owner
+  has confirmed it. Changes to the trusted-base files listed in
   [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.
 - **Keeping the board current:** whoever files or merges a mission may
   [regenerate the board](docs/missions.md#regenerating-the-board) in a pull request,
@@ -443,8 +449,10 @@ the pull request then checks: the theorem states the value and Lean's kernel
 checks it, so nothing rests on the computation having been right. Lean's
 kernel checking a theorem of the pull request is never a run, whatever its
 proof evaluates: the gate does that for every theorem. And trying to prove a
-stated proposition and failing is proof work: a tactic that fails on a lemma
-about every percept has evaluated no step on given percepts. Stating
+stated proposition and failing is proof work and not a run. Where an attempt,
+failed or not, evaluated the step on given percepts to see what it yields,
+the criterion above decides: it is a run unless a theorem kept in the pull
+request checks what it yielded. Stating
 propositions about what the step yields on given percepts and discarding them
 is different. Each is an evaluation of the step, and it is a run unless a
 theorem kept in the pull request checks the value.
@@ -454,10 +462,11 @@ made. Every pull request lists, on the line the
 [pull request template](.github/pull_request_template.md) gives it, every
 computation made on the agent or on one of its learners in preparing the
 change, every evaluation of the step on given percepts included, whether or
-not anything of it was kept: what was computed and by what means, what it
-showed, and either the theorem of the pull request that checks its value, or
-that it was a run and under what authorization. Where none was made, it says
-so. No check can see an
+not anything of it was kept: what was computed, by what means and what it
+showed. An entry for a computation that stepped the agent or a learner over
+one or more percepts, by any means, also names the theorem of the pull
+request that checks its value, or says that it was a run and under what
+authorization. Where none was made, it says so. No check can see an
 evaluation made on a contributor's machine, so this is a written rule and the
 list is its trace
 ([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
