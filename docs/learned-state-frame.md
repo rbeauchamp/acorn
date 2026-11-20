@@ -2,7 +2,7 @@
 
 This restates, without Lean, what the frame says. The frame is the Lean of `lean/AcornVerif/Targets/LearnedState.lean` and `lean/AcornVerif/Targets/LearnedStateAcorn.lean`.
 
-**The owner's decisions.** On 2026-11-20 the owner confirmed this page as written and made the two choices it puts. On the question at its head, the agent stays fixed for a submission and a learner change lands separately, first (option 1 below). And the frame is adopted as a set of necessary conditions, with a referee. Everything below this paragraph is the page as the owner confirmed it: where it speaks of a choice still to be made or of a confirmation still to come, those are the ones recorded here. A change to what the frame requires, allows or rules out goes back to the owner first.
+**The owner's decisions.** On 2026-11-20 the owner confirmed this page as written and made the two choices it puts. On the question at its head, the agent stays fixed for a submission and a learner change lands separately, first (option 1 below). And the frame is adopted as a set of necessary conditions, with a referee. Later the same day the owner allowed marked corrections to the page under a rule, which part 11 states. Everything below this paragraph is the page as the owner confirmed it, except at the places marked as corrections; part 11 keeps the confirmed wording of each. Where the page speaks of a choice still to be made or of a confirmation still to come, those are the ones recorded here. A change to what the frame requires, allows or rules out goes back to the owner first.
 
 It is for the owner to confirm or correct before anything is built on the frame. The frame has been attacked twice by a model that had not seen its reasoning. The first attack broke an earlier design of the frame, called revision 1 below. The second found no way to complete the present frame on Acorn's agent without first proving real facts about Acorn's learners, and showed exactly what a completed proof would and would not mean; one statement was added after it.
 
@@ -34,7 +34,7 @@ It is not known whether any such proof exists for Acorn's agent as it stands. Th
 *Option 2: a submission may change the learners itself.*
 
 - What the contributor does: changes the learners and adds its state mechanism in one submission, as issue 295 is published.
-- What it does to the frame: statements (d) to (g) lose their force. They work by overwriting the real learners' stores in the real step. If the submission writes the step, it also writes what happens when a store is overwritten, and it can write that so the statements hold for an agent that learns nothing. That is how revision 1 was broken (part 9). What still holds by its form is (a), (c), and (b) against a kept copy of the earlier agent.
+- What it does to the frame: statements (d) to (g) lose their force. Statements (e) to (g) work by overwriting the real learners' stores in the real step. Statement (d) overwrites no learner's store: it replaces the mechanism by a rule that keeps no memory, and the real step runs on what that rule offers. If the submission writes the step, it also writes what the step does when a store is overwritten or the mechanism is replaced, and it can write that so the statements hold for an agent that learns nothing. *(Corrected on 2026-11-20: correction 4 of part 11.)* That is how revision 1 was broken (part 9). What still holds by its form is (a), (c), and (b) against a kept copy of the earlier agent.
 - What it costs: completeness then rests on the referee for what the frame was meant to carry: that learning was needed at all, that a memory in the agent was needed, and all of part 6. The kept copy of the earlier agent is a duplicate of a large part of the code.
 - What it leaves uncertified: the above, and also whether any complete result exists.
 
@@ -45,6 +45,8 @@ It is not known whether any such proof exists for Acorn's agent as it stands. Th
 Acorn asks contributors to give its agent state that it builds from its own stream and then uses in its predictions and its control. The frame fixes how such a result is stated, so that a proof is about Acorn's own learners, started from Acorn's standard cold state.
 
 A submission is **complete** only if it proves the seven statements of part 3 in the form the frame fixes. Any other submission is **partial**, and is recorded by which of the seven it proved. A theorem that assumes one of the seven, or assumes that a complete result exists, is a partial result until someone proves what it assumes.
+
+Complete, in this page, means that the frame is filled: the seven statements are proved in the form the frame fixes. It does not mean that a piece of work is finished. Work is complete only as Acorn's rules for review say, which are the [review and delivery](../AGENTS.md#review-and-delivery) policy and the [contributor guide](../CONTRIBUTING.md). *(Added on 2026-11-20: correction 1 of part 11.)*
 
 ## 2. What is fixed, and what the contributor supplies
 
@@ -123,7 +125,7 @@ No statement of this kind can refuse these. Items 1 and 2 are theorems.
 5. **Worlds the agent never meets where it is run.** The family may consist of worlds whose observations Acorn's own grid world never produces. *Question:* do the family's observations occur in the worlds Acorn is run in, and what does the result say about those?
 6. **Statements witnessed in separate worlds, and padding.** The world that shows (b) may have nothing to do with the worlds that show (e) and (f), and the family may contain worlds where the goal asks nothing. Nothing requires a failure under (e) to be a failure of prediction, or under (f) a failure of action. *Question:* is there one kind of world in which the base agent fails, a memory is needed and both learners are needed, for the same reason?
 7. **Why Acorn's agent alone fails.** *Question:* would it succeed if the missing information were put in its observation?
-8. **That the program Acorn runs is the assembled agent**, and that an observation has room for the mechanism's words (see part 8). *Question:* does the binary's step do exactly this, on observations that are not full?
+8. **That the program Acorn runs is the assembled agent**, and that an observation has room for the mechanism's words (see part 8). *Question:* does the binary's step do exactly this, on observations that are not full? A mechanism's whole list is also dropped in two further cases, and the question covers them: when only part of the list fits, and when a word uses a channel the agent keeps for its own predictions. *(Corrected on 2026-11-20: correction 2 of part 11.)*
 
 ## 7. What the small example shows, and what it does not
 
@@ -157,7 +159,23 @@ Three statements were added to the four the owner asked for: (c) after the secon
 
 1. The frame as written fixes the agent's step, so that a submission only adds a mechanism. Whether a submission may instead change the learners is the owner's choice and is not decided here.
 2. Statements (c), (d) and (g) are added to the four the owner asked for. The designing agent proposed them and the agent supervising Acorn's research decided to keep them; the owner may change that.
-3. The stores are the prediction learners' and the two controllers'. Other learning in the agent is not overwritten, which makes (e) to (g) harder to satisfy, never easier.
+3. The stores are the prediction learners' and the two controllers'. Other learning in the agent is not overwritten. Whether that makes (e) to (g) harder or easier to satisfy is established in neither direction: on the small example, overwriting more restores a goal that overwriting less breaks, which is proved, and nothing is proved of Acorn's other learning. *(Corrected on 2026-11-20: correction 5 of part 11.)*
 4. A goal reads the world it is judging, that world's states, the agent's actions and its stored predictions.
 5. A partial result is recorded by which of (a) to (g) it proved, with any assumption stated. It is not called complete, is not said to solve the issue or to show that the agent acquired state, and is not placed between prior art and discovery.
 6. A complete result is necessary and not sufficient for a learned-state result: it goes to a referee with the questions of part 6. This is the position the agent supervising Acorn's research has taken to the owner.
+
+## 11. Corrections to this page
+
+**The rule.** The owner confirmed this page as written and then, on 2026-11-20, allowed it to be corrected under this rule. The tracked page may be corrected for facts about Acorn and for errors of description. Each such edit is marked on the page. The wording the owner confirmed stays recoverable, and this part keeps it for each corrected place. What the frame requires, allows or rules out never changes without the owner. An edit that is neither a fact about Acorn nor an error of description goes to the owner first.
+
+None of the corrections below changes what the frame requires, allows or rules out. Corrections 1 to 4 were allowed by the owner on 2026-11-20. Correction 5 was made under the rule and is not the owner's own wording.
+
+**Correction 1, part 1.** Nothing was replaced: the paragraph that begins "Complete, in this page" was added. The page calls a submission complete when it proves the seven statements, which a reader could take to mean that the work is finished. The added paragraph says that here the word means that the frame is filled, and that work is complete only as Acorn's rules for review say.
+
+**Correction 2, part 6, item 8.** Confirmed wording: "*Question:* does the binary's step do exactly this, on observations that are not full?" The question named one of the three cases in which a mechanism's whole list of words is dropped, the full observation. The correction keeps the sentence and names the other two, which part 2 already states: only part of the list fits, and a word uses a channel the agent keeps for its own predictions.
+
+**Correction 3, part 8, first item. Allowed, and not made on this page yet.** The sentence "Grid observations are not always at the maximum, but they can be." stands as confirmed, because it is true of the agent this page was added with. The owner allowed it to be corrected to the fact by the change that makes it false, which is the change that gives observations room for a mechanism's words.
+
+**Correction 4, the account of option 2.** Confirmed wording: "They work by overwriting the real learners' stores in the real step. If the submission writes the step, it also writes what happens when a store is overwritten, and it can write that so the statements hold for an agent that learns nothing." That described statement (d) wrongly. Statement (d) overwrites no learner's store: it replaces the mechanism by a rule that keeps no memory. The correction says so and leaves the conclusion as it was.
+
+**Correction 5, part 10, item 3.** Confirmed wording: "Other learning in the agent is not overwritten, which makes (e) to (g) harder to satisfy, never easier." The claim after the comma was an error of description. Overwriting more can restore a goal that overwriting less breaks, so neither direction holds in general. The theorem `AcornVerif.LearnedState.Small.overwriting_more_can_restore` of `lean/AcornVerif/LearnedStateRefusals.lean` proves it on the small example: for the goal that the action equals the forecast at the second asking step, over two worlds, the small agent fails with either store alone overwritten on any schedule and meets the goal with both overwritten by constant tables, so (e) and (f) hold for that goal and (g) does not. The page keeps its statement of which stores are overwritten and that other learning is not, and in place of the claim says what is established. Applying the owner's rule to this sentence was decided by the agent that coordinates the owner's agents, once the example was settled by that theorem, and it is reported to the owner as a fifth correction.

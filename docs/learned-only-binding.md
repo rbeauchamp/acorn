@@ -38,6 +38,14 @@ register: the action path ends at an action of the declared interface.
 [The design](design.md#an-embodied-world-the-microduck) states this classification
 with its limits.
 
+By the owner's decision of 2026-11-20, a state mechanism submitted under
+[the frame of a learned-state result](learned-state-frame.md) is not a departure
+of this register: it reaches the agent only as sensor words through the frame's
+interface, it earns no credit as learning, whether what it holds is learned is
+the question that frame leaves to its referee, and nothing changes for code
+outside that interface, where a hand-authored bias on the action path still
+needs its declared departure and the owner's admission.
+
 Source and compiled gates enforce quarantine and composition roots. Every
 constructor, restore and update must retain the indexed state predicate.
 Acorn.Provenance declares signal origins; Acorn.Departure is the closed register.

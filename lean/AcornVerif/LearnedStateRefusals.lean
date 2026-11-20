@@ -32,6 +32,12 @@ import AcornVerif.LearnedStateSmall
   this is general.
 * *A memory written by an authored rule.* `Small.latch` holds the last cue by a rule written by
   hand, and `Small.inhabited` is its result. The frame says nothing of how a memory is written.
+
+**Not ordered.** Overwriting more stores does not make failure easier to obtain, nor harder, as
+a rule. `Small.overwriting_more_can_restore`: for the goal "at the second asking step the action
+equals the forecast" over two worlds, the small agent with either store alone on any schedule
+fails, and with both stores on constant tables it meets the goal. So the two statements about
+one store hold for that goal and the statement about both does not.
 -/
 
 namespace AcornVerif.LearnedState
@@ -132,6 +138,63 @@ theorem alternative_refused : ¬ Result setting latch alternativeTask := by
 the goal "the trace is this agent's at some seed", over the same worlds. -/
 theorem recognizer_admitted : Result setting latch (recognizer setting latch world) :=
   inhabited.recognized
+
+/-! ## Overwriting more stores can restore a goal -/
+
+/-- A member with every cue false and one hidden bit deciding both the paying action and the
+echo. -/
+def twin (hidden : Bool) : Member := ⟨hidden, hidden, fun _ => false⟩
+
+/-- The goal over those two worlds: at the second asking step the action equals the forecast. -/
+def agreeTask : Task setting where
+  Family := Bool
+  world hidden := world (twin hidden)
+  goal _ trace := (trace 3).2.action = (trace 3).2.forecast
+  sameWorld := sameWorld_of_injective (S := setting) _ _ fun first second same =>
+    congrArg Member.swap (world_injective (twin first) (twin second) same)
+
+/-- The small agent meets it: both tables learn the hidden bit. -/
+theorem agree_meets : Meets setting (assembled setting latch) agreeTask := by
+  intro draw hidden
+  cases draw <;> cases hidden <;> rfl
+
+/-- With the prediction store alone on any schedule the agent fails: the control table still
+learns the hidden bit, and the scheduled forecast is chosen against. -/
+theorem agree_predictionNeeded (draw : Bool) (schedule : Nat → Option Bool → Option Bool) :
+    Fails setting (withoutPrediction setting latch schedule) agreeTask draw := by
+  refine ⟨!(schedule 3 (some false)).getD false, fun agree => ?_⟩
+  have differs : ∀ forecast seed : Bool,
+      (if (seed == (false != !forecast)) = true then seed else !seed) ≠ forecast := by decide
+  exact differs _ draw agree
+
+/-- With the control store alone on any schedule the agent fails: the prediction table still
+learns the hidden bit, and the scheduled action is chosen against. -/
+theorem agree_controlNeeded (draw : Bool) (schedule : Nat → Option Bool → Option Bool) :
+    Fails setting (withoutControl setting latch schedule) agreeTask draw := by
+  refine ⟨!(schedule 3 (some false)).getD draw, fun agree => ?_⟩
+  have differs : ∀ action : Bool, action ≠ (false != !action) := by decide
+  exact differs _ agree
+
+/-- With both stores on constant tables the agent meets the goal, at every seed and in both
+worlds. -/
+theorem agree_both_meets :
+    Meets setting (withoutLearning setting latch (fun _ _ => some false) fun _ _ => some false)
+      agreeTask := by
+  intro draw hidden
+  rfl
+
+/-- **Overwriting more stores can restore a goal that overwriting fewer breaks.** For
+`agreeTask` the small agent meets the goal, fails with either store alone on any schedule, and
+with both stores on some schedules does not fail. -/
+theorem overwriting_more_can_restore :
+    Meets setting (assembled setting latch) agreeTask ∧
+      (∀ draw schedule,
+        Fails setting (withoutPrediction setting latch schedule) agreeTask draw) ∧
+      (∀ draw schedule, Fails setting (withoutControl setting latch schedule) agreeTask draw) ∧
+      ∃ predictions controls, ∀ draw,
+        ¬ Fails setting (withoutLearning setting latch predictions controls) agreeTask draw :=
+  ⟨agree_meets, agree_predictionNeeded, agree_controlNeeded,
+    _, _, fun draw ⟨hidden, fails⟩ => fails (agree_both_meets draw hidden)⟩
 
 end Small
 
