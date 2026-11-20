@@ -158,11 +158,11 @@ def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiati
 proof source the linter of evaluating commands. Lean reads the option's name from the form's
 second part (`Lean.Elab.elabSetOption`), so a form whose second part is no identifier is
 refused. -/
-def inspectOption (owner : Name) (form : Syntax) : IO Unit := do
-  unless form[1].isIdent do reject owner "an option setting that names no option"
+def inspectOption (owner : Name) (form : Syntax) : Except String Unit := do
+  unless form[1].isIdent do throw "an option setting that names no option"
   let option := form[1].getId
   unless allowedOptions.contains option || (proofOwner owner && option == `linter.hashCommand) do
-    reject owner s!"unreviewed option {option}"
+    throw s!"unreviewed option {option}"
 
 /-- Only these admitted host boundaries may create or inspect native subprocesses. -/
 def processOwners : Array Name := #[`Acorn.Host.Checkpoint.IO, `Acorn.Host.Control,
@@ -293,21 +293,21 @@ private def sourceKinds : NameSet := Id.run do
 Traversal is over the compiler-produced finite syntax tree. A node at any depth whose first
 child is the atom `set_option` sets an option, as a command or before a term, a tactic sequence
 or a grind sequence, and is held to `inspectOption`. -/
-def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
+def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : Except String Unit := do
   match nodeSyntax with
   | .atom _ word =>
-    if forbiddenWords.contains word then reject owner s!"forbidden syntax capability {word}"
+    if forbiddenWords.contains word then throw s!"forbidden syntax capability {word}"
     -- An inclusion reaches this case only outside the admitted form below.
     if word.trimAscii.toString == "include_str" then
-      reject owner "file inclusion outside its admitted form"
+      throw "file inclusion outside its admitted form"
   | .ident _ _ name _ =>
     if name.components.any (fun part => part != `admit && forbiddenWords.contains part.toString) then
-      reject owner s!"forbidden syntax identifier {name}"
+      throw s!"forbidden syntax identifier {name}"
   | .node _ kind children =>
-    unless sourceKinds.contains kind do reject owner s!"unreviewed source form {kind}"
+    unless sourceKinds.contains kind do throw s!"unreviewed source form {kind}"
     if kind == ``Parser.Command.docComment || kind == ``Parser.Command.moduleDoc ||
         kind == `str || kind == `char then
-      unless children.all Syntax.isAtom do reject owner s!"nonliteral contents of {kind}"
+      unless children.all Syntax.isAtom do throw s!"nonliteral contents of {kind}"
       return
     -- The only nonempty tactic configuration the sources use is the kernel mode of
     -- `decide`. Match that whole tactic; a configuration item anywhere else is unlisted.
@@ -315,25 +315,25 @@ def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
     if kind == ``Parser.Command.derivingClass then
       unless nodeSyntax[0].getArgs.isEmpty && nodeSyntax[1].isIdent &&
           #[`DecidableEq, `BEq, `Repr].contains nodeSyntax[1].getId do
-        reject owner "unreviewed deriving handler"
+        throw "unreviewed deriving handler"
     if let .atom _ word := nodeSyntax[0] then
       if word.trimAscii.toString == "set_option" then inspectOption owner nodeSyntax
     if kind == ``Parser.Term.attrInstance then
       unless nodeSyntax[1].isOfKind ``Parser.Attr.simple do
-        reject owner s!"unreviewed attribute syntax {nodeSyntax[1].getKind}"
+        throw s!"unreviewed attribute syntax {nodeSyntax[1].getKind}"
       let attributeName := nodeSyntax[1][0].getId
       unless allowedAttributes.contains attributeName do
-        reject owner s!"unreviewed attribute {attributeName}"
+        throw s!"unreviewed attribute {attributeName}"
       unless nodeSyntax[1][1].getArgs.isEmpty do
-        reject owner s!"attribute arguments require review: {attributeName}"
+        throw s!"attribute arguments require review: {attributeName}"
     if kind == ``includeStr then
       let some path := nodeSyntax[1].isStrLit?
-        | reject owner "file inclusion whose path is not a string literal"
+        | throw "file inclusion whose path is not a string literal"
       unless includedFiles.contains (owner, path) do
-        reject owner s!"unreviewed file inclusion {path}"
+        throw s!"unreviewed file inclusion {path}"
       return
     for child in children.attach do inspectSyntax owner child.val
-  | .missing => reject owner "missing syntax node"
+  | .missing => throw "missing syntax node"
 termination_by sizeOf nodeSyntax
 decreasing_by
   all_goals
@@ -342,20 +342,20 @@ decreasing_by
     omega
 
 /-- Admit only ordinary declarations and scopes from the trusted command parser. -/
-partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
+partial def inspectCommand (owner : Name) (command : Syntax) : Except String Unit := do
   let kind := command.getKind
   if kind == ``Parser.Command.in then
-    unless command.getArgs.size == 3 do reject owner "unexpected scoped-command shape"
+    unless command.getArgs.size == 3 do throw "unexpected scoped-command shape"
     inspectCommand owner command[0]
     inspectCommand owner command[2]
   else if kind == ``Parser.Command.mutual then
-    unless command.getArgs.size == 3 do reject owner "unexpected mutual-command shape"
+    unless command.getArgs.size == 3 do throw "unexpected mutual-command shape"
     for declaration in command[1].getArgs do inspectCommand owner declaration
   else if proofOwner owner && kind == `Lean.guardMsgsCmd then
     let some nested := command.getArgs.back?
-      | reject owner "empty message guard"
+      | throw "empty message guard"
     unless #[``Parser.Command.printAxioms, ``Parser.Command.declaration].contains nested.getKind do
-      reject owner "message guards may only inspect axioms or compiler-refusal declarations"
+      throw "message guards may only inspect axioms or compiler-refusal declarations"
     inspectCommand owner nested
     inspectSyntax owner command
   else if proofOwner owner && kind == ``Parser.Command.printAxioms then
@@ -364,7 +364,7 @@ partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
       ``Parser.Command.section, ``Parser.Command.open, ``Parser.Command.variable,
       ``Parser.Command.set_option, ``Parser.Command.moduleDoc, ``Parser.Command.eoi].contains kind then
     inspectSyntax owner command
-  else reject owner s!"unreviewed command {kind}"
+  else throw s!"unreviewed command {kind}"
 
 /-- Artifact ownership uses canonical paths, so namespace spelling and symlinks
 cannot substitute another package for the pinned toolchain or current build. -/
@@ -402,7 +402,7 @@ def inspectSource (parserEnv : Environment) (library : System.FilePath)
     if log.hasErrors then
       for message in log.toList do IO.eprintln (← message.toString)
       reject owner "source does not parse under the trusted parser"
-    inspectCommand owner command
+    if let .error reason := inspectCommand owner command then reject owner reason
     if command.isOfKind ``Parser.Command.eoi then break
     unless state.pos < next.pos do reject owner "parser made no progress"
     state := next
