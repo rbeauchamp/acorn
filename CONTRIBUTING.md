@@ -40,9 +40,12 @@ the check that the declarations a pinned target reads are unchanged. When a pull
 request is opened or reopened and at every push to it, from a branch of the
 repository or of a fork, GitHub runs the gate on its head commit and shows the
 job's result on the pull request. A head for which GitHub shows no run of that
-job has not been checked there, which is not the same as a run that failed; the
+job has not been checked there. A failed run tells by its failed step whether a
+check ran: only a failure of the job's last step, which runs the gate's checks,
+can mean that a check ran on the head and failed, and a failure before it means
+that no check ran. The
 [verification guide](docs/verification.md#build-and-source-inventory) names the
-cases in which GitHub starts no run.
+cases in which GitHub starts no run and what a failed run shows.
 
 Pull requests are squash-merged: the PR title becomes the commit header on main
 and the PR body its message. Title each PR as a

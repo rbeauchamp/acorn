@@ -567,19 +567,25 @@ opened or reopened and at every push to its branch, whether that branch is in
 the repository or in a fork, on the pull request's head commit, and when started
 by hand, within the limits given below. The workflow is one job. It takes the
 head commit from the event, fails before any check when the event names none,
-and never falls back to the merge of the head with its base. It then provisions
-the pinned dependencies and runs the script of that commit with no argument, the
-same command the pipeline's Test step runs. So the checks GitHub runs are the
-script's own, with no second list to keep equal to it, and a head whose script
-is older or newer than the one on main is checked by its own script. A failing
-check fails the job, and the job's result is shown on the pull request. The job
+and never falls back to the merge of the head with its base. It then runs the
+script of that commit twice: with the argument `provision`, which provisions the
+pinned dependencies and stops, and with no argument, the same command the
+pipeline's Test step runs. No step of the workflow names a Lake target, a
+module, a package or another script of the project, so the job relies on the
+head only for that script and its two forms. So the dependencies and the checks
+on GitHub are the script's own, with no second list to keep equal to it, and a
+head whose script or Lake configuration is older or newer than the one on main
+is provisioned and checked by its own. A failing check fails the job, and the
+job's result is shown on the pull request. The job
 runs for a pull request to any base branch, so that one later retargeted to main
 keeps the run made on its head, and nothing runs after a merge.
 
-The arrangement on GitHub differs from the pipeline's as follows. The
-workflow provisions the dependencies by its own steps before the script, which
-bound every download and take elan from the pinned release; the script's own
-provisioning then finds them current. Nothing is stored between runs: every run
+The arrangement on GitHub differs from the pipeline's as follows. A step of
+the workflow downloads elan's pinned release in every run and installs it only
+after the archive's SHA-256 matches. The script's provisioning runs in a step
+of its own, whose 27-minute limit bounds a stalled download and is no check's
+deadline, and the script's provisioning in the last step then finds the
+dependencies current. Nothing is stored between runs: every run
 provisions everything from its pinned sources and builds from cold project
 outputs. A copy stored by an earlier head of a pull request, which controls its
 own workflow, could otherwise be restored and trusted by a later head whose own
@@ -606,8 +612,7 @@ a fork's run holds no secret is the owner's requirement; naming the limits as
 accepted was decided on the owner's behalf by the agent supervising Acorn's
 research. In every one but the third, the pull request shows no run of this job
 for its head. Such a head is unchecked on GitHub. The absence of a run is never
-a pass, and it is not a failure either: a failed run means the checks ran on
-that head and at least one of them failed.
+a pass, and it is no result of a check either.
 
 First, a head that conflicts with its base gets no run. GitHub starts no
 workflow for activity on a pull request that has a merge conflict (GitHub's
@@ -645,6 +650,16 @@ Fifth, a head whose commit message carries one of GitHub's skip instructions get
 no run (GitHub's documentation, Skipping workflow runs). The pull request shows
 no run of this job for that head until a commit without the instruction is
 pushed.
+
+A failed run does not by itself say that a check failed: its failed step tells
+whether a check ran. The job's last step, "The merge gate on the exact source",
+runs the script with no argument, and no other step runs a check. A failure
+before that step means that no check ran on the head: GitHub marked the run
+failed while it waited for an approval, or an earlier step failed, which
+identifies or checks out the commit, admits the runner image's packages,
+installs elan or provisions the dependencies. Only a failure of the last step
+can mean that a check ran on the head and failed, and the script's `gate:`
+lines in that step's log name the check.
 
 Whether a merge requires this job is set in the repository's rules on GitHub,
 not in a file of the repository. Where the rules require it, a head on which it
