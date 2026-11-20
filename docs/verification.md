@@ -638,9 +638,12 @@ A pull request's run is started by GitHub's ordinary event for pull requests,
 never the privileged one that runs with the base repository's rights, so the run
 for a fork's pull request receives none of the repository's secrets and a token
 that cannot write to the repository. The workflow names no secret, asks for read
-access to contents only, keeps no credentials in its checkout and pins the
-checkout action by revision. No setting cancels or skips a run because a newer
-head arrived: each head's run finishes, and its result stays on that commit.
+access to contents and to pull requests and for nothing else, keeps no
+credentials in its checkout and pins the checkout action by revision. The second
+permission is there for the admission check, the gate's first step, which reads
+a pull request's author, head, base and reviews with the run's token. No setting
+cancels or skips a run because a newer head arrived: each head's run finishes,
+and its result stays on that commit.
 
 That event has five limits, which Acorn accepts: GitHub's other event for pull
 requests, which does start a run for a conflicting head, runs in the base
@@ -681,8 +684,13 @@ paths that [CODEOWNERS](../.github/CODEOWNERS) gives to the owner. A head whose
 script is intact refuses an unadmitted edit of those paths at the gate's first
 step, the [admission check](#admission-of-changes-to-the-trusted-base); nothing
 in the run refuses a head that edits the script or the workflow to leave that
-check out, and what binds such a pull request from another account is the
-default branch's rule.
+check out. For such a head from another account the job is no protection. The
+default branch's rule, once set, requires a code owner's approval of every
+merger that does not hold its bypass; the owner's account holds the bypass and
+is the only account that merges an outside pull request. So what keeps such a
+head out of the default branch is that the owner's account does not merge it
+unreviewed, and the pull request's changed files, all under the owner's paths,
+show the edit.
 
 A pull request that touches a path CODEOWNERS gives to the owner shows one more
 ending before the owner's review. The job provisions the dependencies and then
@@ -840,14 +848,22 @@ checked commit and the base the default branch of Acorn's repository. A record
 admits a pull request only when its author is the owner's account. For any other
 author a record does not count: the admission is the owner's approving review on
 that exact head commit, read from GitHub's list of reviews. GitHub's rule for
-the default branch, once set, requires a code owner's approval at the merge and
-dismisses it when the diff changes; it does not compare the approved commit with
-the head, so the comparison with the exact head is this check's and not the
-rule's. A run given no pull request, which is the pipeline's run before a pull
-request exists and a plain local run, cannot know the author and reads a record
-only. Whoever checks another author's commit on their own machine runs the check
-from the default branch's copy, as [contributing](../CONTRIBUTING.md) shows, and
-never that commit's own gate script.
+the default branch, once set, requires a code owner's approval of every merge by
+an account that does not hold the rule's bypass, and dismisses an approval when
+the diff changes. The bypass goes with the account that merges, whoever wrote
+the pull request, and the owner's account, the only one that merges an outside
+pull request, holds it. So the rule does not by itself refuse an outside change
+that the owner has not reviewed. This check does: on a head whose gate script
+and workflow are intact, the pull request's gate job fails until the owner's
+approving review is on that exact head, and where the repository's rules require
+that job, a head on which it has not passed does not merge. The rule does not
+compare the approved commit with the head, so the comparison with the exact head
+is this check's and not the rule's. A run given no pull request, which is the
+pipeline's run before a pull request exists and a plain local run, cannot know
+the author and reads a record only. Whoever checks another author's commit on
+their own machine runs the check from the default branch's copy, as
+[contributing](../CONTRIBUTING.md) shows, and never that commit's own gate
+script.
 
 The owner's agents open pull requests under the owner's own GitHub account and
 act as the owner within what the owner has delegated to them: to prepare,
@@ -871,9 +887,14 @@ check out, and the job provisions the change's dependencies, by the change's own
 script, before the gate and its admission check run. That happens on GitHub's
 runner with a token that cannot write and no secret; what a refusal withholds is
 a run on a contributor's or maintainer's own machine and in the pipeline. The
-default branch's rule, a setting of the repository and no tracked file, is what
-binds a pull request from another account, and it cannot bind the owner's
-account, which cannot review its own pull request. A change whose starting
+default branch's rule is a setting of the repository and no tracked file. It
+requires a code owner's approval of every merger that does not hold its bypass.
+The owner's account cannot review its own pull request, so it holds the bypass,
+and the bypass goes with the account that merges and not with the author: the
+owner's account can merge an outside pull request past the rule. What refuses an
+unreviewed outside change is then the gate job, where the rules require it, on a
+head that left the check intact; on a head that edited the check out, only the
+owner's account declining to merge it. A change whose starting
 commit predates the check carries the gate script of that time, so a local run
 of that script does not refuse it; the pipeline's command, read from the default
 branch, does. The pipeline's command selects the copy of the check by the

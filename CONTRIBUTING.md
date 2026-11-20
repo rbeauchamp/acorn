@@ -202,9 +202,11 @@ check refusing noncomputable in executing modules).
   another author's commit on their own machine first runs the admission check
   from the default branch's copy, never that commit's own `gate.sh`: from a
   checkout of the commit, with `origin` fetched from Acorn's repository,
-  `check=$(git show origin/main:scripts/admission.sh) && [ -n "$check" ] && ACORN_ADMISSION_PULL=<number> bash -c "$check" acorn-admission`.
+  `check=$(git show refs/remotes/origin/main:scripts/admission.sh) && [ -n "$check" ] && ACORN_ADMISSION_PULL=<number> bash -c "$check" acorn-admission`.
   The command fails when the check cannot be read or is empty, and runs nothing
-  of the commit before the check has passed.
+  of the commit before the check has passed. The ref is written in full because
+  Git resolves the short name `origin/main` to a tag or a local branch of that
+  name before the remote-tracking branch.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which first runs the admission check `scripts/admission.sh`, then
   provisions dependencies, runs `./scripts/verify.sh build-executing` and
