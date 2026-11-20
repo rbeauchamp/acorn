@@ -39,7 +39,7 @@ and does not change the global Xcode selection or Lean default toolchain.
 
 The [verification workflow](../.github/workflows/verify.yml) runs the
 [merge gate](#build-and-source-inventory) when a pull request is opened or
-reopened and at every push to it, and when started by hand, on GitHub's standard
+reopened and at every push to it, and at no other time, on GitHub's standard
 `ubuntu-24.04` x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
 elan from a release pinned by the SHA-256 of its archive. Every workflow step
@@ -564,8 +564,16 @@ carried from one run to another.
 GitHub runs the gate through the
 [verification workflow](../.github/workflows/verify.yml): when a pull request is
 opened or reopened and at every push to its branch, whether that branch is in
-the repository or in a fork, on the pull request's head commit, and when started
-by hand, within the limits given below. The workflow is one job. It takes the
+the repository or in a fork, on the pull request's head commit, within the
+limits given below. Nothing else starts the workflow, and it cannot be started
+by hand. A run started by hand on main would be in main's own context, where
+what a run stores is restored by later runs on main, and GitHub's code scanning
+reports a workflow that can run there and executes the script of a commit taken
+from a pull request as a route to poisoning what main's runs restore (CodeQL's
+query `actions/cache-poisoning/poisonable-step`). With no such trigger, no run
+of the workflow is in that context. A pull request's job is run again from the
+pull request, on the same commit (GitHub's documentation, Re-running workflows
+and jobs). The workflow is one job. It takes the
 head commit from the event, fails before any check when the event names none,
 and never falls back to the merge of the head with its base. From that checkout
 it runs `./scripts/gate.sh provision` to provision the pinned dependencies, then
@@ -610,16 +618,20 @@ repository's own context, where a fork's code can reach its secrets and a token
 that writes (GitHub's documentation, Events that trigger workflows). That
 a fork's run holds no secret is the owner's requirement; naming the limits as
 accepted was decided on the owner's behalf by the agent supervising Acorn's
-research. In every one but the third, the pull request shows no run of this job
-for its head. Such a head is unchecked on GitHub. What the absence of a run and
-each ending of a run say about the checks is stated after the fifth limit.
+research. In every one but the third, the event starts no run of this job. The
+pull request then shows for its head only a run that an earlier event started on
+the same commit, and a head with no run is unchecked on GitHub. What the absence
+of a run and each ending of a run say about the checks is stated after the fifth
+limit.
 
-First, a head that conflicts with its base gets no run. GitHub starts no
-workflow for activity on a pull request that has a merge conflict (GitHub's
-documentation, Events that trigger workflows, in the notes on the event for pull
-requests). The pull request shows no run of this job for that head, and still
-none when the conflict clears without a push, as when main changes; a push or a
-reopening starts the run.
+First, an event on a head that conflicts with its base starts no run. GitHub
+starts no workflow for activity on a pull request that has a merge conflict
+(GitHub's documentation, Events that trigger workflows, in the notes on the
+event for pull requests). No run starts either when the conflict clears without
+a push, as when main changes; a push or a reopening then starts one. A run that
+an earlier event started on the same commit stays on that commit, as when a pull
+request passed, was closed and is reopened after its base came to conflict with
+it.
 
 Second, a fork's run can wait for a maintainer. Under the repository's setting,
 read on 2026-11-20, GitHub holds the workflows of a first-time contributor's
@@ -654,23 +666,31 @@ pushed.
 Neither the absence of a run nor a failed run is by itself the result of a
 check. What a run says about the checks is read from the log of the job's last
 step, "The merge gate on the exact source", the only step in which a check
-runs. There the script prints `gate: verification, stage one` before its first
-check. After the checks it prints one line for each that reports its exit
-status: `gate: verification exited N; Regula audit` for verification's two
-stages together, `gate: Regula audit exited N; lean-intent checks`,
+runs, in the `gate:` lines that the head's own script prints there. Each of
+these lines ends with the time of day and the seconds since the script started.
+The script of this revision prints `gate: verification, stage one` before its
+first check and then, as each check ends, a line that reports its exit status:
+`gate: verification exited N; Regula audit` for verification's two stages
+together, `gate: Regula audit exited N; lean-intent checks`,
 `gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`.
-It prints `gate: every merge check passed` only when every status is 0. Each
-of these lines ends with the time of day and the seconds since the script
-started. The only evidence that a check ran on the head and failed is a `gate:`
-line that reports that check's exit status as other than 0. The only evidence
-that every check passed is the line
-`gate: every merge check passed`. Every other ending is no verdict of a check
-on that head: no run at all; a run that GitHub marked failed before a runner
-started, as when an approval was never given; a failure of any step before the
-last; the last step ending before `gate: verification, stage one`, as when the
-script's own recheck of the provisioned dependencies fails; and the last step
-ending without the passing line and without a line that reports a status other
-than 0, as when the job is cancelled at its limit in the middle of a check.
+It prints `gate: every merge check passed` last, and only when every status
+is 0. A head that holds another revision of the script runs that revision's
+checks and prints that revision's lines, which the head's own `scripts/gate.sh`
+gives: a revision from before the frame check prints no line for it.
+
+For each check, the only evidence that it ran on the head and failed is a
+`gate:` line that reports its exit status as other than 0, and the only evidence
+that it ran and passed is such a line with the status 0. The only evidence that
+every check of the head's script passed is the line
+`gate: every merge check passed`. A check with no line that reports its status
+has no verdict on that head, and a run without the passing line is no pass of
+the gate. So no check has a verdict when there is no run at all; when GitHub
+marked a run failed before a runner started, as when an approval was never
+given; when a step before the last failed; and when the last step ended before
+`gate: verification, stage one`, as when the script's own recheck of the
+provisioned dependencies fails. When the last step ends in the middle of a
+check, as when the job is cancelled at its limit, each check already reported
+keeps its line, and that check and those after it have no verdict.
 
 Whether a merge requires this job is set in the repository's rules on GitHub,
 not in a file of the repository. Where the rules require it, a head on which it

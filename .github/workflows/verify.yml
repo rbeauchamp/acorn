@@ -1,7 +1,7 @@
 name: Verify
 # GitHub runs the merge gate here, on a pull request's head commit, when the pull request is
 # opened or reopened and at every push to its branch, whether that branch is in this
-# repository or in a fork, and when started by hand. The one job runs the checked-out
+# repository or in a fork, and at no other time. The one job runs the checked-out
 # commit's own ./scripts/gate.sh twice: with the argument `provision`, which provisions the
 # pinned dependencies, and then with no argument, the command the no-mistakes pipeline also
 # runs before a pull request opens (.no-mistakes.yaml). No step names a Lake target, a
@@ -15,6 +15,12 @@ name: Verify
 # cannot write to it; this file names no secret and asks for read access to contents only.
 # No filter names a base branch, so a pull request to another base that is later retargeted
 # to main keeps the run made on its head. Nothing runs after a merge.
+#
+# pull_request is the only trigger, so this workflow cannot be started by hand. A run
+# started by hand on main would be in main's own context, where what a run stores is
+# restored by later runs on main, and every run here executes the script of a commit taken
+# from a pull request. With no such trigger no run of this file is in that context. A pull
+# request's job is run again from the pull request, on the same commit.
 #
 # No step restores or saves a cache: every run provisions everything from its pinned
 # sources. A copy stored by an earlier head of a pull request, which controls its own
@@ -32,7 +38,6 @@ name: Verify
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_dispatch:
 permissions:
   contents: read
 env:
@@ -55,20 +60,16 @@ jobs:
     steps:
       - name: Identify the commit to verify
         id: commit
-        # For a pull request, the head commit that the event itself carries (GitHub's
+        # The head commit that the pull request's event itself carries (GitHub's
         # documentation, Events that trigger workflows, pull_request: github.sha is the
         # merge commit, and github.event.pull_request.head.sha the last commit of the head
         # branch). The same page says the event's payload is empty for a pull request from
         # a fork; an event that carries no head fails here, before any check, and never
-        # falls back to the merge commit. A run started by hand verifies its own commit.
+        # falls back to the merge commit.
         env:
           ACORN_PULL_REQUEST_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [[ $GITHUB_EVENT_NAME == pull_request ]]; then
-            sha="$ACORN_PULL_REQUEST_HEAD"
-          else
-            sha="$GITHUB_SHA"
-          fi
+          sha="$ACORN_PULL_REQUEST_HEAD"
           if [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::The $GITHUB_EVENT_NAME event names no commit to verify."
             exit 1
