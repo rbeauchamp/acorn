@@ -36,7 +36,13 @@ material limits. The merge gate,
 `./scripts/gate.sh`, which the no-mistakes pipeline runs before a pull request
 opens, also requires the [Regula audit](docs/verification.md#regula-audit),
 lean-intent's confirmation and implementation checks of Acorn's intent records, and
-the check that the declarations a pinned target reads are unchanged.
+the check that the declarations a pinned target reads are unchanged. When a pull
+request is opened or reopened and at every push to it, from a branch of the
+repository or of a fork, GitHub runs the gate on its head commit and shows the
+job's result on the pull request. Neither the absence of a run of that job nor a
+failed run is by itself the result of a check: the
+[verification guide](docs/verification.md#build-and-source-inventory) names the
+cases in which GitHub starts no run and says how to read a run's ending.
 
 Pull requests are squash-merged: the PR title becomes the commit header on main
 and the PR body its message. Title each PR as a

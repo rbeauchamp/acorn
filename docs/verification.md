@@ -37,13 +37,15 @@ The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
 
-The [verification workflow](../.github/workflows/verify.yml) runs only when
-started by hand, on GitHub's standard `ubuntu-24.04` x64 image. It installs no
+The [verification workflow](../.github/workflows/verify.yml) runs the
+[merge gate](#build-and-source-inventory) when a pull request is opened or
+reopened and at every push to it, and at no other time, on GitHub's standard
+`ubuntu-24.04` x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
-elan from a release pinned by the SHA-256 of its archive, which the dependency
-cache keeps. Every workflow step that reaches the network has its own time
-limit, so a stalled download fails that step. Dependency caches include the
-Ubuntu release and runner architecture. Automatic local setup supports macOS and
+elan from a release pinned by the SHA-256 of its archive. Every workflow step
+that reaches the network before the gate has its own time limit, so a stalled
+download fails that step. The workflow keeps no cache: each run provisions the
+dependencies from their pinned sources. Automatic local setup supports macOS and
 Ubuntu/Debian Linux.
 
 For manual setup, install macOS command-line tools and the packages below
@@ -485,8 +487,9 @@ Primitive IEEE interpretation remains a native assumption.
 
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
-validates, in a checkout that holds only tracked files; GitHub Actions runs no
-check on a pull request or a push. The gate provisions the pinned dependencies,
+validates, in a checkout that holds only tracked files. GitHub runs the same
+script at each event that gives a pull request its head, within the limits
+described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
 360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
 sources as the complete command does, then selects every module outside the proof
@@ -556,9 +559,143 @@ The pipeline stores the provisioned dependency checkouts and their build outputs
 once for each default-branch commit a run starts from, and gives a run a private
 copy only while the run's toolchain and lock files equal that commit's; Lake
 rebuilds whatever its traces do not show current. Acorn's own outputs are never
-carried from one run to another. The workflows that ran these checks on GitHub
-stay available to start by hand; they have read-only repository permissions,
-no secrets, no privileged pull-request trigger, and pinned action revisions.
+carried from one run to another.
+
+GitHub runs the gate through the
+[verification workflow](../.github/workflows/verify.yml): when a pull request is
+opened or reopened and at every push to its branch, whether that branch is in
+the repository or in a fork, on the pull request's head commit, within the
+limits given below. Nothing else starts the workflow, and it cannot be started
+by hand. A run started by hand on main would be in main's own context, where
+what a run stores is restored by later runs on main, and GitHub's code scanning
+reports a workflow that can run there and executes the script of a commit taken
+from a pull request as a route to poisoning what main's runs restore (CodeQL's
+query `actions/cache-poisoning/poisonable-step`). With no such trigger, no run
+of the workflow is in that context. A pull request's job is run again from the
+pull request, on the same commit (GitHub's documentation, Re-running workflows
+and jobs). The workflow is one job. It takes the
+head commit from the event, fails before any check when the event names none,
+and never falls back to the merge of the head with its base. From that checkout
+it runs `./scripts/gate.sh provision` to provision the pinned dependencies, then
+`./scripts/gate.sh` to run the same gate as the pipeline's Test step.
+No step of the workflow names a Lake target, a module, a package or another
+script of the project, so the job relies on the
+head only for that script and its two forms. So the dependencies and the checks
+on GitHub are the script's own, with no second list to keep equal to it, and a
+head whose script or Lake configuration is older or newer than the one on main
+is provisioned and checked by its own. A failing check fails the job, and the
+job's result is shown on the pull request. The job
+runs for a pull request to any base branch, so that one later retargeted to main
+keeps the run made on its head, and nothing runs after a merge.
+
+The arrangement on GitHub differs from the pipeline's as follows. A step of
+the workflow downloads elan's pinned release in every run and installs it only
+after the archive's SHA-256 matches. The script's provisioning runs in a step
+of its own, whose 27-minute limit bounds a stalled download and is no check's
+deadline, and the script's provisioning in the last step then finds the
+dependencies current. Nothing is stored between runs: every run
+provisions everything from its pinned sources and builds from cold project
+outputs. A copy stored by an earlier head of a pull request, which controls its
+own workflow, could otherwise be restored and trusted by a later head whose own
+changes show nothing of it. The job has a 60-minute limit, where the
+pipeline's Test step has none. That limit is the sum of the limits of the two
+jobs that ran these checks side by side before 2026-10-28; no check's own
+deadline changed, and each of verification's two stages keeps its 360-second
+deadline. This shape, slower than two jobs with stored dependencies, was decided
+on the owner's behalf by the agent supervising Acorn's research.
+
+A pull request's run is started by GitHub's ordinary event for pull requests,
+never the privileged one that runs with the base repository's rights, so the run
+for a fork's pull request receives none of the repository's secrets and a token
+that cannot write to the repository. The workflow names no secret, asks for read
+access to contents only, keeps no credentials in its checkout and pins the
+checkout action by revision. No setting cancels or skips a run because a newer
+head arrived: each head's run finishes, and its result stays on that commit.
+
+That event has five limits, which Acorn accepts: GitHub's other event for pull
+requests, which does start a run for a conflicting head, runs in the base
+repository's own context, where a fork's code can reach its secrets and a token
+that writes (GitHub's documentation, Events that trigger workflows). That
+a fork's run holds no secret is the owner's requirement; naming the limits as
+accepted was decided on the owner's behalf by the agent supervising Acorn's
+research. Each limit is given below with what the pull request then shows for
+its head. What the absence of a run and each ending of a run say about the
+checks is stated after the fifth limit.
+
+First, an event on a head that conflicts with its base starts no run. GitHub
+starts no workflow for activity on a pull request that has a merge conflict
+(GitHub's documentation, Events that trigger workflows, in the notes on the
+event for pull requests). No run starts either when the conflict clears without
+a push, as when main changes; a push or a reopening then starts one. A run that
+an earlier event started on the same commit stays on that commit, as when a pull
+request passed, was closed and is reopened after its base came to conflict with
+it.
+
+Second, a fork's run can wait for a maintainer. Under the repository's setting,
+read on 2026-11-20, GitHub holds the workflows of a first-time contributor's
+fork until someone with write access approves them, and marks a run left
+unapproved for 30 days as failed (GitHub's documentation, Approving workflow
+runs from forks). Until then the pull request shows the workflow as awaiting
+approval, with no result. The approval lets the job start and nothing more: it
+is no review of the change and no result of a check. GitHub holds in the same
+way the run of a pull request that a workflow opens or updates with its own
+token (the same notes); no workflow of Acorn does that.
+
+Third, a pull request that edits the workflow or the gate script is checked by
+its own edit. GitHub uses the version of a workflow in the commit of the event
+that starts it (GitHub's documentation, Workflows), which for a pull request is
+its merge with its base, and the job runs the script of the head. Such a pull
+request can show the job as passed while it runs fewer checks than the gate on
+main has. A reader sees that only in the pull request's changed files, under
+the paths that [CODEOWNERS](../.github/CODEOWNERS) gives to the owner; nothing
+in the run refuses the edit.
+
+Fourth, a head whose event came before this workflow ran on pull requests, or whose
+merge with the base it then had did not hold this workflow, has no run, since
+GitHub repeats no event. A pull request open at that time shows no run of this
+job until its next push or reopening, and then runs like any other, by its own
+head's script.
+
+Fifth, a head whose commit message carries one of GitHub's skip instructions gets
+no run (GitHub's documentation, Skipping workflow runs). The pull request shows
+no run of this job for that head until a commit without the instruction is
+pushed.
+
+Neither the absence of a run nor a failed run is by itself the result of a
+check. What a run says about the checks is read from the log of the job's last
+step, "The merge gate on the exact source", the only step in which a check
+runs, in the `gate:` lines that the head's own script prints there. Each of
+these lines ends with the time of day and the seconds since the script started.
+The script of this revision prints `gate: verification, stage one` before its
+first check and then, as each check ends, a line that reports its exit status:
+`gate: verification exited N; Regula audit` for verification's two stages
+together, `gate: Regula audit exited N; lean-intent checks`,
+`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`.
+It prints `gate: every merge check passed` last, and only when every status
+is 0. A head that holds another revision of the script runs that revision's
+checks and prints that revision's lines, which the head's own `scripts/gate.sh`
+gives: a revision from before the frame check prints no line for it.
+
+For each check, the only evidence that it ran on the head and failed is a
+`gate:` line that reports its exit status as other than 0, and the only evidence
+that it ran and passed is such a line with the status 0. The only evidence that
+every check of the head's script passed is the line
+`gate: every merge check passed`. Each attempt of a run is read by its own log.
+In the attempt being read, a check with no line that reports its status has no
+verdict, and an attempt without the passing line is no pass of the gate. So an
+attempt gives no check a verdict when GitHub marked it failed before a runner
+started, as when an approval was never given; when a step before the last
+failed; and when the last step ended before `gate: verification, stage one`, as
+when the script's own recheck of the provisioned dependencies fails. When the
+last step ends in the middle of a check, as when the job is cancelled at its
+limit, each check already reported keeps its line, and that check and those
+after it have no verdict in that attempt. A head with no run at all has no
+verdict of any check.
+
+Whether a merge requires this job is set in the repository's rules on GitHub,
+not in a file of the repository. Where the rules require it, a head on which it
+has not passed does not merge: GitHub requires a required check to pass on the
+latest commit (GitHub's documentation, Troubleshooting required status checks).
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners
