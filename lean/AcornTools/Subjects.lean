@@ -160,8 +160,9 @@ partial def admit (original current : Environment) (seen : IO.Ref NameSet) (term
       if let some value := info.value? then admit original current seen value
 
 /-- A type a tool may read a subject at, with its spelling as a Lean term. The instances below
-are the whole of it: text, numbers, and lists, pairs, options and functions of those. A caller of `read` names the Lean type alone, and the term it reads is elaborated against
-the spelling this class gives for that type, so the two cannot disagree at a call. -/
+are the whole of it: text, numbers, and lists, pairs, options and functions of those. A caller of
+`read` names the Lean type alone, and the term it reads is elaborated against the spelling this
+class gives for that type, so the two cannot disagree at a call. -/
 class Readable (α : Type) where
   /-- The type, as a Lean term. -/
   spelling : String
