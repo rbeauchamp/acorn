@@ -124,7 +124,9 @@ while its toolchains and lock files equal that commit's, so an exact match avoid
 repeated provisioning. A changed set of FloatLib modules that the proof bridge
 imports keeps the same locked dependencies, and Lake builds only the added ones.
 Provisioning is stored apart from every run's checks, so a project failure does
-not discard useful provisioning work. Project outputs still build cold in every
+not discard useful provisioning work. On GitHub the verification workflow stores
+nothing between runs: each run provisions the dependencies from their pinned
+sources. Project outputs still build cold in every
 gate run. One run of `./scripts/verify.sh` bounds the cold build and every check
 with one fixed deadline. The gate runs the command twice, each run under its own
 deadline: `./scripts/verify.sh build-executing` selects every module outside
