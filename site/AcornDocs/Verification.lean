@@ -753,8 +753,8 @@ external solver, reads a certificate or writes one beside the proof source
 has no entry. Its position inside a proof or a tactic combinator cannot admit
 it. This matters before the build because the later corpus audit reads files
 under the source directories. The only nonempty tactic configuration admitted
-is the whole form `decide +kernel`. Deriving clauses name `DecidableEq`,
-`BEq` or `Repr`. The list of options, `allowedOptions`, holds at every depth
+is the whole form `decide +kernel`. Deriving clauses name {decl}`DecidableEq`,
+{decl}`BEq` or {decl}`Repr`. The list of options, `allowedOptions`, holds at every depth
 of a source. The command form and settings before a term, a tactic sequence
 or a grind sequence inside a declaration all use that list. An option that a dependency's own macro or
 elaborator sets is that dependency's code and is not scanned. It admits the
