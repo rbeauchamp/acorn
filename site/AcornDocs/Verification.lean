@@ -558,11 +558,9 @@ repository's own context, where a fork's code can reach its secrets and a token
 that writes (GitHub's documentation, Events that trigger workflows). That
 a fork's run holds no secret is the owner's requirement; naming the limits as
 accepted was decided on the owner's behalf by the agent supervising Acorn's
-research. In every one but the third, the event starts no run of this job. The
-pull request then shows for its head only a run that an earlier event started on
-the same commit, and a head with no run is unchecked on GitHub. What the absence
-of a run and each ending of a run say about the checks is stated after the fifth
-limit.
+research. Each limit is given below with what the pull request then shows for
+its head. What the absence of a run and each ending of a run say about the
+checks is stated after the fifth limit.
 
 First, an event on a head that conflicts with its base starts no run. GitHub
 starts no workflow for activity on a pull request that has a merge conflict
@@ -622,15 +620,17 @@ For each check, the only evidence that it ran on the head and failed is a
 `gate:` line that reports its exit status as other than 0, and the only evidence
 that it ran and passed is such a line with the status 0. The only evidence that
 every check of the head's script passed is the line
-`gate: every merge check passed`. A check with no line that reports its status
-has no verdict on that head, and a run without the passing line is no pass of
-the gate. So no check has a verdict when there is no run at all; when GitHub
-marked a run failed before a runner started, as when an approval was never
-given; when a step before the last failed; and when the last step ended before
-`gate: verification, stage one`, as when the script's own recheck of the
-provisioned dependencies fails. When the last step ends in the middle of a
-check, as when the job is cancelled at its limit, each check already reported
-keeps its line, and that check and those after it have no verdict.
+`gate: every merge check passed`. Each attempt of a run is read by its own log.
+In the attempt being read, a check with no line that reports its status has no
+verdict, and an attempt without the passing line is no pass of the gate. So an
+attempt gives no check a verdict when GitHub marked it failed before a runner
+started, as when an approval was never given; when a step before the last
+failed; and when the last step ended before `gate: verification, stage one`, as
+when the script's own recheck of the provisioned dependencies fails. When the
+last step ends in the middle of a check, as when the job is cancelled at its
+limit, each check already reported keeps its line, and that check and those
+after it have no verdict in that attempt. A head with no run at all has no
+verdict of any check.
 
 Whether a merge requires this job is set in the repository's rules on GitHub,
 not in a file of the repository. Where the rules require it, a head on which it
