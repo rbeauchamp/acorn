@@ -185,14 +185,21 @@ against what the description says the change does and against Acorn's rules
 - does it leave Acorn's tracked text true;
 - does it claim or change anything that calls for the referee's review.
 
-The short review is one comment on the pull request, and stays there. It names
-the head commit it read, gives its findings, each with its place, its reason
-and what would correct it, or says that it has none, and gives a verdict of
-accept, revise or reject. Findings and revision go as they do for a referee's
+The short review is one comment on the pull request, and stays there. It
+counts as the review of an ordinary change only if it names the head commit it
+read and states, in a line each, the three things it checked: that the change
+does what its description says and nothing else; that it leaves Acorn's
+tracked text true; and that it claims nothing that calls for the referee's
+review. Then it gives its findings, each with its
+place, its reason and what would correct it, or says that it has none, and a
+verdict of accept, revise or reject. A comment that gives only a verdict, or
+only that there are no findings, does not count, and the pull request has no
+clean review until one that does is posted. Findings and revision go as they do for a referee's
 report: the author answers each finding on the pull request, a finding stays
 open until the reviewer withdraws it or the maintainers rule on it there, and
 after a push the new head has no review until the reviewer has read it again.
-A short review is clean when its verdict is accept and no finding is open.
+A short review is clean when it counts, its verdict is accept and no finding
+is open.
 
 ### When work is complete
 
@@ -216,10 +223,13 @@ clean: each referee's report, or the short review.
 
 ### What the protocol does not promise
 
-No date is promised for an assignment, a report, a short review or a merge; the target for a
-first response is in [triage and response](#triage-and-response). The protocol
-is a written rule that no check of the gate executes, and a referee can be
-wrong ([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
+No date is promised for an assignment, a report, a short review or a merge;
+the target for a first response is in
+[triage and response](#triage-and-response). The protocol is a written rule
+that no check of the gate executes, a referee or a reviewer can be wrong, and
+no rule can see whether the three lines of a short review were written after
+reading or copied as a formula
+([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
 
 ## Missions for outside contributors and agents
 

@@ -73,7 +73,9 @@ with the same standard. Read the change at its head commit, adversarially,
 against what its description says and against `AGENTS.md`, asking the
 protocol's three things: does the change do what it says and nothing else,
 does it leave Acorn's tracked text true, does it call for the referee's
-review. File one comment with the head commit read, the findings or that there
-are none, and a verdict of accept, revise or reject.
+review. File one comment with the head commit read; a line for each of the
+three things you checked; the findings, or that there are none; and a
+verdict of accept, revise or reject. A comment with only a verdict, or only
+that there are no findings, does not count as the review.
 
 Maintain this skill under `.agents/skills/`.
