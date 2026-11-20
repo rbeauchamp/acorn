@@ -11,12 +11,16 @@ import AcornVerif.LearnedStateSmall
 * *The agent's own step is supplied or changed by the submission.* A result is about
   `assembled`, which is the base agent on extended percepts. A submission supplies a mechanism
   and a task, and no step, no split of a step, no encoding of what is kept and no credited
-  type. So there is nothing for it to write that behaves one way on the agent's own values and
-  another way on replaced ones.
-* *The answer is what the mechanism holds.* If stores fixed in advance meet the goal, no result
+  type. So it cannot inspect or change an overwrite directly: the comparisons that overwrite a
+  store run the base agent's own step on the overwritten state (`rewritten`). They also run
+  the same mechanism, on the outputs the overwritten agent actually emits and the percepts the
+  world then delivers, so what the mechanism hands over later can depend on them.
+* *The answer is what the mechanism holds.* If, with the submitted mechanism, stores fixed in
+  advance meet the goal at some seed in every world of the family, that mechanism has no result
   (`fixed_stores_refused`). Example: where both hidden bits are false the remembered cue is the
-  answer, tables that return their key meet the goal, and `Small.latch` has no result
-  (`Small.remembered_refused`).
+  answer, tables that return their key meet the goal with `Small.latch`, and `Small.latch` has
+  no result (`Small.remembered_refused`). Neither theorem refuses those worlds and that goal
+  for another mechanism.
 * *The goal can be satisfied without the past.* If an agent whose output is a function of the
   current percept meets the goal in every world, no result (`Result.history_free_refused`). A
   goal with an added alternative that a constant emitter satisfies is of this kind
@@ -29,15 +33,18 @@ import AcornVerif.LearnedStateSmall
 **Admitted.**
 * *A goal that only recognizes the submission.* `Small.recognizer_admitted` is a result of the
   small agent for the goal "the trace is this agent's at some seed". `recognized_iff` shows
-  this is general.
+  it in general: for a mechanism and a family of worlds, that goal has a result whenever some
+  goal has one.
 * *A memory written by an authored rule.* `Small.latch` holds the last cue by a rule written by
   hand, and `Small.inhabited` is its result. The frame says nothing of how a memory is written.
 
-**Not ordered.** Overwriting more stores does not make failure easier to obtain, nor harder, as
-a rule. `Small.overwriting_more_can_restore`: for the goal "at the second asking step the action
+**Not implied.** The two statements about one store do not give the statement about both.
+`Small.overwriting_more_can_restore`: for the goal "at the second asking step the action
 equals the forecast" over two worlds, the small agent with either store alone on any schedule
 fails, and with both stores on constant tables it meets the goal. So the two statements about
-one store hold for that goal and the statement about both does not.
+one store hold for that goal and the statement about both does not. The theorem refutes that
+one implication. The converse, that the statement about both gives a statement about one
+store, is neither proved nor refuted in this module.
 -/
 
 namespace AcornVerif.LearnedState
