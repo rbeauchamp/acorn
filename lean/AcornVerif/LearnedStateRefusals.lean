@@ -19,8 +19,9 @@ import AcornVerif.LearnedStateSmall
   advance meet the goal at some seed in every world of the family, that mechanism has no result
   (`fixed_stores_refused`). Example: where both hidden bits are false the remembered cue is the
   answer, tables that return their key meet the goal with `Small.latch`, and `Small.latch` has
-  no result (`Small.remembered_refused`). Neither theorem refuses those worlds and that goal
-  for another mechanism.
+  no result (`Small.remembered_refused`). `Small.remembered_refused` is of `Small.latch` and
+  says nothing of another mechanism. `fixed_stores_refused` refuses another mechanism where its
+  hypothesis is established for that mechanism.
 * *The goal can be satisfied without the past.* If an agent whose output is a function of the
   current percept meets the goal in every world, no result (`Result.history_free_refused`). A
   goal with an added alternative that a constant emitter satisfies is of this kind
@@ -43,7 +44,7 @@ import AcornVerif.LearnedStateSmall
 equals the forecast" over two worlds, the small agent with either store alone on any schedule
 fails, and with both stores on constant tables it meets the goal. So the two statements about
 one store hold for that goal and the statement about both does not. The theorem refutes that
-one implication. The converse, that the statement about both gives a statement about one
+one implication. The converse, that the statement about both gives both statements about one
 store, is neither proved nor refuted in this module.
 -/
 
