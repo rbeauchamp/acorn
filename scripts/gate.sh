@@ -16,6 +16,17 @@ export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PAT
 
 step() { printf 'gate: %s at %s (%d s)\n' "$1" "$(date -u +%H:%M:%SZ)" "$SECONDS"; }
 
+# Lake's build directories hold only what a run's own Lake builds, and Lake trusts an output
+# there whose trace matches. Git ignores them, which stops no deliberate add: a change that
+# tracked a file there could hand Lake a compiled module, a tool or a compiled configuration that
+# no run built from admitted sources. So a checkout whose index holds such a file is refused
+# before the first Lake call. Git lists none in the ordinary case.
+tracked_outputs=$(git ls-files -- lean/.lake site/.lake)
+if [[ -n "$tracked_outputs" ]]; then
+  printf 'gate: the checkout tracks files under a build directory:\n%s\n' "$tracked_outputs" >&2
+  exit 1
+fi
+
 # Dependency checkouts hold a symbolic link as a plain file holding its target (Git's
 # core.symlinks), so lean/.lake/packages holds only directories and regular files, the
 # only entries no-mistakes stores. This assumes no dependency builds through a link: a
@@ -72,15 +83,22 @@ step 'provisioned'
 # check on one list of modules, those Lake lists for the default libraries, and passes only when the
 # first finds nothing and the second finds only the deliverables its closed list names as awaiting
 # an implementation. Last, frame-check (lean/AcornTools/Frame.lean) compares each target's pin
-# file, if it has one, with the declarations the target reads in the finished build. The audit
-# and the checks run even when an earlier step fails, so one run reports all four.
+# file, if it has one, with the declarations the target reads in the finished build.
+#
+# Stage one admits every source before it builds anything of the project but the boundary audit,
+# whose modules are all under the owner's paths. When stage one fails, the gate ends there: every
+# later step builds or loads the project's sources (the Regula audit begins with a build of the
+# default libraries), and none may do so to a source that no admission has passed. After a stage
+# one that passed, the audit and the checks run even when an earlier step fails, so one run
+# reports all four.
 verified=0
 step 'verification, stage one'
 if ./scripts/verify.sh build-executing; then
   step 'verification, stage two'
   ./scripts/verify.sh || verified=$?
 else
-  verified=$?
+  step "verification stage one exited $?; no later check builds or loads sources that it did not admit"
+  exit 1
 fi
 step "verification exited $verified; Regula audit"
 audited=0

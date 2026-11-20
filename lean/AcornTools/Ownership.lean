@@ -26,7 +26,7 @@ filesystem discovery rejects missing or extra owners. The site is documentation 
 pinned Verso, a trust boundary outside the application's proof claim. -/
 def siteModules : Array Name := #[
   `AcornDocs, `AcornDocs.Verification, `AcornSite, `AcornSite.Markdown, `AcornSite.Owners,
-  `AcornSite.Reference, `Main
+  `AcornSite.Reference, `AcornSite.Render, `Admit, `Main
 ]
 
 /-- Native entry points, checked against both evaluated Lake targets and compiled `main`. -/

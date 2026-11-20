@@ -3,7 +3,6 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Host.AuditPins
 import AcornTools.ModuleInventory
 import AcornTools.Corpus.Documents
 import AcornTools.Corpus.Pins
@@ -160,9 +159,16 @@ unsafe def check (documentsOnly : Bool := false)
     (← IO.FS.readFile "docs/design.md") (← IO.FS.readFile "docs/frontier.md")
   let documents ← (paths.filter prose).mapM fun (path : String) => do
     pure (path, ← IO.FS.readFile path)
-  AcornBrowserAudit.check
-  AcornPinAudit.check documents
-  AcornDocument.check documents (← AcornModuleInventory.allModules "lean") (env? := env?)
+  let selection ← AcornModuleInventory.allModules "lean"
+  -- The checks below read their subjects from the finished build: the one the caller holds,
+  -- or one loaded here for a run of this audit alone.
+  let env ← match env? with
+    | some env => pure env
+    | none => AcornDocument.environment selection
+  AcornSubjects.validate env
+  AcornBrowserAudit.check env
+  AcornPinAudit.check env documents
+  AcornDocument.check env documents selection
   IO.println (if documentsOnly then "corpus: document references and prior-art qualifications admitted"
     else "corpus: language, document references and prior-art qualifications admitted")
 

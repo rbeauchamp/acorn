@@ -18,6 +18,12 @@ The Regula audit of the claimed libraries, not this tool, checks compiled declar
 for project axioms, proof holes, compiler-trusting proofs and `unsafe` or `partial`
 definitions; the theorem inventory refuses a compiled native replacement.
 
+Source admission covers every project module outside the tools: the executing sources and
+the proof sources divide them (`proofSide`). Before anything else is built it also requires
+that no gate tool, and no module of the documentation site's own tooling, imports a module of
+the project from outside the owner's paths (`toolImports`), so the code that judges a change is
+elaborated and linked without the change's own modules.
+
 This verification tool and the pinned Lean/Init toolchain are trusted. The gate
 does not prove compiler correctness or the truth of a provenance declaration.
 -/
@@ -41,6 +47,11 @@ def governed (name : Name) : Bool := ((`Acorn).isPrefixOf name ||
 
 /-- Mathematical proofs have separate import admission. -/
 def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name
+
+/-- The project modules that proof-source admission admits: the proof library, and the decision
+registry, which states contracts. Source admission admits every other project module, so the two
+admissions divide the project modules between them and none lies outside both. -/
+def proofSide (name : Name) : Bool := proofOwner name || registry name
 
 /-- Native entry/resource owners and the executables' roots are checked as host code, never
 learned algorithms. -/
@@ -120,6 +131,8 @@ def importAllowed (owner imported : Name) : Bool :=
         (owner == proofContracts && imported == `Regula.Contract))
   else if nativeBootstrap owner then
     (`NativeApp).isPrefixOf imported || (`Acorn).isPrefixOf imported || (`Std).isPrefixOf imported
+  -- A module of no library named above, such as `AcornDocument`, imports only `Init` modules.
+  else if !(`Acorn).isPrefixOf owner then false
   else if owner == `Acorn.Constants then false
   else if (`Std).isPrefixOf imported then
     (`Acorn.Host).isPrefixOf owner || compositionRoots.contains owner
@@ -371,6 +384,99 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
     if included.contains owner then continue
     withImportModules #[{ module := owner }] {} fun env => inspect env #[owner]
 
+/-- The paths `.github/CODEOWNERS` names, read in a closed form. A line is empty, starts with
+`#`, or is `/path @owner`: one space, a path of letters, digits, `.`, `_`, `-` and `/` after its
+leading `/`, and an owner of letters, digits and `-` after its `@`. Any other line is refused, a
+pattern with `*` included, and so is a file that names no path: this reader decides which modules
+the owner holds, so it reads nothing it cannot read exactly. -/
+def ownerPaths (file : System.FilePath := "../.github/CODEOWNERS") : IO (Array String) := do
+  let word (allowed : Char → Bool) (text : String) : Bool :=
+    !text.isEmpty && text.toList.all allowed
+  let mut paths := #[]
+  for line in (← IO.FS.readFile file).splitOn "\n" do
+    if line.isEmpty || line.startsWith "#" then continue
+    let [path, owner] := line.splitOn " "
+      | reject Name.anonymous s!"{file}: a line that is not `/path @owner`: {line}"
+    unless path.startsWith "/" && owner.startsWith "@" &&
+        word (fun c => c.isAlphanum || "._-/".contains c) (path.drop 1).toString &&
+        word (fun c => c.isAlphanum || c == '-') (owner.drop 1).toString do
+      reject Name.anonymous s!"{file}: a line that is not `/path @owner`: {line}"
+    paths := paths.push path
+  if paths.isEmpty then reject Name.anonymous s!"{file} names no path"
+  return paths
+
+/-- Whether the source of a module of this package lies under one of the owner's paths: the
+path is the module's file itself, or ends in `/` and the file lies below that directory. -/
+def ownerCovered (paths : Array String) (module : Name) (package : String := "lean") : Bool :=
+  let file := s!"/{package}/" ++ module.toString.replace "." "/" ++ ".lean"
+  paths.any fun path => path == file || (path.endsWith "/" && file.startsWith path)
+
+/-- The root document of the site and the library of its documents: the sources under
+`site/AcornDocs` and `site/AcornDocs.lean`, which any change may edit and which
+`site/Admit.lean` admits before they are elaborated. -/
+def siteDocument (module : Name) : Bool := (`AcornDocs).isPrefixOf module
+
+/-- The one module of the site's tooling that imports the documents: the renderer's root, which
+applies the check to them. -/
+def siteRenderer : Name := `Main
+
+/-- The imports a source file declares, read with Lean's header parser. -/
+def declaredImports (owner : Name) (path : System.FilePath) : IO (Array Name) := do
+  let context := Parser.mkInputContext (← IO.FS.readFile path) path.toString
+  let (header, _, messages) ← Parser.parseHeader context
+  if messages.hasErrors then reject owner "header parse failed"
+  return (Elab.headerToImports header).map (·.module)
+
+/-- The tool module that pins the axioms of named theorems. It imports the modules whose theorems
+it names, so it is the root of no executable and no other tool module imports it; its commands
+print axioms and declare nothing. -/
+def axiomPins : Name := `AcornTools.AxiomPins
+
+/-- No gate tool imports a module from outside the owner's paths. Starting from every tool
+module but the axiom pins, each module's own import lines are read with Lean's header parser and
+followed through the project's modules: every module reached lies under a path that
+`.github/CODEOWNERS` names, and none is the axiom pins. A tool's own code is then elaborated with
+no declaration of an unowned project module in scope, so no such declaration (an instance, a name
+in a namespace the tool opens) can be what the tool's code resolves to, and a tool links no such
+module. The modules of the toolchain and of the dependencies are not followed: the lock files,
+which are owner paths, select them. -/
+def toolImports : IO Unit := do
+  let paths ← ownerPaths
+  let project ← AcornModuleInventory.allModules
+  if AcornOwnership.executables.any (·.2 == axiomPins) then
+    reject axiomPins "the axiom pins are the root of an executable"
+  unless ownerCovered paths axiomPins do reject axiomPins "tool module under no owner path"
+  let mut pending := AcornModuleInventory.toolingModules.filter (· != axiomPins)
+  let mut seen : NameSet := {}
+  while !pending.isEmpty do
+    let some module := pending.back? | reject Name.anonymous "lost tool import work item"
+    pending := pending.pop
+    if seen.contains module then continue
+    seen := seen.insert module
+    if module == axiomPins then reject module "a gate tool imports the axiom pins"
+    unless ownerCovered paths module do
+      reject module "a gate tool imports this module, which is under no owner path"
+    for imported in ← declaredImports module (module.toString.replace "." "/" ++ ".lean") do
+      if project.contains imported then pending := pending.push imported
+  -- The site's own tooling is every module of the site that is no document. It decides the
+  -- site's check and holds the elaborators of the documents' references, so the same holds
+  -- of it: under an owner path, importing no module of this package outside them and no
+  -- document. The renderer's root alone imports the documents, to apply the check to them.
+  let site ← AcornModuleInventory.siteModules
+  let mut tooling := 0
+  for module in site do
+    if siteDocument module then continue
+    tooling := tooling + 1
+    unless ownerCovered paths module "site" do
+      reject module "a module of the site's tooling under no owner path"
+    let path := System.FilePath.mk ".." / "site" / (module.toString.replace "." "/" ++ ".lean")
+    for imported in ← declaredImports module path do
+      if project.contains imported && !seen.contains imported then
+        reject module s!"the site's tooling imports {imported}, which no gate tool imports under an owner path"
+      if siteDocument imported && module != siteRenderer then
+        reject module s!"the site's tooling imports the document {imported}"
+  IO.println s!"lean-boundary-audit: {seen.size} modules of the gate's tools and {tooling} of the site's tooling, each under an owner path"
+
 /-- Run source admission before build, or source plus compiled admission afterward.
 Initializer execution is restricted to the trusted parser; compiled admission
 reads project metadata without initializing project extensions. This tool is part of the reviewed verification trust boundary. -/
@@ -380,9 +486,12 @@ unsafe def command (args : List String) : IO UInt32 := do
     return 1
   Lean.initSearchPath (← Lean.findSysroot)
   let proofs := args == ["proof-source"]
-  -- The decision registry states contracts, so it is admitted with the proof sources.
+  -- The decision registry states contracts, so it is admitted with the proof sources. Every
+  -- other project module is admitted with the executing sources, whatever its library.
   let owners := (← AcornModuleInventory.projectModules).filter
-    (if proofs then fun name => proofOwner name || registry name else governed)
+    (if proofs then proofSide else fun name => !proofSide name)
+  -- Before anything but this tool is built: no gate tool imports a module outside the owner's paths.
+  if args == ["source"] then toolImports
   -- Compiled admission goes first. Source admission keeps its parser environment mapped
   -- until exit, and a module that is already mapped cannot be mapped again: it is read
   -- and relocated in full by every later environment that imports it.

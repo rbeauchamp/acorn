@@ -10,8 +10,8 @@ Authors: acorn contributors
 Each unsigned number on an Acorn command line, a flag of the core or an argument of a native
 driver alike, is read by `natural`: an optional plus sign, then at least one digit from `0` to
 `9`. `read` takes the digits alone, with the same digit rule; it reads the length of a viewer
-control request, the resident memory that `ps` reports, the unsigned integers of
-`Json.Value.natural`, and the line numbers that the corpus audit reads.
+control request, the resident memory that `ps` reports and the unsigned integers of
+`Json.Value.natural`.
 Neither reader accepts white space, a minus sign or a digit separator, and each returns the value
 of the digits in positional notation, so leading zeros are allowed.
 

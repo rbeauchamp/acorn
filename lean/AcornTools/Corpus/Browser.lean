@@ -3,11 +3,7 @@ Copyright (c) 2026 acorn contributors. All rights reserved.
 Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
-import Acorn.Host.Viewer.BrowserStore
-import Acorn.Host.Viewer.Buffer
-import Acorn.Host.Viewer.Retry
-import Acorn.Host.Viewer.Supervision
-import Acorn.Host.Viewer.WorldMemory
+import AcornTools.Subjects
 
 /-! # Browser execution wiring admission
 
@@ -18,9 +14,15 @@ definitions. This lexical gate
 holds only what stays handwritten: the call sites that route the observer through
 those owners, and its request/timer inventory. Rendered browser behavior is
 inspected separately.
+
+The gate also requires the kept kernel, `viewer/static/browser-kernel.js`, to hold exactly the
+bytes of its Lean emitter, `Acorn.Host.Viewer.browserKernelJavascript`. It evaluates that text
+here, as a subject read from the finished build (`AcornSubjects.read`), and does not run the
+`browser-kernel` executable, which prints the same definition: the gate runs no compiled program
+of the change it checks.
 -/
 namespace AcornBrowserAudit
-open Acorn.Host.Viewer
+open Lean
 
 private def require (legal : Bool) (message : String) : IO Unit :=
   unless legal do throw (IO.userError s!"browser wiring: {message}")
@@ -91,21 +93,33 @@ def scripts (page : String) : IO String := do
 
 /-- The constants that Appendix A of the viewer specification quotes, in the order of its table,
 each with the module that declares it and the value the viewer uses: the page's own constants,
-which the generated kernel declares (`BrowserConstant`), then the server's. -/
-private def ownedConstants : List (String × String × Nat) :=
-  (([.readPace, .statsWindow, .frameCapacity, .ribbonSpan, .staleAfter, .tilePixels] :
-      List BrowserConstant).map fun constant =>
-    (constant.name, "Acorn.Host.Viewer.BrowserStore", constant.value)) ++
-  [("replayCapacity", "Acorn.Host.Viewer.Buffer", replayCapacity),
-    ("failureLimit", "Acorn.Host.Viewer.Retry", failureLimit),
-    ("healthyRunMs", "Acorn.Host.Viewer.Supervision", healthyRunMs),
-    ("mapSideCapacity", "Acorn.Host.Viewer.WorldMemory", mapSideCapacity)]
+which the generated kernel declares (`Acorn.Host.Viewer.BrowserConstant`), then the server's.
+The names and values are subjects read from the finished build, and each server constant is
+required to be declared in the module the table names. -/
+private unsafe def ownedConstants (env : Environment) : IO (List (String × String × Nat)) := do
+  let page ← AcornSubjects.read (List (String × Nat)) env "List (String × Nat)"
+    "[Acorn.Host.Viewer.BrowserConstant.readPace, Acorn.Host.Viewer.BrowserConstant.statsWindow, \
+      Acorn.Host.Viewer.BrowserConstant.frameCapacity, \
+      Acorn.Host.Viewer.BrowserConstant.ribbonSpan, \
+      Acorn.Host.Viewer.BrowserConstant.staleAfter, \
+      Acorn.Host.Viewer.BrowserConstant.tilePixels].map \
+      (fun constant => (constant.name, constant.value))"
+  let mut owned := page.map fun (name, value) => (name, "Acorn.Host.Viewer.BrowserStore", value)
+  for (name, source) in [("replayCapacity", "Acorn.Host.Viewer.Buffer"),
+      ("failureLimit", "Acorn.Host.Viewer.Retry"),
+      ("healthyRunMs", "Acorn.Host.Viewer.Supervision"),
+      ("mapSideCapacity", "Acorn.Host.Viewer.WorldMemory")] do
+    let constant := "Acorn.Host.Viewer." ++ name
+    require (AcornSubjects.home env constant.toName == some source.toName)
+      s!"{constant} is not declared in {source}"
+    owned := owned ++ [(name, source, ← AcornSubjects.read Nat env "Nat" constant)]
+  return owned
 
 /-- The constants table of Appendix A rendered from the Lean owners: its header, its separator
 and one row per constant of `ownedConstants`, each line ending in a line feed. -/
-private def constantsTable : String :=
+private def constantsTable (owned : List (String × String × Nat)) : String :=
   "| constant | value | declared in |\n|---|---|---|\n" ++
-    String.join (ownedConstants.map fun (name, source, value) =>
+    String.join (owned.map fun (name, source, value) =>
       s!"| `{name}` | {value} | `{source}` |\n")
 
 /-- The title of Appendix A of the viewer specification. -/
@@ -125,9 +139,10 @@ exactly once, and no other line contains `|`, so no second table, extra row or r
 spelling can stand beside it. The lines run to the end of the file rather than to the next
 heading of the same level, which Appendix A, the last such section, does not have, so finding
 that heading needs no reading of code blocks or HTML. -/
-private def documentConstants (text : String) : Except String Unit := do
+private def documentConstants (owned : List (String × String × Nat)) (text : String) :
+    Except String Unit := do
   let lines := text.splitOn "\n"
-  let table := (constantsTable.splitOn "\n").dropLast
+  let table := ((constantsTable owned).splitOn "\n").dropLast
   let [heading] := lines.filter fun line => (line.splitOn appendixTitle).length > 1
     | throw "missing/duplicate viewer constants appendix"
   unless heading == "## " ++ appendixTitle do throw "malformed viewer constants appendix heading"
@@ -137,8 +152,19 @@ private def documentConstants (text : String) : Except String Unit := do
   unless appendix.filter (·.contains '|') == table do
     throw "a table line in Appendix A outside the constants table"
 
-/-- Check the generated-program call sites and the request/timer inventory. -/
-def check : IO Unit := do
+/-- The kept kernel holds exactly the bytes of its Lean emitter, read as a subject from the
+finished build `env`: complete bytes, never a sampled semantic claim. -/
+unsafe def kernel (env : Environment) : IO Unit := do
+  let generated ← AcornSubjects.read String env "String"
+    "Acorn.Host.Viewer.browserKernelJavascript"
+  require (generated.toUTF8 == (← IO.FS.readBinFile "viewer/static/browser-kernel.js"))
+    "browser kernel differs from its Lean-owned emitter"
+  IO.println "browser kernel: complete generated bytes match"
+
+/-- Check the generated kernel's bytes, the generated-program call sites and the request/timer
+inventory, in the finished build `env`. -/
+unsafe def check (env : Environment) : IO Unit := do
+  kernel env
   let page ← IO.FS.readFile "viewer/static/index.html"
   let script := compact (← scripts page)
   for (token, count) in [("setInterval(", 3), ("setTimeout(", 1), ("fetch(", 1)] do
@@ -176,7 +202,7 @@ def check : IO Unit := do
   let connect ← body script "connect()"
   require ((connect.splitOn "received++").length == 2) "capture counter must have one guarded increment"
   require (page.contains "$(\"t_world\").title = WORLD_TILE_NOTE;") "readout reset omits world-tile title"
-  match documentConstants (← IO.FS.readFile "docs/viewer-ux.md") with
+  match documentConstants (← ownedConstants env) (← IO.FS.readFile "docs/viewer-ux.md") with
   | .ok () => pure ()
   | .error message => require false message
   IO.println "browser: generated program wiring and request/timer inventory admitted"

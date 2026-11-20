@@ -57,6 +57,77 @@ Releases follow [Semantic Versioning](https://semver.org/): fix implies a patch
 release, feat a minor release and a breaking change a major release, or a minor
 release before 1.0.
 
+## Owner paths, document forms and subjects of a check
+
+[CODEOWNERS](.github/CODEOWNERS) names the paths that only the owner changes:
+GitHub requests the owner's review on a pull request that touches one, and only
+the owner's account merges. They are the files by which Acorn's checks judge a
+change, so that a change cannot alter its own check, and the files that record
+what the owner confirmed. A contribution leaves them alone. When your work needs
+one changed, propose that change as a pull request of its own, say what needs it,
+and build on it once the owner has merged it. Nothing in `./scripts/gate.sh` at
+this commit refuses a change to one of these paths: the owner's review does. A
+gate check that refuses an unadmitted change to an owner path is a separate
+change, and the protection these paths give is complete only with it. The groups
+are:
+
+- **The gate.** `scripts/`, `.github/`, each package's Lake configuration under
+  either of its names (`lean/lakefile.lean`, `site/lakefile.toml` and the two
+  names not in use), `lean/Bootstrap.lean`, `lean/os/`, and the tools under
+  `lean/AcornTools/` with `lean/AcornTools.lean`.
+- **The lock files.** `lean/lean-toolchain`, `lean/lake-manifest.json`,
+  `site/lean-toolchain` and `site/lake-manifest.json` select the toolchain and
+  the dependencies, whose code the checks run.
+- **Proof modules a gate tool imports.**
+  `lean/AcornVerif/Intent/Awaiting.lean`,
+  `lean/AcornVerif/LeanIntentBridge.lean` and
+  `lean/AcornVerif/Resource/WordKernel.lean` hold definitions that a check
+  judges with.
+- **The site's own tooling.** `site/Admit.lean`, `site/Main.lean`,
+  `site/AcornSite.lean` and `site/AcornSite/` are the documentation site's
+  check, the elaborators of the documents' references and the admission of the
+  documents. The documents themselves, under `site/AcornDocs/`, are yours to
+  edit.
+- **Targets.** `lean/AcornVerif/Targets/`, as
+  [missions](#missions-for-outside-contributors-and-agents) describes.
+- **Records of the owner's confirmed words.** `docs/mission-contract.md`, the
+  frame of the learned-state mission at `docs/learned-state-frame.md` when the
+  repository holds it, and the confirmation files
+  `lean/AcornVerif/Intent/OneStream.md` and
+  `lean/AcornVerif/Intent/WorldInterface.md`.
+
+Two closed lists in those paths bound what a contribution may write elsewhere,
+and each has a refusal that tells you what to propose.
+
+**A new form in a document.** A document under `site/AcornDocs/` may hold the
+forms that `site/Admit.lean` lists: prose, headings, bold text, inline code,
+links, a tag, the references the
+[verification guide](docs/verification.md#documentation-site) describes, and
+spliced Lean terms built from names, applications, parentheses and strings. Its
+prose is free. If your document needs another form, such as a list, the site
+step of `./scripts/verify.sh` fails before the document is elaborated, with a
+line that names the document and the form, for a list
+`the document holds the unadmitted form Lean.Doc.Syntax.ul`. Propose the form in
+a pull request that adds it to the list in `site/Admit.lean` (and to the Markdown
+rendering in `site/AcornSite/Markdown.lean` when it has none), and say which
+document needs it. The owner reviews and merges that pull request. After it is
+on `main`, the same document passes, and the step prints
+`each admitted before it was elaborated` for it.
+
+**A new subject of a check.** A gate tool imports no module of the project
+outside the owner paths. Where a check is a statement about a definition of the
+project, such as a constant a document must quote, the tool reads that
+definition from the build, and the definition must be named in
+`AcornSubjects.subjects` in `lean/AcornTools/Subjects.lean`. If a check you add
+or change reads a definition that is not listed, the ownership audit fails with
+`subjects:`, the definition's name and `is no listed subject of a gate check`.
+Propose the name, with the check that reads it, in a pull request that changes
+that list; the owner reviews and merges it, and the check then passes. A
+definition that a check judges with, as opposed to one it is about, is not a
+subject: it belongs in a tool module. A listed subject is evaluated as your
+change defines it, with every definition it calls; the list bounds what a tool
+may evaluate by name, not what a subject may call.
+
 ## Missions for outside contributors and agents
 
 [Missions](docs/missions.md) is the way in: what a mission costs and pays, step-by-step
@@ -168,12 +239,16 @@ check refusing noncomputable in executing modules).
   also adds its entries to `lean/AcornVerif/Landings.lean`, and changes nothing
   under `lean/AcornVerif/Targets/` and no definition that a target names, which
   together are its contract. Files that make up
-  Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
-  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
-  and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
+  Acorn's trusted base (among them `scripts/`, `lean/lakefile.lean`,
+  `site/lakefile.toml`, `lean/AcornTools/`, `lean/AcornTools.lean`,
+  `lean/Bootstrap.lean`, `lean/os/`, `.github/`, the lock files, the site's own
+  tooling and the records of the owner's confirmed words) are listed in
+  [CODEOWNERS](.github/CODEOWNERS), which requests
   the owner's review on every pull request that changes them, and only the
   owner's account, the one with write access, merges outside pull requests; do
   not touch them unless the mission contract explicitly requires it.
+  [Owner paths](#owner-paths-document-forms-and-subjects-of-a-check) says what
+  each group is and how to get a change to one admitted.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula

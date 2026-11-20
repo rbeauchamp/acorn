@@ -138,10 +138,11 @@ jobs:
       # applicable, and every executable. Stage two is the
       # complete command unchanged: Lake reuses a stage one output only where its trace
       # matches the checked-out source, toolchain and options, and builds everything else.
-      # The script then runs the Regula audit (scripts/regula.sh,
-      # docs/verification.md#regula-audit), lean-intent's confirmation and implementation
-      # checks (lean/AcornTools/Intent.lean) and the check of each target's pin file
-      # (lean/AcornTools/Frame.lean), each also when an earlier check failed, and exits
-      # non-zero when any check failed. Its `gate:` lines give the time of each part.
+      # A stage one that fails ends the script, since it is where every source is admitted.
+      # After a stage one that passed, the script runs stage two, the Regula audit
+      # (scripts/regula.sh, docs/verification.md#regula-audit), lean-intent's confirmation
+      # and implementation checks (lean/AcornTools/Intent.lean) and the check of each
+      # target's pin file (lean/AcornTools/Frame.lean), each also when an earlier one of
+      # these failed, and exits non-zero when any check failed. Its `gate:` lines give the time of each part.
       - name: The merge gate on the exact source
         run: ./scripts/gate.sh

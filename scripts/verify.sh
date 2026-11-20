@@ -21,7 +21,15 @@ acorn_verify_checks() {
   cd "$(dirname "$1")/.."
   git diff --check
   git diff --cached --check
-  shellcheck scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
+  # No tracked file under a build directory, as in scripts/gate.sh: Lake would trust it.
+  local tracked_outputs
+  tracked_outputs=$(git ls-files -- lean/.lake site/.lake)
+  if [[ -n "$tracked_outputs" ]]; then
+    printf 'verification: the checkout tracks files under a build directory:\n%s\n' "$tracked_outputs" >&2
+    exit 1
+  fi
+  # --norc: a .shellcheckrc in the checkout cannot switch a check off.
+  shellcheck --norc scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
   shift 2
   ./scripts/lean.sh exe acorn-gates "$@"
 }
