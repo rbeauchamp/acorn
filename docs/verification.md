@@ -684,18 +684,24 @@ paths that [CODEOWNERS](../.github/CODEOWNERS) gives to the owner. A head that
 leaves intact the workflow and everything the job runs before the admission
 check refuses an unadmitted edit of those paths at the gate's first step, the
 [admission check](#admission-of-changes-to-the-trusted-base). What the job runs
-before that check is the gate script and all that provisioning runs: the
-scripts, the Lake configurations, and the locked dependencies and toolchain. The
-provisioning step comes before the gate step and does not run the check, so a
-head can leave the gate script and the workflow as they are and still have its
-provisioning change what the gate step runs. Nothing in the run refuses a head
-that edits any of these to leave the check out. For such a head from another
-account the job is no protection. The default branch's rule, once set, requires
-a code owner's approval of every merger that does not hold its bypass; the
-owner's account holds the bypass and is the only account that merges an outside
-pull request. So what keeps such a head out of the default branch is that the
-owner's account does not merge it unreviewed, and the pull request's changed
-files, all under the owner's paths, show the edit.
+before that check is the gate script and all that provisioning runs, among them
+the scripts, the Lake configurations, the locked dependencies and toolchain, and
+any override of them that Lake reads from the checkout. The provisioning step
+comes before the gate step and does not run the check, so a head can leave the
+gate script and the workflow as they are and still have its provisioning change
+what the gate step runs. Nothing in the run refuses a head that edits any of
+these to leave the check out. For such a head from another account the job is no
+protection. The default branch's rule, once set, requires a code owner's
+approval of every merger that does not hold its bypass; the owner's account
+holds the bypass and is the only account that merges an outside pull request. So
+the job does not keep such a head out of the default branch. What does is a
+practice, in force since 2026-11-20: a pull request from any account other than
+the owner's is read on the owner's side, its whole diff and not only the part
+under the owner's paths, before it is merged, whatever the job shows. The edit
+is always among the pull request's changed files, usually under the owner's
+paths and not always: Lake also reads a file `package-overrides.json` in a
+workspace's build directory `.lake`, after the lock file and in place of its
+entries, and no owner path names that file.
 
 On a head that leaves those files intact, a pull request that touches a path
 CODEOWNERS gives to the owner shows one more ending before the owner's review.
@@ -861,12 +867,13 @@ the pull request, and the owner's account, the only one that merges an outside
 pull request, holds it. So the rule does not by itself refuse an outside change
 that the owner has not reviewed. This check does: on a head that leaves intact
 the workflow and everything the job runs before the check, which is the gate
-script and all that provisioning runs (the scripts, the Lake configurations, and
-the locked dependencies and toolchain), the pull request's gate job fails until
-the owner's approving review is on that exact head, and where the repository's
-rules require that job, a head on which it has not passed does not merge. The
-rule does not compare the approved commit with the head, so the comparison with
-the exact head is this check's and not the rule's. A run given no pull request,
+script and all that provisioning runs (among them the scripts, the Lake
+configurations, the locked dependencies and toolchain, and any override of them
+that Lake reads from the checkout), the pull request's gate job fails until the
+owner's approving review is on that exact head, and where the repository's rules
+require that job, a head on which it has not passed does not merge. The rule
+does not compare the approved commit with the head, so the comparison with the
+exact head is this check's and not the rule's. A run given no pull request,
 which is the pipeline's run before a pull request exists and a plain local run,
 cannot know the author and reads a record only. Whoever checks another author's
 commit on their own machine runs the check from the default branch's copy, as
@@ -904,25 +911,39 @@ unreviewed outside change is then the gate job, where the rules require it, on a
 head that left intact the workflow and everything the job runs before the check.
 A pull request controls its own hosted run: a head that edits the workflow, the
 gate script or anything that provisioning runs can have the job pass without the
-check. Every file such a head must edit is an owner path, so the edit shows
-among the pull request's changed files, and against such a head what protects
-the default branch is the owner reading those files before merging, not the job.
-A change whose starting
-commit predates the check carries the gate script of that time, so a local run
-of that script does not refuse it; the pipeline's command, read from the default
-branch, does. The pipeline's command selects the copy of the check by the
-default branch as the pipeline fetched it, and a local run that cannot reach
-Acorn's repository selects it, and reads the starting commit, by the checkout's
-copy of that branch, which may be stale or another repository's, so such a run
-convinces only whoever ran it. After a refused Test command the pipeline still
-lists the change's tests, and that listing loads the change's Lake package
-configurations: a refusal stops the gate script and what it runs, not that step
-of the pipeline. A local run does not see an ignored, untracked file under an
-owner path. Two changes that make the same transition of the owner paths share
-one record. A mission whose contract has no registered target lands with no
-landing, so its statements are not registered until the owner registers targets
-for them. A hand-written mechanism added inside a module that an admitted
-departure already covers touches no owner path ([learned-only
+check. Such an edit is always among the pull request's changed files, usually
+under the owner's paths and not always: the known case that no owner path names
+is the file `package-overrides.json` that Lake reads in a workspace's build
+directory `.lake`, whose entries replace the lock file's. Git ignores that
+directory, and a file in it can still be committed. The admission check does not
+see it, in the pipeline or on GitHub, since it touches no owner path. Against a
+head that controls its own run the job protects nothing. What protects the
+default branch is the practice in force since 2026-11-20: a pull request from
+any account other than the owner's is read on the owner's side, its whole diff
+and not only the part under the owner's paths, before it is merged, whatever the
+job shows. That practice is an accepted risk until a check that the default
+branch defines, and that runs nothing the pull request supplies, replaces it. A
+separate change, no part of this one and not on the default branch, is to refuse
+a checkout that tracks any file under a build directory before the first Lake
+call, which closes the override file's route in the pipeline and, for a head
+that leaves the gate script intact, on GitHub. Until it is on the default branch
+nothing refuses such a file in the site workspace, and in the lean workspace the
+bootstrap refuses it only after provisioning's first Lake calls. A change whose
+starting commit predates the check carries the gate script of that time, so a
+local run of that script does not refuse it; the pipeline's command, read from
+the default branch, does. The pipeline's command selects the copy of the check
+by the default branch as the pipeline fetched it, and a local run that cannot
+reach Acorn's repository selects it, and reads the starting commit, by the
+checkout's copy of that branch, which may be stale or another repository's, so
+such a run convinces only whoever ran it. After a refused Test command the
+pipeline still lists the change's tests, and that listing loads the change's
+Lake package configurations: a refusal stops the gate script and what it runs,
+not that step of the pipeline. A local run does not see an ignored, untracked
+file under an owner path. Two changes that make the same transition of the owner
+paths share one record. A mission whose contract has no registered target lands
+with no landing, so its statements are not registered until the owner registers
+targets for them. A hand-written mechanism added inside a module that an
+admitted departure already covers touches no owner path ([learned-only
 binding](learned-only-binding.md)).
 
 ## Regula audit
