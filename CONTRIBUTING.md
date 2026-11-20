@@ -108,11 +108,13 @@ protocol without that assignment and that comment.
 
 ### The gate on the exact head
 
-GitHub runs the gate on a pull request's head commit and shows the result on
-the pull request, where the contributor and the maintainers see the same
-result. A head on which GitHub shows no run of the gate has not been checked
-there, which is neither a pass nor a failure. Before a merge, the maintainers
-confirm the gate's pass on that exact head commit, by running
+GitHub runs the gate on a pull request's head commit and shows the job's result
+on the pull request, where the contributor and the maintainers see the same
+result. Neither the absence of a run of that job nor a failed run is by itself
+the result of a check: the
+[verification guide](docs/verification.md#build-and-source-inventory) names the
+cases in which GitHub starts no run and says how to read a run's ending. Before
+a merge, the maintainers confirm the gate's pass on that exact head commit, by running
 `./scripts/gate.sh` on it ([merge authority](#triage-and-response)). A result
 on an earlier head counts for nothing.
 

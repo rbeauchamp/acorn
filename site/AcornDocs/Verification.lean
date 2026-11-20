@@ -999,7 +999,11 @@ request itself: the comment that records the assignment and each referee's
 report or short review. One GitHub account serves the owner and the organization's agents, so
 GitHub does not show that the agent that assigned a referee or a reviewer is
 another than the one that did the work; the comment that records the assignment states it. A
-referee or a reviewer can be wrong, and two referees can both be wrong. A short
+referee or a reviewer can be wrong, and two referees can both be wrong. An
+author's own account of a goal that changed while the work was done is
+something the protocol cannot check, since a referee sees the pull request and
+not how it was produced; the referee's reading of the work is what can catch
+it (a risk the owner allowed on 2026-11-20). A short
 review must state the three things it checked; that
 its three lines were written after reading, and not copied as a formula, is
 something no rule can see. Whom the rule of

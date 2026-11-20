@@ -67,7 +67,7 @@ quote page numbers they have not opened.
 - **The audience's own words.** Sutton, *The OaK Architecture: A Vision of
   SuperIntelligence from Experience*, RLC 2025 keynote (recording published by
   Amii); Javed & Sutton, *The Big World Hypothesis and its Ramifications for
-  Artificial Intelligence*, Finding the Frame workshop, RLC 2024; the mission
+  Artificial Intelligence*; the mission
   sentence of Oak Lab's mission page, which Oak Lab has since withdrawn, as
   archived at
   https://web.archive.org/web/20260909143403/https://oaklab.ai/mission,
