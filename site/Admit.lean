@@ -22,8 +22,10 @@ ends the run with a refusal, before it has been elaborated.
 
 - imports of `VersoManual`, of `AcornSite`, of a module of the Lean package in `lean/`, and, in
   the root document `AcornDocs` alone, of the documents it includes;
-- before the text, `open` of the namespaces `openNamespaces`, and `#doc (Manual) "Title" =>`,
-  whose title is plain text (`titleCharacter`), since Verso reads a title as text of the document;
+- before the text, `open` of the namespaces `openNamespaces`, and exactly one
+  `#doc (Manual) "Title" =>`, whose title is plain text (`titleCharacter`), since Verso reads a
+  title as text of the document; a file with no `#doc`, or with a second, is refused, so the
+  document that the renderer takes by the module's name is the one this file declares;
 - in the text: paragraphs, headings, links to a URL, bold text, inline code, line breaks, and a
   metadata block that sets `tag` to a string;
 - the roles `roleNames`: `{decl}` and `{leanModule}` around one code span holding a name,
@@ -32,7 +34,7 @@ ends the run with a refusal, before it has been elaborated.
 - the block commands `{include n AcornDocs.Module}` and `{statement Name}`.
 
 **A Lean term** in a splice is read by Verso's own reader of a term in a string and may be built
-only from the kinds `termKinds`: a name, an application, parentheses, `.name`, a string and an
+only from the kinds `termKinds`: a name, an application, parentheses, a string and an
 interpolated string `s!"…"`. It holds no tactic block, no `do`, no anonymous function and no
 other notation, so elaborating it runs Lean's elaborator of an application and whatever the
 functions it names declare for their own arguments.
@@ -79,7 +81,7 @@ def metadataKinds : Array Name := #[nullKind, strLitKind, ``Parser.Term.structIn
 
 /-- The syntax kinds of a spliced Lean term. -/
 def termKinds : Array Name := #[nullKind, strLitKind, hygieneInfoKind,
-  ``Parser.Term.app, ``Parser.Term.paren, ``Parser.Term.hygienicLParen, ``Parser.Term.dotIdent,
+  ``Parser.Term.app, ``Parser.Term.paren, ``Parser.Term.hygienicLParen,
   `termS!_, interpolatedStrKind, interpolatedStrLitKind]
 
 /-- A refusal names the document and what it holds. -/
@@ -198,9 +200,10 @@ def importAdmitted (document imported : Name) : Bool :=
     AcornModuleInventory.toolingModules.contains imported ||
     (document == `AcornDocs && (`AcornDocs).isPrefixOf imported && imported != `AcornDocs)
 
-/-- Read one document as Lean reads it, inspecting each command before elaborating it. Returns
-the number of commands admitted. Unsafe because the imports' initializers run, as in every
-elaboration. -/
+/-- Read one document as Lean reads it, under its own module name, inspecting each command
+before elaborating it. A second `#doc` is refused before it is elaborated, and a file that ends
+with none is refused. Returns the number of commands admitted. Unsafe because the imports'
+initializers run, as in every elaboration. -/
 unsafe def run (file : String) : IO Nat := do
   let path := System.FilePath.mk file
   let document := (path.withExtension "").components.foldl (fun name part => name.str part)
@@ -215,12 +218,13 @@ unsafe def run (file : String) : IO Nat := do
       refuse file s!"the unadmitted import {imported.module}"
   initSearchPath (← findSysroot)
   enableInitializersExecution
-  let (env, messages) ← processHeader header {} messages inputContext
+  let (env, messages) ← processHeader header {} messages inputContext (mainModule := document)
   let context : Command.Context :=
     { fileName := file, fileMap := inputContext.fileMap, snap? := none, cancelTk? := none }
   let mut state := Command.mkState env messages {}
   let mut parserState := parserStart
   let mut admitted := 0
+  let mut documents := 0
   repeat
     let scope := state.scopes.head!
     let (command, parserNext, log) := Parser.parseCommand inputContext
@@ -235,6 +239,9 @@ unsafe def run (file : String) : IO Nat := do
       | .ok (term, _) => pure term
       | .error _ => refuse file s!"a spliced term that does not parse: {text}" }
     reader.admitCommand command
+    if command.isOfKind `Verso.Doc.Concrete.replaceDoc then
+      documents := documents + 1
+      unless documents == 1 do refuse file "a second `#doc`"
     admitted := admitted + 1
     if Parser.isTerminalCommand command then
       state := current
@@ -245,6 +252,7 @@ unsafe def run (file : String) : IO Nat := do
   if state.messages.hasErrors then
     for message in state.messages.toList do IO.eprint (← message.toString)
     refuse file "the document does not elaborate"
+  unless documents == 1 do refuse file "no `#doc`"
   return admitted
 
 end AcornSiteAdmission

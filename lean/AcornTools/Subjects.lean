@@ -44,10 +44,17 @@ command in each project source, and admits five attributes, none of them a repla
 refuses a safe definition that names an unsafe one; the theorem inventory refuses a project
 declaration that carries a replacement. An action is a function of a state token, and the token
 of the real world has an opaque type that no compiled safe definition can inhabit
-(`IO.RealWorld`; `runST` takes only an action that works for every token); `validate` refuses a
+(`IO.RealWorld`; `runST` takes only an action that works for every token); `admitType` refuses a
 listed subject whose type names an action type. Trusted and not established here: that those
 lists are complete for the pinned Lean, and that Lean's library gives safe code no other way to
 run an action.
+
+**Before a term is elaborated.** Elaborating a call fills an argument its function declares as
+filled in when omitted: Lean runs the tactic block the declaration names for it (`autoParam`) or
+inserts its default value (`optParam`), before `admit` has seen the elaborated term. `admitType`
+therefore refuses a listed subject, or a constructor of a listed inductive type, whose type names
+either, and `read` applies it to every listed subject the environment declares before it parses
+or elaborates anything.
 
 **What remains, accepted.** The evaluation can fail to end or stop the tool, and a safe
 definition can call the runtime's panic and debugging primitives, which write to standard error
@@ -87,6 +94,21 @@ def subjects : Array Name := #[
 /-- The types whose presence in a subject's type would make its evaluation an action. -/
 def effects : Array Name := #[`IO, `BaseIO, `EIO, `ST, `EST, `IO.RealWorld]
 
+/-- The marks of an argument that Lean's elaborator fills in when a call omits it: by running a
+tactic block the declaration names, or with a default value. -/
+def filled : Array Name := #[`autoParam, `optParam]
+
+/-- Refuse a listed subject whose type, or the type of a constructor it admits, names an effect
+or an argument the elaborator fills in. -/
+def admitType (env : Environment) (info : ConstantInfo) : IO Unit := do
+  let constructors := match info with
+    | .inductInfo declaration => declaration.ctors.filterMap env.find?
+    | _ => []
+  let refused := effects ++ filled
+  for declaration in info :: constructors do
+    if let some named := declaration.type.getUsedConstants.find? refused.contains then
+      throw (IO.userError s!"subjects: the type of {declaration.name} names {named}")
+
 /-- Whether a declaration of the environment is a listed subject, or a constructor or a generated
 eliminator (`rec`, `casesOn`, `recOn`, `ctorIdx`) of a listed inductive type. -/
 def listed (env : Environment) (name : Name) : Bool :=
@@ -106,16 +128,16 @@ def listed (env : Environment) (name : Name) : Bool :=
 def home (env : Environment) (name : Name) : Option Name :=
   (env.getModuleIdxFor? name).bind fun index => env.header.moduleNames[index.toNat]?
 
-/-- Every listed subject is declared, in a project module, with a type that names no effect. A
-missing subject is refused, so the list cannot keep an entry for a definition that is gone. -/
+/-- Every listed subject is declared, in a project module, with a type that `admitType` admits:
+it names no effect and no argument the elaborator fills in. A missing subject is refused, so the
+list cannot keep an entry for a definition that is gone. -/
 def validate (env : Environment) : IO Unit := do
   for subject in subjects do
     let some info := env.find? subject
       | throw (IO.userError s!"subjects: {subject} is listed and not declared")
     unless (home env subject).any AcornModuleInventory.libraryModule do
       throw (IO.userError s!"subjects: {subject} is declared outside the project")
-    if let some effect := info.type.getUsedConstants.find? effects.contains then
-      throw (IO.userError s!"subjects: the type of {subject} names the effect {effect}")
+    admitType env info
 
 /-- Refuse a project declaration, outside the gate's tools, that an elaborated term names and
 that is no listed subject. `original` is the environment of the build and `current` the
@@ -138,8 +160,7 @@ partial def admit (original current : Environment) (seen : IO.Ref NameSet) (term
       if let some value := info.value? then admit original current seen value
 
 /-- A type a tool may read a subject at, with its spelling as a Lean term. The instances below
-are the whole of it: text, numbers, truth values, and lists, pairs, options and functions of
-those. A caller of `read` names the Lean type alone, and the term it reads is elaborated against
+are the whole of it: text, numbers, and lists, pairs, options and functions of those. A caller of `read` names the Lean type alone, and the term it reads is elaborated against
 the spelling this class gives for that type, so the two cannot disagree at a call. -/
 class Readable (α : Type) where
   /-- The type, as a Lean term. -/
@@ -147,7 +168,6 @@ class Readable (α : Type) where
 
 instance : Readable String := ⟨"String"⟩
 instance : Readable Nat := ⟨"Nat"⟩
-instance : Readable Bool := ⟨"Bool"⟩
 instance {α : Type} [Readable α] : Readable (List α) := ⟨s!"(List {Readable.spelling α})"⟩
 instance {α : Type} [Readable α] : Readable (Option α) := ⟨s!"(Option {Readable.spelling α})"⟩
 instance {α β : Type} [Readable α] [Readable β] : Readable (α × β) :=
@@ -156,11 +176,17 @@ instance {α β : Type} [Readable α] [Readable β] : Readable (α → β) :=
   ⟨s!"({Readable.spelling α} → {Readable.spelling β})"⟩
 
 /-- The value of `term`, a Lean term of the type `α`, in the environment of the finished build.
-The term is elaborated against the spelling of `α` (`Readable`); a message of the elaborator, an
+Before anything is parsed or elaborated, every listed subject that `env` declares is held to
+`admitType`, so elaborating the term runs no tactic block and inserts no default value that a
+listed subject declares. A listed subject that `env` does not declare is skipped here, since the
+write of the kept browser kernel loads one module alone; `validate` refuses a missing one. The
+term is then elaborated against the spelling of `α` (`Readable`); a message of the elaborator, an
 unresolved part or a project declaration outside the tools that is no listed subject (`admit`)
 refuses the reading before anything is evaluated. Unsafe because the evaluation trusts that each
-instance of `Readable` spells its own type, which the seven instances above do. -/
+instance of `Readable` spells its own type, which the six instances above do. -/
 unsafe def read (α : Type) [Readable α] (env : Environment) (term : String) : IO α := do
+  for subject in subjects do
+    if let some info := env.find? subject then admitType env info
   let parse (text : String) : IO Syntax :=
     IO.ofExcept (Parser.runParserCategory env `term text "<subject>")
   let typeSyntax ← parse (Readable.spelling α)

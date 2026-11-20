@@ -148,8 +148,21 @@ def reject {α : Type} (owner : Name) (reason : String) : IO α :=
 /-- A small reviewed attribute domain has no native replacement or metaprogram registration. -/
 def allowedAttributes : Array Name := #[`simp, `inline, `noinline, `reducible, `irreducible]
 
-/-- These options change proof resource limits, never kernel checking or parser admission. -/
+/-- These options change proof resource limits, never kernel checking or parser admission. The
+list holds at every depth of a source: for the command, and for an option set before a term, a
+tactic sequence or a grind sequence (`inspectOption`). An option that a dependency's own macro or
+elaborator sets is that dependency's code and is not scanned. -/
 def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiation.threshold]
+
+/-- The option that a form beginning with the atom `set_option` sets is a listed one, or in a
+proof source the linter of evaluating commands. Lean reads the option's name from the form's
+second part (`Lean.Elab.elabSetOption`), so a form whose second part is no identifier is
+refused. -/
+def inspectOption (owner : Name) (form : Syntax) : IO Unit := do
+  unless form[1].isIdent do reject owner "an option setting that names no option"
+  let option := form[1].getId
+  unless allowedOptions.contains option || (proofOwner owner && option == `linter.hashCommand) do
+    reject owner s!"unreviewed option {option}"
 
 /-- Only these admitted host boundaries may create or inspect native subprocesses. -/
 def processOwners : Array Name := #[`Acorn.Host.Checkpoint.IO, `Acorn.Host.Control,
@@ -182,8 +195,11 @@ def forbiddenWords : Array String := #["unsafe", "partial", "meta", "axiom", "so
 /-- The files a source may include as text while it is elaborated (`include_str`), each with the
 one module that includes it and the path as that module writes it, relative to its own file: the
 viewer's page, and the three records the Lake configuration's provenance target writes into the
-build directory. Lean reads the file when it elaborates the term, so every other inclusion is
-refused, and so is one whose path is not a string literal, which Lean would evaluate. -/
+build directory. What is admitted is the form and its string literal: every other inclusion is
+refused, and so is one whose path is not a string literal. The file Lean reads when it elaborates
+the term is what its elaborator computes from that literal, as a file path, and an instance
+declared in the including module could change that computation. This is accepted: no gate check
+reads the embedded text. -/
 def includedFiles : Array (Name × String) := #[
   (`NativeApp.Assets, "../../viewer/static/index.html"),
   (`NativeApp.Build, "../.lake/build/native-provenance.txt"),
@@ -191,7 +207,9 @@ def includedFiles : Array (Name × String) := #[
   (`NativeApp.Build, "../.lake/build/native-build-identity.txt")]
 
 /-- Inspect parsed syntax rather than comment/literal-stripped source text.
-Traversal is over the compiler-produced finite syntax tree. -/
+Traversal is over the compiler-produced finite syntax tree. A node at any depth whose first
+child is the atom `set_option` sets an option, as a command or before a term, a tactic sequence
+or a grind sequence, and is held to `inspectOption`. -/
 partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
   let kind := nodeSyntax.getKind
   if kind == ``Parser.Command.docComment || kind == ``Parser.Command.moduleDoc ||
@@ -206,6 +224,8 @@ partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
     if name.components.any (fun part => part != `admit && forbiddenWords.contains part.toString) then
       reject owner s!"forbidden syntax identifier {name}"
   | .node _ kind children =>
+    if let .atom _ word := nodeSyntax[0] then
+      if word.trimAscii.toString == "set_option" then inspectOption owner nodeSyntax
     if kind == ``Parser.Term.attrInstance then
       unless nodeSyntax[1].isOfKind ``Parser.Attr.simple do
         reject owner s!"unreviewed attribute syntax {nodeSyntax[1].getKind}"
@@ -233,10 +253,6 @@ partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
   else if kind == ``Parser.Command.mutual then
     unless command.getArgs.size == 3 do reject owner "unexpected mutual-command shape"
     for declaration in command[1].getArgs do inspectCommand owner declaration
-  else if kind == ``Parser.Command.set_option then
-    let option := command[1].getId
-    unless allowedOptions.contains option || (proofOwner owner && option == `linter.hashCommand) do
-      reject owner s!"unreviewed option {option}"
   else if proofOwner owner && kind == `Lean.guardMsgsCmd then
     let some nested := command.getArgs.back?
       | reject owner "empty message guard"
@@ -248,7 +264,7 @@ partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
     inspectSyntax owner command
   else if #[``Parser.Command.declaration, ``Parser.Command.namespace, ``Parser.Command.end,
       ``Parser.Command.section, ``Parser.Command.open, ``Parser.Command.variable,
-      ``Parser.Command.moduleDoc, ``Parser.Command.eoi].contains kind then
+      ``Parser.Command.set_option, ``Parser.Command.moduleDoc, ``Parser.Command.eoi].contains kind then
     inspectSyntax owner command
   else reject owner s!"unreviewed command {kind}"
 

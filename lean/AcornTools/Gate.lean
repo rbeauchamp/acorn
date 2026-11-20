@@ -98,6 +98,11 @@ then render them: each kept Markdown file must equal the rendering of its docume
 readiness: with `--no-build` it exits 3 unless every artifact of `VersoManual` is current,
 so verification never compiles a dependency inside its deadline.
 
+The caller has admitted the project's sources and built the project (`admitAndBuild`), in the
+complete run and in the modes `site` and `site write` alike: a document's admission loads the
+modules of the project that the document imports, so they are admitted sources, built as they
+now stand.
+
 No document is elaborated before it is admitted. The site's own tooling (`AcornSite`, under the
 owner's paths) is built first. Each document under `site/AcornDocs` is then admitted by
 `site/Admit.lean`, which inspects every command of the document before elaborating it, and only
@@ -210,8 +215,13 @@ def main (args : List String) : IO UInt32 := do
       AcornGate.lake #["build", "acorn-core"]
       AcornGate.audits
       IO.println "Optional mutation diagnostics passed; this is not ordinary merge verification."
-    | ["site"] => AcornGate.site false
-    | ["site", "write"] => AcornGate.site true
+    -- The site step alone, after what it reads: the sources admitted and the project built.
+    | ["site"] =>
+      AcornGate.admitAndBuild fun _ => true
+      AcornGate.site false
+    | ["site", "write"] =>
+      AcornGate.admitAndBuild fun _ => true
+      AcornGate.site true
     -- Write the kept browser kernel from the reading of its emitter that the gate checks: the
     -- sources are admitted, the emitter's module and the corpus audit are built, and the audit
     -- writes the file.

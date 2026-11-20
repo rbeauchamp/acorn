@@ -14,8 +14,10 @@ the pages as HTML, which fails on an unresolved cross-reference. With `write` it
 Markdown files first. Nothing is published.
 
 It is defined here and not in `site/Main.lean` because this module imports no document and no
-module that a document imports, as the boundary audit requires of every module of the site's own
-tooling (`AcornBoundaryAudit.toolImports`). Its code is therefore elaborated with no declaration
+module of the project that a document imports: its imports are Verso, which a document imports
+as well, and the site's Markdown rendering. The boundary audit requires of every module of the
+site's own tooling that it import no document and no project module from outside the owner's
+paths (`AcornBoundaryAudit.toolImports`). Its code is therefore elaborated with no declaration
 of the project's changeable modules in scope, and none can be what a comparison or an instance
 here resolves to. `Main.lean` only applies `check` to the documents.
 -/

@@ -89,7 +89,12 @@ are:
   `site/AcornSite.lean` and `site/AcornSite/` are the documentation site's
   check, the elaborators of the documents' references and the admission of the
   documents. The documents themselves, under `site/AcornDocs/`, are yours to
-  edit.
+  edit. `site/Main.lean` must import the documents, so it is elaborated with
+  what they declare in scope. That nothing a document declares can be what its
+  one application resolves to is argued from the closed forms a document may
+  hold and is not checked by a tool, as the
+  [verification guide](docs/verification.md#what-of-a-change-runs-in-a-gate-run)
+  states it.
 - **Targets.** `lean/AcornVerif/Targets/`, as
   [missions](#missions-for-outside-contributors-and-agents) describes.
 - **Records of the owner's confirmed words.** `docs/mission-contract.md`, the

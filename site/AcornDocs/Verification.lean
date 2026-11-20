@@ -751,12 +751,20 @@ outside the tools: it parses each source with Lean's parser under a fixed parser
 environment and admits a closed list of commands (declarations, namespaces,
 sections, the opening of a namespace, variables and the setting of a listed
 option, and in a proof source a print of axioms and a guard of a message), five
-attributes with no argument, and no word of `forbiddenWords`. It admits the
+attributes with no argument, and no word of `forbiddenWords`. The list of
+options, `allowedOptions`, holds at every depth of a source: an option set
+before a term, a tactic sequence or a grind sequence inside a declaration is
+held to it as the command is. An option that a dependency's own macro or
+elaborator sets is that dependency's code and is not scanned. It admits the
 inclusion of a file as text only for the pairs of module and path that
 `includedFiles` lists, the viewer's page and three records the build itself
-writes, with the path written as a string. An admitted source therefore defines
-no macro, elaborator, syntax or initializer, holds no command that evaluates
-a term and reads no file but those, so what elaborating it runs is the
+writes, with the path written as a string. What is admitted there is the form
+and its string: the file Lean reads is what its elaborator computes from that
+string, which an instance declared in the including module could change. That
+is accepted, because no gate check reads the embedded text. An admitted source
+therefore defines no macro, elaborator, syntax or initializer, holds no command
+that evaluates a term and names no file to include but those, so what
+elaborating it runs is the
 elaborators and tactics of the toolchain and the dependencies. The two admissions, of executing and of proof
 sources, divide the project's modules between them, so none lies outside both.
 The first run of the gate admits before it builds, and a failed first run ends
@@ -777,7 +785,11 @@ produces. Such a definition is a subject of the check, and stays where any
 change may edit it. `AcornSubjects.subjects` is the one closed list of them, and
 `AcornSubjects.read` is the route by which the tools read every subject: it
 elaborates a term the tool writes, refuses it when it names a
-declaration of a changeable module that is not listed, and evaluates it. Every
+declaration of a changeable module that is not listed, and evaluates it. Before
+it parses or elaborates anything, it refuses a listed subject whose type marks an
+argument that Lean fills in when a call omits it, by a tactic block or by a
+default value (`AcornSubjects.admitType`), since elaborating a call would fill
+that argument before the term has been checked. Every
 other definition a tool executes is part of how the check judges, and is under
 an owner path. Where a check's verdict is a test of membership or a comparison,
 the test is the tool's and only the data it is applied to is a subject: the
@@ -861,7 +873,10 @@ of a changeable module is consulted. A second declaration of a name written
 there cannot be imported beside the first: Lean refuses an import in which one
 name has two declarations. And an admitted document declares nothing but its own
 document constant and helpers whose names no source can write, because its forms
-hold no command that declares an instance or a definition.
+hold no command that declares an instance or a definition. It declares that
+constant exactly once: the admission refuses a file that holds no document or a
+second one, and elaborates the file under its own module name, so a module it
+imports cannot supply the constant in its place.
 
 *The Regula audit, the intent check and the frame check.* The audit's build is a
 build of admitted sources, and its lint is Regula's program reading that build.
@@ -1232,7 +1247,9 @@ build. The other documents under docs are Markdown and are not built this way.
 
 The site check runs after the project build and the other admissions of the
 finished build, inside the deadline of `./scripts/verify.sh`; the command above
-runs it alone. It builds the site's own tooling, admits each document and only
+admits the project's sources and builds the project, as the complete command
+does, and then runs the site check without the other admissions. The check
+builds the site's own tooling, admits each document and only
 then builds it, renders the pages
 and requires `docs/verification.md` to equal the Markdown rendering of this
 document; `./scripts/verify.sh site write` writes that file. The Markdown file is

@@ -16,7 +16,9 @@ This module imports no project module, as every gate tool must
 (`AcornBoundaryAudit.toolImports`): the boundary audit is the first program a run builds, before
 any source has been admitted. It keeps its own copy of the departures, `Departure`, and `check`
 requires the compiled `Acorn.Departure` to have exactly those constructors, by name: the same
-ones, each once, in any order.
+ones, each once, in any order. It also requires the compiled type to take no parameter and no
+index and each of its constructors to take no field, as the copy does, so a departure that gains
+a field is refused.
 -/
 namespace AcornDepartureAudit
 open Lean
@@ -111,7 +113,12 @@ def check (env : Environment) (maintained : Array Name) : IO Unit := do
   let some (.inductInfo declaration) := env.find? `Acorn.Departure
     | throw (IO.userError "departure type is not a compiled inductive")
   let compiled := departures.map Departure.compiled
-  require (declaration.ctors.length == compiled.length &&
+  let fieldless := declaration.ctors.all fun constructor =>
+    match env.find? constructor with
+    | some (.ctorInfo info) => info.numFields == 0
+    | _ => false
+  require (declaration.numParams == 0 && declaration.numIndices == 0 && fieldless &&
+    declaration.ctors.length == compiled.length &&
     compiled.eraseDups.length == compiled.length && compiled.all declaration.ctors.contains &&
     (departures.map key).eraseDups.length == departures.length) "closed departure domain differs"
   let owners := maintained.toList.filter (`Acorn.Handcrafted).isPrefixOf
