@@ -888,7 +888,10 @@ What each panel must show. How it draws it is the code's.
   file that names no schema version, which is what the viewer wrote before
   `state.json` carried one, is read with its identity
   and with intent stopped, because that viewer wrote a running intent when it
-  found no file. When the viewer does spawn, the core runs the
+  found no file. The viewer then rewrites the file with the schema version, so
+  this happens once: an operator who starts the viewer directly on a run that
+  an earlier viewer left running finds it stopped and presses Start, and
+  `./scripts/start.sh` starts it as before. When the viewer does spawn, the core runs the
   explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×
   4000 steps) with weight checkpointing. `--run-dir <dir>` moves the run
   directory, `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides

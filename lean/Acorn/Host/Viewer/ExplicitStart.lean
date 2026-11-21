@@ -21,8 +21,10 @@ reaches a state that waits to spawn (`Core.start_spawns`).
 stay stopped, so the theorem holds of the supervisor started from it
 (`Reached.unstarted_spawns_nothing`), and the control record of that start state says the run
 is desired stopped and actually stopped (`Core.start_control`). A state file that names no
-schema is decoded with intent stopped (`PersistedState.decode_unversioned`), so the theorem
-holds of the supervisor started from what it decodes to.
+schema, which is what the viewer wrote before the file carried one, is decoded by
+`PersistedState.decode` with intent stopped (`PersistedState.decode_unversioned`), so the
+theorem holds of the supervisor started from what it decodes to
+(`Reached.unversioned_spawns_nothing`).
 
 **What the theorem is about.** `Reached` relates an origin, the events handed to the step and a
 state. The states reached from a start are exactly the states of `Ran` (`Reached.ran`,
@@ -522,6 +524,24 @@ theorem Reached.unstarted_spawns_nothing {clearDisabled : Option String} {seed :
           ∀ state, pending.call core.lifecycle = .writeState state →
             state.desired = .stopped :=
   Reached.stopped_spawns_nothing rfl reached startless
+
+/-- **A supervisor started from a state file that names no schema waits on no spawn while no
+Start is handed to its step.** The statement of `Reached.stopped_spawns_nothing` for every
+state that `PersistedState.decode` returns for a JSON value with no member named
+`schema_version`. -/
+theorem Reached.unversioned_spawns_nothing {clearDisabled : Option String} {value : Json.Value}
+    {persisted : PersistedState} {reason : String} {reading : Nat} {events : List Event}
+    {core : Core} (unversioned : stateVersioned value = false)
+    (decoded : PersistedState.decode value = .ok persisted)
+    (reached : Reached clearDisabled (Core.start persisted clearDisabled reason reading)
+      events core) (startless : Event.command .start ∉ events) :
+    (∀ now, core.lifecycle.reserve now = none) ∧ core.lifecycle.desiredValue = .stopped ∧
+      ∀ pending, core.pending = some pending →
+        (∀ generation plan, pending.call core.lifecycle ≠ .spawn generation plan) ∧
+          ∀ state, pending.call core.lifecycle = .writeState state →
+            state.desired = .stopped :=
+  Reached.stopped_spawns_nothing
+    (PersistedState.decode_unversioned value persisted unversioned decoded) reached startless
 
 /-- **The control record of a start with no state file says the run is stopped.** For every
 seed, whether or not a stray checkpoint was adopted, and every Clear configuration, reason,

@@ -1175,8 +1175,14 @@ for every seed within the browser's integers ({decl}`Acorn.Host.Viewer.Core.unst
 control record of the start on the state built with no state file says the run is desired
 stopped and actually stopped ({decl}`Acorn.Host.Viewer.Core.start_control`). A state file that names
 no schema version is decoded with intent stopped
-({decl}`Acorn.Host.Viewer.PersistedState.decode_unversioned`): before the file carried a version, the
-viewer wrote a running intent in it when it found no file, with no Start. Three things are read
+({decl}`Acorn.Host.Viewer.PersistedState.decode_unversioned`), and the statement above holds of the
+supervisor started from what it decodes to
+({decl}`Acorn.Host.Viewer.Reached.unversioned_spawns_nothing`): before the file carried a version, the
+viewer wrote a running intent in it when it found no file, with no Start, so such a file cannot
+show that a Start set its intent. The viewer publishes the state it starts from, in the schema
+it writes, before it supervises, so the file names the schema from then on; this is read from the
+actor and not proved, and so is that the text the viewer writes reads back as the state written.
+Three more things are read
 from the code and not proved: the actor hands the step an operator's Start only for a command
 that was submitted to its queue, which the bootstrap does for the `--start` flag and the HTTP
 server for an admitted control request; the bootstrap hands the supervisor the state it read or
