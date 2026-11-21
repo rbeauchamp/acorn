@@ -68,15 +68,16 @@ that, and neither does a passing gate or the verdict of a reviewer the author
 chose.
 
 The maintainers are the owner and the organization's agents
-([triage and response](#triage-and-response)). A model family is the models of
-one developer.
+([triage and response](#triage-and-response)); a human maintainer is the owner
+or another person granted maintainer authority on the repository. A model family
+is the models of one developer.
 
 ### Which review a pull request gets
 
 Every pull request requires an independent review of another model family than
-every model that did the work (by the maintainers' per-PR assignment, or under
-the single-maintainer interim provision below while Acorn has one human owner
-and maintainer), and never by a reviewer the author chose. What differs is the
+every model that did the work (by the maintainers' per-PR assignment below, or
+under the single-maintainer interim provision while Acorn has one human
+maintainer), and never by a reviewer the author chose. What differs is the
 depth. A pull request gets the referee's review when it does any of these:
 
 - it claims to complete or advance a mission, or an issue that asks for a
@@ -126,9 +127,11 @@ on an earlier head counts for nothing.
 **Who the referee is.** The maintainers assign the referee (and for a short review,
 the reviewer). The author never does, and an author's request for a reviewer or
 against one, in the pull request or anywhere else, has no weight: the
-maintainers neither take nor pass over a reviewer because of it. Under the
-general rule (when Acorn has multiple human owners and maintainers), each pull
-request receives a separate maintainer-led assignment:
+maintainers neither take nor pass over a reviewer because of it. Except where
+the single-maintainer interim provision below applies (including for every PR
+once Acorn has more than one human maintainer, for any fallback review when the
+interim designation cannot apply, and for the second referee on a claim of
+discovery), each pull request receives an individual maintainer-led assignment:
 
 - the referee is of another model family than every model that did the work,
   or is a person. Whom this admits for work a person did with no model is the
@@ -136,43 +139,51 @@ request receives a separate maintainer-led assignment:
 - the referee took no part in the work: it did not write it, advise on it or
   review it for the author;
 - where the author is one of the maintainers, another of them assigns: an
-  agent other than the one that did the work, or the owner;
+  agent other than the one that did the work, or a human maintainer;
 - the assignment is written on the pull request: who assigned, and the
   referee's model family or that the referee is a person.
 
 **Single-maintainer interim provision (owner-confirmed 2026-11-21).** While
-Acorn has only one human owner and maintainer, maintainer-led cross-checking on
-every pull request is impractical with no second human maintainer. During this
-single-maintainer phase, external cross-family review remains mandatory on every
-pull request (with the same referee's review or short review depth, exact head
-commit binding, findings, and verdict of accept, revise or reject, plus
-exact-head `./scripts/gate.sh` and blind specification read-back for new or edited
-specifications), and the external model configured as the analyzer/verifier in
-Acorn's no-mistakes validation pipeline satisfies this protocol by standing owner
-designation (whether invoked through the no-mistakes pipeline or run standalone
-against the exact pull request head, title and description) only when every one
-of these holds:
+Acorn has only one human maintainer, independent human maintainer cross-checking
+on every pull request is unavailable. During this single-maintainer phase,
+external cross-family review remains mandatory on every pull request (with the
+same referee's review or short review depth, exact head commit binding,
+findings, and verdict of accept, revise or reject, plus exact-head
+`./scripts/gate.sh` and any blind specification read-back required at merge under
+[triage and response](#triage-and-response)), and the external model configured as
+the analyzer/verifier in Acorn's no-mistakes validation pipeline satisfies this
+protocol by standing owner designation (whether run via no-mistakes or
+standalone against the exact pull request head, title and description) when all
+of the following hold:
 
 - an assignment comment is written on the pull request recording the owner's
   standing single-maintainer designation, the designated reviewer's model
   family, and the exact head commit;
-- the reviewer's unedited report or short review for that exact head commit,
-  title and description is posted as a comment on the pull request and is clean;
+- the reviewer's report or short review for that exact head commit, title and
+  description is posted on the pull request, unedited except for any redaction
+  required by the security-vulnerability rule below (and for a claim of
+  discovery, withheld and posted together with the second referee's report under
+  the discovery rule below);
 - **no same-family self-review:** the designated reviewer took no part in writing
   or fixing the change and belongs to a different model family than every model
-  that authored, fixed or advised on the work. In particular, if an author (human
-  or AI-directed, or a pipeline fixer) belongs to the same model family as the
-  validation pipeline's configured analyzer/verifier, that analyzer/verifier
-  cannot satisfy the protocol for that pull request and a reviewer of another
-  model family (or the owner) must review it instead;
+  that authored, fixed or advised on the work. In particular, if any contributing
+  or pipeline-fixing model (whether directed by an outside contributor, an
+  organization agent or a human maintainer) belongs to the same model family as
+  the validation pipeline's configured analyzer/verifier, that analyzer/verifier
+  cannot satisfy the protocol for that pull request and another reviewer is
+  assigned under the general rule above (of another model family or a human
+  maintainer);
 - for a claim of discovery requiring two referees, this standing designation
   supplies at most one cross-family referee and never substitutes for the second
-  independent referee.
+  independent referee assigned under the general rule above.
+
+Work is complete only once the qualified review is clean (verdict accept with
+no open findings) and `./scripts/gate.sh` has passed on that exact head commit.
 
 **Restoration of full maintainer-led assignment.** Once Acorn has more than one
-human owner or maintainer, the general maintainer-led per-PR assignment rule
-above takes full effect and this single-maintainer standing designation retires
-automatically. As before, outside pull requests merge only on the owner's word,
+human maintainer, this single-maintainer standing designation retires and the
+general per-PR maintainer-led assignment rule above governs every pull request
+on its own. As before, outside pull requests merge only on the owner's word,
 and any change loosening protections or removing checks merges only on the
 owner's recorded confirmation.
 
