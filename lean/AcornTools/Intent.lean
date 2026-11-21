@@ -25,12 +25,14 @@ that implements it, with the proof that it fulfils the record.
   module that can declare a deliverable, an implementation or an owners' log is among them.
 * **One list for both checks.** The program imports those modules into one environment and passes
   the same array to each check, so both read the same modules by construction.
-* **The decision.** The gate passes only when the confirmation check finds nothing and the
+* **The decision.** The gate passes only when the confirmation check finds nothing, the
+  implementation check reports no `LeanIntent.AwaitingImplementation` entry, and the
   implementation check's findings are, as a set, the unimplemented findings of the deliverables
-  `awaiting` lists (`AcornVerif.Intent.onlyAwaiting_iff`): another finding of any kind, a listed
-  name that is no declared deliverable, and a listed deliverable that the check finds implemented
-  each fail it (`AcornVerif.Intent.implemented_of_onlyAwaiting`). Both checks refuse a project with
-  no deliverable, so neither passes on finding nothing to check.
+  `awaiting` lists (`AcornVerif.Intent.onlyAwaiting_iff`): another finding of any kind, an
+  unadmitted awaiting declaration, a listed name that is no declared deliverable, and a listed
+  deliverable that the check finds implemented each fail it
+  (`AcornVerif.Intent.implemented_of_onlyAwaiting`). Both checks refuse a project with no
+  deliverable, so neither passes on finding nothing to check.
 
 It prints what each check read and found, one line each, and exits 0 only on a pass. That the
 modules Lake lists are all the package's is trusted with Lake, and what the two checks decide is
@@ -46,8 +48,8 @@ with the issue that tracks its fulfilment proof. The implementation check's unim
 of a listed deliverable is accepted, and nothing else is; a listed name that is no declared
 deliverable, or one that gains an implementation, fails the gate, so the list cannot go stale or
 widen silently. Decided on the owner's behalf by the agent supervising Acorn's research, on
-2026-11-03: the intent-first method confirms a record before its implementation exists. The list is
-retired once lean-intent can declare a deliverable awaiting its implementation itself
+2026-11-03: the intent-first method confirms a record before its implementation exists. The list
+remains until the listed deliverables migrate to lean-intent's `AwaitingImplementation` declaration
 (rbeauchamp/lean-intent#52). -/
 def awaiting : List (Name × String) :=
   [(`AcornVerif.Intent.Decisions.hashDeliverable, "rbeauchamp/acorn#184"),
@@ -153,6 +155,9 @@ unsafe def run : IO Bool := do
   for (deliverable, value, constant) in implemented.implementations do
     IO.println s!"intent: implementation check: {deliverable} is implemented by {value}, which \
       records {constant.name} of {constant.module}"
+  for (deliverable, value, reason) in implemented.awaiting do
+    IO.println s!"intent: implementation finding: {deliverable} declares {value} awaiting \
+      ({reason}), which Acorn's closed awaiting list refuses"
   let pending := awaiting.map (·.1)
   for finding in implemented.findings do
     match finding with
@@ -167,6 +172,7 @@ unsafe def run : IO Bool := do
       IO.println s!"intent: {d} is listed as awaiting an implementation, and the check finds no \
         unimplemented deliverable of that name"
   return confirmed.findings.isEmpty && !deliverables.isEmpty &&
+    implemented.awaiting.isEmpty &&
     AcornVerif.Intent.onlyAwaiting pending implemented.findings
 
 end AcornIntentCheck

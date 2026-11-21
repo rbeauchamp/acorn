@@ -4023,7 +4023,11 @@ theorem Host_Viewer_Lifecycle_ownsIdentity_registered :
 /-- Each column of the browser store fits each schema field of its own key. -/
 private theorem columns_fit : ∀ entry ∈ browserColumns, ∀ field ∈ browserSchema,
     field.1 = entry.1 → BrowserColumn.fits entry.1 entry.2 field.2 = true := by
-  decide +kernel
+  intro entry hEntry field hField hKey
+  obtain ⟨shape, hShape, hFits⟩ := browserColumns_live entry hEntry
+  have hSame : field.2 = shape :=
+    eq_of_mem_of_nodup_fst browserSchema_distinct (hKey ▸ hField) hShape
+  exact hSame ▸ hFits
 
 /-- The column test accepts every column of the browser store against the shape that the
 browser schema gives its key, and it refuses a flag column against a text shape.

@@ -145,6 +145,125 @@ def browserSchema : List (String × TelemetryShape) :=
   ("demon_gamma", TelemetryShape.array 11 TelemetryShape.binary32),
   ("demon_horizon", TelemetryShape.array 11 TelemetryShape.binary32)]
 
+/-- Natural-number hash of a string's UTF-8 bytes; soundness uses no injectivity assumption,
+because distinct images under any function imply distinct preimages. -/
+def stringSortKey (s : String) : Nat :=
+  s.toByteArray.data.toList.foldl (fun acc b => (acc * 131 + b.toNat + 1) % 4294967291) 0
+
+private inductive NatTree where
+  | leaf
+  | node (val : Nat) (left right : NatTree)
+
+private def NatTree.contains (x : Nat) : NatTree → Bool
+  | .leaf => false
+  | .node v l r =>
+    if x < v then l.contains x else if v < x then r.contains x else true
+
+private def NatTree.insertFresh (x : Nat) : NatTree → Option NatTree
+  | .leaf => some (.node x .leaf .leaf)
+  | .node v l r =>
+    if x < v then (l.insertFresh x).map fun l' => .node v l' r
+    else if v < x then (r.insertFresh x).map fun r' => .node v l r'
+    else none
+
+private theorem NatTree.insertFresh_spec : ∀ {t t' : NatTree} {x : Nat},
+    t.insertFresh x = some t' →
+    t.contains x = false ∧ t'.contains x = true ∧
+      ∀ y, t.contains y = true → t'.contains y = true
+  | .leaf, t', x, h => by
+    simp only [NatTree.insertFresh, Option.some.injEq] at h
+    subst h
+    refine ⟨rfl, ?_, fun _ hy => by simp [NatTree.contains] at hy⟩
+    simp [NatTree.contains, Nat.lt_irrefl]
+  | .node v l r, t', x, h => by
+    simp only [NatTree.insertFresh] at h
+    by_cases hlt : x < v
+    · simp only [hlt, ↓reduceIte, Option.map_eq_some_iff] at h
+      obtain ⟨l', hl', rfl⟩ := h
+      obtain ⟨habs, hpres, hmono⟩ := NatTree.insertFresh_spec hl'
+      refine ⟨by simp [NatTree.contains, hlt, habs], by simp [NatTree.contains, hlt, hpres], ?_⟩
+      intro y hy
+      simp only [NatTree.contains] at hy ⊢
+      split at hy
+      · rename_i hyl; simp only [hyl, ↓reduceIte]; exact hmono y hy
+      · rename_i hyl; simp only [hyl, ↓reduceIte]; exact hy
+    · by_cases hgt : v < x
+      · simp only [hlt, hgt, ↓reduceIte, Option.map_eq_some_iff] at h
+        obtain ⟨r', hr', rfl⟩ := h
+        obtain ⟨habs, hpres, hmono⟩ := NatTree.insertFresh_spec hr'
+        refine ⟨by simp [NatTree.contains, hlt, hgt, habs],
+          by simp [NatTree.contains, hlt, hgt, hpres], ?_⟩
+        intro y hy
+        simp only [NatTree.contains] at hy ⊢
+        split at hy
+        · rename_i hyl; simp only [hyl, ↓reduceIte]; exact hy
+        · rename_i hyl
+          simp only [hyl, ↓reduceIte]
+          split at hy
+          · rename_i hyr; simp only [hyr, ↓reduceIte]; exact hmono y hy
+          · rename_i hyr; simp only [hyr, ↓reduceIte]
+      · simp [hlt, hgt] at h
+
+/-- Structural distinctness checker on natural numbers via a binary search tree. -/
+def natListDistinct (xs : List Nat) : Bool :=
+  go xs .leaf
+where
+  go : List Nat → NatTree → Bool
+    | [], _ => true
+    | x :: rest, t =>
+      match t.insertFresh x with
+      | none => false
+      | some t' => go rest t'
+
+private theorem natListDistinct_go_spec : ∀ {xs : List Nat} {t : NatTree},
+    natListDistinct.go xs t = true →
+    xs.Nodup ∧ ∀ z, t.contains z = true → z ∉ xs
+  | [], _, _ => ⟨List.nodup_nil, fun _ _ h => by cases h⟩
+  | x :: rest, t, h => by
+    simp only [natListDistinct.go] at h
+    cases hins : t.insertFresh x with
+    | none => simp [hins] at h
+    | some t' =>
+      simp only [hins] at h
+      obtain ⟨habs, hpres, hmono⟩ := NatTree.insertFresh_spec hins
+      obtain ⟨hnd, hdisj⟩ := natListDistinct_go_spec h
+      refine ⟨List.nodup_cons.mpr ⟨hdisj x hpres, hnd⟩, fun z hz hmem => ?_⟩
+      rcases List.mem_cons.mp hmem with rfl | hrest
+      · rw [habs] at hz; cases hz
+      · exact hdisj z (hmono z hz) hrest
+
+private theorem nodup_of_map {α β : Type} (f : α → β) : ∀ {xs : List α},
+    (xs.map f).Nodup → xs.Nodup
+  | [], _ => List.nodup_nil
+  | x :: rest, h => by
+    rw [List.map_cons, List.nodup_cons] at h
+    exact List.nodup_cons.mpr
+      ⟨fun hmem => h.1 (List.mem_map.mpr ⟨x, hmem, rfl⟩), nodup_of_map f h.2⟩
+
+/-- A list whose natural-number keys are accepted by `natListDistinct` has no duplicates. -/
+theorem nodup_of_distinct_keys {α : Type} (key : α → Nat) (xs : List α)
+    (distinct : natListDistinct (xs.map key) = true) :
+    xs.Nodup :=
+  nodup_of_map key (natListDistinct_go_spec distinct).1
+
+/-- In an association list with distinct keys, equal keys carry equal values. -/
+theorem eq_of_mem_of_nodup_fst {α β : Type} : ∀ {l : List (α × β)} {k : α} {v₁ v₂ : β},
+    (l.map Prod.fst).Nodup → (k, v₁) ∈ l → (k, v₂) ∈ l → v₁ = v₂
+  | [], _, _, _, _, h₁, _ => by cases h₁
+  | (_, _) :: rest, _, v₁, v₂, hnd, h₁, h₂ => by
+    rw [List.map_cons, List.nodup_cons] at hnd
+    rcases List.mem_cons.mp h₁ with e₁ | m₁ <;> rcases List.mem_cons.mp h₂ with e₂ | m₂
+    · cases e₁; cases e₂; rfl
+    · cases e₁
+      exact absurd (List.mem_map.mpr ⟨(_, v₂), m₂, rfl⟩) hnd.1
+    · cases e₂
+      exact absurd (List.mem_map.mpr ⟨(_, v₁), m₁, rfl⟩) hnd.1
+    · exact eq_of_mem_of_nodup_fst hnd.2 m₁ m₂
+
+/-- Every key in `browserSchema` is distinct, so each wire key names a unique shape. -/
+theorem browserSchema_distinct : (browserSchema.map Prod.fst).Nodup :=
+  nodup_of_distinct_keys stringSortKey (browserSchema.map Prod.fst) (by decide +kernel)
+
 set_option maxRecDepth 4096 in
 /-- Every emitted capture has precisely the browser's admitted structural schema. -/
 theorem browserSchema_execution {config : Features.Config} {dimension : Dimension}

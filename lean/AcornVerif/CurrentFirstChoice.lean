@@ -185,11 +185,8 @@ theorem traces_sum_small {history : List (Laid dimension actions)}
         ((controller.learners.get row).state.transient.z.get slot).value)) ≤
         numerical32 (repeatSum (traceBound criterion) slots.length) := by
   have words := (quiet.rows row).slots
-  have partials := repeatSum_bound (traceBound criterion) (totalBound criterion) 1999
-    (total_check criterion) (by cases criterion <;> decide)
   have totalSmall : ∀ k ≤ 1999, Small (repeatSum (traceBound criterion) k) := fun k bound =>
-    small_of_key (partials k bound).1 (le_trans (by decide) (partials k bound).2.1)
-      (le_trans (partials k bound).2.2 (by cases criterion <;> decide))
+    (repeatSum_total criterion k bound).1
   have total := sumFrom_le_repeat (traceBound criterion) (small_bound criterion)
     (slots.map fun slot => ((controller.learners.get row).state.transient.z.get slot).value)
     .zero 0
