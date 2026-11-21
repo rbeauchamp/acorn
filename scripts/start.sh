@@ -12,8 +12,10 @@ the continuous agent. Stop in the viewer, or press Ctrl-C here to finish the
 current attempt and close the viewer. Saved learner state stays in acorn-run/.
 
 --help and --prepare-only stop before the launch. In work on a change to
-Acorn, a launch is made only with the owner's authorization for that run,
-stated in the change's intent (CONTRIBUTING.md, "Running a program").
+Acorn, no step starts the agent or one of its learners unless the owner's
+authorization for that run is stated in the change's intent, and a launch is
+not among the invocations that may be driven without it (CONTRIBUTING.md,
+"Running a program").
 
   --no-browser    Print the viewer URL without opening a browser.
   --prepare-only  Install prerequisites and build, without starting a run.

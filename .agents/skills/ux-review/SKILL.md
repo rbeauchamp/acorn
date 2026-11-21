@@ -30,29 +30,30 @@ a preference where both are silent is explicitly design judgment.
 Inspect the actual rendered build and the states/geometries affected by the
 change. Serve the page only by the recipe that the Test instructions of
 `.no-mistakes.yaml` give under "Driving the viewer": from an explicitly stopped
-state, with a child command that cannot be a core. That recipe is the one start
-of the viewer on the closed list of those instructions; every other start needs
-the owner's authorization for that run, stated in the change's intent ([running
-a program](../../../CONTRIBUTING.md#running-a-program)), a smoke test or a
-screenshot included. The recipe answers a fact: with no state file in its run
-directory the viewer starts running without being asked, and its supervisor
-launches its child, which is the core unless the command line names another
-command. In a viewer started by
-that recipe, and in no other, the page's Start button may be pressed: the only
-child it can start is a command that is no core, and its exit shows the
-lifecycle and its handling of a failed child. A state that only a core supplies
-is a limitation to disclose, never a reason to start one. Open the page in a
-fresh browser profile, which starts with empty storage, and leave any existing
-profile as it is: the page restores a map and a trail from the browser's
-storage, kept by address and port, so an earlier visit could put an earlier
-run's data into the capture. A private window is not enough, since it shares the
-storage of a private session that is already open. One sentence on authorization
-governs this skill's directions on starting the viewer with a core and on the
-states that such a run supplies: each only and each never about them binds a
-review whose change's intent states no authorization for that run, and where the
-intent states the owner's authorization for a particular run, exactly that run
-may be started and the states it supplies inspected, and nothing wider. It
-reaches no other rule of the review. Read [capture
+state, with a child command that cannot be a core. No step starts a program that
+steps the agent or one of its learners unless the owner's authorization for that
+run is stated in the change's intent ([running a
+program](../../../CONTRIBUTING.md#running-a-program)). That recipe is the one
+start of the viewer on the closed list of those instructions; every other start
+needs that authorization, a smoke test or a screenshot included. The recipe
+answers a fact: with no state file in its run directory the viewer starts
+running without being asked, and its supervisor launches its child, which is the
+core unless the command line names another command. In a viewer started by that
+recipe, and in no other, the page's Start button may be pressed: the only child
+it can start is a command that is no core, and its exit shows the lifecycle and
+its handling of a failed child. A state that only a core supplies is a
+limitation to disclose, never a reason to start one. Open the page in a fresh
+browser profile, which starts with empty storage, and leave any existing profile
+as it is: the page restores a map and a trail from the browser's storage, kept
+by address and port, so an earlier visit could put an earlier run's data into
+the capture. A private window is not enough, since it shares the storage of a
+private session that is already open. One sentence on authorization governs this
+skill's directions on starting the viewer with a core and on the states that
+such a run supplies: each only and each never about them binds a review whose
+change's intent states no authorization for that run, and where the intent
+states the owner's authorization for a particular run, exactly that run may be
+started and the states it supplies inspected, and nothing wider. It reaches no
+other rule of the review. Read [capture
 guidance](references/capture-evidence.md) when using browser evidence and
 [review prompts](references/review-workflow.md) for the relevant UX questions.
 One reviewer can cover them together; there is no fixed nine-agent review,
