@@ -2,7 +2,7 @@
 
 This page says what Acorn works on now, in what order, and why.
 GitHub's issues are the record of each piece of work; this page is the order between them.
-It was last set on 2026-11-20, and a change to the order changes this page in the same pull request.
+It was last set on 2026-11-21, and a change to the order changes this page in the same pull request.
 
 ## Terms
 
@@ -173,7 +173,7 @@ Neither blocks [#295](https://github.com/rbeauchamp/acorn/issues/295). A submiss
 On 2026-11-20 the owner directed that the two questions go on the record as issues. Their place directly ahead of [#295](https://github.com/rbeauchamp/acorn/issues/295) and the comment that links them from it were decided on the owner's behalf by the agent supervising Acorn's research, and the text of the two issues, with what each says would settle it, was written on the owner's behalf by the agents that maintain Acorn. The owner can overrule each.
 
 [#320](https://github.com/rbeauchamp/acorn/issues/320) stands beside those three, on the owner's side of the frame.
-It asks for a place in the host where a state mechanism is attached to the agent the program runs, and for one theorem, stated once for every mechanism, that the host's step with a mechanism attached is the frame's assembled step.
+It asks for a place in the host where a state mechanism is attached to the agent the program runs, and for one theorem, stated once for every mechanism, that the host's agent with a mechanism attached is the frame's assembled agent, in its cold start, in its step and in its loop.
 It is the owner's work, it is not a mission, and it has not been started.
 It blocks no submission to [#295](https://github.com/rbeauchamp/acorn/issues/295), and a contributor there owes no part of it. It blocks one thing only: by the owner's decision of 2026-11-21, a submission to [#295](https://github.com/rbeauchamp/acorn/issues/295) is not recorded complete until that place and that theorem are on main.
 No blocked-by link joins it to the other three, it is on no milestone, and it does not carry the label parked.
