@@ -390,17 +390,14 @@ check refusing noncomputable in executing modules).
   `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). A mission with targets
   also adds its entries to `lean/AcornVerif/Landings.lean`, and changes nothing
   under `lean/AcornVerif/Targets/` and no definition that a target names, which
-  together are its contract. Files that make up
-  Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
-  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
-  and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
-  the owner's review on every pull request that changes them, and only the
-  owner's account, the one with write access, merges outside pull requests; do
-  not touch them unless the mission contract explicitly requires it. One
-  document under `docs/` is the owner's in the same way,
-  [how a submission on learned agent state is checked](docs/learned-state-check.md):
-  [CODEOWNERS](.github/CODEOWNERS) is the list of every such path, and the
-  same rule holds for each path it names.
+  together are its contract. Acorn's trusted base includes `scripts/`,
+  `lean/lakefile.lean`, `site/lakefile.toml`, `lean/AcornTools/`,
+  `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`, `.github/` and
+  [the check for submissions on learned agent state](docs/learned-state-check.md).
+  Changes to any path listed in [CODEOWNERS](.github/CODEOWNERS) require the
+  owner's review. Only the owner's account has write access and can merge
+  a pull request from an outside contributor. A mission may change these
+  paths only when its contract explicitly requires it.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
