@@ -127,11 +127,12 @@ on an earlier head counts for nothing.
 **Who the referee is.** The maintainers assign the referee (and for a short review,
 the reviewer). The author never does, and an author's request for a reviewer or
 against one, in the pull request or anywhere else, has no weight: the
-maintainers neither take nor pass over a reviewer because of it. Except where
-the single-maintainer interim provision below applies (including for every PR
-once Acorn has more than one human maintainer, for any fallback review when the
-interim designation cannot apply, and for the second referee on a claim of
-discovery), each pull request receives an individual maintainer-led assignment:
+maintainers neither take nor pass over a reviewer because of it. Outside the
+cases covered by the single-maintainer interim provision below, each pull request
+(including every pull request once Acorn has more than one human maintainer, any
+fallback review when the interim designation cannot apply, and the second
+referee on a claim of discovery) receives an individual maintainer-led
+assignment:
 
 - the referee is of another model family than every model that did the work,
   or is a person. Whom this admits for work a person did with no model is the
@@ -172,13 +173,15 @@ of the following hold:
   the validation pipeline's configured analyzer/verifier, that analyzer/verifier
   cannot satisfy the protocol for that pull request and another reviewer is
   assigned under the general rule above (of another model family or a human
-  maintainer);
+  maintainer). Earlier review rounds reported by that designated
+  analyzer/verifier do not count as advising on or reviewing for the author and
+  do not disqualify it from re-reading revised commits under Findings and
+  revision below;
 - for a claim of discovery requiring two referees, this standing designation
   supplies at most one cross-family referee and never substitutes for the second
   independent referee assigned under the general rule above.
 
-Work is complete only once the qualified review is clean (verdict accept with
-no open findings) and `./scripts/gate.sh` has passed on that exact head commit.
+A review qualifying under this provision enters [When work is complete](#when-work-is-complete) once it is clean (verdict accept with no open findings), alongside the passed exact-head `./scripts/gate.sh` and merge.
 
 **Restoration of full maintainer-led assignment.** Once Acorn has more than one
 human maintainer, this single-maintainer standing designation retires and the
