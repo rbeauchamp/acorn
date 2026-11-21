@@ -216,6 +216,7 @@ You can read the design without installing Lean.
 | How close is Acorn to the published baseline, and what work remains? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](docs/roadmap.md) |
 | How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) and [missions](docs/missions.md) |
 | How is a result on learned agent state stated, and what does it certify? | [The frame of a learned-state result](docs/learned-state-frame.md) |
+| What is the modular 4-layer and always-on architectural foundation? | [Architectural intent](docs/architectural-intent.md) and [Architectural foundation](docs/architecture-foundation.md) |
 | Which missions are open, and who has landed what? | [Mission board](docs/mission-board.md) |
 
 Research criticism, proof/implementation review and contributions are welcome,

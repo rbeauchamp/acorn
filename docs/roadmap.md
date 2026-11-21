@@ -2,7 +2,7 @@
 
 This page says what Acorn works on now, in what order, and why.
 GitHub's issues are the record of each piece of work; this page is the order between them.
-It was last set on 2026-11-20, and a change to the order changes this page in the same pull request.
+It was last set on 2026-11-21, and a change to the order changes this page in the same pull request.
 
 ## Terms
 
@@ -31,6 +31,27 @@ On the first rung, whose world, visit length and agent are fixed, `rung_mission`
 On 2026-11-05 the owner directed that all effort goes to Acorn's mission, with supporting work only for bugs, problems of velocity and issues already planned.
 Under the mission contract, Acorn's results are theorems about running code; a run of the agent is a smoke test and never evidence.
 The order below follows both: one rung is active, and work that no active rung needs is parked, but for three issues on learned agent state that have come since and stand beside the active rung.
+
+On 2026-11-21 the owner reviewed how Acorn scales to 100–1,000+ concurrent contributors and AI-agent swarms while supporting always-on, fault-tolerant live upgrades and eventual recursive self-improvement, and directed that Acorn lay a modular 4-layer federated and always-on architectural foundation ahead of scaling external missions on the current monolith ([architectural intent](architectural-intent.md), [architecture foundation](architecture-foundation.md), [#321](https://github.com/rbeauchamp/acorn/issues/321)). Under the owner's surgical-pause decision of 2026-11-21, monolith-coupled feature additions and external scaling wait until Phases 0 and 1 ([#322](https://github.com/rbeauchamp/acorn/issues/322)–[#327](https://github.com/rbeauchamp/acorn/issues/327)) land: contributor outreach and announcement ([#237](https://github.com/rbeauchamp/acorn/issues/237)), new hardcoded profiles or features in the current monolithic `Acorn.Handcrafted` wiring, and attaching a state mechanism to the old monolithic host ([#320](https://github.com/rbeauchamp/acorn/issues/320), parked until [#327](https://github.com/rbeauchamp/acorn/issues/327)). Architecture-independent and Phase-0-advancing work stays unblocked: mission-contract semantics ([#286](https://github.com/rbeauchamp/acorn/issues/286)), the open mathematical obstruction question ([#296](https://github.com/rbeauchamp/acorn/issues/296)), and gate/freshness defects ([#305](https://github.com/rbeauchamp/acorn/issues/305), [#309](https://github.com/rbeauchamp/acorn/issues/309), [#317](https://github.com/rbeauchamp/acorn/issues/317), [#306](https://github.com/rbeauchamp/acorn/issues/306)).
+
+## Architectural foundation (active priority ahead of scaling external missions)
+
+Milestone 4 ([Architectural foundation](https://github.com/rbeauchamp/acorn/milestone/4)), tracked in [#321](https://github.com/rbeauchamp/acorn/issues/321) and ordered in [Acorn roadmap](https://github.com/users/rbeauchamp/projects/10), establishes the modular package boundaries, anti-gaming closures, and always-on live-upgrade supervisor before community swarm scaling:
+
+| Phase | Issue | Blocked by | Scope |
+|---|---|---|---|
+| Phase 0.1 | [#322](https://github.com/rbeauchamp/acorn/issues/322) | — | Empirically verify Regula replay on Lean module-system targets across Acorn's claimed libraries. |
+| Phase 0.2 | [#323](https://github.com/rbeauchamp/acorn/issues/323) | #322 | Harden `AcornTools` for 5-artifact module verification, manifest locks, and transitive dependency audits, migrate `AcornTools` to Lean 4 module files, and add a module-enforcement check (#305, #309, #317). |
+| Phase 0.3 | [#324](https://github.com/rbeauchamp/acorn/issues/324) | #323 | Eliminate central merge-conflict hotspots (`lean/Acorn/Decisions.lean`, `lean/Acorn/Cost.lean` (`Site`), `AcornTools.Native.Routes`, departure manifests; #304). |
+| Phase 1.1 | [#325](https://github.com/rbeauchamp/acorn/issues/325) | #324 | Split `acorn-contracts` and `acorn-worlds` with the five anti-gaming closures and polynomial/A/G composition contracts. |
+| Phase 1.2 | [#326](https://github.com/rbeauchamp/acorn/issues/326) | #325 | Extract `acorn-primitives` as a module-opaque verified library with an empty root module and 5-artifact cache. |
+| Phase 1.3 | [#327](https://github.com/rbeauchamp/acorn/issues/327) | #326 | Assemble clean `acorn-baseline` v1 over 5–6 coarse specialized OaK seams, retire legacy profiles, integrate #320, complete full-repo Lean 4 module migration across all remaining libraries, and remove *allowNonModules*. |
+| Phase 2.1 | [#328](https://github.com/rbeauchamp/acorn/issues/328) | #327 | Open Layer 2 federated candidate templates (Track A seam swaps and Track B whole-agent campaigns), Pareto frontier, and distill/synthesize missions (#237–#244). |
+| Phase 2.2 | [#329](https://github.com/rbeauchamp/acorn/issues/329) | #328 | Stand up the 5-stage adversarial triage funnel, split merge authority, and 3-speed epochal baseline clock. |
+| Phase 3.1 | [#330](https://github.com/rbeauchamp/acorn/issues/330) | #325 | Obtain owner confirmation and formalize the Regime-2 operational lifecycle record in `lean-intent`, plasticity from reachable states, anti-reset grades 1–3, and the bridge theorem. |
+| Phase 3.2 | [#331](https://github.com/rbeauchamp/acorn/issues/331) | #327, #330 | Build the isolated always-on StreamKeeper supervisor, finite-budget upgrade permits, and verified symmetric-lens live cutover with canary rollback. |
+| Phase 4.1 | [#332](https://github.com/rbeauchamp/acorn/issues/332) | #331 | Connect a sandboxed offline RSI suggester to the immutable outer verifier and upgrade-permit gate. |
+
 Those three are not parked: [#295](https://github.com/rbeauchamp/acorn/issues/295) takes submissions in [the frame of a learned-state result](learned-state-frame.md), under which a change to the learners lands separately and first ([contributing](../CONTRIBUTING.md#learned-state-results-and-changes-to-the-agents-learners)), and two open questions, [#296](https://github.com/rbeauchamp/acorn/issues/296) and [#297](https://github.com/rbeauchamp/acorn/issues/297), come directly ahead of it in order ([learned agent state](#learned-agent-state-beside-the-active-rung)). On 2026-11-20 the owner directed that the two questions go on the record as issues; their place directly ahead of [#295](https://github.com/rbeauchamp/acorn/issues/295) was decided on the owner's behalf by the agent supervising Acorn's research, and the owner can overrule it.
 
 Acorn's mission is to discover and implement algorithms that enable agents to achieve goals in big worlds. On 2026-11-17 the owner reviewed the work against it and decided five things.
@@ -169,12 +190,14 @@ The reason for that order is that both bear on whether a complete result exists 
 
 Each of the two is an open question and not a mission with a frozen statement: writing its statement is part of its work.
 Neither blocks [#295](https://github.com/rbeauchamp/acorn/issues/295). A submission there may need them and is not required to wait for them, so no blocked-by link joins the three. Under the frame a submission cannot change the learners itself, so a complete result may have to wait for what the two questions settle. None of the three is on a milestone, and none carries the label parked.
+Under the 2026-11-21 surgical pause, [#296](https://github.com/rbeauchamp/acorn/issues/296) stays unblocked while host attachment of a state mechanism ([#320](https://github.com/rbeauchamp/acorn/issues/320)) is parked until Phase 1.3 ([#327](https://github.com/rbeauchamp/acorn/issues/327)) establishes the coarse state-mechanism seam in `acorn-baseline`.
 On 2026-11-20 the owner directed that the two questions go on the record as issues. Their place directly ahead of [#295](https://github.com/rbeauchamp/acorn/issues/295) and the comment that links them from it were decided on the owner's behalf by the agent supervising Acorn's research, and the text of the two issues, with what each says would settle it, was written on the owner's behalf by the agents that maintain Acorn. The owner can overrule each.
 
 ## Parked work, and when it re-enters
 
 | Issues | Re-enters when |
 |---|---|
+| [#320](https://github.com/rbeauchamp/acorn/issues/320), host attachment of a learned-state mechanism | Phase 1.3 ([#327](https://github.com/rbeauchamp/acorn/issues/327)) exposes the coarse state-mechanism seam on `acorn-baseline` |
 | [#256](https://github.com/rbeauchamp/acorn/issues/256), the first rung's class in the host's own world | The first rung is decided for the primitive profile ([#232](https://github.com/rbeauchamp/acorn/issues/232)), or a run the owner has authorized needs a world the entry runs exactly |
 | [#71](https://github.com/rbeauchamp/acorn/issues/71), ARC-AGI-3 games as a class | The order of the later rungs is decided and the first rung has landed |
 | [#236](https://github.com/rbeauchamp/acorn/issues/236), Microduck scenes, with [#173](https://github.com/rbeauchamp/acorn/issues/173), [#136](https://github.com/rbeauchamp/acorn/issues/136), [#172](https://github.com/rbeauchamp/acorn/issues/172), [#121](https://github.com/rbeauchamp/acorn/issues/121) and [#175](https://github.com/rbeauchamp/acorn/issues/175) | The same |
@@ -217,7 +240,7 @@ Stating the first rung's theorem ([#231](https://github.com/rbeauchamp/acorn/iss
 
 ## Opening the work to outside contributors
 
-[#237](https://github.com/rbeauchamp/acorn/issues/237) tracks this, in three steps.
+[#237](https://github.com/rbeauchamp/acorn/issues/237) tracks this, in three steps. Under the owner's 2026-11-21 foundation-first direction, external contributor outreach and announcement wait on Milestone 4 Phases 0–1 ([#321](https://github.com/rbeauchamp/acorn/issues/321), [#322](https://github.com/rbeauchamp/acorn/issues/322)–[#327](https://github.com/rbeauchamp/acorn/issues/327)) and coordinate with the federated package templates and triage funnel ([#328](https://github.com/rbeauchamp/acorn/issues/328), [#329](https://github.com/rbeauchamp/acorn/issues/329)).
 
 1. Before any outreach: this page ([#235](https://github.com/rbeauchamp/acorn/issues/235)), open statements held in Lean so that they stay checked against the current code ([#238](https://github.com/rbeauchamp/acorn/issues/238)), and one vocabulary ([#244](https://github.com/rbeauchamp/acorn/issues/244)).
 2. Then more kinds of contribution ([#239](https://github.com/rbeauchamp/acorn/issues/239)), claims and credit that hold ([#240](https://github.com/rbeauchamp/acorn/issues/240)) and a lower cost of entry ([#241](https://github.com/rbeauchamp/acorn/issues/241)), with at least 20 open statements seeded.
@@ -254,7 +277,7 @@ Four more bugs were filed on 2026-11-18, found in the work of the fifth step of 
 
 ## How the issues encode this
 
-- **Milestones.** [Rung 1: concealed targets in visits](https://github.com/rbeauchamp/acorn/milestone/1) holds the active rung. [Later rungs](https://github.com/rbeauchamp/acorn/milestone/2) holds what waits for it. [Open the roadmap](https://github.com/rbeauchamp/acorn/milestone/3) holds the work of [opening the work to outside contributors](#opening-the-work-to-outside-contributors). The three issues on learned agent state that stand beside the active rung are on no milestone, [#295](https://github.com/rbeauchamp/acorn/issues/295), which asks for a contributor's submission, among them ([learned agent state](#learned-agent-state-beside-the-active-rung)).
+- **Milestones.** [Rung 1: concealed targets in visits](https://github.com/rbeauchamp/acorn/milestone/1) holds the active rung. [Later rungs](https://github.com/rbeauchamp/acorn/milestone/2) holds what waits for it. [Open the roadmap](https://github.com/rbeauchamp/acorn/milestone/3) holds the work of [opening the work to outside contributors](#opening-the-work-to-outside-contributors). [Architectural foundation](https://github.com/rbeauchamp/acorn/milestone/4) holds the active Milestone 4 prerequisite work tracked under [#321](https://github.com/rbeauchamp/acorn/issues/321) and ordered in [Acorn roadmap](https://github.com/users/rbeauchamp/projects/10). The three issues on learned agent state that stand beside the active rung are on no milestone, [#295](https://github.com/rbeauchamp/acorn/issues/295), which asks for a contributor's submission, among them ([learned agent state](#learned-agent-state-beside-the-active-rung)), with [#320](https://github.com/rbeauchamp/acorn/issues/320) parked until Phase 1.3 ([#327](https://github.com/rbeauchamp/acorn/issues/327)).
 - **Labels.** One lane on each issue: `lane:state`, `lane:discover`, `lane:prove`, `lane:world`, `lane:theory`, `lane:community` or `lane:upkeep`. A tracking issue of a rung carries the label rung. A parked issue carries the label parked. `needs-owner-decision` and `needs-statement` say what an issue waits on: the second marks work that needs an exact statement before it can be posted as a mission.
 - **Sub-issues** group the parts of one deliverable under its tracking issue.
 - **Blocked-by links** give the order between issues, but for the three issues on learned agent state, whose order this page gives with no such link ([learned agent state](#learned-agent-state-beside-the-active-rung)).

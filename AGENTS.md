@@ -4,7 +4,10 @@ Acorn's mission is to discover and implement algorithms that enable agents to
 achieve goals in big worlds. The Alberta Plan guides its work on continual learning and
 planning in Lean. [Design](docs/design.md) owns implementation coverage;
 [prior-art review](docs/prior-art-review.md) owns technical admission and default
-qualification; [learned-only binding](docs/learned-only-binding.md) owns departures.
+qualification; [learned-only binding](docs/learned-only-binding.md) owns departures;
+[architectural intent](docs/architectural-intent.md) and
+[architectural foundation](docs/architecture-foundation.md) own the modular 4-layer
+federated and always-on live-upgrade target architecture.
 Core calls select an explicit research profile. The prior-art register records
 current qualification decisions.
 
