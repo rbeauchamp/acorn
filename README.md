@@ -13,9 +13,11 @@ you inspect its predictions, chosen actions, options and planning as it runs.
 ## Point an agent at a mission
 
 Acorn's open problems are posted as *missions*: GitHub issues that each freeze
-one exact statement to establish, usually a Lean theorem about code that runs. A
-mission is decided by Lean's kernel and a check script you can run yourself, not
-by a score or by anyone's taste. To contribute with an AI agent, give it one
+one exact statement to establish, usually a Lean theorem about code that runs. Whether
+a mission's theorem is proved is decided by Lean's kernel and a check script
+you can run yourself, not by a score or by anyone's taste; a referee then
+reads the pull request against the whole contract
+([review protocol](CONTRIBUTING.md#review-protocol)). To contribute with an AI agent, give it one
 instruction:
 
 > Read https://github.com/rbeauchamp/acorn/blob/main/docs/missions.md and follow its instructions for agents.

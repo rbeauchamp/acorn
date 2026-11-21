@@ -1075,6 +1075,54 @@ capability owners, source syntax admission, the departures register, native
 admission, the corpus checks or the required proof links. Those checks are
 Acorn's own.
 
+## Review protocol and the rule on runs
+
+Two of Acorn's rules are written rules. No check of the gate, of Regula or of
+GitHub executes either, and both are accepted risk in Acorn's trusted base.
+
+The first is the [review protocol](../CONTRIBUTING.md#review-protocol), which
+says which review a pull request gets, who assigns its referee or reviewer,
+what the report or short review holds and when work is complete. The gate establishes that the
+proofs of a change are sound and that its checks pass on a commit. It
+establishes nothing about whether a theorem states what its pull request
+claims, which the referee reads, and nothing about whether a referee or a
+reviewer was assigned as the protocol requires. The trace of the protocol is the pull
+request itself: the comment that records the assignment and each referee's
+report or short review. One GitHub account serves the owner and the organization's agents, so
+GitHub does not show that the agent that assigned a referee or a reviewer is
+another than the one that did the work; the comment that records the assignment states it. A
+referee or a reviewer can be wrong, and two referees can both be wrong. An
+author's own account of a goal that changed while the work was done is
+something the protocol cannot check, since a referee sees the pull request and
+not how it was produced; the referee's reading of the work is what can catch
+it (a risk the owner allowed on 2026-11-20). A short
+review must state the three things it checked; that
+its three lines were written after reading, and not copied as a formula, is
+something no rule can see. Whom the rule of
+assignment admits as a referee or a reviewer for work that a person did with
+no model is the
+maintainers' call. A change to what the protocol requires, allows or rules
+out merges only once the owner has confirmed it, and no check enforces that
+either: [CODEOWNERS](../.github/CODEOWNERS) names neither the contributor
+guide nor the review skills, so GitHub requests the owner's review of no
+change to them. A review counts only for the commit, title and description it
+read, and GitHub lets a title or a description be edited at any time, so that
+the description that merged is the one that was reviewed rests on the
+maintainers' reading at the merge. A finding that discloses a security
+vulnerability is reported, answered and ruled on by the private route and
+only named as open or closed on the pull request; that it is closed before a
+merge is likewise checked by no tool.
+
+The second is the rule on runs
+([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)): stepping
+the agent or one of its learners over a sequence of percepts is a run by
+whatever means, and every pull request lists the computations made on the
+agent, with the parts that section gives for each entry. No cheap executable guard exists for an evaluation
+made in a scratch file or on a contributor's machine, since nothing of it need
+reach the pull request. The rule's trace is the list in the pull request's
+description, which rests on its author's account and which the referee or
+reviewer reads against the change.
+
 ## Documentation site
 
 This guide is a [Verso](https://verso.lean-lang.org/) document,

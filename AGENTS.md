@@ -44,13 +44,18 @@ test or a diagnostic that only chooses a direction. What deterministic code does
 at a fixed seed is a mathematical question. Before proposing a run, state the
 question and why derivation or proof cannot answer it effectively and
 efficiently, with the cost of each, and obtain the owner's authorization.
+Stepping the agent or one of its learners over a sequence of percepts by any
+means, whether the binary, evaluation inside Lean or a re-implementation in any
+language, is a run. Proof search is computing a value that a theorem in the
+pull request then checks, and nothing else is.
+[What counts as a run](CONTRIBUTING.md#what-counts-as-a-run) gives the cases
+and what every pull request lists of the computations made on the agent.
 No step of work on a change starts a program that steps the agent or one of its
 learners over percepts, whatever the step is for, unless the owner's
 authorization for that run is stated in the change's intent;
 [running a program](CONTRIBUTING.md#running-a-program) says where each program
 is classed, and where to read which files that such a run produced no step
 opens.
-Computing data that a proof then checks is proof search, not a run.
 
 The habit of evaluation returns through specifications. When a specification
 seems to need a run to check it, treat that first as a defect in the
@@ -98,8 +103,13 @@ negative and inconclusive evidence honest; exclusion is not a positive result.
 ## Review and delivery
 
 Use the shipped proof-review standard and pr-review-toolkit for review-and-fix.
-One independent reviewer is the default; add a specialist only for a concrete
-uncertainty. Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
+For that review, which the author runs, one independent reviewer is the
+default; add a specialist only for a concrete uncertainty. It does not decide
+when work is complete and discharges no review that Acorn requires. The
+[review protocol](CONTRIBUTING.md#review-protocol) does, for every author:
+every pull request is reviewed by a reviewer the author did not choose, of
+another model family.
+Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
 rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.
 
