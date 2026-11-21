@@ -704,7 +704,7 @@ tag := "regula-audit"
 %%%
 
 [Regula](https://github.com/rbeauchamp/regula) is an audit of Lean builds. Acorn
-requires its release v0.13.0, pinned in `lean/lakefile.lean` and locked in
+requires its release v0.13.1, pinned in `lean/lakefile.lean` and locked in
 `lean/lake-manifest.json` at the commit that the release's tag names, and the
 merge gate requires the Regula audit:
 
@@ -749,7 +749,7 @@ Acorn is its own project, written to be verified and not aimed at Regula's
 checker or Lean's toolchain, and the audit relies on that: it is an assumption
 of Acorn's trusted base, which no check of the gate establishes. The pass also
 rests on Regula's own list of assumptions about Lean, Lake and the operating
-system, and holds only in Regula's named configurations: Lean v4.35.0, the
+system, and holds only in Regula's named configurations: Lean v4.36.0, the
 route above, and macOS 27.2 on Apple silicon or Ubuntu 24.04.5 LTS on x86-64.
 It says nothing about what a compiled program runs, which the checks of
 ordinary verification below cover, or about whether a theorem states what was
@@ -763,9 +763,9 @@ system, no code of the project runs while it builds. Acorn cannot get it: only a
 project with no dependency in its Lake configuration and no Mathlib in its
 imports can, and Acorn requires Mathlib, Regula, FloatLib and lean-intent.
 Regula's
-[README](https://github.com/rbeauchamp/regula/tree/v0.13.0#what-a-pass-means)
+[README](https://github.com/rbeauchamp/regula/tree/v0.13.1#what-a-pass-means)
 and
-[specification](https://github.com/rbeauchamp/regula/blob/v0.13.0/specification/README.md#a-project-aimed-at-the-checker)
+[specification](https://github.com/rbeauchamp/regula/blob/v0.13.1/specification/README.md#a-project-aimed-at-the-checker)
 state both verdicts and what each rests on.
 
 The claim is the modules of the default targets of the Lake configuration and
@@ -944,9 +944,11 @@ read the transitive axiom set. The tools make no such check.
 
 *Unsafe, partial and looping declarations.* RG1006 refuses an unsafe or partial
 constant of a claimed module, a constant with the name of a recursion helper
-without the form that Lean gives the helper of a terminating recursive
-definition, and a constant whose value mentions the loop constructs that while
-and repeat compile to. The tools make no such check of compiled declarations.
+without an exempted form (a terminating recursive definition's helper, or the
+unsafe implementation half of a verified compiler-generated constructor-index
+pair on Lean v4.36.0), and a constant whose value mentions the loop constructs
+that while and repeat compile to. The tools make no such check of compiled
+declarations.
 The host's loops that run until something outside the program happens, such as
 the end of a stream or a stop request, iterate over `Acorn.Host.forever`, whose
 iteration in IO and BaseIO is a fixed-point definition with the one-step
@@ -966,10 +968,14 @@ kernel's refusal. The tools make no such check.
 *Native replacements: the tools refuse more.* The theorem inventory refuses each
 declaration of a module of Acorn, AcornVerif, NativeApp, AcornDocument or Entry
 that carries a replacement attribute or an extern attribute, whatever reaches it
-and whatever is proved about it. The Regula audit reads no replacement or extern:
-a pass says nothing about what a compiled program runs. Source admission refuses
-both attributes as words in every executing and proof source, so the inventory
-adds the declarations that elaboration generates. This check runs once, in the
+and whatever is proved about it, except a verified compiler-generated
+constructor-index replacement that Lean v4.36.0 emits for every safe inductive
+type with more than one constructor (`AcornTheoremCount.isCompilerCtorIdx`,
+matching Regula v0.13.1's structural check on the pair and its toolchain
+constructor-tag helper). The Regula audit reads no replacement or extern: a pass
+says nothing about what a compiled program runs. Source admission refuses both
+attributes as words in every executing and proof source, so the inventory adds
+the declarations that elaboration generates. This check runs once, in the
 theorem inventory. A copy in the compiled boundary admission would repeat the
 same predicate for a subset of the same modules in the same command,
 `./scripts/verify.sh`.

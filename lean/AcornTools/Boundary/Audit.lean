@@ -345,6 +345,21 @@ def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := d
       unless dependencyOwner == owner || importAllowed owner dependencyOwner do
         reject owner s!"{name} references {dependency} owned by {dependencyOwner}"
 
+/-- Evict compacted-region `Name` keys from Lean v4.36.0's `oleanRootCacheRef`
+(`Lean/Util/Path.lean:134-147`) before `withImportModules` unmaps those regions.
+`findOLean` caches `(mod.getRoot, root)` against the current search path, and `importModulesCore`
+passes `Name` values allocated inside `.olean` compacted regions. Calling `findOLean` on the
+static literal `` `Init `` under a distinct search path replaces the cache entry while every
+region is still mapped, then restores the original search path. -/
+def flushOLeanCache (library : System.FilePath) : IO Unit := do
+  let original ← searchPathRef.get
+  let sentinel := if original == [library] then [library, library] else [library]
+  try
+    searchPathRef.set sentinel
+    let _ ← findOLean `Init
+  finally
+    searchPathRef.set original
+
 /-- Check compiled declarations and their real referenced owners. The gate admits the
 sources before the build, and `command` admits them again after this check.
 The checks read declarations and module metadata alone, so no project extension
@@ -363,13 +378,20 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
   -- once, in one environment: a declaration's checks read only its owner's import closure.
   let shared := owners.filter fun owner => !AcornOwnership.executables.any (·.2 == owner)
   let included ← withImportModules (shared.map fun owner => { module := owner }) {} fun common => do
-    let included := owners.filter fun owner => (common.getModuleIdx? owner).isSome
-    inspect common included
-    AcornDepartureAudit.check common owners
-    pure included
+    try
+      let included := owners.filter fun owner => (common.getModuleIdx? owner).isSome
+      inspect common included
+      AcornDepartureAudit.check common owners
+      pure included
+    finally
+      flushOLeanCache library
   for owner in owners do
     if included.contains owner then continue
-    withImportModules #[{ module := owner }] {} fun env => inspect env #[owner]
+    withImportModules #[{ module := owner }] {} fun env => do
+      try
+        inspect env #[owner]
+      finally
+        flushOLeanCache library
 
 /-- Run source admission before build, or source plus compiled admission afterward.
 Initializer execution is restricted to the trusted parser; compiled admission

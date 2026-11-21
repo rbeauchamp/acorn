@@ -1,11 +1,11 @@
 ---
 name: regula
-description: Regula v0.13.0 and the Regula audit of Acorn's merge gate, which obtains Regula's proof verdict. Use before writing or changing Lean definitions, theorems, proofs or lean/lakefile.lean, and when `lake lint` reports an RG rule ID or a verdict other than pass.
+description: Regula v0.13.1 and the Regula audit of Acorn's merge gate, which obtains Regula's proof verdict. Use before writing or changing Lean definitions, theorems, proofs or lean/lakefile.lean, and when `lake lint` reports an RG rule ID or a verdict other than pass.
 ---
 
 # Regula in Acorn
 
-[Regula](https://github.com/rbeauchamp/regula) v0.13.0 is the audit of Lean builds that Acorn's merge gate runs. Its README and `specification/README.md` at the tag `v0.13.0` are its documentation; this skill states how Acorn uses it.
+[Regula](https://github.com/rbeauchamp/regula) v0.13.1 is the audit of Lean builds that Acorn's merge gate runs. Its README and `specification/README.md` at the tag `v0.13.1` are its documentation; this skill states how Acorn uses it.
 
 ## The Regula audit
 

@@ -30,7 +30,7 @@ def component (value : String) : IO String := do
   return value
 
 /-- The package directory of a locked name, computed as Lake computes it (Lake of Lean
-v4.35.0): it reads the name with `String.toName` (`FromJson Name`) and materializes the package
+v4.36.0): it reads the name with `String.toName` (`FromJson Name`) and materializes the package
 in the directory `Name.toString (escape := false)` names (`PackageEntry.dirName`). So a name Lake
 writes in Lean's escape, such as `«lean-intent»`, has the directory `lean-intent`. -/
 def packageDir (name : String) : IO String :=

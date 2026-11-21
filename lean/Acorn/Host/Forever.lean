@@ -10,7 +10,7 @@ Authors: acorn contributors
 A host effect that runs until something outside the program happens, such as the end of a stream,
 a stop request or a child's exit, iterates with `for _ in forever do`. The loop runs its body
 until the body leaves it, by `break` or `return`, exactly as Lean's `repeat` does: `repeat` is
-`for _ in Lean.Loop.mk do` (`Lean.Elab.BuiltinDo.Repeat` at Lean v4.35.0), and `Lean.Loop.forIn`
+`for _ in Lean.Loop.mk do` (`Lean.Elab.BuiltinDo.Repeat` at Lean v4.36.0), and `Lean.Loop.forIn`
 runs the body and recurses on `.yield` (`Init/While.lean`). The difference is the definition of
 the iteration. Lean's goes through `repeatM`, whose computational core is a private `partial`
 definition of the toolchain, so Regula's RG1006 refuses a claimed definition that mentions it.
@@ -23,7 +23,7 @@ The iteration is defined for `IO` and `BaseIO`, the monads of the host's loops, 
 every monad with a `Lean.Order.MonadTail` instance: with the monad fixed, the compiler inlines its
 bind, so the recursive call is a self tail call, which Lean's C emitter turns into a jump
 (`isTailCall` and `emitTailCall`, `Lean/Compiler/LCNF/EmitC.lean:527-539` and `725-747` at
-v4.35.0), and a loop that runs long does not grow the stack.
+v4.36.0), and a loop that runs long does not grow the stack.
 -/
 
 namespace Acorn.Host
