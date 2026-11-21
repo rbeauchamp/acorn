@@ -312,8 +312,8 @@ step of work on a change starts a program that steps the agent or a learner over
 percepts unless the owner's authorization for that run is stated in the change's
 intent. What the step is for, and what the run is called, do not matter: a look
 at the viewer's page, a screenshot, a smoke test and a diagnostic are all
-covered. A smoke test of the core is a run of a learner, and a smoke test of the
-viewer with the core as its child is treated as one.
+covered. A smoke test in which the core runs its agent is a run of a learner,
+and a smoke test of the viewer with the core as its child is treated as one.
 
 Some of Acorn's programs step a learner without being asked to. The viewer,
 started with no state file in its run directory, starts in the running state,
@@ -324,13 +324,14 @@ argument of `./scripts/verify.sh` runs the mutation audit, which runs the agent.
 
 The Test instructions of `.no-mistakes.yaml` are the one place that says, for
 each executable that `lean/lakefile.lean` declares, whether running it steps a
-learner and which invocations of it do not, each written out exactly. Read them
-before starting an Acorn program. Their list is closed: treat a program they do
-not name, and an invocation they do not write out, as stepping a learner. That
-means not yet shown, never forbidden for ever: a drive established to step
-nothing joins the list by a reviewed change to it, and no one decides an
-unlisted invocation for themselves while a change is being validated. Asking a
-program for help is an invocation like any other.
+learner and which invocations of it do not, each written out exactly or as a
+family with a written criterion. Read them before starting an Acorn program.
+Their list is closed: treat a program they do not name, and an invocation that
+no line of theirs covers, as stepping a learner. That means not yet shown, never
+forbidden for ever: a drive established to step nothing joins the list by a
+reviewed change to it, and no one decides an uncovered invocation for themselves
+while a change is being validated. Asking a program for help is an invocation
+like any other.
 
 The rule forbids no other drive. Building and the merge gate start no program
 that steps a learner. Neither do the audit tools in the modes those instructions
