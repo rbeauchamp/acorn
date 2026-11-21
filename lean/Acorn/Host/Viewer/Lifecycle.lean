@@ -558,10 +558,9 @@ theorem Lifecycle.request_stopping (state : Lifecycle) (command : Command)
 
 /-! ## Intent to stay stopped
 
-Only a Start request sets the intent to running, and only a Start that arrives while a Clear's
-replacement waits queues a running intent behind that Clear. A lifecycle that intends to stop,
-with no running intent queued behind a Clear, keeps both under every other transition and
-admits no reservation. -/
+A lifecycle that intends to stop, with no running intent held for a pending Clear to restore,
+admits no reservation, and keeps both under every transition but two: a Start request, and a
+running intent queued while a Clear's replacement waits (`Lifecycle.replacementIntent`). -/
 
 /-- The lifecycle intends to stop, and a pending Clear restores no running intent. -/
 def Lifecycle.Unstarted (state : Lifecycle) : Prop :=
@@ -575,8 +574,8 @@ theorem Lifecycle.unstarted_desired (state : Lifecycle) (unstarted : state.Unsta
     state.desiredValue = .stopped :=
   unstarted.1
 
-/-- **A lifecycle that intends to stop admits no reservation.** For every such lifecycle and
-every instant. -/
+/-- **An unstarted lifecycle admits no reservation.** For every lifecycle that intends to stop
+with no running intent held for a pending Clear, and every instant. -/
 theorem Lifecycle.unstarted_reserve (state : Lifecycle) (unstarted : state.Unstarted)
     (now : UInt64) : state.reserve now = none := by
   have stopped : (state.desired == .running) = false := by rw [unstarted.1]; rfl
@@ -683,7 +682,8 @@ theorem Lifecycle.archived_unstarted (state next : Lifecycle) (identity : Identi
   · cases installed
 
 /-- **A Start admits a reservation.** For every identity, every intent native startup is given
-and every instant: after a Start request the lifecycle reserves its first generation. -/
+and every instant: the lifecycle of native startup, after a Start request, reserves
+generation 1. -/
 theorem Lifecycle.start_reserves (identity : Identity) (desired : Desired) (now : UInt64) :
     ∃ next, ((Lifecycle.initial identity desired).request .start).reserve now =
       some (1, next) := by

@@ -15,12 +15,13 @@ drives the serial supervisor. Browser request handlers cannot access a process
 handle. Native entropy, files, process execution and transport remain explicit
 OS/runtime boundaries.
 
-The viewer starts its core only on an explicit act. With no state file the bootstrap
-builds a state that intends to stay stopped (`Acorn.Host.Viewer.PersistedState.unstarted`),
-and it submits a Start only for the `--start` flag; the other source of a Start is an
-admitted control request. `Acorn.Host.Viewer.ExplicitStart` proves that the supervisor
-started from such a state waits on no spawn until a Start is handed to its step. A
-state file the bootstrap refuses constructs no supervisor.
+The bootstrap gives the supervisor a running intent only from a state file that holds
+one. With no state file it builds a state that intends to stay stopped
+(`Acorn.Host.Viewer.PersistedState.unstarted`), and it submits a Start only for the
+`--start` flag; the other source of a Start is an admitted control request.
+`Acorn.Host.Viewer.ExplicitStart` proves that the supervisor started from such a state
+waits on no spawn until a Start is handed to its step. A state file the bootstrap
+refuses constructs no supervisor.
 -/
 namespace NativeApp
 open Acorn.Host Acorn.Host.Viewer
@@ -93,7 +94,7 @@ def runViewer (arguments : List String) : IO UInt32 := do
     | .ok options => pure options
     | .error error => throw (IO.userError (error.message ++
         "\nusage: acorn-viewer (--research-profile ranked | --cmd COMMAND) [--port N] [--run-dir DIR] [--no-checkpoint] [--start] [--open-browser] [--control-stdin]" ++
-        "\nThe core starts only with --start, with Start in the page, or when the run directory's saved state already intends to run." ++
+        "\nThe core starts only with --start, with Start in the page, or when state.json in the run directory names schema_version 2 and intends to run." ++
         s!"\nN is below 65536. {Acorn.Digits.usage}"))
   let directory ← RunDirectory.open options.directory
   let supervisor ← Supervisor.new (← supervisorConfig options) directory (← initialState directory)

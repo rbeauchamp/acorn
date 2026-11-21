@@ -11,17 +11,18 @@ import Acorn.Host.Viewer.Supervision
 The viewer starts its child in one place: the actor's `Call.spawn`, which it makes exactly when
 the supervisor's state waits on `Pending.spawn`. This module proves, of the step the actor runs
 (`Core.start`, `Core.step`, `Core.resume`), that a supervisor started from a durable state that
-intends to stay stopped never waits to spawn, never admits a reservation and never writes a
-running intent, for every sequence of events that holds no operator's Start
-(`Reached.unstarted`). It also proves that the statement is not empty: from every start state
-whose durable state admits a launch, a run that holds a Start waits to spawn
-(`Core.start_spawns`).
+intends to stay stopped admits no reservation and waits neither on a spawn nor on a write of a
+running intent, in every state reached by events that hold no operator's Start
+(`Reached.stopped_spawns_nothing`). It also proves that the statement is not empty: from the
+start on every durable state that admits a launch, there is a run that holds a Start and
+reaches a state that waits to spawn (`Core.start_spawns`).
 
 **The state built when no state file exists** is `PersistedState.unstarted`, which intends to
-stay stopped, so the theorem holds of a viewer started on an empty run directory
-(`Reached.unstarted_spawns_nothing`), and the control record the page first reads says the run
-is stopped (`Core.start_control`). A state file that names no schema is admitted with intent
-stopped (`PersistedState.decode_unversioned`), so the theorem holds of it too.
+stay stopped, so the theorem holds of the supervisor started from it
+(`Reached.unstarted_spawns_nothing`), and the control record of that start state says the run
+is desired stopped and actually stopped (`Core.start_control`). A state file that names no
+schema is decoded with intent stopped (`PersistedState.decode_unversioned`), so the theorem
+holds of the supervisor started from what it decodes to.
 
 **What the theorem is about.** `Reached` relates an origin, the events handed to the step and a
 state. The states reached from a start are exactly the states of `Ran` (`Reached.ran`,
@@ -30,8 +31,9 @@ state. The states reached from a start are exactly the states of `Ran` (`Reached
 **What is read, not proved.** The actor hands `Event.command .start` only for a Start that
 `Supervisor.submit` queued, and `Supervisor.submit` is called for the `--start` flag and for an
 admitted control request. The bootstrap passes the state it built or read to
-`Supervision.start`, and constructs no supervisor for a state file it refuses. These are the
-correspondences `Acorn.Host.Viewer.Supervisor` and `NativeApp.Viewer` name as trusted.
+`Supervision.start`, and constructs no supervisor for a state file it refuses. No theorem
+covers these: the actor (`Acorn.Host.Viewer.Supervisor`) and the bootstrap (`NativeApp.Viewer`)
+are effects.
 -/
 namespace Acorn.Host.Viewer
 
@@ -381,14 +383,16 @@ theorem dispatch_unstarted (core : Core) (clearDisabled : Option String) (now : 
       | exact core.tick_unstarted now unstarted
       | exact core.close_unstarted unstarted
 
-/-- **A step on any event but an operator's Start keeps every intent stopped.** -/
+/-- **A step on any event but an operator's Start keeps every intent stopped.** For every state
+whose intents are all to stay stopped, every Clear configuration and every reading. -/
 theorem step_unstarted (core : Core) (clearDisabled : Option String) (reading : Nat)
     (event : Event) (other : event ≠ .command .start) (unstarted : core.Unstarted) :
     (core.step clearDisabled reading event).core.Unstarted :=
   (core.dispatch_unstarted clearDisabled (core.instant reading) event other unstarted).same
     rfl rfl rfl rfl
 
-/-- **Every outcome of the pending call keeps every intent stopped.** -/
+/-- **Every outcome of the pending call keeps every intent stopped.** For every state whose
+intents are all to stay stopped, the operation it waits for and every reading. -/
 theorem resume_unstarted (core : Core) (reading : Nat) (pending : Pending)
     (result : (pending.call core.lifecycle).Result) (unstarted : core.Unstarted)
     (waiting : core.pending = some pending) :
@@ -452,7 +456,7 @@ theorem Reached.ran {clearDisabled : Option String} {persisted : PersistedState}
   | step _ reading event hold => exact hold.step reading event
   | resume _ waiting reading result hold => exact hold.resume waiting reading result
 
-/-- **Every state of a run is reached from a start, by the events handed to its steps.** -/
+/-- **Every state of a run is reached from a start by some events.** -/
 theorem Ran.reached {clearDisabled : Option String} {core : Core}
     (ran : Ran clearDisabled core) :
     ∃ persisted reason reading events,
@@ -482,7 +486,8 @@ theorem Reached.unstarted {clearDisabled : Option String} {origin core : Core}
   | resume _ waiting reading result hold =>
     exact Core.resume_unstarted _ reading _ result (hold startless) waiting
 
-/-- **A viewer started from a stopped intent spawns nothing until a Start is submitted.** For
+/-- **A supervisor started from a stopped intent waits on no spawn while no Start is handed to
+its step.** For
 every Clear configuration, every durable state that intends to stay stopped, every reason and
 reading the viewer starts with, every sequence of events that holds no operator's Start, and
 every state reached by it from that start: the lifecycle admits no reservation at any instant
@@ -501,7 +506,8 @@ theorem Reached.stopped_spawns_nothing {clearDisabled : Option String}
   (reached.unstarted (Core.start_unstarted persisted clearDisabled reason reading stopped)
     startless).spawns_nothing
 
-/-- **A viewer started with no state file spawns nothing until a Start is submitted.** The
+/-- **A supervisor started from the state built with no state file waits on no spawn while no
+Start is handed to its step.** The
 statement of `Reached.stopped_spawns_nothing` for the state the bootstrap builds when the run
 directory holds no state file, for every seed and whether or not a stray checkpoint was
 adopted. -/
@@ -517,9 +523,10 @@ theorem Reached.unstarted_spawns_nothing {clearDisabled : Option String} {seed :
             state.desired = .stopped :=
   Reached.stopped_spawns_nothing rfl reached startless
 
-/-- **The page of a viewer started with no state file reads a stopped run.** For every seed,
-Clear configuration, reason, reading and observation: the control record of the start state
-says the run is desired stopped and is actually stopped. -/
+/-- **The control record of a start with no state file says the run is stopped.** For every
+seed, whether or not a stray checkpoint was adopted, and every Clear configuration, reason,
+reading and observation: in the control record of the start state, the desired word and the
+actual word are both `stopped`. -/
 theorem Core.start_control (seed : UInt64) (migrated : Bool) (clearDisabled : Option String)
     (reason : String) (reading : Nat) (observed : ControlObservation) :
     let core := Core.start (PersistedState.unstarted seed migrated) clearDisabled reason reading
@@ -603,8 +610,8 @@ private theorem resume_spawns (core : Core) (reading : Nat) (state : PersistedSt
 /-- **A submitted Start reserves a spawn.** For every Clear configuration, every durable state
 that admits a launch, and every reason and reading the viewer starts with: there are events
 that hold an operator's Start, and a state reached by them from that start state, that waits
-to spawn the first generation with the launch the durable state admits. The events are the
-Start and one tick; the calls between them succeed. -/
+to spawn the first generation with the launch the durable state admits. The proof's witness
+is the Start and one tick, with every call between them succeeding. -/
 theorem start_spawns (persisted : PersistedState) (clearDisabled : Option String)
     (reason : String) (reading : Nat) (plan : CoreLaunch)
     (admitted : persisted.launch = .ok plan) :
@@ -639,9 +646,10 @@ theorem start_spawns (persisted : PersistedState) (clearDisabled : Option String
     exact resume_spawns _ reading _ plan (by rw [same]; exact again.reserves)
 
 /-- **The state built when no state file exists admits a launch.** For every seed within the
-browser's integers, which every seed the viewer draws is (`viewerSeed_bound`), and whether or
-not a stray checkpoint was adopted. With `Core.start_spawns`, a Start submitted to a viewer
-started on an empty run directory reserves a spawn. -/
+browser's integers and whether or not a stray checkpoint was adopted. The seeds the bootstrap
+uses are within them: a drawn seed is below `2 ^ 48` (`viewerSeed_bound`) and the seed beside an
+adopted checkpoint is 42. With `Core.start_spawns`: from the start on that state there are
+events that hold a Start and reach a state that waits to spawn. -/
 theorem unstarted_launch (seed : UInt64) (migrated : Bool)
     (safe : seed.toNat ≤ browserIntegerMax) :
     ∃ plan, (PersistedState.unstarted seed migrated).launch = .ok plan := by

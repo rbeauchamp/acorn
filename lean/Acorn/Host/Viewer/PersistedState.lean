@@ -12,18 +12,21 @@ import Acorn.Host.Viewer.Wire
 The current state file has seven fields: its schema version and six of state. Strict
 JSON syntax and exact integer admission precede identity construction. Missing files
 and refused files have different result constructors; a caller cannot mistake parse
-failure for a successful restore.
+failure for a successful restore. Publication uses an exclusively created temporary
+file and rename after a complete write and flush. Filesystem stability and POSIX
+rename remain the RunDirectory trust boundary; no power-loss durability is claimed.
 
-**A running intent on disk records a Start.** A viewer that finds no state file builds
-a state that intends to stay stopped (`PersistedState.unstarted`), and the supervisor
-writes a running intent only after an operator's Start or from a state that already
-held one (`Acorn.Host.Viewer.ExplicitStart`). Viewers before schema version 2 wrote
-`running` when they found no file, with no Start, and their files name no schema. So a
-file that names none is admitted with its identity, its origin and its process fact,
-and with intent stopped (`PersistedState.decode_unversioned`): the intent is the one
-field whose value an operator may never have chosen. Publication uses an exclusively created temporary file and
-rename after a complete write and flush. Filesystem stability and POSIX rename
-remain the RunDirectory trust boundary; no power-loss durability is claimed.
+**A running intent in a file of this schema follows a Start.** A viewer that finds no
+state file builds a state that intends to stay stopped (`PersistedState.unstarted`), and
+a supervisor started from a stopped intent waits on no write of a running intent while
+no operator's Start is handed to its step (`Acorn.Host.Viewer.ExplicitStart`). That a
+running intent on disk therefore follows a Start in some viewer that owned the run
+directory is argued from that theorem by induction over those viewers, and is not
+proved. Before schema version 2 the viewer wrote `running` when it found no file, with
+no Start, and its files name no schema. So a file that names none is decoded with its
+other fields as written and with intent stopped: the intent is the one field whose
+value an operator may never have chosen. `PersistedState.decode_unversioned` proves the
+stopped intent.
 -/
 namespace Acorn.Host.Viewer
 
@@ -63,12 +66,13 @@ def runHex (word : UInt64) : String :=
     let digit := word.toNat / 16 ^ index % 16
     Char.ofNat (if digit < 10 then 48 + digit else 87 + digit))
 
-/-- The schema version the viewer writes. From this version on, a state file holds a running
-intent only after an operator's Start. -/
+/-- The schema version the viewer writes. From this version on, a viewer that finds no state
+file writes a stopped intent. -/
 def stateSchema : Nat := 2
 
 /-- The state a viewer builds when its run directory holds no state file: a new run of a fresh
-agent that intends to stay stopped, so the absence of a file starts no process. `migrated`
+agent that intends to stay stopped, so the absence of a file gives the supervisor no running
+intent. `migrated`
 records that a stray checkpoint of an earlier layout was adopted into the run. -/
 def PersistedState.unstarted (seed : UInt64) (migrated : Bool) : PersistedState :=
   ⟨⟨seed, seed, 0⟩, .stopped, .fresh, migrated⟩
@@ -83,8 +87,8 @@ def PersistedState.encode (state : PersistedState) : String :=
   ",\"origin\":\"" ++ state.origin.tag ++
   "\",\"process_started\":" ++ (if state.processStarted then "true" else "false") ++ "}\n"
 
-/-- Whether a state file names its schema. A file that names none is from a viewer before
-schema version 2. -/
+/-- Whether a state file names its schema. Before schema version 2 the viewer wrote files that
+name none. -/
 def stateVersioned (value : Json.Value) : Bool := (value.member "schema_version").isSome
 
 /-- The fields of a state file: the schema version when the file names one, which must be

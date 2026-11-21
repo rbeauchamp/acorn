@@ -882,10 +882,11 @@ What each panel must show. How it draws it is the code's.
   file whose running intent an earlier Start set, which it resumes. Launched on
   a run directory with no state file and without `--start`, it spawns nothing,
   writes a stopped state and shows the run `stopped` with the Start control
-  until one of those acts
-  (`Acorn.Host.Viewer.Reached.unstarted_spawns_nothing` states this of the
-  supervisor's step). A state file that names no schema version, which is what
-  the viewer wrote before `state.json` carried one, is read with its identity
+  until one of those acts. `Acorn.Host.Viewer.Reached.unstarted_spawns_nothing`
+  states, of the supervisor's step, that from that state it waits on no spawn
+  and on no write of a running intent while no Start is handed to it. A state
+  file that names no schema version, which is what the viewer wrote before
+  `state.json` carried one, is read with its identity
   and with intent stopped, because that viewer wrote a running intent when it
   found no file. When the viewer does spawn, the core runs the
   explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×

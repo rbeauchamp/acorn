@@ -1206,7 +1206,8 @@ reservation at any instant and intends to stop, and the call the state waits for
 spawn and writes no state that intends to run
 (`Acorn.Host.Viewer.Reached.stopped_spawns_nothing`;
 `Acorn.Host.Viewer.Reached.unstarted_spawns_nothing` states it for the state built with no
-state file). The states reached from a start in this way are the states of a run and no others
+state file). The states reached from a start by steps and outcomes are the states of a run and no
+others
 (`Acorn.Host.Viewer.Reached.ran`, `Acorn.Host.Viewer.Ran.reached`). The statement is not
 empty: from the start on every durable state that admits a launch, there are events that hold a
 Start and a state reached by them that waits to spawn the first generation
@@ -1220,4 +1221,6 @@ viewer wrote a running intent in it when it found no file, with no Start. Three 
 from the code and not proved: the actor hands the step an operator's Start only for a command
 that was submitted to its queue, which the bootstrap does for the `--start` flag and the HTTP
 server for an admitted control request; the bootstrap hands the supervisor the state it read or
-built; and a state file it refuses constructs no supervisor.
+built; and a state file it refuses constructs no supervisor. That a running intent in a state
+file follows a Start in some earlier viewer is argued from the write clause above by induction
+over the viewers that owned the run directory, and is not proved.
