@@ -22,7 +22,7 @@ forever, as it would under `repeat`.
 The iteration is defined for `IO` and `BaseIO`, the monads of the host's loops, rather than for
 every monad with a `Lean.Order.MonadTail` instance: with the monad fixed, the compiler inlines its
 bind, so the recursive call is a self tail call, which Lean's C emitter turns into a jump
-(`isTailCall` and `emitTailCall`, `Lean/Compiler/LCNF/EmitC.lean:527-539` and `725-747` at
+(`isTailCall` and `emitTailCall`, `Lean/Compiler/LCNF/EmitC.lean:527-531` and `725-747` at
 v4.36.0), and a loop that runs long does not grow the stack.
 -/
 
