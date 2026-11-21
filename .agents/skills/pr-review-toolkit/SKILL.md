@@ -1,6 +1,6 @@
 ---
 name: pr-review-toolkit
-description: Review and fix an Acorn diff or PR using its proof standards and proportionate independent review. Use for review-and-fix or pre-PR quality passes, not read-only reviews.
+description: Review and fix an Acorn diff or PR using its proof standards and proportionate independent review. Use for review-and-fix or pre-PR quality passes that the author runs, not read-only reviews and not the review that the review protocol assigns.
 ---
 
 # Review and fix
@@ -8,6 +8,15 @@ description: Review and fix an Acorn diff or PR using its proof standards and pr
 Use the repository [proof-review standard](../proof-review/SKILL.md). Correctness
 comes from the actual types, executable definitions and proofs; no scenario tests.
 Apply current `AGENTS.md` for verification, merge authority and record retention.
+
+This is the review an author runs on their own change, with a reviewer the
+author chooses. It discharges nothing of the
+[review protocol](../../../CONTRIBUTING.md#review-protocol), for any pull
+request. There the maintainers assign a reviewer of another model family, and
+[which review a pull request gets](../../../CONTRIBUTING.md#which-review-a-pull-request-gets)
+says whether that is the referee's review or the short review. That review, a comment
+on the pull request, decides whether the work is accepted. Never report work as complete on the
+strength of this review.
 
 1. Identify the intended diff, relevant callers and claimed behavior. Preserve
    unrelated changes. Follow changed guarantees to their actual enforcement and
@@ -26,10 +35,15 @@ Apply current `AGENTS.md` for verification, merge authority and record retention
    work and needless indirection, preserve invariants and useful rationale. This
    is part of implementation/review, not a separate trio of review jobs.
 5. Run the local checks required by `AGENTS.md`. Report what changed, meaningful
-   verification and any material limits in the PR. Do not create a charter,
-   coverage matrix, ledger, attestation, transcript or verification archive.
+   verification and any material limits in the PR, with the list of every
+   computation made on the agent that
+   [what counts as a run](../../../CONTRIBUTING.md#what-counts-as-a-run) asks
+   for. Do not create a charter, coverage matrix, ledger, attestation,
+   transcript or verification archive for this review. A referee's report is
+   not such a record: it is a comment on the pull request and is kept.
 
 Missing proof/checks or unresolved blocking defects leave the PR unready. A clean
-review is not a universal correctness claim. Git and the PR are the engineering
+review is not a universal correctness claim, and it is not completion: the
+review protocol decides when work is complete. Git and the PR are the engineering
 record; scratch and successful raw logs are disposable. Maintain this skill
 under `.agents/skills/`.
