@@ -608,13 +608,6 @@ theorem Lifecycle.request_unstarted (state : Lifecycle) (command : Command)
       | stopped => exact nofun
       | running => exact absurd held unstarted.2
 
-theorem Lifecycle.started_unstarted (state : Lifecycle) (generation : UInt64)
-    (unstarted : state.Unstarted) : (state.started generation).Unstarted := by
-  unfold started
-  split
-  · exact unstarted
-  · exact unstarted
-
 theorem Lifecycle.failed_unstarted (state : Lifecycle) (generation now : UInt64)
     (healthy : Bool) (unstarted : state.Unstarted) :
     (state.failed generation now healthy).Unstarted := by

@@ -23,10 +23,13 @@ no operator's Start is handed to its step (`Acorn.Host.Viewer.ExplicitStart`). T
 running intent on disk therefore follows a Start in some viewer that owned the run
 directory is argued from that theorem by induction over those viewers, and is not
 proved. Before schema version 2 the viewer wrote `running` when it found no file, with
-no Start, and its files name no schema. So a file that names none is decoded with its
-other fields as written and with intent stopped: the intent is the one field whose
-value an operator may never have chosen. `PersistedState.decode_unversioned` proves the
-stopped intent.
+no Start, and its files name no schema. So a file whose version does not read as the
+current one is decoded with its other fields as written and with intent stopped: the
+intent is the one field whose value an operator may never have chosen.
+`PersistedState.decode_earlier` proves the stopped intent, and
+`PersistedState.decode_running` that the decoder returns a running intent only under the
+current version. A file that names another natural number is refused
+(`PersistedState.decode_other`).
 -/
 namespace Acorn.Host.Viewer
 
@@ -87,17 +90,26 @@ def PersistedState.encode (state : PersistedState) : String :=
   ",\"origin\":\"" ++ state.origin.tag ++
   "\",\"process_started\":" ++ (if state.processStarted then "true" else "false") ++ "}\n"
 
-/-- Whether a state file names its schema. Before schema version 2 the viewer wrote files that
-name none. -/
-def stateVersioned (value : Json.Value) : Bool := (value.member "schema_version").isSome
+/-- The schema version a state file names: the natural number its `schema_version` member
+spells, and nothing when the member is absent or is not a natural number. Before schema
+version 2 the viewer wrote files with no such member. -/
+def stateVersion (value : Json.Value) : Option Nat :=
+  (value.member "schema_version").bind fun mark => mark.natural.toOption
 
-/-- The fields of a state file: the schema version when the file names one, which must be
-`stateSchema`, and the six fields of state. -/
-def PersistedState.fields (versioned : Bool) : Json.Decoder PersistedState := do
-  if versioned then
-    unless (← (← Json.take "schema_version").natural) == stateSchema do
-      throw (s!"schema_version is not {stateSchema}; a state file another version wrote is " ++
-        "neither guessed at nor overwritten")
+/-- Admission of the version a state file names, decided once: a natural number other than
+`stateSchema` is refused, so that a file another version wrote is neither guessed at nor
+overwritten; `stateSchema` and no readable version are admitted. -/
+def admitVersion : Option Nat → Except String Unit
+  | some version =>
+    if version = stateSchema then .ok ()
+    else .error (s!"schema_version {version} is not {stateSchema}; a state file another " ++
+      "version wrote is neither guessed at nor overwritten")
+  | none => .ok ()
+
+/-- The fields of a state file: its `schema_version` member when it has one, whose value
+`admitVersion` has already judged, and the six fields of state. -/
+def PersistedState.fields (marked : Bool) : Json.Decoder PersistedState := do
+  if marked then discard (Json.take "schema_version")
   let seed ← jsonWord (← Json.take "seed")
   let desired ← match ← Json.text "desired" with
     | "running" => pure Desired.running
@@ -112,50 +124,77 @@ def PersistedState.fields (versioned : Bool) : Json.Decoder PersistedState := do
   let processStarted ← jsonBool (← Json.take "process_started")
   return ⟨⟨run, seed, epoch⟩, desired, origin, processStarted⟩
 
-/-- The complete state schema refuses unknown fields, partial identity and any schema version
-but `stateSchema`. A file that names no schema keeps every field but its intent, which is
-admitted as stopped. -/
+/-- The complete state schema refuses unknown fields, partial identity and a schema version
+that is a natural number other than `stateSchema`. A file whose version does not read as
+`stateSchema`, because it has no `schema_version` member or one that is not a natural number,
+is read as an earlier version's file: it keeps every field but its intent, which is admitted
+as stopped. -/
 def PersistedState.decode (value : Json.Value) : Except String PersistedState := do
-  let state ← Json.decode value (PersistedState.fields (stateVersioned value))
-  return if stateVersioned value then state else { state with desired := .stopped }
+  admitVersion (stateVersion value)
+  let state ← Json.decode value (PersistedState.fields (value.member "schema_version").isSome)
+  return if stateVersion value = some stateSchema then state else { state with desired := .stopped }
 
-/-- **A state file that names no schema is admitted with intent stopped.** For every JSON
-value with no member named `schema_version` and every state the decoder returns for it. -/
-theorem PersistedState.decode_unversioned (value : Json.Value) (state : PersistedState)
-    (unversioned : stateVersioned value = false)
+/-- **A state file whose version does not read as the current one is admitted with intent
+stopped.** For every JSON value whose `schema_version` member is absent, is not a natural
+number or spells another number, and every state the decoder returns for it. -/
+theorem PersistedState.decode_earlier (value : Json.Value) (state : PersistedState)
+    (earlier : stateVersion value ≠ some stateSchema)
     (decoded : PersistedState.decode value = .ok state) : state.desired = .stopped := by
   unfold PersistedState.decode at decoded
-  obtain ⟨read, -, returned⟩ := Json.except_bind_ok decoded
-  simp only [unversioned, Bool.false_eq_true, ↓reduceIte, pure, Except.pure,
-    Except.ok.injEq] at returned
+  obtain ⟨-, -, rest⟩ := Json.except_bind_ok decoded
+  obtain ⟨read, -, returned⟩ := Json.except_bind_ok rest
+  simp only [earlier, ↓reduceIte, pure, Except.pure, Except.ok.injEq] at returned
   rw [← returned]
+
+/-- **The decoder returns a running intent only under the current schema version.** For
+every JSON value and every state the decoder returns for it that intends to run, the value's
+`schema_version` member spells `stateSchema`. -/
+theorem PersistedState.decode_running (value : Json.Value) (state : PersistedState)
+    (decoded : PersistedState.decode value = .ok state) (running : state.desired = .running) :
+    stateVersion value = some stateSchema := by
+  refine Decidable.byContradiction fun earlier => ?_
+  have stopped := PersistedState.decode_earlier value state earlier decoded
+  rw [stopped] at running
+  cases running
+
+/-- **A state file that names another schema version is refused.** For every JSON value
+whose `schema_version` member spells a natural number other than `stateSchema`. -/
+theorem PersistedState.decode_other (value : Json.Value) (version : Nat)
+    (named : stateVersion value = some version) (other : version ≠ stateSchema) :
+    ∃ reason, PersistedState.decode value = .error reason := by
+  unfold PersistedState.decode
+  rw [named]
+  simp only [admitVersion, other, ↓reduceIte]
+  exact ⟨_, rfl⟩
 
 /-- Where the state a viewer starts from came from. -/
 inductive StartSource where
   /-- The run directory held no state file. -/
   | absent
-  /-- The state file names no schema version, so its intent was read as stopped. -/
-  | unversioned
+  /-- The state file's version does not read as `stateSchema`: an earlier version's file,
+  whose intent was read as stopped. -/
+  | earlier
   /-- The state file names the schema this viewer writes; its intent is the one it records. -/
   | saved
   deriving DecidableEq
 
-/-- One line that says why the run a viewer starts with is stopped, or that it resumes. The
-viewer prints it at start-up and publishes it as the reason of its first control record, so a
-person who finds the run stopped is told why and what starts it. -/
-def startAccount (source : StartSource) (desired : Desired) : String :=
+/-- One line that says why the run a viewer starts with is shown stopped, and nothing when it
+is not. The viewer prints it before it publishes its start state and gives it as the reason of
+its first control record, so a person who finds the run stopped is told why and what starts
+it. -/
+def startAccount (source : StartSource) (desired : Desired) : Option String :=
   match desired, source with
-  | .running, _ => "the saved state intends to run, so the run resumes"
+  | .running, _ => none
   | .stopped, .absent =>
-    "stopped because the run directory holds no saved state; " ++
-      "press Start in the page or launch with --start"
-  | .stopped, .unversioned =>
-    "stopped because the saved state was written before state.json recorded a schema " ++
+    some ("stopped because the run directory holds no saved state; " ++
+      "press Start in the page or launch with --start")
+  | .stopped, .earlier =>
+    some ("stopped because the saved state was written before state.json recorded a schema " ++
       "version, so its intent is not taken as a Start; " ++
-      "press Start in the page or launch with --start"
+      "press Start in the page or launch with --start")
   | .stopped, .saved =>
-    "stopped because the saved state says stopped; " ++
-      "press Start in the page or launch with --start"
+    some ("stopped because the saved state says stopped; " ++
+      "press Start in the page or launch with --start")
 
 /-- Absence, refusal and successful restore require distinct caller branches. -/
 inductive StateRead where
@@ -163,9 +202,9 @@ inductive StateRead where
   | missing
   /-- IO, syntax or schema refused the prior file. -/
   | refused (reason : String)
-  /-- The complete state was admitted, from a file that names its schema or from one that
-  names none. -/
-  | restored (state : PersistedState) (versioned : Bool)
+  /-- The complete state was admitted, with whether the file's version reads as the current
+  one; when it does not, the file was read as an earlier version's. -/
+  | restored (state : PersistedState) (current : Bool)
 
 private def stateBytes (handle : IO.FS.Handle) (remaining : Nat) (bytes : ByteArray) : IO ByteArray := do
   let chunk ← handle.read (min (remaining + 1) 4096).toUSize
@@ -190,7 +229,7 @@ def RunDirectory.readState (directory : RunDirectory) : IO StateRead := do
     | .ok value =>
       match PersistedState.decode value with
       | .error reason => return .refused reason
-      | .ok state => return .restored state (stateVersioned value)
+      | .ok state => return .restored state (stateVersion value == some stateSchema)
   catch error => return .refused error.toString
 
 /-- Exclusive temporary creation prevents truncating a file owned by another pending writer.

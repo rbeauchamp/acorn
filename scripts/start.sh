@@ -8,7 +8,8 @@ usage() {
 Usage: ./scripts/start.sh [--no-browser] [--prepare-only] [--run-dir DIR] [--port N]
 
 With no options, prepare and build Acorn, open the browser, and start or resume
-the continuous agent. Stop in the viewer, or press Ctrl-C here to finish the
+the continuous agent. The viewer starts the agent only on an explicit request;
+this launcher passes it (--start). Stop in the viewer, or press Ctrl-C here to finish the
 current attempt and close the viewer. Saved learner state stays in acorn-run/.
 
   --no-browser    Print the viewer URL without opening a browser.

@@ -300,7 +300,10 @@ concise PR, not a scientific dossier. Do not run a study to replace an unresolve
 proof obligation. Scientific execution requires explicitly authorized scope.
 A run is the last resort, a smoke test or a diagnostic that only chooses a
 direction included: [AGENTS](AGENTS.md#correct-by-construction) says what must be
-shown before one is proposed.
+shown before one is proposed. The viewer starts the agent only on an explicit
+act: its `--start` flag, Start in its page, or a saved state that an earlier
+Start set to running. `./scripts/start.sh` passes that act, so the launcher
+does start the agent.
 
 ### Proof-shaped specifications
 

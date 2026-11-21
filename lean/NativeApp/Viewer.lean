@@ -43,11 +43,11 @@ private def freshSeed : IO UInt64 := do
 
 private def initialState (directory : RunDirectory) : IO (PersistedState × StartSource) := do
   match ← directory.readState with
-  | .restored state versioned =>
+  | .restored state current =>
     unless state.identity.browserSafe do
       throw (IO.userError "state.json identity exceeds browser integer precision; preserving the run without starting its core")
     let _ ← directory.adoptStrayCheckpoint
-    return (state, if versioned then .saved else .unversioned)
+    return (state, if current then .saved else .earlier)
   | .refused reason =>
     throw (IO.userError s!"state.json refused; preserving the run without starting its core: {reason}")
   | .missing =>
@@ -99,8 +99,13 @@ def runViewer (arguments : List String) : IO UInt32 := do
   let directory ← RunDirectory.open options.directory
   let config ← supervisorConfig options
   let (persisted, source) ← initialState directory
-  let account := if options.start then "Start requested with --start"
-    else startAccount source persisted.desired
+  -- A Start flag starts the run, so the run is then not shown stopped and nothing is said.
+  let account := if options.start then none else startAccount source persisted.desired
+  -- The line is printed before the supervisor publishes its start state, which replaces an
+  -- earlier version's file: a listener that fails to bind cannot lose it.
+  if let some line := account then
+    IO.println s!"Run: {line}"
+    (← IO.getStdout).flush
   let supervisor ← Supervisor.new config directory persisted account
   let stop ← StopFlag.new
   stop.withCommands options.controlStdin do
@@ -114,8 +119,6 @@ def runViewer (arguments : List String) : IO UInt32 := do
         | throw (IO.userError "bound viewer address is unavailable")
       let url := s!"http://{address}/"
       IO.println s!"Acorn is ready: {url}\nRun directory: {directory.rootPath}"
-      -- One line on why the run is stopped or resumes; a Start flag speaks for itself.
-      unless options.start do IO.println s!"Run: {account}"
       (← IO.getStdout).flush
       if options.start then
         match ← supervisor.submit .start with

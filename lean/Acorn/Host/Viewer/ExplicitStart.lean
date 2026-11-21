@@ -20,24 +20,33 @@ reaches a state that waits to spawn (`Core.start_spawns`).
 **The state built when no state file exists** is `PersistedState.unstarted`, which intends to
 stay stopped, so the theorem holds of the supervisor started from it
 (`Reached.unstarted_spawns_nothing`), and the control record of that start state says the run
-is desired stopped and actually stopped (`Core.start_control`). A state file that names no
-schema, which is what the viewer wrote before the file carried one, is decoded by
-`PersistedState.decode` with intent stopped (`PersistedState.decode_unversioned`), so the
-theorem holds of the supervisor started from what it decodes to
-(`Reached.unversioned_spawns_nothing`).
+is desired stopped and actually stopped (`Core.start_control`). A state file whose version
+does not read as the current one is decoded by `PersistedState.decode` with intent stopped
+(`PersistedState.decode_earlier`), so the theorem holds of the supervisor started from what it
+decodes to (`Reached.earlier_spawns_nothing`).
 
 **Every state file a viewer can meet.** With no state file the bootstrap builds
-`PersistedState.unstarted`, and the run is stopped. A file that names no schema version, which
-is all the viewer wrote before the file carried one, is decoded with intent stopped; the viewer
-publishes its start state in the schema it writes before it supervises, so the file names the
-schema afterwards and this reading happens once. A file that names `stateSchema` starts the
-run with the intent it records, so a running one resumes: by the write clause of the theorem a
+`PersistedState.unstarted`, and the run is stopped. A file whose `schema_version` member is
+absent, as in every file the viewer wrote before the file carried one, or is not a natural
+number, is read as an earlier version's file: decoded with intent stopped. The viewer publishes
+its start state in the schema it writes before it supervises, so the file names the schema
+afterwards and this reading happens once. A file that names `stateSchema` starts the run with
+the intent it records, so a running one resumes; the decoder returns a running intent only for
+such a file (`PersistedState.decode_running`), and by the write clause of the theorem a
 supervisor waits on the write of a running intent only after a Start was handed to its step,
-or from a start state that held one. A file that names any other schema version, like one that is unreadable
-or malformed, is refused: the bootstrap constructs no supervisor, so nothing is spawned, and
-the file is left as it is, because a file another version wrote is not guessed at and reading
-it as stopped would publish over it. The theorems cover the first three; the publication
-before supervision and the refusal are read from `Supervisor.new` and the bootstrap.
+or from a start state that held one. A file that names another natural number is refused by
+the decoder (`PersistedState.decode_other`), like one that is unreadable or malformed: the
+bootstrap constructs no supervisor, so nothing is spawned, and the file is left as it is,
+because a file another version wrote is not guessed at and reading it as stopped would publish
+over it. The publication before supervision, and that a refusal constructs no supervisor, are
+read from `Supervisor.new` and the bootstrap.
+
+**What the theorem does not cover.** It starts from a durable state that intends to stay
+stopped. A Stop the viewer has acknowledged but not yet written to its state file when the
+viewer crashes, or whose write failed, leaves a running intent on disk, set by the earlier
+Start; the next viewer resumes it. Holding the acknowledgement of a Stop until it is written
+would close that window and is a change to the control interface. Nor does the theorem say who
+may submit a Start: the viewer serves its page on the loopback interface to whoever loads it.
 
 **What the theorem is about.** `Reached` relates an origin, the events handed to the step and a
 state. The states reached from a start are exactly the states of `Ran` (`Reached.ran`,
@@ -451,16 +460,6 @@ inductive Reached (clearDisabled : Option String) (origin : Core) : List Event �
       (result : (pending.call core.lifecycle).Result) :
       Reached clearDisabled origin events (core.resume reading pending result).core
 
-/-- A run continued by a run is a run, of the later events before the earlier ones. -/
-theorem Reached.trans {clearDisabled : Option String} {origin middle core : Core}
-    {earlier later : List Event} (first : Reached clearDisabled origin earlier middle)
-    (second : Reached clearDisabled middle later core) :
-    Reached clearDisabled origin (later ++ earlier) core := by
-  induction second with
-  | origin => exact first
-  | step _ reading event hold => exact hold.step reading event
-  | resume _ waiting reading result hold => exact hold.resume waiting reading result
-
 /-- **The states reached from a start are states of a run.** -/
 theorem Reached.ran {clearDisabled : Option String} {persisted : PersistedState}
     {reason : String} {reading : Nat} {events : List Event} {core : Core}
@@ -538,13 +537,13 @@ theorem Reached.unstarted_spawns_nothing {clearDisabled : Option String} {seed :
             state.desired = .stopped :=
   Reached.stopped_spawns_nothing rfl reached startless
 
-/-- **A supervisor started from a state file that names no schema waits on no spawn while no
+/-- **A supervisor started from an earlier version's state file waits on no spawn while no
 Start is handed to its step.** The statement of `Reached.stopped_spawns_nothing` for every
-state that `PersistedState.decode` returns for a JSON value with no member named
-`schema_version`. -/
-theorem Reached.unversioned_spawns_nothing {clearDisabled : Option String} {value : Json.Value}
+state that `PersistedState.decode` returns for a JSON value whose `schema_version` member is
+absent, is not a natural number or spells a number other than `stateSchema`. -/
+theorem Reached.earlier_spawns_nothing {clearDisabled : Option String} {value : Json.Value}
     {persisted : PersistedState} {reason : String} {reading : Nat} {events : List Event}
-    {core : Core} (unversioned : stateVersioned value = false)
+    {core : Core} (earlier : stateVersion value ≠ some stateSchema)
     (decoded : PersistedState.decode value = .ok persisted)
     (reached : Reached clearDisabled (Core.start persisted clearDisabled reason reading)
       events core) (startless : Event.command .start ∉ events) :
@@ -554,7 +553,7 @@ theorem Reached.unversioned_spawns_nothing {clearDisabled : Option String} {valu
           ∀ state, pending.call core.lifecycle = .writeState state →
             state.desired = .stopped :=
   Reached.stopped_spawns_nothing
-    (PersistedState.decode_unversioned value persisted unversioned decoded) reached startless
+    (PersistedState.decode_earlier value persisted earlier decoded) reached startless
 
 /-- **The control record of a start with no state file says the run is stopped.** For every
 seed, whether or not a stray checkpoint was adopted, and every Clear configuration, reason,

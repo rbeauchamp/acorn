@@ -885,21 +885,27 @@ What each panel must show. How it draws it is the code's.
   until one of those acts. `Acorn.Host.Viewer.Reached.unstarted_spawns_nothing`
   states, of the supervisor's step, that from that state it waits on no spawn
   and on no write of a running intent while no Start is handed to it. A state
-  file that names no schema version, which is what the viewer wrote before
-  `state.json` carried one, is read with its identity
+  file whose schema version is absent, which is what the viewer wrote before
+  `state.json` carried one, or is not a whole number, is read with its identity
   and with intent stopped, because that viewer wrote a running intent when it
   found no file. The viewer then rewrites the file with the schema version, so
   this happens once: an operator who starts the viewer directly on a run that
   an earlier viewer left running finds it stopped and presses Start, and
-  `./scripts/start.sh` starts it as before. A state file that names any other
-  schema version is refused like a malformed one: the viewer exits before it
+  `./scripts/start.sh` starts it as before. A state file that names another
+  whole number as its schema version is refused like a malformed one: the viewer exits before it
   serves anything and leaves the file as it is, because a file another version
-  wrote is not guessed at. Whenever the run a viewer starts with is stopped,
-  the viewer says why in one line, for example "Run: stopped because the run
-  directory holds no saved state; press Start in the page or launch with
-  --start": on its standard output after the ready line when it was launched
-  without `--start`, and as the reason of its first control record, which the
-  page shows in the hover text of the state word (UX-21). When the viewer does
+  wrote is not guessed at. Whenever the run a viewer starts with is shown
+  stopped (no state file, a saved stopped state, or an earlier version's file
+  read as stopped), the viewer says why in one line, for example "Run: stopped
+  because the run directory holds no saved state; press Start in the page or
+  launch with --start": on its standard output, before it writes its start
+  state and so before an earlier version's file is replaced, and as the reason
+  of its first control record, which the page shows in the hover text of the
+  state word (UX-21). It announces nothing when the run is not shown stopped,
+  as under `--start` or when it resumes a running state. A Stop that the viewer
+  has acknowledged but not yet written when the viewer crashes is not made
+  durable: the saved state still says running, by the earlier Start, and the
+  next launch resumes it. When the viewer does
   spawn, the core runs the
   explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×
   4000 steps) with weight checkpointing. `--run-dir <dir>` moves the run
