@@ -151,7 +151,7 @@ Acorn has only one human maintainer, independent human maintainer cross-checking
 on every pull request is unavailable. During this single-maintainer phase,
 independent review remains mandatory on every pull request (by an external
 model of another model family than every model that did the work, or an
-uninvolved person where the general rule below admits one), with the same
+uninvolved person where the general rule above admits one), with the same
 referee's review or short review depth, exact head commit binding, findings, and
 verdict of accept, revise or reject, plus exact-head `./scripts/gate.sh` and
 any blind specification read-back required at merge under
