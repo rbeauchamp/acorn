@@ -324,17 +324,23 @@ argument of `./scripts/verify.sh` runs the mutation audit, which runs the agent.
 
 The Test instructions of `.no-mistakes.yaml` are the one place that says, for
 each executable that `lean/lakefile.lean` declares, whether running it steps a
-learner and how to drive it so that it does not. Read them before starting an
-Acorn program, and treat a program or a way of running one that they do not name
-as stepping a learner.
+learner and which invocations of it do not, each written out exactly. Read them
+before starting an Acorn program. Their list is closed: treat a program they do
+not name, and an invocation they do not write out, as stepping a learner. That
+means not yet shown, never forbidden for ever: a drive established to step
+nothing joins the list by a reviewed change to it, and no one decides an
+unlisted invocation for themselves while a change is being validated. Asking a
+program for help is an invocation like any other.
 
-The rule forbids no other drive. Building, the merge gate and the audit tools
-start no program that steps a learner, and neither do the drives those
-instructions list, such as the viewer serving its page from an explicitly stopped state with a child command
-that cannot be a core. Those drives are still asked for where a change alters
-what a program does. A drive that steps a learner stays available on the owner's
-authorization, for the run it names. A claim that cannot be shown without
-stepping a learner is reported open with that reason, never driven.
+The rule forbids no other drive. Building and the merge gate start no program
+that steps a learner. Neither do the audit tools in the modes those instructions
+list; the diagnostics argument of the gate tool is the one mode that does.
+Neither do the drives listed there, such as the viewer serving its page from an
+explicitly stopped state with a child command that cannot be a core. Those
+drives are still asked for where a change alters what a program does. Where a
+change's intent states the owner's authorization for a particular run, exactly
+that run may be driven as well, and nothing wider. A claim that cannot be shown
+without stepping a learner is reported open with that reason, never driven.
 
 The rule is an instruction, which the people and agents who work on Acorn
 follow. No program refuses the run.

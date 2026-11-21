@@ -80,7 +80,7 @@ cleanup() {
   rm -f "$lock/control" "$lock/pid" "$lock/installer.sh"
   rmdir "$lock"
   if [[ "$status" -ne 0 ]]; then
-    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run ./scripts/start.sh again.\n' "$phase" >&2
+    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run the same command again with the same options.\n' "$phase" >&2
   fi
   exit "$status"
 }
@@ -175,7 +175,7 @@ phase='build'
 printf 'Building Acorn (subsequent launches reuse unchanged build outputs)…\n'
 ./scripts/lean.sh build acorn-viewer
 if [[ "$prepare_only" == 1 ]]; then
-  printf 'Acorn is built. Run ./scripts/start.sh to open the viewer and start learning.\n'
+  printf 'Acorn is built. ./scripts/start.sh opens the viewer and starts the agent. In work on a change to Acorn, run it only with the authorization of the owner for that run (CONTRIBUTING.md, Running a program).\n'
   exit 0
 fi
 

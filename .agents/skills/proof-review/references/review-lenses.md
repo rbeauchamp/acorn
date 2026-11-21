@@ -48,7 +48,11 @@ surface cannot exercise it; do not audit unrelated repository code.
    typed origin witnesses govern the admitted producers. Neither mechanism
    proves that a provenance declaration is scientifically honest.
 6. **Observer invariant** — nothing in `NativeApp.Viewer` or `Acorn.Host.Viewer` may
-   change agent decisions, and the audit digest must confirm it.
+   change agent decisions, and the audit digest must confirm it. The digest
+   comes from a run of the agent: obtain it only on the owner's authorization
+   for that run, stated in the change's intent
+   ([running a program](../../../../CONTRIBUTING.md#running-a-program)), and
+   otherwise report it as not rechecked.
 7. **Prior-art traceability and defect disclosure** — any code symbol, algorithm,
    or mathematical proof derived from prior art must carry an explicit in-code
    citation (`/-- ... -/` or `/-! ... -/` in Lean) stating the

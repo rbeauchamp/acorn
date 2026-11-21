@@ -28,18 +28,24 @@ invariants and design references. A violated spec or repository rule is a defect
 a preference where both are silent is explicitly design judgment.
 
 Inspect the actual rendered build and the states/geometries affected by the
-change. Serve the page only as the Test instructions of `.no-mistakes.yaml` say
-under "Driving the viewer": from an explicitly stopped state, with a child
-command that cannot be a core. Started as the launcher and the documents start
-it, the viewer starts the agent, and with no state file in its run directory it
-starts running without being asked: its supervisor launches its child, which is
-the core unless the command line names another command. No step starts a
-program that steps the agent or one of its learners unless the owner's
-authorization for that run is stated in the change's intent
+change. Unless the change's intent states the owner's authorization for a run
+of the viewer with the core, serve the page only by the recipe that the Test
+instructions of `.no-mistakes.yaml` give under "Driving the viewer": from an
+explicitly stopped state, with a child command that cannot be a core. Started
+as the launcher and the documents start it, the viewer starts the agent, and
+with no state file in its run directory it starts running without being asked:
+its supervisor launches its child, which is the core unless the command line
+names another command. No step starts a program that steps the agent or one of
+its learners unless the owner's authorization for that run is stated in the
+change's intent
 ([running a program](../../../CONTRIBUTING.md#running-a-program)).
 A smoke test or a screenshot of the viewer running the core is such a run.
-A running or populated state that no authorized run supplies is a limitation to
-disclose, never a reason to start one.
+In a viewer started by that recipe, and in no other, the page's Start button
+may be pressed: the only child it can start is a command that is no core, and
+its exit shows the lifecycle and its handling of a failed child. A state that
+only a core supplies, and a map or panel filled from a map or checkpoint that
+an earlier run of a learner left, are limitations to disclose unless the intent
+authorizes that run, never a reason to start one or to read what one left.
 Read [capture guidance](references/capture-evidence.md) when using browser
 evidence and [review prompts](references/review-workflow.md) for the relevant UX
 questions. One reviewer can cover them together; there is no fixed nine-agent

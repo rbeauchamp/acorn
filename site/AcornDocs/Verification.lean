@@ -142,7 +142,8 @@ to displace an uncertain owner.
 Read `.acorn-launch/pid` and inspect that process and its viewer/core descendants.
 Only after confirming that no process still owns this run, remove the lock's
 temporary files (control, pid and installer.sh) and the
-empty `.acorn-launch/` directory, then rerun the launcher. Preserve `acorn-run/`.
+empty `.acorn-launch/` directory, then rerun the launcher with the options it
+was first given. Preserve `acorn-run/`.
 Do not manually launch another viewer against a directory already in use.
 
 ## Build and verification failures

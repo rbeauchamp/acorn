@@ -1,15 +1,19 @@
 # Inspect the rendered change
 
-Use the viewer built from the reviewed checkout, served only as the Test
-instructions of `.no-mistakes.yaml` say under "Driving the viewer": from an
-explicitly stopped state, with a child command that cannot be a core. That drive
-steps no learner and shows the page's text, layout, controls and stopped
-lifecycle. Inspect the affected panels, controls and lifecycle states against
-`docs/viewer-ux.md`. For layout changes, check the applicable wide/compact
-geometries; for data changes, inspect the relevant populated and missing/fault
-states. A running lifecycle state and a populated panel need a core, which is a
-run of the agent: inspect one only when the owner's authorization for that run
-is stated in the change's intent
+Use the viewer built from the reviewed checkout. Unless the change's intent
+states the owner's authorization for a run of the viewer with the core, serve it
+only by the recipe that the Test instructions of `.no-mistakes.yaml` give under
+"Driving the viewer": from an explicitly stopped state, with a child command
+that cannot be a core. That recipe steps no learner and shows the page's text,
+layout, controls and stopped lifecycle, and in a viewer started by it, and in no
+other, the page's Start button may be pressed, which shows the lifecycle and its
+handling of a failed child. Inspect the affected panels, controls and lifecycle
+states against `docs/viewer-ux.md`. For layout changes, check the applicable
+wide/compact geometries; for data changes, inspect the relevant populated and
+missing/fault states. A state that only a core supplies is a run of the agent,
+and a map or panel filled from a map or checkpoint that an earlier run of a
+learner left is an artifact of that run: inspect either only when the owner's
+authorization for it is stated in the change's intent
 ([running a program](../../../../CONTRIBUTING.md#running-a-program)), and
 otherwise disclose the state as not inspected. There is no mandatory capture
 bundle for an unrelated copy or code change.
