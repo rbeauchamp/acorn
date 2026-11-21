@@ -505,9 +505,13 @@ the executing library, the tools except the axiom pins, and their dependencies;
 the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
-[Regula audit](#regula-audit), then lean-intent's two checks and then the frame
+[Regula audit](#regula-audit), lean-intent's two checks and the frame
 check on the same commit, each also when an earlier step failed, and passes only
-when both runs, the audit and the checks pass.
+when both runs, the audit and the checks pass. When ordinary verification
+passed, lean-intent's two checks and the frame check run one after another in a
+background subshell beside the Regula audit, because every module and executable
+is already built and all three read the finished build without writing to
+`lean/.lake/`; when verification failed, all three run one after another.
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake
@@ -519,22 +523,23 @@ check, which decides that each deliverable's current revision is confirmed by
 answers whose authority traces back to the owner, and to its implementation check,
 which decides that each deliverable names the constant implementing it, with the
 proof that it fulfils the record. The gate passes only when the first finds
-nothing and the findings of the second are, as a set, the unimplemented findings of
+nothing, the second reports no awaiting-implementation declaration, and the
+findings of the second are, as a set, the unimplemented findings of
 the deliverables that the checker's one closed list names as awaiting an
 implementation, each with the issue that tracks its fulfilment proof
 (`AcornVerif.Intent.onlyAwaiting_iff`, `AcornVerif.Intent.implemented_of_onlyAwaiting`).
-Another finding, a listed name that is no declared deliverable and a listed
-deliverable that gains an implementation each fail it, and both checks refuse a
-project that declares no deliverable. The list names the hash record's
+Another finding, an awaiting-implementation declaration, a listed name that is
+no declared deliverable and a listed deliverable that gains an implementation
+each fail it, and both checks refuse a project that declares no deliverable. The list names the hash record's
 deliverable, whose proof rbeauchamp/acorn#184 tracks, the deliverable of the
 intent record of contract 1 of the mission contract, the interface every world
 meets, whose proof rbeauchamp/acorn#213 tracks, and the deliverable of the intent
 record of contract 3, the invariants of learning from one stream, whose proof
 rbeauchamp/acorn#215 tracks; it was decided on the owner's
 behalf by the agent supervising Acorn's research, since the intent-first method
-confirms a record before its implementation exists, and it is retired once
-lean-intent can declare a deliverable awaiting its implementation itself
-(rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
+confirms a record before its implementation exists, and it remains until the
+listed deliverables migrate to lean-intent's awaiting-implementation
+declaration (rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
 package, and that the constant an implementation names is what an executable runs,
 are trusted.
 
@@ -694,10 +699,14 @@ step, "The merge gate on the exact source", the only step in which a check
 runs, in the `gate:` lines that the head's own script prints there. Each of
 these lines ends with the time of day and the seconds since the script started.
 The script of this revision prints `gate: verification, stage one` before its
-first check and then, as each check ends, a line that reports its exit status:
-`gate: verification exited N; Regula audit` for verification's two stages
-together, `gate: Regula audit exited N; lean-intent checks`,
-`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`.
+first check and then reports each check's exit status on its own line:
+`gate: verification exited 0; Regula audit beside lean-intent and frame checks`
+(or `gate: verification exited N; Regula audit` when verification exited
+non-zero) for verification's two stages together,
+`gate: Regula audit exited N; lean-intent checks`,
+`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`
+(when verification passed, those last three lines are printed in order once both
+the Regula audit and the background subshell finish).
 It prints `gate: every merge check passed` last, and only when every status
 is 0. A head that holds another revision of the script runs that revision's
 checks and prints that revision's lines, which the head's own `scripts/gate.sh`

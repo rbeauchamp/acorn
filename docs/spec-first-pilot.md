@@ -3,7 +3,7 @@
 This report answers [#177](https://github.com/rbeauchamp/acorn/issues/177): a pilot of the intent-first method on three Acorn functions, `World.dayPhase` and the hash functions `Rng.hash2` and `Rng.hash3`.
 The pilot ran the method under the name spec-first; the owner renamed it intent-first on 2026-11-03.
 
-The method, carried by the owner's skill for it and the [lean-intent](https://github.com/rbeauchamp/lean-intent) library (pinned during the pilot at commit 30fe70d; Acorn now pins commit 9502fbe), turns an owner's words into an *intent record*, a Lean structure of named properties of a subject, before any code; proves the record adequate (lean-intent's obligations O1 to O5: well formed, satisfiable, each property refutable, a step that does nothing refused, and any freedom between models made explicit); compares it with a second model's blind formalization of the same words; settles its consequences; and then proves the code against it.
+The method, carried by the owner's skill for it and the [lean-intent](https://github.com/rbeauchamp/lean-intent) library (pinned during the pilot at commit 30fe70d; Acorn now pins commit 5860879), turns an owner's words into an *intent record*, a Lean structure of named properties of a subject, before any code; proves the record adequate (lean-intent's obligations O1 to O5: well formed, satisfiable, each property refutable, a step that does nothing refused, and any freedom between models made explicit); compares it with a second model's blind formalization of the same words; settles its consequences; and then proves the code against it.
 
 ## The owner's decision on this report
 
@@ -65,7 +65,7 @@ Day and night, terrain noise and feature hashing sit below them: the agents choo
 
 At the pilot's pin, lean-intent 30fe70d, the degenerate check also left declared types with value parameters or proof fields, `Fin n`, `UInt64`, and `Std.TreeMap` **not covered**, never passed. These are the pilot's coverage results at that revision.
 
-At lean-intent 9502fbe, the pin Acorn adopts here, the check's module LeanIntent.Degenerate supplies codes for `Fin (n + 1)` and `UInt64`, and for nondependent function types whose argument and result types have codes. The upgrade adds no degenerate-check verdict proofs (lean-intent's Verdicts) for either Acorn record. Library support therefore does not establish a new coverage result for these records; their adequacy and implementation theorems do not supply those verdicts.
+At lean-intent 9502fbe, the pin Acorn adopted when it moved off the pilot revision, the check's module LeanIntent.Degenerate supplies codes for `Fin (n + 1)` and `UInt64`, and for nondependent function types whose argument and result types have codes. The upgrade adds no degenerate-check verdict proofs (lean-intent's Verdicts) for either Acorn record. Library support therefore does not establish a new coverage result for these records; their adequacy and implementation theorems do not supply those verdicts.
 
 O1 holds of every record by construction.
 The hash record's O2 before running, a pair of functions meeting the whole record, is not proved: see the hash results below.

@@ -22,7 +22,8 @@ west or four moves south, and each second for at least four east or four north, 
 the 3136 pairs is a fork (`grid_apart`): a visit has seven moves. Each first target is met from
 the first situation's start by the witness's walk west or south
 (`AcornVerif.CurrentConcealedTarget.witness_walk`), and each second from the second's by seven
-steps east or north, which the kernel evaluates (`dusk_grid_walk`).
+steps east or north (`dusk_grid_walk`, reusing `dusk_walk` east and elevation-only terrain checks
+north).
 
 **The agent.** `gridWitness` is `AcornVerif.Kernel.switch` over two replaying agents: by day it
 explores east, west and then south on its own visits, and by night east and then north. It reads
@@ -89,14 +90,31 @@ def duskEnd : ℕ → ℤ × ℤ
   | 0 => (39, 32)
   | _ => (32, 25)
 
+/-- Seven steps north from `(32, 32)` stay in the walkable elevation band. -/
+private theorem dusk_north_walkable :
+    witnessWalkFast (32, 32) (List.replicate 7 .north) = true := by
+  decide +kernel
+
 /-- Seven steps east, and seven steps north, carry the body from the second situation's start to
-those end tiles. The kernel evaluates the executed world step along the two walks. -/
+those end tiles: east reuses `dusk_walk`, and north reduces structurally to elevation-only terrain
+checks on the seven entered tiles. -/
 theorem dusk_grid_walk (visit : ℕ) (within : visit ≤ 1) :
     (physicalPath (physical duskLive.world) (duskExplore visit) 7).map
       (fun world => tile world.body.position.position) = some (duskEnd visit) := by
   rcases (by omega : visit = 0 ∨ visit = 1) with rfl | rfl
-  · decide +kernel
-  · decide +kernel
+  · exact dusk_walk 0 (Nat.zero_le 1)
+  · have hstart : tile (physical duskLive.world).body.position.position = (32, 32) := dusk_start
+    have hen : 4 * 7 ≤ (physical duskLive.world).body.energy.val := by decide
+    have hwin : 25 ≤ (tile (physical duskLive.world).body.position.position).1 ∧
+        (tile (physical duskLive.world).body.position.position).1 ≤ 39 ∧
+        25 ≤ (tile (physical duskLive.world).body.position.position).2 ∧
+        (tile (physical duskLive.world).body.position.position).2 ≤ 39 := by
+      rw [hstart]; omega
+    change (physicalPath (physical duskLive.world) (fun _ => code .north) 7).map
+      (fun world => tile world.body.position.position) = some (32, 25)
+    simpa [hstart, witnessWalkEnd, Host.Action.direction, Host.Direction.delta] using
+      witness_physicalPath_const (physical duskLive.world) .north 7 hen hwin
+        (hstart ▸ dusk_north_walkable)
 
 /-- Where a second target of the grid lies: at least seven tiles east of the start, or at least
 seven north of it, and within three of the end of a walk east or north. -/

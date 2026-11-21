@@ -13,7 +13,7 @@ import LeanIntent.Statement
 /-!
 # Bridge to lean-intent
 
-lean-intent (https://github.com/rbeauchamp/lean-intent, commit `9502fbe`) states what an owner
+lean-intent (https://github.com/rbeauchamp/lean-intent, commit `5860879`) states what an owner
 wants from one deliverable as an intent record, `LeanIntent.IntentRecord`: named properties of a
 subject under named domain hypotheses, written before the subject's implementation is read. It
 computes the record's adequacy obligations O1 to O5 and the obligation of each
