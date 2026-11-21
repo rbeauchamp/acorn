@@ -170,13 +170,12 @@ The recommendation recorded there is: capacity on an agent of restricted capacit
 
 ## Learned agent state, beside the active rung
 
-[#295](https://github.com/rbeauchamp/acorn/issues/295) asks a contributor to state a goal about learned agent state as a theorem, to find the algorithm and to prove it of the agent that runs.
+[#295](https://github.com/rbeauchamp/acorn/issues/295) asks a contributor to add a state mechanism and a task (a family of worlds and a goal) and to prove seven statements about Acorn's agent run with that mechanism. That the program Acorn runs is that agent is the owner's condition for recording a submission complete, and no part of a submission establishes it ([#320](https://github.com/rbeauchamp/acorn/issues/320), below).
 It takes its research question from [#17](https://github.com/rbeauchamp/acorn/issues/17), which stays parked ([parked work](#parked-work-and-when-it-re-enters)).
-It has no frozen statement to prove, so it is not a mission, and its text says that it does not announce that the roadmap has resumed.
+It prescribes no task-specific goal and is not a mission, and its text says that it does not announce that the roadmap has resumed.
 A result there is stated in a fixed frame, frozen under `lean/AcornVerif/Targets/` with a pin of the agent it names; [the frame of a learned-state result](learned-state-frame.md) is its plain-word account, which the owner confirmed on 2026-11-20.
 The frame fixes the form of a result and leaves the goal, the family of worlds and the state mechanism to the contributor.
 Under it the agent stays fixed for a submission, and a change to the learners lands separately, first, as its own pull request ([contributing](../CONTRIBUTING.md#learned-state-results-and-changes-to-the-agents-learners)).
-That is narrower than the issue's text, which asks a contributor to change how the agent learns; the issue's text is revised by a separate change.
 A complete result in the frame is necessary and not sufficient for a learned-state result, and goes to a referee. It is not known whether one exists for the agent as it stands.
 When a revision of the issue links [the check for submissions on learned agent state](learned-state-check.md), the linked revision of the check sets out what the referee records. `.github/CODEOWNERS` names the check. A change to the check is admitted on the owner's side in the way the [contributor guide](../CONTRIBUTING.md#triage-and-response) sets out for the trusted-base files: by the owner, or under the owner's delegation as that section states it, which is not by that fact a review by the owner in person. Naming the file enforces neither, and the guide says that no check enforces the practice yet.
 
