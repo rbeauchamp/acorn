@@ -493,6 +493,8 @@ Rules that apply to every number, label and colour on the page.
   retain output handles can delay drain; name the core directly or `exec` it.
   Stop intent persists across viewer restarts, so reopening a stopped run
   leaves it stopped unless the operator explicitly requests Start with `--start`.
+  A run directory with no state file is treated the same way: the viewer starts
+  stopped (UX-42).
   The convenience launcher supplies that request: running it means start/resume
   now, without Clear or a direct edit to persisted state. Start still passes
   through the supervisor queue after successful state admission and HTTP binding.
@@ -875,9 +877,19 @@ What each panel must show. How it draws it is the code's.
   `./scripts/verify.sh` and not empirical default qualification.
 
   The advanced `./lean/.lake/build/bin/acorn-viewer --research-profile ranked --port 8088`
-  serves the UI at `http://127.0.0.1:8088/` and spawns the core with the
+  serves the UI at `http://127.0.0.1:8088/`. The viewer spawns the core only on
+  an explicit act: `--start` on its command line, Start in the page, or a state
+  file whose running intent an earlier Start set, which it resumes. Launched on
+  a run directory with no state file and without `--start`, it spawns nothing,
+  writes a stopped state and shows the run `stopped` with the Start control
+  until one of those acts
+  (`Acorn.Host.Viewer.Reached.unstarted_spawns_nothing` states this of the
+  supervisor's step). A state file that names no schema version, which is what
+  the viewer wrote before `state.json` carried one, is read with its identity
+  and with intent stopped, because that viewer wrote a running intent when it
+  found no file. When the viewer does spawn, the core runs the
   explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×
-  4000 steps) and weight checkpointing. `--run-dir <dir>` moves the run
+  4000 steps) with weight checkpointing. `--run-dir <dir>` moves the run
   directory, `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides
   the whole campaign, `--port N` overrides the port (`0` requests an available
   port), `--start` explicitly requests Start, `--open-browser` opens the bound

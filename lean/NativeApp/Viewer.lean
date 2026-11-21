@@ -14,6 +14,13 @@ The bootstrap admits configuration and durable state, binds loopback HTTP, then
 drives the serial supervisor. Browser request handlers cannot access a process
 handle. Native entropy, files, process execution and transport remain explicit
 OS/runtime boundaries.
+
+The viewer starts its core only on an explicit act. With no state file the bootstrap
+builds a state that intends to stay stopped (`Acorn.Host.Viewer.PersistedState.unstarted`),
+and it submits a Start only for the `--start` flag; the other source of a Start is an
+admitted control request. `Acorn.Host.Viewer.ExplicitStart` proves that the supervisor
+started from such a state waits on no spawn until a Start is handed to its step. A
+state file the bootstrap refuses constructs no supervisor.
 -/
 namespace NativeApp
 open Acorn.Host Acorn.Host.Viewer
@@ -45,7 +52,7 @@ private def initialState (directory : RunDirectory) : IO PersistedState := do
   | .missing =>
     let migrated ← directory.adoptStrayCheckpoint
     let seed ← if migrated then pure Cli.defaultSeed else freshSeed
-    return ⟨⟨seed, seed, 0⟩, .running, .fresh, migrated⟩
+    return .unstarted seed migrated
 
 private def supervisorConfig (options : ViewerOptions) : IO SupervisorConfig := do
   let (executable, arguments) ← match options.launch with
@@ -86,6 +93,7 @@ def runViewer (arguments : List String) : IO UInt32 := do
     | .ok options => pure options
     | .error error => throw (IO.userError (error.message ++
         "\nusage: acorn-viewer (--research-profile ranked | --cmd COMMAND) [--port N] [--run-dir DIR] [--no-checkpoint] [--start] [--open-browser] [--control-stdin]" ++
+        "\nThe core starts only with --start, with Start in the page, or when the run directory's saved state already intends to run." ++
         s!"\nN is below 65536. {Acorn.Digits.usage}"))
   let directory ← RunDirectory.open options.directory
   let supervisor ← Supervisor.new (← supervisorConfig options) directory (← initialState directory)

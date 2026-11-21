@@ -1195,3 +1195,29 @@ every result first installs its own lifecycle and publishes its control record f
 semantics, the file system's durability, the Lean runtime's IO, mutexes and clock, the identity
 a core reports, and the actor's mapping of each effect to the native operation it names remain
 the trusted base.
+
+The viewer starts its core only on an explicit act: the `--start` flag, a Start the page
+sends, or a state file whose running intent an earlier Start set. The state the bootstrap builds
+when the run directory holds no state file intends to stay stopped
+(`Acorn.Host.Viewer.PersistedState.unstarted`). For every Clear configuration, every durable
+state that intends to stay stopped, and every state reached from the start on it by steps on
+events that hold no operator's Start and by outcomes of the pending calls: the lifecycle admits no
+reservation at any instant and intends to stop, and the call the state waits for, if any, is no
+spawn and writes no state that intends to run
+(`Acorn.Host.Viewer.Reached.stopped_spawns_nothing`;
+`Acorn.Host.Viewer.Reached.unstarted_spawns_nothing` states it for the state built with no
+state file). The states reached from a start in this way are the states of a run and no others
+(`Acorn.Host.Viewer.Reached.ran`, `Acorn.Host.Viewer.Ran.reached`). The statement is not
+empty: from the start on every durable state that admits a launch, there are events that hold a
+Start and a state reached by them that waits to spawn the first generation
+(`Acorn.Host.Viewer.Core.start_spawns`), and the state built with no state file admits a launch
+for every seed within the browser's integers (`Acorn.Host.Viewer.Core.unstarted_launch`). The
+control record of the start on the state built with no state file says the run is desired
+stopped and actually stopped (`Acorn.Host.Viewer.Core.start_control`). A state file that names
+no schema version is decoded with intent stopped
+(`Acorn.Host.Viewer.PersistedState.decode_unversioned`): before the file carried a version, the
+viewer wrote a running intent in it when it found no file, with no Start. Three things are read
+from the code and not proved: the actor hands the step an operator's Start only for a command
+that was submitted to its queue, which the bootstrap does for the `--start` flag and the HTTP
+server for an admitted control request; the bootstrap hands the supervisor the state it read or
+built; and a state file it refuses constructs no supervisor.
