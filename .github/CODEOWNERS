@@ -13,3 +13,7 @@
 # and the registry that lists them. Each is a frozen contract: a change to one is the
 # owner's to make.
 /lean/AcornVerif/Targets/ @rbeauchamp
+
+# The check by which a submission on learned agent state (issue #295) is read, which
+# is the referee's instrument. A change to it is the owner's to review.
+/docs/learned-state-check.md @rbeauchamp

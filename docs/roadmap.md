@@ -178,6 +178,7 @@ The frame fixes the form of a result and leaves the goal, the family of worlds a
 Under it the agent stays fixed for a submission, and a change to the learners lands separately, first, as its own pull request ([contributing](../CONTRIBUTING.md#learned-state-results-and-changes-to-the-agents-learners)).
 That is narrower than the issue's text, which asks a contributor to change how the agent learns; the issue's text is revised by a separate change.
 A complete result in the frame is necessary and not sufficient for a learned-state result, and goes to a referee. It is not known whether one exists for the agent as it stands.
+When a revision of the issue links [the check for submissions on learned agent state](learned-state-check.md), the linked revision of the check sets out what the referee records. `.github/CODEOWNERS` names the check. A change to the check is admitted on the owner's side in the way the [contributor guide](../CONTRIBUTING.md#triage-and-response) sets out for the trusted-base files: by the owner, or under the owner's delegation as that section states it, which is not by that fact a review by the owner in person. Naming the file enforces neither, and the guide says that no check enforces the practice yet.
 
 Two open questions about Acorn's own learners, raised in review of [#295](https://github.com/rbeauchamp/acorn/issues/295), come directly ahead of it in order.
 The reason for that order is that both bear on whether a complete result exists for the agent as it stands and on how one could be proved; neither is a logical prerequisite of one.
@@ -192,6 +193,9 @@ Each of the two is an open question and not a mission with a frozen statement: w
 Neither blocks [#295](https://github.com/rbeauchamp/acorn/issues/295). A submission there may need them and is not required to wait for them, so no blocked-by link joins the three. Under the frame a submission cannot change the learners itself, so a complete result may have to wait for what the two questions settle. None of the three is on a milestone, and none carries the label parked.
 Under the 2026-11-21 surgical pause, [#296](https://github.com/rbeauchamp/acorn/issues/296) stays unblocked while host attachment of a state mechanism ([#320](https://github.com/rbeauchamp/acorn/issues/320)) is parked until Phase 1.3 ([#327](https://github.com/rbeauchamp/acorn/issues/327)) establishes the coarse state-mechanism seam in `acorn-baseline`.
 On 2026-11-20 the owner directed that the two questions go on the record as issues. Their place directly ahead of [#295](https://github.com/rbeauchamp/acorn/issues/295) and the comment that links them from it were decided on the owner's behalf by the agent supervising Acorn's research, and the text of the two issues, with what each says would settle it, was written on the owner's behalf by the agents that maintain Acorn. The owner can overrule each.
+
+[#320](https://github.com/rbeauchamp/acorn/issues/320) is work on the owner's side of the frame, and its label and its comments on GitHub carry its state.
+It blocks no submission to [#295](https://github.com/rbeauchamp/acorn/issues/295), and a contributor there owes no part of it; by the owner's decision of 2026-11-21, no submission to [#295](https://github.com/rbeauchamp/acorn/issues/295) is recorded complete before it lands.
 
 ## Parked work, and when it re-enters
 
