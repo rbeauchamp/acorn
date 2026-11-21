@@ -217,6 +217,7 @@ You can read the design without installing Lean.
 | How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) and [missions](docs/missions.md) |
 | How is a result on learned agent state stated, and what does it certify? | [The frame of a learned-state result](docs/learned-state-frame.md) |
 | How is a submission on learned agent state read, and what does a referee's report record? | [How a submission on learned agent state is checked](docs/learned-state-check.md) |
+| What is the modular 4-layer and always-on architectural foundation? | [Architectural intent](docs/architectural-intent.md) and [Architectural foundation](docs/architecture-foundation.md) |
 | Which missions are open, and who has landed what? | [Mission board](docs/mission-board.md) |
 
 Research criticism, proof/implementation review and contributions are welcome,
