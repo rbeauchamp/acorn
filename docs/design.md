@@ -3,7 +3,10 @@
 Acorn studies how an agent can keep learning predictions, representations and
 temporally extended behavior from a single stream of experience. This page
 introduces the running system; the [prior-art review](prior-art-review.md) gives
-the detailed assumptions and adaptations of each mechanism.
+the detailed assumptions and adaptations of each mechanism, and the
+[architectural foundation](architecture-foundation.md) records the planned modular
+evolution from the current single-package realization to a 4-layer federated and
+always-on architecture.
 
 ## The learning loop
 

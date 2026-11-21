@@ -5,7 +5,6 @@ Authors: acorn contributors
 -/
 import AcornVerif.CurrentDivision
 import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel
-import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel.MulDiv
 import FloatLib.Floats.Formats.BinaryInterchange.Format.Catalog
 import FloatLib.Floats.Formats.Flocq.Theory.Analysis.Ulp
 
@@ -14,9 +13,9 @@ import FloatLib.Floats.Formats.Flocq.Theory.Analysis.Ulp
 
 Acorn's binary32 and binary64 arithmetic is Lean core's `Float32` and `Float`
 applied to raw words, and `AcornVerif.CurrentArithmetic` reads those words
-through the pinned Lean 4.35.0 model `Float.Model.UnpackedFloat`. FloatLib
+through the pinned Lean 4.36.0 model `Float.Model.UnpackedFloat`. FloatLib
 (R. J. George, W. Adkisson and A. Anandkumar, *FloatLib*, 2026,
-https://github.com/lean-dojo/FloatLib, commit `1f5771b`) proves real-valued
+https://github.com/lean-dojo/FloatLib, commit `d24844f`) proves real-valued
 statements about that same model. This module is the only importer of
 FloatLib. It connects the executing Acorn definitions to FloatLib's by proof,
 so FloatLib's theorems apply to them; no executable definition changes.
@@ -24,11 +23,11 @@ so FloatLib's theorems apply to them; no executable definition changes.
 The representation map views the same bits as FloatLib's `Model`. Both sides
 unpack them with Lean core's decoder, so the map agrees with `decoded64` and
 `decoded32` by definition. The operation theorems instantiate
-`toReal_ofModel_add_finite_eq_roundAt` and `toReal_ofModel_mul_finite_eq_roundAt`
-from `FloatLib/Floats/Formats/BinaryInterchange/Arithmetic/LeanModel.lean`, and
-`toReal_ofModel_div_finite_eq_roundAt_of_isFinite` from `LeanModel/MulDiv.lean`
-beside it. The multiplication theorem assumes an exponent inequality for Lean
-core's `roundWithAccuracy`; `model_product_exponent_ready` supplies it for
+`toReal_ofModel_add_finite_eq_roundAt`, `toReal_ofModel_mul_finite_eq_roundAt`
+and `toReal_ofModel_div_finite_eq_roundAt` from
+`FloatLib/Floats/Formats/BinaryInterchange/Arithmetic/LeanModel.lean`. The
+multiplication theorem assumes an exponent inequality for Lean core's
+`roundWithAccuracy`; `model_product_exponent_ready` supplies it for
 canonically unpacked operands. The division theorem assumes an IEEE format,
 nonzero finite operands and a finite result, and nothing else. It covers the
 zero provisional quotient that Lean core's division core returns, with a
@@ -112,17 +111,17 @@ theorem mul_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     | infinity sign' => simp [UnpackedFloat.isFinite] at rightFinite
     | zero sign' =>
       simp only [UnpackedFloat.mul, unpackedToReal_zero, zero_mul, roundAt_zero]
-      exact toReal_ofModel_zero _ ieee _
+      exact toReal_ofModel_zero _ (FloatFormat.supportsSignedZero_eq_true_of_isIEEE fmt ieee) _
     | finite sign' mantissa' exponent' positive' =>
       simp only [UnpackedFloat.mul, unpackedToReal_zero, zero_mul, roundAt_zero]
-      exact toReal_ofModel_zero _ ieee _
+      exact toReal_ofModel_zero _ (FloatFormat.supportsSignedZero_eq_true_of_isIEEE fmt ieee) _
   | finite sign mantissa exponent positive =>
     cases right with
     | notANumber => simp [UnpackedFloat.isFinite] at rightFinite
     | infinity sign' => simp [UnpackedFloat.isFinite] at rightFinite
     | zero sign' =>
       simp only [UnpackedFloat.mul, unpackedToReal_zero, mul_zero, roundAt_zero]
-      exact toReal_ofModel_zero _ ieee _
+      exact toReal_ofModel_zero _ (FloatFormat.supportsSignedZero_eq_true_of_isIEEE fmt ieee) _
     | finite sign' mantissa' exponent' positive' =>
       exact toReal_ofModel_mul_finite_eq_roundAt fmt ieee sign sign' mantissa mantissa'
         exponent exponent' positive positive'
@@ -150,7 +149,8 @@ theorem add_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     | infinity sign' => simp [UnpackedFloat.isFinite] at rightFinite
     | zero sign' =>
       simp only [UnpackedFloat.add, unpackedToReal_zero, add_zero, roundAt_zero]
-      split <;> exact toReal_ofModel_zero _ ieee _
+      split <;>
+        exact toReal_ofModel_zero _ (FloatFormat.supportsSignedZero_eq_true_of_isIEEE fmt ieee) _
     | finite sign' mantissa' exponent' positive' =>
       have value := toReal_ofModel_fits fmt ieee _ rightNormal rightFits
       simp only [UnpackedFloat.add] at finite ⊢
@@ -203,7 +203,7 @@ theorem sub_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
 /-- Lean core's unpacked division of finite operands by a nonzero divisor,
 when its packed result is finite, is the exact real quotient rounded once to
 nearest-even. Two nonzero operands are FloatLib's
-`toReal_ofModel_div_finite_eq_roundAt_of_isFinite`, which includes a zero
+`toReal_ofModel_div_finite_eq_roundAt`, which includes a zero
 provisional quotient. -/
 theorem div_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     (left right : UnpackedFloat) (leftFinite : left.isFinite = true)
@@ -221,9 +221,9 @@ theorem div_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     | infinity sign => simp [UnpackedFloat.isFinite] at leftFinite
     | zero sign =>
       simp only [UnpackedFloat.div, unpackedToReal_zero, zero_div, roundAt_zero]
-      exact toReal_ofModel_zero _ ieee _
+      exact toReal_ofModel_zero _ (FloatFormat.supportsSignedZero_eq_true_of_isIEEE fmt ieee) _
     | finite sign mantissa exponent positive =>
-      exact toReal_ofModel_div_finite_eq_roundAt_of_isFinite fmt ieee sign sign' mantissa
+      exact toReal_ofModel_div_finite_eq_roundAt fmt ieee sign sign' mantissa
         mantissa' exponent exponent' positive positive' finite
 
 /-! ## Binary64 -/
@@ -704,7 +704,10 @@ theorem roundAt32_relative (x : ℝ) :
       rw [shift]
       have pos : (0 : ℝ) ≤ 1 / 2 ^ 149 := by positivity
       linarith
-  linarith
+  calc
+    |roundAt FloatFormat.binary32 x - x| ≤
+        ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x / 2 := half
+    _ ≤ |x| / 16777216 + 1 / 2 ^ 150 := by linarith
 
 /-- The executing binary32 addition with a finite result is within `2^(-24)` of the exact
 sum relative to its magnitude, plus `2^(-150)` (`binary32_add_roundAt`). -/
@@ -828,9 +831,8 @@ theorem nearest32 (word : UInt32) (numerator denominator : Nat) (value : ℝ)
     rw [inv_eq_one_div, div_lt_div_iff₀ hdenPos (by positivity), one_mul]
     exact_mod_cast inBinade.2
   have hpos : 0 < value := lt_of_lt_of_le (Flocq.bpow.pos _ _) hlo
-  have hne : value ≠ 0 := ne_of_gt hpos
   have hmag : magnitude FloatLib.Numerics.binaryRadix value = e + 24 := by
-    refine magnitude_eq_of_bpow_bounds FloatLib.Numerics.binaryRadix value (e + 24) hne ?_ ?_
+    refine magnitude_eq_of_bpow_bounds FloatLib.Numerics.binaryRadix value (e + 24) ?_ ?_
     · rw [abs_of_pos hpos, show e + 24 - 1 = e + 23 by omega]
       exact hlo
     · rw [abs_of_pos hpos]

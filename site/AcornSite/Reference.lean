@@ -27,7 +27,6 @@ faithfully remains a matter for review.
 
 open Lean Elab
 open Verso ArgParse Doc Elab Genre.Manual
-open Verso.Output (Html)
 
 namespace AcornSite
 
@@ -37,52 +36,53 @@ block_extension Block.fenced (language shown : String) where
   traverse _ _ _ := pure none
   toTeX := none
   toHtml :=
-    open Verso.Output.Html in
     some <| fun _ _ _ data _ => do
       let .arr #[.str language, .str shown] := data
         | Verso.reportError s!"Expected a language and a text, got {data}"; pure .empty
-      return {{<pre><code class={{"language-" ++ language}}>{{shown}}</code></pre>}}
+      return html%{<pre><code class={"language-" ++ language}>{shown}</code></pre>}
 
 /-- `{decl}` names a declaration by its full name; the name must resolve to itself. -/
 @[role]
 def decl : RoleExpanderOf Unit
   | (), inlines => do
-    let code ← oneCodeStr inlines
-    let written := code.getString.toName
+    let code ← Lean.Doc.onlyCode inlines
+    let text := code.getVersoCode
+    let written := text.toName
     let resolved ← realizeGlobalConstNoOverloadWithInfo (mkIdentFrom code written)
     unless resolved == written do
       throwErrorAt code "write the full name {resolved}"
-    ``(Verso.Doc.Inline.code $(quote code.getString))
+    ``(Verso.Doc.Inline.code $(quote text))
 
 /-- `{leanModule}` names a module the document imports, directly or through another module.
 The import is what makes Lake rebuild the page when the module changes. -/
 @[role]
 def leanModule : RoleExpanderOf Unit
   | (), inlines => do
-    let code ← oneCodeStr inlines
-    let written := code.getString.toName
-    unless written.toString == code.getString && ((← getEnv).getModuleIdx? written).isSome do
-      throwErrorAt code "{code.getString} is not a module this document imports"
-    ``(Verso.Doc.Inline.code $(quote code.getString))
+    let code ← Lean.Doc.onlyCode inlines
+    let text := code.getVersoCode
+    let written := text.toName
+    unless written.toString == text && ((← getEnv).getModuleIdx? written).isSome do
+      throwErrorAt code "{text} is not a module this document imports"
+    ``(Verso.Doc.Inline.code $(quote text))
 
 /-- `{splice}` shows the value of a Lean term of type `String` as ordinary text. -/
 @[role]
 def splice : RoleExpanderOf Unit
   | (), inlines => do
-    let term : Term := ⟨← SyntaxUtils.parseStrLitAsCategory `term (← oneCodeStr inlines)⟩
+    let term : Term := ⟨← SyntaxUtils.parseStrLitAsCategory `term (← Lean.Doc.onlyCode inlines)⟩
     ``(Verso.Doc.Inline.text ($term : String))
 
 /-- `{spliceCode}` shows the value of a Lean term of type `String` as code. -/
 @[role]
 def spliceCode : RoleExpanderOf Unit
   | (), inlines => do
-    let term : Term := ⟨← SyntaxUtils.parseStrLitAsCategory `term (← oneCodeStr inlines)⟩
+    let term : Term := ⟨← SyntaxUtils.parseStrLitAsCategory `term (← Lean.Doc.onlyCode inlines)⟩
     ``(Verso.Doc.Inline.code ($term : String))
 
 /-- A `sh` block: shell text shown verbatim. -/
 @[code_block]
 def sh : CodeBlockExpanderOf Unit
-  | (), text => ``(Verso.Doc.Block.other (Block.fenced "sh" $(quote text.getString)) #[])
+  | (), text => ``(Verso.Doc.Block.other (Block.fenced "sh" $(quote text.getVersoCodeBlock)) #[])
 
 /-- The language a `spliced` block is shown in. -/
 structure SplicedArgs where
