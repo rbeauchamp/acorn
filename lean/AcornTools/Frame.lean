@@ -324,9 +324,10 @@ workspace's modules it imports, each of which it answers for in the same way fir
 module as current only when the trace it recorded for the compiled files has that trace's hash
 and the files, or the archive it restores them from, exist. It exits 0 only when the module and
 every module of the workspace it imports are current, and 3 when one needs a build
-(`Module.recFetchInput`, `fetchImportInfo`, `Module.recFetchPreSetup`, `Module.recBuildLean`
-and `Module.oleanFacetConfig` in Lake/Build/Module.lean, `buildAction` in Lake/Build/Common.lean
-and `finalizeBuild` in Lake/Build/Run.lean, Lake of Lean v4.36.0). Every status but 0, the
+(`Module.recFetchInput`, `fetchImportInfo`, `Module.recFetchPreSetup`, `Module.buildLean`,
+`Module.recBuildElabArts` and `Module.oleanFacetConfig` in Lake/Build/Module.lean,
+`buildAction` in Lake/Build/Common.lean and `finalizeBuild` in Lake/Build/Run.lean,
+Lake of Lean v4.36.0). Every status but 0, the
 bootstrap's own refusals included, is refused, with the module, the status and what Lake said,
 and so is an answer that is not exactly two lines, each holding a path and ending in a line
 end, with nothing before, between or after them.

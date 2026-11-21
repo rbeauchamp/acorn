@@ -433,7 +433,7 @@ Reward minus estimated gain times duration supplies the continuing criterion. Ga
 
 ### PAR-16 · FloatLib rounding theory
 
-[Source](https://github.com/lean-dojo/FloatLib): R. J. George, W. Adkisson and A. Anandkumar, *FloatLib* (2026), MIT licence, pinned at commit d24844f039320a024c7548f992920562d9a71a60 (FloatLib v4.1.0, on Lean v4.36.0; originally adopted at commit 7fc753899afed9562018fe09f336403b179eedbd). Proof owner: `AcornVerif.FloatLibBridge`.
+[Source](https://github.com/lean-dojo/FloatLib): R. J. George, W. Adkisson and A. Anandkumar, *FloatLib* (2026), MIT licence, pinned at commit d24844f039320a024c7548f992920562d9a71a60 (one commit past tag v4.1.0, touching only .github/workflows/site.yml; library identical to v4.1.0, on Lean v4.36.0; originally adopted at commit 7fc753899afed9562018fe09f336403b179eedbd). Proof owner: `AcornVerif.FloatLibBridge`.
 
 FloatLib proves real-valued statements about Lean core's logical floating-point model: on finite operands with a finite result, the model's addition, multiplication and division each equal the exact real result rounded once to nearest-even (the theorems named toReal_ofModel_add_finite_eq_roundAt, toReal_ofModel_mul_finite_eq_roundAt and toReal_ofModel_div_finite_eq_roundAt in its file FloatLib/Floats/Formats/BinaryInterchange/Arithmetic/LeanModel.lean), and its Flocq layer supplies the ulp error bound and nearest-even characterization used by the decimal constant theorems. Acorn's binary32 and binary64 arithmetic is that same core model applied to raw words, so these statements are about the definitions Acorn executes.
 

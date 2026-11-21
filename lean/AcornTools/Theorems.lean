@@ -57,8 +57,8 @@ def Counts.report (counts : Counts) : IO Unit := do
 
 /-- Whether `name` is the safe half `ind.ctorIdx` of a verified compiler-generated `ctorIdx` pair
 (`Lean/Meta/Constructions/CtorIdx.lean:40-141` at Lean v4.36.0), matching Regula v0.13.1's
-structural check (`Regula.Load.ctorIdxFormOf` and `Regula.Tables.ctorIdxPair`): `ind` is a safe
-inductive in the same module `owner`, `name` has `@[implemented_by ind.ctorIdx._impl]` and no
+structural check (`Regula.Load.ctorIdxFormOf` and `Regula.Closed.Tables.ctorIdxPair`): `ind` is a
+safe inductive in the same module `owner`, `name` has `@[implemented_by ind.ctorIdx._impl]` and no
 `@[extern]`, `ind.ctorIdx._impl` is in `owner` with the exact `@getObjTagNat` body and neither
 `@[implemented_by]` nor `@[extern]`, and `getObjTagNat` comes from the toolchain's `Init` library. -/
 def isCompilerCtorIdx (env : Environment) (library : System.FilePath) (owner name : Name)

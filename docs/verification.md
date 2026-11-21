@@ -996,13 +996,13 @@ depends on Lean's proof-hole axiom, directly or through an import, and RG1004 on
 that depends on an axiom that `native_decide` or a related tactic adds. Both rules
 read the transitive axiom set. The tools make no such check.
 
-**Unsafe, partial and looping declarations.** RG1006 refuses an unsafe or partial
-constant of a claimed module, a constant with the name of a recursion helper
-without an exempted form (a terminating recursive definition's helper, or the
-unsafe implementation half of a verified compiler-generated constructor-index
-pair on Lean v4.36.0), and a constant whose value mentions the loop constructs
-that while and repeat compile to. The tools make no such check of compiled
-declarations.
+**Unsafe, partial and looping declarations.** RG1006 refuses a constant of a
+claimed module that is unsafe, partial or named as a recursion helper, without
+an exempted form (a partial recursion helper of a terminating recursive
+definition, or the unsafe implementation half of a verified compiler-generated
+constructor-index pair on Lean v4.36.0), or a constant whose value mentions the
+loop constructs that while and repeat compile to. The tools make no such check
+of compiled declarations.
 The host's loops that run until something outside the program happens, such as
 the end of a stream or a stop request, iterate over `Acorn.Host.forever`, whose
 iteration in IO and BaseIO is a fixed-point definition with the one-step
@@ -1023,16 +1023,16 @@ kernel's refusal. The tools make no such check.
 declaration of a module of Acorn, AcornVerif, NativeApp, AcornDocument or Entry
 that carries a replacement attribute or an extern attribute, whatever reaches it
 and whatever is proved about it, except a verified compiler-generated
-constructor-index replacement that Lean v4.36.0 emits for every safe inductive
-type with more than one constructor (`AcornTheoremCount.isCompilerCtorIdx`,
-matching Regula v0.13.1's structural check on the pair and its toolchain
-constructor-tag helper). The Regula audit reads no replacement or extern: a pass
-says nothing about what a compiled program runs. Source admission refuses both
-attributes as words in every executing and proof source, so the inventory adds
-the declarations that elaboration generates. This check runs once, in the
-theorem inventory. A copy in the compiled boundary admission would repeat the
-same predicate for a subset of the same modules in the same command,
-`./scripts/verify.sh`.
+constructor-index replacement that Lean v4.36.0 emits for every safe, non-Prop,
+non-builtin inductive type whose constructor count is not one
+(`AcornTheoremCount.isCompilerCtorIdx`, matching Regula v0.13.1's structural
+check on the pair and its toolchain constructor-tag helper). The Regula audit
+reads no replacement or extern: a pass says nothing about what a compiled
+program runs. Source admission refuses both attributes as words in every
+executing and proof source, so the inventory adds the declarations that
+elaboration generates. This check runs once, in the theorem inventory. A copy in
+the compiled boundary admission would repeat the same predicate for a subset of
+the same modules in the same command, `./scripts/verify.sh`.
 
 **Reach of each entry: the tools refuse more.** The ownership audit follows the
 compiler's intermediate code from the entry point of each executable, the tool
