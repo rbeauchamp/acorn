@@ -148,8 +148,20 @@ def run (args : List String) : IO UInt32 := do
   let (contents, available) ← overrides
   let path : System.FilePath := ".lake/acorn-path-packages.json"
   -- Lake validates its configuration trace against source and toolchain changes;
-  -- explicit dependency overrides are resolved again on every invocation.
-  if available then IO.FS.writeFile path (contents.compress ++ "\n")
+  -- explicit dependency overrides are resolved again on every invocation. Skip
+  -- rewriting when the file already holds the exact overrides, and update
+  -- atomically otherwise so concurrent read-only invocations never see a partial file.
+  if available then
+    let text := contents.compress ++ "\n"
+    let current ← try some <$> IO.FS.readFile path catch _ => pure none
+    unless current == some text do
+      let tmp : System.FilePath := s!"{path}.{← IO.Process.getPID}.tmp"
+      try
+        IO.FS.writeFile tmp text
+        IO.FS.rename tmp path
+      catch error =>
+        try IO.FS.removeFile tmp catch _ => pure ()
+        throw error
   let ready ← if available then dependencyImportsBuilt path else pure false
   -- This status is the launcher's sole provisioning admission: 0 means ready,
   -- 2 means missing dependencies, and every refusal returns 1. It builds nothing,

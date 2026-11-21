@@ -151,11 +151,13 @@ state (argued in the header of `AcornVerif.CurrentConcealedTargetMission`).
 
 ## What a proof about a world's layout costs
 
-The kernel evaluates the executed terrain for each tile a proof reads, each time the module is
-rebuilt (`docs/roadmap.md` records the timing). The witness reads 21 tiles (`witness_walk`), the
-four walks of `AcornVerif.CurrentConcealedTargetRungFinds` evaluate 28 more steps of the world,
-and `AcornVerif.CurrentConcealedTargetRungFirstVisit.first_walk` two more, the first of them
-again for `craft_keeps`. A class with visits of 81 steps, the proved reach of a first reward, has
+The walks of `witness_walk` (21 tiles) and `AcornVerif.CurrentConcealedTargetRungFinds.walks_traced`
+(28 steps of four visits) reduce structurally to elevation-only terrain checks via a memoized 1D
+lattice-table form (`fastFbm`) proved equal to executed `Host.fbm`, discharging moisture and
+faced-tile admission via `CurrentTerrain.fbm_isOk` and `CurrentTerrain.tileKind_isOk`;
+`AcornVerif.CurrentConcealedTargetRungFirstVisit.first_walk` evaluates two more steps directly, the
+first of them again for `craft_keeps`. A class with visits of 81 steps, the proved reach of a first
+reward, has
 a covering bound of 616; each step of a walk brings at most seven more targets within reach
 (`AcornVerif.Coverage.card_swept`), so its count needs the terrain of at least 89 tiles (argued).
 The host's spawn search evaluates the terrain 163 times for each candidate it considers

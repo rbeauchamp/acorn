@@ -804,49 +804,110 @@ theorem entries_presence (reading : Reading) (outcome : Option Outcome) (late : 
   cases reading.state.speeds <;> cases reading.state.gain <;> cases reading.age <;>
     simp [rateEntries, gainEntries, ageEntries, flag]
 
-set_option maxRecDepth 4096 in
+/-- Every position in `entries reading outcome late` belongs to its component's range, with
+positions `15..29` present only with rates, `42` only with a gain, and `45` only with an age. -/
+private theorem entries_pos_cases (reading : Reading) (outcome : Option Outcome) (late : Bool)
+    (position : Fin 256) (member : position ∈ (entries reading outcome late).map Prod.fst) :
+    position.val < 15 ∨
+      (reading.state.speeds.isSome = true ∧ 15 ≤ position.val ∧ position.val ≤ 29) ∨
+      (30 ≤ position.val ∧ position.val ≤ 41) ∨
+      (reading.state.gain.isSome = true ∧ position.val = 42) ∨
+      position.val = 43 ∨ position.val = 44 ∨
+      (reading.age.isSome = true ∧ position.val = 45) ∨
+      position.val = 46 ∨ position.val = 47 := by
+  unfold entries at member
+  simp only [List.map_append, List.mem_append] at member
+  rcases member with (((((((h | h) | h) | h) | h) | h) | h) | h)
+  · unfold jointEntries at h
+    simp only [List.map_map, List.mem_map] at h
+    obtain ⟨j, -, rfl⟩ := h
+    left; exact j.isLt
+  · cases hs : reading.state.speeds with
+    | none =>
+      rw [hs] at h; unfold rateEntries at h
+      simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at h
+      subst h; right; right; left; decide
+    | some speeds =>
+      rw [hs] at h; unfold rateEntries at h
+      simp only [List.map_cons, List.map_map, List.mem_cons, List.mem_map] at h
+      rcases h with rfl | ⟨j, -, rfl⟩
+      · right; right; left; decide
+      · right; left; exact ⟨rfl, by show 15 ≤ 15 + j.val; omega,
+          by show 15 + j.val ≤ 29; have := j.isLt; omega⟩
+  · unfold trunkEntries at h
+    simp only [List.map_append, List.map_map, List.map_cons, List.map_nil, List.mem_append,
+      List.mem_map, List.mem_cons, List.not_mem_nil, or_false] at h
+    right; right; left
+    rcases h with (⟨a, -, rfl⟩ | ⟨a, -, rfl⟩) | rfl
+    · have := a.isLt; exact ⟨by show 30 ≤ 31 + a.val; omega, by show 31 + a.val ≤ 41; omega⟩
+    · have := a.isLt; exact ⟨by show 30 ≤ 34 + a.val; omega, by show 34 + a.val ≤ 41; omega⟩
+    · decide
+  · simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at h
+    right; right; left
+    rcases h with rfl | rfl | rfl <;> decide
+  · cases hg : reading.state.gain with
+    | none =>
+      rw [hg] at h; unfold gainEntries at h
+      simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at h
+      subst h; right; right; left; decide
+    | some gain =>
+      rw [hg] at h; unfold gainEntries at h
+      simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at h
+      rcases h with rfl | rfl
+      · right; right; left; decide
+      · right; right; right; left; exact ⟨rfl, rfl⟩
+  · simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at h
+    subst h; right; right; right; right; left; rfl
+  · cases ha : reading.age with
+    | none =>
+      rw [ha] at h; unfold ageEntries at h
+      simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at h
+      subst h; right; right; right; right; right; left; rfl
+    | some age =>
+      rw [ha] at h; unfold ageEntries at h
+      simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at h
+      rcases h with rfl | rfl
+      · right; right; right; right; right; left; rfl
+      · right; right; right; right; right; right; left; exact ⟨rfl, rfl⟩
+  · simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at h
+    rcases h with rfl | rfl
+    · right; right; right; right; right; right; right; left; rfl
+    · right; right; right; right; right; right; right; right; rfl
+
 /-- **A reading without rates has no rate word.** No word of its frame is on positions 15
 to 29. -/
 theorem entries_rates (reading : Reading) (outcome : Option Outcome) (late : Bool)
     (absent : reading.state.speeds = none) :
     ∀ position ∈ (entries reading outcome late).map Prod.fst,
-      ¬(15 ≤ position.val ∧ position.val ≤ 29) := by
-  unfold entries
-  rw [absent]
-  cases reading.state.gain <;> cases reading.age <;>
-    simp only [jointEntries, rateEntries, trunkEntries, gainEntries, ageEntries,
-      List.map_append, List.map_map, List.map_cons, List.map_nil, Function.comp_def] <;>
-    decide
+      ¬(15 ≤ position.val ∧ position.val ≤ 29) := fun position member => by
+  have h := entries_pos_cases reading outcome late position member
+  rw [absent] at h
+  simp only [Option.isSome_none, Bool.false_eq_true, false_and, false_or] at h
+  omega
 
-set_option maxRecDepth 4096 in
 /-- **A reading without a gain has no gain word.** No word of its frame is on position
 42. -/
 theorem entries_gain (reading : Reading) (outcome : Option Outcome) (late : Bool)
     (absent : reading.state.gain = none) :
-    ∀ position ∈ (entries reading outcome late).map Prod.fst, position.val ≠ 42 := by
-  unfold entries
-  rw [absent]
-  cases reading.state.speeds <;> cases reading.age <;>
-    simp only [jointEntries, rateEntries, trunkEntries, gainEntries, ageEntries,
-      List.map_append, List.map_map, List.map_cons, List.map_nil, Function.comp_def] <;>
-    decide
+    ∀ position ∈ (entries reading outcome late).map Prod.fst, position.val ≠ 42 := fun position member => by
+  have h := entries_pos_cases reading outcome late position member
+  rw [absent] at h
+  simp only [Option.isSome_none, Bool.false_eq_true, false_and, false_or] at h
+  omega
 
-set_option maxRecDepth 4096 in
 /-- **A reading without a depth frame has no age word.** No word of its frame is on
 position 45. -/
 theorem entries_depth (reading : Reading) (outcome : Option Outcome) (late : Bool)
     (absent : reading.depth = none) :
-    ∀ position ∈ (entries reading outcome late).map Prod.fst, position.val ≠ 45 := by
+    ∀ position ∈ (entries reading outcome late).map Prod.fst, position.val ≠ 45 := fun position member => by
   have ageless : reading.age = none := by
     unfold Reading.age
     rw [absent]
     rfl
-  unfold entries
-  rw [ageless]
-  cases reading.state.speeds <;> cases reading.state.gain <;>
-    simp only [jointEntries, rateEntries, trunkEntries, gainEntries, ageEntries,
-      List.map_append, List.map_map, List.map_cons, List.map_nil, Function.comp_def] <;>
-    decide
+  have h := entries_pos_cases reading outcome late position member
+  rw [ageless] at h
+  simp only [Option.isSome_none, Bool.false_eq_true, false_and, false_or] at h
+  omega
 
 /-- Two positions of the layout have two channels. -/
 theorem channel_injective (first second : Fin 256) (same : channel first = channel second) :

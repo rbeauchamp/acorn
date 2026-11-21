@@ -14,8 +14,9 @@ members of its class on one of its first 72 visits, and 102 is more than the cov
 It is a statement about the executed agent's run in each member's own world, with no assumption
 on the generator's words: the agent's seed is fixed, so its run is one run.
 
-The proof is by the reduction of `AcornVerif.CurrentConcealedTargetFinding.cold_found_within` and
-two evaluations by Lean's kernel of executed definitions.
+The proof is by the reduction of `AcornVerif.CurrentConcealedTargetFinding.cold_found_within`,
+kernel evaluation of the explorer's actions, and structural reduction of the four walks to
+elevation-only terrain checks via a memoized form proved equal to executed `Host.fbm`.
 
 - **The actions.** Up to a first reward the agent takes the actions of the explorer of its seed
   (`AcornVerif.CurrentExplorer.cold_actions`). `rung_actions` evaluates the explorer's first 576
@@ -24,8 +25,10 @@ two evaluations by Lean's kernel of executed definitions.
   (`AcornVerif.CurrentExplorer.Explorer.step_eq`).
 - **The walks.** `rungWalks` lists four of those visits, 45, 47, 53 and 71 counting from zero,
   with the seven actions of each and the tile the body stands on after each. `walks_listed`
-  checks the actions against `rungRows`, and `walks_traced` evaluates the executed world step
-  along them, the terrain of the tiles entered and faced included.
+  checks the actions against `rungRows`, and `walks_traced` reduces the executed world step
+  along them structurally to elevation-only terrain checks (`witness_physicalStep_fast`,
+  `fastWalkable`), discharging moisture and faced-tile admission via `CurrentTerrain.fbm_isOk`
+  and `CurrentTerrain.tileKind_isOk`.
 
 `rungFound` lists 102 tiles, each within three tiles of a tile of those walks and more than three
 from the start (`found_listed`). So each of its targets is met by one of the four walks
@@ -44,12 +47,11 @@ binary64 arithmetic; that the native operations agree with that model is trusted
 proof of executed words in this library.
 
 Proof cost, and what breaks it. The kernel re-evaluates the generator over 576 decisions and the
-world step over 28 steps each time this module is rebuilt (`docs/roadmap.md` records the timing
-and the owner's decision to pay it). The tables are data: a change to the generator, to the
-persistent draw, to the world step or to the terrain makes `rung_actions` or `walks_traced` fail,
-and the tables are then computed again from the definitions here. `rungRows` is the codes of
-`rungExplorer.actions 576` in rows of eight, and a walk's tiles are `tileTrace` of its actions
-from the rung's world.
+elevation-only terrain checks along the 18 moves each time this module is rebuilt. The tables are
+data: a change to the generator, to the persistent draw, to the world step or to the terrain makes
+`rung_actions` or `walks_traced` fail, and the tables are then computed again from the definitions
+here. `rungRows` is the codes of `rungExplorer.actions 576` in rows of eight, and a walk's tiles
+are `tileTrace` of its actions from the rung's world.
 -/
 
 namespace AcornVerif.CurrentConcealedTargetRungFinds
@@ -135,11 +137,97 @@ theorem walks_listed : ∀ walk ∈ rungWalks,
           (walk.actions.getD index .wait).index.val := by
   decide +kernel
 
-/-- **Each listed walk is the body's walk.** The kernel evaluates the executed world step along
-the actions of each listed visit, from the rung's world. -/
+/-- Expected tile sequence along a list of actions assuming every entered tile is walkable. -/
+private def witnessWalkTiles (point : ℤ × ℤ) : List Host.Action → List (ℤ × ℤ)
+  | [] => []
+  | action :: rest =>
+    let next := match action.direction with
+      | some dir => (point.1 + dir.delta.1, point.2 + dir.delta.2)
+      | none => point
+    next :: witnessWalkTiles next rest
+
+/-- Structural trace lemma: when `witnessWalkFast` accepts `actions` inside `[25, 39]²` with
+sufficient energy, `tileTrace` returns the expected tiles without evaluating moisture or full
+step transitions in the kernel. -/
+private theorem witness_tileTrace_fast (world : Host.World witnessConfig)
+    (actions : List Host.Action) (energyOk : 4 * actions.length ≤ world.body.energy.val)
+    (inWin : 25 ≤ (tile world.body.position.position).1 ∧
+      (tile world.body.position.position).1 ≤ 39 ∧
+      25 ≤ (tile world.body.position.position).2 ∧
+      (tile world.body.position.position).2 ≤ 39)
+    (ok : witnessWalkFast (tile world.body.position.position) actions = true) :
+    tileTrace (some world) actions =
+      (witnessWalkTiles (tile world.body.position.position) actions).map some := by
+  induction actions generalizing world with
+  | nil => rfl
+  | cons action rest ih =>
+    simp only [List.length_cons] at energyOk
+    simp only [witnessWalkFast] at ok
+    cases hdir : action.direction with
+    | none =>
+      simp only [hdir] at ok
+      obtain ⟨next, hnext, hpos, hene⟩ := witness_physicalStep_fast world action (by omega) inWin
+        (by simp [hdir])
+      have hpos' : tile next.body.position.position = tile world.body.position.position := by
+        simpa [hdir] using hpos
+      rw [tileTrace_cons]
+      change (physicalStep world (code action)).map
+          (fun w => tile w.body.position.position) ::
+        tileTrace (physicalStep world (code action)) rest = _
+      rw [hnext, Option.map_some, ih next (by omega)
+        ⟨by rw [hpos']; exact inWin.1, by rw [hpos']; exact inWin.2.1,
+         by rw [hpos']; exact inWin.2.2.1, by rw [hpos']; exact inWin.2.2.2⟩
+        (by rw [hpos']; exact ok)]
+      simp only [witnessWalkTiles, hdir, hpos', List.map_cons]
+    | some dir =>
+      simp only [hdir] at ok
+      split at ok
+      · rename_i hx
+        split at ok
+        · rename_i hy
+          simp only [Bool.and_eq_true] at ok
+          obtain ⟨next, hnext, hpos, hene⟩ := witness_physicalStep_fast world action (by omega)
+            inWin (by simp only [hdir]; exact ⟨hx, hy, ok.1⟩)
+          have hpos' : tile next.body.position.position =
+              ((tile world.body.position.position).1 + dir.delta.1,
+               (tile world.body.position.position).2 + dir.delta.2) := by
+            simpa [hdir] using hpos
+          rw [tileTrace_cons]
+          change (physicalStep world (code action)).map
+              (fun w => tile w.body.position.position) ::
+            tileTrace (physicalStep world (code action)) rest = _
+          rw [hnext, Option.map_some, ih next (by omega)
+            ⟨by rw [hpos']; exact hx.1, by rw [hpos']; exact hx.2,
+             by rw [hpos']; exact hy.1, by rw [hpos']; exact hy.2⟩
+            (by rw [hpos']; exact ok.2)]
+          simp only [witnessWalkTiles, hdir, hpos', List.map_cons]
+        · cases ok
+      · cases ok
+
+/-- Every listed walk stays in the walkable elevation band and matches its listed tile
+sequence. -/
+private theorem walks_fast : ∀ walk ∈ rungWalks,
+    witnessWalkFast (32, 32) walk.actions = true ∧
+      witnessWalkTiles (32, 32) walk.actions = walk.tiles := by
+  decide +kernel
+
+/-- **Each listed walk is the body's walk.** The proof reduces the executed world step along each
+listed visit structurally to elevation-only terrain checks (`witness_tileTrace_fast`). -/
 theorem walks_traced : ∀ walk ∈ rungWalks,
     tileTrace (some (physical witnessLive.world)) walk.actions = walk.tiles.map some := by
-  decide +kernel
+  intro walk hwalk
+  have hstart : tile (physical witnessLive.world).body.position.position = (32, 32) := witness_start
+  have hlen : walk.actions.length = 7 := (walks_listed walk hwalk).2.1
+  have hen : 4 * walk.actions.length ≤ (physical witnessLive.world).body.energy.val := by
+    rw [hlen]; decide
+  have hwin : 25 ≤ (tile (physical witnessLive.world).body.position.position).1 ∧
+      (tile (physical witnessLive.world).body.position.position).1 ≤ 39 ∧
+      25 ≤ (tile (physical witnessLive.world).body.position.position).2 ∧
+      (tile (physical witnessLive.world).body.position.position).2 ≤ 39 := by
+    rw [hstart]; omega
+  obtain ⟨hfast, htiles⟩ := walks_fast walk hwalk
+  rw [witness_tileTrace_fast (physical witnessLive.world) walk.actions hen hwin (hstart ▸ hfast),
+    hstart, htiles]
 
 /-- On each listed visit, the explorer's actions carry the body, after each of the visit's seven
 steps, to the listed tile. -/

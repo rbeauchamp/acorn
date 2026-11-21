@@ -121,34 +121,278 @@ reading of `words site` is the largest number of word operations, on the word ma
 that site, as `Acorn.Cost` defines segments; no checked statement contains that reading. -/
 def SiteBounds (words κ : Costs) : Prop := ∀ site, words site ≤ κ site
 
-set_option maxHeartbeats 400000 in
--- The unfolded bound has one monotone step for each loop of the first part.
+/-- Helper: a monotone step for `Library.work` of any loop helper when visit and body costs grow. -/
+private theorem add_le {a b c d : Nat} (h1 : a ≤ b) (h2 : c ≤ d) : a + c ≤ b + d :=
+  Nat.add_le_add h1 h2
+
+/-- Helper: `frameBound` grows with the cost of each site. -/
+private theorem frameBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (interface : Interface) (capacity : Nat) (config : Features.Config) :
+    frameBound words interface capacity config ≤ frameBound κ interface capacity config := by
+  simp only [frameBound, wordsBound, projectionBound, encodeBound, tiledBound, uniqueBound,
+    pass, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `predictBound` grows with the cost of each site. -/
+private theorem predictBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (positions width : Nat) :
+    predictBound words positions width ≤ predictBound κ positions width := by
+  simp only [predictBound, inputBound, lookaheadBound, outcomeValuesBound, comparisonBound,
+    expectedBound, bestBound, rowInputBound, expectedAtBound, rankedValuesBound, occupiedBound,
+    Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `predictAllBound` grows with the cost of each site. -/
+private theorem predictAllBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows width : Nat) : predictAllBound words rows width ≤ predictAllBound κ rows width := by
+  simp only [predictAllBound, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `metaRateBound` grows with the cost of each site. -/
+private theorem metaRateBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows width : Nat) : metaRateBound words rows width ≤ metaRateBound κ rows width := by
+  simp only [metaRateBound, rateBound, normalizedBound, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `modelBeginBound` grows with the cost of each site. -/
+private theorem modelBeginBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (capacity positions width : Nat) :
+    modelBeginBound words capacity positions width ≤
+      modelBeginBound κ capacity positions width := by
+  simp only [modelBeginBound, inputBound, beginBound, transitionBeginBound, rowInputBound,
+    updateRowsBound, zeroBound, secondLoopBound, pass, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `modelStepBound` grows with the cost of each site. -/
+private theorem modelStepBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (capacity positions width : Nat) :
+    modelStepBound words capacity positions width ≤ modelStepBound κ capacity positions width := by
+  simp only [modelStepBound, inputBound, transitionStepBound, rowInputBound, updateRowsBound,
+    stepBound, firstLoopBound, secondLoopBound, pass, firstVisit, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `modelTerminalWorkBound` grows with the cost of each site. -/
+private theorem modelTerminalWorkBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (capacity positions width : Nat) :
+    modelTerminalWorkBound words capacity positions width ≤
+      modelTerminalWorkBound κ capacity positions width := by
+  simp only [modelTerminalWorkBound, outcomeBound, modelTerminalBound, updateRowsBound,
+    terminalBound, firstLoopBound, zeroBound, firstVisit, indicatorBound, rankedValuesBound,
+    comparisonBound, expectedBound, bestBound, occupiedBound, predictAllBound, Library.work,
+    Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `modelStopBound` grows with the cost of each site. -/
+private theorem modelStopBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (capacity positions width : Nat) :
+    modelStopBound words capacity positions width ≤ modelStopBound κ capacity positions width := by
+  simp only [modelStopBound, outcomeBound, stopTrajectoryBound, updateRowsBound, firstLoopBound,
+    releaseBound, firstVisit, indicatorBound, rankedValuesBound, comparisonBound, expectedBound,
+    bestBound, occupiedBound, predictAllBound, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `optionStepBound` grows with the cost of each site. -/
+private theorem optionStepBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity width : Nat) :
+    optionStepBound words rows capacity width ≤ optionStepBound κ rows capacity width := by
+  simp only [optionStepBound, persistentBound, policyStepBound, creditStepBound, creditBound,
+    secondLoopBound, pass, firstLoopBound, zeroBound, firstVisit, greedyBound, probabilitiesBound,
+    candidatesBound, bestBound, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `stepOptionBound` grows with the cost of each site. -/
+private theorem stepOptionBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity positions width : Nat) :
+    stepOptionBound words rows capacity positions width ≤
+      stepOptionBound κ rows capacity positions width :=
+  add_le (bounds _) (add_le (optionStepBound_costs bounds rows capacity width)
+    (modelStepBound_costs bounds capacity positions width))
+
+/-- Helper: `closeOptionBound` grows with the cost of each site. -/
+private theorem closeOptionBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity positions width : Nat) :
+    closeOptionBound words rows capacity positions width ≤
+      closeOptionBound κ rows capacity positions width := by
+  have credit : terminalCreditBound words rows capacity ≤ terminalCreditBound κ rows capacity := by
+    simp only [terminalCreditBound, firstLoopBound, clearBound, zeroBound, firstVisit, Library.work,
+      Library.control]
+    gcongr <;> exact bounds _
+  exact add_le (bounds _) (add_le (metaRateBound_costs bounds rows capacity)
+    (add_le (add_le (bounds _) credit)
+      (modelTerminalWorkBound_costs bounds capacity positions width)))
+
+/-- Helper: `decideBound` grows with the cost of each site. -/
+private theorem decideBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity width : Nat) :
+    decideBound words rows capacity width ≤ decideBound κ rows capacity width := by
+  simp only [decideBound, frozenBound, rateBound, normalizedBound, comparisonBound, expectedBound,
+    bestBound, predictAllBound, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `settleBound` grows with the cost of each site. -/
+private theorem settleBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity positions width : Nat) :
+    settleBound words rows capacity positions width ≤
+      settleBound κ rows capacity positions width := by
+  have err : backupErrorBound words rows ≤ backupErrorBound κ rows := by
+    simp only [backupErrorBound, expectedBound, bestBound, Library.work, Library.control]
+    gcongr <;> exact bounds _
+  have stopB : stopBound words rows capacity ≤ stopBound κ rows capacity := by
+    simp only [stopBound, creditBound, firstLoopBound, zeroBound, firstVisit, releaseBound,
+      Library.work, Library.control]
+    gcongr <;> exact bounds _
+  have stopF : stopFollowingBound words rows capacity positions width ≤
+      stopFollowingBound κ rows capacity positions width :=
+    add_le stopB (add_le (bounds _) (modelStopBound_costs bounds capacity positions width))
+  exact add_le (decideBound_costs bounds rows capacity width)
+    (add_le (add_le (add_le (bounds _) err)
+      (add_le stopB (modelStepBound_costs bounds capacity positions width))) stopF)
+
+/-- Helper: `planFreeBound` grows with the cost of each site. -/
+private theorem planFreeBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity positions width : Nat) :
+    planFreeBound words rows capacity positions width ≤
+      planFreeBound κ rows capacity positions width := by
+  have look : ∀ w, lookAheadBound words positions w ≤ lookAheadBound κ positions w := fun w => by
+    have rest : planBound words w + words .planClose + words .lookAhead ≤
+        planBound κ w + κ .planClose + κ .lookAhead := by
+      simp only [planBound, pass, Library.work, Library.control]
+      gcongr <;> exact bounds _
+    exact add_le (predictBound_costs bounds positions w) rest
+  have backup : backupAllBound words positions width ≤ backupAllBound κ positions width := by
+    have h1 := look width
+    unfold backupAllBound
+    simp only [Library.work, Library.control]
+    gcongr <;> exact bounds _
+  have sweep : sweepAllBound words positions capacity ≤ sweepAllBound κ positions capacity := by
+    have h2 := look capacity
+    unfold sweepAllBound
+    simp only [Library.work, Library.control]
+    gcongr <;> exact bounds _
+  exact add_le (bounds _) (add_le (metaRateBound_costs bounds rows capacity)
+    (add_le (add_le backup sweep) (bounds _)))
+
+/-- Helper: `refreshFreeBound` grows with the cost of each site. -/
+private theorem refreshFreeBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity positions units : Nat) :
+    refreshFreeBound words rows capacity positions units ≤
+      refreshFreeBound κ rows capacity positions units := by
+  simp only [refreshFreeBound, refreshBound, refreshRankedBound, rerankModelsBound,
+    rankedSlotsBound, transitionRerankBound, rankedRerankBound, changedBound, forgetBound,
+    columnsBound, learnerInitialBound, zeroBound, mergedBound, tabulateBound, candidateListBound,
+    rankedBound, pass, rankedCandidatesBound, installBound, skillInitialBound,
+    controllerInitialBound, modelInitialBound, transitionInitialBound, rankedEmptyBound,
+    Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `primitiveBound` grows with the cost of each site. -/
+private theorem primitiveBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity width : Nat) :
+    primitiveBound words rows capacity width ≤ primitiveBound κ rows capacity width := by
+  have pers : persistentBound words rows ≤ persistentBound κ rows := by
+    simp only [persistentBound, greedyBound, probabilitiesBound, candidatesBound, bestBound, pass,
+      Library.work, Library.control]
+    gcongr <;> exact bounds _
+  exact add_le (metaRateBound_costs bounds rows capacity)
+    (add_le (add_le (predictAllBound_costs bounds rows width) (bounds _))
+      (add_le pers (bounds _)))
+
+/-- Helper: `potentialBound` grows with the cost of each site. -/
+private theorem potentialBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (width : Nat) : potentialBound words width ≤ potentialBound κ width := by
+  simp only [potentialBound, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `comparisonBound` grows with the cost of each site. -/
+private theorem comparisonBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (count : Nat) : comparisonBound words count ≤ comparisonBound κ count := by
+  simp only [comparisonBound, expectedBound, bestBound, Library.work, Library.control]
+  gcongr <;> exact bounds _
+
+/-- Helper: `dispatchBound` grows with the cost of each site. -/
+private theorem dispatchBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity positions width : Nat) :
+    dispatchBound words rows capacity positions width ≤
+      dispatchBound κ rows capacity positions width := by
+  have learnM : learnMetaBound words capacity width ≤ learnMetaBound κ capacity width := by
+    simp only [learnMetaBound, policyStepBound, creditStepBound, creditBound, secondLoopBound,
+      pass, firstLoopBound, zeroBound, firstVisit, Library.work, Library.control]
+    gcongr <;> exact bounds _
+  have beginO : beginOptionBound words rows capacity width ≤
+      beginOptionBound κ rows capacity width := by
+    simp only [beginOptionBound, clearBound, zeroBound, frozenBound, rateBound, normalizedBound,
+      predictAllBound, Library.work, Library.control]
+    gcongr <;> exact bounds _
+  exact add_le learnM (add_le (bounds _) (add_le (primitiveBound_costs bounds rows capacity width)
+    (add_le (potentialBound_costs bounds width) (add_le (metaRateBound_costs bounds rows capacity)
+      (add_le (metaRateBound_costs bounds rows capacity)
+        (add_le (comparisonBound_costs bounds metaCount.word.toNat)
+          (add_le (settleBound_costs bounds rows capacity positions width)
+            (add_le (add_le beginO (modelBeginBound_costs bounds capacity positions width))
+              (stepOptionBound_costs bounds rows capacity positions width)))))))))
+
+/-- Helper: `atBoundaryBound` grows with the cost of each site. -/
+private theorem atBoundaryBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity positions units width : Nat) :
+    atBoundaryBound words rows capacity positions units width ≤
+      atBoundaryBound κ rows capacity positions units width := by
+  have drawM : drawMetaBound words rows capacity width ≤ drawMetaBound κ rows capacity width := by
+    have tail : words .drawClose + max (words .uniform) (greedyBound words metaCount.word.toNat) +
+        words .drawMeta ≤
+        κ .drawClose + max (κ .uniform) (greedyBound κ metaCount.word.toNat) + κ .drawMeta := by
+      simp only [greedyBound, candidatesBound, pass, bestBound, Library.work, Library.control]
+      gcongr <;> exact bounds _
+    exact add_le (metaRateBound_costs bounds rows capacity)
+      (add_le (add_le (predictAllBound_costs bounds metaCount.word.toNat width) (bounds _)) tail)
+  exact add_le (refreshFreeBound_costs bounds rows capacity positions units)
+    (add_le (planFreeBound_costs bounds rows capacity positions width)
+      (add_le drawM (add_le (bounds _)
+        (add_le (closeOptionBound_costs bounds rows capacity positions width)
+          (dispatchBound_costs bounds rows capacity positions width)))))
+
+/-- Helper: `selectBound` grows with the cost of each site. -/
+private theorem selectBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
+    (rows capacity positions units width : Nat) :
+    selectBound words rows capacity positions units width ≤
+      selectBound κ rows capacity positions units width := by
+  have prep : prepareBound words rows capacity positions width ≤
+      prepareBound κ rows capacity positions width := by
+    have inner : metaRateBound words rows capacity +
+        (predictBound words positions width + words .read) ≤
+        metaRateBound κ rows capacity + (predictBound κ positions width + κ .read) :=
+      add_le (metaRateBound_costs bounds rows capacity)
+        (add_le (predictBound_costs bounds positions width) (bounds .read))
+    unfold prepareBound
+    simp only [Library.work, Library.control]
+    gcongr <;> exact bounds _
+  have srv : serveBound words rows width ≤ serveBound κ rows width := by
+    have tail : Library.ofFn.work (words .visit) rows (words .read) + words .serve ≤
+        Library.ofFn.work (κ .visit) rows (κ .read) + κ .serve := by
+      simp only [Library.work, Library.control]
+      gcongr <;> exact bounds _
+    exact add_le (predictAllBound_costs bounds rows width)
+      (add_le (predictAllBound_costs bounds metaCount.word.toNat width) tail)
+  have optB : optionBranchBound words rows capacity positions units width ≤
+      optionBranchBound κ rows capacity positions units width :=
+    add_le (potentialBound_costs bounds width) (add_le (metaRateBound_costs bounds rows capacity)
+      (add_le (add_le (predictAllBound_costs bounds metaCount.word.toNat width) (bounds _))
+        (add_le (comparisonBound_costs bounds metaCount.word.toNat)
+          (add_le (metaRateBound_costs bounds rows capacity)
+            (add_le (decideBound_costs bounds rows capacity width)
+              (add_le (stepOptionBound_costs bounds rows capacity positions width)
+                (add_le (closeOptionBound_costs bounds rows capacity positions width)
+                  (atBoundaryBound_costs bounds rows capacity positions units width))))))))
+  exact add_le prep (add_le srv (add_le (bounds _)
+    (add_le (primitiveBound_costs bounds rows capacity width)
+      (add_le (atBoundaryBound_costs bounds rows capacity positions units width) optB))))
+
 /-- The first part's bound grows with the cost of each site. -/
 theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (interface : Interface)
     (config : Features.Config) (dimension : Dimension) :
-    chooseBound words interface config dimension ≤ chooseBound κ interface config dimension := by
-  simp only [chooseBound, atBoundaryBound, backupAllBound, backupErrorBound,
-    beginBound, beginOptionBound, beginTemporalBound, bestBound, candidateListBound,
-    candidatesBound, changedBound, clearBound, closeOptionBound, columnsBound, comparisonBound,
-    controllerInitialBound, creditBound, creditStepBound, decideBound, dispatchBound,
-    drawMetaBound, encodeBound, endTemporalBound, expectedAtBound, expectedBound,
-    firstLoopBound, firstVisit, forgetBound, frameBound, frozenBound, greedyBound,
-    indicatorBound, inputBound, installBound, learnMetaBound, learnerInitialBound,
-    lookAheadBound, lookaheadBound, mergedBound, metaRateBound, modelBeginBound,
-    modelInitialBound, modelStepBound, modelStopBound, modelTerminalBound,
-    modelTerminalWorkBound, normalizedBound, occupiedBound, optionBranchBound, optionStepBound,
-    outcomeBound, outcomeValuesBound, persistentBound, planBound, planFreeBound, planningBound,
-    policyStepBound, potentialBound, predictAllBound, predictBound, prepareBound,
-    primitiveBound, probabilitiesBound, projectionBound, rankedBound,
-    rankedCandidatesBound, rankedEmptyBound, rankedRerankBound, rankedSlotsBound,
-    rankedValuesBound, rateBound, refreshBound, refreshFreeBound, refreshRankedBound,
-    releaseBound, rerankModelsBound, rowInputBound, secondLoopBound, selectBound, serveBound,
-    settleBound, skillInitialBound, stepBound, stepOptionBound, stepTemporalBound, stopBound,
-    stopFollowingBound, stopTrajectoryBound, sweepAllBound, tabulateBound, terminalBound,
-    terminalCreditBound, tiledBound, transitionBeginBound, transitionInitialBound,
-    transitionRerankBound, transitionStepBound, uniqueBound, updateRowsBound, wordsBound,
-    zeroBound, pass, Library.work, Library.control]
-  gcongr <;> exact bounds _
+    chooseBound words interface config dimension ≤ chooseBound κ interface config dimension :=
+  add_le (bounds _) (add_le (frameBound_costs bounds interface dimension.capacity config)
+    (selectBound_costs bounds interface.actions.word.toNat dimension.capacity
+      (rankDimension dimension).capacity config.units.count (frameWidth interface config)))
 
 /-- The first part under the default order is `Agent.chooseSelected` at `learnThenAct`. -/
 theorem choose_learnThenAct (state : Agent interface profile config criterion dimension planning)

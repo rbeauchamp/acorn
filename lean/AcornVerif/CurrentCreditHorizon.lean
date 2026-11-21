@@ -44,10 +44,10 @@ trace reaches them.
 step size is `stepWord` (`0x3851b71c`), the portable exponential of its stored log step size
 `logStepWord`; its pruning threshold is `pruneWord`; its trace decay is `decayOf criterion`.
 Bounds are carried by the monotonicity of nearest rounding on exact readings
-(`AcornVerif.CurrentBackupBounds.Rounded.mono`), with no rounding-error estimate: every bound is
-itself an executed word, and the kernel decides each comparison between named words. Ordered sums
-over a frame are bounded by the ordered sum of as many copies of the largest term
-(`sumFrom_le_repeat`); one pass of `partialSums` checks every such sum up to the frame bound.
+(`AcornVerif.CurrentBackupBounds.Rounded.mono`), with every chain bound kept as
+an executed word. Ordered sums over a frame are bounded by the ordered sum of as many copies of
+the largest term (`sumFrom_le_repeat`), which `repeatSum_analytic` bounds from the strict
+per-addition rounding radius (`AcornVerif.CurrentPrediction.binary32_add_finite_strict_error`).
 
 **While the rewards are zero** (`CtrlQuiet`). Every weight is a zero word, the shared lags are zero
 words and no restart is pending; every slot keeps the initial log step size, zero update and
@@ -897,53 +897,13 @@ open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder AcornVerif.CurrentBack
 /-! ## Ordered sums of bounded words
 
 A frame's step-size total and trace total are ordered sums over its slots. Each is bounded by
-the ordered sum of as many copies of the largest term, and every such sum up to the frame bound is
-checked once, in the kernel, by one pass over the partial sums (`partialSums`). -/
+the ordered sum of as many copies of the largest term, and `repeatSum_analytic` bounds every
+partial sum up to the frame bound directly by induction from the per-addition half-ulp rounding
+error (`AcornVerif.CurrentPrediction.binary32_add_finite_strict_error`). -/
 
 /-- The ordered sum of `count` copies of a word. -/
 def repeatSum (word : Binary32) (count : Nat) : Binary32 :=
   Binary32.sumFrom .zero (List.replicate count word)
-
-/-- Whether each of the next `count` partial sums of copies of `word` from `total` is finite and
-lies between zero and `bound`. -/
-def partialSums (word bound : Binary32) : Binary32 → Nat → Bool
-  | _, 0 => true
-  | total, count + 1 =>
-    let next := total.add word
-    decide next.Finite && decide (0 ≤ next.key) && decide (next.key ≤ bound.key) &&
-      partialSums word bound next count
-
-/-- A passing check bounds every partial sum it covers. -/
-theorem partialSums_spec (word bound : Binary32) :
-    ∀ (count : Nat) (total : Binary32), partialSums word bound total count = true →
-      total.Finite → 0 ≤ total.key → total.key ≤ bound.key →
-      ∀ k ≤ count, (Binary32.sumFrom total (List.replicate k word)).Finite ∧
-        0 ≤ (Binary32.sumFrom total (List.replicate k word)).key ∧
-        (Binary32.sumFrom total (List.replicate k word)).key ≤ bound.key := by
-  intro count
-  induction count with
-  | zero =>
-    intro total _ finite lower upper k bound
-    have : k = 0 := by omega
-    subst this
-    exact ⟨finite, lower, upper⟩
-  | succ count ih =>
-    intro total check finite lower upper k bound
-    cases k with
-    | zero => exact ⟨finite, lower, upper⟩
-    | succ k =>
-      simp only [partialSums, Bool.and_eq_true, decide_eq_true_eq] at check
-      rw [List.replicate_succ, Binary32.sumFrom_def, List.foldl_cons, ← Binary32.sumFrom_def]
-      exact ih _ check.2 check.1.1.1 check.1.1.2 check.1.2 k (by omega)
-
-/-- A pass of the check from zero bounds every sum of at most `count` copies. -/
-theorem repeatSum_bound (word bound : Binary32) (count : Nat)
-    (check : partialSums word bound .zero count = true) (positive : 0 ≤ bound.key) :
-    ∀ k ≤ count, (repeatSum word k).Finite ∧ 0 ≤ (repeatSum word k).key ∧
-      (repeatSum word k).key ≤ bound.key :=
-  partialSums_spec word bound count .zero check (by decide) (by decide)
-    (by have : (Binary32.zero).key = 0 := by decide
-        omega)
 
 /-- No copies sum to positive zero. -/
 theorem repeatSum_zero (word : Binary32) : repeatSum word 0 = .zero := rfl
@@ -954,6 +914,67 @@ theorem repeatSum_succ (word : Binary32) (count : Nat) :
   unfold repeatSum
   rw [List.replicate_succ', Binary32.sumFrom_append]
   rfl
+
+/-- **Analytic upper bound on an ordered sum of copies of a small nonnegative word.**
+When `count` copies of `word`, each with at most `2 ^ (limit - 25)` rounding error (half a unit in
+the last place below `2 ^ limit`), stay strictly below `2 ^ limit` (with `-125 ≤ limit ≤ 2`), then
+every partial sum of at most `count` copies is small, nonnegative, and at most
+`k * (numerical32 word + 2 ^ (limit - 25))`. -/
+theorem repeatSum_analytic (word : Binary32) (count : Nat) (limit : Int)
+    (wordSmall : Small word) (wordNonneg : 0 ≤ numerical32 word)
+    (limitLow : -125 ≤ limit) (limitHigh : limit ≤ 2)
+    (fitsLimit : (count : ℚ) * (numerical32 word + (2 : ℚ) ^ (limit - 25)) < (2 : ℚ) ^ limit) :
+    ∀ k ≤ count, Small (repeatSum word k) ∧ 0 ≤ numerical32 (repeatSum word k) ∧
+      numerical32 (repeatSum word k) ≤ (k : ℚ) * (numerical32 word + (2 : ℚ) ^ (limit - 25)) := by
+  intro k
+  induction k with
+  | zero =>
+    intro _
+    rw [repeatSum_zero]
+    exact ⟨small_zero, by rw [zero_value], by rw [zero_value]; norm_num⟩
+  | succ k ih =>
+    intro fits
+    obtain ⟨prevSmall, prevNonneg, prevHigh⟩ := ih (by omega)
+    rw [repeatSum_succ]
+    have nextNonneg : 0 ≤ numerical32 ((repeatSum word k).add word) :=
+      add_nonneg' prevSmall wordSmall prevNonneg wordNonneg
+    have errPos : (0 : ℚ) < (2 : ℚ) ^ (limit - 25) := by positivity
+    have termNonneg : 0 ≤ numerical32 word + (2 : ℚ) ^ (limit - 25) := by linarith
+    have kLe : ((k + 1 : Nat) : ℚ) ≤ (count : ℚ) := by exact_mod_cast fits
+    have scaledLe : ((k + 1 : Nat) : ℚ) * (numerical32 word + (2 : ℚ) ^ (limit - 25)) ≤
+        (count : ℚ) * (numerical32 word + (2 : ℚ) ^ (limit - 25)) :=
+      mul_le_mul_of_nonneg_right kLe termNonneg
+    have exactLt : numerical32 (repeatSum word k) + numerical32 word < (2 : ℚ) ^ limit := by
+      have step : (k : ℚ) * (numerical32 word + (2 : ℚ) ^ (limit - 25)) + numerical32 word <
+          ((k + 1 : Nat) : ℚ) * (numerical32 word + (2 : ℚ) ^ (limit - 25)) := by
+        push_cast
+        linarith
+      linarith
+    have absLt : |numerical32 (repeatSum word k) + numerical32 word| < (2 : ℚ) ^ limit := by
+      rw [abs_of_nonneg (by linarith)]
+      exact exactLt
+    have op := AcornVerif.CurrentPrediction.binary32_add_finite_strict_error
+      (repeatSum word k) word prevSmall.1 wordSmall.1 limit (by omega) absLt
+    have radiusEq : (2 : ℚ) ^ (max (limit - 24) (-149)) / 2 = (2 : ℚ) ^ (limit - 25) := by
+      rw [max_eq_left (by omega : -149 ≤ limit - 24),
+        show limit - 24 = (limit - 25) + 1 by omega,
+        zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
+      norm_num
+    have opErr : numerical32 ((repeatSum word k).add word) -
+        (numerical32 (repeatSum word k) + numerical32 word) ≤ (2 : ℚ) ^ (limit - 25) := by
+      have h := (abs_le.mp op.2).2
+      rwa [radiusEq] at h
+    have nextHigh : numerical32 ((repeatSum word k).add word) ≤
+        ((k + 1 : Nat) : ℚ) * (numerical32 word + (2 : ℚ) ^ (limit - 25)) := by
+      push_cast
+      linarith
+    have limitLeFour : (2 : ℚ) ^ limit ≤ 4 := by
+      have h := zpow_le_zpow_right₀ (by norm_num : (1 : ℚ) ≤ 2) limitHigh
+      norm_num at h
+      exact h
+    have nextSmall : Small ((repeatSum word k).add word) :=
+      ⟨op.1, abs_le.mpr ⟨by linarith, by linarith⟩⟩
+    exact ⟨nextSmall, nextNonneg, nextHigh⟩
 
 /-- **Ordered sums are monotone in their terms.** An ordered sum from a nonnegative accumulator
 of nonnegative words, each at most `word`, is at most the sum of as many copies of `word` from a
@@ -1606,35 +1627,112 @@ theorem quiet_first_entry {actions : Nat}
     rw [out.zero, zero_value]
     exact (chain_facts criterion 1).2.1
 
-/-- The ordered sum of 1999 copies of the trace bound. -/
+/-- An upper bound on every ordered sum of at most 1999 copies of the trace bound. -/
 def totalBound : Criterion → Binary32
-  | .discounted => ⟨0x3f6abee9⟩
-  | .differential => ⟨0x3f7fe074⟩
+  | .discounted => ⟨0x3f6ac300⟩
+  | .differential => ⟨0x3f7fe500⟩
 
-/-- Every ordered sum of at most 1999 stored step sizes is at most the step-size budget. -/
-theorem rate_check (criterion : Criterion) :
-    partialSums stepWord (criterion.config .control).eta .zero 1999 = true := by
-  cases criterion <;> decide +kernel
-
-/-- Every ordered sum of at most 1999 trace bounds is at most `totalBound`. -/
-theorem total_check (criterion : Criterion) :
-    partialSums (traceBound criterion) (totalBound criterion) .zero 1999 = true := by
-  cases criterion <;> decide +kernel
-
-/-- The ordered sum of 1900 trace bounds. -/
+/-- An upper bound on every ordered sum of at most 1900 copies of the trace bound. -/
 def partialBound : Criterion → Binary32
-  | .discounted => ⟨0x3f5f1eb9⟩
-  | .differential => ⟨0x3f733445⟩
+  | .discounted => ⟨0x3f5f2300⟩
+  | .differential => ⟨0x3f733700⟩
+
+/-- Exact rational reading of the trace bound. -/
+private theorem traceBound_value (criterion : Criterion) :
+    numerical32 (traceBound criterion) = match criterion with
+      | .discounted => 15761342 * (2 : ℚ) ^ (-35 : Int)
+      | .differential => 8589931 * (2 : ℚ) ^ (-34 : Int) := by
+  cases criterion
+  · change (1 : ℚ) * 15761342 * (2 : ℚ) ^ (-35 : Int) = _
+    ring
+  · change (1 : ℚ) * 8589931 * (2 : ℚ) ^ (-34 : Int) = _
+    ring
+
+/-- Exact rational reading of `totalBound`. -/
+private theorem totalBound_value (criterion : Criterion) :
+    numerical32 (totalBound criterion) = match criterion with
+      | .discounted => 15385344 * (2 : ℚ) ^ (-24 : Int)
+      | .differential => 16770304 * (2 : ℚ) ^ (-24 : Int) := by
+  cases criterion
+  · change (1 : ℚ) * 15385344 * (2 : ℚ) ^ (-24 : Int) = _
+    ring
+  · change (1 : ℚ) * 16770304 * (2 : ℚ) ^ (-24 : Int) = _
+    ring
+
+/-- Exact rational reading of `partialBound`. -/
+private theorem partialBound_value (criterion : Criterion) :
+    numerical32 (partialBound criterion) = match criterion with
+      | .discounted => 14623488 * (2 : ℚ) ^ (-24 : Int)
+      | .differential => 15939328 * (2 : ℚ) ^ (-24 : Int) := by
+  cases criterion
+  · change (1 : ℚ) * 14623488 * (2 : ℚ) ^ (-24 : Int) = _
+    ring
+  · change (1 : ℚ) * 15939328 * (2 : ℚ) ^ (-24 : Int) = _
+    ring
+
+/-- Exact rational reading of the control step-size budget `Config.eta`. -/
+private theorem eta_value (criterion : Criterion) :
+    numerical32 (criterion.config .control).eta = 13421773 * (2 : ℚ) ^ (-27 : Int) := by
+  cases criterion <;> (change (1 : ℚ) * 13421773 * (2 : ℚ) ^ (-27 : Int) = _; ring)
+
+/-- Every ordered sum of at most 1999 stored step sizes is small and at most the step-size
+budget. -/
+theorem repeatSum_rate (criterion : Criterion) :
+    ∀ k ≤ 1999, Small (repeatSum stepWord k) ∧
+      numerical32 (repeatSum stepWord k) ≤ numerical32 (criterion.config .control).eta := by
+  have base := repeatSum_analytic stepWord 1999 (-3) small_step step_nonneg (by omega) (by omega)
+    (by rw [step_value]; norm_num)
+  intro k fits
+  obtain ⟨small, -, high⟩ := base k fits
+  have kLe : (k : ℚ) ≤ 1999 := by exact_mod_cast fits
+  have cap : (k : ℚ) * (numerical32 stepWord + (2 : ℚ) ^ ((-3 : Int) - 25)) ≤
+      1999 * (numerical32 stepWord + (2 : ℚ) ^ ((-3 : Int) - 25)) :=
+    mul_le_mul_of_nonneg_right kLe (by rw [step_value]; norm_num)
+  refine ⟨small, le_trans high (le_trans cap ?_)⟩
+  rw [step_value, eta_value]
+  cases criterion <;> norm_num
+
+/-- Every ordered sum of at most 1999 trace bounds is small, nonnegative, and at most
+`totalBound`. -/
+theorem repeatSum_total (criterion : Criterion) :
+    ∀ k ≤ 1999, Small (repeatSum (traceBound criterion) k) ∧
+      0 ≤ numerical32 (repeatSum (traceBound criterion) k) ∧
+      numerical32 (repeatSum (traceBound criterion) k) ≤ numerical32 (totalBound criterion) := by
+  have base := repeatSum_analytic (traceBound criterion) 1999 0 (small_bound criterion)
+    (bound_nonneg criterion) (by omega) (by omega)
+    (by rw [traceBound_value]; cases criterion <;> norm_num)
+  intro k fits
+  obtain ⟨small, nonneg, high⟩ := base k fits
+  have kLe : (k : ℚ) ≤ 1999 := by exact_mod_cast fits
+  have cap : (k : ℚ) * (numerical32 (traceBound criterion) + (2 : ℚ) ^ ((0 : Int) - 25)) ≤
+      1999 * (numerical32 (traceBound criterion) + (2 : ℚ) ^ ((0 : Int) - 25)) :=
+    mul_le_mul_of_nonneg_right kLe (by rw [traceBound_value]; cases criterion <;> norm_num)
+  refine ⟨small, nonneg, le_trans high (le_trans cap ?_)⟩
+  rw [traceBound_value, totalBound_value]
+  cases criterion <;> norm_num
 
 /-- Every ordered sum of at most 1900 trace bounds is at most `partialBound`. -/
-theorem partial_check (criterion : Criterion) :
-    partialSums (traceBound criterion) (partialBound criterion) .zero 1900 = true := by
-  cases criterion <;> decide +kernel
+theorem repeatSum_partial (criterion : Criterion) :
+    ∀ k ≤ 1900, Small (repeatSum (traceBound criterion) k) ∧
+      numerical32 (repeatSum (traceBound criterion) k) ≤ numerical32 (partialBound criterion) := by
+  have base := repeatSum_analytic (traceBound criterion) 1900 0 (small_bound criterion)
+    (bound_nonneg criterion) (by omega) (by omega)
+    (by rw [traceBound_value]; cases criterion <;> norm_num)
+  intro k fits
+  obtain ⟨small, -, high⟩ := base k fits
+  have kLe : (k : ℚ) ≤ 1900 := by exact_mod_cast fits
+  have cap : (k : ℚ) * (numerical32 (traceBound criterion) + (2 : ℚ) ^ ((0 : Int) - 25)) ≤
+      1900 * (numerical32 (traceBound criterion) + (2 : ℚ) ^ ((0 : Int) - 25)) :=
+    mul_le_mul_of_nonneg_right kLe (by rw [traceBound_value]; cases criterion <;> norm_num)
+  refine ⟨small, le_trans high (le_trans cap ?_)⟩
+  rw [traceBound_value, partialBound_value]
+  cases criterion <;> norm_num
 
 /-- **The words a reward-free second loop reads at entry.** On a frame of at most 1999 quiet slots
 whose traces are under the decayed bound, the step-size total is at most the budget, so no
 overshoot branch is taken, and the trace complement is a small word in `[0, 1]`, at least the
-complement of 1900 trace bounds on a frame of at most 1900 slots. -/
+complement of `partialBound criterion` (the analytic upper bound on the ordered sum of 1900 trace
+bounds) on a frame of at most 1900 slots. -/
 theorem quiet_entry (state : NumericState (criterion.config .control) dimension)
     (features : ActiveSet dimension) (fits : features.indices.length ≤ 1999)
     (slots : ∀ slot, SlotQuiet criterion (slotOf state slot) ∧
@@ -1657,22 +1755,23 @@ theorem quiet_entry (state : NumericState (criterion.config .control) dimension)
     unfold repeatSum
     congr 1
     rw [List.map_congr_left (fun idx _ => logStep_alpha _ (slots idx).1.beta), List.map_const']
-  have rateBound := repeatSum_bound stepWord (criterion.config .control).eta 1999
-    (rate_check criterion) (by cases criterion <;> decide) features.indices.length fits
+  have rateBound := repeatSum_rate criterion features.indices.length fits
+  have etaFinite : (criterion.config .control).eta.Finite := by cases criterion <;> decide
   have noOvershoot : (criterion.config .control).eta.less (Binary32.sumFrom .zero
       (features.indices.map fun idx => (state.beta.get idx).alpha)) = false := by
     rw [rate, Binary32.less_eq_key]
-    have : ¬(criterion.config .control).eta.key < (repeatSum stepWord
-        features.indices.length).key := by omega
-    simp [this]
+    have notLt : ¬(criterion.config .control).eta.key <
+        (repeatSum stepWord features.indices.length).key := by
+      intro ltKey
+      have ltVal := (numerical32_strict_order _ _ etaFinite rateBound.1.1).mpr ltKey
+      linarith [rateBound.2]
+    simp [notLt]
   have zSmall : ∀ slot, Small (slotOf state slot).z := fun slot =>
     small_between (slots slot).1.zFinite small_zero (small_bound criterion)
       (by rw [zero_value]; exact (slots slot).1.zLow) (slots slot).1.zHigh
-  have partials := repeatSum_bound (traceBound criterion) (totalBound criterion) 1999
-    (total_check criterion) (by cases criterion <;> decide)
+  have partials := repeatSum_total criterion
   have totalSmall : ∀ k ≤ 1999, Small (repeatSum (traceBound criterion) k) := fun k bound =>
-    small_of_key (partials k bound).1 (le_trans (by decide) (partials k bound).2.1)
-      (le_trans (partials k bound).2.2 (by cases criterion <;> decide))
+    (partials k bound).1
   have totalTerms := sumFrom_le_repeat (traceBound criterion) (small_bound criterion)
     (features.indices.map fun idx => (state.transient.z.get idx).value) .zero 0
     (fun k bound => totalSmall k (by simp only [List.length_map] at bound; omega)) small_zero
@@ -1683,8 +1782,7 @@ theorem quiet_entry (state : NumericState (criterion.config .control) dimension)
       exact ⟨zSmall slot, (slots slot).1.zLow, (slots slot).1.zHigh⟩)
   simp only [List.length_map, Nat.zero_add] at totalTerms
   have totalHigh : numerical32 (repeatSum (traceBound criterion) features.indices.length) ≤
-      numerical32 (totalBound criterion) :=
-    num_le (partials _ fits).1 (by cases criterion <;> decide) (partials _ fits).2.2
+      numerical32 (totalBound criterion) := (partials _ fits).2.2
   have totalSmallBound : Small (totalBound criterion) := small_named (by cases criterion <;> decide)
   have complement := sub_small small_one totalTerms.1
   have complementHigh : numerical32 (Binary32.one.sub (Binary32.sumFrom .zero
@@ -1705,12 +1803,9 @@ theorem quiet_entry (state : NumericState (criterion.config .control) dimension)
       (features.indices.map fun idx => (state.transient.z.get idx).value))) :=
     ⟨complement.1, abs_le.mpr ⟨by linarith, by linarith⟩⟩
   refine ⟨noOvershoot, complementSmall, complementLow, complementHigh, fun short => ?_⟩
-  have shortPartials := repeatSum_bound (traceBound criterion) (partialBound criterion) 1900
-    (partial_check criterion) (by cases criterion <;> decide)
   have shortHigh : numerical32 (repeatSum (traceBound criterion) features.indices.length) ≤
       numerical32 (partialBound criterion) :=
-    num_le (shortPartials _ short).1 (by cases criterion <;> decide)
-      (shortPartials _ short).2.2
+    (repeatSum_partial criterion _ short).2
   exact sub_mono small_one (small_named (by cases criterion <;> decide)) small_one totalTerms.1
     le_rfl (le_trans totalTerms.2.2 shortHigh)
 
@@ -2039,13 +2134,15 @@ variable {criterion : Criterion} {dimension : Dimension} {actions : Nat}
 
 /-! ## A recently laid slot takes the first reward
 
-On a frame of at most 1900 slots the trace total is at most the ordered sum of 1900 trace bounds,
-so a laid trace is at least the stored step size times the complement of that sum (`lowChain`'s
-first word). Each later step decays it once, and relaying only adds to it. While the decayed word
-stays above the pruning threshold the slot stays eligible, so the first loop at the reward visits
-it and writes the trace word itself into the weight. -/
+On a frame of at most 1900 slots the trace total is at most `partialBound criterion`, the analytic
+upper bound on the ordered sum of 1900 trace bounds, so a laid trace is at least the stored step
+size times the complement of `partialBound criterion` (`lowChain`'s first word). Each later step
+decays it once, and relaying only adds to it. While the decayed word stays above the pruning
+threshold the slot stays eligible, so the first loop at the reward visits it and writes the trace
+word itself into the weight. -/
 
-/-- The least trace a laying visit writes on a frame of at most 1900 slots, decayed `i` times. -/
+/-- A lower bound on the trace a laying visit writes on a frame of at most 1900 slots, from the
+complement of `partialBound criterion`, decayed `i` times. -/
 def lowChain (criterion : Criterion) : Nat → Binary32
   | 0 => stepWord.mul (Binary32.one.sub (partialBound criterion))
   | i + 1 => (lowChain criterion i).mul (decayOf criterion)
