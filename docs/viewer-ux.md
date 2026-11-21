@@ -36,7 +36,9 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   request to wind up at the next attempt boundary, which changes *when a run
   ends*, never *what it does*: weights, world, RNG stream and every decision
   are untouched. Mechanically checked by the deterministic audit digest
-  (`./lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12`),
+  (`./lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12`, a run
+  of the agent, started only on the owner's authorization:
+  [running a program](../CONTRIBUTING.md#running-a-program)),
   checksum `68e84d568d55f8ad` (C-AC5), and by the gate suite
   (`AcornTools.Boundary.Audit`), which excludes host IO and control owners from learned
   modules. The digest detects mutation; module admission enforces isolation.
@@ -877,7 +879,9 @@ What each panel must show. How it draws it is the code's.
   The advanced `./lean/.lake/build/bin/acorn-viewer --research-profile ranked --port 8088`
   serves the UI at `http://127.0.0.1:8088/` and spawns the core with the
   explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×
-  4000 steps) and weight checkpointing. `--run-dir <dir>` moves the run
+  4000 steps) and weight checkpointing. Spawning the core is a run of the agent,
+  started in work on a change only on the owner's authorization
+  ([running a program](../CONTRIBUTING.md#running-a-program)). `--run-dir <dir>` moves the run
   directory, `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides
   the whole campaign, `--port N` overrides the port (`0` requests an available
   port), `--start` explicitly requests Start, `--open-browser` opens the bound

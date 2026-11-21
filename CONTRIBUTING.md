@@ -304,7 +304,8 @@ single blind step (Liew, 2026,
 [arXiv:2605.25931](https://arxiv.org/abs/2605.25931)). Running the agent in its
 worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
 [Microduck](https://github.com/pollen-robotics/microduck)) still
-matters as a smoke test and demonstration, never acceptance evidence.
+matters as a smoke test and demonstration, never acceptance evidence, and each
+such run needs the owner's authorization ([running a program](#running-a-program)).
 
 Because the mission stated above asks for algorithms that are discovered and
 implemented, a mission's theorem is about an executable Acorn definition—the
@@ -609,6 +610,54 @@ authorization. Where none was made, it says so. No check can see an
 evaluation made on a contributor's machine, so this is a written rule and the
 list is its trace
 ([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
+
+### Running a program
+
+On 2026-11-19 the owner of the project ruled that no one makes a run of Acorn's
+agent, or of one of its learners, without the owner's authorization for that
+run. [What counts as a run](#what-counts-as-a-run) defines a run, by whatever
+means it is made, and this section adds nothing to that definition: it says
+which of Acorn's programs make one. So no step of work on a change starts a
+program that steps the agent or a learner over percepts unless the owner's
+authorization for that run is stated in the change's intent. What the step is
+for, and what the run is called, do not matter: a look at the viewer's page, a
+screenshot, a smoke test and a diagnostic are all covered. A smoke test in which
+the core runs its agent is a run of a learner, and a smoke test of the viewer
+with the core as its child is treated as one.
+
+Some of Acorn's programs step a learner without being asked to. The viewer,
+started with no state file in its run directory, starts in the running state,
+and its supervisor launches its child process, which is the core unless the
+command line names another command. The launcher `./scripts/start.sh` starts
+the viewer with the core as its child and a request to start. The diagnostics
+argument of `./scripts/verify.sh` runs the mutation audit, which runs the agent.
+
+The Test instructions of `.no-mistakes.yaml` are the one place that says, for
+each executable that `lean/lakefile.lean` declares, whether running it steps a
+learner and which invocations of it do not, each written out exactly or as a
+family with a written criterion. Read them before starting an Acorn program.
+Their list is closed: treat a program they do not name, and an invocation that
+no line of theirs covers, as stepping a learner. That means not yet shown, never
+forbidden for ever: a drive established to step nothing joins the list by a
+reviewed change to it, and no one decides an uncovered invocation for themselves
+while a change is being validated. Asking a program for help is an invocation
+like any other. The same instructions say, in their paragraph on files that an
+earlier run left, which files that a run of the agent or a learner produced a
+step neither opens nor cites; read it before opening anything in a run directory
+or an evidence directory, in a validation step and in a repair round alike.
+
+The rule forbids no other drive. Building and the merge gate start no program
+that steps a learner. Neither do the audit tools in the modes those instructions
+list; the diagnostics argument of the gate tool is the one mode that does.
+Neither do the drives listed there, such as the viewer serving its page from an
+explicitly stopped state with a child command that cannot be a core. Those
+drives are still asked for where a change alters what a program does. Where a
+change's intent states the owner's authorization for a particular run, exactly
+that run may be driven as well, and nothing wider. A claim that cannot be shown
+without stepping a learner is reported open with that reason, never driven.
+
+The rule is an instruction, which the people and agents who work on Acorn
+follow. No program refuses the run.
 
 ### Proof-shaped specifications
 
