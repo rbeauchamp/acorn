@@ -1047,7 +1047,16 @@ reviewer was assigned as the protocol requires. The trace of the protocol is the
 request itself: the comment that records the assignment and each referee's
 report or short review. One GitHub account serves the owner and the organization's agents, so
 GitHub does not show that the agent that assigned a referee or a reviewer is
-another than the one that did the work; the comment that records the assignment states it. A
+another than the one that did the work; the comment that records the assignment states it.
+Under the single-maintainer interim provision (confirmed on 2026-11-21 while Acorn
+has one human owner and maintainer), the protocol admits the owner's standing
+designation of the no-mistakes validation pipeline's external analyzer/verifier
+when recorded on the pull request alongside its unedited exact-head report or
+short review, while prohibiting same-family self-review and restoring full
+maintainer-led per-PR assignment once multiple human maintainers join; no check
+enforces whether the author and verifier share a model family or when multiple
+human maintainers require retirement of the interim rule, leaving those checks as
+accepted risk in the written protocol. A
 referee or a reviewer can be wrong, and two referees can both be wrong. An
 author's own account of a goal that changed while the work was done is
 something the protocol cannot check, since a referee sees the pull request and

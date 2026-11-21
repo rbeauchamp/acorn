@@ -73,10 +73,11 @@ one developer.
 
 ### Which review a pull request gets
 
-Every pull request is reviewed by a reviewer the maintainers assign, of
-another model family than the author's, and never by one the author chose.
-What differs is the depth. A pull request gets the referee's review when it
-does any of these:
+Every pull request requires an independent review of another model family than
+every model that did the work (by the maintainers' per-PR assignment, or under
+the single-maintainer interim provision below while Acorn has one human owner
+and maintainer), and never by a reviewer the author chose. What differs is the
+depth. A pull request gets the referee's review when it does any of these:
 
 - it claims to complete or advance a mission, or an issue that asks for a
   proof or a discovery;
@@ -101,10 +102,14 @@ skills under .agents/skills describe. It helps the work and discharges nothing
 of this protocol, for any pull request.
 
 This holds for the organization's own changes as for anyone's. The review this
-protocol requires is the review of a reviewer assigned as the rule of
-assignment says, posted as a comment on the pull request. A review that a validation pipeline or any other
-tool makes before or after a pull request opens discharges nothing of the
-protocol without that assignment and that comment.
+protocol requires is the review of a reviewer assigned under the rule of
+assignment below, posted as a comment on the pull request for the exact head
+commit, title and description. A pre-PR or post-PR check made by a validation
+pipeline discharges nothing of the protocol on its own without that assignment
+comment and the reviewer's posted unedited report or short review on the pull
+request (and if a validation-pipeline run is relied on under the
+single-maintainer provision below, both the assignment comment naming the head
+commit and that unedited review on the pull request are still required).
 
 ### The gate on the exact head
 
@@ -118,10 +123,12 @@ on an earlier head counts for nothing.
 
 ### The referee's review
 
-**Who the referee is.** The maintainers assign the referee. The author never
-does, and an author's request for a referee or against one, in the pull request
-or anywhere else, has no weight: the maintainers neither take nor pass over a
-referee because of it. The rule of assignment is this:
+**Who the referee is.** The maintainers assign the referee (and for a short review,
+the reviewer). The author never does, and an author's request for a reviewer or
+against one, in the pull request or anywhere else, has no weight: the
+maintainers neither take nor pass over a reviewer because of it. Under the
+general rule (when Acorn has multiple human owners and maintainers), each pull
+request receives a separate maintainer-led assignment:
 
 - the referee is of another model family than every model that did the work,
   or is a person. Whom this admits for work a person did with no model is the
@@ -133,8 +140,45 @@ referee because of it. The rule of assignment is this:
 - the assignment is written on the pull request: who assigned, and the
   referee's model family or that the referee is a person.
 
-A review by anyone who was not assigned in this way, from any account, is an
-ordinary comment. It is welcome as criticism and discharges nothing.
+**Single-maintainer interim provision (owner-confirmed 2026-11-21).** While
+Acorn has only one human owner and maintainer, maintainer-led cross-checking on
+every pull request is impractical with no second human maintainer. During this
+single-maintainer phase, external cross-family review remains mandatory on every
+pull request (with the same referee's review or short review depth, exact head
+commit binding, findings, and verdict of accept, revise or reject, plus
+exact-head `./scripts/gate.sh` and blind specification read-back for new or edited
+specifications), and the external model configured as the analyzer/verifier in
+Acorn's no-mistakes validation pipeline satisfies this protocol by standing owner
+designation (whether invoked through the no-mistakes pipeline or run standalone
+against the exact pull request head, title and description) only when every one
+of these holds:
+
+- an assignment comment is written on the pull request recording the owner's
+  standing single-maintainer designation, the designated reviewer's model
+  family, and the exact head commit;
+- the reviewer's unedited report or short review for that exact head commit,
+  title and description is posted as a comment on the pull request and is clean;
+- **no same-family self-review:** the designated reviewer took no part in writing
+  or fixing the change and belongs to a different model family than every model
+  that authored, fixed or advised on the work. In particular, if an author (human
+  or AI-directed, or a pipeline fixer) belongs to the same model family as the
+  validation pipeline's configured analyzer/verifier, that analyzer/verifier
+  cannot satisfy the protocol for that pull request and a reviewer of another
+  model family (or the owner) must review it instead;
+- for a claim of discovery requiring two referees, this standing designation
+  supplies at most one cross-family referee and never substitutes for the second
+  independent referee.
+
+**Restoration of full maintainer-led assignment.** Once Acorn has more than one
+human owner or maintainer, the general maintainer-led per-PR assignment rule
+above takes full effect and this single-maintainer standing designation retires
+automatically. As before, outside pull requests merge only on the owner's word,
+and any change loosening protections or removing checks merges only on the
+owner's recorded confirmation.
+
+A review by anyone who was not assigned under the applicable rule above, from
+any account, is an ordinary comment. It is welcome as criticism and discharges
+nothing.
 
 **What the referee reads, and against what.** The maintainers give the referee
 the pull request at its head commit, the issue it names and Acorn's tracked
