@@ -194,10 +194,14 @@ test:
   # The runbook's sentence on files that an earlier run left is an instruction too, with no
   # mechanism behind it. Its line is admission, not place: it covers every file that a run of the
   # agent or a learner produced unless that file is tracked at the commit under validation,
-  # wherever the file sits. A step cannot always tell whether an untracked file came from such a
-  # run, and where it cannot it does not open the file and says so, which is an accepted risk. The
-  # pipeline gives this runbook to the Test step's evidence turn and not to its repair rounds, so
-  # AGENTS.md and CONTRIBUTING.md point to that paragraph, where a repair agent reads.
+  # wherever the file sits. One file more is exempt: a file that the change's intent names exactly
+  # as supplied by the owner for inspection, with the owner's authorization. Nothing checks that
+  # the named file is the one the owner meant; a wrong file read is disclosed in the pull request's
+  # description like any computation, which is an accepted risk. A step cannot always tell whether
+  # an untracked file came from such a run, and where it cannot it does not open the file and says
+  # so, which is an accepted risk too. The pipeline gives this runbook to the Test step's evidence
+  # turn and not to its repair rounds, so AGENTS.md and CONTRIBUTING.md point to that paragraph,
+  # where a repair agent reads.
   no_surface: proceed
   instructions: |
     A later line of these instructions says that this repository declares it has no running product to drive. That line is no-mistakes' fixed wording for the setting test.no_surface: proceed. It is not true of Acorn, which has programs that a person or a world runs. Here the setting decides only that a no-surface verdict does not park. Judge each change by what follows.
@@ -229,7 +233,7 @@ test:
 
     scripts/start.sh can install system packages and starts a core. For a change to the script itself, drive ./scripts/start.sh --help, or ./scripts/start.sh --prepare-only after reading that it would install nothing here, and report a claim about its launch open. microduck-host requires its --control and --depth sockets from the simulator's daemons, and the simulator is not in this repository. When what a claim needs cannot be stood up as a disposable process of this run, or cannot be shown without stepping a learner, report the claim open with that reason.
 
-    Files that an earlier run left. What a run of Acorn's agent or a learner produced without the owner's authorization is evidence of nothing and is used for nothing: a validation step neither opens nor cites a log, checkpoint, state file, screenshot or other file produced by a run of Acorn's agent or a learner that the owner did not authorize for the change under validation, and where it meets one it reports the path and leaves the file as it is. The line is drawn by admission, not by place: the sentence covers every such file unless it is tracked in the repository at the commit under validation. A tracked file was admitted by review, such as the records of registered studies under docs/studies, and is read like any other tracked file; every other such file is covered wherever it sits, inside the checkout or outside it, a run directory or an evidence directory left inside a working copy included. The merge gate's own outputs, the outputs of proofs and this step's own capture of a stopped viewer are not files that a learner run produced. Where a step cannot tell whether an untracked file came from such a run, it does not open the file and says so.
+    Files that an earlier run left. What a run of Acorn's agent or a learner produced without the owner's authorization is evidence of nothing and is used for nothing: a validation step neither opens nor cites a log, checkpoint, state file, screenshot or other file produced by a run of Acorn's agent or a learner that the owner did not authorize for the change under validation, and where it meets one it reports the path and leaves the file as it is. The line is drawn by admission, not by place: the sentence covers every such file unless it is tracked in the repository at the commit under validation. A tracked file was admitted by review, such as the records of registered studies under docs/studies, and is read like any other tracked file; every other such file is covered wherever it sits, inside the checkout or outside it, a run directory or an evidence directory left inside a working copy included. One more file is exempt beside tracked ones: a file that the change's intent names, exactly, as supplied by the owner for inspection, with the owner's authorization stated in the owner's words or by a pointer to where they are recorded; an intent written by an agent cannot create the exemption on its own word. The exemption covers reading that one file and nothing wider: no other file of the same run, no file found beside it, and no stepping of anything from it. The merge gate's own outputs, the outputs of proofs and this step's own capture of a stopped viewer are not files that a learner run produced. Where a step cannot tell whether an untracked file came from such a run, it does not open the file and says so.
 
     The machine. Start, stop, reconfigure or reset none of the machine's own services that this run did not create: a container runtime or virtual machine, a system daemon, a package manager's global state or a shared database. Stop only a process this run started, by the process id recorded when it started, never by matching a name or command line.
 
