@@ -94,7 +94,10 @@ def stateVersioned (value : Json.Value) : Bool := (value.member "schema_version"
 /-- The fields of a state file: the schema version when the file names one, which must be
 `stateSchema`, and the six fields of state. -/
 def PersistedState.fields (versioned : Bool) : Json.Decoder PersistedState := do
-  if versioned then Json.version stateSchema
+  if versioned then
+    unless (← (← Json.take "schema_version").natural) == stateSchema do
+      throw (s!"schema_version is not {stateSchema}; a state file another version wrote is " ++
+        "neither guessed at nor overwritten")
   let seed ← jsonWord (← Json.take "seed")
   let desired ← match ← Json.text "desired" with
     | "running" => pure Desired.running
@@ -127,14 +130,42 @@ theorem PersistedState.decode_unversioned (value : Json.Value) (state : Persiste
     Except.ok.injEq] at returned
   rw [← returned]
 
+/-- Where the state a viewer starts from came from. -/
+inductive StartSource where
+  /-- The run directory held no state file. -/
+  | absent
+  /-- The state file names no schema version, so its intent was read as stopped. -/
+  | unversioned
+  /-- The state file names the schema this viewer writes; its intent is the one it records. -/
+  | saved
+  deriving DecidableEq
+
+/-- One line that says why the run a viewer starts with is stopped, or that it resumes. The
+viewer prints it at start-up and publishes it as the reason of its first control record, so a
+person who finds the run stopped is told why and what starts it. -/
+def startAccount (source : StartSource) (desired : Desired) : String :=
+  match desired, source with
+  | .running, _ => "the saved state intends to run, so the run resumes"
+  | .stopped, .absent =>
+    "stopped because the run directory holds no saved state; " ++
+      "press Start in the page or launch with --start"
+  | .stopped, .unversioned =>
+    "stopped because the saved state was written before state.json recorded a schema " ++
+      "version, so its intent is not taken as a Start; " ++
+      "press Start in the page or launch with --start"
+  | .stopped, .saved =>
+    "stopped because the saved state says stopped; " ++
+      "press Start in the page or launch with --start"
+
 /-- Absence, refusal and successful restore require distinct caller branches. -/
 inductive StateRead where
   /-- No prior state file exists. -/
   | missing
   /-- IO, syntax or schema refused the prior file. -/
   | refused (reason : String)
-  /-- The complete current state was admitted. -/
-  | restored (state : PersistedState)
+  /-- The complete state was admitted, from a file that names its schema or from one that
+  names none. -/
+  | restored (state : PersistedState) (versioned : Bool)
 
 private def stateBytes (handle : IO.FS.Handle) (remaining : Nat) (bytes : ByteArray) : IO ByteArray := do
   let chunk ← handle.read (min (remaining + 1) 4096).toUSize
@@ -154,9 +185,12 @@ def RunDirectory.readState (directory : RunDirectory) : IO StateRead := do
   try
     let bytes ← stateBytes handle 4096 ByteArray.empty
     let some text := String.fromUTF8? bytes | return .refused "invalid state UTF-8"
-    match Json.parse text >>= PersistedState.decode with
+    match Json.parse text with
     | .error reason => return .refused reason
-    | .ok state => return .restored state
+    | .ok value =>
+      match PersistedState.decode value with
+      | .error reason => return .refused reason
+      | .ok state => return .restored state (stateVersioned value)
   catch error => return .refused error.toString
 
 /-- Exclusive temporary creation prevents truncating a file owned by another pending writer.

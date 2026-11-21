@@ -1230,3 +1230,14 @@ server for an admitted control request; the bootstrap hands the supervisor the s
 built; and a state file it refuses constructs no supervisor. That a running intent in a state
 file follows a Start in some earlier viewer is argued from the write clause above by induction
 over the viewers that owned the run directory, and is not proved.
+
+The cases of a state file are four. With no file the run is stopped. A file that names no schema
+version is read as stopped, once, as above. A file that names the schema version the viewer
+writes (`Acorn.Host.Viewer.stateSchema`) starts the run with the intent it records, so a
+running one resumes. A file that names any other schema version is refused like an unreadable
+or malformed one: the viewer exits before it serves anything, constructs no supervisor and
+leaves the file as it is, because a file another version wrote is not guessed at and reading it
+as stopped would publish over it. When the run a viewer starts with is stopped, the viewer says
+why in one line (`Acorn.Host.Viewer.startAccount`): on its standard output after the ready
+line when it was launched without the `--start` flag, and as the reason of its first control
+record.

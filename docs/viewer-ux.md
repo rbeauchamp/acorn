@@ -891,7 +891,16 @@ What each panel must show. How it draws it is the code's.
   found no file. The viewer then rewrites the file with the schema version, so
   this happens once: an operator who starts the viewer directly on a run that
   an earlier viewer left running finds it stopped and presses Start, and
-  `./scripts/start.sh` starts it as before. When the viewer does spawn, the core runs the
+  `./scripts/start.sh` starts it as before. A state file that names any other
+  schema version is refused like a malformed one: the viewer exits before it
+  serves anything and leaves the file as it is, because a file another version
+  wrote is not guessed at. Whenever the run a viewer starts with is stopped,
+  the viewer says why in one line, for example "Run: stopped because the run
+  directory holds no saved state; press Start in the page or launch with
+  --start": on its standard output after the ready line when it was launched
+  without `--start`, and as the reason of its first control record, which the
+  page shows in the hover text of the state word (UX-21). When the viewer does
+  spawn, the core runs the
   explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×
   4000 steps) with weight checkpointing. `--run-dir <dir>` moves the run
   directory, `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides

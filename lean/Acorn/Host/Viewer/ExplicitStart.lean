@@ -26,6 +26,19 @@ schema, which is what the viewer wrote before the file carried one, is decoded b
 theorem holds of the supervisor started from what it decodes to
 (`Reached.unversioned_spawns_nothing`).
 
+**Every state file a viewer can meet.** With no state file the bootstrap builds
+`PersistedState.unstarted`, and the run is stopped. A file that names no schema version, which
+is all the viewer wrote before the file carried one, is decoded with intent stopped; the viewer
+publishes its start state in the schema it writes before it supervises, so the file names the
+schema afterwards and this reading happens once. A file that names `stateSchema` starts the
+run with the intent it records, so a running one resumes: by the write clause of the theorem a
+supervisor waits on the write of a running intent only after a Start was handed to its step,
+or from a start state that held one. A file that names any other schema version, like one that is unreadable
+or malformed, is refused: the bootstrap constructs no supervisor, so nothing is spawned, and
+the file is left as it is, because a file another version wrote is not guessed at and reading
+it as stopped would publish over it. The theorems cover the first three; the publication
+before supervision and the refusal are read from `Supervisor.new` and the bootstrap.
+
 **What the theorem is about.** `Reached` relates an origin, the events handed to the step and a
 state. The states reached from a start are exactly the states of `Ran` (`Reached.ran`,
 `Ran.reached`), which every `Supervision` carries.

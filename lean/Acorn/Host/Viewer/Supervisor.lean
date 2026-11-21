@@ -173,9 +173,10 @@ private def Supervisor.observe (supervisor : Supervisor) :
 
 /-- Construct only after the bootstrap has admitted the initial state. The state is published
 before supervision begins, so no launch relies on an unpublished state, and the first control
-record is the start's. -/
+record is the start's. Its reason carries `account`, the bootstrap's one line on why the run
+is stopped or resumes. -/
 def Supervisor.new (config : SupervisorConfig) (directory : RunDirectory)
-    (persisted : PersistedState) : IO Supervisor := do
+    (persisted : PersistedState) (account : String) : IO Supervisor := do
   unless persisted.identity.browserSafe do
     throw (IO.userError "viewer identity exceeds browser integer precision; retained state is unchanged")
   directory.writeState persisted
@@ -184,11 +185,11 @@ def Supervisor.new (config : SupervisorConfig) (directory : RunDirectory)
   let broadcast ← Broadcast.new persisted.identity persisted.desired
     (persisted.processStarted || mapRefused)
   let reason ← match mapRead with
-    | .missing => pure "viewer initialized"
-    | .refused reason => pure s!"viewer initialized; retained map refused: {reason}"
+    | .missing => pure s!"viewer initialized; {account}"
+    | .refused reason => pure s!"viewer initialized; {account}; retained map refused: {reason}"
     | .restored _ memory =>
       let _ ← broadcast.restoreWorld memory
-      pure "viewer initialized; retained map restored as partial"
+      pure s!"viewer initialized; {account}; retained map restored as partial"
   let (supervision, effects) :=
     Supervision.start config.clearDisabled persisted reason (← IO.monoMsNow)
   let supervisor : Supervisor := ⟨config, broadcast, ← SupervisedProcess.new broadcast,

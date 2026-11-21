@@ -41,19 +41,19 @@ private def freshSeed : IO UInt64 := do
   let bytes ← seedBytes handle 8 ByteArray.empty
   return viewerSeed (bytes.data.foldl (fun word byte => word * 256 + byte.toUInt64) 0)
 
-private def initialState (directory : RunDirectory) : IO PersistedState := do
+private def initialState (directory : RunDirectory) : IO (PersistedState × StartSource) := do
   match ← directory.readState with
-  | .restored state =>
+  | .restored state versioned =>
     unless state.identity.browserSafe do
       throw (IO.userError "state.json identity exceeds browser integer precision; preserving the run without starting its core")
     let _ ← directory.adoptStrayCheckpoint
-    return state
+    return (state, if versioned then .saved else .unversioned)
   | .refused reason =>
     throw (IO.userError s!"state.json refused; preserving the run without starting its core: {reason}")
   | .missing =>
     let migrated ← directory.adoptStrayCheckpoint
     let seed ← if migrated then pure Cli.defaultSeed else freshSeed
-    return .unstarted seed migrated
+    return (.unstarted seed migrated, .absent)
 
 private def supervisorConfig (options : ViewerOptions) : IO SupervisorConfig := do
   let (executable, arguments) ← match options.launch with
@@ -97,7 +97,11 @@ def runViewer (arguments : List String) : IO UInt32 := do
         "\nThe core starts only with --start, with Start in the page, or when state.json in the run directory names schema_version 2 and intends to run." ++
         s!"\nN is below 65536. {Acorn.Digits.usage}"))
   let directory ← RunDirectory.open options.directory
-  let supervisor ← Supervisor.new (← supervisorConfig options) directory (← initialState directory)
+  let config ← supervisorConfig options
+  let (persisted, source) ← initialState directory
+  let account := if options.start then "Start requested with --start"
+    else startAccount source persisted.desired
+  let supervisor ← Supervisor.new config directory persisted account
   let stop ← StopFlag.new
   stop.withCommands options.controlStdin do
     let viewer ← supervisor.http viewerAssets
@@ -110,6 +114,8 @@ def runViewer (arguments : List String) : IO UInt32 := do
         | throw (IO.userError "bound viewer address is unavailable")
       let url := s!"http://{address}/"
       IO.println s!"Acorn is ready: {url}\nRun directory: {directory.rootPath}"
+      -- One line on why the run is stopped or resumes; a Start flag speaks for itself.
+      unless options.start do IO.println s!"Run: {account}"
       (← IO.getStdout).flush
       if options.start then
         match ← supervisor.submit .start with
