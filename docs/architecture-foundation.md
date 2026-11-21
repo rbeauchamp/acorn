@@ -142,7 +142,7 @@ All implementation work is organized in Milestone 4 ([Architectural foundation](
 | Phase 1.3 | [#327](https://github.com/rbeauchamp/acorn/issues/327) | #326 | Assemble `acorn-baseline` v1 over 5–6 coarse `@[specialize ops]` OaK seams, retire legacy profiles, integrate #320, complete full-repo *module* migration (NativeApp, Entry, Bootstrap, AcornDocument), and remove *allowNonModules*. |
 | Phase 2.1 | [#328](https://github.com/rbeauchamp/acorn/issues/328) | #327 | Open Layer 2 federated candidate templates (Track A + Track B), Pareto frontier, and distill/synthesize/simplification missions (#237–#244). |
 | Phase 2.2 | [#329](https://github.com/rbeauchamp/acorn/issues/329) | #328 | Stand up the 5-stage adversarial triage funnel, split merge authority, and 3-speed epochal baseline clock. |
-| Phase 3.1 | [#330](https://github.com/rbeauchamp/acorn/issues/330) | #325 | Obtain owner confirmation and formalize Regime-2 *OperationalLifecycle* in `lean-intent`, Obligation 10 strengthening, Grades 1–3, and Bridge Theorem. |
+| Phase 3.1 | [#330](https://github.com/rbeauchamp/acorn/issues/330) | #325 | Formalize the owner-confirmed Regime-2 *OperationalLifecycle* in `lean-intent`, Obligation 10 strengthening, Grades 1–3, and Bridge Theorem. |
 | Phase 3.2 | [#331](https://github.com/rbeauchamp/acorn/issues/331) | #327, #330 | Build the verified *StreamKeeper* OS-process supervisor, finite-budget *UpgradePermit*, and symmetric-lens `Stage.ready` cutover with rollback. |
 | Phase 4.1 | [#332](https://github.com/rbeauchamp/acorn/issues/332) | #331 | Attach an isolated Plane-2 offline RSI suggester to the immutable Plane-2 verifier and *UpgradePermit* gate. |
 
