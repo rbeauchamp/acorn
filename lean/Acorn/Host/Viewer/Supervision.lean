@@ -915,166 +915,368 @@ private theorem forall_map_some {α β : Type} (f : α → β) (value : Option �
       ∀ inner, value = some inner → property (f inner) := by
   cases value <;> simp
 
+/-- The state an outcome starts from keeps the invariant of the state that waited. -/
+theorem cleared_invariant (core : Core) (clearDisabled : Option String)
+    (invariant : core.Invariant clearDisabled) :
+    ({ core with pending := none } : Core).Invariant clearDisabled :=
+  ⟨fun _ h => (by cases h),
+   fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, fun _ h => (by cases h)⟩,
+   fun _ _ h => (by cases h),
+   fun _ _ h => (by cases h),
+   fun _ _ h => (by cases h)⟩
+
+private theorem Invariant.report {clearDisabled : Option String} {core : Core}
+    (invariant : core.Invariant clearDisabled) (transition : ControlTransition) (reason : String) :
+    (core.report transition reason).Invariant clearDisabled :=
+  ⟨invariant.retired, invariant.clearless, invariant.closing, invariant.launch, invariant.spawn⟩
+
+private theorem Invariant.of_none {clearDisabled : Option String} {core : Core}
+    (hp : core.pending = none)
+    (hcl : clearDisabled.isSome = true → core.lifecycle.Clearless ∧ core.replacement = none) :
+    core.Invariant clearDisabled :=
+  ⟨fun _ h => (by rw [hp] at h; cases h),
+   fun hc => ⟨(hcl hc).1, (hcl hc).2, fun _ h => (by rw [hp] at h; cases h)⟩,
+   fun _ _ h => (by rw [hp] at h; cases h),
+   fun _ _ h => (by rw [hp] at h; cases h),
+   fun _ _ h => (by rw [hp] at h; cases h)⟩
+
+private theorem Invariant.of_some {clearDisabled : Option String} {core : Core} {p : Pending}
+    (hp : core.pending = some p)
+    (hret : p.writes = true → core.owner = .current)
+    (hcl : clearDisabled.isSome = true →
+      core.lifecycle.Clearless ∧ core.replacement = none ∧ p.clears = false)
+    (hcls : core.closing ≠ .open → p.serves = false)
+    (hlch : ∀ s pl, p = .launch s pl → s.processStarted = true ∧ s.identity = pl.identity)
+    (hspn : ∀ g pl, p = .spawn g pl →
+      core.persisted.processStarted = true ∧ core.persisted.identity = pl.identity) :
+    core.Invariant clearDisabled :=
+  ⟨fun q hq hw => (by rw [hp] at hq; cases Option.some.inj hq; exact hret hw),
+   fun hc => ⟨(hcl hc).1, (hcl hc).2.1, fun q hq =>
+     (by rw [hp] at hq; cases Option.some.inj hq; exact (hcl hc).2.2)⟩,
+   fun hcl' q hq => (by rw [hp] at hq; cases Option.some.inj hq; exact hcls hcl'),
+   fun s pl hq => (by rw [hp] at hq; exact hlch s pl (Option.some.inj hq)),
+   fun g pl hq => (by rw [hp] at hq; exact hspn g pl (Option.some.inj hq))⟩
+
+private theorem Invariant.moveTo {clearDisabled : Option String} {core : Core}
+    (invariant : core.Invariant clearDisabled) {lifecycle : Lifecycle}
+    (hcl : clearDisabled.isSome = true → lifecycle.Clearless) :
+    (core.moveTo lifecycle).Invariant clearDisabled := by
+  cases hw : windUpTarget core.slot core.lifecycle lifecycle with
+  | none =>
+    exact Invariant.of_none (by simp only [Core.moveTo, hw]; rfl)
+      fun hc => ⟨hcl hc, (invariant.clearless hc).2.1⟩
+  | some gen =>
+    exact Invariant.of_some (p := .windUp gen) (by simp only [Core.moveTo, hw]; rfl)
+      (fun h => by cases h)
+      (fun hc => ⟨hcl hc, (invariant.clearless hc).2.1, rfl⟩)
+      (fun _ => rfl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
+
+private theorem Invariant.stop {clearDisabled : Option String} {core : Core}
+    (invariant : core.Invariant clearDisabled) :
+    core.stop.Invariant clearDisabled :=
+  invariant.moveTo fun hc => Lifecycle.request_clearless _ .stop (by decide) (invariant.clearless hc).1
+
+private theorem Invariant.withPersisted {clearDisabled : Option String} {core : Core}
+    (invariant : core.Invariant clearDisabled) (ready : core.pending = none)
+    (state : PersistedState) :
+    ({ core with persisted := state } : Core).Invariant clearDisabled :=
+  Invariant.of_none ready fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+
+private theorem mapWritable_eq {core : Core} (h : core.mapWritable = true) :
+    core.owner = .current ∧ core.replacement = none := by
+  unfold Core.mapWritable at h
+  simp only [Bool.and_eq_true, beq_iff_eq, Option.isNone_iff_eq_none] at h
+  exact h
+
 theorem command_invariant (core : Core) (clearDisabled : Option String) (command : Command)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none)
     (serving : core.closing = .open) :
     (core.command clearDisabled command).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold Core.command Core.intentFailed <;> cases command <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+  unfold Core.command
+  split
+  · exact invariant
+  · rename_i hdis
+    cases hrep : core.replacement with
+    | some replacement =>
+      dsimp only
+      split
+      · exact invariant.report _ _
+      · exact Invariant.of_none ready fun hc => by
+          have := (invariant.clearless hc).2.1
+          rw [hrep] at this; cases this
+    | none =>
+      dsimp only
+      cases hown : core.owner with
+      | retired reason => exact invariant.stop.report _ _
+      | current =>
+        dsimp only
+        exact Invariant.of_some
+          (p := .intent command { core.persisted with desired := command.desired })
+          rfl
+          (fun _ => rfl)
+          (fun hc => ⟨(invariant.clearless hc).1, rfl, by
+            simp only [Pending.clears]
+            cases command <;> simp_all [command_beq]⟩)
+          (fun hcl => absurd serving hcl)
+          (fun _ _ h => by cases h)
+          (fun _ _ h => by cases h)
 
 theorem candidate_invariant (core : Core) (clearDisabled : Option String) (generation : UInt64)
     (actual : CoreIdentity) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) :
     (core.candidate generation actual).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.candidate, Core.adoptFailed] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+  let _ := ready
+  unfold Core.candidate
+  split
+  · exact invariant
+  · split
+    · exact invariant.stop.report _ _
+    · cases core.owner with
+      | retired reason => exact invariant.stop.report _ _
+      | current =>
+        dsimp only
+        exact Invariant.of_some (p := .adopt generation actual (core.persisted.adopt actual)) rfl
+          (fun _ => rfl)
+          (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+          (fun _ => rfl)
+          (fun _ _ h => by cases h)
+          (fun _ _ h => by cases h)
 
 theorem exited_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (code : UInt32) (uptime : Nat) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) :
     (core.exited now code uptime).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.exited] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, phase_beq,
-        Pending.writes, Pending.clears, Pending.serves, Lifecycle.failed_clearless, Lifecycle.retire_clearless])
+  unfold Core.exited
+  cases core.slot with
+  | empty | draining _ _ _ => exact invariant
+  | live generation =>
+    dsimp only
+    apply Invariant.report
+    refine Invariant.of_none ready fun hc => ⟨?_, (invariant.clearless hc).2.1⟩
+    apply Lifecycle.retire_clearless
+    split
+    · exact (invariant.clearless hc).1
+    · exact Lifecycle.failed_clearless _ _ _ _ (invariant.clearless hc).1
 
 theorem refused_invariant (core : Core) (clearDisabled : Option String) (reason : String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.refused reason).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.refused] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Pending.writes, Pending.clears, Pending.serves])
+  unfold Core.refused
+  cases core.closing with
+  | «open» => exact invariant.report _ _
+  | closed _ => exact invariant
+  | closing _ =>
+    exact Invariant.of_none ready fun hc =>
+      ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
 
 theorem closed_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.closed.core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.closed] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Pending.writes, Pending.clears, Pending.serves])
+  unfold Core.closed
+  cases core.closing with
+  | «open» | closed _ => exact invariant
+  | closing _ =>
+    exact Invariant.of_none ready fun hc =>
+      ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
 
 theorem exitReported_invariant (core : Core) (clearDisabled : Option String)
     (report : ExitReport) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) (serving : core.closing = .open) :
     (core.exitReported report).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.exitReported] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
+  unfold Core.exitReported
+  dsimp only
+  cases core.owner with
+  | retired reason =>
+    apply Invariant.report
+    apply Invariant.report
+    exact Invariant.of_none ready fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+  | current =>
+    exact Invariant.of_some
+      (p := .exitIntent { core.persisted with desired := core.lifecycle.desiredValue }) rfl
+      (fun _ => rfl)
+      (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+      (fun hcl => absurd serving hcl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem closeOut_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.closeOut.core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.closed, Core.closeOut] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable])
+  unfold Core.closeOut
+  cases hmw : core.mapWritable with
+  | false => exact core.closed_invariant clearDisabled invariant ready
+  | true =>
+    obtain ⟨hown, _⟩ := mapWritable_eq hmw
+    exact Invariant.of_some (p := .closeMap core.mapRevision) rfl
+      (fun _ => hown)
+      (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+      (fun _ => rfl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem finished_invariant (core : Core) (clearDisabled : Option String)
     (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.finished stdout stderr log).core.Invariant clearDisabled := by
-  simp only [Core.finished]
-  split
-  · split
-    · split
-      · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-          (
-            (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-            (try have := PersistedState.launch_identity _ _ (by assumption))
-            refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-              simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable])
-      · exact Core.exitReported_invariant _ clearDisabled _
-          (by obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-                invariant <;> (
-                  (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-                  (try have := PersistedState.launch_identity _ _ (by assumption))
-                  refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-                    simp_all [Pending.writes, Pending.clears, Pending.serves, Core.mapWritable]))
-          ready (by assumption)
-    · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-        (
-          (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-          (try have := PersistedState.launch_identity _ _ (by assumption))
-          refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-            simp_all [Core.report, Pending.writes, Pending.clears, Pending.serves])
-    · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-        (
-          (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-          (try have := PersistedState.launch_identity _ _ (by assumption))
-          refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-            simp_all [Pending.writes, Pending.clears, Pending.serves])
-  · exact invariant
-  · exact invariant
+  unfold Core.finished
+  cases core.slot with
+  | empty | live _ => exact invariant
+  | draining generation code requested =>
+    dsimp only
+    cases hcls : core.closing with
+    | closed _ =>
+      exact Invariant.of_none ready fun hc =>
+        ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+    | closing before =>
+      dsimp only
+      apply Invariant.report
+      exact Invariant.of_none ready fun hc =>
+        ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+    | «open» =>
+      dsimp only
+      split
+      · rename_i hmw
+        obtain ⟨hown, _⟩ := mapWritable_eq hmw
+        exact Invariant.of_some (p := .exitMap _ core.mapRevision) rfl
+          (fun _ => hown)
+          (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+          (fun hcl => absurd rfl hcl)
+          (fun _ _ h => by cases h)
+          (fun _ _ h => by cases h)
+      · have hslot : ({ core with slot := .empty, closing := .open } : Core).Invariant
+            clearDisabled :=
+          Invariant.of_none (core := { core with slot := .empty, closing := .open }) ready fun hc =>
+            ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+        exact Core.exitReported_invariant { core with slot := .empty, closing := .open }
+          clearDisabled _ hslot ready rfl
 
 theorem launchCheck_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.launchCheck now).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.launchCheck] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+  let _ := ready
+  unfold Core.launchCheck
+  cases hcond : (core.replacement.isNone && (core.slot == .empty) && (core.closing == .open)) with
+  | false => exact invariant
+  | true =>
+    dsimp only
+    have hopen : core.closing = .open := by
+      simp only [Bool.and_eq_true, beq_iff_eq] at hcond
+      exact hcond.2
+    cases core.lifecycle.reserve (clockWord now) with
+    | none => exact invariant
+    | some _ =>
+      dsimp only
+      cases hlch : core.persisted.launch with
+      | error _ => exact invariant.stop.report _ _
+      | ok launch =>
+        dsimp only
+        cases core.owner with
+        | retired _ => exact invariant.stop.report _ _
+        | current =>
+          dsimp only
+          exact Invariant.of_some
+            (p := .launch { core.persisted with processStarted := true } launch) rfl
+            (fun _ => rfl)
+            (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+            (fun hcl => absurd hopen hcl)
+            (fun s pl h => by
+              cases h
+              exact ⟨rfl, (PersistedState.launch_identity _ _ hlch).symm⟩)
+            (fun _ _ h => by cases h)
+
+private theorem mapOrLaunch_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
+    (invariant : core.Invariant clearDisabled) (ready : core.pending = none)
+    (serving : core.closing = .open) :
+    (core.mapOrLaunch now).core.Invariant clearDisabled := by
+  unfold Core.mapOrLaunch
+  cases hcond : (core.mapWritable && decide (mapInterval ≤ now - core.mapAt)) with
+  | false => exact core.launchCheck_invariant clearDisabled now invariant ready
+  | true =>
+    have hmw : core.mapWritable = true := (Bool.and_eq_true _ _).mp hcond |>.1
+    obtain ⟨hown, _⟩ := mapWritable_eq hmw
+    exact Invariant.of_some (p := .map core.mapRevision) rfl
+      (fun _ => hown)
+      (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+      (fun hcl => absurd serving hcl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem tick_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.tick now).core.Invariant clearDisabled := by
   unfold Core.tick
-  split
-  · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-      simp only [Core.launchCheck, Core.mapOrLaunch, Core.clear] <;> repeat' split
-    all_goals (
-      (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-      (try have := PersistedState.launch_identity _ _ (by assumption))
-      refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-        simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable,
-          Lifecycle.request_clearless, Lifecycle.clearless_archiveIntent])
-  · cases core.slot with
+  cases hcls : core.closing with
+  | closed _ => exact invariant
+  | closing _ =>
+    cases core.slot with
     | empty => exact core.closeOut_invariant clearDisabled invariant ready
     | live _ | draining _ _ _ => exact invariant
-  · exact invariant
+  | «open» =>
+    dsimp only
+    cases hrep : core.replacement with
+    | some state =>
+      dsimp only
+      cases core.owner with
+      | retired _ => exact invariant
+      | current =>
+        dsimp only
+        exact Invariant.of_some (p := .replacement state) rfl
+          (fun _ => rfl)
+          (fun hc => by have := (invariant.clearless hc).2.1; rw [hrep] at this; cases this)
+          (fun hcl => absurd rfl hcl)
+          (fun _ _ h => by cases h)
+          (fun _ _ h => by cases h)
+    | none =>
+      dsimp only
+      cases harch : core.lifecycle.archiveIntent with
+      | none => exact core.mapOrLaunch_invariant clearDisabled now invariant ready hcls
+      | some intended =>
+        cases core.slot with
+        | live _ | draining _ _ _ =>
+          exact core.mapOrLaunch_invariant clearDisabled now invariant ready hcls
+        | empty =>
+          dsimp only
+          unfold Core.clear
+          split
+          · exact invariant.stop.report _ _
+          · cases core.owner with
+            | retired _ => exact invariant
+            | current =>
+              dsimp only
+              exact Invariant.of_some (p := .seed intended) rfl
+                (fun _ => rfl)
+                (fun hc => by
+                  have := Lifecycle.clearless_archiveIntent _ (invariant.clearless hc).1
+                  rw [harch] at this; cases this)
+                (fun hcl => absurd hcls hcl)
+                (fun _ _ h => by cases h)
+                (fun _ _ h => by cases h)
 
 theorem close_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.close.core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.closed, Core.closeOut,
-      Core.close] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable,
-        Lifecycle.request_clearless])
+  unfold Core.close
+  cases core.closing with
+  | closing _ | closed _ => exact invariant
+  | «open» =>
+    dsimp only
+    have hstop : (({ core with closing := .closing core.failure.isSome }.stop).report
+        .stopRequested "viewer closing; finishing the current attempt and checkpoint").Invariant
+        clearDisabled :=
+      ((Invariant.of_none (core := { core with closing := .closing core.failure.isSome }) ready
+        fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩).stop).report _ _
+    split
+    · rename_i hemp
+      have hemp' : core.slot = .empty := by
+        simpa [Core.report, Core.stop, Core.moveTo] using hemp
+      have hpend : (({ core with closing := .closing core.failure.isSome }.stop).report
+          .stopRequested
+          "viewer closing; finishing the current attempt and checkpoint").pending = none := by
+        simp [Core.report, Core.stop, Core.moveTo, windUpTarget, hemp']
+      exact Core.closeOut_invariant _ clearDisabled hstop hpend
+    · exact hstop
 
 /-- A state that waits for a call that only a serving viewer makes is serving. -/
 theorem Invariant.serving {clearDisabled : Option String} {core : Core} {pending : Pending}
@@ -1084,152 +1286,245 @@ theorem Invariant.serving {clearDisabled : Option String} {core : Core} {pending
   | «open» => rfl
   | closing failed =>
     have refused := invariant.closing (by simp [closing]) pending waiting
-    simp_all
+    rw [serves] at refused; cases refused
   | closed failed =>
     have refused := invariant.closing (by simp [closing]) pending waiting
-    simp_all
+    rw [serves] at refused; cases refused
 
 theorem resolve_intent_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (command : Command) (state : PersistedState)
     (result : ((Pending.intent command state).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.intent command state)) :
-    ({ core with pending := none }.resolve now (.intent command state) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.intentFailed,
-      Core.intentSaved] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.intent command state)) :
+    ({ core with pending := none }.resolve now (.intent command state) result).core.Invariant
+      clearDisabled := by
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact base.stop.report _ _
+  | ok _ =>
+    simp only [Core.resolve, Core.intentSaved]
+    apply Invariant.report
+    refine (base.withPersisted rfl state).moveTo fun hc => ?_
+    have hnotClear : command ≠ .clear := by
+      have hcl := (invariant.clearless hc).2.2 _ waiting
+      intro h; subst h; cases hcl
+    exact Lifecycle.request_clearless _ command hnotClear (invariant.clearless hc).1
 
 theorem resolve_launch_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (state : PersistedState) (plan : CoreLaunch)
     (result : ((Pending.launch state plan).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.launch state plan)) :
-    ({ core with pending := none }.resolve now (.launch state plan) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.launch state plan)) :
+    ({ core with pending := none }.resolve now (.launch state plan) result).core.Invariant
+      clearDisabled := by
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact base.stop.report _ _
+  | ok _ =>
+    simp only [Core.resolve]
+    cases hres : core.lifecycle.reserve (clockWord now) with
+    | none => exact base.withPersisted rfl state
+    | some pair =>
+      obtain ⟨generation, lifecycle⟩ := pair
+      have hserving := invariant.serving waiting rfl
+      have hlaunch := invariant.launch state plan waiting
+      exact Invariant.of_some (p := .spawn generation plan) rfl
+        (fun h => by cases h)
+        (fun hc => ⟨Lifecycle.reserve_clearless _ _ _ _ hres (invariant.clearless hc).1,
+          (invariant.clearless hc).2.1, rfl⟩)
+        (fun hcl => absurd hserving hcl)
+        (fun _ _ h => by cases h)
+        (fun _ _ h => by cases h; exact hlaunch)
 
 theorem resolve_spawn_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (plan : CoreLaunch)
     (result : ((Pending.spawn generation plan).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.spawn generation plan)) :
-    ({ core with pending := none }.resolve now (.spawn generation plan) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.started_clearless, Lifecycle.failed_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.spawn generation plan)) :
+    ({ core with pending := none }.resolve now (.spawn generation plan) result).core.Invariant
+      clearDisabled := by
+  let _ := waiting
+  cases result with
+  | error _ =>
+    simp only [Core.resolve]
+    apply Invariant.report
+    exact Invariant.of_none rfl fun hc =>
+      ⟨Lifecycle.failed_clearless _ _ _ _ (invariant.clearless hc).1,
+        (invariant.clearless hc).2.1⟩
+  | ok _ =>
+    simp only [Core.resolve]
+    apply Invariant.report
+    have hcore : ({ core with
+        pending := none, slot := .live generation, failure := none,
+        detail := { core.detail with log := {}, abnormalExit := false } } : Core).Invariant
+        clearDisabled :=
+      Invariant.of_none rfl fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+    exact hcore.moveTo fun hc =>
+      Lifecycle.started_clearless _ _ (invariant.clearless hc).1
 
 theorem resolve_adopt_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (actual : CoreIdentity) (state : PersistedState)
     (result : ((Pending.adopt generation actual state).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.adopt generation actual state)) :
-    ({ core with pending := none }.resolve now (.adopt generation actual state) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.adoptFailed, Core.adopted] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.adopt generation actual state)) :
+    ({ core with pending := none }.resolve now (.adopt generation actual state) result).core.Invariant
+      clearDisabled := by
+  let _ := waiting
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact base.stop.report _ _
+  | ok _ =>
+    simp only [Core.resolve, Core.adopted]
+    exact Invariant.of_some (p := .commit generation actual state _) rfl
+      (fun h => by cases h)
+      (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+      (fun _ => rfl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem resolve_commit_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (actual : CoreIdentity) (state : PersistedState) (detail : ControlDetail)
     (result : ((Pending.commit generation actual state detail).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.commit generation actual state detail)) :
-    ({ core with pending := none }.resolve now (.commit generation actual state detail) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.committed] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless, Lifecycle.adoptFinalIdentity_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.commit generation actual state detail)) :
+    ({ core with pending := none }.resolve now (.commit generation actual state detail)
+        result).core.Invariant clearDisabled := by
+  let _ := waiting
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact (base.withPersisted rfl state).stop.report _ _
+  | ok dropped =>
+    simp only [Core.resolve, Core.committed]
+    have hcore : ({ core with
+        pending := none, persisted := state, detail := detail,
+        lifecycle := core.lifecycle.adoptFinalIdentity generation actual.identity } :
+        Core).Invariant clearDisabled :=
+      Invariant.of_none rfl fun hc =>
+        ⟨Lifecycle.adoptFinalIdentity_clearless _ _ _ (invariant.clearless hc).1,
+          (invariant.clearless hc).2.1⟩
+    split
+    · exact hcore.report _ _
+    · exact hcore
 
 theorem resolve_exitIntent_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (state : PersistedState)
     (result : ((Pending.exitIntent state).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.exitIntent state)) :
-    ({ core with pending := none }.resolve now (.exitIntent state) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.exitIntent state)) :
+    ({ core with pending := none }.resolve now (.exitIntent state) result).core.Invariant
+      clearDisabled := by
+  let _ := waiting
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact base.report _ _
+  | ok _ => exact base.withPersisted rfl state
 
 theorem resolve_seed_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (intended : Desired)
     (result : ((Pending.seed intended).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.seed intended)) :
-    ({ core with pending := none }.resolve now (.seed intended) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.seeded] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.seed intended)) :
+    ({ core with pending := none }.resolve now (.seed intended) result).core.Invariant
+      clearDisabled := by
+  have base := core.cleared_invariant clearDisabled invariant
+  have hnotDis : clearDisabled.isSome = true → False := fun hc => by
+    have := (invariant.clearless hc).2.2 _ waiting
+    cases this
+  have hserving := invariant.serving waiting rfl
+  cases result with
+  | error _ => exact base.stop.report _ _
+  | ok seed =>
+    simp only [Core.resolve, Core.seeded]
+    split
+    · exact base.stop.report _ _
+    · cases core.lifecycle.beginArchive with
+      | none => exact base
+      | some lifecycle =>
+        cases core.owner with
+        | retired _ =>
+          exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+        | current =>
+          dsimp only
+          apply Invariant.report
+          exact Invariant.of_some (p := .archive _ intended (clockWord now)) rfl
+            (fun _ => rfl)
+            (fun hc => (hnotDis hc).elim)
+            (fun hcl => absurd hserving hcl)
+            (fun _ _ h => by cases h)
+            (fun _ _ h => by cases h)
 
 theorem resolve_archive_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (identity : Identity) (intended : Desired) (stamp : UInt64)
     (result : ((Pending.archive identity intended stamp).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.archive identity intended stamp)) :
-    ({ core with pending := none }.resolve now (.archive identity intended stamp) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.archive identity intended stamp)) :
+    ({ core with pending := none }.resolve now (.archive identity intended stamp)
+        result).core.Invariant clearDisabled := by
+  have hnotDis : clearDisabled.isSome = true → False := fun hc => by
+    have := (invariant.clearless hc).2.2 _ waiting
+    cases this
+  have hown : core.owner = .current := invariant.retired _ waiting rfl
+  have hserving := invariant.serving waiting rfl
+  cases result with
+  | unchanged _ =>
+    apply Invariant.report
+    exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+  | moved _ _ =>
+    apply Invariant.report
+    exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+  | ready archive =>
+    exact Invariant.of_some (p := .reopen identity intended archive) rfl
+      (fun _ => hown)
+      (fun hc => (hnotDis hc).elim)
+      (fun hcl => absurd hserving hcl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem resolve_reopen_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (identity : Identity) (intended : Desired) (archive : System.FilePath)
     (result : ((Pending.reopen identity intended archive).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.reopen identity intended archive)) :
-    ({ core with pending := none }.resolve now (.reopen identity intended archive) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.reopen identity intended archive)) :
+    ({ core with pending := none }.resolve now (.reopen identity intended archive)
+        result).core.Invariant clearDisabled := by
+  have hnotDis : clearDisabled.isSome = true → False := fun hc => by
+    have := (invariant.clearless hc).2.2 _ waiting
+    cases this
+  have hown : core.owner = .current := invariant.retired _ waiting rfl
+  have hserving := invariant.serving waiting rfl
+  cases result with
+  | error _ =>
+    apply Invariant.report
+    exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+  | ok _ =>
+    exact Invariant.of_some (p := .replacement ⟨identity, intended, .cleared, false⟩) rfl
+      (fun _ => hown)
+      (fun hc => (hnotDis hc).elim)
+      (fun hcl => absurd hserving hcl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem resolve_replacement_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (state : PersistedState)
     (result : ((Pending.replacement state).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.replacement state)) :
-    ({ core with pending := none }.resolve now (.replacement state) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.replaced] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
-
-/-- The state an outcome starts from keeps the invariant of the state that waited. -/
-theorem cleared_invariant (core : Core) (clearDisabled : Option String)
-    (invariant : core.Invariant clearDisabled) :
-    ({ core with pending := none } : Core).Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    (
-      (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-      (try have := PersistedState.launch_identity _ _ (by assumption))
-      refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-        simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.replacement state)) :
+    ({ core with pending := none }.resolve now (.replacement state) result).core.Invariant
+      clearDisabled := by
+  have hnotDis : clearDisabled.isSome = true → False := fun hc => by
+    have := (invariant.clearless hc).2.2 _ waiting
+    cases this
+  cases result with
+  | error _ => exact (core.cleared_invariant clearDisabled invariant).report _ _
+  | ok _ =>
+    simp only [Core.resolve, Core.replaced]
+    cases (core.lifecycle.replacementIntent state.desired).archived state.identity with
+    | none =>
+      apply Invariant.report
+      exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+    | some _ =>
+      apply Invariant.report
+      exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
 
 theorem resolve_windUp_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (result : ((Pending.windUp generation).call core.lifecycle).Result)

@@ -4,11 +4,9 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.CurrentDivision
-import FloatLib.Floats.Formats.BinaryInterchange.Analysis.StandardModel
 import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel
 import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel.MulDiv
 import FloatLib.Floats.Formats.BinaryInterchange.Format.Catalog
-import FloatLib.Floats.Formats.BinaryInterchange.DirectedSemantics.Rational.RoundingSemantics.Executable
 import FloatLib.Floats.Formats.Flocq.Theory.Analysis.Ulp
 
 /-!
@@ -38,13 +36,16 @@ nonzero remainder, when the exact quotient lies below the exponent it selects,
 as in the least positive subnormal divided by 1.5. So the division statements
 here carry no magnitude hypothesis.
 
-The first consumers follow. The half-unit division bound uses the half-ulp
-theorem `error_bound_ulp` of FloatLib's Flocq layer
-(`FloatLib/Floats/Formats/Flocq/Theory/Rounding/Core.lean`). The decimal
-constants use `toReal_roundRatScaled_eq_roundAt`
-(`.../DirectedSemantics/Rational/RoundingSemantics/Executable.lean`): each word
-equality with FloatLib's executable rational rounder is a closed computation
-checked by the kernel, and that theorem gives it its real meaning.
+The first consumers follow. The half-unit division bound and the relative
+rounding bound use the half-ulp theorem `error_bound_ulp` of FloatLib's Flocq
+layer (`FloatLib/Floats/Formats/Flocq/Theory/Rounding/Core.lean`). The decimal
+constants use `nearest32`, which proves directly from Flocq's nearest-even
+definition (`nearestEven_eq_floor_of_frac_lt_half` and
+`nearestEven_eq_ceil_of_frac_gt_half`) that each positive normal word whose
+value lies strictly within half an ulp of a fraction in its binade equals
+`roundAt FloatFormat.binary32` of that fraction. Keeping the bridge within
+FloatLib's LeanModel and Flocq layers avoids importing FloatLib's executable
+multi-limb backend modules.
 
 Each statement concerns finite operands and a finite result: `roundAt` rounds
 on a grid with no upper exponent bound, and exceptional words have no real
@@ -60,7 +61,9 @@ open FloatLib.Floats.Formats.BinaryInterchange
 open FloatLib.Floats.Formats.BinaryInterchange.Model
 open FloatLib.Floats.Formats (Flocq.bpow)
 open FloatLib.Floats.Formats.Flocq (ulp ulp_abs ulp_bpow ulp_mono_pos error_bound_ulp
-  nearestEven MonotoneExp)
+  nearestEven MonotoneExp magnitude cexp scaledMantissa bpow_magnitude_sub_one_le
+  magnitude_eq_of_bpow_bounds nearestEven_eq_floor_of_frac_lt_half
+  nearestEven_eq_ceil_of_frac_gt_half)
 
 namespace AcornVerif.FloatLibBridge
 
@@ -661,29 +664,47 @@ theorem roundAt32_error_sum (x : ℝ) (bound : |x| ≤ 8192) :
         ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x / 2 := half
     _ ≤ 1 / 2048 := by linarith
 
-/-- Nearest-even rounding to binary32 has FloatLib's standard model with gradual
+/-- Nearest-even rounding to binary32 has the standard model with gradual
 underflow: it moves a real by at most `2^(-24)` of its magnitude plus `2^(-150)`. -/
 theorem roundAt32_relative (x : ℝ) :
     |roundAt FloatFormat.binary32 x - x| ≤ |x| / 16777216 + 1 / 2 ^ 150 := by
-  obtain ⟨δ, η, model, hδ, hη, _⟩ := roundAt_standardModel FloatFormat.binary32 x
-  have unit : unitRoundoffAt FloatFormat.binary32 = 1 / 16777216 := by
-    rw [unitRoundoffAt_eq]
-    norm_num [FloatFormat.binary32]
-  have under : underflowErrorAt FloatFormat.binary32 = 1 / 2 ^ 150 := by
-    have exponent : FloatFormat.minSubnormalExponent FloatFormat.binary32 - 1 = -150 := by
-      decide
-    rw [underflowErrorAt_eq, exponent]
+  by_cases zero : x = 0
+  · rw [zero, roundAt_zero]
     norm_num
-  rw [unit] at hδ
-  rw [under] at hη
-  rw [model]
-  have split : x * (1 + δ) + η - x = x * δ + η := by ring
-  rw [split]
-  calc |x * δ + η| ≤ |x * δ| + |η| := abs_add_le _ _
-    _ = |x| * |δ| + |η| := by rw [abs_mul]
-    _ ≤ |x| * (1 / 16777216) + 1 / 2 ^ 150 :=
-        add_le_add (mul_le_mul_of_nonneg_left hδ (abs_nonneg _)) hη
-    _ = |x| / 16777216 + 1 / 2 ^ 150 := by ring
+  have half := error_bound_ulp (β := FloatLib.Numerics.binaryRadix)
+    (fexp := fexpOf FloatFormat.binary32) nearestEven x
+  have ulpEq : ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x =
+      Flocq.bpow FloatLib.Numerics.binaryRadix
+        (max (magnitude FloatLib.Numerics.binaryRadix x - 24) (-149)) := by
+    rw [ulp.of_ne_zero _ _ _ zero]
+    rfl
+  have ulpBound : ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x ≤
+      |x| / 8388608 + 1 / 2 ^ 149 := by
+    rw [ulpEq]
+    by_cases subnormal : magnitude FloatLib.Numerics.binaryRadix x - 24 ≤ -149
+    · rw [max_eq_right subnormal]
+      have under : Flocq.bpow FloatLib.Numerics.binaryRadix (-149) = 1 / 2 ^ 149 := by
+        norm_num [Flocq.bpow, FloatLib.Numerics.binaryRadix, FloatLib.Numerics.Radix.toReal]
+      rw [under]
+      linarith [abs_nonneg x]
+    · have subnormal := not_le.mp subnormal
+      rw [max_eq_left (le_of_lt subnormal)]
+      have magLe := bpow_magnitude_sub_one_le FloatLib.Numerics.binaryRadix x zero
+      have shift : Flocq.bpow FloatLib.Numerics.binaryRadix
+          (magnitude FloatLib.Numerics.binaryRadix x - 24) =
+          Flocq.bpow FloatLib.Numerics.binaryRadix
+            (magnitude FloatLib.Numerics.binaryRadix x - 1) / 8388608 := by
+        have split : magnitude FloatLib.Numerics.binaryRadix x - 24 =
+            (magnitude FloatLib.Numerics.binaryRadix x - 1) + (-23) := by omega
+        rw [split]
+        simp only [Flocq.bpow, FloatLib.Numerics.binaryRadix, FloatLib.Numerics.Radix.toReal]
+        rw [zpow_add₀ (by norm_num)]
+        norm_num
+        ring
+      rw [shift]
+      have pos : (0 : ℝ) ≤ 1 / 2 ^ 149 := by positivity
+      linarith
+  linarith
 
 /-- The executing binary32 addition with a finite result is within `2^(-24)` of the exact
 sum relative to its magnitude, plus `2^(-150)` (`binary32_add_roundAt`). -/
@@ -775,32 +796,93 @@ theorem nearestEven_eq_roundQuotientEven (numerator denominator : Nat) :
         rw [ite_eq_left up]
         simp [odd]
 
-/-- A finite binary32 word that FloatLib's executable rational rounder returns
-for a positive fraction has, as its value, that fraction rounded once to
-nearest-even. The word equality is a closed computation; the real statement is
-FloatLib's `toReal_roundRatScaled_eq_roundAt`. -/
+/-- A positive normal binary32 word below one whose exact value lies strictly
+within half an ulp of a positive fraction in its binade is that fraction
+rounded once to nearest-even. -/
 theorem nearest32 (word : UInt32) (numerator denominator : Nat) (value : ℝ)
-    (finite : (Binary32.mk word).Finite) (numeratorPositive : numerator ≠ 0)
+    (expOk : 1 ≤ word.toNat / 2 ^ 23 ∧ word.toNat / 2 ^ 23 ≤ 126)
     (denominatorPositive : denominator ≠ 0)
     (exact : (numerator : ℝ) / (denominator : ℝ) = value)
-    (rounded : (roundRat FloatFormat.binary32 false numerator denominator).bits.toNat =
-      word.toNat) :
+    (wordValue : toDyadic? (model32 (Binary32.mk word)) =
+      some ⟨false, 2 ^ 23 + word.toNat % 2 ^ 23, -((150 - word.toNat / 2 ^ 23 : Nat) : ℤ)⟩)
+    (inBinade : denominator ≤ numerator * 2 ^ (127 - word.toNat / 2 ^ 23) ∧
+      numerator * 2 ^ (126 - word.toNat / 2 ^ 23) < denominator)
+    (close : Int.natAbs (2 * (numerator : ℤ) * (2 : ℤ) ^ (150 - word.toNat / 2 ^ 23) -
+      2 * ((2 ^ 23 + word.toNat % 2 ^ 23 : Nat) : ℤ) * (denominator : ℤ)) < denominator) :
     ((numerical32 (Binary32.mk word) : ℚ) : ℝ) = roundAt FloatFormat.binary32 value := by
-  have same : roundRat FloatFormat.binary32 false numerator denominator =
-      model32 (Binary32.mk word) := by
-    cases packed : roundRat FloatFormat.binary32 false numerator denominator with
-    | mk bits =>
-      rw [packed] at rounded
-      exact congrArg Model.mk (BitVec.eq_of_toNat_eq rounded)
-  have packedFinite := (isFinite_model32 (Binary32.mk word)).mpr finite
-  rw [← same] at packedFinite
-  have real := toReal_roundRatScaled_eq_roundAt FloatFormat.binary32 false numerator
-    denominator 0 rfl numeratorPositive denominatorPositive packedFinite
-  change toReal (roundRat FloatFormat.binary32 false numerator denominator) = _ at real
-  rw [same, toReal_model32] at real
-  rw [real, ← exact]
-  congr 1
-  simp [signedScaledRatToReal, scaledRatToReal, Model.bpow]
+  set exp : Nat := word.toNat / 2 ^ 23
+  set shift : Nat := 150 - exp
+  set m : Nat := 2 ^ 23 + word.toNat % 2 ^ 23
+  set e : ℤ := -(shift : ℤ)
+  have hdenPos : (0 : ℝ) < denominator := by exact_mod_cast Nat.pos_of_ne_zero denominatorPositive
+  have hbpow2 : ∀ k : ℤ, Flocq.bpow FloatLib.Numerics.binaryRadix k = (2 : ℝ) ^ k := fun k => by
+    simp [Flocq.bpow, FloatLib.Numerics.binaryRadix, FloatLib.Numerics.Radix.toReal]
+  have he23 : e + 23 = -((127 - exp : Nat) : ℤ) := by omega
+  have he24 : e + 24 = -((126 - exp : Nat) : ℤ) := by omega
+  have hlo : Flocq.bpow FloatLib.Numerics.binaryRadix (e + 23) ≤ value := by
+    rw [hbpow2, he23, zpow_neg, zpow_natCast, ← exact]
+    rw [inv_eq_one_div, div_le_div_iff₀ (by positivity) hdenPos, one_mul]
+    exact_mod_cast inBinade.1
+  have hhi : value < Flocq.bpow FloatLib.Numerics.binaryRadix (e + 24) := by
+    rw [hbpow2, he24, zpow_neg, zpow_natCast, ← exact]
+    rw [inv_eq_one_div, div_lt_div_iff₀ hdenPos (by positivity), one_mul]
+    exact_mod_cast inBinade.2
+  have hpos : 0 < value := lt_of_lt_of_le (Flocq.bpow.pos _ _) hlo
+  have hne : value ≠ 0 := ne_of_gt hpos
+  have hmag : magnitude FloatLib.Numerics.binaryRadix value = e + 24 := by
+    refine magnitude_eq_of_bpow_bounds FloatLib.Numerics.binaryRadix value (e + 24) hne ?_ ?_
+    · rw [abs_of_pos hpos, show e + 24 - 1 = e + 23 by omega]
+      exact hlo
+    · rw [abs_of_pos hpos]
+      exact hhi
+  have hcexp : cexp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) value = e := by
+    change max (magnitude FloatLib.Numerics.binaryRadix value - 24) (-149) = e
+    rw [hmag]
+    omega
+  set s : ℝ := scaledMantissa FloatLib.Numerics.binaryRadix
+    (fexpOf FloatFormat.binary32) value
+  have hsEq : s = (numerator : ℝ) * (2 : ℝ) ^ shift / (denominator : ℝ) := by
+    change value * Flocq.bpow FloatLib.Numerics.binaryRadix
+      (-cexp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) value) = _
+    rw [hcexp, show -e = (shift : ℤ) by omega, hbpow2, zpow_natCast, ← exact]
+    ring
+  have hcloseReal : |s - (m : ℝ)| < 1 / 2 := by
+    have hcloseInt : |(2 * (numerator : ℝ) * (2 : ℝ) ^ shift - 2 * (m : ℝ) * (denominator : ℝ))| <
+        (denominator : ℝ) := by
+      have hcast : ((Int.natAbs (2 * (numerator : ℤ) * (2 : ℤ) ^ shift -
+          2 * (m : ℤ) * (denominator : ℤ)) : ℕ) : ℝ) < (denominator : ℝ) := by
+        exact_mod_cast close
+      rwa [Nat.cast_natAbs, Int.cast_abs, Int.cast_sub, Int.cast_mul, Int.cast_mul,
+        Int.cast_mul, Int.cast_mul, Int.cast_pow, Int.cast_ofNat, Int.cast_natCast,
+        Int.cast_natCast, Int.cast_natCast] at hcast
+    have hdiff : s - (m : ℝ) =
+        (2 * (numerator : ℝ) * (2 : ℝ) ^ shift - 2 * (m : ℝ) * (denominator : ℝ)) /
+          (2 * (denominator : ℝ)) := by
+      rw [hsEq]
+      field_simp
+    rw [hdiff, abs_div, abs_of_pos (mul_pos (by norm_num) hdenPos)]
+    rw [div_lt_iff₀ (mul_pos (by norm_num) hdenPos)]
+    linarith
+  have hnear : nearestEven s = (m : ℤ) := by
+    have hbounds := abs_lt.mp hcloseReal
+    by_cases hle : (m : ℝ) ≤ s
+    · have hfl : ⌊s⌋ = (m : ℤ) := Int.floor_eq_iff.mpr ⟨by exact_mod_cast hle, by
+        push_cast; linarith⟩
+      rw [nearestEven_eq_floor_of_frac_lt_half s (by rw [hfl]; push_cast; linarith), hfl]
+    · have hlt := not_le.mp hle
+      have hfl : ⌊s⌋ = (m : ℤ) - 1 := Int.floor_eq_iff.mpr ⟨by push_cast; linarith, by
+        push_cast; linarith⟩
+      rw [nearestEven_eq_ceil_of_frac_gt_half s (by rw [hfl]; push_cast; linarith), hfl]
+      omega
+  have hround : roundAt FloatFormat.binary32 value = (m : ℝ) / (2 : ℝ) ^ shift := by
+    change ((nearestEven s : ℤ) : ℝ) * Flocq.bpow FloatLib.Numerics.binaryRadix
+      (cexp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) value) = _
+    rw [hnear, hcexp, hbpow2, zpow_neg, zpow_natCast, Int.cast_natCast, div_eq_mul_inv]
+  have hwordReal : ((numerical32 (Binary32.mk word) : ℚ) : ℝ) = (m : ℝ) / (2 : ℝ) ^ shift := by
+    rw [← toReal_model32, toReal_eq, wordValue]
+    simp [FloatLib.Numerics.Dyadic.toReal, FloatLib.Numerics.Dyadic.signedSignificand,
+      e, div_eq_mul_inv]
+  rw [hwordReal, hround]
 
 /-! ### Decimal constants
 
@@ -812,168 +894,168 @@ value of each word; these theorems tie the word to the decimal it is named for. 
 theorem band030_nearest :
     ((numerical32 (Binary32.mk Constants.band030Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.3 :=
-  nearest32 Constants.band030Bits 3 10 0.3 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.band030Bits 3 10 0.3 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `band0335Bits` is `0.335` rounded to nearest-even binary32. -/
 theorem band0335_nearest :
     ((numerical32 (Binary32.mk Constants.band0335Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.335 :=
-  nearest32 Constants.band0335Bits 335 1000 0.335 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.band0335Bits 335 1000 0.335 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `band060Bits` is `0.6` rounded to nearest-even binary32. -/
 theorem band060_nearest :
     ((numerical32 (Binary32.mk Constants.band060Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.6 :=
-  nearest32 Constants.band060Bits 6 10 0.6 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.band060Bits 6 10 0.6 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `band072Bits` is `0.72` rounded to nearest-even binary32. -/
 theorem band072_nearest :
     ((numerical32 (Binary32.mk Constants.band072Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.72 :=
-  nearest32 Constants.band072Bits 72 100 0.72 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.band072Bits 72 100 0.72 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `band080Bits` is `0.8` rounded to nearest-even binary32. -/
 theorem band080_nearest :
     ((numerical32 (Binary32.mk Constants.band080Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.8 :=
-  nearest32 Constants.band080Bits 8 10 0.8 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.band080Bits 8 10 0.8 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `moist040Bits` is `0.4` rounded to nearest-even binary32. -/
 theorem moist040_nearest :
     ((numerical32 (Binary32.mk Constants.moist040Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.4 :=
-  nearest32 Constants.moist040Bits 4 10 0.4 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.moist040Bits 4 10 0.4 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `gamma90Bits` is `0.9` rounded to nearest-even binary32. -/
 theorem gamma90_nearest :
     ((numerical32 (Binary32.mk Constants.gamma90Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.9 :=
-  nearest32 Constants.gamma90Bits 9 10 0.9 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.gamma90Bits 9 10 0.9 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `gamma95Bits` is `0.95` rounded to nearest-even binary32. -/
 theorem gamma95_nearest :
     ((numerical32 (Binary32.mk Constants.gamma95Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.95 :=
-  nearest32 Constants.gamma95Bits 95 100 0.95 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.gamma95Bits 95 100 0.95 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `gamma99Bits` is `0.99` rounded to nearest-even binary32. -/
 theorem gamma99_nearest :
     ((numerical32 (Binary32.mk Constants.gamma99Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.99 :=
-  nearest32 Constants.gamma99Bits 99 100 0.99 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.gamma99Bits 99 100 0.99 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `alphaInit5e5Bits` is `0.00005` rounded to nearest-even binary32. -/
 theorem alphaInit5e5_nearest :
     ((numerical32 (Binary32.mk Constants.alphaInit5e5Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.00005 :=
-  nearest32 Constants.alphaInit5e5Bits 5 100000 0.00005 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.alphaInit5e5Bits 5 100000 0.00005 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `alphaInit1e4Bits` is `0.0001` rounded to nearest-even binary32. -/
 theorem alphaInit1e4_nearest :
     ((numerical32 (Binary32.mk Constants.alphaInit1e4Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.0001 :=
-  nearest32 Constants.alphaInit1e4Bits 1 10000 0.0001 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.alphaInit1e4Bits 1 10000 0.0001 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `epsilon1e5Bits` is `0.00001` rounded to nearest-even binary32. -/
 theorem epsilon1e5_nearest :
     ((numerical32 (Binary32.mk Constants.epsilon1e5Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.00001 :=
-  nearest32 Constants.epsilon1e5Bits 1 100000 0.00001 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.epsilon1e5Bits 1 100000 0.00001 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `eta01Bits` is `0.1` rounded to nearest-even binary32. -/
 theorem eta01_nearest :
     ((numerical32 (Binary32.mk Constants.eta01Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.1 :=
-  nearest32 Constants.eta01Bits 1 10 0.1 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.eta01Bits 1 10 0.1 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `eta025Bits` is `0.25` rounded to nearest-even binary32. -/
 theorem eta025_nearest :
     ((numerical32 (Binary32.mk Constants.eta025Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.25 :=
-  nearest32 Constants.eta025Bits 25 100 0.25 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.eta025Bits 25 100 0.25 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `etaMin1e10Bits` is `0.0000000001` rounded to nearest-even binary32. -/
 theorem etaMin1e10_nearest :
     ((numerical32 (Binary32.mk Constants.etaMin1e10Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.0000000001 :=
-  nearest32 Constants.etaMin1e10Bits 1 10000000000 0.0000000001 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.etaMin1e10Bits 1 10000000000 0.0000000001 (by decide) (by decide)
+    (by norm_num) (by decide) (by decide) (by decide)
 
 /-- `decay0999Bits` is `0.999` rounded to nearest-even binary32. -/
 theorem decay0999_nearest :
     ((numerical32 (Binary32.mk Constants.decay0999Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.999 :=
-  nearest32 Constants.decay0999Bits 999 1000 0.999 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.decay0999Bits 999 1000 0.999 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `meta1e3Bits` is `0.001` rounded to nearest-even binary32. -/
 theorem meta1e3_nearest :
     ((numerical32 (Binary32.mk Constants.meta1e3Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.001 :=
-  nearest32 Constants.meta1e3Bits 1 1000 0.001 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.meta1e3Bits 1 1000 0.001 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `meta3e2Bits` is `0.03` rounded to nearest-even binary32. -/
 theorem meta3e2_nearest :
     ((numerical32 (Binary32.mk Constants.meta3e2Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.03 :=
-  nearest32 Constants.meta3e2Bits 3 100 0.03 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.meta3e2Bits 3 100 0.03 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `tie1e6Bits` is `0.000001` rounded to nearest-even binary32. -/
 theorem tie1e6_nearest :
     ((numerical32 (Binary32.mk Constants.tie1e6Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.000001 :=
-  nearest32 Constants.tie1e6Bits 1 1000000 0.000001 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.tie1e6Bits 1 1000000 0.000001 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `epsStartBits` is `0.5` rounded to nearest-even binary32. -/
 theorem epsStart_nearest :
     ((numerical32 (Binary32.mk Constants.epsStartBits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.5 :=
-  nearest32 Constants.epsStartBits 5 10 0.5 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.epsStartBits 5 10 0.5 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `epsMinBits` is `0.05` rounded to nearest-even binary32. -/
 theorem epsMin_nearest :
     ((numerical32 (Binary32.mk Constants.epsMinBits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.05 :=
-  nearest32 Constants.epsMinBits 5 100 0.05 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.epsMinBits 5 100 0.05 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `epsDecayBits` is `0.99999` rounded to nearest-even binary32. -/
 theorem epsDecay_nearest :
     ((numerical32 (Binary32.mk Constants.epsDecayBits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.99999 :=
-  nearest32 Constants.epsDecayBits 99999 100000 0.99999 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.epsDecayBits 99999 100000 0.99999 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `optionEpsilonBits` is `0.1` rounded to nearest-even binary32. -/
 theorem optionEpsilon_nearest :
     ((numerical32 (Binary32.mk Constants.optionEpsilonBits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.1 :=
-  nearest32 Constants.optionEpsilonBits 1 10 0.1 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.optionEpsilonBits 1 10 0.1 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 /-- `exploreRate1e2Bits` is `0.01` rounded to nearest-even binary32. -/
 theorem exploreRate1e2_nearest :
     ((numerical32 (Binary32.mk Constants.exploreRate1e2Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.01 :=
-  nearest32 Constants.exploreRate1e2Bits 1 100 0.01 (by decide) (by decide) (by decide)
-    (by norm_num) (by decide +kernel)
+  nearest32 Constants.exploreRate1e2Bits 1 100 0.01 (by decide) (by decide) (by norm_num)
+    (by decide) (by decide) (by decide)
 
 end AcornVerif.FloatLibBridge

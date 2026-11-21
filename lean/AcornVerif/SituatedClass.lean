@@ -51,7 +51,8 @@ def sideOf {family : WorldClass interface} (goals : family.Goals) {Situation : T
 each situation conceal their goals behind that situation's reference world; one action sequence
 meets, within a visit, the goals of at most `cover` members of a situation; and some finite set
 holds more members than the covers add up to, so that the share of `SituatedClass.need` is short of
-the whole set; nothing asks that it be small.
+the whole set; nothing asks that it be small. The contract's condition (c) asks a small share, so
+this form states less than (c) (obligation 32 of `docs/mission-contract.md`).
 Its witness is `cuedSituated`. Its failing examples are `cued_not_one_situation`, which fails the
 concealment, and `not_situated_of_blindSolvable` with `lone_not_situated`, which fail the
 margin.

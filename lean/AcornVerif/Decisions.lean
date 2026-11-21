@@ -2281,6 +2281,23 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
     CurrentCheckpoint.save_load construction receiver source
       ((FeatureProfile.checkpoint_iff construction.profile).mpr resumable)⟩
 
+/-- Keeping-receiver loading reports no error when `Checkpoint.load` succeeds. -/
+private theorem loadKeeping_ok_snd {c : AgentConstruction} {r s : c.State} {b : List UInt8}
+    (loaded : Checkpoint.load c r b = .ok s) :
+    (Checkpoint.loadKeeping c r b).2 = none := by
+  unfold Checkpoint.loadKeeping
+  rw [loaded]
+
+/-- Keeping-receiver loading reports an error whenever the construction's profile is not
+resumable (`load_resumable`). -/
+private theorem loadKeeping_not_resumable_snd {c : AgentConstruction} (r : c.State)
+    (b : List UInt8) (unsupported : ¬Resumable c.profile) :
+    (Checkpoint.loadKeeping c r b).2.isSome = true := by
+  unfold Checkpoint.loadKeeping
+  cases loading : Checkpoint.load c r b with
+  | error _ => rfl
+  | ok _ => exact absurd (load_resumable c r b (by rw [loading]; rfl)) unsupported
+
 /-- Loading that keeps its receiver returns the receiver unchanged with the error of a refused
 load (`Checkpoint.load_nonmutation`), and the loaded state with no error for an accepted one,
 for every construction, receiver and byte list. Its verdict is the verdict of
@@ -2309,18 +2326,13 @@ theorem load_keeping : Regula.ExecutableContract Checkpoint.loadKeeping (fun kee
           (AgentConstruction.initial _)))).2.isSome = true) :=
   ⟨⟨fun construction receiver bytes =>
     ⟨fun error rejected => Checkpoint.load_nonmutation construction receiver bytes error rejected,
-      fun restored loaded => by simp [Checkpoint.loadKeeping, loaded]⟩,
-    by
-      simp [Checkpoint.loadKeeping, CurrentCheckpoint.save_load (construction resumable)
-        (AgentConstruction.initial _) (AgentConstruction.initial _) rfl],
-    by
-      cases loading : Checkpoint.load (construction ⟨.final, .perStep, .declared, .spatial⟩)
-          (AgentConstruction.initial _)
-          (encode (snapshot (construction ⟨.final, .perStep, .declared, .spatial⟩)
-            (AgentConstruction.initial _))) with
-      | error error => simp [Checkpoint.loadKeeping, loading]
-      | ok restored =>
-        exact absurd (load_resumable _ _ _ (congrArg Except.isOk loading)) (by decide)⟩⟩
+      fun restored loaded => by unfold Checkpoint.loadKeeping; rw [loaded]⟩,
+    loadKeeping_ok_snd (CurrentCheckpoint.save_load (construction resumable)
+      (AgentConstruction.initial _) (AgentConstruction.initial _) rfl),
+    loadKeeping_not_resumable_snd (AgentConstruction.initial _)
+      (encode (snapshot (construction ⟨.final, .perStep, .declared, .spatial⟩)
+        (AgentConstruction.initial _)))
+      (by decide)⟩⟩
 
 /-- Resuming the bytes that a supported construction saved returns the saved state with a new
 evaluator session (`CurrentCheckpoint.save_load`). -/

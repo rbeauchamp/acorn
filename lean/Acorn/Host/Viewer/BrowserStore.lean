@@ -336,8 +336,10 @@ theorem browserColumns_live :
 /-- No two properties of the store or of the frame view share a name, so each column's
 allocation, write and view address storage of its own. -/
 theorem browserColumns_distinct :
-    (browserColumns.map (·.2.name) ++ browserIntakeColumns ++ ["id", "i"]).Nodup := by
-  decide +kernel
+    (browserColumns.map (·.2.name) ++ browserIntakeColumns ++ ["id", "i"]).Nodup :=
+  nodup_of_distinct_keys stringSortKey
+    (browserColumns.map (·.2.name) ++ browserIntakeColumns ++ ["id", "i"])
+    (by decide +kernel)
 
 private def scaled (base : String) (stride : List BrowserConstant) : String :=
   String.intercalate "*" (base :: stride.map BrowserConstant.name)

@@ -279,11 +279,10 @@ reading or copied as a formula
 instructions an agent can follow, and how the [mission board](docs/mission-board.md)
 credits what has landed. This section states the rules those instructions rest on.
 
-Acorn's missions serve [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission):
-discovering and implementing algorithms that allow agents to achieve goals in
-big worlds, and formally proving that they work—that the agent achieves goals
-over a formally modelled class of big worlds. In Acorn, missions are the work
-that serves it, and each mission
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. Pursuing it here means formally proving that they
+work—that the agent achieves goals over a formally modelled class of big worlds.
+In Acorn, missions are the work that serves it, and each mission
 states the theorem or contract to establish. Lean's kernel and the
 repository gate (`./scripts/gate.sh`) decide whether a theorem is proved and
 whether the gate's checks pass. A referee reads the pull request against the
@@ -307,9 +306,10 @@ worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
 [Microduck](https://github.com/pollen-robotics/microduck)) still
 matters as a smoke test and demonstration, never acceptance evidence.
 
-Because the mission is to discover and implement algorithms, a mission's
-theorem is about an executable Acorn definition—the algorithm itself. A proof
-that some algorithm merely exists, without exhibiting an executable definition,
+Because the mission stated above asks for algorithms that are discovered and
+implemented, a mission's theorem is about an executable Acorn definition—the
+algorithm itself. A proof that some algorithm merely exists, without exhibiting
+an executable definition,
 is not a mission result, though it may serve as a lemma. Proofs about that
 executable definition may use Lean's standard classical axioms (propext,
 Quot.sound and Classical.choice, the standard-logical profile enforced by the
@@ -336,7 +336,14 @@ check refusing noncomputable in executing modules).
   owner's review on every pull request that changes it, and only the owner
   merges, so a change to a target is the owner's to make. A target fixes its
   own text: the definitions it names are outside the directory, and a mission
-  does not change them either. `lean/AcornVerif/Targets/Registry.lean` lists the
+  does not change them either. Where a pin file stands beside a frozen
+  statement, the gate's frame check also refuses a change to the statement of
+  a pinned theorem, or to the type or value of a pinned definition, among the
+  declarations of the project's own modules that the frozen statement reaches,
+  until the owner pins again (`lean/AcornTools/Frame.lean`). A theorem's proof
+  is not part of the pin, so a change to a proof alone is not refused.
+  The frame of a learned-state result, below, is pinned in this way.
+  `lean/AcornVerif/Targets/Registry.lean` lists the
   targets under each mission's issue number. A part of a contract that is not a statement
   to prove, such as a change to a decision's kind or the list of files a pull
   request may change, is frozen in the issue, and so is the whole contract of a
@@ -397,6 +404,59 @@ check refusing noncomputable in executing modules).
   [pull request template](.github/pull_request_template.md), name its mission
   with `Closes #<id>.` in the description, and paste the output of
   `./scripts/gate.sh` from the exact pull request head.
+
+### Learned-state results and changes to the agent's learners
+
+A result on learned agent state
+([#295](https://github.com/rbeauchamp/acorn/issues/295)) is stated in a fixed
+frame. [The frame of a learned-state result](docs/learned-state-frame.md) is
+its plain-word account, which the owner confirmed on 2026-11-20. The Lean is
+`lean/AcornVerif/Targets/LearnedState.lean` and
+`lean/AcornVerif/Targets/LearnedStateAcorn.lean`, and the agent it names is
+pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
+
+- **What a submission adds:** a state mechanism, a family of worlds and a goal,
+  and the choice of a standard configuration apart from the seed. It does not
+  change the agent's learners, the way the agent chooses actions or the way it
+  explores. This is narrower than issue #295 read before the frame was adopted:
+  its text asks a contributor to change how the agent learns, and that text is
+  revised by a separate change.
+- **How a learner change lands:** separately, and first. It is its own pull
+  request to the agent, which states and proves what the change is for on its
+  own terms and passes the same review and the same gate as any other
+  contribution. A change to the agent alters the type or value of definitions
+  the frame pins, so the frame check fails until the pin file is made again;
+  a change to a pinned theorem's proof alone does not. The pin file is in
+  the owner's directory, so the new pin comes under the owner's review with the
+  change, and the pull request merges only on the owner's word. Only then does
+  a learned-state submission build its mechanism on the changed agent.
+  Theorems already proved about the earlier agent have to be proved again for
+  the new one, and a later result is compared against the changed agent, not
+  against the agent as it stood before.
+- **What a complete result is:** a proof of
+  `AcornVerif.LearnedState.Acorn.Complete` for the submitted configuration,
+  mechanism and task: the seven statements the account lists, from the agent's
+  cold start, at every seed. It is necessary and not sufficient for a
+  learned-state result. It certifies that the agent's run satisfies a statement
+  the contributor wrote and that the named comparisons do not, and it goes to a
+  referee with the eight questions the account lists. A submission that does
+  not prove all seven is partial, and is recorded by which of them it proved,
+  with any assumption stated.
+- **What is not there yet:** Acorn's program does not yet run its agent with a
+  mechanism. The grid interface keeps room for a mechanism's words: every
+  observation its adapter builds leaves room for at least 32 of them
+  (`Acorn.Handcrafted.Grid.frame_room`). The place where a mechanism plugs into
+  the host is a separate change and the owner's. Until it lands, the frame
+  states what a complete result is and nobody can produce one for the program
+  as it runs. It is also not known whether any complete result exists for the
+  agent as it stands. [#296](https://github.com/rbeauchamp/acorn/issues/296)
+  bears on it: that issue asks whether the standard agent's learners can make
+  quick use of one added state feature, and its answer may leave part of this
+  open.
+- **That the frame is not empty** is proved of a small agent of its own, not
+  of Acorn's: `lean/AcornVerif/LearnedStateSmall.lean` proves all seven
+  statements of it, and `lean/AcornVerif/LearnedStateRefusals.lean` shows
+  cheap kinds of result that have no proof.
 
 ### AI-generated contributions
 

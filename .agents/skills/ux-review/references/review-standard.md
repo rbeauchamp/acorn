@@ -67,10 +67,7 @@ quote page numbers they have not opened.
 - **The audience's own words.** Sutton, *The OaK Architecture: A Vision of
   SuperIntelligence from Experience*, RLC 2025 keynote (recording published by
   Amii); Javed & Sutton, *The Big World Hypothesis and its Ramifications for
-  Artificial Intelligence*; the mission
-  sentence of Oak Lab's mission page, which Oak Lab has since withdrawn, as
-  archived at
-  https://web.archive.org/web/20260909143403/https://oaklab.ai/mission,
-  quoted in `docs/viewer-ux.md` UX-3. The
+  Artificial Intelligence*; Acorn's
+  mission sentence, stated in `docs/viewer-ux.md` UX-3. The
   prior-art lens uses the pins in `docs/viewer-ux.md` §10 and the README's
   reference list; terms are used as those works use them.

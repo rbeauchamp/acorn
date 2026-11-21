@@ -21,7 +21,9 @@ failure" (at 1:03:37, caption text from the upload's automatic captions). A
 declared departure is design-time knowledge of this kind, and each names the
 conditions for its replacement.
 
-Undeclared hand-authored bias on the action-selection path is a defect.
+Undeclared hand-authored bias on the action-selection path is a defect, except
+as this document says below of a state mechanism submitted under the frame of a
+learned-state result.
 Each declared departure identifies the authored choice and its replacement
 conditions. Review checks declarations against the code that produces them.
 
@@ -29,7 +31,9 @@ The declared interface supplies observations, actions, task reward, boundaries
 and immutable configuration. The action path includes feature construction,
 value/prediction updates, option selection/interruption and planning. Host world,
 control and observer machinery remain outside learned module ownership. No
-handcrafted policy may be hidden in an observation, shaping term or model target.
+handcrafted policy may be hidden in an observation, shaping term or model target,
+except as this document says below of a state mechanism submitted under the
+frame of a learned-state result.
 
 What executes an action belongs to the world. The grid world's step function does
 so, and in the [Microduck](https://github.com/pollen-robotics/microduck) world the control daemon does, with networks inside it.
@@ -37,6 +41,14 @@ Those networks are that world's actuation interface and not a departure of this
 register: the action path ends at an action of the declared interface.
 [The design](design.md#an-embodied-world-the-microduck) states this classification
 with its limits.
+
+By the owner's decision of 2026-11-20, a state mechanism submitted under
+[the frame of a learned-state result](learned-state-frame.md) is not a departure
+of this register: it reaches the agent only as sensor words through the frame's
+interface, it earns no credit as learning, whether what it holds is learned is
+the question that frame leaves to its referee, and nothing changes for code
+outside that interface, where a hand-authored bias on the action path still
+needs its declared departure and the owner's admission.
 
 Source and compiled gates enforce quarantine and composition roots. Every
 constructor, restore and update must retain the indexed state predicate.

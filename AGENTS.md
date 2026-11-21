@@ -1,7 +1,7 @@
 # Working on Acorn
 
-Acorn pursues Oak Lab's mission: agents that learn from experience to achieve
-goals in big worlds. The Alberta Plan guides its work on continual learning and
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. The Alberta Plan guides its work on continual learning and
 planning in Lean. [Design](docs/design.md) owns implementation coverage;
 [prior-art review](docs/prior-art-review.md) owns technical admission and default
 qualification; [learned-only binding](docs/learned-only-binding.md) owns departures.
@@ -70,7 +70,9 @@ specification and restate it as what the algorithm must maintain, as
 
 ## Learned-only and research admission
 
-Every hand-authored action-path bias requires its actual departure declaration.
+Every hand-authored action-path bias requires its actual departure declaration,
+except as [learned-only binding](docs/learned-only-binding.md) says of a state
+mechanism submitted under the frame of a learned-state result.
 Review checks each provenance declaration against the producing code. Source and
 compiled ownership enforce the learned/host/handcrafted boundary and explicit
 composition roots. The viewer observes telemetry and sends lifecycle stop only;

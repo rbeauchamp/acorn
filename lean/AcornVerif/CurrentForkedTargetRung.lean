@@ -34,7 +34,7 @@ second target chosen so that the two ask together for eight moves, one more than
 A first target east of the start is paired with the tile fourteen to its west, one to the west
 with the tile fourteen to its east, and one to the south, at `(x, y)`, with the tile
 `(78 - y, x)` to the east (`partner`). Each second target is met from `duskLive` by seven steps
-east or west, which the kernel evaluates (`dusk_walk`).
+east or west, reusing the witness's elevation-only terrain checks (`dusk_walk`).
 
 **An agent that meets both promises.** `forkWitness` is the switch of
 `AcornVerif.Kernel.switch` over two replaying agents, one for each situation, with `showsDusk` as
@@ -269,14 +269,29 @@ abbrev rungForkGoals (mode : TaskFeatureMode) : (rungForks mode).Goals :=
   forkedGoals witnessConfig mode witnessLive duskLive 7
 
 /-- Seven steps east, and seven steps west, carry the body from the second situation's start to
-the end tiles of the witness's first two walks. The kernel evaluates the executed world step
-along the two walks. -/
+the end tiles of the witness's first two walks, reusing the witness's elevation-only terrain checks
+from `CurrentConcealedTarget`. -/
 theorem dusk_walk (visit : ℕ) (within : visit ≤ 1) :
     (physicalPath (physical duskLive.world) (witnessExplore visit) 7).map
       (fun world => tile world.body.position.position) = some (witnessEnd visit) := by
+  have hstart : tile (physical duskLive.world).body.position.position = (32, 32) := dusk_start
+  have hen : 4 * 7 ≤ (physical duskLive.world).body.energy.val := by decide
+  have hwin : 25 ≤ (tile (physical duskLive.world).body.position.position).1 ∧
+      (tile (physical duskLive.world).body.position.position).1 ≤ 39 ∧
+      25 ≤ (tile (physical duskLive.world).body.position.position).2 ∧
+      (tile (physical duskLive.world).body.position.position).2 ≤ 39 := by
+    rw [hstart]; omega
   rcases (by omega : visit = 0 ∨ visit = 1) with rfl | rfl
-  · decide +kernel
-  · decide +kernel
+  · change (physicalPath (physical duskLive.world) (fun _ => code .east) 7).map
+      (fun world => tile world.body.position.position) = some (39, 32)
+    simpa [hstart, witnessWalkEnd, Host.Action.direction, Host.Direction.delta] using
+      witness_physicalPath_const (physical duskLive.world) .east 7 hen hwin
+        (hstart ▸ witness_east_walkable)
+  · change (physicalPath (physical duskLive.world) (fun _ => code .west) 7).map
+      (fun world => tile world.body.position.position) = some (25, 32)
+    simpa [hstart, witnessWalkEnd, Host.Action.direction, Host.Direction.delta] using
+      witness_physicalPath_const (physical duskLive.world) .west 7 hen hwin
+        (hstart ▸ witness_west_walkable)
 
 /-- The tile of the second target paired with a first target's tile. East of the start it is the
 tile fourteen to the west, west of the start the tile fourteen to the east, and south of the
