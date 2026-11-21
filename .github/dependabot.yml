@@ -1,5 +1,5 @@
 # Weekly automated updates for SHA-pinned workflow dependencies under .github/workflows/.
-# Prefix commits and PR titles with `ci(deps):` to match CONTRIBUTING.md's
+# Prefix commits and PR titles with `ci:` to match CONTRIBUTING.md's
 # Conventional Commits format (.github/workflows/pr-title.yml).
 version: 2
 updates:
@@ -9,4 +9,3 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
-      include: "scope"
