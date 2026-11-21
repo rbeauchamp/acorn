@@ -104,10 +104,12 @@ For that review, which the author runs, one independent reviewer is the
 default; add a specialist only for a concrete uncertainty. It does not decide
 when work is complete and discharges no review that Acorn requires. The
 [review protocol](CONTRIBUTING.md#review-protocol) does, for every author:
-every pull request requires an independent review of another model family than
-every model that did the work (under maintainer-led assignment, or under the
-protocol's single-maintainer standing designation of the validation pipeline's
-external verifier while Acorn has one human maintainer).
+every pull request requires an independent review (under maintainer-led
+assignment, or under the protocol's single-maintainer standing designation of
+the validation pipeline's external verifier while Acorn has one human
+maintainer); any model reviewer must belong to another model family than every
+model that did the work, and the applicable assignment rule determines when an
+uninvolved person is eligible.
 Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
 rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.

@@ -1045,18 +1045,23 @@ establishes nothing about whether a theorem states what its pull request
 claims, which the referee reads, and nothing about whether a referee or a
 reviewer was assigned as the protocol requires. The trace of the protocol is the pull
 request itself: the comment that records the assignment and each referee's
-report or short review. One GitHub account serves the owner and the organization's agents, so
-GitHub does not show that the agent that assigned a referee or a reviewer is
-another than the one that did the work; the comment that records the assignment states it.
-Under the single-maintainer interim provision (confirmed on 2026-11-21 while Acorn
-has one human maintainer), the protocol admits the owner's standing
-designation of the no-mistakes validation pipeline's external analyzer/verifier
-when recorded on the pull request alongside its unedited exact-head report or
-short review, while prohibiting same-family self-review and retiring the interim
-provision once Acorn has more than one human maintainer; no check
-enforces whether an author or fixer and verifier share a model family or when more
-than one human maintainer requires retirement of the interim rule, leaving those checks as
-accepted risk in the written protocol. A
+report or short review. One GitHub account serves the owner and the organization's agents, so under
+individual maintainer-led assignment GitHub does not show that the agent that
+assigned a referee or a reviewer is another than the one that did the work; the
+assignment comment states who assigned. Under the single-maintainer interim
+provision (confirmed on 2026-11-21 while Acorn has one human maintainer), a
+truthful assignment comment can instead record the owner's standing designation
+of the no-mistakes validation pipeline's external analyzer/verifier, its model
+family, and the exact head commit without identifying a separate per-PR
+assigning agent, alongside its unedited exact-head report or short review. The
+provision prohibits same-family self-review (disqualifying that model if chosen
+for author-side review, advice, writing or fixing while permitting re-reads
+after findings issued in its designated referee/verifier role), falls back to
+another model family or an uninvolved person under the general rule when
+disqualified, and retires once Acorn has more than one human maintainer; no
+check enforces model-family separation, designated-role vs. author-side advice,
+or multi-maintainer retirement, leaving those checks as accepted risk in the
+written protocol. A
 referee or a reviewer can be wrong, and two referees can both be wrong. An
 author's own account of a goal that changed while the work was done is
 something the protocol cannot check, since a referee sees the pull request and

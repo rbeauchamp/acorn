@@ -74,11 +74,13 @@ is the models of one developer.
 
 ### Which review a pull request gets
 
-Every pull request requires an independent review of another model family than
-every model that did the work (by the maintainers' per-PR assignment below, or
-under the single-maintainer interim provision while Acorn has one human
-maintainer), and never by a reviewer the author chose. What differs is the
-depth. A pull request gets the referee's review when it does any of these:
+Every pull request requires an independent review under this protocol (by the
+maintainers' per-PR assignment below, or under the single-maintainer interim
+provision while Acorn has one human maintainer), and never by a reviewer the
+author chose; any model reviewer must belong to another model family than every
+model that did the work, and the applicable assignment rule determines when an
+uninvolved person is eligible. What differs is the depth. A pull request gets
+the referee's review when it does any of these:
 
 - it claims to complete or advance a mission, or an issue that asks for a
   proof or a discovery;
@@ -147,15 +149,17 @@ assignment:
 **Single-maintainer interim provision (owner-confirmed 2026-11-21).** While
 Acorn has only one human maintainer, independent human maintainer cross-checking
 on every pull request is unavailable. During this single-maintainer phase,
-external cross-family review remains mandatory on every pull request (with the
-same referee's review or short review depth, exact head commit binding,
-findings, and verdict of accept, revise or reject, plus exact-head
-`./scripts/gate.sh` and any blind specification read-back required at merge under
-[triage and response](#triage-and-response)), and the external model configured as
-the analyzer/verifier in Acorn's no-mistakes validation pipeline satisfies this
-protocol by standing owner designation (whether run via no-mistakes or
-standalone against the exact pull request head, title and description) when all
-of the following hold:
+independent review remains mandatory on every pull request (by an external
+model of another model family than every model that did the work, or an
+uninvolved person where the general rule below admits one), with the same
+referee's review or short review depth, exact head commit binding, findings, and
+verdict of accept, revise or reject, plus exact-head `./scripts/gate.sh` and
+any blind specification read-back required at merge under
+[triage and response](#triage-and-response). Under this provision, the external
+model configured as the analyzer/verifier in Acorn's no-mistakes validation
+pipeline satisfies the protocol by standing owner designation (whether run via
+no-mistakes or standalone against the exact pull request head, title and
+description) when all of the following hold:
 
 - an assignment comment is written on the pull request recording the owner's
   standing single-maintainer designation, the designated reviewer's model
@@ -172,11 +176,14 @@ of the following hold:
   organization agent or a human maintainer) belongs to the same model family as
   the validation pipeline's configured analyzer/verifier, that analyzer/verifier
   cannot satisfy the protocol for that pull request and another reviewer is
-  assigned under the general rule above (of another model family or a human
-  maintainer). Earlier review rounds reported by that designated
-  analyzer/verifier do not count as advising on or reviewing for the author and
-  do not disqualify it from re-reading revised commits under Findings and
-  revision below;
+  assigned under the general rule above (of another model family or an
+  uninvolved person). Earlier review findings and reports issued by that model
+  strictly in its designated referee or analyzer/verifier role (under Findings
+  and revision below or in designated validation-pipeline verification rounds on
+  revised commits) do not disqualify it from re-reading revised commits (and an
+  author may relay the designated reviewer's unedited report), whereas seeking
+  optional author-side review, advice, writing or fixing from that model does
+  disqualify it;
 - for a claim of discovery requiring two referees, this standing designation
   supplies at most one cross-family referee and never substitutes for the second
   independent referee assigned under the general rule above.
