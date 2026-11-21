@@ -727,8 +727,8 @@ modes the list gives, and the viewer serving its page from a stopped state are
 among them. Where a change's intent states the owner's authorization, exactly
 what that authorization names or points to may be driven as well, and nothing
 wider: an agent never extends it by likeness to a run it does not name, and no
-agent's intent or instruction creates or widens one. Where it states none, a claim that cannot be shown by a listed drive is
-reported open with that reason and is not driven.
+agent's intent or instruction creates or widens one. Where it states none, a claim that only a drive outside the list could show is
+reported open with that reason, and that drive is not made.
 
 The rule is an instruction, which the people and agents who work on Acorn
 follow. No program refuses the run.

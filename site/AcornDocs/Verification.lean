@@ -93,7 +93,7 @@ macOS command-line tools and the packages below
 brew install coreutils shellcheck openssl@3 elan
 ```
 
-For Ubuntu, install:
+For Ubuntu, under the same condition, install:
 
 ```sh
 sudo apt-get update
@@ -131,8 +131,9 @@ tag := "headless-and-advanced-launch"
 `--run-dir DIR` selects another run directory and `--port N` selects a port;
 the default port is allocated by the OS. Browser opening is optional and its
 failure does not stop the agent. Use `./scripts/start.sh --help` for the launcher
-options. `--no-browser` does not change what a launch starts; `--help` and
-`--prepare-only` stop before the launch. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
+options. `--no-browser` does not change what a launch starts, and in work on a
+change a launch needs the owner's authorization; `--help` and `--prepare-only`
+stop before the launch. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
 
 ## Interrupted-launch recovery
 %%%
@@ -148,8 +149,8 @@ Read `.acorn-launch/pid` and inspect that process and its viewer/core descendant
 Only after confirming that no process still owns this run, remove the lock's
 temporary files (control, pid and installer.sh) and the
 empty `.acorn-launch/` directory, then rerun the launcher with the options it
-was first given, which in work on a change needs the owner's authorization as
-the first launch did. Preserve `acorn-run/`.
+was first given; in work on a change, a rerun that launches needs the owner's
+authorization as the first launch did. Preserve `acorn-run/`.
 Do not manually launch another viewer against a directory already in use.
 
 ## Build and verification failures
@@ -157,7 +158,8 @@ Do not manually launch another viewer against a directory already in use.
 tag := "build-and-verification-failures"
 %%%
 
-If a tool is missing, install the named prerequisite before retrying. On macOS,
+If a tool is missing, install the named prerequisite before retrying, under the
+condition on installing that [platform setup](#platform-setup) states. On macOS,
 check that `xcode-select -p` points to an installed, usable developer toolchain.
 If verification reaches its 360-second deadline, retain the failing command
 and diagnostic for a focused report; do not raise the limit or treat a partial

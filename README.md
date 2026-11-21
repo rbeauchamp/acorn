@@ -126,8 +126,8 @@ require system installation prompts; subsequent launches reuse installed
 dependencies and unchanged build outputs. Automatic setup supports macOS and
 Ubuntu/Debian Linux.
 
-Work on a change to Acorn runs the launcher only on the owner's authorization
-for that run: [CONTRIBUTING](CONTRIBUTING.md#running-a-program) says where the
+Work on a change to Acorn launches it only on the owner's authorization for
+that run: [CONTRIBUTING](CONTRIBUTING.md#running-a-program) says where the
 invocations that such work may drive without it are listed, and a launch is not
 among them.
 
@@ -163,7 +163,8 @@ predictions as the run develops.
 - **Start** resumes execution with compatible saved learner state.
 - **Ctrl-C** in the launcher's terminal finishes the current attempt and closes
   the viewer after shutdown. Wait for the command to return.
-- Run **`./scripts/start.sh` again** to reopen the viewer and resume.
+- Run **`./scripts/start.sh` again** to reopen the viewer and resume; in work on
+  a change, that launch needs the owner's authorization like the first.
 - **Clear** archives the run and prepares a fresh agent. If stopped, it stays
   stopped until you choose Start.
 

@@ -802,7 +802,10 @@ What these do not establish:
   was reached.
 
 **The certificate tool.** `world-certificates` generates the standard world of
-each listed seed, proposes certificates and prints what the checkers accepted:
+each listed seed, proposes certificates and prints what the checkers accepted.
+In work on a change, this command with arguments is not on the closed list that
+[running a program](../CONTRIBUTING.md#running-a-program) points to, and it is
+driven only on the owner's authorization:
 
 ```sh
 ./scripts/lean.sh exe world-certificates SIDE CAP SEED [SEED ...]
