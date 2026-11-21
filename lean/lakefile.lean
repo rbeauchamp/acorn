@@ -379,8 +379,9 @@ script intentLibraries do
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4" @ "v4.36.0"
 
-/-- Regula v0.13.1: the lint driver of the Regula audit (`lake lint`), and the library
-`RegulaContract`, whose contract and registration types the two decision registries import. -/
+/-- Regula v0.13.1: the lint driver of the Regula audit (`lake lint`), the library
+`RegulaContract`, whose contract and registration types the two decision registries import,
+and `Regula.Load`, whose `ctorIdx` classifier `AcornTools.Theorems` imports. -/
 require regula from git
   "https://github.com/rbeauchamp/regula" @ "v0.13.1"
 
@@ -409,19 +410,39 @@ def importedArtifacts (sources : Array System.FilePath) (library : String) :
         job := job.mix (← mod.irArts.fetch)
   return job
 
+/-- The native objects of every module of `library` that the given sources import, and every
+workspace module those modules transitively import, read from the sources' own import lines. -/
+def importedNativeObjects (sources : Array System.FilePath) (library : String) :
+    FetchM (Job Unit) := do
+  let mut job : Job Unit := Job.nil
+  for path in sources do
+    for line in (← IO.FS.readFile path).splitOn "\n" do
+      if line.startsWith s!"import {library}." then
+        let name := ((line.drop 7).trimAscii.toString).toName
+        let some mod ← findModule? name
+          | error s!"{path} imports an unknown module: {name}"
+        let imported ← (← mod.transImports.fetch).await
+        for dependency in imported.push mod do
+          job := job.mix ((← dependency.coExport.fetch).map fun _ => ())
+  return job
+
 /-- The FloatLib modules the proof bridge imports. Provisioning builds this target beside
 Mathlib; FloatLib publishes no build cache, and verification must not compile a
 dependency inside its deadline. -/
 target floatlibBridge pkg : Unit :=
   importedArtifacts #[pkg.dir / "AcornVerif" / "FloatLibBridge.lean"] "FloatLib"
 
-/-- The Regula interface modules the two decision registries import: the contract type and
-the registration type. Provisioning builds this target beside `floatlibBridge`, for the
-same reason. -/
-target regulaInterface pkg : Unit :=
-  importedArtifacts
+/-- The Regula modules that the two decision registries and `AcornTools.Theorems` import, with
+the native objects that `theorem-count` and `ownership-audit` link from `AcornTools.Theorems`'s
+Regula imports. Provisioning builds this target beside `floatlibBridge`, so that verification,
+which builds every declared executable, compiles no dependency inside its deadline. -/
+target regulaInterface pkg : Unit := do
+  let registries :=
     #[pkg.dir / "Acorn" / "Decisions.lean", pkg.dir / "AcornVerif" / "Decisions.lean"]
-    "Regula"
+  let tools := #[pkg.dir / "AcornTools" / "Theorems.lean"]
+  let arts ← importedArtifacts (registries ++ tools) "Regula"
+  let native ← importedNativeObjects tools "Regula"
+  return arts.mix native
 
 /-- The lean-intent modules the intent bridge and the gate's `intent-check` import. Provisioning
 builds this target beside `floatlibBridge`, for the same reason. -/
@@ -434,16 +455,7 @@ target leanIntentBridge pkg : Unit :=
 it or the intent bridge imports, read from their import lines, and every module that one imports.
 Provisioning builds this target beside `leanIntentBridge`, so that verification, which builds every
 declared executable, compiles no dependency inside its deadline. -/
-target leanIntentNative pkg : Unit := do
-  let mut job : Job Unit := Job.nil
-  for path in #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean",
-      pkg.dir / "AcornTools" / "Intent.lean"] do
-    for line in (← IO.FS.readFile path).splitOn "\n" do
-      if line.startsWith "import LeanIntent." then
-        let name := ((line.drop 7).trimAscii.toString).toName
-        let some mod ← findModule? name
-          | error s!"{path} imports an unknown module: {name}"
-        let imported ← (← mod.transImports.fetch).await
-        for dependency in imported.push mod do
-          job := job.mix ((← dependency.coExport.fetch).map fun _ => ())
-  return job
+target leanIntentNative pkg : Unit :=
+  importedNativeObjects
+    #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean", pkg.dir / "AcornTools" / "Intent.lean"]
+    "LeanIntent"

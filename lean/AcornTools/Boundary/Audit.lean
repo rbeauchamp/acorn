@@ -16,7 +16,8 @@ extensions or spell a native replacement. Compiled metadata then checks actual m
 ownership, including private/generated declarations and transitive imports.
 The Regula audit of the claimed libraries, not this tool, checks compiled declarations
 for project axioms, proof holes, compiler-trusting proofs and `unsafe` or `partial`
-definitions; the theorem inventory refuses a compiled native replacement.
+definitions; the theorem inventory refuses a compiled native replacement other than a
+verified compiler-generated `T.ctorIdx` / `T.ctorIdx._impl` pair.
 
 This verification tool and the pinned Lean/Init toolchain are trusted. The gate
 does not prove compiler correctness or the truth of a provenance declaration.
@@ -349,16 +350,28 @@ def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := d
 (`Lean/Util/Path.lean:134-147`) before `withImportModules` unmaps those regions.
 `findOLean` caches `(mod.getRoot, root)` against the current search path, and `importModulesCore`
 passes `Name` values allocated inside `.olean` compacted regions. Calling `findOLean` on the
-static literal `` `Init `` under a distinct search path replaces the cache entry while every
-region is still mapped, then restores the original search path. -/
+static literal `` `Init `` under two distinct search paths replaces the cache while every
+region is still mapped regardless of its prior search path, then restores the original search
+path. -/
 def flushOLeanCache (library : System.FilePath) : IO Unit := do
   let original ← searchPathRef.get
-  let sentinel := if original == [library] then [library, library] else [library]
   try
-    searchPathRef.set sentinel
+    searchPathRef.set [library]
+    let _ ← findOLean `Init
+    searchPathRef.set [library, library]
     let _ ← findOLean `Init
   finally
     searchPathRef.set original
+
+/-- Import modules for the duration of `action`, flushing `oleanRootCacheRef` before
+`withImportModules` unmaps the imported `.olean` compacted regions. -/
+unsafe def withScopedImportModules {α : Type} (library : System.FilePath)
+    (imports : Array Import) (opts : Options) (action : Environment → IO α) : IO α :=
+  withImportModules imports opts fun env => do
+    try
+      action env
+    finally
+      flushOLeanCache library
 
 /-- Check compiled declarations and their real referenced owners. The gate admits the
 sources before the build, and `command` admits them again after this check.
@@ -377,21 +390,16 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
   -- Executable roots each own `main` and are loaded alone. Every other owner is loaded
   -- once, in one environment: a declaration's checks read only its owner's import closure.
   let shared := owners.filter fun owner => !AcornOwnership.executables.any (·.2 == owner)
-  let included ← withImportModules (shared.map fun owner => { module := owner }) {} fun common => do
-    try
+  let included ← withScopedImportModules library (shared.map fun owner => { module := owner }) {}
+    fun common => do
       let included := owners.filter fun owner => (common.getModuleIdx? owner).isSome
       inspect common included
       AcornDepartureAudit.check common owners
       pure included
-    finally
-      flushOLeanCache library
   for owner in owners do
     if included.contains owner then continue
-    withImportModules #[{ module := owner }] {} fun env => do
-      try
-        inspect env #[owner]
-      finally
-        flushOLeanCache library
+    withScopedImportModules library #[{ module := owner }] {} fun env =>
+      inspect env #[owner]
 
 /-- Run source admission before build, or source plus compiled admission afterward.
 Initializer execution is restricted to the trusted parser; compiled admission

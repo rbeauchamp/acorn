@@ -29,14 +29,14 @@ which add nothing to the text. It holds, in order:
 * for the record of contract 1 of Acorn's mission contract, the interface every world meets
   (`AcornVerif.Intent.WorldInterface.worldInterface`), the origin statement `contract-1-origin`,
   which says that the agents wrote the plain restatement the record was written from and that the
-  owner adopted it, and the owner's answer `contract-1-restatement`, which attaches the owner's
+  owner adopted it, and the owner's answer `contract-1-restatement`, which attached the owner's
   confirmation of that restatement, given on 2026-11-03 in the words the two statements hold as
-  their source, to the record's current revision. The owner saw the restatement, not the record or
-  its rendering; the record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`, says
-  so, and gives the status of every consequence of the record;
+  their source, to the record's Lean 4.35.0 revision. The owner saw the restatement, not the record
+  or its rendering; the record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`,
+  says so, and gives the status of every consequence of the record;
 * and, in the same way for the record of contract 3, the invariants of learning from one stream
   (`AcornVerif.Intent.OneStream.oneStream`), the origin statement `contract-3-origin` and the
-  owner's answer `contract-3-restatement`, attached to that record's current revision by the
+  owner's answer `contract-3-restatement`, attached to that record's Lean 4.35.0 revision by the
   agents' decision, as its confirmation file, `lean/AcornVerif/Intent/OneStream.md`, says;
 * on 2026-11-20, after Acorn upgraded from Lean 4.35.0 to Lean 4.36.0 (commit
   `611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9`), which changed only the Lean library basis line of

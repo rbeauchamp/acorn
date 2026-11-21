@@ -11,17 +11,20 @@ import Regula.Load
 # Compiler-backed theorem inventory
 
 Count `.thmInfo` declarations by the module index recorded in compiled Lean
-environments, and refuse a native replacement on any project declaration. Source
-filenames discover the owned modules, including modules outside either library
-root's import closure; source text never decides whether a declaration is a
-theorem. Imported Lean and Mathlib theorems are excluded by their owning module,
-even if their declaration names resemble project names.
+environments, and refuse a native replacement on any project declaration except
+a verified compiler-generated `T.ctorIdx` / `T.ctorIdx._impl` pair on Lean v4.36.0.
+Source filenames discover the owned modules, including modules outside either
+library root's import closure; source text never decides whether a declaration
+is a theorem. Imported Lean and Mathlib theorems are excluded by their owning
+module, even if their declaration names resemble project names.
 
 The inventory includes compiler-generated auxiliary theorem declarations and
 private theorems. Counts report this complete scope of compiled declarations.
 The axioms of each declaration, project axioms, and `unsafe` and `partial`
 declarations are checked by the Regula audit of the claimed modules, not here.
-The replacement refusal stays: the Regula audit reads no replacement or extern.
+The general replacement refusal stays: Regula v0.13.1 reads `implemented_by` and
+`extern` only to qualify RG1006's exempted forms (`helperForm` and `ctorIdxPair`)
+and has no general rule refusing them on safe declarations.
 -/
 
 namespace AcornTheoremCount
@@ -67,8 +70,6 @@ def isCompilerCtorIdx (env : Environment) (library : System.FilePath) (owner nam
   let .defn ind := Regula.Load.ctorIdxFormOf env name info | return false
   let implName := Name.str name "_impl"
   unless Compiler.getImplementedBy? env name == some implName do return false
-  let some (.inductInfo indInfo) := env.find? ind | return false
-  if indInfo.isUnsafe then return false
   unless (← AcornBoundaryAudit.declarationOwner env ind) == owner do return false
   let some implInfo := env.find? implName | return false
   unless (← AcornBoundaryAudit.declarationOwner env implName) == owner do return false

@@ -56,10 +56,10 @@ reaches changes, and the check then refuses it, naming it, until it is retracted
 against the new texts by someone the delegation lets answer.
 
 The interface record and the record of learning from one stream are settled differently. Each
-explanation records its restatement as confirmed by the owner, whose answer of 2026-11-03 the log
-holds, and each consequence it shows as derived from that confirmation, so their deliverables keep no
-answer; the consequences decided on the owner's behalf are recorded with their reasons in each
-record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md` and
+explanation records its restatement as confirmed by the owner, whose answers of 2026-11-03 and
+2026-11-21 the log holds, and each consequence it shows as derived from that confirmation, so their
+deliverables keep no answer; the consequences decided on the owner's behalf are recorded with their
+reasons in each record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md` and
 `lean/AcornVerif/Intent/OneStream.md`.
 
 Two decisions are recorded in prose only, because they are no consequence of a record: the day

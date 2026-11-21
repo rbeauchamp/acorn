@@ -32,7 +32,8 @@ launcher's own override file and asks Lake whether the FloatLib modules the proo
 bridge imports, the lean-intent modules that the intent bridge and the gate's
 lean-intent checker `lean/AcornTools/Intent.lean` import, the native objects of the
 lean-intent modules that checker links, and the Regula modules the decision
-registries import are current.
+registries and the theorem inventory `lean/AcornTools/Theorems.lean` import with
+the native objects the theorem inventory links are current.
 The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
@@ -66,11 +67,11 @@ Ensure Lean and Lake are available in your shell, then run
 `(cd lean && lake exe cache get && lake build Mathlib regula/lint floatlibBridge regulaInterface leanIntentBridge leanIntentNative)` from the
 repository root to provision the pinned toolchain/dependencies; the build compiles
 only Mathlib modules absent from the upstream cache, plus Regula's lint driver.
-FloatLib and lean-intent publish no cache, so the same command
+FloatLib, lean-intent and Regula publish no cache, so the same command
 compiles the FloatLib modules that the proof bridge imports, the lean-intent modules
 that the intent bridge and the lean-intent checker import with the native objects
-the checker links, and the two Regula interface modules that the decision
-registries import.
+the checker links, and the Regula modules that the decision registries and the
+theorem inventory import with the native objects the theorem inventory links.
 The offline bootstrap asks Lake whether every artifact those imports need is
 current and refuses to run until it is: verification never compiles a dependency
 inside its deadline. Verification also builds the
@@ -130,7 +131,8 @@ import, fails the build. Source/compiled admission checks imports, capability
 owners, artifact origins and native routes. The Regula audit, not ordinary
 verification, checks the axioms that each declaration of the claimed libraries
 depends on. The theorem inventory counts the theorem declarations and refuses a
-native replacement. Every proof passes through the kernel.
+native replacement other than a verified compiler-generated constructor-index
+pair. Every proof passes through the kernel.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
@@ -970,9 +972,12 @@ paragraph gives an input that shows it, and that check stays.
 
 Ordinary verification alone therefore does not refuse a project axiom, a
 dependency on an axiom outside propext, Quot.sound and Classical.choice, a
-compiler-trusting proof, or a compiled unsafe or partial declaration. The Regula
-audit refuses each of them, and the merge gate requires it. Run
-`./scripts/regula.sh` for it before proposing a change to a Lean source.
+compiler-trusting proof, or a compiled unsafe or partial declaration outside
+RG1006's exempted forms (a partial recursion helper of a terminating recursive
+definition, or the unsafe implementation half of a verified compiler-generated
+constructor-index pair). The Regula audit refuses each of them, and the merge
+gate requires it. Run `./scripts/regula.sh` for it before proposing a change to
+a Lean source.
 Ordinary verification still refuses the words `axiom`, `sorry`, `unsafe`,
 partial and `native_decide` in every executing and proof source, through source
 admission, and a proof hole through the build, where a warning is an error.
@@ -1027,12 +1032,14 @@ constructor-index replacement that Lean v4.36.0 emits for every safe, non-Prop,
 non-builtin inductive type whose constructor count is not one
 (`AcornTheoremCount.isCompilerCtorIdx`, matching Regula v0.13.1's structural
 check on the pair and its toolchain constructor-tag helper). The Regula audit
-reads no replacement or extern: a pass says nothing about what a compiled
-program runs. Source admission refuses both attributes as words in every
-executing and proof source, so the inventory adds the declarations that
-elaboration generates. This check runs once, in the theorem inventory. A copy in
-the compiled boundary admission would repeat the same predicate for a subset of
-the same modules in the same command, `./scripts/verify.sh`.
+reads replacement and extern attributes only to qualify RG1006's exempted forms
+(recursion helpers and constructor-index pairs) and has no general rule refusing
+them on safe declarations: a pass says nothing about what a compiled program
+runs. Source admission refuses both attributes as words in every executing and
+proof source, so the inventory adds the declarations that elaboration generates.
+This check runs once, in the theorem inventory. A copy in the compiled boundary
+admission would repeat the same predicate for a subset of the same modules in
+the same command, `./scripts/verify.sh`.
 
 **Reach of each entry: the tools refuse more.** The ownership audit follows the
 compiler's intermediate code from the entry point of each executable, the tool
