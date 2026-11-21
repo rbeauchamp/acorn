@@ -14,9 +14,10 @@ enough, since it shares the storage of a private session that is already open.
 One sentence on authorization governs the directions here on starting the viewer
 with a core and on the states that such a run supplies: each only and each never
 about them binds a review whose change's intent states no authorization for that
-run, and where the intent states the owner's authorization for a particular run
+run, and where the intent states the owner's authorization
 ([running a program](../../../../CONTRIBUTING.md#running-a-program)), exactly
-that run may be started and the states it supplies inspected, and nothing wider.
+what that authorization names or points to may be started and the states it
+supplies inspected, and nothing wider.
 It reaches no other rule of the review. Inspect the affected panels, controls
 and lifecycle states against `docs/viewer-ux.md`. For layout changes, check the
 applicable wide/compact geometries; for data changes, inspect the relevant

@@ -726,9 +726,10 @@ works for has agreed to it.
 The listed drives stay available, and they are still asked for where a change
 alters what a program does: building, the merge gate, the audit tools in the
 modes the list gives, and the viewer serving its page from a stopped state are
-among them. Where a change's intent states the owner's authorization for a
-particular run, exactly that run may be driven as well, and nothing wider.
-Where it states none, a claim that cannot be shown by a listed drive is
+among them. Where a change's intent states the owner's authorization, exactly
+what that authorization names or points to may be driven as well, and nothing
+wider: an agent never extends it by likeness to a run it does not name, and no
+agent's intent or instruction creates or widens one. Where it states none, a claim that cannot be shown by a listed drive is
 reported open with that reason and is not driven.
 
 The rule is an instruction, which the people and agents who work on Acorn

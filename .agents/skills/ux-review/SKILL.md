@@ -51,8 +51,9 @@ private session that is already open. One sentence on authorization governs this
 skill's directions on starting the viewer with a core and on the states that
 such a run supplies: each only and each never about them binds a review whose
 change's intent states no authorization for that run, and where the intent
-states the owner's authorization for a particular run, exactly that run may be
-started and the states it supplies inspected, and nothing wider. It reaches no
+states the owner's authorization, exactly what that authorization names or
+points to may be started and the states it supplies inspected, and nothing
+wider. It reaches no
 other rule of the review. Read [capture
 guidance](references/capture-evidence.md) when using browser evidence and
 [review prompts](references/review-workflow.md) for the relevant UX questions.
