@@ -2149,7 +2149,8 @@ The core's `--criterion` flag is independent of the profile:
   to a learned average reward per step. See [continuing control](frontier.md#f4--continuing-control-and-exploration)
   for the research questions around this criterion.
 
-For example, to select both explicitly in a bounded terminal run:
+In work on a change, the run below needs the owner's authorization. For example,
+to select both explicitly in a bounded terminal run:
 
 ```sh
 lean/.lake/build/bin/acorn-core demo --research-profile ranked --criterion discounted --side 64 --steps 250 --attempts 1 --goals 1 --cycles 1

@@ -1201,6 +1201,9 @@ still decides whether the prose describes that owner faithfully.
 
 **Pinned digest: `0x28c98382d02dbf12`**
 
+In work on a change, the command below is run only on the owner's authorization
+for that run.
+
 ```sh
 lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12
 ```

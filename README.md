@@ -113,7 +113,8 @@ the last two are
 
 ## Start with the live viewer
 
-From your Acorn checkout, run:
+In work on a change to Acorn, a launch needs the owner's authorization for that
+run, as the paragraph after the command says. From your Acorn checkout, run:
 
 ```sh
 ./scripts/start.sh
@@ -134,6 +135,9 @@ among them.
 <details>
 <summary>Need to get the code first?</summary>
 
+The same condition holds here: in work on a change to Acorn, a launch needs the
+owner's authorization for that run.
+
 ```sh
 git clone https://github.com/rbeauchamp/acorn.git
 cd acorn
@@ -141,7 +145,8 @@ cd acorn
 ```
 
 You need Git to clone the repository. You can also download and unpack its
-source archive, then run the launcher from that directory.
+source archive, then run the launcher from that directory, under the same
+condition.
 
 </details>
 

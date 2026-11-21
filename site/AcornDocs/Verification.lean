@@ -1156,6 +1156,9 @@ tag := "mutation-diagnostics"
 
 *Pinned digest: {spliceCode}`digest .declared`*
 
+In work on a change, the command below is run only on the owner's authorization
+for that run.
+
 ```spliced sh
 s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect {digest .declared}"
 ```
