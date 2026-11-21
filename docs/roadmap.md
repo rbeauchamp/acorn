@@ -157,7 +157,7 @@ The frame fixes the form of a result and leaves the goal, the family of worlds a
 Under it the agent stays fixed for a submission, and a change to the learners lands separately, first, as its own pull request ([contributing](../CONTRIBUTING.md#learned-state-results-and-changes-to-the-agents-learners)).
 That is narrower than the issue's text, which asks a contributor to change how the agent learns; the issue's text is revised by a separate change.
 A complete result in the frame is necessary and not sufficient for a learned-state result, and goes to a referee. It is not known whether one exists for the agent as it stands.
-What a referee's report on a submission records is a document of its own, [how a submission on learned agent state is checked](learned-state-check.md), which `.github/CODEOWNERS` names, so that GitHub requests the owner's review of every pull request that changes it.
+For a revision of the issue that links it, what a referee's report on a submission records is a document of its own, [how a submission on learned agent state is checked](learned-state-check.md); `.github/CODEOWNERS` names that document, so that GitHub requests the owner's review of every pull request that changes it.
 
 Two open questions about Acorn's own learners, raised in review of [#295](https://github.com/rbeauchamp/acorn/issues/295), come directly ahead of it in order.
 The reason for that order is that both bear on whether a complete result exists for the agent as it stands and on how one could be proved; neither is a logical prerequisite of one.
