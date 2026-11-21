@@ -396,7 +396,11 @@ check refusing noncomputable in executing modules).
   and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
   the owner's review on every pull request that changes them, and only the
   owner's account, the one with write access, merges outside pull requests; do
-  not touch them unless the mission contract explicitly requires it.
+  not touch them unless the mission contract explicitly requires it. One
+  document under `docs/` is the owner's in the same way,
+  [how a submission on learned agent state is checked](docs/learned-state-check.md):
+  [CODEOWNERS](.github/CODEOWNERS) is the list of every such path, and the
+  same rule holds for each path it names.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
