@@ -489,9 +489,7 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
 - **What a submission adds:** a state mechanism, a family of worlds and a goal,
   and the choice of a standard configuration apart from the seed. It does not
   change the agent's learners, the way the agent chooses actions or the way it
-  explores. This is narrower than issue #295 read before the frame was adopted:
-  its text asks a contributor to change how the agent learns, and that text is
-  revised by a separate change.
+  explores.
 - **How a learner change lands:** separately, and first. It is its own pull
   request to the agent, which states and proves what the change is for on its
   own terms and passes the same review and the same gate as any other
