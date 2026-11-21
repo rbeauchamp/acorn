@@ -159,7 +159,9 @@ That is narrower than the issue's text, which asks a contributor to change how t
 A complete result in the frame is necessary and not sufficient for a learned-state result, and goes to a referee. It is not known whether one exists for the agent as it stands.
 
 Two open questions about Acorn's own learners, raised in review of [#295](https://github.com/rbeauchamp/acorn/issues/295), come directly ahead of it in order.
-The reason given for that order is that a result about the existing learners on learned state rests on both.
+The reason for that order is that both bear on whether a complete result exists for the agent as it stands and on how one could be proved; neither is a logical prerequisite of one.
+[#296](https://github.com/rbeauchamp/acorn/issues/296) asks about one added state feature within a stated horizon, so a proved case in which the learners use that feature need not meet all seven statements of the frame, and an obstruction for one feature says nothing of several.
+[#297](https://github.com/rbeauchamp/acorn/issues/297) asks for a reusable theorem and for a designed place where a state feature enters the default agent, and the seven statements name neither.
 
 1. [#296](https://github.com/rbeauchamp/acorn/issues/296): whether the standard agent's learners can make quick use of one added state feature. That they cannot is a hypothesis that nobody has verified. The issue asks for it to be settled by a theorem about the executed agent: an obstruction within a stated horizon, or its refutation.
 2. [#297](https://github.com/rbeauchamp/acorn/issues/297): what Acorn lacks for a positive result about learning. The issue asks for a reusable theorem about what the executed learners acquire after a first reward, in a form that composes over steps, and for one designed place where a state feature enters the default agent, with a proof that an empty state leaves the agent as it was and with the existing theorems stated over the frame's width and not a literal.

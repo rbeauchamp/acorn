@@ -437,8 +437,16 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   `AcornVerif.LearnedState.Acorn.Complete` for the submitted configuration,
   mechanism and task: the seven statements the account lists, from the agent's
   cold start, at every seed. It is necessary and not sufficient for a
-  learned-state result. It certifies that the agent's run satisfies a statement
-  the contributor wrote and that the named comparisons do not, and it goes to a
+  learned-state result. It certifies that the goal the contributor wrote holds
+  of the run of the agent with the mechanism in every world of the family, at
+  every seed, and that for each agent it is compared with, whichever rule or
+  schedule that agent is given, and for each seed, there is a world of the
+  family in which the goal fails of that agent's run. It does not certify that
+  the agent's run differs from a compared run in every world of the family.
+  Nor does it certify that the goal is a task anyone would pose: a complete
+  result is also one, over the same worlds, for the goal that asks only that
+  the run be the agent's own at some seed
+  (`AcornVerif.LearnedState.Result.recognized`). It goes to a
   referee with the eight questions the account lists. A submission that does
   not prove all seven is partial, and is recorded by which of them it proved,
   with any assumption stated.
@@ -450,13 +458,35 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   states what a complete result is and nobody can produce one for the program
   as it runs. It is also not known whether any complete result exists for the
   agent as it stands. [#296](https://github.com/rbeauchamp/acorn/issues/296)
-  bears on it: that issue asks whether the standard agent's learners can make
-  quick use of one added state feature, and its answer may leave part of this
-  open.
+  and [#297](https://github.com/rbeauchamp/acorn/issues/297) bear on it and
+  come ahead of #295 in the
+  [roadmap's order](docs/roadmap.md#learned-agent-state-beside-the-active-rung);
+  neither is a logical prerequisite of a complete result. #296 asks whether the
+  standard agent's learners can make quick use of one added state feature
+  within a stated horizon: a proved case in which they do need not meet all
+  seven statements, an obstruction for one feature says nothing of several,
+  and so its answer may leave part of this open. #297 asks for a reusable
+  theorem about what the learners acquire after a first reward and for one
+  designed place where a state feature enters the default agent; the seven
+  statements name neither.
 - **That the frame is not empty** is proved of a small agent of its own, not
   of Acorn's: `lean/AcornVerif/LearnedStateSmall.lean` proves all seven
-  statements of it, and `lean/AcornVerif/LearnedStateRefusals.lean` shows
-  cheap kinds of result that have no proof.
+  statements of it with one mechanism and one task
+  (`AcornVerif.LearnedState.Small.inhabited`).
+  `lean/AcornVerif/LearnedStateRefusals.lean` proves that the same small agent
+  with the same mechanism has no complete result on two variants of that task:
+  one whose goal gains an alternative that a constant answer satisfies
+  (`AcornVerif.LearnedState.Small.alternative_refused`), and one over the
+  worlds in which the cue the mechanism holds is itself the answer
+  (`AcornVerif.LearnedState.Small.remembered_refused`). Both are statements
+  about that agent with that mechanism. Two general theorems refuse a kind of
+  result only under their hypotheses. No mechanism has a complete result on a
+  task whose goal some agent, whose output is a function of the current
+  percept, meets at some seed in every world of the family
+  (`AcornVerif.LearnedState.Result.history_free_refused`). A mechanism has
+  none on a task where, with that mechanism kept, stores fixed in advance meet
+  the goal at some seed in every world of the family
+  (`AcornVerif.LearnedState.fixed_stores_refused`).
 
 ### AI-generated contributions
 
