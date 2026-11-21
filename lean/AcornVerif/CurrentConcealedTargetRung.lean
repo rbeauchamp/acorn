@@ -15,7 +15,11 @@ import AcornVerif.CurrentKernelMemory
 of the executed agent from named premises, for every host world that carries a reward of zero,
 every visit length and every agent state. This module fixes those for the first rung of the
 mission's ladder (`docs/mission-contract.md`, section "The mission theorem and its ladder") and
-says what each is chosen for. `rung_mission` is the statement at these constants.
+says what each is chosen for. `rung_mission` is the statement at these constants. The statement
+meant is the Lean one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as
+decided on 2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say.
 
 ## The constants
 
@@ -52,12 +56,14 @@ decides first (rbeauchamp/acorn#232), its criterion is the one the host's entry 
 constructs, and the seed is the least at which the host's own world was observed to start at the
 box's center, as this world does (`docs/roadmap.md`); no theorem singles these out.
 
-- **The class is proved concealed in this world at this visit length.** The feasible concealed
-  targets are a concealed class with the covering bound 98
+- **The class is proved to meet `Kernel.ConcealedClass` in this world at this visit length.** The
+  feasible concealed targets meet it with the covering bound 98
   (`AcornVerif.CurrentConcealedTarget.witness_concealed`), and 147 distinct members are listed
-  (`witness_mission`). Of the executed grid world it is the one world and visit length at which
-  the tree proves a class concealed; no theorem says a shorter visit fails. Every member's
-  target lies within ten tiles of the start
+  (`witness_mission`). That structure states condition (c) as fewer than all, so the class is not
+  thereby shown to be a concealed class (sentence 5 of contract 2 in `docs/mission-contract.md`).
+  Of the executed grid world it is the one world and visit length at which the tree proves a class
+  to meet that structure; no theorem says a shorter visit fails. Every member's target lies within
+  ten tiles of the start
   (`AcornVerif.CurrentConcealedTarget.feasible_window`), so the class has at most 392 members
   (`rung_members`); that window, tiles 22 to 42 on both axes, lies inside the box.
 - **No deer and no food, so that every frame is proved small.** In a world that admits neither,
@@ -257,8 +263,9 @@ theorem rung_reach (criterion : Criterion) (dimension : Dimension) {actions : Na
 
 /-- **The members of the first rung.** Every member's target lies within ten tiles of the start
 on both axes, so the class has at most 392 members. It has at least 147
-(`AcornVerif.CurrentConcealedTargetMission.witness_mission` lists that many distinct members), and
-its covering bound is 98. -/
+(`AcornVerif.CurrentConcealedTargetMission.witness_mission` lists that many distinct members). The
+covering bound its theorems are stated at is 98, and
+`AcornVerif.CurrentForkedTargetBoth.feasibleFind_covered_sharp` proves the sharper bound 49. -/
 theorem rung_members (mode : TaskFeatureMode)
     (members : Finset (feasibleFind witnessConfig mode witnessLive 7).Index) :
     members.card ≤ 392 :=
@@ -279,7 +286,11 @@ over the class with that horizon and that number of lapses. It is
 predicate. Of its premises two are proved, for the executed agent itself: the one on memory
 (`rung_memory_bounded`) and the one on finding, with `last` at 72 and `spare` at 3
 (`AcornVerif.CurrentConcealedTargetRungFinds.rung_finds`). The horizon, the number of lapses and
-the visit `limit` are not fixed here: the statement holds at each. -/
+the visit `limit` are not fixed here: the statement holds at each. The statement meant is the Lean
+one, `Mission`: it keeps the comparison of 2026-11-03, read before the horizon as decided on
+2026-11-17, and is not the postcondition as the owner confirmed it on 2026-11-20;
+`lean/AcornVerif/Intent/MissionTheorem.lean` sets out the difference under what the proposition does
+not say. -/
 theorem rung_mission (planning : PlanningSelection) (horizon lapses last limit spare : ℕ)
     (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
       witnessLive 7).Index)

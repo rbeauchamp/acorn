@@ -1,7 +1,7 @@
 # Acorn
 
-Acorn pursues [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission): agents that learn
-from experience to achieve goals in big worlds. We tackle the challenges of the
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. We tackle the challenges of the
 [Alberta Plan](https://arxiv.org/abs/2208.11173v3) by developing and verifying
 continual learning and planning algorithms in Lean. The agent learns one
 observation at a time, without replay buffers or curated training data.
@@ -26,10 +26,9 @@ each person and agent with what has landed.
 
 ## Purpose and worlds
 
-Acorn's highest-level goal is Oak Lab's mission, in its own words: "Our goal is
-to discover and implement algorithms that allow agents to achieve goals in big
-worlds." The mission places no limit on which world: Acorn's agent must be able
-to learn and generalize in any big world. Acorn may restrict its worlds at first,
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. The mission places no limit on which world: Acorn's
+agent must be able to learn and generalize in any big world. Acorn may restrict its worlds at first,
 to make progress practical, but each restriction is a step toward that end, not a
 narrowing of it. The [roadmap](docs/roadmap.md) gives the order of work below
 the mission: the first class of worlds is decided, and the order of the classes
@@ -98,8 +97,11 @@ Choosing and shaping worlds well needs a model of what a big world is. The missi
 contract states the conditions that make a class of worlds concealed, that make
 perceiving needed in it, and that make it big for a stated bound on the agent
 ([contract 2](docs/mission-contract.md#contract-2-what-makes-a-class-of-worlds-big)).
-The three that make a class concealed are proved of one class in the tile world,
-which is not a big class, with no claim yet that the agent learns there; proving them of chosen classes is open
+Of one class in the tile world the first two of the three that make a class
+concealed are proved, and a weaker form of the third: an agent that keeps nothing
+of its experience solves fewer than all of the class, a share not shown to be small.
+So that class is not yet shown to be concealed, and it is not a big class, with no
+claim yet that the agent learns there; proving them of chosen classes is open
 work, in the issues on that contract's record
 ([#214](https://github.com/rbeauchamp/acorn/issues/214)), ARC-AGI-3 games
 as a class of worlds ([#71](https://github.com/rbeauchamp/acorn/issues/71)) and a

@@ -63,11 +63,10 @@ release before 1.0.
 instructions an agent can follow, and how the [mission board](docs/mission-board.md)
 credits what has landed. This section states the rules those instructions rest on.
 
-Acorn's missions serve [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission):
-discovering and implementing algorithms that allow agents to achieve goals in
-big worlds, and formally proving that they work—that the agent achieves goals
-over a formally modelled class of big worlds. In Acorn, missions are the work
-that serves it, and each mission's
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. Pursuing it here means formally proving that they
+work—that the agent achieves goals over a formally modelled class of big worlds.
+In Acorn, missions are the work that serves it, and each mission's
 acceptance is decided by the stated theorem or contract checked by Lean's
 kernel and the repository gate (`./scripts/gate.sh`). Landing a mission is not
 by that fact a discovery: a discovery is an algorithm nobody has published, and
@@ -87,9 +86,10 @@ worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
 [Microduck](https://github.com/pollen-robotics/microduck)) still
 matters as a smoke test and demonstration, never acceptance evidence.
 
-Because the mission is to discover and implement algorithms, a mission's
-theorem is about an executable Acorn definition—the algorithm itself. A proof
-that some algorithm merely exists, without exhibiting an executable definition,
+Because the mission stated above asks for algorithms that are discovered and
+implemented, a mission's theorem is about an executable Acorn definition—the
+algorithm itself. A proof that some algorithm merely exists, without exhibiting
+an executable definition,
 is not a mission result, though it may serve as a lemma. Proofs about that
 executable definition may use Lean's standard classical axioms (propext,
 Quot.sound and Classical.choice, the standard-logical profile enforced by the

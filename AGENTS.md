@@ -1,7 +1,7 @@
 # Working on Acorn
 
-Acorn pursues Oak Lab's mission: agents that learn from experience to achieve
-goals in big worlds. The Alberta Plan guides its work on continual learning and
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. The Alberta Plan guides its work on continual learning and
 planning in Lean. [Design](docs/design.md) owns implementation coverage;
 [prior-art review](docs/prior-art-review.md) owns technical admission and default
 qualification; [learned-only binding](docs/learned-only-binding.md) owns departures.

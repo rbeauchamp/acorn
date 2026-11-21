@@ -46,7 +46,7 @@ The owner's time is an estimate by the assistant supervising the work, from the 
 
 ## Recommendation: which Acorn contracts owner-level records should describe
 
-Acorn's purpose, from its README, is agents that learn from experience to achieve goals in big worlds, learning one observation at a time from one continuous stream, with the algorithms developed and verified in Lean.
+Acorn's mission is to discover and implement algorithms that enable agents to achieve goals in big worlds. Its README adds how: learning one observation at a time from one continuous stream, with the algorithms developed and verified in Lean.
 Owner-level intent records belong at the contracts that purpose names, where the owner holds intent and an implementation can change beneath them:
 
 1. **The agent's interface with a world.** What the agent receives each step (an observation, which carries any further signal such as a task signal, and a scalar reward) and what it returns (an action), with no other channel: the agent cannot read a world's internals, and a host or the viewer cannot alter its learning decisions. This is the contract every world, the tile world, ARC-AGI-3 games and [Microduck](https://github.com/pollen-robotics/microduck) alike, must meet, and the one the owner's chosen worlds exercise.

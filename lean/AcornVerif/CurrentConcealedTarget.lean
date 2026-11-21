@@ -51,12 +51,14 @@ for every target (`find_task`). A walk of `cap` steps comes within three tiles o
   The executed step along the three walks (`witness_walk`) reduces structurally to elevation-only
   terrain checks on the 21 entered tiles (`fbm_eq_fastFbm`, discharging moisture via
   `CurrentTerrain.fbm_isOk`); the count is structural.
-- **A class with conditions (a) to (c).** `findClass` holds targets no walk can reach within a
-  visit. `feasibleFind` holds the concealed targets a visit can meet, so its members are feasible
-  by how it is indexed; it keeps the concealment and the bound (`feasibleFind_conceals`,
-  `feasibleFind_covered`). In the same world, with visits of seven steps, the 147 members above
-  make it a `Kernel.ConcealedClass` with the bound 98 (`witness_concealed`). This says nothing about
-  obligation 4 of `docs/mission-contract.md`, the goal-information and exploration premises.
+- **A class with the kernel's form of conditions (a) to (c).** `findClass` holds targets no walk
+  can reach within a visit. `feasibleFind` holds the concealed targets a visit can meet, so its
+  members are feasible by how it is indexed; it keeps the concealment and the bound
+  (`feasibleFind_conceals`, `feasibleFind_covered`). In the same world, with visits of seven
+  steps, the 147 members above make it a `Kernel.ConcealedClass` with the bound 98
+  (`witness_concealed`). This says nothing about obligation 4 of `docs/mission-contract.md`, the
+  goal-information and exploration premises. That structure states condition (c) as fewer than
+  all, so the class is not thereby shown to be a concealed class (sentence 5 of contract 2 there).
   Every member's target lies within `3 + length` tiles of the start, for every terrain
   (`feasible_window`), so the class is finite, with at most `(2 (3 + length) + 1)² - 49` members
   (`feasible_count`): at most 392 for visits of seven steps.
@@ -1362,7 +1364,7 @@ theorem witness_separation (mode : TaskFeatureMode) :
     2 explored (by rw [count]; decide)
   exact ⟨members, by rw [count]; decide, separated⟩
 
-/-! ## A class with conditions (a) to (c) -/
+/-! ## A class with the kernel's form of conditions (a) to (c) -/
 
 /-- The concealed targets some action sequence meets within a visit of `length` steps. -/
 def feasibleFind (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
@@ -1436,8 +1438,8 @@ theorem feasible_count (mode : TaskFeatureMode) (live : Live config) (length : �
         rw [Finset.card_sdiff_of_subset nested, card_box, card_box]
 
 /-- In every admitted world, a finite set of more feasible concealed targets than the covering
-bound makes the class concealed. Feasibility holds by how the class is indexed, so the theorem's
-content is the concealment, the bound and the count. -/
+bound makes the class a `Kernel.ConcealedClass`. Feasibility holds by how the class is indexed, so
+the theorem's content is the concealment, the bound and the count. -/
 theorem feasibleFind_concealed_of (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (length : ℕ)
     (members : Finset (feasibleFind config mode live length).Index)
@@ -1452,12 +1454,16 @@ theorem feasibleFind_concealed_of (config : Host.WorldConfig) (mode : TaskFeatur
      members := members
      large := many }⟩
 
-/-- **A class meeting conditions (a) to (c).** In the witness's world, at seed 1 and side 64, with
-visits of seven steps, the feasible concealed targets are a concealed class with the bound 98: the
+/-- **A class meeting the kernel's form of conditions (a) to (c).** In the witness's world, at
+seed 1 and side 64, with visits of seven steps, the feasible concealed targets are a
+`Kernel.ConcealedClass` with the bound 98: the
 147 members of `witness_separation` are each feasible, since each is solved on a visit. This is a
 lemma the mission theorem on the first class of the ladder uses. It says nothing about obligation 4
 of `docs/mission-contract.md`, the goal-information and exploration premises, and it is no result
-about learning. -/
+about learning. That structure states condition (c) as fewer than all, so the class is not thereby
+shown to be a concealed class (sentence 5 of contract 2 there). The bound 98 is the one this
+theorem is stated at; `AcornVerif.CurrentForkedTargetBoth.feasibleFind_covered_sharp` proves the
+sharper covering bound 49 of the same class. -/
 theorem witness_concealed (mode : TaskFeatureMode) :
     Nonempty (Kernel.ConcealedClass (feasibleFind witnessConfig mode witnessLive 7)
       (fun _ => completion witnessConfig mode 7) 7 (49 + 7 * 7)) := by

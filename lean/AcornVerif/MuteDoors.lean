@@ -11,7 +11,8 @@ import AcornVerif.CuedDoorsPupil
 * `muteConcealed`, `mute_unlearnable`: the kernel's `ConcealedClass`, the form of conditions (a)
   to (c) for a class concealed behind one reference world, holds of a class of two members that
   show one percept at every state. In it no agent solves both members on any visit, so no agent
-  ever exceeds the covering bound: the class meets (a) to (c)
+  ever exceeds the covering bound: the class meets (a), (b) and the count that is the kernel's
+  form of (c), an agent that keeps nothing solving at most one of its two members,
   and nothing can be learned in it. This is the obstruction `docs/mission-contract.md` argues
   under contract 2, machine-checked. The intent record of contract 2 excludes the class by its
   clause that success shows.
@@ -29,7 +30,7 @@ open Acorn.Features
 
 variable {interface : Interface}
 
-/-! ## Concealed by (a) to (c), with nothing to learn -/
+/-! ## A `ConcealedClass` with nothing to learn -/
 
 /-- One of two different actions. -/
 def pick (two : 2 ≤ interface.actions.word.toNat) (door : Bool) : Act interface :=
@@ -68,8 +69,10 @@ theorem mute_met (two : 2 ≤ interface.actions.word.toNat) (shown : Percept int
   have outcome : some (actions 0) = some (pick two door) := reached
   exact Option.some.inj outcome
 
-/-- **The mute doors are a concealed class**, conditions (a) to (c) behind one reference world,
-with visits of one step and the covering bound one. -/
+/-- **The mute doors are a `ConcealedClass`**, the kernel's form of conditions (a) to (c) behind
+one reference world, with visits of one step and the covering bound one against its two members.
+Whether one of two is the small share that condition (c) of `docs/mission-contract.md` asks is not
+established (obligation 32 there). -/
 def muteConcealed (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface) :
     ConcealedClass (mute interface shown) (muteGoals two shown) 1 1 where
   reference := firstActionWorld interface shown
