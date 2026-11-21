@@ -54,6 +54,9 @@ tag := "platform-setup"
 
 Use `./scripts/start.sh` for automatic setup and launch, or
 `./scripts/start.sh --prepare-only` to prepare and build without learning.
+Launch runs the agent, so in work on a change it needs the owner's authorization
+for that run; [running a program](../CONTRIBUTING.md#running-a-program) says
+which commands run the agent.
 It uses Homebrew on macOS and apt-get on Ubuntu/Debian. It installs missing
 prerequisites and provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
@@ -123,7 +126,8 @@ tag := "headless-and-advanced-launch"
 `--run-dir DIR` selects another run directory and `--port N` selects a port;
 the default port is allocated by the OS. Browser opening is optional and its
 failure does not stop the agent. Use `./scripts/start.sh --help` for the launcher
-options. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
+options. Every launch starts the agent, with or without a browser; `--help` and
+`--prepare-only` stop before the launch. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
 
 ## Interrupted-launch recovery
 %%%
@@ -1084,8 +1088,10 @@ meta span there (PAR-8, D3);
 the declared-rate and differential pins also record the stable, sign-correct
 reward-respecting subtasks, assigned at every free decision boundary, and the
 declared-rate dynamics decision. The fixed audit arms
-are compared through these paired digests. Run these optional diagnostics
-when investigating a dynamics change.
+are compared through these paired digests. Each arm is a run of the agent. Run
+these optional diagnostics when investigating a dynamics change, on the owner's
+authorization for that run
+([running a program](../CONTRIBUTING.md#running-a-program)).
 
 # Checkpoint admission
 %%%

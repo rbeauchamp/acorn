@@ -44,6 +44,11 @@ test or a diagnostic that only chooses a direction. What deterministic code does
 at a fixed seed is a mathematical question. Before proposing a run, state the
 question and why derivation or proof cannot answer it effectively and
 efficiently, with the cost of each, and obtain the owner's authorization.
+No step of work on a change starts a program that steps the agent or one of its
+learners over percepts, whatever the step is for, unless the owner's
+authorization for that run is stated in the change's intent;
+[running a program](CONTRIBUTING.md#running-a-program) says where each program
+is classed.
 Computing data that a proof then checks is proof search, not a run.
 
 The habit of evaluation returns through specifications. When a specification

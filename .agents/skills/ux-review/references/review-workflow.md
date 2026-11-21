@@ -1,8 +1,10 @@
 # UX review prompts
 
 Use the questions relevant to the changed viewer behavior; one reviewer can
-cover them together. Inspect the rendered build and DOM, not a remembered image.
-A missing relevant state is a limitation to disclose, not an assumed pass.
+cover them together. Inspect the rendered build and DOM, not a remembered image,
+served as [capture guidance](capture-evidence.md) says, which starts no core.
+A missing relevant state is a limitation to disclose, not an assumed pass, and
+never a reason to start the agent without the owner's authorization for that run.
 
 | Prompt | Audience | Question |
 |---|---|---|

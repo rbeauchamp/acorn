@@ -28,7 +28,19 @@ invariants and design references. A violated spec or repository rule is a defect
 a preference where both are silent is explicitly design judgment.
 
 Inspect the actual rendered build and the states/geometries affected by the
-change. Read [capture guidance](references/capture-evidence.md) when using browser
+change. Serve the page only as the Test instructions of `.no-mistakes.yaml` say
+under "Driving the viewer": from an explicitly stopped state, with a child
+command that cannot be a core. Started as the launcher and the documents start
+it, the viewer starts the agent, and with no state file in its run directory it
+starts running without being asked: its supervisor launches its child, which is
+the core unless the command line names another command. No step starts a
+program that steps the agent or one of its learners unless the owner's
+authorization for that run is stated in the change's intent
+([running a program](../../../CONTRIBUTING.md#running-a-program)).
+A smoke test or a screenshot of the viewer running the core is such a run.
+A running or populated state that no authorized run supplies is a limitation to
+disclose, never a reason to start one.
+Read [capture guidance](references/capture-evidence.md) when using browser
 evidence and [review prompts](references/review-workflow.md) for the relevant UX
 questions. One reviewer can cover them together; there is no fixed nine-agent
 review, capture manifest or repeated full pass.

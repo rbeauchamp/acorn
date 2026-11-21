@@ -11,6 +11,12 @@ With no options, prepare and build Acorn, open the browser, and start or resume
 the continuous agent. Stop in the viewer, or press Ctrl-C here to finish the
 current attempt and close the viewer. Saved learner state stays in acorn-run/.
 
+Every invocation that reaches the launch starts the agent, with or without a
+browser; --help and --prepare-only stop before it. In work on a change to
+Acorn, no step starts the agent or one of its learners unless the owner's
+authorization for that run is stated in the change's intent (CONTRIBUTING.md,
+"Running a program").
+
   --no-browser    Print the viewer URL without opening a browser.
   --prepare-only  Install prerequisites and build, without starting a run.
   --run-dir DIR   Use another run directory (relative paths use the repo root).

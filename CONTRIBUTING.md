@@ -84,7 +84,8 @@ single blind step (Liew, 2026,
 [arXiv:2605.25931](https://arxiv.org/abs/2605.25931)). Running the agent in its
 worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
 [Microduck](https://github.com/pollen-robotics/microduck)) still
-matters as a smoke test and demonstration, never acceptance evidence.
+matters as a smoke test and demonstration, never acceptance evidence, and each
+such run needs the owner's authorization ([running a program](#running-a-program)).
 
 Because the mission stated above asks for algorithms that are discovered and
 implemented, a mission's theorem is about an executable Acorn definition—the
@@ -301,6 +302,42 @@ proof obligation. Scientific execution requires explicitly authorized scope.
 A run is the last resort, a smoke test or a diagnostic that only chooses a
 direction included: [AGENTS](AGENTS.md#correct-by-construction) says what must be
 shown before one is proposed.
+
+### Running a program
+
+On 2026-11-19 the owner of the project ruled that no one runs Acorn's agent, or
+one of its learners, without the owner's authorization for that run: not the
+compiled program, not evaluation inside Lean, not a re-implementation. So no
+step of work on a change starts a program that steps the agent or a learner over
+percepts unless the owner's authorization for that run is stated in the change's
+intent. What the step is for, and what the run is called, do not matter: a look
+at the viewer's page, a screenshot, a smoke test and a diagnostic are all
+covered. A smoke test of the core is a run of a learner, and a smoke test of the
+viewer with the core as its child is treated as one.
+
+Some of Acorn's programs step a learner without being asked to. The viewer,
+started with no state file in its run directory, starts in the running state,
+and its supervisor launches its child process, which is the core unless the
+command line names another command. The launcher `./scripts/start.sh` starts
+the viewer with the core as its child and a request to start. The diagnostics
+argument of `./scripts/verify.sh` runs the mutation audit, which runs the agent.
+
+The Test instructions of `.no-mistakes.yaml` are the one place that says, for
+each executable that `lean/lakefile.lean` declares, whether running it steps a
+learner and how to drive it so that it does not. Read them before starting an
+Acorn program, and treat a program or a way of running one that they do not name
+as stepping a learner.
+
+The rule forbids no other drive. Building, the merge gate and the audit tools
+start no program that steps a learner, and neither do the drives those
+instructions list, such as the viewer serving its page from an explicitly stopped state with a child command
+that cannot be a core. Those drives are still asked for where a change alters
+what a program does. A drive that steps a learner stays available on the owner's
+authorization, for the run it names. A claim that cannot be shown without
+stepping a learner is reported open with that reason, never driven.
+
+The rule is an instruction, which the people and agents who work on Acorn
+follow. No program refuses the run.
 
 ### Proof-shaped specifications
 
