@@ -11,11 +11,9 @@ With no options, prepare and build Acorn, open the browser, and start or resume
 the continuous agent. Stop in the viewer, or press Ctrl-C here to finish the
 current attempt and close the viewer. Saved learner state stays in acorn-run/.
 
-Every invocation that reaches the launch starts the agent, with or without a
-browser; --help and --prepare-only stop before it. In work on a change to
-Acorn, no step starts the agent or one of its learners unless the owner's
-authorization for that run is stated in the change's intent (CONTRIBUTING.md,
-"Running a program").
+--help and --prepare-only stop before the launch. In work on a change to
+Acorn, a launch is made only with the owner's authorization for that run,
+stated in the change's intent (CONTRIBUTING.md, "Running a program").
 
   --no-browser    Print the viewer URL without opening a browser.
   --prepare-only  Install prerequisites and build, without starting a run.
@@ -175,7 +173,7 @@ phase='build'
 printf 'Building Acorn (subsequent launches reuse unchanged build outputs)…\n'
 ./scripts/lean.sh build acorn-viewer
 if [[ "$prepare_only" == 1 ]]; then
-  printf 'Acorn is built. ./scripts/start.sh opens the viewer and starts the agent. In work on a change to Acorn, run it only with the authorization of the owner for that run (CONTRIBUTING.md, Running a program).\n'
+  printf 'Acorn is built. ./scripts/start.sh launches it. In work on a change to Acorn, launch it only with the authorization of the owner for that run (CONTRIBUTING.md, Running a program).\n'
   exit 0
 fi
 

@@ -56,10 +56,11 @@ remove, and establish appropriate replacement coverage before retiring it.
 
 Establish preservation through the repaired guarantees' types, derivations or
 proofs and their execution links, using the proof standard's questions. Run the verification required by
-`AGENTS.md` on the final changes. The compiled audit arms run the agent: run the
-applicable ones only on the owner's authorization for that run, stated in the
-change's intent ([running a program](../../../../CONTRIBUTING.md#running-a-program)),
-and otherwise report the pins as not rechecked. Matching audit pins establish agreement only for
+`AGENTS.md` on the final changes. The compiled audit arms are not on the closed
+list of the Test instructions: run the applicable ones only on the owner's
+authorization for that run, stated in the change's intent
+([running a program](../../../../CONTRIBUTING.md#running-a-program)), and
+otherwise report the pins as not rechecked. Matching audit pins establish agreement only for
 the audited executions; they cannot establish universal behavior preservation.
 Investigate unexpected digest or checksum movement without re-pinning a supposed
 simplification. Report remaining assumptions or proof gaps explicitly.

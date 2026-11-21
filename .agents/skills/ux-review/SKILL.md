@@ -30,14 +30,14 @@ a preference where both are silent is explicitly design judgment.
 Inspect the actual rendered build and the states/geometries affected by the
 change. Serve the page only by the recipe that the Test instructions of
 `.no-mistakes.yaml` give under "Driving the viewer": from an explicitly stopped
-state, with a child command that cannot be a core. Started as the launcher and
-the documents start it, the viewer starts the agent, and with no state file in
-its run directory it starts running without being asked: its supervisor launches
-its child, which is the core unless the command line names another command. No
-step starts a program that steps the agent or one of its learners unless the
-owner's authorization for that run is stated in the change's intent ([running a
-program](../../../CONTRIBUTING.md#running-a-program)). A smoke test or a
-screenshot of the viewer running the core is such a run. In a viewer started by
+state, with a child command that cannot be a core. That recipe is the one start
+of the viewer on the closed list of those instructions; every other start needs
+the owner's authorization for that run, stated in the change's intent ([running
+a program](../../../CONTRIBUTING.md#running-a-program)), a smoke test or a
+screenshot included. The recipe answers a fact: with no state file in its run
+directory the viewer starts running without being asked, and its supervisor
+launches its child, which is the core unless the command line names another
+command. In a viewer started by
 that recipe, and in no other, the page's Start button may be pressed: the only
 child it can start is a command that is no core, and its exit shows the
 lifecycle and its handling of a failed child. A state that only a core supplies

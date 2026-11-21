@@ -126,10 +126,10 @@ require system installation prompts; subsequent launches reuse installed
 dependencies and unchanged build outputs. Automatic setup supports macOS and
 Ubuntu/Debian Linux.
 
-The launcher runs the agent. Work on a change to Acorn starts it only on the
-owner's authorization for that run:
-[CONTRIBUTING](CONTRIBUTING.md#running-a-program) says which programs run the
-agent and how to drive each one without it.
+Work on a change to Acorn runs the launcher only on the owner's authorization
+for that run: [CONTRIBUTING](CONTRIBUTING.md#running-a-program) says where the
+invocations that such work may drive without it are listed, and a launch is not
+among them.
 
 <details>
 <summary>Need to get the code first?</summary>

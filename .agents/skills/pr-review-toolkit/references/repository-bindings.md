@@ -8,7 +8,7 @@ audit mutations. In this repository those categories have concrete owners:
 |---|---|---|
 | Universal Lean theorem | `lean/`, axiom-audited in `AcornTools/AxiomPins.lean` | `./scripts/verify.sh` — source/compiled policy, execution links, native routes and the theorem inventory; `./scripts/regula.sh` — the Regula audit, Regula's proof verdict for a project not aimed at the checker or the toolchain: `lake lint` replays the claim's cone in Lean's kernel and runs Regula's rules on axioms, holes, `unsafe` or `partial` declarations and loops; provision the pinned dependencies separately, as [platform setup](../../../../docs/verification.md#platform-setup) describes |
 | Typed invariant / compiler refinement | current proof-bearing Lean state, private construction and typed admission | `./scripts/lean.sh build acorn-core acorn-viewer`; the complete suite checks every discovered module |
-| Deterministic audit mutation | `Acorn.Host.AuditPins` and printed pin/checksum pairs | explicit `./scripts/verify.sh diagnostics` runs the derived, annealed and differential arms, each a run of the agent, so only on the owner's authorization for that run, stated in the change's intent ([running a program](../../../../CONTRIBUTING.md#running-a-program)); a moved digest on a semantics-preserving change is a finding, not a re-pin |
+| Deterministic audit mutation | `Acorn.Host.AuditPins` and printed pin/checksum pairs | explicit `./scripts/verify.sh diagnostics` runs the declared, annealed and differential arms; it is not on the closed list of the Test instructions, so it is run only on the owner's authorization for that run, stated in the change's intent ([running a program](../../../../CONTRIBUTING.md#running-a-program)); a moved digest on a semantics-preserving change is a finding, not a re-pin |
 | Gate tamper-sensitivity | actual changed Lean gate owner | use a disposable missing-owner, bypass or stale-dependency mutation where it bears on the changed admission contract; restore before the final pass |
 | Constant identity | direct imports of owning constants; `AcornVerif.CurrentConstants` for the stated rational and dimensional interface | the complete Lean compiler and axiom checks; current constants have no cross-language emitter |
 
@@ -20,9 +20,9 @@ and hypotheses.
 The complete local merge command is `./scripts/verify.sh`. Optional mutation
 diagnostics use `./scripts/verify.sh diagnostics`; neither substitutes for proofs
 or constitutes a scientific study. Both modes retain the hard 360-second budget.
-The diagnostics run the agent and the merge command does not: start them only on
-the owner's authorization for that run, and otherwise report the pins as not
-rechecked.
+The merge command is on the closed list of the Test instructions and the
+diagnostics are not: start them only on the owner's authorization for that run,
+and otherwise report the pins as not rechecked.
 Record compiler-backed theorem counts with their scope when proofs or gates
 change. A count is not a correctness score. Inspect check output; retain failure
 diagnostics only while they help resolve an open problem.

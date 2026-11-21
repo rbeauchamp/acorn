@@ -1,10 +1,10 @@
 #!/bin/bash
 # Complete local merge checks in the actual Git checkout, within six minutes.
-# Arguments pass to acorn-gates. With none, or with build-executing, site or
-# site write, no program that steps Acorn's agent or a learner is started. With
-# diagnostics, acorn-core audit runs three times, and each is a run of the agent:
-# start it only on the owner's authorization for that run (CONTRIBUTING.md,
-# "Running a program").
+# Arguments pass to acorn-gates. The closed list in the Test instructions of
+# .no-mistakes.yaml admits this script with no argument, with build-executing,
+# with site and with site write. With diagnostics it is not on that list: in
+# work on a change, run it only on the owner's authorization for that run
+# (CONTRIBUTING.md, "Running a program").
 set -euo pipefail
 
 if command -v gtimeout >/dev/null 2>&1; then

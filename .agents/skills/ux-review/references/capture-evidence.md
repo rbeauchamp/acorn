@@ -20,8 +20,8 @@ that run may be started and the states it supplies inspected, and nothing wider.
 It reaches no other rule of the review. Inspect the affected panels, controls
 and lifecycle states against `docs/viewer-ux.md`. For layout changes, check the
 applicable wide/compact geometries; for data changes, inspect the relevant
-populated and missing/fault states. A state that only a core supplies is a run
-of the agent: disclose it as not inspected. There is no mandatory capture bundle
+populated and missing/fault states. A state that only a core supplies needs a
+start that is not on the closed list: disclose it as not inspected. There is no mandatory capture bundle
 for an unrelated copy or code change.
 
 Use supported browser tools. Read DOM values/styles alongside pixels when they

@@ -687,44 +687,49 @@ On 2026-11-19 the owner of the project ruled that no one makes a run of Acorn's
 agent, or of one of its learners, without the owner's authorization for that
 run. [What counts as a run](#what-counts-as-a-run) defines a run, by whatever
 means it is made, and this section adds nothing to that definition: it says
-which of Acorn's programs make one. So no step of work on a change starts a
-program that steps the agent or a learner over percepts unless the owner's
+how the rule is applied to Acorn's programs. No step of work on a change starts
+a program that steps the agent or a learner over percepts unless the owner's
 authorization for that run is stated in the change's intent. What the step is
 for, and what the run is called, do not matter: a look at the viewer's page, a
-screenshot, a smoke test and a diagnostic are all covered. A smoke test in which
-the core runs its agent is a run of a learner, and a smoke test of the viewer
-with the core as its child is treated as one.
+screenshot, a smoke test and a diagnostic are all covered.
 
-Some of Acorn's programs step a learner without being asked to. The viewer,
+The rule is applied through a closed list. The Test instructions of
+`.no-mistakes.yaml` hold the exact invocations of Acorn's executables that work
+on a change may drive without the owner's authorization, each written out token
+for token. Read them before starting an Acorn program, and drive a program only
+by an invocation written there. Every other invocation needs the owner's
+authorization for that run, stated in the change's intent, whether or not it
+would step a learner. The list is policy, and it says nothing about what an
+unlisted invocation does: some invocations are left off that would step
+nothing, to keep the list closed and exact. An invocation joins the list by a
+reviewed change to it, once its source has been read, and no one decides an
+unlisted invocation for themselves while a change is being validated. Asking a
+program for help is an invocation like any other. An entry is on the list
+because its source shows that it takes no step; where a change touches an
+entry's program, that reading is made again on the change's head before the
+entry is driven.
+
+The list answers a fact that a validation step met on 2026-11-21: the viewer,
 started with no state file in its run directory, starts in the running state,
 and its supervisor launches its child process, which is the core unless the
-command line names another command. The launcher `./scripts/start.sh` starts
-the viewer with the core as its child and a request to start. The diagnostics
-argument of `./scripts/verify.sh` runs the mutation audit, which runs the agent.
+command line names another command. So the one start of the viewer on the list
+is from an explicitly stopped state with a child command that cannot be a core.
 
-The Test instructions of `.no-mistakes.yaml` are the one place that says, for
-each executable that `lean/lakefile.lean` declares, whether running it steps a
-learner and which invocations of it do not, each written out exactly or as a
-family with a written criterion. Read them before starting an Acorn program.
-Their list is closed: treat a program they do not name, and an invocation that
-no line of theirs covers, as stepping a learner. That means not yet shown, never
-forbidden for ever: a drive established to step nothing joins the list by a
-reviewed change to it, and no one decides an uncovered invocation for themselves
-while a change is being validated. Asking a program for help is an invocation
-like any other. The same instructions say, in their paragraph on files that an
-earlier run left, which files that a run of the agent or a learner produced a
-step neither opens nor cites; read it before opening anything in a run directory
-or an evidence directory, in a validation step and in a repair round alike.
+The same instructions say, in their paragraph on files that an earlier run
+left, which files that a run of the agent or a learner produced a step neither
+opens nor cites; read it before opening anything in a run directory or an
+evidence directory, in a validation step and in a repair round alike. They also
+say when the launcher `./scripts/start.sh` may be run. Its preparation can
+install on the machine, and an agent lets it do that only where the person it
+works for has agreed to it.
 
-The rule forbids no other drive. Building and the merge gate start no program
-that steps a learner. Neither do the audit tools in the modes those instructions
-list; the diagnostics argument of the gate tool is the one mode that does.
-Neither do the drives listed there, such as the viewer serving its page from an
-explicitly stopped state with a child command that cannot be a core. Those
-drives are still asked for where a change alters what a program does. Where a
-change's intent states the owner's authorization for a particular run, exactly
-that run may be driven as well, and nothing wider. A claim that cannot be shown
-without stepping a learner is reported open with that reason, never driven.
+The listed drives stay available, and they are still asked for where a change
+alters what a program does: building, the merge gate, the audit tools in the
+modes the list gives, and the viewer serving its page from a stopped state are
+among them. Where a change's intent states the owner's authorization for a
+particular run, exactly that run may be driven as well, and nothing wider.
+Where it states none, a claim that cannot be shown by a listed drive is
+reported open with that reason and is not driven.
 
 The rule is an instruction, which the people and agents who work on Acorn
 follow. No program refuses the run.

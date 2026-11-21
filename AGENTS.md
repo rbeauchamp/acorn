@@ -56,9 +56,9 @@ and what every pull request lists of the computations made on the agent.
 No step of work on a change starts a program that steps the agent or one of its
 learners over percepts, whatever the step is for, unless the owner's
 authorization for that run is stated in the change's intent;
-[running a program](CONTRIBUTING.md#running-a-program) says where each program
-is classed, and where to read which files that such a run produced no step
-opens.
+[running a program](CONTRIBUTING.md#running-a-program) says where the
+invocations that may be driven without that authorization are listed, and where
+to read which files that such a run produced no step opens.
 
 The habit of evaluation returns through specifications. When a specification
 seems to need a run to check it, treat that first as a defect in the

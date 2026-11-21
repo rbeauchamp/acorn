@@ -2110,9 +2110,10 @@ discipline, and **F** an unresolved research question.
 
 The [launcher](../scripts/start.sh) supplies the walkthrough settings. You do
 not need to select these flags to use it; this section is for investigating the
-configuration or running the core directly. Each command below that starts the
-core runs the agent; in work on a change that needs the owner's authorization
-for the run ([running a program](../CONTRIBUTING.md#running-a-program)).
+configuration or running the core directly. In work on a change, a command
+below that starts the core is driven only on the owner's authorization for that
+run, unless it is on the closed list that
+[running a program](../CONTRIBUTING.md#running-a-program) points to.
 
 A **research profile** is a named combination of agent mechanisms, selected with
 `--research-profile`.
@@ -2419,7 +2420,8 @@ separator such as `_` and white space are refused
 of terrain coordinates of `world-native terrain X Y SEED SCALE_BITS`, which take an
 optional leading `-` or `+` and range from -2^63 to 2^63 - 1.
 
-After building with the launcher, a short terminal example, which runs the agent
+After building with the launcher, a short terminal example, which in work on a
+change needs the owner's authorization
 ([running a program](../CONTRIBUTING.md#running-a-program)), is:
 
 ```sh
