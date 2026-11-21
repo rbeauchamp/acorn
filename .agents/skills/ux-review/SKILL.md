@@ -35,21 +35,23 @@ the documents start it, the viewer starts the agent, and with no state file in
 its run directory it starts running without being asked: its supervisor launches
 its child, which is the core unless the command line names another command. No
 step starts a program that steps the agent or one of its learners unless the
-owner's authorization for that run is stated in the change's intent
-([running a program](../../../CONTRIBUTING.md#running-a-program)). A smoke test
-or a screenshot of the viewer running the core is such a run. In a viewer
-started by that recipe, and in no other, the page's Start button may be pressed:
-the only child it can start is a command that is no core, and its exit shows the
+owner's authorization for that run is stated in the change's intent ([running a
+program](../../../CONTRIBUTING.md#running-a-program)). A smoke test or a
+screenshot of the viewer running the core is such a run. In a viewer started by
+that recipe, and in no other, the page's Start button may be pressed: the only
+child it can start is a command that is no core, and its exit shows the
 lifecycle and its handling of a failed child. A state that only a core supplies
 is a limitation to disclose, never a reason to start one. One sentence on
-authorization governs every direction in this skill: each only and each never
-binds a review whose change's intent states no authorization for that act, and
-where the intent states the owner's authorization for a particular act, exactly
-that act is allowed, and nothing wider. Read
-[capture guidance](references/capture-evidence.md) when using browser evidence
-and [review prompts](references/review-workflow.md) for the relevant UX
-questions. One reviewer can cover them together; there is no fixed nine-agent
-review, capture manifest or repeated full pass.
+authorization governs this skill's directions on starting the viewer with a core
+and on the states that such a run supplies: each only and each never about them
+binds a review whose change's intent states no authorization for that run, and
+where the intent states the owner's authorization for a particular run, exactly
+that run may be started and the states it supplies inspected, and nothing wider.
+It reaches no other rule of the review. Read [capture
+guidance](references/capture-evidence.md) when using browser evidence and
+[review prompts](references/review-workflow.md) for the relevant UX questions.
+One reviewer can cover them together; there is no fixed nine-agent review,
+capture manifest or repeated full pass.
 
 Validate findings against the rendering, DOM and applicable spec. Distinguish a
 spec violation from design judgment. If fixes are authorized, make them and
