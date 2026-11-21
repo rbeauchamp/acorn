@@ -331,7 +331,10 @@ no line of theirs covers, as stepping a learner. That means not yet shown, never
 forbidden for ever: a drive established to step nothing joins the list by a
 reviewed change to it, and no one decides an uncovered invocation for themselves
 while a change is being validated. Asking a program for help is an invocation
-like any other.
+like any other. The same instructions say, in their paragraph on files that an
+earlier run left, which files that a run of the agent or a learner produced a
+step neither opens nor cites; read it before opening anything in a run directory
+or an evidence directory, in a validation step and in a repair round alike.
 
 The rule forbids no other drive. Building and the merge gate start no program
 that steps a learner. Neither do the audit tools in the modes those instructions
