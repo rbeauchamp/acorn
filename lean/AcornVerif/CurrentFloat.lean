@@ -8,7 +8,7 @@ import Acorn.Conversion
 /-!
 # Exact small-integer conversions and floating RNG observations
 
-The proofs unfold the standard logical definitions in Lean 4.35.0's
+The proofs unfold the standard logical definitions in Lean 4.36.0's
 `Init/Data/Float/Model/{Float,Unpacked/Round,Unpacked/Pack/Basic}.lean` and
 `Unpacked/Operations/{OfNat,Mul}.lean`. Normalization, zero-filled shifts and
 field packing are proved algebraically, without enumerating machine inputs.
@@ -132,7 +132,9 @@ theorem model_shift_exact (m shift : Nat) :
     have hp : m*2^(shift+1) = (m*2)*2^shift := by
       rw [Nat.pow_succ, Nat.mul_right_comm, Nat.mul_assoc]
     rw [hp, ih]
-    simp [ExtendedMantissa.shiftRightOne, ExtendedMantissa.ofMantissaAndAccuracy]
+    simp only [ExtendedMantissa.shiftRightOne, ExtendedMantissa.ofMantissaAndAccuracy,
+      Nat.mul_div_cancel m (by decide : 0 < 2), Nat.mul_mod_left]
+    rfl
 /-- Multiplication by a power of two shifts the leading-bit index by that exponent. -/
 theorem model_log2_scaled (m shift : Nat) (lo : 2^52 ≤ m) (hi : m < 2^53) :
     (m*2^shift).log2 = 52+shift := by

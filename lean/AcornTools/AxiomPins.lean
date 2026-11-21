@@ -1208,7 +1208,7 @@ Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentFloat.model_unpack_pack_normal
 
-/-- info: 'AcornVerif.CurrentFloat.model_shift_exact' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'AcornVerif.CurrentFloat.model_shift_exact' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms AcornVerif.CurrentFloat.model_shift_exact
 

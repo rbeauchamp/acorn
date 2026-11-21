@@ -30,7 +30,7 @@ def component (value : String) : IO String := do
   return value
 
 /-- The package directory of a locked name, computed as Lake computes it (Lake of Lean
-v4.35.0): it reads the name with `String.toName` (`FromJson Name`) and materializes the package
+v4.36.0): it reads the name with `String.toName` (`FromJson Name`) and materializes the package
 in the directory `Name.toString (escape := false)` names (`PackageEntry.dirName`). So a name Lake
 writes in Lean's escape, such as `«lean-intent»`, has the directory `lean-intent`. -/
 def packageDir (name : String) : IO String :=
@@ -122,12 +122,13 @@ def lake (overrides : System.FilePath) (args : Array String) : IO.Process.SpawnA
   stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
 
 /-- The proof bridge is the single owner of its FloatLib imports, the intent bridge and the gate's
-`AcornTools.Intent` of their lean-intent imports, and the two decision registries of their Regula
-imports. FloatLib and lean-intent publish no build cache, and verification must not compile a
-dependency inside its deadline. Lake itself decides readiness: with `--no-build` it exits 3 unless
-every artifact and trace in the import closure of the `floatlibBridge`, `regulaInterface` and
-`leanIntentBridge` targets, and every native object of the `leanIntentNative` target, is current,
-so no list of expected files is kept here. -/
+`AcornTools.Intent` of their lean-intent imports, and the two decision registries together with
+`AcornTools.Theorems` of their Regula imports. FloatLib, lean-intent and Regula publish no build
+cache, and verification must not compile a dependency inside its deadline. Lake itself decides
+readiness: with `--no-build` it exits 3 unless every artifact and trace in the import closure of
+the `floatlibBridge`, `regulaInterface` (including the native objects linked from
+`AcornTools.Theorems`'s Regula imports) and `leanIntentBridge` targets, and every native object of
+the `leanIntentNative` target, is current, so no list of expected files is kept here. -/
 def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
   let output ← IO.Process.output
     (lake overrides #["build", "--no-build", "floatlibBridge", "regulaInterface",
@@ -168,7 +169,8 @@ def run (args : List String) : IO UInt32 := do
   -- writes only the override file above and asks Lake whether the FloatLib modules
   -- the bridge imports, the lean-intent modules the intent bridge and `AcornTools.Intent`
   -- import with the native objects `AcornTools.Intent` links, and the Regula modules the
-  -- decision registries import are current.
+  -- decision registries and `AcornTools.Theorems` import with the native objects
+  -- `AcornTools.Theorems`'s consumers link are current.
   if args == ["provision-status"] then return if ready then 0 else 2
   unless ready do
     throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")

@@ -288,7 +288,7 @@ request at `:`, takes what
 follows `@` as explicit, cuts that at `/` into a package, the root package when the text before
 `/` is empty, and a target, and reads what follows the `+` of a module target with
 `String.toName` (`parseTargetSpec`, `resolveTargetBaseSpec`, `resolveTargetLikeSpec` and
-`parsePackageSpec`, Lake of Lean v4.35.0, Lake/CLI/Build.lean). So the printed name is returned
+`parsePackageSpec`, Lake of Lean v4.36.0, Lake/CLI/Build.lean). So the printed name is returned
 only when it holds neither `:` nor `/` and `String.toName` reads `module` back from it, and
 never for the anonymous name: the module Lake answers for is then the root package's module of
 the name this program imports. -/
@@ -324,9 +324,10 @@ workspace's modules it imports, each of which it answers for in the same way fir
 module as current only when the trace it recorded for the compiled files has that trace's hash
 and the files, or the archive it restores them from, exist. It exits 0 only when the module and
 every module of the workspace it imports are current, and 3 when one needs a build
-(`Module.recFetchInput`, `fetchImportInfo`, `Module.recFetchPreSetup`, `Module.recBuildLean`
-and `Module.oleanFacetConfig` in Lake/Build/Module.lean, `buildAction` in Lake/Build/Common.lean
-and `finalizeBuild` in Lake/Build/Run.lean, Lake of Lean v4.35.0). Every status but 0, the
+(`Module.recFetchInput`, `fetchImportInfo`, `Module.recFetchPreSetup`, `Module.buildLean`,
+`Module.recBuildElabArts` and `Module.oleanFacetConfig` in Lake/Build/Module.lean,
+`buildAction` in Lake/Build/Common.lean and `finalizeBuild` in Lake/Build/Run.lean,
+Lake of Lean v4.36.0). Every status but 0, the
 bootstrap's own refusals included, is refused, with the module, the status and what Lake said,
 and so is an answer that is not exactly two lines, each holding a path and ending in a line
 end, with nothing before, between or after them.

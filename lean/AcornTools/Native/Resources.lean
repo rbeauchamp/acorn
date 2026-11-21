@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Lean
 import AcornVerif.Resource.WordKernel
+import AcornTools.Boundary.Audit
 
 /-!
 # Admission of actual numerical compiler IR
@@ -382,9 +383,11 @@ def eagerInitializers (env : Environment) : IO (List Name × List String) := do
 /-- Load current compiler declarations and reject any root leaving the admitted
 fragment. Lake freshness and module-origin gates run in the enclosing suite. -/
 unsafe def audit : IO Unit := do
-  initSearchPath (← findSysroot)
+  let sysroot ← findSysroot
+  initSearchPath sysroot
+  let library ← getLibDir sysroot
   -- IR and symbol queries read imported metadata; no project initializer runs.
-  withImportModules #[{ module := `Acorn }] {} fun env => do
+  AcornBoundaryAudit.withScopedImportModules library #[{ module := `Acorn }] {} fun env => do
     let (eagerNames, globalSymbols) ← eagerInitializers env
     let onceSymbols ← readOnceSymbols 16 ".lake/build/ir/Acorn"
     let loop ← match extractHalving env onceSymbols globalSymbols `Acorn.Portable.powLoopWord with

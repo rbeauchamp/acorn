@@ -50,9 +50,10 @@ step 'provisioning the pinned dependencies'
       lake build Mathlib regula/lint ;;
     *) exit "$current" ;;
   esac
-  # FloatLib and lean-intent publish no build cache. This builds the modules the proof bridge
-  # imports, the lean-intent modules the intent bridge and intent-check import with the native
-  # objects intent-check links, and the Regula interface modules the decision registries import.
+  # FloatLib, lean-intent and Regula publish no build cache. This builds the modules the proof
+  # bridge imports, the lean-intent modules the intent bridge and intent-check import with the
+  # native objects intent-check links, and the Regula modules the decision registries and
+  # AcornTools.Theorems import with their native objects.
   lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
 )
 ./scripts/lean.sh provision-status
