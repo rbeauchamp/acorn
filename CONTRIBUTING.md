@@ -613,15 +613,17 @@ list is its trace
 
 ### Running a program
 
-On 2026-11-19 the owner of the project ruled that no one runs Acorn's agent, or
-one of its learners, without the owner's authorization for that run: not the
-compiled program, not evaluation inside Lean, not a re-implementation. So no
-step of work on a change starts a program that steps the agent or a learner over
-percepts unless the owner's authorization for that run is stated in the change's
-intent. What the step is for, and what the run is called, do not matter: a look
-at the viewer's page, a screenshot, a smoke test and a diagnostic are all
-covered. A smoke test in which the core runs its agent is a run of a learner,
-and a smoke test of the viewer with the core as its child is treated as one.
+On 2026-11-19 the owner of the project ruled that no one makes a run of Acorn's
+agent, or of one of its learners, without the owner's authorization for that
+run. [What counts as a run](#what-counts-as-a-run) defines a run, by whatever
+means it is made, and this section adds nothing to that definition: it says
+which of Acorn's programs make one. So no step of work on a change starts a
+program that steps the agent or a learner over percepts unless the owner's
+authorization for that run is stated in the change's intent. What the step is
+for, and what the run is called, do not matter: a look at the viewer's page, a
+screenshot, a smoke test and a diagnostic are all covered. A smoke test in which
+the core runs its agent is a run of a learner, and a smoke test of the viewer
+with the core as its child is treated as one.
 
 Some of Acorn's programs step a learner without being asked to. The viewer,
 started with no state file in its run directory, starts in the running state,
