@@ -3001,7 +3001,7 @@ theorem Quiet.serveDraw (quiet : Quiet state) (features : ActiveSet dimension)
         · exact interrupted.withoutPlanning
         · exact interrupted
       · intro action
-        try dsimp only
+        dsimp only
         split
         · exact interrupted.withoutPlanning.metaController.predictAll features action
         · simp only [Vector.get, Vector.getElem_toArray, Vector.getElem_replicate]

@@ -1470,7 +1470,7 @@ theorem widen_magnitude_unit (value : Binary32) (bound : value.magnitude ≤ 0x3
 /-- Every normal rounding carry emits a zero fraction in the next exponent. -/
 theorem normalFraction_carry_zero (bits : UInt64)
     (carry : roundedNormal bits == ((1 : UInt64) <<< 24)) : normalFraction bits = 0 := by
-  simp [normalFraction, normalizedNormal, carry]
+  simp [normalFraction, normalizedNormal, beq_iff_eq.mp carry]
 
 /-- A zero source fraction is retained exactly by normal narrowing. -/
 theorem roundedNormal_zero_fraction (bits : UInt64)
@@ -1496,7 +1496,7 @@ theorem normalMagnitude_unit (bits exponent : UInt64) (lo : 897 ≤ exponent.toN
     by_cases carry : roundedNormal bits == ((1 : UInt64) <<< 24)
     · rw [normalFraction_carry_zero bits carry]
       rfl
-    · have ec : exponent.toNat = 1023 := by simp [carry] at he; omega
+    · have ec : exponent.toNat = 1023 := by rw [ite_eq_right carry] at he; omega
       have hr := roundedNormal_zero_fraction bits (top ec)
       simp [normalFraction, normalizedNormal, hr]
   have hupper : (normalExponent bits exponent).toNat ≤ 1023 := by
@@ -1635,8 +1635,10 @@ theorem normalMagnitude_aligned (bits exponent : UInt64) (fraction : Nat)
     have hx := congrArg UInt64.toNat h
     change (roundedNormal bits).toNat = 2^24 at hx
     omega
-  have heq : normalExponent bits exponent = exponent := by simp [normalExponent, hn]
-  have hnorm : normalizedNormal bits = roundedNormal bits := by simp [normalizedNormal, hn]
+  have heq : normalExponent bits exponent = exponent := by
+    simp only [normalExponent, hn, Bool.false_eq_true, ↓reduceIte]
+  have hnorm : normalizedNormal bits = roundedNormal bits := by
+    simp only [normalizedNormal, hn, Bool.false_eq_true, ↓reduceIte]
   have hfrac := normalFraction_exact bits
   rw [hnorm, hr] at hfrac
   have hsub : (exponent-896).toNat = exponent.toNat-896 := by

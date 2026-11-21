@@ -76,7 +76,7 @@ dependency checkouts and pinned Verso. Each locked Git dependency is mapped to i
 provisioned checkout, as the bootstrap does for this workspace, so Lake fetches
 nothing here. A missing checkout is refused. A package's checkout is the directory Lake
 materializes it in, `Name.toString (escape := false)` of its locked name read by
-`String.toName` (`PackageEntry.dirName`, Lake of Lean v4.35.0), so the escaped name
+`String.toName` (`PackageEntry.dirName`, Lake of Lean v4.36.0), so the escaped name
 `«lean-intent»` has the directory `lean-intent`. -/
 def siteOverrides : IO String := do
   let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile "../site/lake-manifest.json"))
@@ -142,7 +142,7 @@ def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
   let modules := modules.filter keep
   -- Lake resolves the build graph on one thread, in request order, and that thread waits
   -- for the `needs` of a request before it reads the next one (`Module.recFetchPreSetup`,
-  -- Lake of Lean v4.35.0). A request for an executable's root module resolves to that
+  -- Lake of Lean v4.36.0). A request for an executable's root module resolves to that
   -- executable (`Package.findTargetModule?`). So an entry whose `needs` name a target, and
   -- its root module, are requested last: every other job is already scheduled when Lake
   -- starts to wait. The modules lead the rest, so that the proof modules, whose import chain
