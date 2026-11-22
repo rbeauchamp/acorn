@@ -908,8 +908,8 @@ What each panel must show. How it draws it is the code's.
   What a state file starts depends on four things, and the first is that it
   can be read at all. An entry named `state.json` that is not a regular file
   or a link to one (a link whose target is gone, a directory, a pipe, a
-  device) is refused for its kind, and is the one case refused without being
-  opened. A regular file is opened: it is refused if the open or the read
+  device) is refused without being opened, and so is an entry whose kind
+  cannot be read. A regular file is opened: it is refused if the open or the read
   fails, if it holds more than 4096 bytes, or if its content is not a JSON
   object holding the six members of the state, each admitted. On a refusal the viewer exits before it serves anything and leaves
   the file as it is. The
@@ -1171,8 +1171,9 @@ What each panel must show. How it draws it is the code's.
   candidates: every process whose command line holds that text, which a core
   still running does, and so can a ranked core of another run or an unrelated
   process that quotes the text. A candidate's `--run-id`, and its
-  `--checkpoint` argument when it has one, tell which run it belongs to. A
-  child given with `--cmd` has the name its command gives it.
+  `--checkpoint` argument when it has one, narrow the candidates; they cannot
+  by themselves identify the run directory or the process a candidate belongs
+  to. A child given with `--cmd` has the name its command gives it.
 - The primitive value bars may read exactly zero for a long stretch (UX-36):
   the Swift-Sarsa fixed point at zero reward, not a rendering fault. How long
   the stretch lasts at the current pin is unmeasured.

@@ -1493,3 +1493,288 @@ written would close that window and is a change to the control interface. Nor do
 submit a Start: the viewer serves its page on the loopback interface to whoever loads it. And that
 a Start was given is a property of the program: it is separate from the owner's authorization for
 a run of a learner, which [running a program](../CONTRIBUTING.md#running-a-program) governs.
+
+The paragraphs that follow give the definitions and lemmas those statements rest on, each with
+what it says. A sentence about the actor, the reader or the bootstrap is read from the code and
+not proved: no theorem covers them, because the actor
+(`lean/Acorn/Host/Viewer/Supervisor.lean`), the reader and the bootstrap
+(`lean/NativeApp/Viewer.lean`) are effects.
+
+The supervisor starts its child in one place, the actor's
+`Acorn.Host.Viewer.Call.spawn`. The actor makes a call only as the call of the pending
+operation its state waits on, after it has performed the effects of the step that produced that
+state; so it makes that call only when the state waits on
+`Acorn.Host.Viewer.Pending.spawn`, and it makes it then if it reaches that call. The
+theorems are about the step the actor runs (`Acorn.Host.Viewer.Core.start`,
+`Acorn.Host.Viewer.Core.step`, `Acorn.Host.Viewer.Core.resume`). Their proof keeps
+one property of a supervisor's state, that every intent the supervisor holds is to stay stopped
+(`Acorn.Host.Viewer.Core.Unstarted`): the lifecycle's, the durable state's, a waiting
+replacement's and the pending operation's. Its four parts are that the lifecycle intends to stop
+and no Clear restores a running intent (`Acorn.Host.Viewer.Lifecycle.Unstarted`: the
+lifecycle intends to stop, and a pending Clear restores no running intent); that the durable
+state intends to stop; that a replacement that waits to be published intends to stop; and that
+the pending operation carries no running intent and starts no process
+(`Acorn.Host.Viewer.Pending.Unstarted`: neither a launch nor a spawn, no Start's intent,
+and no state or Clear intent that says running). The intent of every command but Start is stopped
+(`Acorn.Host.Viewer.Command.desired_stopped`): `Acorn.Host.Viewer.Command.desired`
+computes it, and whether it is saved is the step's, since a disabled Clear changes nothing.
+
+A lifecycle that intends to stop, with no running intent held for a pending Clear to restore,
+admits no reservation, for every such lifecycle and every instant
+(`Acorn.Host.Viewer.Lifecycle.unstarted_reserve`), and it keeps both under every
+transition but two: a Start request, and a running intent queued while a Clear's replacement
+waits (`Acorn.Host.Viewer.Lifecycle.replacementIntent`). A stopped intent queued while a
+replacement waits keeps the lifecycle so
+(`Acorn.Host.Viewer.Lifecycle.replacementIntent_unstarted`). An unstarted supervisor
+launches nothing: for every state whose intents are all to stay stopped and every instant, the
+launch check leaves the state as it is, with no change and nothing to follow
+(`Acorn.Host.Viewer.Core.launchCheck_unstarted`). A step on any event but an operator's
+Start keeps every intent stopped, for every state whose intents are all to stay stopped, every
+Clear configuration and every reading (`Acorn.Host.Viewer.Core.step_unstarted`). Every
+outcome of the pending call keeps every intent stopped, for every state whose intents are all to
+stay stopped, the operation it waits for and every reading
+(`Acorn.Host.Viewer.Core.resume_unstarted`). An unstarted supervisor starts no process and
+writes no running intent: for every state whose intents are all to stay stopped, the lifecycle
+admits no reservation at any instant and intends to stop, and the call the state waits for, if
+any, is no spawn and writes no state that intends to run
+(`Acorn.Host.Viewer.Core.Unstarted.spawns_nothing`).
+
+`Acorn.Host.Viewer.Reached` relates an origin, the events handed to the step, the most
+recent first, and a state reached from the origin by steps on events and by outcomes of pending
+calls. Its constructors are the origin, before any event; a step on an event; and the outcome of
+the call the state waits for. Nothing in it reads a state file or starts a second viewer. The
+states reached from a start are states of a run (`Acorn.Host.Viewer.Reached.ran`), and
+every state of a run is reached from a start by some events
+(`Acorn.Host.Viewer.Ran.reached`); a run is `Acorn.Host.Viewer.Ran`, which every
+`Acorn.Host.Viewer.Supervision` carries. No Start, no running intent: for every Clear
+configuration, every origin whose intents are all to stay stopped, and every state reached from
+it by events that hold no operator's Start, the state's intents are all to stay stopped
+(`Acorn.Host.Viewer.Reached.unstarted`).
+
+The statements of the theorems in full are these. A supervisor started from a stopped intent
+waits on no spawn while no Start is handed to its step: for every Clear configuration, every
+durable state that intends to stay stopped, every reason and reading the viewer starts with,
+every sequence of events that holds no operator's Start, and every state reached by it from that
+start, the lifecycle admits no reservation at any instant and intends to stop, and the call the
+state waits for, if any, is no spawn and writes no state that intends to run
+(`Acorn.Host.Viewer.Reached.stopped_spawns_nothing`). The three statements that follow are
+that statement for particular start states. The first is for the state the bootstrap builds when
+the run directory holds no state file, for every seed and whether or not a stray checkpoint was
+adopted (`Acorn.Host.Viewer.Reached.unstarted_spawns_nothing`). The second is for every
+state that `Acorn.Host.Viewer.PersistedState.decode` returns for a JSON value whose
+`schema_version` member is absent, is not a number spelled in decimal digits alone or spells a
+number other than the current version
+(`Acorn.Host.Viewer.Reached.earlier_spawns_nothing`). The third is for every state that
+the decoder returns to a launch that has no child record, or whose record differs from the one
+the JSON value's `child` member names, or that reads a value with no such record
+(`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`). The control record of a start with no
+state file says the run is stopped: for every seed, whether or not a stray checkpoint was
+adopted, and every Clear configuration, reason, reading and observation, in the control record of
+the start state the desired word and the actual word are both `stopped`
+(`Acorn.Host.Viewer.Core.start_control`); the start on a restored running state has
+another desired word. By the write clause of the first statement, a supervisor waits on the write
+of a running intent only after a Start was handed to its step, or from a start state that held
+one.
+
+Those statements would hold of a supervisor that never spawned. After a Start, some continuation
+waits to spawn: for every Clear configuration, every durable state that admits a launch, and
+every reason and reading the viewer starts with, there are events that hold an operator's Start,
+and a state reached by them from that start state, that waits to spawn the first generation with
+the launch the durable state admits (`Acorn.Host.Viewer.Core.start_spawns`). The proof's
+witness is the Start and one tick, with every call between them succeeding. It is a statement of
+existence: a Start whose intent cannot be written is another continuation and reaches no spawn.
+The proof keeps a private property of a state and a launch (`Core.Poised`): a serving state with
+no process, no replacement and its run directory, whose lifecycle has no Clear to go on with and
+reserves its first generation at every instant, and whose durable state admits the launch. A
+Start admits a reservation: for every identity, every intent native startup is given and every
+instant, the lifecycle of native startup, after a Start request, reserves generation 1
+(`Acorn.Host.Viewer.Lifecycle.start_reserves`), and the complete retry budget admits a
+launch at every instant (`Acorn.Host.Viewer.Retry.initial_ready`). The state built when no
+state file exists admits a launch, for every seed within the browser's integers and whether or
+not a stray checkpoint was adopted (`Acorn.Host.Viewer.Core.unstarted_launch`). The seeds
+the bootstrap uses are within them: a drawn seed is below `2 ^ 48`
+(`Acorn.Host.Viewer.viewerSeed_bound`) and the seed beside an adopted checkpoint is 42.
+
+The state file. `Acorn.Host.Viewer.stateSchema` is the schema version the viewer writes,
+which is 2; from this version on, a viewer that finds no state file writes a stopped intent, and
+before it the viewer wrote files with no `schema_version` member. The current state file has
+eight members: its schema version, six of state and the record of the child of the viewer that
+wrote it. The six are a seed and an agent epoch spelled as unsigned 64-bit integers, a run
+identity of sixteen hexadecimal digits, an intent, an origin and the process flag. Strict JSON
+syntax and exact integer admission precede identity construction. The state a viewer builds when
+its run directory holds no state file (`Acorn.Host.Viewer.PersistedState.unstarted`) is a
+new run of a fresh agent that intends to stay stopped, so the absence of a file gives the
+supervisor no running intent; its second argument records that a stray checkpoint of an earlier
+layout was adopted into the run. The version a state file names
+(`Acorn.Host.Viewer.stateVersion`) is nothing when the member is absent or is not a number
+spelled in decimal digits alone, which `Acorn.Digits.read` reads. The rule is about
+spelling: a string, `null`, and a number spelled with a sign, a fraction or an exponent are all
+read as no readable version. The child record a state file names
+(`Acorn.Host.Viewer.stateChild`) is the words of its `child` member when that is a JSON
+array of strings, and nothing when the member is absent or has any other form. Admission of the
+version a state file names is decided once (`Acorn.Host.Viewer.admitVersion`): a natural
+number other than the current version is refused, so that a file another version wrote is
+neither guessed at nor overwritten; the current version and no readable version are admitted.
+The fields of a state file (`Acorn.Host.Viewer.PersistedState.fields`) are its
+`schema_version` member when it has one, whose value that admission has already judged, its
+`child` member when it has one, and the six fields of state.
+
+The complete state schema refuses unknown fields, partial identity and a schema version that is a
+natural number other than the current one. For a file that is decoded, one decision
+(`Acorn.Host.Viewer.PersistedState.admit`) gives both the state admitted and where its
+intent came from (`Acorn.Host.Viewer.StartSource`). The intent the file records is kept
+only when the file names the current version and names the child record of this launch, which
+must have one: the saved intent was then written by a viewer whose supervisor would start the
+same child. In every other case the state keeps every field but its intent, which is admitted as
+stopped: a file whose version does not read as the current one, because it has no
+`schema_version` member or one that is not a number spelled in decimal digits alone, which is an
+earlier version's file and carries no record of its child; a file whose `child` member is absent,
+is not an array of strings or names another record; and any file read by a launch that has no
+record. The intent is the one field whose value an operator may never have chosen, and the other
+fields are kept as written. Where the state a viewer starts from came from is one of four cases.
+The run directory held no state file (`Acorn.Host.Viewer.StartSource.absent`). The state
+file's version does not read as the current one: an earlier version's file, whose intent was
+read as stopped (`Acorn.Host.Viewer.StartSource.earlier`). The state file names the schema
+this viewer writes and this launch's child, or records a stopped intent; its intent is the one
+it records (`Acorn.Host.Viewer.StartSource.saved`). The state file names the schema this
+viewer writes and a running intent that was not given for this launch's child: the file names
+another child record or none, or this launch has none; its intent was read as stopped
+(`Acorn.Host.Viewer.StartSource.other`). The state admitted from a state file
+(`Acorn.Host.Viewer.PersistedState.decode`) is the first component of that decision, so
+the state and the account of where its intent came from are one decision. A private lemma
+(`PersistedState.decode_stopped`) says that a state the decoder returns intends to stay stopped
+unless the file names the current schema and the child record of this launch.
+
+The statements about the decoder in full are these. A state the decoder returns for a file whose
+version does not read as the current one intends to stay stopped: for every child record a
+launch may have, or none, every JSON value whose `schema_version` member is absent, is not a
+number spelled in decimal digits alone or spells another number, and every state the decoder
+returns for it (`Acorn.Host.Viewer.PersistedState.decode_earlier`). A state the decoder
+returns for a file that does not name this launch's child record intends to stay stopped: for
+every launch that has no child record, and every launch whose record differs from the one the
+JSON value's `child` member names, or that reads a value with no such record, every state the
+decoder returns for the value (`Acorn.Host.Viewer.PersistedState.decode_unbound`). The
+decoder returns a running intent only under the current schema version and for this launch's
+child: for every child record a launch may have, or none, every JSON value and every state the
+decoder returns for it that intends to run, the value's `schema_version` member spells the
+current version, the launch has a child record, and the value's `child` member names that record
+(`Acorn.Host.Viewer.PersistedState.decode_running`). The decoder returns an error for a
+state file that names another schema version: for every child record a launch may have, or none,
+and every JSON value whose `schema_version` member spells a natural number other than the
+current version (`Acorn.Host.Viewer.PersistedState.decode_other`). The decoder returns an
+error for a state file whose schema version spells a number of `2 ^ 64` or more: for every child
+record a launch may have, or none, and every JSON value whose `schema_version` member is a
+number whose spelling `Acorn.Digits.read` reads as a natural number of `2 ^ 64` or more
+(`Acorn.Host.Viewer.PersistedState.decode_wide`).
+
+The child record. A word of a child record that the state file can hold as written is printable
+ASCII with no quotation mark and no backslash, so its JSON spelling is the word between
+quotation marks (`Acorn.Host.Viewer.childWordAdmitted`). The room a child record may take
+in the state file, which a viewer reads within 4096 bytes, is 2048: the lengths of its words,
+with three more for each word's quotation marks and comma
+(`Acorn.Host.Viewer.childBudget`). A child record the state file can hold has at least one
+word, every word admitted, within the budget (`Acorn.Host.Viewer.childAdmitted`). The
+digest of a file's content (`Acorn.Host.Viewer.fileDigest`) is 64-bit FNV-1a over every
+byte, in order, a function of the bytes alone: Landon Curt Noll, Kiem-Phong Vo, Donald Eastlake
+3rd and Tony Hansen, The FNV Non-Cryptographic Hash Algorithm, RFC 9923 (2026), sections 2 and
+5; the step and the offset basis are those of `lean/Acorn/Rng.lean`. It tells two files apart
+against accident and not against forgery. What a viewer reads of the file of the program its
+supervisor would start (`Acorn.Host.Viewer.ProgramReading`) is the length of the file in
+bytes and the digest of every byte of the file, in order. It is a function of the bytes read
+alone, so it does not depend on what the state file can hold;
+`Acorn.Host.Viewer.ProgramReading.of` is the reading of a file's content, read whole. The
+record of the child a viewer's supervisor would start (`Acorn.Host.Viewer.childRecord`)
+holds, as far as the viewer can read it before it starts it, the executable's path, the length
+in bytes and the digest of the content read from the file at that path, and the argument vector
+at a fixed reference launch (`Acorn.Host.Viewer.referenceLaunch`). At that launch the
+words that carry the run's identity take fixed values, since the identity the state file holds
+decides them at each launch. Two launches have the same child, for the purpose of a saved
+running intent, exactly when both have a record and the records are equal word for word, so two
+files of equal length and equal digest are taken as one. A launch has no record when sameness
+cannot be established: a command given to a shell, whose process depends on the working
+directory, the environment and the files the command names; an executable whose file cannot be
+read whole; or words the state file cannot hold. The `child` member of a state file
+(`Acorn.Host.Viewer.childText`) is the record's words as a JSON array of strings, and
+`null` when the launch has no record or its record cannot be held. Serialization
+(`Acorn.Host.Viewer.PersistedState.encode`) contains only closed spellings, numeric digits
+and the admitted words of the child record of the viewer that writes it.
+
+Reading and writing the file. Missing files and refused files have different result
+constructors, so a caller cannot mistake a parse failure for a successful restore
+(`Acorn.Host.Viewer.StateRead`): the run directory holds no entry named `state.json`
+(`Acorn.Host.Viewer.StateRead.missing`); IO, syntax or schema refused the prior file, an
+entry that cannot be opened included (`Acorn.Host.Viewer.StateRead.refused`); or the
+complete state was admitted, with where its intent came from
+(`Acorn.Host.Viewer.StateRead.restored`). The read
+(`Acorn.Host.Viewer.RunDirectory.readState`) is bounded and preserves the distinction
+between missing and malformed state. Only the absence of the directory entry, which Lean's
+symlinkMetadata reads without following a symbolic link, is a missing state. An entry that
+exists is opened only when it is a regular file, or a symbolic link that leads to one (Lean's
+metadata follows links): anything else, such as a link whose target is gone, a directory, a pipe
+or a device, is refused before it is opened, so the read never waits on an entry that cannot
+supply a finite document. The two looks and the open are separate calls, so this rests on the
+run directory's stable-path assumption like the rest of the reader. Every state the actor writes
+goes through `Acorn.Host.Viewer.RunDirectory.writeState` with the record of its own
+configuration's child. Publication uses an exclusively created temporary file and a rename after
+a complete write and flush. Filesystem stability and POSIX rename remain the run directory's
+trust boundary; no power-loss durability is claimed.
+
+The actor. What the actor compares before it starts the configuration's child is
+`Acorn.Host.Viewer.ChildProgram`. The bootstrap builds the constructor from the launch
+itself, `Acorn.Host.Viewer.ChildProgram.ranked` for the core beside the viewer and
+`Acorn.Host.Viewer.ChildProgram.fixed` for a command given to a shell, so the two are told
+apart by construction and not by whether the state file can hold a record of the child. A fixed
+command is spawned with no reading. The ranked constructor holds what this viewer read of the
+executable's file when it started, none when the file could not be read whole, and the one
+action that reads it. The bootstrap ran the action for the first and the actor runs it again
+once before every start, before the launch is recorded, so what is compared was read the same
+way. The configuration holds the record of the child it starts
+(`Acorn.Host.Viewer.SupervisorConfig.child`), written with every state this viewer saves,
+and none when sameness with another launch's child cannot be established or the state file
+cannot hold the record; the comparison before a start does not read it. It also holds what the
+actor compares before every start of the child
+(`Acorn.Host.Viewer.SupervisorConfig.program`). The three refusals of a start of the
+ranked core are texts: its file reads now but not as it read when this viewer started
+(`Acorn.Host.Viewer.childDiffers`); its file cannot be read whole now, though it could
+when this viewer started (`Acorn.Host.Viewer.childUnreadable`); its file could not be read
+whole when this viewer started (`Acorn.Host.Viewer.childUnread`). Each says what clears
+the refusal and directs no run. A private function of the actor (`Supervisor.refusal`) gives why
+the configuration's child may not be started now, and nothing when it may. A fixed command is
+never refused there. The ranked core is refused when its file could not be read whole when this
+viewer started, cannot be read whole now, or reads now otherwise than it did then, whether or
+not the state file can hold a record of the child. The actor asks once before each start, the
+first and every restart, before the launch is recorded.
+
+Each case of the actor's call (`Supervisor.call`) performs the native operation its call names.
+The reading is made before the launch is recorded, when the call's argument says the state to
+write is the one that marks a launch as attempted (`Acorn.Host.Viewer.Pending.launch`). A
+refusal there writes nothing and spawns nothing: the call's result is the write's error with the
+reason, which the step treats as a launch that could not be recorded, so the run stops. Every
+refusal is printed on standard error and reported in the page by the step, as the reason of the
+failed call. The actor hands the step an operator's Start only for a Start that
+`Acorn.Host.Viewer.Supervisor.submit` queued, and the bootstrap passes the state it built
+or read to `Acorn.Host.Viewer.Supervision.start`. The supervisor is constructed
+(`Acorn.Host.Viewer.Supervisor.new`) only after the bootstrap has admitted the initial
+state. A state built with no state file, or restored with the intent its file records, is
+published there, before the listener binds. A state whose running intent was set aside is not
+published there. A launch relies on no unpublished state either way, since the attempted launch
+is saved before the spawn. The first control record is the start's.
+
+The bootstrap. The bootstrap admits configuration and durable state, binds loopback HTTP, then
+drives the serial supervisor. It gives the supervisor a running intent only from a state file
+that holds one, names the current schema and names the record of the child this launch starts.
+The one reading of the ranked core's program (readProgram in `lean/NativeApp/Viewer.lean`) is
+the length and the digest of the content read whole from the file at the executable's path, and
+none when the file cannot be read whole. The bootstrap's configuration of the supervisor
+(supervisorConfig in the same file) gives the supervisor's child, what is compared before it is
+started, and its record. The ranked child is the core beside the viewer's program, named by its
+path with explicit arguments. The configuration holds the action that reads its file and the
+reading that action gave at start. The comparison is held in memory and does not depend on the
+record, on the run directory's path or on what the state file can hold. The record written to
+the state file is the path, that reading and the arguments at the reference launch, and none
+when the file could not be read or the state file cannot hold those words. Whether the viewer
+leaves the state file as it is until its listener is bound is
+`Acorn.Host.Viewer.StartSource.kept`. The one line that says why the run a viewer starts
+with is shown stopped, and nothing when it is not, is `Acorn.Host.Viewer.startAccount`,
+so a person who finds the run stopped is told why and what starts it. The relay of standard
+input under `--control-stdin` is `/bin/cat` (`Acorn.Host.StopFlag.withCommands`).

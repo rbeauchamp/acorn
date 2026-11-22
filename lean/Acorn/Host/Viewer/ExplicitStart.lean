@@ -1,163 +1,7 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.Supervision
 
-/-!
-# A spawn follows an explicit start
-
-The viewer's supervisor starts its child, the core or the command `--cmd` names, in one place:
-the actor's `Call.spawn`. The actor makes a call only as the call of the pending operation its
-state waits on, after it has performed the effects of the step that produced that state; so it
-makes `Call.spawn` only when the state waits on `Pending.spawn`, and it makes it then if it
-reaches that call. This module proves, of the step the actor runs (`Core.start`, `Core.step`,
-`Core.resume`), that a supervisor started from a durable state that intends to stay stopped
-admits no reservation and waits neither on a spawn nor on a write of a running intent, in
-every state reached by events that hold no operator's Start
-(`Reached.stopped_spawns_nothing`). It also proves that the statement is not empty: from the
-start on every durable state that admits a launch, there are events that hold a Start and a
-state reached by them that waits to spawn (`Core.start_spawns`). That is a statement of
-existence. Its witness is a Start and one tick with every call between them succeeding; a
-Start whose intent cannot be written is another continuation, and it reaches no spawn.
-
-**One supervisor's lifetime.** `Reached` relates an origin, the events handed to the step and a
-state. Its constructors are one start, a step on an event and the outcome of a pending call: it
-ends with that viewer, and nothing in it reads a state file or starts a second viewer. The
-states reached from a start are exactly the states of `Ran` (`Reached.ran`, `Ran.reached`),
-which every `Supervision` carries. What holds across viewers, a restart of the viewer after a
-crash included, is argued from these theorems under assumptions that are named where the
-argument is made, and is not proved.
-
-**The child.** The theorems speak of the one process the supervisor starts. The viewer starts
-two other processes outside the supervisor, and neither is a learner: under `--control-stdin`
-a relay of its standard input (`/bin/cat`, `Acorn.Host.StopFlag.withCommands`), and under
-`--open-browser` the system's opener for the page's address.
-
-**The state built when no state file exists** is `PersistedState.unstarted`, which intends to
-stay stopped, so the theorem holds of the supervisor started from it
-(`Reached.unstarted_spawns_nothing`), and the control record of the start on that state says
-the run is desired stopped and actually stopped (`Core.start_control`; the start on a restored
-running state has another desired word).
-
-**Every state file a viewer can meet.** With no state file the bootstrap builds
-`PersistedState.unstarted`, and the run is stopped. A file is decoded only when it is a JSON
-object that holds the six members of the state, each admitted, and beside them at most a
-`schema_version` and a `child`: a seed and an agent epoch spelled as unsigned 64-bit
-integers, a run identity of sixteen hexadecimal digits, an intent, an origin and the process
-flag. For a file that is decoded, two things decide whether
-the intent it records is kept.
-
-The first is its version. A `schema_version` member that is absent, as in every file the
-viewer wrote before the file carried one, or that is not a number spelled in decimal digits
-alone, marks an earlier version's file. The rule is about spelling: a string, `null`, and a
-number spelled with a sign, a fraction or an exponent, such as `3e0`, are all read as no
-readable version. Every state the decoder returns for a file whose version does not read as
-the current one intends to stay stopped (`PersistedState.decode_earlier`), so the theorem
-holds of a supervisor started from a state decoded from such a file
-(`Reached.earlier_spawns_nothing`). For a file whose member spells another natural number in
-decimal digits the decoder returns an error (`PersistedState.decode_other`), and so it does
-for digits that spell a number of `2 ^ 64` or more (`PersistedState.decode_wide`).
-
-The second is its child. A viewer writes, with every state it saves, the record of the child its
-supervisor would start (`childRecord`): the executable's path, its length in bytes, the 64-bit
-FNV-1a digest of every byte of the file (`fileDigest`), and the argument vector at a reference
-launch. A launch that has no such record, as under `--cmd`, writes none. The decoder returns a
-running intent only for a file that names the current schema and the record of the launch that
-reads it, which must have one (`PersistedState.decode_running`); every state it returns to a
-launch with no record, or with another record than the file names, intends to stay stopped
-(`PersistedState.decode_unbound`), and the theorem holds of a supervisor started from such a
-state (`Reached.unbound_spawns_nothing`). So a running intent saved while the supervisor's
-child was one process is not taken as a Start for another. Sameness is equality of the two
-records, and no more. Before the ranked core is started, the first time and at every restart,
-the actor reads the executable's file again, by the action the bootstrap read it with, and
-compares its length and digest (`ProgramReading`) with what the viewer read when it started,
-whether or not the state file can hold the record (`ChildProgram`). It does so once
-(`Supervisor.call`), before the launch is recorded: a refusal there writes nothing and spawns
-nothing, so the saved state is exactly as it was before the refusal: no new mark of a started
-process and no agent epoch spent. A run that had already started a process keeps that mark,
-and the running intent that a Start saved before the launch was checked stays as saved. The
-step, given the write's error, stops the run. No
-process could have been created on that path. After a launch is recorded the actor spawns
-with no further reading, so no refusal of this kind follows the record: a file replaced
-before that reading is refused, and one replaced after it, before the launch record or after
-it, is not seen and is started, which is the first of the limits named below. The reason
-(`childDiffers`, `childUnreadable`, `childUnread`) is reported in the page and printed on
-standard error. A fixed command is
-written and spawned with no reading: a Start under `--cmd` is an explicit act for that command
-line as given, and it covers the restarts of the command by the viewer that received the
-Start, whatever program the command designates when each restart is made, so a program
-replaced under that command line between a Start and a restart is run by the restart. That is
-an accepted limit of the guarantee, beside the three of the ranked core's record, of which
-three things are assumed and not compared: the interval between that reading and the
-operating system starting the program, in which the launch is recorded, so that a file
-replaced in that interval is started;
-that the environment the child inherits has not changed; and that two files of equal length
-and equal digest are one. The digest suffices against accident, a rebuilt file that agrees in
-length and in a 64-bit digest by chance; forging it needs no more power than writing the state
-file by hand, which is not defended against either.
-
-A file that names `stateSchema` and this launch's child is restored with the intent it
-records. A running one resumes if its launch is admitted (`PersistedState.launch`: among its
-conditions, a run that has started a process needs a next agent epoch within the browser's
-integers) and the writes and the spawn that follow succeed. By the write clause of the
-theorem, a supervisor waits on the write of a running intent only after a Start was handed to
-its step, or from a start state that held one.
-
-**What is read, not proved.** The actor hands `Event.command .start` only for a Start that
-`Supervisor.submit` queued, and `Supervisor.submit` is called for the `--start` flag and for an
-admitted control request. The bootstrap passes the state it built or read to
-`Supervision.start`, and constructs no supervisor for a state file it refuses. Every state the
-actor writes goes through `RunDirectory.writeState` with the record of its own configuration's
-child. `RunDirectory.readState` refuses a state file that is unreadable or malformed, refuses
-without opening it an entry that is not a regular file or a link to one, such as a link whose
-target is gone, a directory, a pipe or a device, and reads only a run directory with no entry
-under the state file's name as no file; on a refusal the viewer exits before it serves
-anything and leaves the file as it is, because a file another version wrote is not guessed at
-and reading it as stopped would publish over it. A state built with no file, or restored with
-its intent, is published before the listener binds; a file whose running intent was set aside
-(an earlier version's, or one given for another child) is left exactly as it is until the
-listener is bound. The bootstrap then prints and flushes the line that says why the run is
-shown stopped (`startAccount`), under `--start` as well, and only then publishes the stopped
-state it started from, with this launch's record, before it prints the ready line, before
-`--start` submits its Start and before any command is processed (`StartSource.kept`,
-`Supervisor.new`, `NativeApp.runViewer`); if the line cannot be written or flushed, the viewer
-exits before the publication and the file is still the original. For any other stopped start
-state the line is printed after the ready line and not under `--start`. So a
-start-up that fails before that publication leaves the next viewer the same file and the same
-reason, and the file is read as an earlier version's, or as given for another child, once: in
-the first launch that publishes the stopped state, whose first control record and log already
-hold the reason. A start-up that fails after the
-publication, when the ready line cannot be written for example, leaves a current-version
-stopped file, and the reason the next launch gives is that the saved state says stopped. A
-Start queued on the control endpoint between the bind and the publication is processed by a
-later step if the start-up goes on, and is lost with the viewer if the start-up fails after
-the publication: a viewer that fails once its listener is bound ends through its shutdown,
-whose turns step the supervisor to close it and can write the map, and none of them takes a
-command from the queue. That a running intent in a state file follows a
-Start given, in some earlier viewer, while its child had the record the file names is argued
-from the write clause and these readings by induction over the viewers that owned the run
-directory, assuming that only viewers write the file, that the other fields of a state read
-back as written, and that a running intent reads back as running exactly for a launch with
-the same, present record: a running intent written under `--cmd`, which has no record, reads
-back stopped, by design. No theorem covers these: the actor
-(`Acorn.Host.Viewer.Supervisor`), the reader and the bootstrap (`NativeApp.Viewer`) are
-effects.
-
-**What the theorem does not cover.** It starts from a durable state that intends to stay
-stopped. A Stop the viewer has acknowledged but not yet written to its state file when the
-viewer crashes, or whose write failed, leaves a running intent on disk, set by the earlier
-Start; the next viewer with the same child resumes it. Holding the acknowledgement of a Stop
-until it is written would close that window and is a change to the control interface. Nor does
-the theorem say who may submit a Start: the viewer serves its page on the loopback interface
-to whoever loads it. And it says nothing of permission: that a Start was given is a property
-of the program, separate from the owner's authorization for a run of a learner.
--/
 namespace Acorn.Host.Viewer
 
-/-- The intent of every command but Start is stopped: `Command.desired` computes it, and whether
-it is saved is the step's (a disabled Clear changes nothing). -/
 theorem Command.desired_stopped (command : Command) (other : command ≠ .start) :
     command.desired = .stopped := by
   cases command with
@@ -165,8 +9,6 @@ theorem Command.desired_stopped (command : Command) (other : command ≠ .start)
   | stop => rfl
   | clear => rfl
 
-/-- A pending operation that carries no running intent and starts no process: neither a launch
-nor a spawn, no Start's intent, and no state or Clear intent that says running. -/
 def Pending.Unstarted : Pending → Prop
   | .intent command state => command ≠ .start ∧ state.desired = .stopped
   | .launch _ _ | .spawn _ _ => False
@@ -175,16 +17,10 @@ def Pending.Unstarted : Pending → Prop
   | .seed intended | .archive _ intended _ | .reopen _ intended _ => intended = .stopped
   | .windUp _ | .exitMap _ _ | .map _ | .closeMap _ => True
 
-/-- Every intent the supervisor holds is to stay stopped: the lifecycle's, the durable state's,
-a waiting replacement's and the pending operation's. -/
 structure Core.Unstarted (core : Core) : Prop where
-  /-- The lifecycle intends to stop and no Clear restores a running intent. -/
   lifecycle : core.lifecycle.Unstarted
-  /-- The durable state intends to stop. -/
   persisted : core.persisted.desired = .stopped
-  /-- A replacement that waits to be published intends to stop. -/
   replacement : ∀ state, core.replacement = some state → state.desired = .stopped
-  /-- The pending operation carries no running intent and starts no process. -/
   pending : ∀ pending, core.pending = some pending → pending.Unstarted
 
 namespace Core
@@ -224,8 +60,6 @@ private theorem Unstarted.reported {core : Core} (unstarted : core.Unstarted)
     (transition : ControlTransition) (reason : String) :
     (core.report transition reason).Unstarted :=
   unstarted.same rfl rfl rfl rfl
-
-/-! ## Each transition keeps every intent stopped -/
 
 theorem command_unstarted (core : Core) (clearDisabled : Option String) (command : Command)
     (other : command ≠ .start) (unstarted : core.Unstarted) :
@@ -311,9 +145,6 @@ theorem refused_unstarted (core : Core) (reason : String) (unstarted : core.Unst
     | exact unstarted
     | exact unstarted.same rfl rfl rfl rfl
 
-/-- **An unstarted supervisor launches nothing.** For every state whose intents are all to
-stay stopped and every instant, the launch check leaves the state as it is, with no change and
-nothing to follow. -/
 theorem launchCheck_unstarted (core : Core) (now : Nat) (unstarted : core.Unstarted) :
     core.launchCheck now = ⟨core, [], []⟩ := by
   simp [Core.launchCheck, core.lifecycle.unstarted_reserve unstarted.lifecycle]
@@ -503,16 +334,12 @@ theorem dispatch_unstarted (core : Core) (clearDisabled : Option String) (now : 
       | exact core.tick_unstarted now unstarted
       | exact core.close_unstarted unstarted
 
-/-- **A step on any event but an operator's Start keeps every intent stopped.** For every state
-whose intents are all to stay stopped, every Clear configuration and every reading. -/
 theorem step_unstarted (core : Core) (clearDisabled : Option String) (reading : Nat)
     (event : Event) (other : event ≠ .command .start) (unstarted : core.Unstarted) :
     (core.step clearDisabled reading event).core.Unstarted :=
   (core.dispatch_unstarted clearDisabled (core.instant reading) event other unstarted).same
     rfl rfl rfl rfl
 
-/-- **Every outcome of the pending call keeps every intent stopped.** For every state whose
-intents are all to stay stopped, the operation it waits for and every reading. -/
 theorem resume_unstarted (core : Core) (reading : Nat) (pending : Pending)
     (result : (pending.call core.lifecycle).Result) (unstarted : core.Unstarted)
     (waiting : core.pending = some pending) :
@@ -521,10 +348,6 @@ theorem resume_unstarted (core : Core) (reading : Nat) (pending : Pending)
     ⟨unstarted.lifecycle, unstarted.persisted, unstarted.replacement,
       fun _ held => (nomatch held)⟩ (unstarted.pending pending waiting)).same rfl rfl rfl rfl
 
-/-- **An unstarted supervisor starts no process and writes no running intent.** For every
-state whose intents are all to stay stopped: the lifecycle admits no reservation at any
-instant and intends to stop, and the call the state waits for, if any, is no spawn and writes
-no state that intends to run. -/
 theorem Unstarted.spawns_nothing {core : Core} (unstarted : core.Unstarted) :
     (∀ now, core.lifecycle.reserve now = none) ∧ core.lifecycle.desiredValue = .stopped ∧
       ∀ pending, core.pending = some pending →
@@ -538,25 +361,17 @@ theorem Unstarted.spawns_nothing {core : Core} (unstarted : core.Unstarted) :
 
 end Core
 
-/-! ## Runs -/
-
-/-- A state reached from an origin by steps on events and by outcomes of pending calls, with
-the events handed to the step, the most recent first. -/
 inductive Reached (clearDisabled : Option String) (origin : Core) : List Event → Core → Prop where
-  /-- The origin, before any event. -/
   | origin : Reached clearDisabled origin [] origin
-  /-- A step on an event. -/
   | step {events : List Event} {core : Core} (reached : Reached clearDisabled origin events core)
       (reading : Nat) (event : Event) :
       Reached clearDisabled origin (event :: events) (core.step clearDisabled reading event).core
-  /-- The outcome of the call the state waits for. -/
   | resume {events : List Event} {core : Core} {pending : Pending}
       (reached : Reached clearDisabled origin events core)
       (waiting : core.pending = some pending) (reading : Nat)
       (result : (pending.call core.lifecycle).Result) :
       Reached clearDisabled origin events (core.resume reading pending result).core
 
-/-- **The states reached from a start are states of a run.** -/
 theorem Reached.ran {clearDisabled : Option String} {persisted : PersistedState}
     {reason : String} {reading : Nat} {events : List Event} {core : Core}
     (reached : Reached clearDisabled (Core.start persisted clearDisabled reason reading)
@@ -566,7 +381,6 @@ theorem Reached.ran {clearDisabled : Option String} {persisted : PersistedState}
   | step _ reading event hold => exact hold.step reading event
   | resume _ waiting reading result hold => exact hold.resume waiting reading result
 
-/-- **Every state of a run is reached from a start by some events.** -/
 theorem Ran.reached {clearDisabled : Option String} {core : Core}
     (ran : Ran clearDisabled core) :
     ∃ persisted reason reading events,
@@ -580,9 +394,6 @@ theorem Ran.reached {clearDisabled : Option String} {core : Core}
     obtain ⟨persisted, reason, first, events, reached⟩ := hold
     exact ⟨persisted, reason, first, events, reached.resume waiting reading result⟩
 
-/-- **No Start, no running intent.** For every Clear configuration, every origin whose intents
-are all to stay stopped, and every state reached from it by events that hold no operator's
-Start: the state's intents are all to stay stopped. -/
 theorem Reached.unstarted {clearDisabled : Option String} {origin core : Core}
     {events : List Event} (reached : Reached clearDisabled origin events core)
     (unstarted : origin.Unstarted) (startless : Event.command .start ∉ events) :
@@ -596,13 +407,6 @@ theorem Reached.unstarted {clearDisabled : Option String} {origin core : Core}
   | resume _ waiting reading result hold =>
     exact Core.resume_unstarted _ reading _ result (hold startless) waiting
 
-/-- **A supervisor started from a stopped intent waits on no spawn while no Start is handed to
-its step.** For
-every Clear configuration, every durable state that intends to stay stopped, every reason and
-reading the viewer starts with, every sequence of events that holds no operator's Start, and
-every state reached by it from that start: the lifecycle admits no reservation at any instant
-and intends to stop, and the call the state waits for, if any, is no spawn and writes no state
-that intends to run. -/
 theorem Reached.stopped_spawns_nothing {clearDisabled : Option String}
     {persisted : PersistedState} {reason : String} {reading : Nat} {events : List Event}
     {core : Core} (stopped : persisted.desired = .stopped)
@@ -616,11 +420,6 @@ theorem Reached.stopped_spawns_nothing {clearDisabled : Option String}
   (reached.unstarted (Core.start_unstarted persisted clearDisabled reason reading stopped)
     startless).spawns_nothing
 
-/-- **A supervisor started from the state built with no state file waits on no spawn while no
-Start is handed to its step.** The
-statement of `Reached.stopped_spawns_nothing` for the state the bootstrap builds when the run
-directory holds no state file, for every seed and whether or not a stray checkpoint was
-adopted. -/
 theorem Reached.unstarted_spawns_nothing {clearDisabled : Option String} {seed : UInt64}
     {migrated : Bool} {reason : String} {reading : Nat} {events : List Event} {core : Core}
     (reached : Reached clearDisabled
@@ -633,11 +432,6 @@ theorem Reached.unstarted_spawns_nothing {clearDisabled : Option String} {seed :
             state.desired = .stopped :=
   Reached.stopped_spawns_nothing rfl reached startless
 
-/-- **A supervisor started from an earlier version's state file waits on no spawn while no
-Start is handed to its step.** The statement of `Reached.stopped_spawns_nothing` for every
-state that `PersistedState.decode` returns for a JSON value whose `schema_version` member is
-absent, is not a number spelled in decimal digits alone or spells a number other than
-`stateSchema`. -/
 theorem Reached.earlier_spawns_nothing {clearDisabled : Option String}
     {child : Option (List String)} {value : Json.Value}
     {persisted : PersistedState} {reason : String} {reading : Nat} {events : List Event}
@@ -653,11 +447,6 @@ theorem Reached.earlier_spawns_nothing {clearDisabled : Option String}
   Reached.stopped_spawns_nothing
     (PersistedState.decode_earlier child value persisted earlier decoded) reached startless
 
-/-- **A supervisor started from a state file that does not name its launch's child waits on no
-spawn while no Start is handed to its step.** The statement of
-`Reached.stopped_spawns_nothing` for every state that `PersistedState.decode` returns to a
-launch that has no child record, or whose record differs from the one the JSON value's `child`
-member names, or that reads a value with no such record. -/
 theorem Reached.unbound_spawns_nothing {clearDisabled : Option String}
     {child : Option (List String)} {value : Json.Value}
     {persisted : PersistedState} {reason : String} {reading : Nat} {events : List Event}
@@ -673,10 +462,6 @@ theorem Reached.unbound_spawns_nothing {clearDisabled : Option String}
   Reached.stopped_spawns_nothing
     (PersistedState.decode_unbound child value persisted unbound decoded) reached startless
 
-/-- **The control record of a start with no state file says the run is stopped.** For every
-seed, whether or not a stray checkpoint was adopted, and every Clear configuration, reason,
-reading and observation: in the control record of the start state, the desired word and the
-actual word are both `stopped`. -/
 theorem Core.start_control (seed : UInt64) (migrated : Bool) (clearDisabled : Option String)
     (reason : String) (reading : Nat) (observed : ControlObservation) :
     let core := Core.start (PersistedState.unstarted seed migrated) clearDisabled reason reading
@@ -686,17 +471,8 @@ theorem Core.start_control (seed : UInt64) (migrated : Bool) (clearDisabled : Op
         some ⟨"actual", .text, "stopped"⟩ :=
   ⟨rfl, rfl⟩
 
-/-! ## After a Start, a spawn can be reached
-
-The theorems above would hold of a supervisor that never spawned. This section shows that the
-supervisor they are about can: from the same start state, there is a run that holds a Start
-and reaches a state that waits to spawn. -/
-
 namespace Core
 
-/-- A serving state with no process, no replacement and its run directory, whose lifecycle has
-no Clear to go on with and reserves its first generation at every instant, and whose durable
-state admits the launch `plan`. -/
 private structure Poised (core : Core) (plan : CoreLaunch) : Prop where
   closing : core.closing = .open
   replacement : core.replacement = none
@@ -757,13 +533,6 @@ private theorem resume_spawns (core : Core) (reading : Nat) (state : PersistedSt
   obtain ⟨next, reserved⟩ := reserves (clockWord (core.instant reading))
   simp [Core.resume, Core.resolve, Stepped.at, reserved]
 
-/-- **After a Start, some continuation waits to spawn.** For every Clear configuration, every
-durable state that admits a launch, and every reason and reading the viewer starts with: there
-are events that hold an operator's Start, and a state reached by them from that start state,
-that waits to spawn the first generation with the launch the durable state admits. The proof's
-witness is the Start and one tick, with every call between them succeeding. It is a statement
-of existence: a Start whose intent cannot be written is another continuation and reaches no
-spawn. -/
 theorem start_spawns (persisted : PersistedState) (clearDisabled : Option String)
     (reason : String) (reading : Nat) (plan : CoreLaunch)
     (admitted : persisted.launch = .ok plan) :
@@ -797,11 +566,6 @@ theorem start_spawns (persisted : PersistedState) (clearDisabled : Option String
       by simp, ?_⟩
     exact resume_spawns _ reading _ plan (by rw [same]; exact again.reserves)
 
-/-- **The state built when no state file exists admits a launch.** For every seed within the
-browser's integers and whether or not a stray checkpoint was adopted. The seeds the bootstrap
-uses are within them: a drawn seed is below `2 ^ 48` (`viewerSeed_bound`) and the seed beside an
-adopted checkpoint is 42. With `Core.start_spawns`: from the start on that state there are
-events that hold a Start and reach a state that waits to spawn. -/
 theorem unstarted_launch (seed : UInt64) (migrated : Bool)
     (safe : seed.toNat ≤ browserIntegerMax) :
     ∃ plan, (PersistedState.unstarted seed migrated).launch = .ok plan := by

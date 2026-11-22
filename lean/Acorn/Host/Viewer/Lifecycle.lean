@@ -556,13 +556,6 @@ theorem Lifecycle.request_stopping (state : Lifecycle) (command : Command)
       | phase => phase) = _
     rw [running]
 
-/-! ## Intent to stay stopped
-
-A lifecycle that intends to stop, with no running intent held for a pending Clear to restore,
-admits no reservation, and keeps both under every transition but two: a Start request, and a
-running intent queued while a Clear's replacement waits (`Lifecycle.replacementIntent`). -/
-
-/-- The lifecycle intends to stop, and a pending Clear restores no running intent. -/
 def Lifecycle.Unstarted (state : Lifecycle) : Prop :=
   state.desired = .stopped ∧ state.clearPending ≠ some .running
 
@@ -574,8 +567,6 @@ theorem Lifecycle.unstarted_desired (state : Lifecycle) (unstarted : state.Unsta
     state.desiredValue = .stopped :=
   unstarted.1
 
-/-- **An unstarted lifecycle admits no reservation.** For every lifecycle that intends to stop
-with no running intent held for a pending Clear, and every instant. -/
 theorem Lifecycle.unstarted_reserve (state : Lifecycle) (unstarted : state.Unstarted)
     (now : UInt64) : state.reserve now = none := by
   have stopped : (state.desired == .running) = false := by rw [unstarted.1]; rfl
@@ -650,7 +641,6 @@ theorem Lifecycle.beginArchive_unstarted (state next : Lifecycle)
   · cases begun; exact unstarted
   · cases begun
 
-/-- A stopped intent queued while a replacement waits keeps the lifecycle unstarted. -/
 theorem Lifecycle.replacementIntent_unstarted (state : Lifecycle) (unstarted : state.Unstarted) :
     (state.replacementIntent .stopped).Unstarted := by
   unfold replacementIntent
@@ -674,9 +664,6 @@ theorem Lifecycle.archived_unstarted (state next : Lifecycle) (identity : Identi
       | running => exact absurd held unstarted.2
   · cases installed
 
-/-- **A Start admits a reservation.** For every identity, every intent native startup is given
-and every instant: the lifecycle of native startup, after a Start request, reserves
-generation 1. -/
 theorem Lifecycle.start_reserves (identity : Identity) (desired : Desired) (now : UInt64) :
     ∃ next, ((Lifecycle.initial identity desired).request .start).reserve now =
       some (1, next) := by
