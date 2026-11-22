@@ -370,17 +370,17 @@ all 25 are reachable by non-intelligent strategies and 10 are solvable in a
 single blind step (Liew, 2026,
 [arXiv:2605.25931](https://arxiv.org/abs/2605.25931)). Running the agent in its
 worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
-[Microduck](https://github.com/pollen-robotics/microduck)) belongs to a second
-question, which only measured runs of a verified agent answer: whether it is
-the right agent, one that achieves goals in the world it is meant for. Those
-measurements are the final indicator of whether it is, and a running, live
-agent is what Acorn is for. They are never acceptance evidence. In work on a
-change a run, a smoke test or a diagnostic among them, is never evidence that
-the change is right: no run or score accepts the change or chooses a bound, a
-goal or a parameter, and none is taken as a proof that anything was learned.
-Each run of the agent in its worlds needs the owner's authorization
-([running a program](#running-a-program)), and a measured run also follows the
-protocol rules of [scientific evidence](#scientific-evidence).
+[Microduck](https://github.com/pollen-robotics/microduck)) is
+never acceptance evidence, and each
+such run needs the owner's authorization ([running a program](#running-a-program)).
+Measured runs of a verified agent in its worlds answer a second question, which
+only they answer: whether it is the right agent, one that achieves goals in the
+world it is meant for. Those measurements are the final indicator of whether it
+is, and a running, live agent is what Acorn is for. In work on a change a run, a
+smoke test or a diagnostic among them, is never evidence that the change is
+right: no run or score accepts the change or chooses a bound, a goal or a
+parameter, and none is taken as a proof that anything was learned. A measured
+run also follows the protocol rules of [scientific evidence](#scientific-evidence).
 
 Because the mission stated above asks for algorithms that are discovered and
 implemented, a mission's theorem is about an executable Acorn definition—the
@@ -403,9 +403,9 @@ check refusing noncomputable in executing modules).
   `./scripts/gate.sh` decide whether a theorem is proved and whether the
   gate's checks pass, and a referee reads the pull request against the whole
   contract under the [review protocol](#review-protocol);
-  runs of the agent in its worlds are not acceptance evidence; measured, they
-  answer the separate question of how a verified agent does in the world it is
-  meant for.
+  runs of the agent in its worlds are not acceptance evidence. Measured, such
+  runs answer the separate question of how a verified agent does in the world
+  it is meant for.
 - **Where a contract is frozen:** a theorem's statement is frozen as a *target*,
   a Lean definition whose value is the statement, in a module under
   `lean/AcornVerif/Targets/`. Every build elaborates each target against the
