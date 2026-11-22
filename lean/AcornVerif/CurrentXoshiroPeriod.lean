@@ -19,6 +19,7 @@ import Mathlib.Tactic.Ring
 
 namespace AcornVerif.CurrentXoshiroPeriod
 open Acorn Acorn.Features Acorn.Handcrafted
+open Polynomial (modByMonic)
 open AcornVerif.CurrentExplorer AcornVerif.CurrentTemporal AcornVerif.TemporalSupport
 
 private def mask64 : Nat := (1 <<< 64) - 1
@@ -1180,21 +1181,21 @@ private theorem degree_mul_X_pow_lt {S : Polynomial (ZMod 2)} {m N : Nat}
     omega
 
 private theorem modByMonic_mul_left (p q : Polynomial (ZMod 2)) :
-    (p %ₘ charPoly * q) %ₘ charPoly = (p * q) %ₘ charPoly := by
-  have hIdem : (p %ₘ charPoly) %ₘ charPoly = p %ₘ charPoly :=
+    modByMonic (modByMonic p charPoly * q) charPoly = modByMonic (p * q) charPoly := by
+  have hIdem : modByMonic (modByMonic p charPoly) charPoly = modByMonic p charPoly :=
     (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr
       (Polynomial.degree_modByMonic_lt _ charPoly_monic)
   rw [Polynomial.mul_modByMonic _ _ charPoly, hIdem, ← Polynomial.mul_modByMonic p q charPoly]
 
 private theorem modByMonic_mul_right (p q : Polynomial (ZMod 2)) :
-    (p * (q %ₘ charPoly)) %ₘ charPoly = (p * q) %ₘ charPoly := by
-  have hIdem : (q %ₘ charPoly) %ₘ charPoly = q %ₘ charPoly :=
+    modByMonic (p * modByMonic q charPoly) charPoly = modByMonic (p * q) charPoly := by
+  have hIdem : modByMonic (modByMonic q charPoly) charPoly = modByMonic q charPoly :=
     (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr
       (Polynomial.degree_modByMonic_lt _ charPoly_monic)
   rw [Polynomial.mul_modByMonic _ _ charPoly, hIdem, ← Polynomial.mul_modByMonic p q charPoly]
 
 private theorem add_charPoly_modByMonic (p : Polynomial (ZMod 2)) :
-    (p + charPoly) %ₘ charPoly = p %ₘ charPoly := by
+    modByMonic (p + charPoly) charPoly = modByMonic p charPoly := by
   rw [Polynomial.add_modByMonic, Polynomial.modByMonic_self charPoly_monic, add_zero]
 
 private theorem withBot_add_lt {a b : WithBot ℕ} {m n : Nat}
@@ -1231,7 +1232,7 @@ private theorem barrett_alg {c M q R0 : Nat}
     (hR0Deg : (natToPoly R0).degree < (256 : WithBot ℕ))
     (hR0Poly : natToPoly R0 = natToPoly barrettQ0 * charPoly + Polynomial.X ^ 511)
     (hMPoly : natToPoly M = natToPoly (c >>> 256) * natToPoly barrettQ0) :
-    natToPoly ((c ^^^ clMul q pLow) &&& mask256) = natToPoly c %ₘ charPoly := by
+    natToPoly ((c ^^^ clMul q pLow) &&& mask256) = modByMonic (natToPoly c) charPoly := by
   have hqLt256 : q < 2 ^ 256 := lt_trans hqLt (two_pow_lt_two_pow (by decide : 255 < 256))
   have hOutLt : (c ^^^ clMul q pLow) &&& mask256 < 2 ^ 256 := and_mask256_lt _
   have hMDecomp : natToPoly M = natToPoly q * Polynomial.X ^ 255 + natToPoly (M &&& mask255) := by
@@ -1291,7 +1292,7 @@ private theorem barrett_alg {c M q R0 : Nat}
     calc (natToPoly q * charPoly + natToPoly c) + charPoly * natToPoly q
         = natToPoly c + (charPoly * natToPoly q + charPoly * natToPoly q) := by ring
       _ = natToPoly c := by rw [hZ, add_zero]
-  have hMod : natToPoly c %ₘ charPoly = rem :=
+  have hMod : modByMonic (natToPoly c) charPoly = rem :=
     (Polynomial.div_modByMonic_unique (natToPoly q) rem charPoly_monic ⟨hDiv, hRemDeg⟩).2
   rw [hMod]
   ext k
@@ -1321,7 +1322,7 @@ private theorem barrett_alg {c M q R0 : Nat}
 set_option exponentiation.threshold 1024 in
 private theorem natToPoly_polyMul {a b : Nat} (ha : a < 2 ^ 256) (hb : b < 2 ^ 256) :
     polyMul a b < 2 ^ 256 ∧
-      natToPoly (polyMul a b) = (natToPoly a * natToPoly b) %ₘ charPoly := by
+      natToPoly (polyMul a b) = modByMonic (natToPoly a * natToPoly b) charPoly := by
   unfold polyMul
   dsimp only
   set c := clMul a b
@@ -1352,7 +1353,7 @@ private theorem natToPoly_polyMul {a b : Nat} (ha : a < 2 ^ 256) (hb : b < 2 ^ 2
     barrettR0_poly hMPoly
 
 private theorem poly_pow_modByMonic_idem (f : Polynomial (ZMod 2)) (m : Nat) :
-    (f %ₘ charPoly) ^ m %ₘ charPoly = f ^ m %ₘ charPoly := by
+    modByMonic (modByMonic f charPoly ^ m) charPoly = modByMonic (f ^ m) charPoly := by
   induction m with
   | zero => simp
   | succ k ih =>
@@ -1362,7 +1363,7 @@ private theorem natToPoly_polyPowGo :
     ∀ (fuel a e acc : Nat), e < 2 ^ fuel → a < 2 ^ 256 → acc < 2 ^ 256 →
       polyPowGo fuel a e acc < 2 ^ 256 ∧
         natToPoly (polyPowGo fuel a e acc) =
-          (natToPoly acc * natToPoly a ^ e) %ₘ charPoly
+          modByMonic (natToPoly acc * natToPoly a ^ e) charPoly
   | 0, a, e, acc, he, _, hacc => by
     have he0 : e = 0 := by omega
     subst he0
@@ -1436,7 +1437,7 @@ private theorem natToPoly_polyPowGo :
             rw [hExpEq]
 
 private theorem natToPoly_polyPow (a e : Nat) (he : e < 2 ^ 257) (ha : a < 2 ^ 256) :
-    polyPow a e < 2 ^ 256 ∧ natToPoly (polyPow a e) = (natToPoly a ^ e) %ₘ charPoly := by
+    polyPow a e < 2 ^ 256 ∧ natToPoly (polyPow a e) = modByMonic (natToPoly a ^ e) charPoly := by
   have h := natToPoly_polyPowGo 257 a e 1 he ha one_lt_pow256
   simpa [polyPow, natToPoly_one] using h
 
@@ -1820,9 +1821,9 @@ private theorem nat_mul_div_assoc {a b q : Nat} (hq : q ∣ b) : (a * b) / q = a
 private theorem checkTree_sound :
     ∀ (fuel : Nat) (ps : List Nat) (g e : Nat),
       g < 2 ^ 256 → ps.prod ≤ 2 ^ 256 - 1 → (∀ q ∈ ps, 0 < q) →
-      natToPoly g = (Polynomial.X ^ e) %ₘ charPoly →
+      natToPoly g = modByMonic (Polynomial.X ^ e) charPoly →
       checkTree g fuel ps = true →
-      ∀ q ∈ ps, (Polynomial.X ^ (e * (ps.prod / q))) %ₘ charPoly ≠ 1
+      ∀ q ∈ ps, modByMonic (Polynomial.X ^ (e * (ps.prod / q))) charPoly ≠ 1
   | 0, _, _, _, _, _, _, _, h, _, _ => by simp [checkTree] at h
   | _ + 1, [], _, _, _, _, _, _, _, _, hq => by simp at hq
   | _ + 1, [q0], g, e, _, _, hPos, hg, hChk, q, hq => by
@@ -1865,7 +1866,7 @@ private theorem checkTree_sound :
     rcases hMem with hL | hR
     · obtain ⟨hgLLt, hgLPoly⟩ := natToPoly_polyPow g right.prod hRightLt257 hgLt
       have hgLExact : natToPoly (polyPow g right.prod) =
-          (Polynomial.X ^ (e * right.prod)) %ₘ charPoly := by
+          modByMonic (Polynomial.X ^ (e * right.prod)) charPoly := by
         rw [hgLPoly, hg, poly_pow_modByMonic_idem, ← pow_mul]
       have hIH := checkTree_sound fuel left (polyPow g right.prod) (e * right.prod)
         hgLLt (le_trans hLeftProdLe hProd) hLeftPos hgLExact hLR.1 q hL
@@ -1876,7 +1877,7 @@ private theorem checkTree_sound :
       exact hIH
     · obtain ⟨hgRLt, hgRPoly⟩ := natToPoly_polyPow g left.prod hLeftLt257 hgLt
       have hgRExact : natToPoly (polyPow g left.prod) =
-          (Polynomial.X ^ (e * left.prod)) %ₘ charPoly := by
+          modByMonic (Polynomial.X ^ (e * left.prod)) charPoly := by
         rw [hgRPoly, hg, poly_pow_modByMonic_idem, ← pow_mul]
       have hIH := checkTree_sound fuel right (polyPow g left.prod) (e * left.prod)
         hgRLt (le_trans hRightProdLe hProd) hRightPos hgRExact hLR.2 q hR
@@ -1899,18 +1900,18 @@ private theorem prime_dvd_list_prod (q : Nat) (hq : q.Prime) :
         (prime_dvd_list_prod q hq xs (fun y hy => hPrimes y (List.mem_cons_of_mem _ hy)) hTail)
 
 private theorem x_pow_period_mod :
-    (Polynomial.X ^ (2 ^ 256 - 1)) %ₘ charPoly = 1 := by
+    modByMonic (Polynomial.X ^ (2 ^ 256 - 1)) charPoly = 1 := by
   have hN257 : 2 ^ 256 - 1 < 2 ^ 257 := lt_trans pow256_sub_one_lt pow256_lt_pow257
   have hP := (natToPoly_polyPow 2 (2 ^ 256 - 1) hN257 two_lt_pow256).2
   rw [pow_period_one, natToPoly_one, natToPoly_two] at hP
   exact hP.symm
 
 private theorem x_pow_prime_quot_ne_one {q : Nat} (hq : q.Prime) (hdvd : q ∣ 2 ^ 256 - 1) :
-    (Polynomial.X ^ ((2 ^ 256 - 1) / q)) %ₘ charPoly ≠ 1 := by
+    modByMonic (Polynomial.X ^ ((2 ^ 256 - 1) / q)) charPoly ≠ 1 := by
   have hdvd' : q ∣ primeFactors256.prod := primeFactors256_prod.symm ▸ hdvd
   have hQMem : q ∈ primeFactors256 :=
     prime_dvd_list_prod q hq primeFactors256 primeFactors256_all_prime hdvd'
-  have hMod2 : natToPoly 2 = (Polynomial.X ^ 1) %ₘ charPoly := by
+  have hMod2 : natToPoly 2 = modByMonic (Polynomial.X ^ 1) charPoly := by
     rw [natToPoly_two, pow_one, (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr (by
       rw [charPoly_degree, Polynomial.degree_X]; decide)]
   have hAllOne : ∀ p ∈ primeFactors256, 0 < p :=
@@ -1921,8 +1922,8 @@ private theorem x_pow_prime_quot_ne_one {q : Nat} (hq : q.Prime) (hdvd : q ∣ 2
 
 private theorem pow_gcd_mod_aux :
     ∀ (s a b : Nat), a + b ≤ s →
-      (Polynomial.X ^ a) %ₘ charPoly = 1 → (Polynomial.X ^ b) %ₘ charPoly = 1 →
-      (Polynomial.X ^ Nat.gcd a b) %ₘ charPoly = 1
+      modByMonic (Polynomial.X ^ a) charPoly = 1 → modByMonic (Polynomial.X ^ b) charPoly = 1 →
+      modByMonic (Polynomial.X ^ Nat.gcd a b) charPoly = 1
   | 0, a, b, hs, ha, _ => by
     have ha0 : a = 0 := by omega
     have hb0 : b = 0 := by omega
@@ -1934,19 +1935,19 @@ private theorem pow_gcd_mod_aux :
     · by_cases hb0 : b = 0
       · subst hb0; simpa using ha
       · by_cases hle : a ≤ b
-        · have hSub : (Polynomial.X ^ (b - a)) %ₘ charPoly = 1 := by
-            have hModId : ((Polynomial.X ^ (b - a)) %ₘ charPoly) %ₘ charPoly =
-                (Polynomial.X ^ (b - a)) %ₘ charPoly :=
+        · have hSub : modByMonic (Polynomial.X ^ (b - a)) charPoly = 1 := by
+            have hModId : modByMonic (modByMonic (Polynomial.X ^ (b - a)) charPoly) charPoly =
+                modByMonic (Polynomial.X ^ (b - a)) charPoly :=
               (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr
                 (Polynomial.degree_modByMonic_lt _ charPoly_monic)
-            calc (Polynomial.X ^ (b - a)) %ₘ charPoly
-                = ((Polynomial.X ^ (b - a)) %ₘ charPoly * 1) %ₘ charPoly := by
+            calc modByMonic (Polynomial.X ^ (b - a)) charPoly
+                = modByMonic (modByMonic (Polynomial.X ^ (b - a)) charPoly * 1) charPoly := by
                   rw [mul_one, hModId]
-              _ = ((Polynomial.X ^ (b - a)) %ₘ charPoly * (Polynomial.X ^ a %ₘ charPoly)) %ₘ
-                    charPoly := by rw [ha]
-              _ = (Polynomial.X ^ (b - a) * Polynomial.X ^ a) %ₘ charPoly :=
+              _ = modByMonic (modByMonic (Polynomial.X ^ (b - a)) charPoly *
+                    modByMonic (Polynomial.X ^ a) charPoly) charPoly := by rw [ha]
+              _ = modByMonic (Polynomial.X ^ (b - a) * Polynomial.X ^ a) charPoly :=
                   (Polynomial.mul_modByMonic _ _ charPoly).symm
-              _ = (Polynomial.X ^ b) %ₘ charPoly := by
+              _ = modByMonic (Polynomial.X ^ b) charPoly := by
                   rw [← pow_add, Nat.sub_add_cancel hle]
               _ = 1 := hb
           have hEqGcd : Nat.gcd a b = Nat.gcd a (b - a) := by
@@ -1954,19 +1955,19 @@ private theorem pow_gcd_mod_aux :
           rw [hEqGcd]
           exact pow_gcd_mod_aux s a (b - a) (by omega) ha hSub
         · have hlt : b ≤ a := by omega
-          have hSub : (Polynomial.X ^ (a - b)) %ₘ charPoly = 1 := by
-            have hModId : ((Polynomial.X ^ (a - b)) %ₘ charPoly) %ₘ charPoly =
-                (Polynomial.X ^ (a - b)) %ₘ charPoly :=
+          have hSub : modByMonic (Polynomial.X ^ (a - b)) charPoly = 1 := by
+            have hModId : modByMonic (modByMonic (Polynomial.X ^ (a - b)) charPoly) charPoly =
+                modByMonic (Polynomial.X ^ (a - b)) charPoly :=
               (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr
                 (Polynomial.degree_modByMonic_lt _ charPoly_monic)
-            calc (Polynomial.X ^ (a - b)) %ₘ charPoly
-                = ((Polynomial.X ^ (a - b)) %ₘ charPoly * 1) %ₘ charPoly := by
+            calc modByMonic (Polynomial.X ^ (a - b)) charPoly
+                = modByMonic (modByMonic (Polynomial.X ^ (a - b)) charPoly * 1) charPoly := by
                   rw [mul_one, hModId]
-              _ = ((Polynomial.X ^ (a - b)) %ₘ charPoly * (Polynomial.X ^ b %ₘ charPoly)) %ₘ
-                    charPoly := by rw [hb]
-              _ = (Polynomial.X ^ (a - b) * Polynomial.X ^ b) %ₘ charPoly :=
+              _ = modByMonic (modByMonic (Polynomial.X ^ (a - b)) charPoly *
+                    modByMonic (Polynomial.X ^ b) charPoly) charPoly := by rw [hb]
+              _ = modByMonic (Polynomial.X ^ (a - b) * Polynomial.X ^ b) charPoly :=
                   (Polynomial.mul_modByMonic _ _ charPoly).symm
-              _ = (Polynomial.X ^ a) %ₘ charPoly := by
+              _ = modByMonic (Polynomial.X ^ a) charPoly := by
                   rw [← pow_add, Nat.sub_add_cancel hlt]
               _ = 1 := ha
           have hEqGcd : Nat.gcd a b = Nat.gcd (a - b) b := (Nat.gcd_sub_self_left hlt).symm
@@ -1974,7 +1975,7 @@ private theorem pow_gcd_mod_aux :
           exact pow_gcd_mod_aux s (a - b) b (by omega) hSub hb
 
 private theorem x_pow_mod_one_eq_zero {m : Nat} (hmLt : m < 2 ^ 256 - 1)
-    (hm : (Polynomial.X ^ m) %ₘ charPoly = 1) : m = 0 := by
+    (hm : modByMonic (Polynomial.X ^ m) charPoly = 1) : m = 0 := by
   by_contra hmPos
   set N := 2 ^ 256 - 1
   set d := Nat.gcd m N
@@ -2001,51 +2002,53 @@ private theorem x_pow_mod_one_eq_zero {m : Nat} (hmLt : m < 2 ^ 256 - 1)
   have hQuot : N / q = d * M := by
     have hEq : N = q * (d * M) := by rw [hNK, hKM]; ring
     rw [hEq, Nat.mul_div_right _ hqPrime.pos]
-  have hGcdMod : (Polynomial.X ^ d) %ₘ charPoly = 1 :=
+  have hGcdMod : modByMonic (Polynomial.X ^ d) charPoly = 1 :=
     pow_gcd_mod_aux (m + N) m N (le_refl _) hm x_pow_period_mod
-  have hQuotOne : (Polynomial.X ^ (N / q)) %ₘ charPoly = 1 := by
+  have hQuotOne : modByMonic (Polynomial.X ^ (N / q)) charPoly = 1 := by
     rw [hQuot, pow_mul, ← poly_pow_modByMonic_idem, hGcdMod, one_pow]
     exact (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr (by
       rw [charPoly_degree, Polynomial.degree_one]; decide)
   exact x_pow_prime_quot_ne_one hqPrime hqDvdN hQuotOne
 
 private theorem x_pow_mod_inj {i j : Nat} (hi : i < 2 ^ 256 - 1) (hj : j < 2 ^ 256 - 1)
-    (hEq : (Polynomial.X ^ i) %ₘ charPoly = (Polynomial.X ^ j) %ₘ charPoly) : i = j := by
+    (hEq : modByMonic (Polynomial.X ^ i) charPoly = modByMonic (Polynomial.X ^ j) charPoly) :
+    i = j := by
   set N := 2 ^ 256 - 1
   wlog hij : i ≤ j generalizing i j
   · exact (this hEq.symm hj hi (by omega)).symm
   set k := j - i
   have hkLt : k < N := by omega
-  have hkMod : (Polynomial.X ^ k) %ₘ charPoly = 1 := by
-    have hModId : ((Polynomial.X ^ k) %ₘ charPoly) %ₘ charPoly =
-        (Polynomial.X ^ k) %ₘ charPoly :=
+  have hkMod : modByMonic (Polynomial.X ^ k) charPoly = 1 := by
+    have hModId : modByMonic (modByMonic (Polynomial.X ^ k) charPoly) charPoly =
+        modByMonic (Polynomial.X ^ k) charPoly :=
       (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr
         (Polynomial.degree_modByMonic_lt _ charPoly_monic)
-    calc (Polynomial.X ^ k) %ₘ charPoly
-        = (1 * ((Polynomial.X ^ k) %ₘ charPoly)) %ₘ charPoly := by
+    calc modByMonic (Polynomial.X ^ k) charPoly
+        = modByMonic (1 * modByMonic (Polynomial.X ^ k) charPoly) charPoly := by
           rw [one_mul, hModId]
-      _ = ((Polynomial.X ^ N %ₘ charPoly) * (Polynomial.X ^ k %ₘ charPoly)) %ₘ charPoly := by
+      _ = modByMonic (modByMonic (Polynomial.X ^ N) charPoly *
+            modByMonic (Polynomial.X ^ k) charPoly) charPoly := by
           rw [x_pow_period_mod]
-      _ = (Polynomial.X ^ (N + k)) %ₘ charPoly := by
+      _ = modByMonic (Polynomial.X ^ (N + k)) charPoly := by
           rw [← Polynomial.mul_modByMonic _ _ charPoly, pow_add]
-      _ = (Polynomial.X ^ (N - i) * Polynomial.X ^ j) %ₘ charPoly := by
+      _ = modByMonic (Polynomial.X ^ (N - i) * Polynomial.X ^ j) charPoly := by
           rw [← pow_add]; congr 2; omega
-      _ = ((Polynomial.X ^ (N - i) %ₘ charPoly) * (Polynomial.X ^ j %ₘ charPoly)) %ₘ
-            charPoly :=
+      _ = modByMonic (modByMonic (Polynomial.X ^ (N - i)) charPoly *
+            modByMonic (Polynomial.X ^ j) charPoly) charPoly :=
           Polynomial.mul_modByMonic _ _ charPoly
-      _ = ((Polynomial.X ^ (N - i) %ₘ charPoly) * (Polynomial.X ^ i %ₘ charPoly)) %ₘ
-            charPoly := by
+      _ = modByMonic (modByMonic (Polynomial.X ^ (N - i)) charPoly *
+            modByMonic (Polynomial.X ^ i) charPoly) charPoly := by
           rw [hEq]
-      _ = (Polynomial.X ^ (N - i) * Polynomial.X ^ i) %ₘ charPoly :=
+      _ = modByMonic (Polynomial.X ^ (N - i) * Polynomial.X ^ i) charPoly :=
           (Polynomial.mul_modByMonic _ _ charPoly).symm
-      _ = (Polynomial.X ^ N) %ₘ charPoly := by
+      _ = modByMonic (Polynomial.X ^ N) charPoly := by
           rw [← pow_add, Nat.sub_add_cancel (le_of_lt hi)]
       _ = 1 := x_pow_period_mod
   have hk0 := x_pow_mod_one_eq_zero hkLt hkMod
   omega
 
 private theorem poly_surj_x_pow {f : Nat} (hfPos : 0 < f) (hfLt : f < 2 ^ 256) :
-    ∃ m < 2 ^ 256 - 1, natToPoly f = (Polynomial.X ^ m) %ₘ charPoly := by
+    ∃ m < 2 ^ 256 - 1, natToPoly f = modByMonic (Polynomial.X ^ m) charPoly := by
   set N := 2 ^ 256 - 1
   have hN257 : N < 2 ^ 257 := lt_trans pow256_sub_one_lt pow256_lt_pow257
   let mapPow : Fin N → Fin N := fun m =>
@@ -2057,7 +2060,7 @@ private theorem poly_surj_x_pow {f : Nat} (hfPos : 0 < f) (hfLt : f < 2 ^ 256) :
     intro m hz
     have h0 := (natToPoly_polyPow 2 m.val (lt_trans m.isLt hN257) two_lt_pow256).2
     rw [hz, natToPoly_zero, natToPoly_two] at h0
-    have hPer : (Polynomial.X ^ N) %ₘ charPoly = 0 := by
+    have hPer : modByMonic (Polynomial.X ^ N) charPoly = 0 := by
       have hSplit : N = (N - m.val) + m.val := by omega
       rw [hSplit, pow_add, Polynomial.mul_modByMonic _ _ charPoly, ← h0, mul_zero,
         Polynomial.zero_modByMonic]
@@ -2644,7 +2647,8 @@ private theorem evalPoly_polyMul_two {f : Nat} (hf : f < 2 ^ 256) :
     evalPoly (polyMul f 2) = stepNat (evalPoly f) := by
   have hm := natToPoly_polyMul hf two_lt_pow256
   have hMulX :
-      (natToPoly f * natToPoly 2) %ₘ charPoly = (natToPoly f * Polynomial.X) %ₘ charPoly := by
+      modByMonic (natToPoly f * natToPoly 2) charPoly =
+        modByMonic (natToPoly f * Polynomial.X) charPoly := by
     rw [natToPoly_two]
   have hPow256 : (2 ^ 256 : Nat) = 2 * 2 ^ 255 := by rw [Nat.pow_succ, Nat.mul_comm]
   by_cases h255 : f < 2 ^ 255
@@ -2660,7 +2664,7 @@ private theorem evalPoly_polyMul_two {f : Nat} (hf : f < 2 ^ 256) :
         _ = (256 : WithBot ℕ) := rfl
     have hShlPoly : natToPoly (f <<< 1) = natToPoly f * Polynomial.X := by
       simpa [Nat.shiftLeft_eq] using natToPoly_shiftLeft f 1
-    have hModSelf : (natToPoly f * Polynomial.X) %ₘ charPoly = natToPoly (f <<< 1) := by
+    have hModSelf : modByMonic (natToPoly f * Polynomial.X) charPoly = natToPoly (f <<< 1) := by
       rw [← hShlPoly]
       exact (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr (by rw [hShlPoly]; exact hDeg)
     have hPM : polyMul f 2 = f <<< 1 := natToPoly_inj (hm.2.trans (hMulX.trans hModSelf))
@@ -2707,7 +2711,7 @@ private theorem evalPoly_polyMul_two {f : Nat} (hf : f < 2 ^ 256) :
               (natToPoly pLow + natToPoly pLow) := by rw [hZ]
         _ = (natToPoly fLo * Polynomial.X + natToPoly pLow) +
               (Polynomial.X ^ 256 + natToPoly pLow) := by ring
-    have hModEq : (natToPoly f * Polynomial.X) %ₘ charPoly = natToPoly res := by
+    have hModEq : modByMonic (natToPoly f * Polynomial.X) charPoly = natToPoly res := by
       rw [hFXEq, add_charPoly_modByMonic, Polynomial.modByMonic_eq_self_iff charPoly_monic,
         charPoly_degree]
       exact natToPoly_degree_lt res 256 hResLt
@@ -2723,7 +2727,7 @@ private theorem iterStep_evalPoly :
   | 0, f, _, hf => by
     have hPow0 : polyPow 2 0 = 1 := by decide
     have hm := natToPoly_polyMul hf one_lt_pow256
-    have hMod1 : (natToPoly f * natToPoly 1) %ₘ charPoly = natToPoly f := by
+    have hMod1 : modByMonic (natToPoly f * natToPoly 1) charPoly = natToPoly f := by
       rw [natToPoly_one, mul_one, Polynomial.modByMonic_eq_self_iff charPoly_monic,
         charPoly_degree]
       exact natToPoly_degree_lt f 256 hf
@@ -2755,7 +2759,7 @@ theorem xoshiro_period (r : Rng.Xoshiro256) : Rng.advance (2 ^ 256 - 1) r = r :=
   have hEval : evalPoly f = packState r := evalPoly_evalBinv (packState_lt r)
   rw [← hEval, iterStep_evalPoly (2 ^ 256 - 1) f pow256_sub_one_lt hfLt, pow_period_one]
   have hm := natToPoly_polyMul hfLt one_lt_pow256
-  have hMod : (natToPoly f * natToPoly 1) %ₘ charPoly = natToPoly f := by
+  have hMod : modByMonic (natToPoly f * natToPoly 1) charPoly = natToPoly f := by
     rw [natToPoly_one, mul_one, Polynomial.modByMonic_eq_self_iff charPoly_monic,
       charPoly_degree]
     exact natToPoly_degree_lt f 256 hfLt
@@ -2795,12 +2799,12 @@ theorem xoshiro_orbit_inj (r : Rng.Xoshiro256) (hr : r ≠ Rng.Xoshiro256.zero)
   have hPi := (natToPoly_polyPow 2 i hi257 two_lt_pow256).2
   have hPj := (natToPoly_polyPow 2 j hj257 two_lt_pow256).2
   rw [hPolyMul] at hMi
-  have hModEq : (natToPoly f * natToPoly (polyPow 2 i)) %ₘ charPoly =
-      (natToPoly f * natToPoly (polyPow 2 j)) %ₘ charPoly := hMi.symm.trans hMj
+  have hModEq : modByMonic (natToPoly f * natToPoly (polyPow 2 i)) charPoly =
+      modByMonic (natToPoly f * natToPoly (polyPow 2 j)) charPoly := hMi.symm.trans hMj
   rw [hPi, hPj, natToPoly_two, modByMonic_mul_right, modByMonic_mul_right, hmPoly,
     modByMonic_mul_left, modByMonic_mul_left, ← pow_add, ← pow_add] at hModEq
   set N := 2 ^ 256 - 1
-  have hPowPer : ∀ q : Nat, ((Polynomial.X ^ N) ^ q) %ₘ charPoly = 1 := by
+  have hPowPer : ∀ q : Nat, modByMonic ((Polynomial.X ^ N) ^ q) charPoly = 1 := by
     intro q
     induction q with
     | zero =>
@@ -2810,7 +2814,7 @@ theorem xoshiro_orbit_inj (r : Rng.Xoshiro256) (hr : r ≠ Rng.Xoshiro256.zero)
     | succ q ih =>
       rw [pow_succ, ← modByMonic_mul_left, ih, one_mul, x_pow_period_mod]
   have reduceMod : ∀ s : Nat,
-      (Polynomial.X ^ s) %ₘ charPoly = (Polynomial.X ^ (s % N)) %ₘ charPoly := by
+      modByMonic (Polynomial.X ^ s) charPoly = modByMonic (Polynomial.X ^ (s % N)) charPoly := by
     intro s
     have hs : s = N * (s / N) + s % N := (Nat.div_add_mod s N).symm
     conv_lhs => rw [hs, pow_add, pow_mul, ← modByMonic_mul_left, hPowPer (s / N), one_mul]
