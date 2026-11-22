@@ -5913,18 +5913,15 @@
     "e9973fd5da1b462d",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/Acorn/Host/Viewer/PersistedState.lean", "comments": 21, "lines": 35, "fingerprints": [
+  {"file": "lean/Acorn/Host/Viewer/PersistedState.lean", "comments": 18, "lines": 23, "fingerprints": [
     "1717eddecfd1f748",
     "1ae36a9ca2ffa1d1",
-    "31d517d1106adbe1",
-    "36992ef65e0c1e1a",
     "41121dbdff1b8d4e",
     "524faef0c33514f3",
     "5777321954b03930",
     "581f3ec5571a40a8",
     "61f1e20423c75c10",
     "6ee780e6c21506d2",
-    "89ba0cf0f5fc3237",
     "93d1c50883a2e45a",
     "944a9d8f2bb5648a",
     "ae677ba7db11f2cd",
@@ -6248,7 +6245,7 @@
     "fda2a3f394971d37",
     "ff82f836c8818cb0"
   ]},
-  {"file": "lean/Acorn/Host/Viewer/Supervisor.lean", "comments": 20, "lines": 57, "fingerprints": [
+  {"file": "lean/Acorn/Host/Viewer/Supervisor.lean", "comments": 19, "lines": 54, "fingerprints": [
     "0db9887f55136fc5",
     "1143d14e4c447dc3",
     "146a458c736f2830",
@@ -6267,7 +6264,6 @@
     "de4afcebae593a78",
     "e9fe3b00011bb606",
     "ea945f8d374153b9",
-    "ec9abc163b478e07",
     "f6b4d669becc3783"
   ]},
   {"file": "lean/Acorn/Host/Viewer/TelemetryValue.lean", "comments": 24, "lines": 35, "fingerprints": [
