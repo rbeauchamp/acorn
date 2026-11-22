@@ -2069,7 +2069,7 @@ What these theorems do not establish:
 - **Whether the composition learns.** What its executed update does on a stated
   model is a mathematical question that stays open. How the agent does in a
   world it is meant for is known only from measured runs of the verified agent
-  there, and a comparison of such runs does not say what its learning caused.
+  there.
 
 ## Implementation scope
 

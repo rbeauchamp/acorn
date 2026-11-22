@@ -10,7 +10,8 @@ the executed definitions and the primary literature. No agent run informed it.
 Status notes record what has changed since; the
 [roadmap](roadmap.md) orders the remaining work.
 
-**Claim status.** Every claim below carries one of these labels:
+**Claim status.** Every claim below, other than an observed outcome of a
+registered study, carries one of these labels:
 
 - **Machine-checked**: a Lean theorem over the executed definitions whose
   conclusion states the claim as worded, over the claim's whole domain,
@@ -31,6 +32,9 @@ Status notes record what has changed since; the
 - **Open**: a question that neither a theorem nor an observation has yet
   settled and that is not only empirical, such as what the executed
   definitions do on a stated model.
+
+An observed outcome of a registered study is reported as its recorded counts
+with the decision of the study's registered rule.
 
 The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 [frontier](frontier.md) are research questions.
@@ -58,13 +62,19 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   (F-A) erased option learning until U1 repaired it, and a locally derived
   exploration rate made about 90% of early primitive steps random until U2
   replaced it (F-C). Options learned only while executing until U4 (F-F).
-- **Learning: open; two measurements against chance, each refuted at its
-  horizon.** In one pass of the curriculum from a fresh agent, the agent
+- **Learning: open; two registered comparisons with chance, each
+  hypothesis refuted at its horizon.** In one pass of the curriculum from a
+  fresh agent, the agent
   achieved more goals than a uniform-random policy on 4 of 20 seeds
   ([U6](#conformance-sequence)). Over four cycles of the curriculum, its
   attempts to reach a target shortened by more than that policy's on 0 of 20
   seeds: of 160 reach visits the agent achieved one and the policy none
-  ([U7](#conformance-sequence)). Each compares the whole agent, learning
+  ([U7](#conformance-sequence)). These counts stand as recorded; what each
+  study's registered rule refuted is its hypothesis that more than half of all
+  seeds are wins: in most worlds the agent achieves at least one more goal than
+  chance in its first pass (U6), or its reach attempts shorten over repeated
+  visits by at least 300 steps per attempt, and by at least 300 steps per
+  attempt more than chance's do (U7). Each compares the whole agent, learning
   throughout, with a comparator that is not an ablation of it, so even a win
   would not separate learning from authored behavioural structure such as
   exploration duration (U6), or from what persists differently in the two
@@ -548,11 +558,13 @@ F-E left its feature-construction end inert until U3.
   measurements of the whole agent against a uniform-random policy,
   [U6](#conformance-sequence) (goals achieved in one pass) and
   [U7](#conformance-sequence) (the shortening of reach attempts over four
-  cycles), each refuted at its horizon. Under its proof-first policy so few
+  cycles). Their counts stand as recorded; what each study's registered rule
+  refuted at its horizon is its hypothesis that more than half of all seeds
+  are wins. Under its proof-first policy so few
   observations are deliberate. Whether the agent learns on goals it does
   achieve, or over a horizon longer than U7's four cycles, these comparisons do
   not settle: U7's per-goal counts are exploratory, and since the comparator is
-  not an ablation of the agent no such comparison can say what learning caused;
+  not an ablation of the agent neither comparison can say what learning caused;
   what its executed update does on a stated model is a mathematical question
   that stays open.
 
