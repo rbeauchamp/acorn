@@ -6,8 +6,9 @@
 # commit it validates, holding only tracked files. The script provisions the pinned dependencies
 # and runs every merge check: both stages of ./scripts/verify.sh, the Regula audit
 # ./scripts/regula.sh, lean-intent's confirmation and implementation checks
-# (lean/AcornTools/Intent.lean), and the check of each target's pinned frame
-# (lean/AcornTools/Frame.lean). Any failing check fails the step.
+# (lean/AcornTools/Intent.lean), the check of each target's pinned frame
+# (lean/AcornTools/Frame.lean), and the pinned no-comments ratchet check
+# (.no-comments.json, comment-ratchet.json, lean/no-comments.pin). Any failing check fails the step.
 #
 # GitHub runs the same script on a pull request's head commit at each event that gives the pull
 # request its head (.github/workflows/verify.yml). This file sets no `no_ci`, the declaration that a
@@ -21,7 +22,7 @@ commands:
 
 # Dependency provisioning, the largest part of a run from nothing, is reused across runs. For each
 # run's base commit on the default branch, no-mistakes runs the command once and stores
-# lean/.lake/packages: the locked dependency checkouts and their build outputs. A run starts from a
+# lean/.lake/packages: the locked dependency checkouts, their build outputs, and the pinned no-comments binary. A run starts from a
 # private copy only while each file below has the same content as at that base, so the copy holds
 # the revisions the run's lock files name, built by the same toolchain. Lake then rebuilds whatever
 # its traces do not show current, and the script's provisioning builds anything missing. Acorn's own
@@ -32,7 +33,9 @@ commands:
 #
 # Memory, measured on 2026-10-28 on a fresh clone with 14 cores, as the summed physical footprint of
 # the command's processes sampled every 2 s: provisioning from nothing peaked at 3.1 GiB, and the
-# whole Test command at 11.3 GiB, during the Regula audit. Nothing enforces either bound.
+# whole Test command at 11.3 GiB, during the Regula audit. The serial no-comments check added on
+# 2026-11-21 measured 8.16 GiB summed RSS (5 processes, 491 s on macOS arm64) after Regula.
+# Nothing enforces either bound.
 build_outputs:
   command: no-mistakes admit --memory 4GiB --limit "none; measured peak 3.1 GiB" -- ./scripts/gate.sh provision
   directories:
@@ -42,12 +45,14 @@ build_outputs:
     - lean/lake-manifest.json
     - site/lean-toolchain
     - site/lake-manifest.json
+    - lean/no-comments.pin
 
-# The Test step builds Acorn and its documents and replays the claimed modules in the kernel.
+# The Test step builds Acorn and its documents, replays the claimed modules in the kernel, and
+# runs the serial no-comments ratchet check.
 heavy_steps:
   test:
     memory: 12GiB
-    limit: none; measured peak 11.3 GiB
+    limit: none; measured peak 11.3 GiB (Regula), 8.16 GiB summed RSS (no-comments)
 
 # Pull request descriptions. Acorn squash-merges each pull request, so its description becomes the
 # commit message on main, and every description carries the sections the template names: Mission

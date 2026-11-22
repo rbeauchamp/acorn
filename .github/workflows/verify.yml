@@ -2,13 +2,13 @@ name: Verify
 # GitHub runs the merge gate here, on a pull request's head commit, when the pull request is
 # opened or reopened and at every push to its branch, whether that branch is in this
 # repository or in a fork, and at no other time. The one job runs the checked-out
-# commit's own ./scripts/gate.sh twice: with the argument `provision`, which provisions the
-# pinned dependencies, and then with no argument, the command the no-mistakes pipeline also
-# runs before a pull request opens (.no-mistakes.yaml). No step names a Lake target, a
-# module, a package or another script of the project: the job relies on the head only for
-# that script and its two forms. So the dependencies and the checks are that script's, and
-# a head whose script or Lake configuration is older or newer than main's is provisioned
-# and checked by its own.
+# commit's own ./scripts/gate.sh twice: with the argument `provision`, which
+# provisions the pinned dependencies, and then with no argument, the command the no-mistakes
+# pipeline also runs before a pull request opens (.no-mistakes.yaml). No step names a Lake
+# target, a module, a package or another script of the project: the job relies on the head only
+# for that script and its two forms. So the dependencies and the checks are that script's, and
+# a head whose script or Lake configuration is older or newer than main's is provisioned and
+# checked by its own.
 #
 # A pull request's run is started by the pull_request event, never pull_request_target, so
 # the run for a fork's pull request receives no secret of this repository and a token that
@@ -80,7 +80,7 @@ jobs:
         with:
           ref: ${{ steps.commit.outputs.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Confirm checked-out commit
         env:
           ACORN_VERIFY_SHA: ${{ steps.commit.outputs.sha }}
@@ -140,8 +140,13 @@ jobs:
       # matches the checked-out source, toolchain and options, and builds everything else.
       # The script then runs the Regula audit (scripts/regula.sh,
       # docs/verification.md#regula-audit), lean-intent's confirmation and implementation
-      # checks (lean/AcornTools/Intent.lean) and the check of each target's pin file
-      # (lean/AcornTools/Frame.lean), each also when an earlier check failed, and exits
-      # non-zero when any check failed. Its `gate:` lines give the time of each part.
+      # checks (lean/AcornTools/Intent.lean), and the check of each target's pin file
+      # (lean/AcornTools/Frame.lean), each also when an earlier check failed. Serially afterward,
+      # and only when ordinary verification succeeded (so un-admitted sources are never
+      # elaborated), it runs the pinned no-comments check (.no-comments.json, comment-ratchet.json,
+      # lean/no-comments.pin). The script exits non-zero when any check failed, and its `gate:`
+      # lines give the time of each part.
       - name: The merge gate on the exact source
+        env:
+          ACORN_BASE_REF: refs/remotes/origin/${{ github.base_ref }}
         run: ./scripts/gate.sh

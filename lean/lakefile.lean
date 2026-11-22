@@ -74,20 +74,14 @@ package acorn where
     ⟨`autoImplicit, false⟩,
     ⟨`relaxedAutoImplicit, false⟩,
     ⟨`warningAsError, true⟩,
-    ⟨`linter.missingDocs, true⟩,
     -- `debug.skipKernelTC` stays at its default, false, so the kernel typechecks every proof
     -- term the build adds, and the Regula audit's `lake lint` replays the cone of the claim in
     -- Lean's kernel in any case.
     ⟨`linter.unusedVariables, true⟩,
     ⟨`linter.unnecessarySimpa, true⟩,
     ⟨`linter.deprecated, true⟩,
-    -- Mathlib's standard linter set, with its header linter kept on for this license line and
-    -- two linters that govern Mathlib's own repository off: the hash-command linter and the
-    -- long-file linter.
     ⟨`weak.linter.mathlibStandardSet, true⟩,
-    ⟨`weak.linter.style.header, true⟩,
-    ⟨`weak.linter.style.header.license,
-      "Released under the MIT license as described in the repository LICENSE."⟩,
+    ⟨`weak.linter.style.header, false⟩,
     ⟨`weak.linter.hashCommand, false⟩,
     ⟨`weak.linter.style.longFile, .ofNat 0⟩,
   ]
