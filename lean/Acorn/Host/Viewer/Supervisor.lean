@@ -9,26 +9,6 @@ import Acorn.Host.Viewer.MapCodec
 import Acorn.Host.Viewer.HttpServer
 import Acorn.Host.Forever
 
-/-!
-# The viewer supervisor's native actor
-
-The actor reads the world, hands the supervisor's pure step (`Acorn.Host.Viewer.Supervision`)
-one event at a time, performs the effects the step returns, in order, and then performs the call
-the step waits for and hands its outcome back before it reads anything else. HTTP only appends
-to a bounded command queue. Every decision about the core process and the run's published state
-is the step's; this module maps each effect and call to the native operation it names.
-
-Each turn reads, while nothing is pending: the identity a process reported, one queued command,
-the process slot, the identity again, so that a reaped process's last report is attributed
-before any launch or archival, and then a tick.
-
-The trusted base of this module is the operating system's process, signal and wait semantics,
-the file system's durability of the state and map files, the Lean runtime's IO, mutexes and
-clock, and the correspondence of each case of `Supervisor.perform` and `Supervisor.call` to the
-operation its constructor names. The state the step returns is stored before its effects run,
-so a native error that stops the effects after it leaves that state, and the next turn goes on
-from it, as a restarted viewer goes on from the state file.
--/
 namespace Acorn.Host.Viewer
 
 inductive ChildProgram where

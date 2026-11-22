@@ -30,7 +30,7 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   **observer**, the viewer consumes the core's one-way NDJSON telemetry
   (the core, which it runs as
   `acorn-core demo --research-profile ranked --telemetry --control-stdin`
-  followed by the run's seed, identity and checkpoint arguments → child
+  followed by the run's seed, campaign, identity and checkpoint arguments → child
   stdout → SSE) and must never change the
   agent's decisions. Telemetry may gain *read-only* fields — quantities
   computed from state the agent already produced — provided the audit digest
@@ -912,7 +912,8 @@ What each panel must show. How it draws it is the code's.
   device) is refused without being opened, and so is an entry whose kind
   cannot be read. A regular file is opened: it is refused if the open or the read
   fails, if it holds more than 4096 bytes, or if its content is not a JSON
-  object holding the six members of the state, each admitted. On a refusal the viewer exits before it serves anything and leaves
+  object holding the six members of the state, each admitted, and beside them
+  at most a schema version and a child record. On a refusal the viewer exits before it serves anything and leaves
   the file as it is. The
   second is the version: the whole number that `schema_version` spells in
   decimal digits alone. A file that names another such number than the current
@@ -925,8 +926,9 @@ What each panel must show. How it draws it is the code's.
   stopped, because that viewer wrote a running intent when it found no file.
   The third is the child. With every state it saves, the viewer records what
   its supervisor would start: the core's path, the length in bytes of that
-  file, a digest of every byte of it (64-bit FNV-1a), and its arguments. A
-  file that cannot be read whole gives no record. A running intent is resumed
+  file, a digest of every byte of it (64-bit FNV-1a), and its arguments at a
+  reference launch. A file that cannot be read whole, or words the state file
+  cannot hold, gives no record. A running intent is resumed
   only by a launch whose record is the same; under `--cmd` there is no record,
   because what a shell starts for a command depends on more than the viewer
   can compare, so a running intent saved under `--cmd` is not carried to
@@ -951,8 +953,8 @@ What each panel must show. How it draws it is the code's.
   the refusal: no new mark of a started process and no agent epoch spent. A
   run that had already started a process keeps that mark, and the running
   intent that a Start saved before the launch was checked stays as saved. The
-  run is shown `stopped` with the reason, which is also printed in the
-  viewer's log. After a launch is recorded the supervisor spawns with no
+  run is shown `stopped` with the reason, which is also printed on the
+  viewer's standard error. After a launch is recorded the supervisor spawns with no
   further reading. The reason tells three cases apart,
   each with what clears it. The program differs from what this viewer read:
   "the core's program differs from what this viewer read when it started (the
@@ -1044,8 +1046,9 @@ What each panel must show. How it draws it is the code's.
   When the supervisor does start the ranked core, it runs the executable
   `acorn-core` beside the viewer with the explicitly selected ranked research
   campaign (`demo --research-profile ranked --telemetry --control-stdin`, then
-  the run's seed and identity,
-  `--side 1024 --steps 4000 --attempts 3 --goals 13 --cycles 0`, and
+  `--seed` with the run's seed,
+  `--side 1024 --steps 4000 --attempts 3 --goals 13 --cycles 0`, the run's
+  identity arguments, and
   `--checkpoint` with the run's weights file) and so with
   weight checkpointing. `--run-dir <dir>` moves the run directory,
   `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides the whole
