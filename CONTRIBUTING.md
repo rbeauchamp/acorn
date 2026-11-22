@@ -71,49 +71,71 @@ chose.
 The maintainers are the owner and the organization's agents
 ([triage and response](#triage-and-response)); a human maintainer is the owner
 or another person granted maintainer authority on the repository. A model family
-is the models of one developer.
+is the models of one developer. The maintainers' validation pipeline is the
+no-mistakes pipeline that the maintainers run on a change, configured by
+`.no-mistakes.yaml`. Its reviewer, a model that the maintainers configure and
+never one that an author chooses for a pull request, reads the change; the
+pipeline's fixers repair what the review finds, and the pipeline runs the
+merge gate on the commit, pushes it and opens or updates the pull request.
 
 ### Which review a pull request gets
 
-Every pull request requires an independent review under this protocol (by the
-maintainers' per-PR assignment below, or under the single-maintainer interim
-provision while Acorn has one human maintainer), and never by a reviewer the
-author chose; any model reviewer must belong to another model family than every
-model that did the work, and the applicable assignment rule determines when an
-uninvolved person is eligible. What differs is the depth. A pull request gets
-the referee's review when it does any of these:
+Every pull request requires an independent review under this protocol, and
+never by a reviewer the author chose; any model reviewer must belong to another
+model family than every model that did or fixed the work, and the applicable
+assignment rule determines when an uninvolved person is eligible. Which review
+a pull request gets is decided by what it claims or changes and by whether it
+passed the maintainers' validation pipeline, never by who wrote it or by how
+its author describes it:
 
-- it claims to complete or advance a mission, or an issue that asks for a
-  proof or a discovery;
-- it adds or changes the statement of a theorem about the agent, which is a
-  theorem that says what the executed agent or one of its learners does, or
-  it adds or changes a specification, which is a statement of what is to be
-  established, such as a target, an intent record, a decision contract, the
-  [mission contract](docs/mission-contract.md), an issue's contract or the
-  [viewer specification](docs/viewer-ux.md);
-- it claims learning or discovery.
+- a pull request that claims a result gets the referee's review, whatever else
+  holds of it, whether it passed the validation pipeline or not;
+- a pull request that claims no result and passed the validation pipeline gets
+  [the validation pipeline's review](#the-validation-pipelines-review), whether
+  it is a specification change or an ordinary change, and no short review or
+  referee is assigned to it;
+- a pull request that claims no result and did not pass the validation
+  pipeline gets the referee's review if it is a specification change, and
+  [the short review](#the-short-review) if it is an ordinary change.
 
-Every other pull request is an ordinary change and gets the short review. The
-line is drawn by what a pull request claims or changes, never by who wrote it
-or by how its author describes it. The maintainers decide it at triage, from the pull request's
-head, title and description, and decide it again whenever what the pull
-request claims or changes changes, by a push or by an edit of its title or
-description. In doubt, a pull request gets the referee's review.
+A pull request claims a result when it claims to complete or advance a
+mission, or an issue that asks for a proof or a discovery, or when it claims
+learning or discovery. It is a specification change when it adds or changes
+the statement of a theorem about the agent, which is a theorem that says what
+the executed agent or one of its learners does, or when it adds or changes a
+specification, which is a statement of what is to be established, such as a
+target, an intent record, a decision contract, the
+[mission contract](docs/mission-contract.md), an issue's contract or the
+[viewer specification](docs/viewer-ux.md). Every other pull request is an
+ordinary change.
+
+A pull request passed the maintainers' validation pipeline when a run of it that
+the maintainers started validated the pull request's head commit and pushed it,
+its title and description are as that run read and published them, the run's
+reviewer read the change and the run's review ended with no finding open that
+blocks under [three rounds of review](#three-rounds-of-review), and the run's
+reviewer belongs to another model family than every model that did, fixed or
+advised on the work, the run's own fixers included. Who wrote the pull request
+is no part of this condition.
+
+The maintainers decide which review a pull request gets at triage, from the
+pull request's head, title and description, and decide it again at every push
+and at every edit of its title or description. In doubt whether a pull
+request claims a result, or, where it did not pass the validation pipeline,
+whether it is a specification change, it gets the referee's review.
 
 An author may run a review of their own on any pull request, with a reviewer
 of their choice, as [AGENTS](AGENTS.md#review-and-delivery) and the review
 skills under .agents/skills describe. It helps the work and discharges nothing
 of this protocol, for any pull request.
 
-This holds for the organization's own changes as for anyone's. The review this
-protocol requires is the review of a reviewer assigned under the rule of
-assignment below, posted as a comment on the pull request for the exact head
-commit, title and description. A pre-PR or post-PR check made by a validation
-pipeline discharges nothing of the protocol on its own without that assignment
-comment and the reviewer's posted unedited report or short review on the pull
-request (and if a validation-pipeline run is relied on under the
-single-maintainer provision below, both the assignment comment naming the head
-commit and that unedited review on the pull request are still required).
+The review this protocol requires is posted as a comment on the pull request
+for the exact head commit, title and description, beside a comment that
+records its assignment: a referee's report or a short review from a reviewer
+assigned under the rule of assignment below, or the validation pipeline's
+review as its section below says. A check made by a validation pipeline,
+before or after the pull request opens, discharges nothing of the protocol
+until that review and its assignment comment are posted on the pull request.
 
 ### The gate on the exact head
 
@@ -131,11 +153,11 @@ on an earlier head counts for nothing.
 the reviewer). The author never does, and an author's request for a reviewer or
 against one, in the pull request or anywhere else, has no weight: the
 maintainers neither take nor pass over a reviewer because of it. Outside the
-cases covered by the single-maintainer interim provision below, each pull request
-(including every pull request once Acorn has more than one human maintainer, any
-fallback review when the interim designation cannot apply, and the second
-referee on a claim of discovery) receives an individual maintainer-led
-assignment:
+cases covered by the single-maintainer interim provision below, each referee's
+review and each short review (including every one once Acorn has more than one
+human maintainer, any fallback review when the interim designation cannot
+apply, and the second referee on a claim of discovery) receives an individual
+maintainer-led assignment:
 
 - the referee is of another model family than every model that did the work,
   or is a person. Whom this admits for work a person did with no model is the
@@ -147,20 +169,21 @@ assignment:
 - the assignment is written on the pull request: who assigned, and the
   referee's model family or that the referee is a person.
 
-**Single-maintainer interim provision (owner-confirmed 2026-11-21).** While
+**Single-maintainer interim provision.** While
 Acorn has only one human maintainer, independent human maintainer cross-checking
 on every pull request is unavailable. During this single-maintainer phase,
-independent review remains mandatory on every pull request (by an external
-model of another model family than every model that did the work, or an
-uninvolved person where the general rule above admits one), with the same
-referee's review or short review depth, exact head commit binding, findings, and
+the referee's review and the short review remain mandatory wherever
+[which review a pull request gets](#which-review-a-pull-request-gets) gives
+them (by an external model of another model family than every model that did
+the work, or an uninvolved person where the general rule above admits one),
+with the same depth, exact head commit binding, findings, and
 verdict of accept, revise or reject, plus exact-head `./scripts/gate.sh` and
 any blind specification read-back required at merge under
 [triage and response](#triage-and-response). Under this provision, the external
-model configured as the analyzer/verifier in Acorn's no-mistakes validation
-pipeline satisfies the protocol by standing owner designation (whether run via
-no-mistakes or standalone against the exact pull request head, title and
-description) when all of the following hold:
+model configured as the reviewer of the maintainers' validation pipeline gives
+a referee's review or a short review by standing owner designation when it
+reads the pull request as that review requires, standalone against the exact
+pull request head, title and description, and when all of the following hold:
 
 - an assignment comment is written on the pull request recording the owner's
   standing single-maintainer designation, the designated reviewer's model
@@ -175,12 +198,12 @@ description) when all of the following hold:
   that authored, fixed or advised on the work. In particular, if any contributing
   or pipeline-fixing model (whether directed by an outside contributor, an
   organization agent or a human maintainer) belongs to the same model family as
-  the validation pipeline's configured analyzer/verifier, that analyzer/verifier
+  the validation pipeline's configured reviewer, that reviewer
   cannot satisfy the protocol for that pull request and another reviewer is
   assigned under the general rule above (of another model family or an
   uninvolved person). Earlier review findings and reports issued by that model
-  strictly in its designated referee or analyzer/verifier role (under Findings
-  and revision below or in designated validation-pipeline verification rounds on
+  strictly in its designated referee or reviewer role (under Findings
+  and revision below or in validation-pipeline review rounds on
   revised commits) do not disqualify it from re-reading revised commits (and an
   author may relay the designated reviewer's unedited report), whereas seeking
   optional author-side review, advice, writing or fixing from that model does
@@ -189,18 +212,26 @@ description) when all of the following hold:
   supplies at most one cross-family referee and never substitutes for the second
   independent referee assigned under the general rule above.
 
-A review qualifying under this provision enters [When work is complete](#when-work-is-complete) once it is clean (verdict accept with no open findings), alongside the passed exact-head `./scripts/gate.sh` and merge.
+A run of the validation pipeline is not such a reading: it reads a change
+against the intent that the run was given, and its review is
+[the validation pipeline's review](#the-validation-pipelines-review), which
+never stands in for a referee's review or a short review.
+
+A review qualifying under this provision enters
+[When work is complete](#when-work-is-complete) once it is clean, alongside the
+passed exact-head `./scripts/gate.sh` and merge.
 
 **Restoration of full maintainer-led assignment.** Once Acorn has more than one
 human maintainer, this single-maintainer standing designation retires and the
-general per-PR maintainer-led assignment rule above governs every pull request
-on its own. As before, outside pull requests merge only on the owner's word,
-and any change loosening protections or removing checks merges only on the
-owner's recorded confirmation.
+general per-PR maintainer-led assignment rule above governs every referee's
+review and short review on its own. The validation pipeline's review does not
+rest on this provision. As before, outside pull requests merge only on the
+owner's word, and any change loosening protections or removing checks merges
+only on the owner's recorded confirmation.
 
-A review by anyone who was not assigned under the applicable rule above, from
-any account, is an ordinary comment. It is welcome as criticism and discharges
-nothing.
+A review by anyone who was not assigned under the applicable rule of this
+protocol, from any account, is an ordinary comment. It is welcome as
+criticism and discharges nothing.
 
 **What the referee reads, and against what.** The maintainers give the referee
 the pull request at its head commit, the issue it names and Acorn's tracked
@@ -264,11 +295,13 @@ of the pull request's title or description, the pull request has no clean
 report until the referee has read it again and reported: the rule covers
 every field of a pull request that becomes part of the merged commit's
 message or states a claim. This
-repeats until the report is clean or the author withdraws. A report is clean
-when its verdict is accept and no finding is open. An author may withdraw at
-any time; the pull request is then closed. A verdict of reject says that no
-revision can make the claim good: the pull request is closed, and new work is
-a new pull request.
+repeats until the report is clean or the author withdraws, within the limit
+that [three rounds of review](#three-rounds-of-review) sets. A report is clean
+when its verdict is accept and no finding is open; after the report's third
+round, that section says which findings still keep it from being clean. An
+author may withdraw at any time; the pull request is then closed. A verdict of
+reject says that no revision can make the claim good: the pull request is
+closed, and new work is a new pull request.
 
 **A claim of discovery.** A pull request that claims a discovery, in the sense
 of [prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery),
@@ -280,7 +313,8 @@ be clean.
 
 ### The short review
 
-The maintainers assign the reviewer of an ordinary change by the rule of
+The maintainers assign the reviewer of an ordinary change that did not pass
+the validation pipeline by the rule of
 assignment above, as they assign a referee, and write the assignment on the
 pull request. The reviewer reads the change at its head commit, adversarially,
 against what the description says the change does and against Acorn's rules
@@ -290,8 +324,8 @@ against what the description says the change does and against Acorn's rules
 - does it leave Acorn's tracked text true;
 - does it claim or change anything that calls for the referee's review.
 
-The short review is one comment on the pull request, and stays there. It
-counts as the review of an ordinary change only if it names the head commit it
+The short review is one comment on the pull request, and stays there. A
+comment counts as the short review only if it names the head commit it
 read and states, in a line each, the three things it checked: that the change
 does what its description says and nothing else; that it leaves Acorn's
 tracked text true; and that it claims nothing that calls for the referee's
@@ -307,19 +341,78 @@ vulnerability is answered and ruled on by the private route and not on the
 pull request, and after a push, or an edit of the pull request's title or
 description, it has no clean review until the reviewer has read it again.
 A short review is clean when it counts, its verdict is accept and no finding
-is open.
+is open; after its third round,
+[three rounds of review](#three-rounds-of-review) says which findings still
+keep it from being clean.
+
+### The validation pipeline's review
+
+A pull request that claims no result and passed the maintainers' validation
+pipeline has that pipeline's review as the review this protocol requires, and
+no short review or referee is assigned to it. The review is what the
+pipeline's reviewer found in every round of every run of it on the change,
+ending with the run that validated the head commit: each finding with its
+place, its reason and what was done about it, and the outcome of that run. It
+counts as the protocol's review when all of the following hold:
+
+- an assignment comment is written on the pull request recording that the
+  pull request passed the validation pipeline, the run, the reviewer's model
+  family and the exact head commit;
+- the review is posted on the pull request, unedited except for any redaction
+  required by the security-vulnerability rule above;
+- the reviewer took no part in writing or fixing the change and belongs to a
+  different model family than every model that authored, fixed or advised on
+  the work, the run's own fixers included.
+
+The review counts only for the head commit that the run validated and pushed,
+and for the pull request's title and description as that run read and
+published them. After a push, or an edit of the title or description, the
+pull request has not passed the validation pipeline until a run of it
+validates that head and publishes them, and until then it gets the review that
+[which review a pull request gets](#which-review-a-pull-request-gets) gives a
+pull request that did not pass it. The review is clean when the pull request
+passed the validation pipeline at that head and the review and its assignment
+comment are posted. A finding that discloses a security vulnerability is
+reported, answered and ruled on by the private route, as for a referee's
+report, and the review is not clean while it is open.
+
+### Three rounds of review
+
+Every review under this protocol, the referee's report, the short review and
+the validation pipeline's review alike, stops after three rounds. A round is
+one reading of the pull request by the reviewer at one head commit, with the
+report, review or findings it gives; the validation pipeline's rounds are
+counted over every run of it on the change. After the third round, a finding
+blocks only when its failure would be serious or hard to undo, or when it has
+been observed: it happened, or running code reproduced it.
+[What counts as a run](#what-counts-as-a-run) and
+[running a program](#running-a-program) apply to such code as to any other.
+Every other finding still open after the third round, or raised after it, is
+recorded on the pull request as accepted risk, with its reason, and is no
+longer open; a verdict of revise that rests only on such findings does not
+keep a review from being clean. A reading after the third round, such as one
+of a change that answers a finding that still blocks, raises findings under
+the same rule. Where the author and the reviewer disagree whether a finding
+blocks under this rule, the maintainers rule on it in writing on the pull
+request, or by the private route for a finding that discloses a security
+vulnerability.
 
 ### When work is complete
 
 Work under the referee's review is complete when its pull request has merged
 and, on the head commit that merged and for the title and description it
-merged with, each referee's report is clean and the gate has passed. An ordinary change is complete when its pull request has
+merged with, each referee's report is clean and the gate has passed. Work
+under the short review is complete when its pull request has
 merged and, on the head commit that merged and for the title and description
-it merged with, its short review is clean and the gate has passed.
+it merged with, its short review is clean and the gate has passed. Work under
+the validation pipeline's review is complete when its pull request has merged
+and, on the head commit that merged and for the title and description it
+merged with, that review is clean and the gate has passed.
 
-Until then the work is submitted, under review or accepted by its referees or
-its reviewer, and nothing calls it complete: not its description, a commit message, a
-comment, or its author's last message. A description says what the work
+Until then the work is submitted, under review or accepted by its referees,
+its reviewer or the validation pipeline's review, and nothing calls it
+complete: not its description, a commit message, a comment, or its author's
+last message. A description says what the work
 claims. An issue's own section on completion or acceptance says what is to be
 established, and its line on the gate names one check; whether a pull request
 has established it is decided here.
@@ -327,7 +420,8 @@ has established it is decided here.
 The owner's merge and the owner's review of changes to the trusted base are as
 [triage and response](#triage-and-response) states them; this protocol changes
 neither. No pull request merges before the review this protocol gives it is
-clean: each referee's report, or the short review.
+clean: each referee's report, the short review or the validation pipeline's
+review.
 
 ### What the protocol does not promise
 
@@ -626,7 +720,8 @@ every promise is one that an organization of one owner and its agents can keep:
   specification read-back when a pull request introduces or edits a
   specification), and only once the review that the
   [review protocol](#review-protocol) gives the pull request, each referee's
-  report or the short review, is clean on that head and for the title and
+  report, the short review or the validation pipeline's review, is clean on
+  that head and for the title and
   description as they stand at the merge. A change to what the
   review protocol requires, allows or rules out merges only once the owner
   has confirmed it. Changes to the trusted-base files listed in

@@ -12,13 +12,14 @@ Apply current `AGENTS.md` for verification, merge authority and record retention
 This is the review an author runs on their own change, with a reviewer the
 author chooses. It discharges nothing of the
 [review protocol](../../../CONTRIBUTING.md#review-protocol), for any pull
-request. There an independent reviewer is assigned under the protocol's rule
-of assignment (requiring any model reviewer to belong to another model family
-than every model that did the work, with the assignment rule governing when an
-uninvolved person is eligible and how the single-maintainer standing
-designation applies), and
+request. There
 [which review a pull request gets](../../../CONTRIBUTING.md#which-review-a-pull-request-gets)
-says whether that is the referee's review or the short review. That review, a comment
+says which review the pull request gets: the referee's review or the short
+review, from a reviewer assigned under the protocol's rule of assignment
+(with that rule governing when an uninvolved person is eligible and how the
+single-maintainer standing designation applies), or the maintainers'
+validation pipeline's review. Any model reviewer must belong to another model
+family than every model that did or fixed the work. That review, a comment
 on the pull request, decides whether the work is accepted. Never report work as complete on the
 strength of this review.
 
