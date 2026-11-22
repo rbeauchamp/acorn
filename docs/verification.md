@@ -646,7 +646,7 @@ checks out full history (so `origin` holds the pull request base branch), and
 never falls back to the merge of the head with its base. From that checkout
 it runs `./scripts/gate.sh provision` to provision the pinned dependencies
 (including the SHA-256-verified `no-comments` binary into `lean/.lake/packages`),
-then runs `./scripts/gate.sh` with ACORN*BASE*REF set to `refs/remotes/origin/`
+then runs `./scripts/gate.sh` with `ACORN_BASE_REF` set to `refs/remotes/origin/`
 and the pull request's base branch name (which the script passes through
 `--base-ref` to the pinned checker, which resolves it and refuses an
 unavailable reference) to run the same gate as the pipeline's Test step.
@@ -748,9 +748,9 @@ non-zero) for verification's two stages together,
 `gate: frame check exited N; no-comments check` and
 `gate: no-comments check exited N` (or
 `gate: no-comments check refused (integrity check failed)` when the cached
-binary fails offline SHA-256 verification before starting, or
-`gate: no-comments check refused (verification failed)` when ordinary verification
-failed before source admission succeeded); when verification passed,
+binary fails cache-containment or offline SHA-256 verification before starting, or
+`gate: no-comments check refused (verification failed)` when either stage of
+ordinary verification failed); when verification passed,
 `gate: verification exited 0; Regula audit beside lean-intent and frame checks`
 prints before either starts, while
 `gate: Regula audit exited N; lean-intent checks`,

@@ -17,7 +17,7 @@ export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PAT
 step() { printf 'gate: %s at %s (%d s)\n' "$1" "$(date -u +%H:%M:%SZ)" "$SECONDS"; }
 
 nc_pin='lean/no-comments.pin'
-if [[ ! -f "$nc_pin" || -L "$nc_pin" ]]; then
+if [[ -L lean || ! -d lean || ! -f "$nc_pin" || -L "$nc_pin" ]]; then
   echo "gate: missing or non-regular pin file: $nc_pin" >&2
   exit 1
 fi
@@ -60,8 +60,52 @@ verify_sha256() {
     echo 'gate: OpenSSL is unavailable for SHA-256 verification' >&2
     return 1
   fi
-  actual=$(openssl dgst -sha256 -r "$file" | awk '{print $1}')
+  actual=$(openssl dgst -sha256 -r "$file" | awk '{print $1}') || return 1
   [[ "$actual" == "$expected" ]]
+}
+
+nc_pkg_dir='lean/.lake/packages'
+nc_root="$nc_pkg_dir/.no-comments"
+nc_dir="$nc_root/$nc_version"
+nc_bin="$nc_dir/no-comments"
+
+check_nc_cache_dirs() {
+  local mode="$1" repo_real dir real
+  repo_real=$(pwd -P) || return 1
+  for dir in lean lean/.lake "$nc_pkg_dir"; do
+    if [[ -L "$dir" || ! -d "$dir" ]]; then
+      echo "gate: cache parent must be a real directory: $dir" >&2
+      return 1
+    fi
+    if ! real=$(cd -P "$dir" && pwd -P) || [[ "$real" != "$repo_real/$dir" ]]; then
+      echo "gate: cannot verify cache parent inside checkout: $dir" >&2
+      return 1
+    fi
+  done
+  for dir in "$nc_root" "$nc_dir"; do
+    if [[ -L "$dir" ]]; then
+      echo "gate: refusing symlinked cache directory: $dir" >&2
+      return 1
+    elif [[ -e "$dir" && ! -d "$dir" ]]; then
+      echo "gate: refusing non-directory cache path: $dir" >&2
+      return 1
+    elif [[ -d "$dir" ]]; then
+      if ! real=$(cd -P "$dir" && pwd -P) || [[ "$real" != "$repo_real/$dir" ]]; then
+        echo "gate: cannot verify cache directory inside checkout: $dir" >&2
+        return 1
+      fi
+    elif [[ "$mode" != allow-missing ]]; then
+      echo "gate: missing cache directory: $dir" >&2
+      return 1
+    fi
+  done
+}
+
+ensure_nc_cache_dirs() {
+  check_nc_cache_dirs allow-missing || return 1
+  [[ -d "$nc_root" ]] || mkdir "$nc_root" || return 1
+  [[ -d "$nc_dir" ]] || mkdir "$nc_dir" || return 1
+  check_nc_cache_dirs require-present
 }
 
 nc_tmp=''
@@ -136,15 +180,18 @@ step 'provisioning the pinned dependencies'
   # Verso's modules and the shared library its documents load.
   lake build verso/VersoManual verso/VersoManual:shared
 )
-nc_dir="lean/.lake/packages/.no-comments/$nc_version"
-nc_bin="$nc_dir/no-comments"
-if verify_sha256 "$nc_sha256" "$nc_bin"; then
+check_nc_cache_dirs allow-missing
+if [[ ! -L "$nc_bin" && -e "$nc_bin" && ! -f "$nc_bin" ]]; then
+  echo "gate: refusing unexpected non-regular cache entry: $nc_bin" >&2
+  exit 1
+fi
+if [[ -f "$nc_bin" && ! -L "$nc_bin" ]] && verify_sha256 "$nc_sha256" "$nc_bin"; then
   [[ -x "$nc_bin" ]] || chmod 755 "$nc_bin"
 else
   if [[ -L "$nc_bin" ]]; then
     echo "gate: removing symlinked $nc_bin; re-downloading" >&2
     rm -f "$nc_bin"
-  elif [[ -e "$nc_bin" ]]; then
+  elif [[ -f "$nc_bin" ]]; then
     echo "gate: cached $nc_bin failed SHA-256 verification; re-downloading" >&2
   fi
   nc_tmp=$(mktemp -d)
@@ -156,11 +203,12 @@ else
     echo "gate: downloaded no-comments-${nc_target} failed SHA-256 verification" >&2
     exit 1
   fi
-  mkdir -p "$nc_dir"
-  chmod 755 "$nc_tmp/no-comments"
-  if [[ -e "$nc_bin" && ! -f "$nc_bin" ]]; then
-    rm -rf "$nc_bin"
+  ensure_nc_cache_dirs
+  if [[ -L "$nc_bin" || ( -e "$nc_bin" && ! -f "$nc_bin" ) ]]; then
+    echo "gate: refusing unexpected non-regular cache entry: $nc_bin" >&2
+    exit 1
   fi
+  chmod 755 "$nc_tmp/no-comments"
   mv -f "$nc_tmp/no-comments" "$nc_bin"
   rmdir "$nc_tmp"
   nc_tmp=''
@@ -246,6 +294,9 @@ if [[ "$verified" != 0 ]]; then
   echo "gate: refusing no-comments check because verification exited $verified" >&2
   commented=1
   step 'no-comments check refused (verification failed)'
+elif ! check_nc_cache_dirs require-present; then
+  commented=1
+  step 'no-comments check refused (integrity check failed)'
 elif ! verify_sha256 "$nc_sha256" "$nc_bin"; then
   echo "gate: offline SHA-256 verification failed for $nc_bin" >&2
   commented=1
