@@ -6061,14 +6061,13 @@
     "f6b4d669becc3783",
     "f78a201145db0c2d"
   ]},
-  {"file": "lean/Acorn/Host/Viewer/Supervision.lean", "comments": 182, "lines": 280, "fingerprints": [
+  {"file": "lean/Acorn/Host/Viewer/Supervision.lean", "comments": 180, "lines": 276, "fingerprints": [
     "01dec822b1cccc57",
     "02f4d657275b7efd",
     "038d2adedcd77d18",
     "03a89d2b95f618e9",
     "05dc489ff96206d0",
     "09ba0c9b1f84531e",
-    "0b18206f99d37405",
     "0bde24cb704ea92e",
     "0c294c9298ca2d60",
     "0edd73cb534bdf44",
@@ -6094,7 +6093,6 @@
     "2fa330a850402ac8",
     "2fe60872a520508f",
     "31e75ee549841a07",
-    "348257f2f505b398",
     "35acce5a9c03225c",
     "35b430982ad9f83c",
     "36c1f77338286a17",

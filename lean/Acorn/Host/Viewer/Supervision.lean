@@ -698,9 +698,6 @@ def resolve (core : Core) (now : Nat) :
 
 /-! ## The step -/
 
-/-- The state the viewer starts from, after the bootstrap published `persisted`: no process,
-nothing pending, the lifecycle of the durable identity and intent, and the reason the page is
-shown first. -/
 def start (persisted : PersistedState) (clearDisabled : Option String) (reason : String)
     (reading : Nat) : Core where
   lifecycle := .initial persisted.identity persisted.desired
@@ -755,7 +752,6 @@ end Core
 
 /-- A state is reached from a start by steps and call outcomes, for a Clear configuration. -/
 inductive Ran (clearDisabled : Option String) : Core → Prop where
-  /-- The viewer starts from a published durable state. -/
   | start (persisted : PersistedState) (reason : String) (reading : Nat) :
       Ran clearDisabled (Core.start persisted clearDisabled reason reading)
   /-- A step on an event. -/
