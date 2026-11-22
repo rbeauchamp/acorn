@@ -942,11 +942,15 @@ What each panel must show. How it draws it is the code's.
   what the viewer read at start, whether or not the state file can hold the
   record. So a running intent is not carried to a core whose file has since
   changed in length or content, or moved, and a core rebuilt while a viewer
-  runs is not started by that viewer. The supervisor reads the file once
-  before each start, before it records the launch: a refusal there writes
-  nothing and spawns nothing, so the saved state is exactly as it was, not
-  marked as having started a process and with its agent epoch unspent, and
-  the run is shown `stopped` with the reason, which is also printed in the
+  runs is not started by that viewer, unless the rebuild lands in the
+  interval between the supervisor's reading and the start of the program,
+  named below as the first thing not compared. The supervisor reads the file
+  once before each start, before it records the launch: a refusal there writes
+  nothing and spawns nothing, so the saved state is exactly as it was before
+  the refusal: no new mark of a started process and no agent epoch spent. A
+  run that had already started a process keeps that mark, and the running
+  intent that a Start saved before the launch was checked stays as saved. The
+  run is shown `stopped` with the reason, which is also printed in the
   viewer's log. After a launch is recorded the supervisor spawns with no
   further reading. The reason tells three cases apart,
   each with what clears it. The program differs from what this viewer read:

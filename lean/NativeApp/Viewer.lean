@@ -90,8 +90,9 @@ configuration holds the action that reads its file (`readProgram`) and the readi
 action gave here, the file's length in bytes and the 64-bit FNV-1a digest of every byte of
 it. The actor runs the same action again once before every start, the first and every
 restart, before it records the launch, and records the launch and spawns only if it gives the
-same reading, so a core rebuilt or replaced during this viewer's life is not started on a
-Start given for the file this viewer read; a ranked core whose file could not be read whole
+same reading, so a core rebuilt or replaced during this viewer's life before that reading is
+not started on a Start given for the file this viewer read, and one replaced after the
+reading, in the interval named below, is started; a ranked core whose file could not be read whole
 here, or cannot be then, is not spawned, and nothing is written for the refusal. That
 comparison is held in memory and does not depend on the record, on the run directory's path
 or on what the state file can hold. The record written to the state file is the path, that

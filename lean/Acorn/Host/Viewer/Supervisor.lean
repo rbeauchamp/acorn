@@ -131,7 +131,10 @@ def childUnread : String :=
 command is never refused here. The ranked core is refused when its file could not be read
 whole when this viewer started, cannot be read whole now, or reads now otherwise than it did
 then, whether or not the state file can hold a record of the child. The actor asks once before
-each start, the first and every restart, before the launch is recorded (`Supervisor.call`). -/
+each start, the first and every restart, before the launch is recorded (`Supervisor.call`). So
+a file replaced before that reading is refused. One replaced after it, in the interval between
+the reading and the operating system starting the program, in which the launch is recorded,
+is not seen, and the replaced program is started. -/
 private def Supervisor.refusal (supervisor : Supervisor) : IO (Option String) :=
   match supervisor.config.program with
   | .fixed => pure none
@@ -149,8 +152,9 @@ The reading is made before the launch is recorded, when `launching` says the sta
 is the one that marks a launch as attempted (`Pending.launch`). A refusal there writes nothing
 and spawns nothing: the call's result is the write's error with the reason, which the step
 treats as a launch that could not be recorded, so the run stops and the saved state is exactly
-as it was, not marked as having started a process and with its agent epoch unspent. No process
-could have been created on that path. After a launch is recorded the actor spawns with no
+as it was before the refusal: no new mark of a started process and no agent epoch spent. A run
+that had already started a process keeps that mark, and the running intent that a Start saved
+before the launch was checked stays as saved. No process could have been created on that path. After a launch is recorded the actor spawns with no
 further reading, so no refusal of this kind follows the record.
 
 Every refusal is printed on standard error and reported in the page by the step, as the

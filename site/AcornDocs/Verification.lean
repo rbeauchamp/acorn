@@ -1316,10 +1316,14 @@ code and not proved: before the ranked core is started, the first time and at ev
 actor reads the executable's file again by the same action and compares its length and digest
 ({decl}`Acorn.Host.Viewer.ProgramReading`) with what the viewer read when it started, whether or not
 the state file can hold the record. It does so once, before the launch is recorded: a refusal
-there writes nothing and spawns nothing, so the saved state is exactly as it was, not marked
-as having started a process and with its agent epoch unspent, and the run is shown stopped with
+there writes nothing and spawns nothing, so the saved state is exactly as it was before the
+refusal: no new mark of a started process and no agent epoch spent. A run that had already started
+a process keeps that mark, and the running intent that a Start saved before the launch was checked
+stays as saved. The run is shown stopped with
 the reason. No process could have been created on that path. After a launch is recorded the actor
-spawns with no further reading, so no refusal of this kind follows the record. The reason of a
+spawns with no further reading, so no refusal of this kind follows the record: a file replaced
+before that reading is refused, and one replaced after it, before the launch record or after it,
+is not seen and is started, which is the first of the limits named below. The reason of a
 refusal is shown in the page and printed on the viewer's standard
 error, and it tells three cases apart, each with what clears it: the program differs from what
 this viewer read when it started, and starting the viewer again records it as it is now; the

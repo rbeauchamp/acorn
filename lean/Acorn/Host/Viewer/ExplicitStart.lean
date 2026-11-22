@@ -75,10 +75,14 @@ the actor reads the executable's file again, by the action the bootstrap read it
 compares its length and digest (`ProgramReading`) with what the viewer read when it started,
 whether or not the state file can hold the record (`ChildProgram`). It does so once
 (`Supervisor.call`), before the launch is recorded: a refusal there writes nothing and spawns
-nothing, so the saved state is exactly as it was, not marked as having started a process and
-with its agent epoch unspent, and the step, given the write's error, stops the run. No
+nothing, so the saved state is exactly as it was before the refusal: no new mark of a started
+process and no agent epoch spent. A run that had already started a process keeps that mark,
+and the running intent that a Start saved before the launch was checked stays as saved. The
+step, given the write's error, stops the run. No
 process could have been created on that path. After a launch is recorded the actor spawns
-with no further reading, so no refusal of this kind follows the record. The reason
+with no further reading, so no refusal of this kind follows the record: a file replaced
+before that reading is refused, and one replaced after it, before the launch record or after
+it, is not seen and is started, which is the first of the limits named below. The reason
 (`childDiffers`, `childUnreadable`, `childUnread`) is reported in the page and printed on
 standard error. A fixed command is
 written and spawned with no reading: a Start under `--cmd` is an explicit act for that command
