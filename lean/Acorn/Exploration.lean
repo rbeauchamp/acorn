@@ -188,6 +188,60 @@ theorem PolicySnapshot.drawPersistent_def {count : Word.Count} (snapshot : Polic
   dsimp only
   cases (beginExploration count snapshot.epsilon rng).1 <;> rfl
 
+theorem PolicySnapshot.drawPersistent_rng {count : Word.Count} (snapshot : PolicySnapshot count)
+    (rng : Rng.Xoshiro256) :
+    (snapshot.drawPersistent rng).2 =
+      let draw := beginExploration count snapshot.epsilon rng
+      match draw.1 with
+      | some _ => draw.2
+      | none => Rng.advance count.word.toNat draw.2 := by
+  rw [PolicySnapshot.drawPersistent_def]
+  dsimp only
+  cases (beginExploration count snapshot.epsilon rng).1 with
+  | some run => rfl
+  | none => exact PolicySnapshot.greedy_rng snapshot _
+
+theorem PolicySnapshot.drawPersistent_rate {count : Word.Count} (left right : PolicySnapshot count)
+    (rate : left.epsilon = right.epsilon) (rng : Rng.Xoshiro256) :
+    (left.drawPersistent rng).2 = (right.drawPersistent rng).2 ∧
+      (left.drawPersistent rng).1.run = (right.drawPersistent rng).1.run ∧
+      (left.drawPersistent rng).1.explored = (right.drawPersistent rng).1.explored := by
+  refine ⟨?_, ?_⟩
+  · rw [PolicySnapshot.drawPersistent_rng, PolicySnapshot.drawPersistent_rng, rate]
+  · rw [PolicySnapshot.drawPersistent_def, PolicySnapshot.drawPersistent_def, rate]
+    dsimp only
+    cases (beginExploration count right.epsilon rng).1 <;> dsimp only <;> exact ⟨rfl, rfl⟩
+
+theorem PolicySnapshot.drawPersistent_decision {count : Word.Count}
+    (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.drawPersistent rng).1 =
+      let draw := beginExploration count snapshot.epsilon rng
+      match draw.1 with
+      | some run => ⟨run.action, true, some run, snapshot.probabilities⟩
+      | none =>
+        ⟨(reservoir snapshot.candidates 0 (firstAction count) draw.2).1, false, none,
+          snapshot.probabilities⟩ := by
+  rw [PolicySnapshot.drawPersistent_def]
+  dsimp only
+  cases (beginExploration count snapshot.epsilon rng).1 with
+  | some run => rfl
+  | none =>
+    dsimp only
+    rw [PolicySnapshot.greedy_action]
+
+theorem PolicySnapshot.drawPersistent_full {count : Word.Count} (snapshot : PolicySnapshot count)
+    (full : ∀ action, action ∈ snapshot.candidates) (rng : Rng.Xoshiro256) :
+    snapshot.drawPersistent rng =
+      let draw := beginExploration count snapshot.epsilon rng
+      match draw.1 with
+      | some run => (⟨run.action, true, some run, snapshot.probabilities⟩, draw.2)
+      | none =>
+        let greedy := reservoir snapshot.candidates 0 (firstAction count) draw.2
+        (⟨greedy.1, false, none, snapshot.probabilities⟩, greedy.2) := by
+  rw [PolicySnapshot.drawPersistent_def]
+  dsimp only
+  rw [PolicySnapshot.greedy_full snapshot full]
+
 /-- Frozen-decision credit for a persistent draw with its work: the discount and trace decay of
 the duration, then the update over the snapshot's values. -/
 def Controller.persistentStepCosted {count : Word.Count} {config : Acorn.Config}

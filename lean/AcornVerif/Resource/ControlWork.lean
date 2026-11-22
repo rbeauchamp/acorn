@@ -464,13 +464,6 @@ theorem candidatesCosted_within (κ : Costs) (snapshot : PolicySnapshot count) :
   refine (Acorn.Costed.filter_within fun _ _ => Acorn.Costed.op_within _ _ κ).mono ?_
   simp [Acorn.Costed.finRange_val]
 
-theorem candidates_length (snapshot : PolicySnapshot count) :
-    snapshot.candidates.length ≤ count.word.toNat := by
-  have filtered := List.length_filter_le
-    (fun action => decide ((snapshot.best.sub tieWindow).LessOrEqual (snapshot.values.get action)))
-    (List.finRange count.word.toNat)
-  simpa only [PolicySnapshot.candidates_def, List.length_finRange] using filtered
-
 theorem reservoirCosted_within (κ : Costs) (pending : List (Action actions)) (seen : UInt64)
     (pick : Action actions) (rng : Rng.Xoshiro256) :
     (reservoirCosted pending seen pick rng).Within κ
@@ -487,13 +480,27 @@ theorem reservoirCosted_within (κ : Costs) (pending : List (Action actions)) (s
 
 /-- Bound of a greedy draw over `size` values. -/
 abbrev greedyBound (κ : Costs) (size : Nat) : Nat :=
-  candidatesBound κ size + pass (κ .visit) size (κ .reservoirDraw)
+  candidatesBound κ size + (pass (κ .visit) size (κ .reservoirDraw) + κ .visit +
+    Library.length.control (κ .visit) size + Library.range.control (κ .visit) size)
 
 theorem greedyCosted_within (κ : Costs) (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    (snapshot.greedyCosted rng).Within κ (greedyBound κ count.word.toNat) :=
-  Acorn.Costed.bind_within (candidatesCosted_within κ snapshot)
-    ((reservoirCosted_within κ _ 0 _ rng).mono
-      (pass_mono (candidates_length snapshot) (Nat.le_refl _)))
+    (snapshot.greedyCosted rng).Within κ (greedyBound κ count.word.toNat) := by
+  have fits : snapshot.candidatesCosted.val.length ≤ count.word.toNat :=
+    snapshot.candidates_length
+  refine (Acorn.Costed.bind_within (candidatesCosted_within κ snapshot)
+    (Acorn.Costed.bind_within (reservoirCosted_within κ _ 0 _ rng)
+      (Acorn.Costed.bind_within (Acorn.Costed.length_within _ κ)
+        (Acorn.Costed.bind_within (Acorn.Costed.range_within _ κ)
+          (Acorn.Costed.foldl_within fun _ _ _ => Acorn.Costed.op_within _ _ κ))))).mono ?_
+  simp only [Acorn.Costed.length_val, Acorn.Costed.range_val, List.length_range, greedyBound,
+    pass, Library.work, Library.control, Library.passes]
+  generalize candidatesBound κ count.word.toNat = bound
+  generalize snapshot.candidatesCosted.val.length = taken at fits ⊢
+  generalize count.word.toNat = size at fits ⊢
+  obtain ⟨spare, rfl⟩ := Nat.exists_eq_add_of_le fits
+  rw [Nat.add_sub_cancel_left]
+  simp only [Nat.add_mul, Nat.mul_add, Nat.one_mul]
+  omega
 
 /-- Bound of the nominal masses over `size` values. -/
 abbrev probabilitiesBound (κ : Costs) (size : Nat) : Nat :=
@@ -505,7 +512,7 @@ theorem probabilitiesCosted_within (κ : Costs) (snapshot : PolicySnapshot count
     snapshot.probabilitiesCosted.Within κ (probabilitiesBound κ count.word.toNat) := by
   have size : Library.length.control (κ .visit) snapshot.candidatesCosted.val.length ≤
       Library.length.control (κ .visit) count.word.toNat :=
-    Library.control_mono _ (candidates_length snapshot)
+    Library.control_mono _ snapshot.candidates_length
   refine (Acorn.Costed.bind_within (candidatesCosted_within κ snapshot)
     (Acorn.Costed.bind_within (Acorn.Costed.length_within _ κ)
       (Acorn.Costed.bind_within (bestCosted_within κ snapshot)

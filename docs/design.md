@@ -284,6 +284,46 @@ observer's own effects, the terminal frame, the resource counters and the
 reported durations are outside them. A campaign reports the error of a refusal
 and returns no agent, in every order.
 
+### The generator's words at a greedy decision
+
+One action generator serves both exploration and the choice among tied actions
+([definitions](../lean/Acorn/Policy.lean)). The *candidates* of a frozen policy are
+the actions whose values are within the tie window of the largest
+(`PolicySnapshot.candidates`). A greedy draw runs the ordered size-one reservoir over
+the candidates, which reads one word for each of them and picks among them
+(`reservoir`). It then draws one more word for each action that is not a candidate, a
+bounded draw that selects nothing, and keeps the reservoir's pick. So every greedy
+decision draws exactly as many words as there are actions, nine on the grid: the
+generator it leaves is the generator stepped once for each action, whatever the values
+(`PolicySnapshot.greedy_rng`). The action is the reservoir's pick over the candidates,
+read from the first of those words (`PolicySnapshot.greedy_action`); the words after
+the candidates' do not enter it.
+
+The count is fixed because how many actions tie follows the values, and anything that
+changes the values (a learned state mechanism, a schedule, a rule) would otherwise move
+where the generator stands at every later decision, and so whether each later decision
+explores. With the count fixed, the generator that a persistent draw
+(`PolicySnapshot.drawPersistent`) leaves, the exploratory run it commits and its flag
+`PersistentDecision.explored`, true when it begins a run, are the same for any two
+policies with one exploration rate, from one generator
+(`PolicySnapshot.drawPersistent_rate`); so are the generator and the flag
+`PolicyDecision.explored` of the plain draw that the meta-controller and the options
+make (`PolicySnapshot.draw_rate`). Each draw takes its flag from its branch word and,
+when it does not explore, takes as its action the reservoir's pick over the candidates
+(`PolicySnapshot.drawPersistent_decision`, `PolicySnapshot.draw_decision`); the
+discarded words enter neither. When every
+action is a candidate no word is discarded, and the greedy draw is the reservoir over
+every action (`PolicySnapshot.greedy_full`, `PolicySnapshot.drawPersistent_full`,
+`PolicySnapshot.draw_full`). That is the case of a controller at rest, whose values are
+all zero words, so the explorer's decisions before a first reward read one word for
+each action through the reservoir (`Explorer.step_eq`), and the theorems on its actions
+(`cold_actions`, `quiet_actions`, `rung_finds`) rest on that reading.
+
+A word drawn and discarded is charged as one reservoir step (`reservoirDraw`): its
+operations, a bounded draw and the pick kept, are those a reservoir step names, and the
+bound of a greedy draw counts one reservoir step for each action
+(`AcornVerif.Resource.Twin.greedyCosted_within`).
+
 ### The work of the first part
 
 The accounting of the work of the first part of a step is bounded by a function of

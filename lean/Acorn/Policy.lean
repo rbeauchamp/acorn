@@ -157,20 +157,77 @@ theorem reservoir_nonempty {actions : Nat} (action : Action actions)
   · exact List.mem_cons.mpr (Or.inl h)
   · exact List.mem_cons.mpr (Or.inr h)
 
-/-- The greedy draw with its work: the candidates, then the reservoir over them. -/
+theorem reservoir_rng {actions : Nat} (pending : List (Action actions)) (seen : UInt64)
+    (pick : Action actions) (rng : Rng.Xoshiro256) :
+    (reservoir pending seen pick rng).2 = Rng.advance pending.length rng := by
+  induction pending generalizing seen pick rng with
+  | nil => rfl
+  | cons action rest ih =>
+    rw [reservoir_cons]
+    exact ih _ _ _
+
+theorem PolicySnapshot.candidates_length (snapshot : PolicySnapshot count) :
+    snapshot.candidates.length ≤ count.word.toNat := by
+  have filtered := List.length_filter_le
+    (fun action => decide ((snapshot.best.sub tieWindow).LessOrEqual (snapshot.values.get action)))
+    (List.finRange count.word.toNat)
+  simpa only [PolicySnapshot.candidates_def, List.length_finRange] using filtered
+
 def PolicySnapshot.greedyCosted (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
     Costed (Action count.word.toNat × Rng.Xoshiro256) := do
   let pending ← snapshot.candidatesCosted
-  reservoirCosted pending 0 (firstAction count) rng
+  let chosen ← reservoirCosted pending 0 (firstAction count) rng
+  let size ← Costed.length pending
+  let spare ← Costed.range (count.word.toNat - size)
+  Costed.foldl (fun drawn _ => Costed.op .reservoirDraw (drawn.1, (drawn.2.nextBelow count).2))
+    chosen spare
 
 /-- Greedy draw preserves the current raw-domain fallback and reservoir order. -/
 def PolicySnapshot.greedy (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
     Action count.word.toNat × Rng.Xoshiro256 :=
   (snapshot.greedyCosted rng).val
 
-/-- The greedy draw is the reservoir over the candidates. -/
 theorem PolicySnapshot.greedy_def (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
-    snapshot.greedy rng = reservoir snapshot.candidates 0 (firstAction count) rng := rfl
+    snapshot.greedy rng =
+      let chosen := reservoir snapshot.candidates 0 (firstAction count) rng
+      (chosen.1, Rng.advance (count.word.toNat - snapshot.candidates.length) chosen.2) := by
+  have spare : ∀ (items : List Nat) (drawn : Action count.word.toNat × Rng.Xoshiro256),
+      items.foldl (fun drawn _ => (drawn.1, (drawn.2.nextBelow count).2)) drawn =
+        (drawn.1, Rng.advance items.length drawn.2) := by
+    intro items
+    induction items with
+    | nil => intro drawn; rfl
+    | cons item rest ih =>
+      intro drawn
+      rw [List.foldl_cons, ih]
+      rfl
+  change (List.range (count.word.toNat - snapshot.candidates.length)).foldl
+      (fun drawn _ => (drawn.1, (drawn.2.nextBelow count).2))
+      (reservoir snapshot.candidates 0 (firstAction count) rng) = _
+  rw [spare, List.length_range]
+
+theorem PolicySnapshot.greedy_action (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.greedy rng).1 = (reservoir snapshot.candidates 0 (firstAction count) rng).1 := by
+  rw [PolicySnapshot.greedy_def]
+
+theorem PolicySnapshot.greedy_rng (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.greedy rng).2 = Rng.advance count.word.toNat rng := by
+  rw [PolicySnapshot.greedy_def]
+  dsimp only
+  rw [reservoir_rng, ← Rng.advance_add, Nat.add_sub_cancel' snapshot.candidates_length]
+
+theorem PolicySnapshot.candidates_full (snapshot : PolicySnapshot count)
+    (full : ∀ action, action ∈ snapshot.candidates) :
+    snapshot.candidates = List.finRange count.word.toNat := by
+  rw [PolicySnapshot.candidates_def] at full ⊢
+  exact List.filter_eq_self.mpr fun action _ => (List.mem_filter.mp (full action)).2
+
+theorem PolicySnapshot.greedy_full (snapshot : PolicySnapshot count)
+    (full : ∀ action, action ∈ snapshot.candidates) (rng : Rng.Xoshiro256) :
+    snapshot.greedy rng = reservoir snapshot.candidates 0 (firstAction count) rng := by
+  rw [PolicySnapshot.greedy_def, snapshot.candidates_full full, List.length_finRange,
+    Nat.sub_self]
+  rfl
 
 /-- Uniform branch consumes one multiply-high draw with its own range proof. -/
 def uniformAction (count : Word.Count) (rng : Rng.Xoshiro256) :
@@ -278,6 +335,51 @@ theorem PolicySnapshot.draw_snapshot (snapshot : PolicySnapshot count) (rng : Rn
 /-- The runtime action is always admitted, independent of all value words. -/
 theorem PolicySnapshot.draw_admitted (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
     (snapshot.draw rng).1.action.val < count.word.toNat := (snapshot.draw rng).1.action.isLt
+
+theorem PolicySnapshot.draw_rng (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.draw rng).2 =
+      let branch := rng.nextF64
+      if branch.1.less (Conversion.widen snapshot.epsilon.value) then
+        (uniformAction count branch.2).2
+      else Rng.advance count.word.toNat branch.2 := by
+  rw [PolicySnapshot.draw_def]
+  dsimp only
+  split
+  · rfl
+  · exact PolicySnapshot.greedy_rng snapshot _
+
+theorem PolicySnapshot.draw_rate (left right : PolicySnapshot count)
+    (rate : left.epsilon = right.epsilon) (rng : Rng.Xoshiro256) :
+    (left.draw rng).1.explored = (right.draw rng).1.explored ∧
+      (left.draw rng).2 = (right.draw rng).2 := by
+  refine ⟨?_, ?_⟩
+  · rw [PolicySnapshot.draw_def, PolicySnapshot.draw_def, rate]
+  · rw [PolicySnapshot.draw_rng, PolicySnapshot.draw_rng, rate]
+
+theorem PolicySnapshot.draw_decision (snapshot : PolicySnapshot count) (rng : Rng.Xoshiro256) :
+    (snapshot.draw rng).1 =
+      let branch := rng.nextF64
+      let explored := branch.1.less (Conversion.widen snapshot.epsilon.value)
+      let chosen := if explored then uniformAction count branch.2
+        else reservoir snapshot.candidates 0 (firstAction count) branch.2
+      ⟨snapshot, chosen.1, explored⟩ := by
+  rw [PolicySnapshot.draw_def]
+  dsimp only
+  split
+  · rfl
+  · rw [PolicySnapshot.greedy_action]
+
+theorem PolicySnapshot.draw_full (snapshot : PolicySnapshot count)
+    (full : ∀ action, action ∈ snapshot.candidates) (rng : Rng.Xoshiro256) :
+    snapshot.draw rng =
+      let branch := rng.nextF64
+      let explored := branch.1.less (Conversion.widen snapshot.epsilon.value)
+      let chosen := if explored then uniformAction count branch.2
+        else reservoir snapshot.candidates 0 (firstAction count) branch.2
+      (⟨snapshot, chosen.1, explored⟩, chosen.2) := by
+  rw [PolicySnapshot.draw_def]
+  dsimp only
+  rw [PolicySnapshot.greedy_full snapshot full]
 
 /-- Frozen-decision credit with its work: the discount and trace decay of the duration, then the
 update over the decision's values. -/

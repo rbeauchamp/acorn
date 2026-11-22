@@ -286,8 +286,12 @@ theorem Explorer.step_eq (explorer : Explorer count) : explorer.step = explorer.
     rw [TemporalSupport.declared_branch, Rng.nextF64_transition]
     by_cases below : (explorer.rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23
     · simp only [below, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-    · simp only [below, decide_false, Bool.not_false, ↓reduceIte, PolicySnapshot.greedy_def,
-        restingPolicy_candidates, reservoir_natural _ _ _ _ fits]
+    · have full : ∀ action, action ∈ (restingPolicy count).candidates := fun action => by
+        rw [restingPolicy_candidates]
+        exact List.mem_finRange action
+      simp only [below, decide_false, Bool.not_false, ↓reduceIte,
+        PolicySnapshot.greedy_full _ full, restingPolicy_candidates,
+        reservoir_natural _ _ _ _ fits]
       rfl
 
 /-- The first actions of an explorer, in one pass over its decisions word by word. -/

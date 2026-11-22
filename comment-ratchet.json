@@ -7115,7 +7115,7 @@
     "fb716d99a0af3476",
     "fecf4ea46cc9ae1f"
   ]},
-  {"file": "lean/Acorn/Policy.lean", "comments": 71, "lines": 133, "fingerprints": [
+  {"file": "lean/Acorn/Policy.lean", "comments": 69, "lines": 131, "fingerprints": [
     "08b1715c252d0b15",
     "1238791c0d15e2f8",
     "18aff126818f6ab1",
@@ -7128,7 +7128,6 @@
     "2bb49b681384cdb9",
     "2cee57d7af902e61",
     "32f9f7340eca18ae",
-    "38d69a07b16de8b2",
     "3cf5292e600d1ae2",
     "3e9a0fbc476c6c9d",
     "42bfe1a3035a2730",
@@ -7169,7 +7168,6 @@
     "affa2dc979936637",
     "b52b821362d34e88",
     "b6f388c27bc09e6b",
-    "baf4a49680f97c38",
     "c33548a94d53f8a4",
     "ceb4103c303b798f",
     "d2b0fd3cfe206880",

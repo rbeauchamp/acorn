@@ -186,6 +186,14 @@ def advance : Nat → Xoshiro256 → Xoshiro256
   | 0, stream => stream
   | count + 1, stream => advance count stream.next.2
 
+theorem advance_add (first second : Nat) (stream : Xoshiro256) :
+    advance (first + second) stream = advance second (advance first stream) := by
+  induction first generalizing stream with
+  | zero => rw [Nat.zero_add]; rfl
+  | succ first ih =>
+    rw [Nat.succ_add]
+    exact ih stream.next.2
+
 /-- Output length is exactly the requested count on every admitted raw state. -/
 theorem prefix_length (count : Nat) (stream : Xoshiro256) :
     (runPrefix count stream).1.length = count := by
