@@ -39,13 +39,15 @@ after it is not. The
 about its agent, the decisions behind it and the sources for each.
 
 Acorn's architecture and mission are driven by the research of Rich Sutton,
-Khurram Javed and Oak Lab, and by the OaK architecture, so what each contract in
-the mission contract requires is what that research indicates. The mission
-contract's [four contracts](docs/mission-contract.md#the-mission-contract) are
-the agent's interface with a world, what makes a class of worlds big, the
-invariants of learning from one stream, and what achieving goals promises. Each
-opens with a plain restatement, with a citation of that research for each
-sentence that rests on it.
+Khurram Javed and Oak Lab, and by the OaK architecture, with the aim that what
+each contract in the mission contract requires is what that research indicates.
+The contract labels each of its sentences with where it comes from, and lists
+each place where it departs from that research. The mission contract's
+[four contracts](docs/mission-contract.md#the-mission-contract) are the agent's
+interface with a world, what makes a class of worlds big, the invariants of
+learning from one stream, and what achieving goals promises. Each opens with a
+plain restatement, with a citation of that research for each sentence that rests
+on it.
 
 For Acorn's own work, the word discover in that mission means this: a discovery
 is an algorithm nobody has published. Implementing a published algorithm,
