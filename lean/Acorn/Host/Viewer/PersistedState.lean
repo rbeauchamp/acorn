@@ -380,9 +380,12 @@ def StartSource.kept : StartSource → Bool
   | .absent | .saved => false
 
 /-- One line that says why the run a viewer starts with is shown stopped, and nothing when it
-is not. The viewer gives it as the reason of its first control record and, when it was not
-launched with `--start`, prints it once it serves its page, so a person who finds the run
-stopped is told why and what starts it. -/
+is not. The viewer gives it as the reason of its first control record and prints it at most
+once in a launch. For a file whose running intent was set aside (`StartSource.kept`) the line
+is printed and flushed after the listener is bound and before the stopped state is published,
+under `--start` as well; for any other stopped start state it is printed after the ready line
+and not under `--start`. So a person who finds the run stopped is told why and what starts
+it. -/
 def startAccount (source : StartSource) (desired : Desired) : Option String :=
   match desired, source with
   | .running, _ => none

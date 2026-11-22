@@ -24,19 +24,25 @@ is an admitted control request. `Acorn.Host.Viewer.ExplicitStart` proves that th
 supervisor started from a state that intends to stay stopped waits on no spawn until a
 Start is handed to its step. A state file the bootstrap refuses constructs no supervisor.
 
-The order is: read the state, build the supervisor, bind, publish a state whose running
-intent was set aside, then print and submit. The supervisor writes its start state before
-the bind, except for a file whose running intent was set aside
-(`Acorn.Host.Viewer.StartSource.kept`), an earlier version's or one given for another child.
-That file stays exactly as it is until the listener is bound; the bootstrap then publishes
-the stopped state it started from, with this launch's record, before it prints the ready
-line, before `--start` submits its Start and before any command is processed. So a start-up that fails
-before that publication leaves that file, and its reason, to the next viewer, and the file
-is read as an earlier version's, or as given for another child, once: in the first launch
-that publishes the stopped state. A start-up that fails after the publication, when the ready
+The order is: read the state, build the supervisor, bind, say why a running intent was set
+aside and publish the stopped state in its place, then print the ready line and submit. The
+supervisor writes its start state before the bind, except for a file whose running intent was
+set aside (`Acorn.Host.Viewer.StartSource.kept`), an earlier version's or one given for
+another child. That file stays exactly as it is until the listener is bound; the bootstrap
+then prints and flushes the line that says why the run is shown stopped
+(`Acorn.Host.Viewer.startAccount`), under `--start` as well, and only then publishes the
+stopped state it started from, with this launch's record, before it prints the ready line,
+before `--start` submits its Start and before any command is processed. If the line cannot be
+written or flushed, the viewer exits before the publication and the file is still the
+original. So a start-up that fails before that publication leaves that file, and its reason,
+to the next viewer, and the file is read as an earlier version's, or as given for another
+child, once: in the first launch that publishes the stopped state, whose first control record
+and log already hold the reason. A start-up that fails after the publication, when the ready
 line cannot be written for example, leaves a current-version stopped file, and the reason the
 next launch gives is that the saved state says stopped; a Start queued on the control endpoint
-by then is lost with the viewer.
+by then is lost with the viewer. For any other stopped start state, with no state file or
+with a saved stopped state, the line is printed after the ready line, and not under `--start`.
+The line is printed at most once in a launch.
 -/
 namespace NativeApp
 open Acorn.Host Acorn.Host.Viewer
@@ -78,20 +84,22 @@ private def readProgram (executable : System.FilePath) : IO (Option ProgramReadi
   try return some (.of (← IO.FS.readBinFile executable))
   catch _ => return none
 
-/-- The supervisor's child, what is compared before it is spawned, and its record. The ranked
+/-- The supervisor's child, what is compared before it is started, and its record. The ranked
 child is the core beside this program, named by its path with explicit arguments. The
 configuration holds the action that reads its file (`readProgram`) and the reading that
 action gave here, the file's length in bytes and the 64-bit FNV-1a digest of every byte of
-it. The actor runs the same action again immediately before every spawn, the first and every
-restart, and spawns only if it gives the same reading, so a core rebuilt or replaced during
-this viewer's life is not started on a Start given for the file this viewer read; a ranked
-core whose file could not be read whole here, or cannot be then, is not spawned. That
+it. The actor runs the same action again once before every start, the first and every
+restart, before it records the launch, and records the launch and spawns only if it gives the
+same reading, so a core rebuilt or replaced during this viewer's life is not started on a
+Start given for the file this viewer read; a ranked core whose file could not be read whole
+here, or cannot be then, is not spawned, and nothing is written for the refusal. That
 comparison is held in memory and does not depend on the record, on the run directory's path
 or on what the state file can hold. The record written to the state file is the path, that
 reading and the arguments at the reference launch, and none when the file could not be read
 or the state file cannot hold those words. Not compared, and assumed: the interval between
-the actor's last reading of the file and the operating system's exec; the environment the
-child inherits; and that two files of equal length and equal digest are one. The digest
+that reading and the operating system starting the program, in which the launch is recorded
+(a file replaced in that interval is started); the environment the child inherits; and that
+two files of equal length and equal digest are one. The digest
 suffices against accident, a rebuilt file that agrees in length and in a 64-bit digest by
 chance; forging it needs no more power than writing the state file by hand. A fixed command
 is given to a shell, and the process a shell starts for it depends on the working directory,
@@ -162,8 +170,13 @@ def runViewer (arguments : List String) : IO UInt32 := do
     let opener ← IO.mkRef none
     try
       -- A state file whose running intent was set aside was left as it is by
-      -- `Supervisor.new`. The listener is bound, so the stopped state this viewer started
-      -- from is published here with this launch's record, and a viewer of the earlier
+      -- `Supervisor.new`. The listener is bound, so the line that says why the run is shown
+      -- stopped is printed and flushed here, under `--start` as well, and only then is the
+      -- stopped state this viewer started from published with this launch's record. If the
+      -- line cannot be written or flushed, the viewer exits before the publication and the
+      -- file is still the original, so whenever such a file is replaced its reason is
+      -- already in this launch's first control record and in its log. After the
+      -- publication a viewer of the earlier
       -- version started later on the directory meets a current-version file. A crash
       -- between the bind and this publication leaves the original file, and the next launch
       -- says the reason again. Under `--start` the Start is submitted below, and so
@@ -179,17 +192,21 @@ def runViewer (arguments : List String) : IO UInt32 := do
       -- after the publication, when the ready line cannot be written for example, leaves
       -- a current-version stopped file, and the reason the next launch gives is that the
       -- saved state says stopped.
-      if source.kept then directory.writeState config.child persisted
+      if source.kept then
+        if let some line := startAccount source persisted.desired then
+          IO.println s!"Run: {line}"
+          (← IO.getStdout).flush
+        directory.writeState config.child persisted
       let some address := server.localAddr
         | throw (IO.userError "bound viewer address is unavailable")
       let url := s!"http://{address}/"
       IO.println s!"Acorn is ready: {url}\nRun directory: {directory.rootPath}"
-      -- The line on why the run is shown stopped is printed once the page is served, and not
-      -- under the Start flag, which starts the run. A start-up that fails before the
-      -- publication above prints nothing of the run, and a file whose running intent was
-      -- set aside is still on disk as it was, so the next viewer reads it and says the
-      -- same.
-      unless options.start do
+      -- For a stopped start state whose file was not set aside, no state file or a saved
+      -- stopped state, the line on why the run is shown stopped is printed here, after the
+      -- ready line, and not under the Start flag, which starts the run. For a file whose
+      -- running intent was set aside the line was printed above, before the publication, so
+      -- it is printed at most once in a launch.
+      unless options.start || source.kept do
         if let some line := startAccount source persisted.desired then
           IO.println s!"Run: {line}"
       (← IO.getStdout).flush

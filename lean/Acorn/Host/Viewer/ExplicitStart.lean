@@ -73,22 +73,22 @@ child was one process is not taken as a Start for another. Sameness is equality 
 records, and no more. Before the ranked core is started, the first time and at every restart,
 the actor reads the executable's file again, by the action the bootstrap read it with, and
 compares its length and digest (`ProgramReading`) with what the viewer read when it started,
-whether or not the state file can hold the record (`ChildProgram`). It does so twice
-(`Supervisor.call`). The first reading is made before the launch is recorded: a refusal there
-writes nothing, so the saved state is exactly as it was, not marked as having started a
-process and with its agent epoch unspent, and the step, given the write's error, stops the
-run. No process could have been created on that path. The second reading is made immediately
-before the spawn; a refusal there, reached only when the file changes between the two
-readings, is the spawn's error, a failed start, and by then the launch is recorded, as it is
-whenever an attempted spawn fails. The reason (`childDiffers`, `childUnreadable`,
-`childUnread`) is reported in the page and printed on standard error. A fixed command is
+whether or not the state file can hold the record (`ChildProgram`). It does so once
+(`Supervisor.call`), before the launch is recorded: a refusal there writes nothing and spawns
+nothing, so the saved state is exactly as it was, not marked as having started a process and
+with its agent epoch unspent, and the step, given the write's error, stops the run. No
+process could have been created on that path. After a launch is recorded the actor spawns
+with no further reading, so no refusal of this kind follows the record. The reason
+(`childDiffers`, `childUnreadable`, `childUnread`) is reported in the page and printed on
+standard error. A fixed command is
 written and spawned with no reading: a Start under `--cmd` is an explicit act for that command
 line as given, and it covers the restarts of the command by the viewer that received the
 Start, whatever program the command designates when each restart is made, so a program
 replaced under that command line between a Start and a restart is run by the restart. That is
 an accepted limit of the guarantee, beside the three of the ranked core's record, of which
-three things are assumed and not compared: that nothing
-replaces the file between the actor's last reading of it and the operating system's exec;
+three things are assumed and not compared: the interval between that reading and the
+operating system starting the program, in which the launch is recorded, so that a file
+replaced in that interval is started;
 that the environment the child inherits has not changed; and that two files of equal length
 and equal digest are one. The digest suffices against accident, a rebuilt file that agrees in
 length and in a 64-bit digest by chance; forging it needs no more power than writing the state
@@ -114,12 +114,17 @@ anything and leaves the file as it is, because a file another version wrote is n
 and reading it as stopped would publish over it. A state built with no file, or restored with
 its intent, is published before the listener binds; a file whose running intent was set aside
 (an earlier version's, or one given for another child) is left exactly as it is until the
-listener is bound, and the bootstrap then publishes the stopped state it started from, with
-this launch's record, before it prints the ready line, before `--start` submits its Start and
-before any command is processed (`StartSource.kept`, `Supervisor.new`, `NativeApp.runViewer`). So a
+listener is bound. The bootstrap then prints and flushes the line that says why the run is
+shown stopped (`startAccount`), under `--start` as well, and only then publishes the stopped
+state it started from, with this launch's record, before it prints the ready line, before
+`--start` submits its Start and before any command is processed (`StartSource.kept`,
+`Supervisor.new`, `NativeApp.runViewer`); if the line cannot be written or flushed, the viewer
+exits before the publication and the file is still the original. For any other stopped start
+state the line is printed after the ready line and not under `--start`. So a
 start-up that fails before that publication leaves the next viewer the same file and the same
 reason, and the file is read as an earlier version's, or as given for another child, once: in
-the first launch that publishes the stopped state. A start-up that fails after the
+the first launch that publishes the stopped state, whose first control record and log already
+hold the reason. A start-up that fails after the
 publication, when the ready line cannot be written for example, leaves a current-version
 stopped file, and the reason the next launch gives is that the saved state says stopped. A
 Start queued on the control endpoint between the bind and the publication is processed by a

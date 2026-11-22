@@ -942,13 +942,13 @@ What each panel must show. How it draws it is the code's.
   what the viewer read at start, whether or not the state file can hold the
   record. So a running intent is not carried to a core whose file has since
   changed in length or content, or moved, and a core rebuilt while a viewer
-  runs is not started by that viewer. The supervisor reads the file before it
-  records the launch: a refusal there leaves the saved state exactly as it
-  was, not marked as having started a process and with its agent epoch
-  unspent, and the run is shown `stopped` with the reason, which is also
-  printed in the viewer's log. It reads the file once more immediately before
-  the spawn; a refusal there, which needs the file to change between the two
-  readings, is a failed start (UX-24). The reason tells three cases apart,
+  runs is not started by that viewer. The supervisor reads the file once
+  before each start, before it records the launch: a refusal there writes
+  nothing and spawns nothing, so the saved state is exactly as it was, not
+  marked as having started a process and with its agent epoch unspent, and
+  the run is shown `stopped` with the reason, which is also printed in the
+  viewer's log. After a launch is recorded the supervisor spawns with no
+  further reading. The reason tells three cases apart,
   each with what clears it. The program differs from what this viewer read:
   "the core's program differs from what this viewer read when it started (the
   file at its path changed in length or content), so nothing was started;
@@ -961,8 +961,9 @@ What each panel must show. How it draws it is the code's.
   could not be read when this viewer started, so nothing was started;
   starting the viewer again when the file can be read clears this refusal".
   Three things are
-  assumed and not compared: that nothing replaces the file between the
-  supervisor's last reading of it and the operating system's exec; the
+  assumed and not compared: the interval between that reading and the
+  operating system starting the program, in which the launch is recorded (a
+  file replaced in that interval is started); the
   environment the child inherits; and that two files of equal length and
   equal digest are one. The digest suffices against accident, a rebuilt file
   that agrees in length and in a 64-bit digest by chance; forging it needs no
@@ -977,13 +978,17 @@ What each panel must show. How it draws it is the code's.
 
   A file whose running intent is set aside, an earlier version's or one given
   for another child, is left on disk exactly as it is until the listener is
-  bound. The viewer then publishes the stopped state it started from, in the
+  bound. The viewer then prints and flushes the line that says why the run is
+  shown stopped, under `--start` as well, and only then publishes the stopped
+  state it started from, in the
   current schema with this launch's child, before it prints its ready line,
-  before `--start` submits its Start and before any command is processed.
+  before `--start` submits its Start and before any command is processed. If
+  the line cannot be written or flushed, the viewer exits before the
+  publication and the file is still the original.
   So such a file is read as an earlier version's, or as given for another
-  child, once, in the first launch that publishes the stopped state, and that
-  launch gives the reason, in its first control record and, without `--start`,
-  in its log; it is not given again; a viewer of the earlier version started later on the
+  child, once, in the first launch that publishes the stopped state, and
+  whenever the file is replaced that launch has already given the reason, in
+  its first control record and in its log; it is not given again; a viewer of the earlier version started later on the
   directory meets a file of the current version. A start-up that fails before
   that publication, such as on a port already in use, leaves the file as it
   was: the next viewer reads the same file and says the same. A start-up that
@@ -1010,9 +1015,12 @@ What each panel must show. How it draws it is the code's.
   the viewer's control endpoint, which the page's Start button sends, or the
   --start flag". The line is the reason of its first control record, which the
   page shows in the hover text of the state word (UX-21), under `--start` as
-  well, so the page never shows the run stopped at start-up without it;
-  without `--start` the viewer also prints it on its standard output once it
-  serves the page. Under `--start` the Start is submitted once the listener is
+  well, so the page never shows the run stopped at start-up without it. The
+  viewer also prints it on its standard output, at most once in a launch: for
+  a file whose running intent was set aside the line is printed and flushed
+  after the listener is bound and before the stopped state is published, under
+  `--start` as well; for any other stopped start state it is printed after the
+  ready line and not under `--start`. Under `--start` the Start is submitted once the listener is
   bound. The viewer announces nothing of this kind when the state it starts
   with is running. A Stop that the viewer has acknowledged but not yet written
   when the viewer crashes is not made durable: the saved state still says

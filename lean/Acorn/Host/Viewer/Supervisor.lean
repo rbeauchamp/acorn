@@ -31,7 +31,7 @@ from it, as a restarted viewer goes on from the state file.
 -/
 namespace Acorn.Host.Viewer
 
-/-- What the actor compares before it spawns the configuration's child. The bootstrap builds
+/-- What the actor compares before it starts the configuration's child. The bootstrap builds
 the constructor from the launch itself, `ranked` for the core beside the viewer and `fixed`
 for a command given to a shell, so the two are told apart by construction and not by whether
 the state file can hold a record of the child. -/
@@ -40,8 +40,8 @@ inductive ChildProgram where
   | fixed
   /-- The ranked core: what this viewer read of the executable's file when it started, none
   when the file could not be read whole, and the one action that reads it. The bootstrap ran
-  the action for `atStart` and the actor runs it again before every spawn, so the two readings
-  compare the same things. -/
+  the action for `atStart` and the actor runs it again once before every start, before the
+  launch is recorded, so what is compared was read the same way. -/
   | ranked (atStart : Option ProgramReading) (read : IO (Option ProgramReading))
 
 /-- Native bootstrap supplies fixed executable configuration and a fresh seed source.
@@ -53,10 +53,10 @@ structure SupervisorConfig where
   arguments : CoreLaunch → System.FilePath → Array String
   /-- The record of the child this configuration starts (`childRecord`), written with every
   state this viewer saves; none when sameness with another launch's child cannot be
-  established or the state file cannot hold the record. The comparison before a spawn does
+  established or the state file cannot hold the record. The comparison before a start does
   not read it. -/
   child : Option (List String)
-  /-- What the actor compares before every spawn of this configuration's child. -/
+  /-- What the actor compares before every start of this configuration's child. -/
   program : ChildProgram
   /-- A configuration that cannot preserve whole-run ownership disables Clear. -/
   clearDisabled : Option String
@@ -130,7 +130,8 @@ def childUnread : String :=
 /-- Why the configuration's child may not be started now, and nothing when it may. A fixed
 command is never refused here. The ranked core is refused when its file could not be read
 whole when this viewer started, cannot be read whole now, or reads now otherwise than it did
-then, whether or not the state file can hold a record of the child. -/
+then, whether or not the state file can hold a record of the child. The actor asks once before
+each start, the first and every restart, before the launch is recorded (`Supervisor.call`). -/
 private def Supervisor.refusal (supervisor : Supervisor) : IO (Option String) :=
   match supervisor.config.program with
   | .fixed => pure none
@@ -141,27 +142,23 @@ private def Supervisor.refusal (supervisor : Supervisor) : IO (Option String) :=
     | some found => pure (if found == atStart then none else some childDiffers)
 
 /-- Each case performs the native operation its call names. Before the ranked core is started,
-the first time and at every restart alike, its file is read twice and compared with the
+the first time and at every restart alike, its file is read once and compared with the
 reading this viewer took when it started (`Supervisor.refusal`).
 
-The first reading is made before the launch is recorded, when `launching` says the state to
-write is the one that marks a launch as attempted (`Pending.launch`). A refusal there writes
-nothing: the call's result is the write's error with the reason, which the step treats as a
-launch that could not be recorded, so the run stops and the saved state is exactly as it was,
-not marked as having started a process and with its agent epoch unspent. No process could have
-been created on that path.
-
-The second reading is made immediately before the spawn. A refusal there spawns nothing, and
-its result is the spawn's error, a failed start. By then the launch is recorded, as it is
-when a spawn fails for any other reason or the viewer crashes at that point, because a spawn
-that is attempted may have created a process; this second refusal is reached only when the
-file changes between the two readings.
+The reading is made before the launch is recorded, when `launching` says the state to write
+is the one that marks a launch as attempted (`Pending.launch`). A refusal there writes nothing
+and spawns nothing: the call's result is the write's error with the reason, which the step
+treats as a launch that could not be recorded, so the run stops and the saved state is exactly
+as it was, not marked as having started a process and with its agent epoch unspent. No process
+could have been created on that path. After a launch is recorded the actor spawns with no
+further reading, so no refusal of this kind follows the record.
 
 Every refusal is printed on standard error and reported in the page by the step, as the
-reason of the failed call. The interval between the second reading and the operating
-system's exec, and the environment the child inherits, are not compared. A fixed command is
-written and spawned without a reading, at a Start and at each restart alike, whatever program
-the command then designates. -/
+reason of the failed call. The interval between that reading and the operating system
+starting the program, in which the launch is recorded, is not compared: a file replaced in
+that interval is started. The environment the child inherits is not compared either. A fixed
+command is written and spawned without a reading, at a Start and at each restart alike,
+whatever program the command then designates. -/
 private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
     (launching : Bool) : (call : Call) → IO (call.Result × RunDirectory)
   | .writeState state => do
@@ -184,9 +181,6 @@ private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
       catch error => pure (.error error.toString)
     return (result, directory)
   | .spawn generation plan => do
-    if let some reason ← supervisor.refusal then
-      try IO.eprintln reason catch _ => pure ()
-      return (Except.error reason, directory)
     let arguments := supervisor.config.arguments plan (directory.path .weights)
     return (← supervisor.process.spawn generation supervisor.config.executable arguments,
       directory)
@@ -261,9 +255,9 @@ state file, or restored with the intent its file records, is published here, bef
 listener binds. A state whose running intent was set aside, because it was read from an
 earlier version's file or was given for another child (`StartSource.kept`), is not published
 here: that file stays exactly as it is until the listener is bound, and the bootstrap then
-publishes this stopped state with this launch's record before it prints or submits, and
-before any command is processed
-(`NativeApp.runViewer`). So a start-up that fails before that publication leaves the next
+prints and flushes the line that says why the run is shown stopped and publishes this stopped
+state with this launch's record, before it prints the ready line or submits and before any
+command is processed (`NativeApp.runViewer`). So a start-up that fails before that publication leaves the next
 viewer the same file and the same reason for showing the run stopped. A launch relies on no
 unpublished state either way, since the attempted launch is saved before the spawn
 (`Pending.launch`). The first control record is the start's, and its reason carries the one
