@@ -38,25 +38,23 @@ after it is not. The
 [mission contract](docs/mission-contract.md) states what Acorn promises to prove
 about its agent, the decisions behind it and the sources for each.
 
-On 2026-11-03 the owner of the project stated this intent for Acorn: its
-architecture and mission are driven by the research of Rich Sutton, Khurram
-Javed and Oak Lab, and by the OaK architecture, so what each contract in the
-mission contract requires is what that research indicates. On the same day the
-owner confirmed plain restatements of its four contracts: the agent's interface
-with a world, what makes a class of worlds big, the invariants of learning from
-one stream, and what achieving goals promises. The mission contract
-[records the confirmation](docs/mission-contract.md#the-owners-confirmation-of-2026-11-03),
-with a citation of that research for each sentence that rests on it.
+Acorn's architecture and mission are driven by the research of Rich Sutton,
+Khurram Javed and Oak Lab, and by the OaK architecture, so what each contract in
+the mission contract requires is what that research indicates. The mission
+contract's [four contracts](docs/mission-contract.md#the-mission-contract) are
+the agent's interface with a world, what makes a class of worlds big, the
+invariants of learning from one stream, and what achieving goals promises. Each
+opens with a plain restatement, with a citation of that research for each
+sentence that rests on it.
 
-On 2026-11-19 the owner stated what the word discover in that mission means for
-Acorn's own work. A discovery is an algorithm nobody has published. Implementing
-a published algorithm, however well it is adapted and however completely it is
-proved, is prior-art work, and much of Acorn so far is that: it is never called
-a discovery or counted as one. Between the two lies a range with no bright
-line, and where a piece of work sits in it is judged by its extent, with the
-reasons written down.
+For Acorn's own work, the word discover in that mission means this: a discovery
+is an algorithm nobody has published. Implementing a published algorithm,
+however well it is adapted and however completely it is proved, is prior-art
+work, and much of Acorn so far is that: it is never called a discovery or
+counted as one. Between the two lies a range with no bright line, and where a
+piece of work sits in it is judged by its extent, with the reasons written down.
 [Prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery) is
-the full statement, in the maintaining agents' wording of what the owner stated.
+the full statement.
 
 The OaK architecture is an overall design for an agent, which Rich Sutton
 presented at the 2025 Reinforcement Learning Conference in
@@ -83,7 +81,7 @@ ones are made. The talk presents this as a vision not yet fully specified: it
 needs reliable continual learning in deep networks and a method for generating
 new features, and Sutton treats both as unsolved.
 
-The owner of the project has chosen two kinds of worlds:
+Acorn's chosen worlds are of two kinds:
 
 - [ARC-AGI-3](https://docs.arcprize.org/) games, interactive games the agent
   learns by playing;
@@ -92,8 +90,8 @@ The owner of the project has chosen two kinds of worlds:
   ([Pollen Robotics](https://pollen-robotics.com/microduck/),
   [design](docs/design.md#an-embodied-world-the-microduck)).
 
-The tile world the viewer shows was chosen by an agent working on Acorn, not by
-the owner. It has no standing beyond being the first world built.
+The tile world the viewer shows is not one of them. It has no standing beyond
+being the first world built.
 
 Choosing and shaping worlds well needs a model of what a big world is. The mission
 contract states the conditions that make a class of worlds concealed, that make
@@ -201,7 +199,7 @@ Lean is both the implementation language and the proof assistant. Follow the
 You can read the design without installing Lean.
 
 - **New to OaK?** Start with [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission)
-  (the page as archived; Oak Lab has since withdrawn it), then
+  (the page as archived; Oak Lab no longer publishes it), then
   Acorn's [learning loop and terminology](docs/design.md#the-learning-loop).
 - **Assessing the implementation?** Read the [scope map](docs/design.md#implementation-scope),
   then follow [mechanism owners](docs/design.md#mechanism-owners) to the source
