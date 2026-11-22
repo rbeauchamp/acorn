@@ -67,6 +67,7 @@ import AcornVerif.CurrentAccounting
 import AcornVerif.CurrentColdStart
 import AcornVerif.CurrentPreReward
 import AcornVerif.CurrentExplorer
+import AcornVerif.CurrentXoshiroPeriod
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentControl
 import AcornVerif.CurrentCreditHorizon
