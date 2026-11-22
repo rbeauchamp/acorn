@@ -38,10 +38,15 @@ structure SupervisorConfig where
   executable : System.FilePath
   /-- Pure argument construction from the admitted launch and run-owned path. -/
   arguments : CoreLaunch → System.FilePath → Array String
-  /-- The record of the child this configuration starts (`childRecord`), written with every
-  state this viewer saves; none when sameness with another launch's child cannot be
-  established. -/
+  /-- The record of the child this configuration starts (`childRecord`), as `record` read it
+  when this viewer started, written with every state this viewer saves; none when sameness
+  with another launch's child cannot be established. -/
   child : Option (List String)
+  /-- The one action that reads the record of this configuration's child from the file at the
+  executable's path. The bootstrap reads `child` with it, and the actor reads it again
+  before each spawn of a child that has a record, so the two readings compare the same
+  things. -/
+  record : IO (Option (List String))
   /-- A configuration that cannot preserve whole-run ownership disables Clear. -/
   clearDisabled : Option String
   /-- Actual native source of new terrain seeds, called only for Clear. -/
@@ -91,6 +96,19 @@ private def Supervisor.perform (supervisor : Supervisor) (directory : RunDirecto
   | .follow (.say text) => try IO.println text catch _ => pure ()
   | .follow (.complain text) => try IO.eprintln s!"viewer shutdown: {text}" catch _ => pure ()
 
+/-- The spawn's error for a recorded child whose file no longer gives the record this viewer
+read when it started. It describes what was found and directs no run. -/
+def childChanged : String :=
+  "the core's file is not the one this viewer recorded when it started " ++
+    "(its path, length or content differs, or it cannot be read); nothing was started; " ++
+    "a viewer started afterwards records the file it finds"
+
+/-- Each case performs the native operation its call names. A spawn of a child that has a
+record, the first and every restart alike, reads the record again immediately before it and
+is made only when the record read equals the configuration's; otherwise nothing is spawned
+and the call's result is the spawn's error, which the step treats as a failed start. The
+interval between this reading and the operating system's exec, and the environment the child
+inherits, are not compared. A child with no record is spawned without a reading. -/
 private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory) :
     (call : Call) → IO (call.Result × RunDirectory)
   | .writeState state => do
@@ -109,6 +127,10 @@ private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
       catch error => pure (.error error.toString)
     return (result, directory)
   | .spawn generation plan => do
+    if supervisor.config.child.isSome then
+      let found ← try supervisor.config.record catch _ => pure none
+      unless found == supervisor.config.child do
+        return (Except.error childChanged, directory)
     let arguments := supervisor.config.arguments plan (directory.path .weights)
     return (← supervisor.process.spawn generation supervisor.config.executable arguments,
       directory)
@@ -176,11 +198,12 @@ private def Supervisor.observe (supervisor : Supervisor) :
   | .refused reason => supervisor.handle (.refused reason)
 
 /-- Construct only after the bootstrap has admitted the initial state. A state built with no
-state file, or restored from a file of the current schema, is published before supervision
-begins. A state whose running intent was set aside, because it was read from an earlier
-version's file or was given for another child (`StartSource.kept`), is not: that file stays as
-it is until the supervisor first writes the state, which it does for an operator's Start, Stop
-or Clear, so a start-up that fails, or a viewer that exits before any command, leaves the next
+state file, or restored with the intent its file records, is published here, before the
+listener binds. A state whose running intent was set aside, because it was read from an
+earlier version's file or was given for another child (`StartSource.kept`), is not published
+here: that file stays exactly as it is until the listener is bound, and the bootstrap then
+publishes this stopped state with this launch's record before it prints, submits or steps
+(`NativeApp.runViewer`). So a start-up that fails before that publication leaves the next
 viewer the same file and the same reason for showing the run stopped. A launch relies on no
 unpublished state either way, since the attempted launch is saved before the spawn
 (`Pending.launch`). The first control record is the start's, and its reason carries the one

@@ -1333,8 +1333,11 @@ schema version is a number whose digits spell two to the power 64 or more
 (`Acorn.Host.Viewer.PersistedState.decode_wide`).
 
 The second is the child. With every state it saves, a viewer writes the record of the child its
-supervisor would start (`Acorn.Host.Viewer.childRecord`): the executable's path, its size
-and modification time, and the argument vector at a reference launch. A launch under `--cmd` has
+supervisor would start (`Acorn.Host.Viewer.childRecord`): the executable's path, its length
+in bytes, the 64-bit FNV-1a digest of every byte of the file
+(`Acorn.Host.Viewer.fileDigest`), and the argument vector at a reference launch. One action
+reads the record from the file at that path, and a file that cannot be read whole gives no
+record; the bootstrap reads it with that action when the viewer starts. A launch under `--cmd` has
 no record, because the process a shell starts for a command depends on the working directory, the
 environment and the files the command names. The decoder returns a running intent only for a file
 that names the current version and the record of the launch that reads it, which must have one
@@ -1344,19 +1347,32 @@ no record, or with another record than the file names, intends to stay stopped
 supervisor started from such a state (`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`).
 So a running intent saved while the supervisor's child was one process is not taken as a Start for
 another: a Start given under a fixed command does not start the ranked core at a later launch, and
-neither does one given for a core at another path, of another size or modification time, or with
-other arguments. Sameness is equality of the two records and no more: that a file with the same
-path, size and modification time is the same program, and that the environment the child inherits
-is unchanged, are assumptions. A file that names the current version and this launch's child is
-restored with the intent it records. A running one resumes when its launch is admitted
+neither does one given for a core at another path, of another length or content, or with
+other arguments. Sameness is equality of the two records and no more. This part is read from the
+code and not proved: immediately before each spawn of a child that has a record, the first and
+every restart, the actor reads the record again by the same action and spawns only if it equals
+the record the viewer read when it started. Otherwise nothing is spawned and the spawn's result is
+its error, which the step treats as a failed start; its reason says that the core's file is not
+the one this viewer recorded, that nothing was started, and that a viewer started afterwards
+records the file it finds. A child with no record is spawned with no reading. Three things are
+assumed and not compared: that nothing replaces the file between the actor's last reading of it
+and the operating system's exec; that the environment the child inherits is unchanged; and that
+two files of equal length and equal digest are one. The digest suffices against accident, a
+rebuilt file that agrees in length and in a 64-bit digest by chance, and forging it needs no more
+power than writing the state file by hand, which is an accepted risk already. A file that names
+the current version and this launch's child is restored with the intent it records. A running one
+resumes when its launch is admitted
 (`Acorn.Host.Viewer.PersistedState.launch`: a run that has started a process needs a next
 agent epoch within the browser's integers) and the writes and the spawn that follow succeed.
 
 The rest is read from the code and not proved. The actor hands the step an operator's Start only
 for a command that was submitted to its queue, which the bootstrap does for the `--start` flag and
 the HTTP server for an admitted control request. The bootstrap hands the supervisor the state it
-read or built. Every state the actor writes carries the record of its own child, and the text the
-viewer writes reads back as the state written. `Acorn.Host.Viewer.RunDirectory.readState`
+read or built. Every state the actor writes carries the record of its own child. Of the text the
+viewer writes, the other fields of a state read back as written, and a running intent reads back
+as running exactly for a launch with the same, present record: a running intent written under
+`--cmd`, which has no record, reads back stopped, by design.
+`Acorn.Host.Viewer.RunDirectory.readState`
 refuses a state file that is unreadable or malformed. It refuses without opening it an entry that
 is not a regular file or a link to one, such as a link whose target is gone, a directory, a pipe
 or a device, so that it never waits on one, and it reads only a run directory with no entry under
@@ -1371,11 +1387,19 @@ ends with one viewer, says nothing of a crash or of the viewer that comes after 
 The order at start-up is this. The viewer reads the state, builds its supervisor, binds its
 listener, and only then prints and submits. A state built with no file, or restored with its
 intent, is written before the listener binds. A file whose running intent was set aside, an
-earlier version's or one given for another child, is left as it is
-(`Acorn.Host.Viewer.StartSource.kept`) until the supervisor's first write of the state,
-which an operator's Start, Stop or Clear causes. So a start-up that fails, with or without the
+earlier version's or one given for another child, is left exactly as it is
+(`Acorn.Host.Viewer.StartSource.kept`) until the listener is bound. The bootstrap then
+publishes the stopped state it started from, in the current schema with this launch's record,
+before it prints the ready line, before the `--start` flag submits its Start and before the
+actor's first turn. So a start-up that fails before that publication, with or without the
 `--start` flag, leaves the next viewer the same file and the same reason, and such a file is read
-as stopped at every launch until one of those acts. Whenever the start state is stopped, the one
+as an earlier version's, or as given for another child, once: in the first launch whose start-up
+succeeds. After it, a viewer of the earlier version started on the directory meets a file of the
+current version. A crash between the bind and the publication leaves the original file. A Start
+that reaches the control endpoint before the publication is only queued, and is handled at a
+later turn of the actor. If the publication fails, the viewer exits with that error before it
+prints the ready line and before any turn, and the file, which is replaced only by a rename after
+a complete write, is still the original. Whenever the start state is stopped, the one
 line that says why (`Acorn.Host.Viewer.startAccount`) is the reason of the first control
 record, under the `--start` flag too, so the page never shows the run stopped at start-up without
 it. Without the flag the viewer also prints the line on its standard output once it serves its

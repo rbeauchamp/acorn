@@ -906,11 +906,13 @@ What each panel must show. How it draws it is the code's.
   for the page.
 
   What a state file starts depends on four things, and the first is that it
-  can be read at all. An entry named `state.json` that is not a regular file
-  or a link to one (a link whose target is gone, a directory, a pipe, a
-  device) is refused without being opened, and so is a file that is not a JSON
-  object holding the six members of the state, each admitted. On a refusal the
-  viewer exits before it serves anything and leaves the file as it is. The
+  can be read at all. Only an entry named `state.json` that is not a regular
+  file or a link to one (a link whose target is gone, a directory, a pipe, a
+  device) is refused without being opened. A regular file is opened and read
+  within its bound of 4096 bytes, and is then refused for its content when
+  that is not a JSON object holding the six members of the state, each
+  admitted. On a refusal the viewer exits before it serves anything and leaves
+  the file as it is. The
   second is the version: the whole number that `schema_version` spells in
   decimal digits alone. A file that names another such number than the current
   one, of any size, is refused, because a file another version wrote is not
@@ -921,25 +923,50 @@ What each panel must show. How it draws it is the code's.
   members are admitted, it keeps its identity and its intent is read as
   stopped, because that viewer wrote a running intent when it found no file.
   The third is the child. With every state it saves, the viewer records what
-  its supervisor would start: the core's path, the size and modification time
-  of that file, and its arguments. A running intent is resumed only by a
-  launch whose record is the same; under `--cmd` there is no record, because
-  what a shell starts for a command depends on more than the viewer can
-  compare, so a running intent saved under `--cmd` is not carried to another
-  launch, and neither is one saved for a core that has since been rebuilt or
-  moved. The fourth is the launch itself: a run that has started a process
+  its supervisor would start: the core's path, the length in bytes of that
+  file, a digest of every byte of it (64-bit FNV-1a), and its arguments. A
+  file that cannot be read whole gives no record. A running intent is resumed
+  only by a launch whose record is the same; under `--cmd` there is no record,
+  because what a shell starts for a command depends on more than the viewer
+  can compare, so a running intent saved under `--cmd` is not carried to
+  another launch. The viewer reads the record when it starts, and its
+  supervisor reads it again immediately before each spawn of a recorded
+  child, the first and every restart, and spawns only if it is the same. So a
+  running intent is not carried to a core whose file has since changed in
+  length or content, or moved; and after a rebuild a Start in a running
+  viewer is refused, with the reason that the core's file is not the one this
+  viewer recorded when it started and that nothing was started: the spawn
+  fails, and after three failed starts the supervisor gives up (UX-24), until
+  a viewer is started again, which records the new file. Three things are
+  assumed and not compared: that nothing replaces the file between the
+  supervisor's last reading of it and the operating system's exec; the
+  environment the child inherits; and that two files of equal length and
+  equal digest are one. The digest suffices against accident, a rebuilt file
+  that agrees in length and in a 64-bit digest by chance; forging it needs no
+  more power than writing the state file by hand, which is an accepted risk
+  already. The fourth is the launch itself: a run that has started a process
   needs a next agent epoch within the browser's integers (UX-24 gives what
   follows a failed start).
 
   A file whose running intent is set aside, an earlier version's or one given
-  for another child, is left on disk as it is until the first Start, Stop or
-  Clear, which writes the state in the current schema with this launch's
-  child. So the run is shown stopped, with its reason, at every launch until
-  one of those acts, and a start-up that fails, such as on a port already in
-  use, loses nothing: the next viewer reads the same file and says the same.
-  An operator who starts the viewer directly on a run that an earlier viewer
-  left running finds it stopped and presses Start, and `./scripts/start.sh`,
-  which passes `--start`, starts it as before.
+  for another child, is left on disk exactly as it is until the listener is
+  bound. The viewer then publishes the stopped state it started from, in the
+  current schema with this launch's child, before it prints its ready line,
+  before `--start` submits its Start and before its supervisor's first turn.
+  So such a file is read as an earlier version's, or as given for another
+  child, once, in the first launch whose start-up succeeds, and that launch
+  says the reason; a viewer of the earlier version started later on the
+  directory meets a file of the current version. A start-up that fails before
+  that publication, such as on a port already in use, loses nothing: the next
+  viewer reads the same file and says the same. A Start that reaches the
+  control endpoint before the publication is only queued and is handled
+  afterwards. If the publication itself fails, the viewer exits with that
+  error before its ready line and before any turn, and the file is still the
+  original. An operator who starts the viewer directly on a run that a viewer
+  of the earlier version left running finds it stopped and presses Start; a
+  file of the current schema whose running intent was given for the same
+  child resumes; and `./scripts/start.sh`, which passes `--start`, starts the
+  run as before.
 
   Whenever the state a viewer starts with is stopped (no state file, a saved
   stopped state, an earlier version's file, or a running intent given for

@@ -60,19 +60,26 @@ holds of a supervisor started from a state decoded from such a file
 decimal digits the decoder returns an error (`PersistedState.decode_other`), and so it does
 for digits that spell a number of `2 ^ 64` or more (`PersistedState.decode_wide`).
 
-The second is its child. A viewer writes, with every state it saves, the record of the child
-its supervisor would start (`childRecord`): the executable's path, its size and modification
-time, and the argument vector at a reference launch. A launch that has no such record, as
-under `--cmd`, writes none. The decoder returns a running intent only for a file that names
-the current schema and the record of the launch that reads it, which must have one
-(`PersistedState.decode_running`); every state it returns to a launch with no record, or with
-another record than the file names, intends to stay stopped
+The second is its child. A viewer writes, with every state it saves, the record of the child its
+supervisor would start (`childRecord`): the executable's path, its length in bytes, the 64-bit
+FNV-1a digest of every byte of the file (`fileDigest`), and the argument vector at a reference
+launch. A launch that has no such record, as under `--cmd`, writes none. The decoder returns a
+running intent only for a file that names the current schema and the record of the launch that
+reads it, which must have one (`PersistedState.decode_running`); every state it returns to a
+launch with no record, or with another record than the file names, intends to stay stopped
 (`PersistedState.decode_unbound`), and the theorem holds of a supervisor started from such a
 state (`Reached.unbound_spawns_nothing`). So a running intent saved while the supervisor's
 child was one process is not taken as a Start for another. Sameness is equality of the two
-records, and no more: that a file at the same path, with the same size and modification time,
-is the same program is an assumption, and so is that the environment the child inherits has
-not changed.
+records, and no more. The actor reads the record again, by the action the bootstrap read it
+with, immediately before each spawn of a child that has one, the first and every restart, and
+spawns only if it equals the record the viewer read when it started; otherwise nothing is
+spawned and the spawn's result is its error (`Supervisor.call`, `childChanged`), which the
+step treats as a failed start. Three things are assumed and not compared: that nothing
+replaces the file between the actor's last reading of it and the operating system's exec;
+that the environment the child inherits has not changed; and that two files of equal length
+and equal digest are one. The digest suffices against accident, a rebuilt file that agrees in
+length and in a 64-bit digest by chance; forging it needs no more power than writing the state
+file by hand, which is not defended against either.
 
 A file that names `stateSchema` and this launch's child is restored with the intent it
 records. A running one resumes if its launch is admitted (`PersistedState.launch`: among its
@@ -92,15 +99,20 @@ target is gone, a directory, a pipe or a device, and reads only a run directory 
 under the state file's name as no file; on a refusal the viewer exits before it serves
 anything and leaves the file as it is, because a file another version wrote is not guessed at
 and reading it as stopped would publish over it. A state built with no file, or restored with
-its intent, is published before supervision begins; a file whose running intent was set aside
-(an earlier version's, or one given for another child) is left as it is until the supervisor's
-first write of the state, which an operator's Start, Stop or Clear causes, so a start-up that
-fails leaves the next viewer the same file and the same reason, and the reading as stopped is
-repeated until one of those acts (`StartSource.kept`, `Supervisor.new`). That a running intent
-in a state file follows a Start given, in some earlier viewer, while its child had the record
-the file names is argued from the write clause and these readings by induction over the
-viewers that owned the run directory, assuming that only viewers write the file and that what
-is written reads back as written. No theorem covers these: the actor
+its intent, is published before the listener binds; a file whose running intent was set aside
+(an earlier version's, or one given for another child) is left exactly as it is until the
+listener is bound, and the bootstrap then publishes the stopped state it started from, with
+this launch's record, before it prints the ready line, before `--start` submits its Start and
+before the first step (`StartSource.kept`, `Supervisor.new`, `NativeApp.runViewer`). So a
+start-up that fails before that publication leaves the next viewer the same file and the same
+reason, and the file is read as an earlier version's, or as given for another child, once: in
+the first launch whose start-up succeeds. That a running intent in a state file follows a
+Start given, in some earlier viewer, while its child had the record the file names is argued
+from the write clause and these readings by induction over the viewers that owned the run
+directory, assuming that only viewers write the file, that the other fields of a state read
+back as written, and that a running intent reads back as running exactly for a launch with
+the same, present record: a running intent written under `--cmd`, which has no record, reads
+back stopped, by design. No theorem covers these: the actor
 (`Acorn.Host.Viewer.Supervisor`), the reader and the bootstrap (`NativeApp.Viewer`) are
 effects.
 
