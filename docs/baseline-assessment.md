@@ -10,8 +10,8 @@ the executed definitions and the primary literature. No agent run informed it.
 Status notes record what has changed since; the
 [roadmap](roadmap.md) orders the remaining work.
 
-**Claim status.** Every claim below, other than an observed outcome of a
-registered study, carries one of these labels:
+**Claim status.** Every claim below about what the code is and does carries
+one of these labels:
 
 - **Machine-checked**: a Lean theorem over the executed definitions whose
   conclusion states the claim as worded, over the claim's whole domain,
@@ -33,8 +33,11 @@ registered study, carries one of these labels:
   settled and that is not only empirical, such as what the executed
   definitions do on a stated model.
 
-An observed outcome of a registered study is reported as its recorded counts
-with the decision of the study's registered rule.
+Observed counts are reported as counts with their source, of two kinds kept
+apart: an outcome of a registered study is reported with the decision of the
+study's registered rule, and a count from a diagnostic trace, a rerun of
+recorded seeds with per-step telemetry, is marked as a diagnostic and not
+study evidence.
 
 The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 [frontier](frontier.md) are research questions.
