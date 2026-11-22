@@ -187,14 +187,14 @@ def startAccount (source : StartSource) (desired : Desired) : Option String :=
   | .running, _ => none
   | .stopped, .absent =>
     some ("stopped because the run directory holds no saved state; " ++
-      "press Start in the page or launch with --start")
+      "it starts only on Start in the page or the --start flag")
   | .stopped, .earlier =>
     some ("stopped because the saved state was written before state.json recorded a schema " ++
       "version, so its intent is not taken as a Start; " ++
-      "press Start in the page or launch with --start")
+      "it starts only on Start in the page or the --start flag")
   | .stopped, .saved =>
     some ("stopped because the saved state says stopped; " ++
-      "press Start in the page or launch with --start")
+      "it starts only on Start in the page or the --start flag")
 
 /-- Absence, refusal and successful restore require distinct caller branches. -/
 inductive StateRead where

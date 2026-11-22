@@ -2748,20 +2748,23 @@ function drawStreamHealth() {
     notes.push(`⚠ the core sent a value outside its schema`);
     why.push(`${frames(bad.frames)} refused: ${keyList(bad.keys)} present but not ` +
              `holding the value the schema promises. The emitter or the transport ` +
-             `is wrong; rebuilding will not fix it. Keep the run and check the ` +
-             `stream with \`acorn demo --telemetry\`.`);
+             `is wrong; rebuilding will not fix it. Keep the run; the place to ` +
+             `look is the stream the core emits.`);
   }
   if (pageErrors) {
     notes.push(`⚠ the page failed on ${frames(pageErrors)} — a viewer defect`);
     why.push(`${frames(pageErrors)} made the page's own intake throw (last: ${pageErrorLast}). ` +
-             `The frames were valid; the page is what failed. Restart the viewer and report ` +
-             `the browser console's error.`);
+             `The frames were valid; the page is what failed. Report the browser ` +
+             `console's error. Restarting the viewer reloads the page; in work on a ` +
+             `change to Acorn a restart needs the owner's authorization for that run.`);
   }
   if (controlRefused) {
     notes.push(`⚠ the viewer server sent a control frame this page cannot read`);
     why.push(`${frames(controlRefused)} from the control channel refused. The page ` +
              `and the server are one binary, so this is a viewer defect — not a ` +
-             `build skew and not a core fault. Restart the viewer.`);
+             `build skew and not a core fault. Restarting the viewer is the remedy; ` +
+             `in work on a change to Acorn a restart needs the owner's authorization ` +
+             `for that run.`);
   }
   if (A.nonFinite) {
     // Not a tooling problem: the core computed NaN or +/-inf. The page names
@@ -2770,8 +2773,8 @@ function drawStreamHealth() {
     why.push(`${fmt(A.nonFinite)} frame${A.nonFinite === 1 ? "" : "s"} carried ` +
              `NaN or ±inf. Weights and step sizes are bounded by construction, ` +
              `so a non-finite learner value would point at a quantity the projections do not cover ` +
-             `and would be worth investigating as a divergence. Keep the run, note the world time, ` +
-             `and check it with: acorn demo --telemetry`);
+             `and would be worth investigating as a divergence. Keep the run and note the world ` +
+             `time; the value is in the stream the core emits.`);
   }
   const el = $("s_broken");
   el.textContent = notes.join(" · ");
@@ -3010,7 +3013,7 @@ function applyControlState(f) {
     nosave.title = f.reason;
     nosave.className = "pill reset";
   } else if (f.checkpointRefused) {
-    nosave.textContent = "⚠ not saving — press Clear to start a fresh run";
+    nosave.textContent = "⚠ not saving — Clear starts a fresh run";
     nosave.title = "the core refused its checkpoint and disabled writing for this run";
     nosave.className = "pill reset";
   }

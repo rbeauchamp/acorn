@@ -554,8 +554,8 @@ Rules that apply to every number, label and colour on the page.
 - **UX-25 · A refused checkpoint is reported.** The core disarms saving for
   the whole run when it refuses a checkpoint, which on stderr alone is
   invisible to anyone watching: a healthy-looking run that is quietly
-  persisting nothing. The top bar raises `⚠ not saving — press Clear to start
-  a fresh run`, naming the remedy rather than only the diagnosis.
+  persisting nothing. The top bar raises `⚠ not saving — Clear starts a fresh
+  run`, naming the remedy rather than only the diagnosis.
 - **UX-26 · Transport.** Controls: ⏮/⏭ (jump 500 frames), ⏸/▶, ⚡ LIVE (pin
   to the newest frame), replay rates 10 / 60 / 250 / 1000 frames per second, a
   scrub slider, the buffered-frame position and a lag readout, each with a
@@ -879,7 +879,9 @@ What each panel must show. How it draws it is the code's.
   `./scripts/verify.sh` and not empirical default qualification.
 
   The advanced `./lean/.lake/build/bin/acorn-viewer --research-profile ranked --port 8088`
-  serves the UI at `http://127.0.0.1:8088/`. The viewer spawns the core only on
+  serves the UI at `http://127.0.0.1:8088/`. In work on a change this invocation is
+  driven only on the owner's authorization
+  ([running a program](../CONTRIBUTING.md#running-a-program)). The viewer spawns the core only on
   an explicit act: `--start` on its command line, Start in the page, or a state
   file whose running intent an earlier Start set, which it resumes. Launched on
   a run directory with no state file and without `--start`, it spawns nothing,
@@ -899,8 +901,8 @@ What each panel must show. How it draws it is the code's.
   wrote is not guessed at. Whenever the run a viewer starts with is shown
   stopped (no state file, a saved stopped state, or an earlier version's file
   read as stopped), the viewer says why in one line, for example "Run: stopped
-  because the run directory holds no saved state; press Start in the page or
-  launch with --start": on its standard output, before it writes its start
+  because the run directory holds no saved state; it starts only on Start in
+  the page or the --start flag": on its standard output, before it writes its start
   state and so before an earlier version's file is replaced, and as the reason
   of its first control record, which the page shows in the hover text of the
   state word (UX-21). It announces nothing when the run is not shown stopped,
@@ -910,9 +912,7 @@ What each panel must show. How it draws it is the code's.
   next launch resumes it. When the viewer does
   spawn, the core runs the
   explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×
-  4000 steps) with weight checkpointing. In work on a change this invocation is
-  driven only on the owner's authorization
-  ([running a program](../CONTRIBUTING.md#running-a-program)). `--run-dir <dir>` moves the run
+  4000 steps) with weight checkpointing. `--run-dir <dir>` moves the run
   directory, `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides
   the whole campaign, `--port N` overrides the port (`0` requests an available
   port), `--start` explicitly requests Start, `--open-browser` opens the bound

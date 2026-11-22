@@ -636,10 +636,7 @@ concise PR, not a scientific dossier. Do not run a study to replace an unresolve
 proof obligation. Scientific execution requires explicitly authorized scope.
 A run is the last resort, a smoke test or a diagnostic that only chooses a
 direction included: [AGENTS](AGENTS.md#correct-by-construction) says what must be
-shown before one is proposed. The viewer starts the agent only on an explicit
-act: its `--start` flag, Start in its page, or a saved state that an earlier
-Start set to running. `./scripts/start.sh` passes that act, so the launcher
-does start the agent.
+shown before one is proposed.
 
 ### What counts as a run
 
@@ -710,11 +707,18 @@ because its source shows that it takes no step; where a change touches an
 entry's program, that reading is made again on the change's head before the
 entry is driven.
 
-The list answers a fact that a validation step met on 2026-11-21: the viewer,
-started with no state file in its run directory, starts in the running state,
-and its supervisor launches its child process, which is the core unless the
-command line names another command. So the one start of the viewer on the list
-is from an explicitly stopped state with a child command that cannot be a core.
+The list answers a fact that a validation step met on 2026-11-21, of the viewer
+as it then was: started with no state file in its run directory, it started in
+the running state, and its supervisor launched its child process, which is the
+core unless the command line names another command. The viewer now starts its
+child only on an explicit act: its `--start` flag, Start in its page, or a
+saved state that an earlier Start set to running. With no state file and no
+such act it starts nothing and shows the run stopped. `./scripts/start.sh`
+passes that act, so the launcher does start the agent. The one start of the
+viewer on the list stays as it was, from an explicitly stopped state with a
+child command that cannot be a core: a step drives the viewer built from the
+change it validates, which that change can have altered, and a Start pressed
+in the page starts the child.
 
 The same instructions say, in their paragraph on files that an earlier run
 left, which files that a run of the agent or a learner produced a step neither

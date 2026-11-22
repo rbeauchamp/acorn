@@ -36,9 +36,14 @@ run is stated in the change's intent ([running a
 program](../../../CONTRIBUTING.md#running-a-program)). That recipe is the one
 start of the viewer on the closed list of those instructions; every other start
 needs that authorization, a smoke test or a screenshot included. The recipe
-answers a fact: with no state file in its run directory the viewer starts
-running without being asked, and its supervisor launches its child, which is the
-core unless the command line names another command. In a viewer started by that
+answers a fact met on 2026-11-21, of the viewer as it then was: with no state
+file in its run directory it started running without being asked, and its
+supervisor launched its child, which is the core unless the command line names
+another command. The viewer now starts its child only on an explicit act
+(`--start`, Start in the page, or a saved state that an earlier Start set to
+running), and the recipe stays as it is: a review drives the viewer built from
+the change under review, which that change can have altered, and a Start
+pressed in the page starts the child. In a viewer started by that
 recipe, and in no other, the page's Start button may be pressed: the only child
 it can start is a command that is no core, and its exit shows the lifecycle and
 its handling of a failed child. A state that only a core supplies is a

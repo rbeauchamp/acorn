@@ -71,8 +71,8 @@ def dispatch (arguments : List String) : Except String (IO String) := do
   match arguments with
   | "admit" :: rest =>
     match ← Cli.dispatch rest |>.mapError cliError with
-    | .demo (.streaming _) => return pure "admitted streaming configuration; run with acorn-core"
-    | .demo (.ansi _ _) => return pure "admitted ANSI configuration; run with acorn-core"
+    | .demo (.streaming _) => return pure "admitted streaming configuration; this driver checks its admission only"
+    | .demo (.ansi _ _) => return pure "admitted ANSI configuration; this driver checks its admission only"
     | .external _ _ => return pure "admitted external command; this driver checks its syntax only"
   | "actions" :: seed :: side :: actionTexts =>
     let seed := (← word seed 64).toUInt64

@@ -42,10 +42,10 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || fail "$1 needs a value."
       if [[ "$1" == --run-dir ]]; then run_dir=$2; else port=$2; fi
       shift 2 ;;
-    *) fail "Unknown option $1. Run ./scripts/start.sh --help." ;;
+    *) fail "Unknown option $1. ./scripts/start.sh --help lists the options." ;;
   esac
 done
-[[ $EUID -ne 0 ]] || fail 'Run this script as your normal user, without sudo.'
+[[ $EUID -ne 0 ]] || fail 'This script runs as your normal user, without sudo.'
 cd "$root"
 
 # This lock spans preparation and execution and survives whole-run Clear.

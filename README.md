@@ -122,8 +122,9 @@ run, as the paragraph after the command says. From your Acorn checkout, run:
 
 The launcher prepares the dependencies, builds Acorn, starts or resumes the
 agent, and opens your browser. The viewer itself starts the agent only on an
-explicit request, which the launcher passes; opened any other way, it shows the
-run stopped until you press Start. It runs continuously until you stop it. No
+explicit request, which the launcher passes; started any other way on a run
+that no earlier Start left running, it shows the run stopped until Start is
+pressed. It runs continuously until you stop it. No
 configuration is required. The first launch needs internet access and may
 require system installation prompts; subsequent launches reuse installed
 dependencies and unchanged build outputs. Automatic setup supports macOS and
