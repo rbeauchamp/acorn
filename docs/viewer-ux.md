@@ -1017,7 +1017,8 @@ What each panel must show. How it draws it is the code's.
   another child), the viewer says why in one line, for example "Run: stopped
   because the run directory holds no saved state; it starts only on a Start on
   the viewer's control endpoint, which the page's Start button sends, or the
-  --start flag". The line is the reason of its first control record, which the
+  --start flag". The line, without the `Run: ` it is printed with, is in the
+  reason of its first control record, after `viewer initialized; `, which the
   page shows in the hover text of the state word (UX-21), under `--start` as
   well, so the page never shows the run stopped at start-up without it. The
   viewer also prints it on its standard output, at most once in a launch: for

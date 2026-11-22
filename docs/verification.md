@@ -1435,7 +1435,7 @@ after a complete write, is still the original. A viewer that fails once its list
 ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
 turn on that path takes a command from the queue, so nothing is started from the set-aside intent
 and a Start queued by then is not handled. Whenever the start state is stopped, the one
-line that says why (`Acorn.Host.Viewer.startAccount`) is the reason of the first control
+line that says why (`Acorn.Host.Viewer.startAccount`) is in the reason of the first control
 record, under the `--start` flag too, so the page never shows the run stopped at start-up without
 it. The viewer also prints the line on its standard output, at most once in a launch: for a file
 whose running intent was set aside the line is printed and flushed after the listener is bound and
