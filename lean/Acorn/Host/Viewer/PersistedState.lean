@@ -9,33 +9,41 @@ import Acorn.Host.Viewer.Wire
 /-!
 # Durable viewer-state admission
 
-The current state file has seven fields: its schema version and six of state. Strict
-JSON syntax and exact integer admission precede identity construction. Missing files
-and refused files have different result constructors; a caller cannot mistake parse
-failure for a successful restore. Only a run directory with no entry named state.json
-reads as a missing file: an entry that exists and cannot be opened, such as a symbolic
-link whose target is gone, is refused. Publication uses an exclusively created temporary
-file and rename after a complete write and flush. Filesystem stability and POSIX
-rename remain the RunDirectory trust boundary; no power-loss durability is claimed.
+The current state file has eight members: its schema version, six of state and the record of
+the child of the viewer that wrote it. Strict JSON syntax and exact integer admission precede
+identity construction. Missing files and refused files have different result constructors; a
+caller cannot mistake parse failure for a successful restore. Only a run directory with no
+entry named state.json reads as a missing file. An entry that exists and is not a regular
+file, or a link to one, is refused without being opened: a symbolic link whose target is gone,
+a directory, a pipe, a device. Publication uses an exclusively created temporary file and
+rename after a complete write and flush. Filesystem stability and POSIX rename remain the
+RunDirectory trust boundary; no power-loss durability is claimed.
 
-**A running intent in a file of this schema follows a Start.** A viewer that finds no
-state file builds a state that intends to stay stopped (`PersistedState.unstarted`), and
-a supervisor started from a stopped intent waits on no write of a running intent while
-no operator's Start is handed to its step (`Acorn.Host.Viewer.ExplicitStart`). That a
-running intent on disk therefore follows a Start in some viewer that owned the run
-directory is argued from that theorem by induction over those viewers, and is not
-proved. Before schema version 2 the viewer wrote `running` when it found no file, with
-no Start, and its files name no schema. So a file whose `schema_version` member is absent
-or is not a number spelled in decimal digits alone is decoded with its other fields as
-written and with intent stopped: the intent is the one field whose value an operator may
-never have chosen. `PersistedState.decode_earlier` proves that every state the decoder
-returns for a file whose version does not read as the current one intends to stay stopped,
-and `PersistedState.decode_running` that the decoder returns a running intent only under the
-current version. The version a file names is the natural number its `schema_version`
-member spells in decimal digits, of any size (`stateVersion`). For a file that names another
-natural number the decoder returns an error (`PersistedState.decode_other`), and so it does
-for one whose `schema_version` member is a number whose digits spell a number of `2 ^ 64` or
-more (`PersistedState.decode_wide`).
+**A running intent in a file of this schema follows a Start given for the child the file
+names.** A viewer that finds no state file builds a state that intends to stay stopped
+(`PersistedState.unstarted`), and a supervisor started from a stopped intent waits on no write
+of a running intent while no operator's Start is handed to its step
+(`Acorn.Host.Viewer.ExplicitStart`). Every state a viewer writes carries the record of the
+child its own supervisor would start (`childRecord`, `PersistedState.encode`). That a running
+intent on disk therefore follows a Start given, in some viewer that owned the run directory,
+while that viewer's child had the record the file names is argued from that theorem by
+induction over those viewers, and is not proved.
+
+Two things decide whether a decoded file's intent is kept; a file is decoded only when its six
+members of state are all admitted. Before schema version 2 the viewer wrote `running` when it
+found no file, with no Start, and its files name no schema and no child. So for a file whose
+version does not read as the current one, every state the decoder returns intends to stay
+stopped (`PersistedState.decode_earlier`): the intent is the one field whose value an operator
+may never have chosen, and the other fields are kept as written. The version a file names is
+the natural number its `schema_version` member spells in decimal digits alone, of any size
+(`stateVersion`); a member spelled any other way, `3e0` for example, is no readable version.
+For a file that names another natural number the decoder returns an error
+(`PersistedState.decode_other`), and so it does for one whose digits spell a number of
+`2 ^ 64` or more (`PersistedState.decode_wide`). And for a file that does not name the child
+record of the launch that reads it, or that is read by a launch with no record, every state
+the decoder returns intends to stay stopped (`PersistedState.decode_unbound`). The decoder
+returns a running intent only under the current version and for this launch's child
+(`PersistedState.decode_running`).
 -/
 namespace Acorn.Host.Viewer
 
@@ -86,15 +94,55 @@ records that a stray checkpoint of an earlier layout was adopted into the run. -
 def PersistedState.unstarted (seed : UInt64) (migrated : Bool) : PersistedState :=
   ⟨⟨seed, seed, 0⟩, .stopped, .fresh, migrated⟩
 
-/-- Serialization contains only closed spellings and numeric digits, with no caller text. -/
-def PersistedState.encode (state : PersistedState) : String :=
+/-- A word of a child record that the state file can hold as written: printable ASCII with no
+quotation mark and no backslash, so its JSON spelling is the word between quotation marks. -/
+def childWordAdmitted (word : String) : Bool :=
+  word.toList.all fun c => ' ' ≤ c && c ≤ '~' && c != '"' && c != '\\'
+
+/-- The room a child record may take in the state file, which a viewer reads within 4096 bytes:
+the lengths of its words, with three more for each word's quotation marks and comma. -/
+def childBudget : Nat := 2048
+
+/-- A child record the state file can hold: at least one word, every word admitted, within the
+budget. -/
+def childAdmitted (words : List String) : Bool :=
+  !words.isEmpty && words.all childWordAdmitted &&
+    words.foldl (fun total word => total + word.length + 3) 0 ≤ childBudget
+
+/-- The record of the child a viewer's supervisor would start, as far as the viewer can read
+it before it starts it: the executable's path, its size and modification time, and the argument
+vector at a fixed reference launch (`referenceLaunch`). Two launches have the same child, for
+the purpose of a saved running intent, exactly when both have a record and the records are
+equal word for word. A launch has no record when sameness cannot be established: a command
+given to a shell, whose process depends on the working directory, the environment and the
+files the command names; an executable whose file cannot be examined; or words the state file
+cannot hold. -/
+def childRecord (executable : String) (bytes : Nat) (seconds : Int) (nanoseconds : Nat)
+    (arguments : List String) : Option (List String) :=
+  let words :=
+    executable :: toString bytes :: toString seconds :: toString nanoseconds :: arguments
+  if childAdmitted words then some words else none
+
+/-- The `child` member of a state file: the record's words as a JSON array of strings, and
+`null` when the launch has no record or its record cannot be held. -/
+def childText : Option (List String) → String
+  | some words =>
+    if childAdmitted words then
+      "[" ++ ",".intercalate (words.map fun word => "\"" ++ word ++ "\"") ++ "]"
+    else "null"
+  | none => "null"
+
+/-- Serialization contains only closed spellings, numeric digits and the admitted words of the
+child record of the viewer that writes it. -/
+def PersistedState.encode (child : Option (List String)) (state : PersistedState) : String :=
   "{\"schema_version\":" ++ toString stateSchema ++
   ",\"seed\":" ++ toString state.identity.seed ++
   ",\"desired\":\"" ++ state.desired.tag ++
   "\",\"run_id\":\"" ++ runHex state.identity.run ++
   "\",\"agent_epoch\":" ++ toString state.identity.agentEpoch ++
   ",\"origin\":\"" ++ state.origin.tag ++
-  "\",\"process_started\":" ++ (if state.processStarted then "true" else "false") ++ "}\n"
+  "\",\"process_started\":" ++ (if state.processStarted then "true" else "false") ++
+  ",\"child\":" ++ childText child ++ "}\n"
 
 /-- The schema version a state file names: the natural number, of any size, that its
 `schema_version` member spells in decimal digits alone (`Digits.read`), and nothing when the
@@ -104,6 +152,18 @@ def stateVersion (value : Json.Value) : Option Nat :=
   (value.member "schema_version").bind fun mark =>
     match mark with
     | .number spelling => Digits.read spelling
+    | _ => none
+
+/-- The child record a state file names: the words of its `child` member when that is a JSON
+array of strings, and nothing when the member is absent or has any other form. -/
+def stateChild (value : Json.Value) : Option (List String) :=
+  (value.member "child").bind fun mark =>
+    match mark with
+    | .array words =>
+      words.mapM fun word =>
+        match word with
+        | .string text => some text
+        | _ => none
     | _ => none
 
 /-- Admission of the version a state file names, decided once: a natural number other than
@@ -117,9 +177,11 @@ def admitVersion : Option Nat → Except String Unit
   | none => .ok ()
 
 /-- The fields of a state file: its `schema_version` member when it has one, whose value
-`admitVersion` has already judged, and the six fields of state. -/
-def PersistedState.fields (marked : Bool) : Json.Decoder PersistedState := do
+`admitVersion` has already judged, its `child` member when it has one, which `stateChild`
+reads, and the six fields of state. -/
+def PersistedState.fields (marked recorded : Bool) : Json.Decoder PersistedState := do
   if marked then discard (Json.take "schema_version")
+  if recorded then discard (Json.take "child")
   let seed ← jsonWord (← Json.take "seed")
   let desired ← match ← Json.text "desired" with
     | "running" => pure Desired.running
@@ -135,58 +197,99 @@ def PersistedState.fields (marked : Bool) : Json.Decoder PersistedState := do
   return ⟨⟨run, seed, epoch⟩, desired, origin, processStarted⟩
 
 /-- The complete state schema refuses unknown fields, partial identity and a schema version
-that is a natural number other than `stateSchema`. A file whose version does not read as
-`stateSchema`, because it has no `schema_version` member or one that is not a number spelled
-in decimal digits alone, is read as an earlier version's file: it keeps every field but its intent, which is admitted
-as stopped. -/
-def PersistedState.decode (value : Json.Value) : Except String PersistedState := do
+that is a natural number other than `stateSchema`. For a file that is decoded, the intent it
+records is kept only when the file names `stateSchema` and names the child record of this
+launch, which must have one: the saved intent was then written by a viewer whose supervisor
+would start the same child. In every other case the state keeps every field but its intent,
+which is admitted as stopped: a file whose version does not read as `stateSchema`, because it
+has no `schema_version` member or one that is not a number spelled in decimal digits alone,
+which is an earlier version's file and carries no record of its child; a file whose `child`
+member is absent, is not an array of strings or names another record; and any file read by a
+launch that has no record. -/
+def PersistedState.decode (child : Option (List String)) (value : Json.Value) :
+    Except String PersistedState := do
   admitVersion (stateVersion value)
-  let state ← Json.decode value (PersistedState.fields (value.member "schema_version").isSome)
-  return if stateVersion value = some stateSchema then state else { state with desired := .stopped }
+  let state ← Json.decode value
+    (PersistedState.fields (value.member "schema_version").isSome (value.member "child").isSome)
+  return if stateVersion value = some stateSchema ∧ child.isSome ∧ stateChild value = child
+    then state else { state with desired := .stopped }
 
-/-- **A state the decoder returns for a file whose version does not read as the current one
-intends to stay stopped.** For every JSON value whose `schema_version` member is absent, is not
-a number spelled in decimal digits alone or spells another number, and every state the decoder
-returns for it. -/
-theorem PersistedState.decode_earlier (value : Json.Value) (state : PersistedState)
-    (earlier : stateVersion value ≠ some stateSchema)
-    (decoded : PersistedState.decode value = .ok state) : state.desired = .stopped := by
+/-- A state the decoder returns intends to stay stopped unless the file names the current
+schema and the child record of this launch. -/
+private theorem PersistedState.decode_stopped (child : Option (List String))
+    (value : Json.Value) (state : PersistedState)
+    (unbound : ¬(stateVersion value = some stateSchema ∧ child.isSome ∧
+      stateChild value = child))
+    (decoded : PersistedState.decode child value = .ok state) : state.desired = .stopped := by
   unfold PersistedState.decode at decoded
   obtain ⟨-, -, rest⟩ := Json.except_bind_ok decoded
   obtain ⟨read, -, returned⟩ := Json.except_bind_ok rest
-  simp only [earlier, ↓reduceIte, pure, Except.pure, Except.ok.injEq] at returned
+  simp only [unbound, ↓reduceIte, pure, Except.pure, Except.ok.injEq] at returned
   rw [← returned]
 
-/-- **The decoder returns a running intent only under the current schema version.** For
-every JSON value and every state the decoder returns for it that intends to run, the value's
-`schema_version` member spells `stateSchema`. -/
-theorem PersistedState.decode_running (value : Json.Value) (state : PersistedState)
-    (decoded : PersistedState.decode value = .ok state) (running : state.desired = .running) :
-    stateVersion value = some stateSchema := by
-  refine Decidable.byContradiction fun earlier => ?_
-  have stopped := PersistedState.decode_earlier value state earlier decoded
-  rw [stopped] at running
-  cases running
+/-- **A state the decoder returns for a file whose version does not read as the current one
+intends to stay stopped.** For every child record a launch may have, or none, every JSON value
+whose `schema_version` member is absent, is not a number spelled in decimal digits alone or
+spells another number, and every state the decoder returns for it. -/
+theorem PersistedState.decode_earlier (child : Option (List String)) (value : Json.Value)
+    (state : PersistedState) (earlier : stateVersion value ≠ some stateSchema)
+    (decoded : PersistedState.decode child value = .ok state) : state.desired = .stopped :=
+  PersistedState.decode_stopped child value state (fun bound => earlier bound.1) decoded
+
+/-- **A state the decoder returns for a file that does not name this launch's child record
+intends to stay stopped.** For every launch that has no child record, and every launch whose
+record differs from the one the JSON value's `child` member names, or that reads a value with
+no such record: every state the decoder returns for the value. -/
+theorem PersistedState.decode_unbound (child : Option (List String)) (value : Json.Value)
+    (state : PersistedState) (unbound : child = none ∨ stateChild value ≠ child)
+    (decoded : PersistedState.decode child value = .ok state) : state.desired = .stopped := by
+  refine PersistedState.decode_stopped child value state (fun bound => ?_) decoded
+  rcases unbound with none | other
+  · rw [none] at bound
+    exact absurd bound.2.1 (by decide)
+  · exact other bound.2.2
+
+/-- **The decoder returns a running intent only under the current schema version and for this
+launch's child.** For every child record a launch may have, or none, every JSON value and
+every state the decoder returns for it that intends to run: the value's `schema_version`
+member spells `stateSchema`, the launch has a child record, and the value's `child` member
+names that record. -/
+theorem PersistedState.decode_running (child : Option (List String)) (value : Json.Value)
+    (state : PersistedState) (decoded : PersistedState.decode child value = .ok state)
+    (running : state.desired = .running) :
+    stateVersion value = some stateSchema ∧
+      ∃ words, child = some words ∧ stateChild value = some words := by
+  have bound :
+      stateVersion value = some stateSchema ∧ child.isSome ∧ stateChild value = child :=
+    Decidable.byContradiction fun unbound => by
+      have stopped := PersistedState.decode_stopped child value state unbound decoded
+      rw [stopped] at running
+      cases running
+  obtain ⟨current, recorded, same⟩ := bound
+  obtain ⟨words, named⟩ := Option.isSome_iff_exists.mp recorded
+  exact ⟨current, words, named, by rw [same, named]⟩
 
 /-- **The decoder returns an error for a state file that names another schema version.** For
-every JSON value whose `schema_version` member spells a natural number other than
-`stateSchema`. -/
-theorem PersistedState.decode_other (value : Json.Value) (version : Nat)
-    (named : stateVersion value = some version) (other : version ≠ stateSchema) :
-    ∃ reason, PersistedState.decode value = .error reason := by
+every child record a launch may have, or none, and every JSON value whose `schema_version`
+member spells a natural number other than `stateSchema`. -/
+theorem PersistedState.decode_other (child : Option (List String)) (value : Json.Value)
+    (version : Nat) (named : stateVersion value = some version) (other : version ≠ stateSchema) :
+    ∃ reason, PersistedState.decode child value = .error reason := by
   unfold PersistedState.decode
   rw [named]
   simp only [admitVersion, other, ↓reduceIte]
   exact ⟨_, rfl⟩
 
 /-- **The decoder returns an error for a state file whose schema version spells a number of
-`2 ^ 64` or more.** For every JSON value whose `schema_version` member is a number whose
-spelling `Digits.read` reads as a natural number of `2 ^ 64` or more. -/
-theorem PersistedState.decode_wide (value : Json.Value) (spelling : String) (version : Nat)
+`2 ^ 64` or more.** For every child record a launch may have, or none, and every JSON value
+whose `schema_version` member is a number whose spelling `Digits.read` reads as a natural
+number of `2 ^ 64` or more. -/
+theorem PersistedState.decode_wide (child : Option (List String)) (value : Json.Value)
+    (spelling : String) (version : Nat)
     (mark : value.member "schema_version" = some (.number spelling))
     (spelled : Digits.read spelling = some version) (wide : 2 ^ 64 ≤ version) :
-    ∃ reason, PersistedState.decode value = .error reason := by
-  refine PersistedState.decode_other value version ?_ ?_
+    ∃ reason, PersistedState.decode child value = .error reason := by
+  refine PersistedState.decode_other child value version ?_ ?_
   · unfold stateVersion
     rw [mark]
     exact spelled
@@ -201,14 +304,35 @@ inductive StartSource where
   /-- The state file's version does not read as `stateSchema`: an earlier version's file,
   whose intent was read as stopped. -/
   | earlier
-  /-- The state file names the schema this viewer writes; its intent is the one it records. -/
+  /-- The state file names the schema this viewer writes and this launch's child, or records
+  a stopped intent; its intent is the one it records. -/
   | saved
+  /-- The state file names the schema this viewer writes and a running intent that was not
+  given for this launch's child: the file names another child record or none, or this launch
+  has none. Its intent was read as stopped. -/
+  | other
   deriving DecidableEq
 
+/-- Where the state decoded from a state file came from, read from the file as the decoder
+reads it. -/
+def StartSource.read (child : Option (List String)) (value : Json.Value) : StartSource :=
+  if stateVersion value ≠ some stateSchema then .earlier
+  else if child.isSome ∧ stateChild value = child then .saved
+  else match value.member "desired" with
+    | some (.string "running") => .other
+    | _ => .saved
+
+/-- Whether the viewer leaves the state file as it is when it starts: a file whose running
+intent was set aside is replaced only by the supervisor's first write of the state, so that a
+start-up that fails leaves the next viewer the same file and the same reason. -/
+def StartSource.kept : StartSource → Bool
+  | .earlier | .other => true
+  | .absent | .saved => false
+
 /-- One line that says why the run a viewer starts with is shown stopped, and nothing when it
-is not. The viewer prints it before it publishes its start state and gives it as the reason of
-its first control record, so a person who finds the run stopped is told why and what starts
-it. -/
+is not. The viewer gives it as the reason of its first control record and, when it was not
+launched with `--start`, prints it once it serves its page, so a person who finds the run
+stopped is told why and what starts it. -/
 def startAccount (source : StartSource) (desired : Desired) : Option String :=
   match desired, source with
   | .running, _ => none
@@ -225,6 +349,12 @@ def startAccount (source : StartSource) (desired : Desired) : Option String :=
     some ("stopped because the saved state says stopped; " ++
       "it starts only on a Start on the viewer's control endpoint, " ++
       "which the page's Start button sends, or the --start flag")
+  | .stopped, .other =>
+    some ("stopped because the saved running intent was given for another child than this " ++
+      "launch starts, or for one that cannot be shown to be the same, " ++
+      "so it is not taken as a Start; " ++
+      "it starts only on a Start on the viewer's control endpoint, " ++
+      "which the page's Start button sends, or the --start flag")
 
 /-- Absence, refusal and successful restore require distinct caller branches. -/
 inductive StateRead where
@@ -232,9 +362,8 @@ inductive StateRead where
   | missing
   /-- IO, syntax or schema refused the prior file, an entry that cannot be opened included. -/
   | refused (reason : String)
-  /-- The complete state was admitted, with whether the file's version reads as the current
-  one; when it does not, the file was read as an earlier version's. -/
-  | restored (state : PersistedState) (current : Bool)
+  /-- The complete state was admitted, with where its intent came from (`StartSource.read`). -/
+  | restored (state : PersistedState) (source : StartSource)
 
 private def stateBytes (handle : IO.FS.Handle) (remaining : Nat) (bytes : ByteArray) : IO ByteArray := do
   let chunk ← handle.read (min (remaining + 1) 4096).toUSize
@@ -246,14 +375,22 @@ termination_by remaining
 
 /-- A bounded read preserves the distinction between missing and malformed state. Only the
 absence of the directory entry, which `System.FilePath.symlinkMetadata` reads without
-following a symbolic link, is a missing state; an entry that exists and cannot be opened, a symbolic link whose
-target is gone included, is refused. -/
-def RunDirectory.readState (directory : RunDirectory) : IO StateRead := do
+following a symbolic link, is a missing state. An entry that exists is opened only when it is
+a regular file, or a symbolic link that leads to one (`System.FilePath.metadata` follows
+links): anything else, such as a link whose target is gone, a directory, a pipe or a device,
+is refused before it is opened, so the read never waits on an entry that cannot supply a
+finite document. The two looks and the open are separate calls, so this rests on the run
+directory's stable-path assumption like the rest of the reader. -/
+def RunDirectory.readState (directory : RunDirectory) (child : Option (List String)) :
+    IO StateRead := do
   try discard (directory.path .state).symlinkMetadata
   catch error =>
     match error with
     | .noFileOrDirectory _ _ _ => return .missing
     | _ => return .refused error.toString
+  let kind ← try pure (← (directory.path .state).metadata).type
+    catch error => return .refused error.toString
+  unless kind == .file do return .refused "state.json is not a regular file"
   let handle ← try directory.openRead .state
     catch error => return .refused error.toString
   try
@@ -262,14 +399,15 @@ def RunDirectory.readState (directory : RunDirectory) : IO StateRead := do
     match Json.parse text with
     | .error reason => return .refused reason
     | .ok value =>
-      match PersistedState.decode value with
+      match PersistedState.decode child value with
       | .error reason => return .refused reason
-      | .ok state => return .restored state (stateVersion value == some stateSchema)
+      | .ok state => return .restored state (StartSource.read child value)
   catch error => return .refused error.toString
 
 /-- Exclusive temporary creation prevents truncating a file owned by another pending writer.
 Only successful complete writing and flushing can reach the rename publication. -/
-def RunDirectory.writeState (directory : RunDirectory) (state : PersistedState) : IO Unit :=
-  directory.publishBytes .state state.encode.toUTF8
+def RunDirectory.writeState (directory : RunDirectory) (child : Option (List String))
+    (state : PersistedState) : IO Unit :=
+  directory.publishBytes .state (state.encode child).toUTF8
 
 end Acorn.Host.Viewer

@@ -111,9 +111,10 @@ to displace an uncertain owner.
 Read `.acorn-launch/pid` and inspect that process and its viewer/core descendants.
 Only after confirming that no process still owns this run, remove the lock's
 temporary files (control, pid and installer.sh) and the
-empty `.acorn-launch/` directory, then rerun the launcher with the options it
-was first given; in work on a change, a rerun that launches needs the owner's
-authorization as the first launch did. Preserve `acorn-run/`.
+empty `.acorn-launch/` directory; the launcher can then be run again with the
+options it was first given. In work on a change, the conditions for running it
+again are those of the first run, which
+[running a program](../CONTRIBUTING.md#running-a-program) states. Preserve `acorn-run/`.
 Do not manually launch another viewer against a directory already in use.
 
 ### Build and verification failures
@@ -1287,10 +1288,13 @@ semantics, the file system's durability, the Lean runtime's IO, mutexes and cloc
 a core reports, and the actor's mapping of each effect to the native operation it names remain
 the trusted base.
 
-The viewer starts its core only on an explicit act: the `--start` flag, a Start on the
-viewer's control endpoint, which the page's Start button sends, or a state file whose running
-intent an earlier Start set. The state the bootstrap builds
-when the run directory holds no state file intends to stay stopped
+The viewer's supervisor starts its child, the core or the command `--cmd` names, only on an
+explicit act: the `--start` flag, a Start on the viewer's control endpoint, which the page's Start
+button sends, or a state file whose running intent an earlier Start set while the supervisor's
+child was the child this launch starts. The viewer starts two other processes outside the
+supervisor, neither of them a learner: a relay of its standard input under `--control-stdin`, and
+the system's opener for the page under `--open-browser`. The state the bootstrap builds when the
+run directory holds no state file intends to stay stopped
 (`Acorn.Host.Viewer.PersistedState.unstarted`). For every Clear configuration, every durable
 state that intends to stay stopped, and every state reached from the start on it by steps on
 events that hold no operator's Start and by outcomes of the pending calls: the lifecycle admits no
@@ -1298,60 +1302,91 @@ reservation at any instant and intends to stop, and the call the state waits for
 spawn and writes no state that intends to run
 (`Acorn.Host.Viewer.Reached.stopped_spawns_nothing`;
 `Acorn.Host.Viewer.Reached.unstarted_spawns_nothing` states it for the state built with no
-state file). The states reached from a start by steps and outcomes are the states of a run and no
-others
-(`Acorn.Host.Viewer.Reached.ran`, `Acorn.Host.Viewer.Ran.reached`). The statement is not
-empty: from the start on every durable state that admits a launch, there are events that hold a
-Start and a state reached by them that waits to spawn the first generation
-(`Acorn.Host.Viewer.Core.start_spawns`), and the state built with no state file admits a launch
-for every seed within the browser's integers (`Acorn.Host.Viewer.Core.unstarted_launch`). The
-control record of the start on the state built with no state file says the run is desired
-stopped and actually stopped (`Acorn.Host.Viewer.Core.start_control`). Every state the
-decoder returns for a state file whose schema version does not read as the current one
-intends to stay stopped
-(`Acorn.Host.Viewer.PersistedState.decode_earlier`), so the decoder returns a running intent
-only under the current version (`Acorn.Host.Viewer.PersistedState.decode_running`), and the
-statement above holds of the supervisor started from such a state
-(`Acorn.Host.Viewer.Reached.earlier_spawns_nothing`). The files so decoded are those whose
-member is absent or is not a number spelled in decimal digits alone; one that spells another
-number is not decoded, as the next paragraph says. Before the file carried a version, the
-viewer wrote a running intent in it when it found no file, with no Start, so such a file cannot
-show that a Start set its intent. The viewer publishes the state it starts from, in the schema
-it writes, before it supervises, so the file names the schema from then on; this is read from the
-actor and not proved, and so is that the text the viewer writes reads back as the state written.
-Three more things are read
-from the code and not proved: the actor hands the step an operator's Start only for a command
-that was submitted to its queue, which the bootstrap does for the `--start` flag and the HTTP
-server for an admitted control request; the bootstrap hands the supervisor the state it read or
-built; and a state file it refuses constructs no supervisor. That a running intent in a state
-file follows a Start in some earlier viewer is argued from the write clause above by induction
-over the viewers that owned the run directory, and is not proved.
+state file). The relation these statements are about covers one supervisor's lifetime: one start,
+its steps on events and the outcomes of its pending calls. It ends with that viewer; it reads no
+state file and starts no second viewer. The states it reaches are the states of a run and no
+others (`Acorn.Host.Viewer.Reached.ran`, `Acorn.Host.Viewer.Ran.reached`). The
+statement is not empty: from the start on every durable state that admits a launch, there are
+events that hold a Start and a state reached by them that waits to spawn the first generation
+(`Acorn.Host.Viewer.Core.start_spawns`). That is a statement of existence, whose witness has
+every call between the Start and the spawn succeed; a Start whose intent cannot be written reaches
+no spawn. The state built with no state file admits a launch for every seed within the browser's
+integers (`Acorn.Host.Viewer.Core.unstarted_launch`), and the control record of the start on
+that state says the run is desired stopped and actually stopped
+(`Acorn.Host.Viewer.Core.start_control`).
 
-The cases of a state file are four. With no file the run is stopped. A file whose schema version
-is absent or is not a number spelled in decimal digits alone is read as an earlier version's
-file: stopped, once, as above. The version a file names is the natural number those digits
-spell, of any size (`Acorn.Host.Viewer.stateVersion`). A file that names the schema version the
-viewer writes
-(`Acorn.Host.Viewer.stateSchema`) starts the run with the intent it records, so a running one
-resumes. For a file that names another natural number the decoder returns an error
-(`Acorn.Host.Viewer.PersistedState.decode_other`), and so it does for a file whose schema
-version is a number whose digits spell two to the power 64 or more
-(`Acorn.Host.Viewer.PersistedState.decode_wide`). The rest is read from
-`Acorn.Host.Viewer.RunDirectory.readState` and the bootstrap, and is not proved: a state file
-that is unreadable or malformed, or that exists and cannot be opened, such as a symbolic link
-whose target is gone, is refused; only a run directory with no entry under the state file's
-name reads as no file; and on a refusal the viewer exits before it serves anything, constructs
-no supervisor and leaves the file as it is, because a file another version wrote is not guessed
-at and reading it as stopped would publish over it. Whenever the run a viewer starts with is
-shown stopped, the viewer says why in one line
-(`Acorn.Host.Viewer.startAccount`): on its standard output, before it publishes its start
-state and so before an earlier version's file is replaced, and as the reason of its first
-control record. It says nothing when the run is not shown stopped, as when it was launched with
-the `--start` flag or resumes a running state.
+A state file is decoded only when it is a JSON object that holds the six members of the state,
+each admitted, and beside them at most a schema version and a child record; any other is refused.
+Two things then decide whether the intent it records is kept. The first is the version: the
+natural number that the `schema_version` member spells in decimal digits alone, of any size
+(`Acorn.Host.Viewer.stateVersion`). A member that is absent, or that is spelled any other
+way, as a string or as a number with a sign, a fraction or an exponent such as `3e0`, is no
+readable version and marks an earlier version's file. Every state the decoder returns for a state
+file whose schema version does not read as the current one intends to stay stopped
+(`Acorn.Host.Viewer.PersistedState.decode_earlier`), and the statement above holds of the
+supervisor started from a state that was successfully decoded from an earlier version's file
+(`Acorn.Host.Viewer.Reached.earlier_spawns_nothing`). Before the file carried a version, the
+viewer wrote a running intent in it when it found no file, with no Start, so such a file cannot
+show that a Start set its intent. For a file that names another natural number the decoder returns
+an error (`Acorn.Host.Viewer.PersistedState.decode_other`), and so it does for a file whose
+schema version is a number whose digits spell two to the power 64 or more
+(`Acorn.Host.Viewer.PersistedState.decode_wide`).
+
+The second is the child. With every state it saves, a viewer writes the record of the child its
+supervisor would start (`Acorn.Host.Viewer.childRecord`): the executable's path, its size
+and modification time, and the argument vector at a reference launch. A launch under `--cmd` has
+no record, because the process a shell starts for a command depends on the working directory, the
+environment and the files the command names. The decoder returns a running intent only for a file
+that names the current version and the record of the launch that reads it, which must have one
+(`Acorn.Host.Viewer.PersistedState.decode_running`). Every state it returns to a launch with
+no record, or with another record than the file names, intends to stay stopped
+(`Acorn.Host.Viewer.PersistedState.decode_unbound`), and the statement above holds of the
+supervisor started from such a state (`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`).
+So a running intent saved while the supervisor's child was one process is not taken as a Start for
+another: a Start given under a fixed command does not start the ranked core at a later launch, and
+neither does one given for a core at another path, of another size or modification time, or with
+other arguments. Sameness is equality of the two records and no more: that a file with the same
+path, size and modification time is the same program, and that the environment the child inherits
+is unchanged, are assumptions. A file that names the current version and this launch's child is
+restored with the intent it records. A running one resumes when its launch is admitted
+(`Acorn.Host.Viewer.PersistedState.launch`: a run that has started a process needs a next
+agent epoch within the browser's integers) and the writes and the spawn that follow succeed.
+
+The rest is read from the code and not proved. The actor hands the step an operator's Start only
+for a command that was submitted to its queue, which the bootstrap does for the `--start` flag and
+the HTTP server for an admitted control request. The bootstrap hands the supervisor the state it
+read or built. Every state the actor writes carries the record of its own child, and the text the
+viewer writes reads back as the state written. `Acorn.Host.Viewer.RunDirectory.readState`
+refuses a state file that is unreadable or malformed. It refuses without opening it an entry that
+is not a regular file or a link to one, such as a link whose target is gone, a directory, a pipe
+or a device, so that it never waits on one, and it reads only a run directory with no entry under
+the state file's name as no file. On a refusal the viewer exits before it serves anything,
+constructs no supervisor and leaves the file as it is, because a file another version wrote is not
+guessed at and reading it as stopped would publish over it. That a running intent in a state file
+follows a Start given in some earlier viewer, while that viewer's child had the record the file
+names, is argued from the write clause above by induction over the viewers that owned the run
+directory, assuming that only viewers write the file. It is not proved, and the theorem, which
+ends with one viewer, says nothing of a crash or of the viewer that comes after it.
+
+The order at start-up is this. The viewer reads the state, builds its supervisor, binds its
+listener, and only then prints and submits. A state built with no file, or restored with its
+intent, is written before the listener binds. A file whose running intent was set aside, an
+earlier version's or one given for another child, is left as it is
+(`Acorn.Host.Viewer.StartSource.kept`) until the supervisor's first write of the state,
+which an operator's Start, Stop or Clear causes. So a start-up that fails, with or without the
+`--start` flag, leaves the next viewer the same file and the same reason, and such a file is read
+as stopped at every launch until one of those acts. Whenever the start state is stopped, the one
+line that says why (`Acorn.Host.Viewer.startAccount`) is the reason of the first control
+record, under the `--start` flag too, so the page never shows the run stopped at start-up without
+it. Without the flag the viewer also prints the line on its standard output once it serves its
+page. Under the flag the Start is submitted after the listener binds and is handled at a later
+turn of the actor. The viewer says nothing of this kind when the start state is running.
 
 The statement starts from a durable state that intends to stay stopped, so it does not cover a
 Stop that the viewer has acknowledged but not yet written to its state file when the viewer
 crashes, or whose write failed: the file then still says running, by the earlier Start, and the
-next viewer resumes it. Holding the acknowledgement of a Stop until it is written would close
-that window and is a change to the control interface. Nor does it say who may submit a Start:
-the viewer serves its page on the loopback interface to whoever loads it.
+next viewer with the same child resumes it. Holding the acknowledgement of a Stop until it is
+written would close that window and is a change to the control interface. Nor does it say who may
+submit a Start: the viewer serves its page on the loopback interface to whoever loads it. And that
+a Start was given is a property of the program: it is separate from the owner's authorization for
+a run of a learner, which [running a program](../CONTRIBUTING.md#running-a-program) governs.

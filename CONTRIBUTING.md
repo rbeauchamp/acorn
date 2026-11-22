@@ -710,11 +710,17 @@ entry is driven.
 The list answers a fact that a validation step met on 2026-11-21, of the viewer
 as it then was: started with no state file in its run directory, it started in
 the running state, and its supervisor launched its child process, which is the
-core unless the command line names another command. The viewer now starts its
-child only on an explicit act: its `--start` flag, a Start on its control
-endpoint, which the page's Start button sends, or a
-saved state that an earlier Start set to running. With no state file and no
-such act it starts nothing and shows the run stopped. `./scripts/start.sh`
+core unless the command line names another command. The viewer's supervisor
+now starts its child, the core or the command `--cmd` names, only on an
+explicit act: the `--start` flag, a Start on the viewer's control endpoint,
+which the page's Start button sends, or a saved state that an earlier Start
+set to running while the supervisor's child was the same one. With no state
+file and no such act the supervisor starts no child and the page shows the
+run stopped. The relay of standard input that the viewer starts under
+`--control-stdin`, and the browser opener under `--open-browser`, are other
+processes and are not learners. That the program starts a learner only on an
+explicit act authorizes no run: the rule above decides which acts work on a
+change may make. `./scripts/start.sh`
 passes that act, so the launcher does start the agent. The one start of the
 viewer on the list stays as it was, from an explicitly stopped state with a
 child command that cannot be a core: a step drives the viewer built from the

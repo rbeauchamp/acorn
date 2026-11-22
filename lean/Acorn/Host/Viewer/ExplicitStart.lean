@@ -8,66 +8,115 @@ import Acorn.Host.Viewer.Supervision
 /-!
 # A spawn follows an explicit start
 
-The viewer starts its child in one place: the actor's `Call.spawn`, which it makes exactly when
-the supervisor's state waits on `Pending.spawn`. This module proves, of the step the actor runs
-(`Core.start`, `Core.step`, `Core.resume`), that a supervisor started from a durable state that
-intends to stay stopped admits no reservation and waits neither on a spawn nor on a write of a
-running intent, in every state reached by events that hold no operator's Start
+The viewer's supervisor starts its child, the core or the command `--cmd` names, in one place:
+the actor's `Call.spawn`. The actor makes a call only as the call of the pending operation its
+state waits on, after it has performed the effects of the step that produced that state; so it
+makes `Call.spawn` only when the state waits on `Pending.spawn`, and it makes it then if it
+reaches that call. This module proves, of the step the actor runs (`Core.start`, `Core.step`,
+`Core.resume`), that a supervisor started from a durable state that intends to stay stopped
+admits no reservation and waits neither on a spawn nor on a write of a running intent, in
+every state reached by events that hold no operator's Start
 (`Reached.stopped_spawns_nothing`). It also proves that the statement is not empty: from the
-start on every durable state that admits a launch, there is a run that holds a Start and
-reaches a state that waits to spawn (`Core.start_spawns`).
+start on every durable state that admits a launch, there are events that hold a Start and a
+state reached by them that waits to spawn (`Core.start_spawns`). That is a statement of
+existence. Its witness is a Start and one tick with every call between them succeeding; a
+Start whose intent cannot be written is another continuation, and it reaches no spawn.
+
+**One supervisor's lifetime.** `Reached` relates an origin, the events handed to the step and a
+state. Its constructors are one start, a step on an event and the outcome of a pending call: it
+ends with that viewer, and nothing in it reads a state file or starts a second viewer. The
+states reached from a start are exactly the states of `Ran` (`Reached.ran`, `Ran.reached`),
+which every `Supervision` carries. What holds across viewers, a restart of the viewer after a
+crash included, is argued from these theorems under assumptions that are named where the
+argument is made, and is not proved.
+
+**The child.** The theorems speak of the one process the supervisor starts. The viewer starts
+two other processes outside the supervisor, and neither is a learner: under `--control-stdin`
+a relay of its standard input (`/bin/cat`, `Acorn.Host.StopFlag.withCommands`), and under
+`--open-browser` the system's opener for the page's address.
 
 **The state built when no state file exists** is `PersistedState.unstarted`, which intends to
 stay stopped, so the theorem holds of the supervisor started from it
-(`Reached.unstarted_spawns_nothing`), and the control record of that start state says the run
-is desired stopped and actually stopped (`Core.start_control`). Every state that
-`PersistedState.decode` returns for a state file whose version does not read as the current
-one intends to stay stopped (`PersistedState.decode_earlier`), so the theorem holds of the
-supervisor started from such a state (`Reached.earlier_spawns_nothing`).
+(`Reached.unstarted_spawns_nothing`), and the control record of the start on that state says
+the run is desired stopped and actually stopped (`Core.start_control`; the start on a restored
+running state has another desired word).
 
 **Every state file a viewer can meet.** With no state file the bootstrap builds
-`PersistedState.unstarted`, and the run is stopped. A file whose `schema_version` member is
-absent, as in every file the viewer wrote before the file carried one, or is not a number
-spelled in decimal digits alone, is read as an earlier version's file: the state decoded from it
-intends to stay stopped. The viewer publishes
-its start state in the schema it writes before it supervises, so the file names the schema
-afterwards and this reading happens once. A file that names `stateSchema` starts the run with
-the intent it records, so a running one resumes; the decoder returns a running intent only for
-such a file (`PersistedState.decode_running`), and by the write clause of the theorem a
-supervisor waits on the write of a running intent only after a Start was handed to its step,
-or from a start state that held one. For a file that names another natural number the decoder
-returns an error (`PersistedState.decode_other`), and so it does for a file whose
-`schema_version` member is a number whose digits spell a number of `2 ^ 64` or more
-(`PersistedState.decode_wide`). The rest is read from `RunDirectory.readState` and the
-bootstrap, and is not proved: a state file that is unreadable or malformed, or that exists
-and cannot be opened, such as a symbolic link whose target is gone, is refused; only a run
-directory with no entry under the state file's name reads as no file; and on a refusal the
-viewer exits before it serves anything, constructs no supervisor, so nothing is spawned, and
-leaves the file as it is, because a file another version wrote is not guessed at and reading it
-as stopped would publish over it. The publication before supervision is read from
-`Supervisor.new` and the bootstrap.
+`PersistedState.unstarted`, and the run is stopped. A file is decoded only when it is a JSON
+object that holds the six members of the state, each admitted, and beside them at most a
+`schema_version` and a `child`: a seed and an agent epoch spelled as unsigned 64-bit
+integers, a run identity of sixteen hexadecimal digits, an intent, an origin and the process
+flag. For a file that is decoded, two things decide whether
+the intent it records is kept.
 
-**What the theorem does not cover.** It starts from a durable state that intends to stay
-stopped. A Stop the viewer has acknowledged but not yet written to its state file when the
-viewer crashes, or whose write failed, leaves a running intent on disk, set by the earlier
-Start; the next viewer resumes it. Holding the acknowledgement of a Stop until it is written
-would close that window and is a change to the control interface. Nor does the theorem say who
-may submit a Start: the viewer serves its page on the loopback interface to whoever loads it.
+The first is its version. A `schema_version` member that is absent, as in every file the
+viewer wrote before the file carried one, or that is not a number spelled in decimal digits
+alone, marks an earlier version's file. The rule is about spelling: a string, `null`, and a
+number spelled with a sign, a fraction or an exponent, such as `3e0`, are all read as no
+readable version. Every state the decoder returns for a file whose version does not read as
+the current one intends to stay stopped (`PersistedState.decode_earlier`), so the theorem
+holds of a supervisor started from a state decoded from such a file
+(`Reached.earlier_spawns_nothing`). For a file whose member spells another natural number in
+decimal digits the decoder returns an error (`PersistedState.decode_other`), and so it does
+for digits that spell a number of `2 ^ 64` or more (`PersistedState.decode_wide`).
 
-**What the theorem is about.** `Reached` relates an origin, the events handed to the step and a
-state. The states reached from a start are exactly the states of `Ran` (`Reached.ran`,
-`Ran.reached`), which every `Supervision` carries.
+The second is its child. A viewer writes, with every state it saves, the record of the child
+its supervisor would start (`childRecord`): the executable's path, its size and modification
+time, and the argument vector at a reference launch. A launch that has no such record, as
+under `--cmd`, writes none. The decoder returns a running intent only for a file that names
+the current schema and the record of the launch that reads it, which must have one
+(`PersistedState.decode_running`); every state it returns to a launch with no record, or with
+another record than the file names, intends to stay stopped
+(`PersistedState.decode_unbound`), and the theorem holds of a supervisor started from such a
+state (`Reached.unbound_spawns_nothing`). So a running intent saved while the supervisor's
+child was one process is not taken as a Start for another. Sameness is equality of the two
+records, and no more: that a file at the same path, with the same size and modification time,
+is the same program is an assumption, and so is that the environment the child inherits has
+not changed.
+
+A file that names `stateSchema` and this launch's child is restored with the intent it
+records. A running one resumes if its launch is admitted (`PersistedState.launch`: among its
+conditions, a run that has started a process needs a next agent epoch within the browser's
+integers) and the writes and the spawn that follow succeed. By the write clause of the
+theorem, a supervisor waits on the write of a running intent only after a Start was handed to
+its step, or from a start state that held one.
 
 **What is read, not proved.** The actor hands `Event.command .start` only for a Start that
 `Supervisor.submit` queued, and `Supervisor.submit` is called for the `--start` flag and for an
 admitted control request. The bootstrap passes the state it built or read to
-`Supervision.start`, and constructs no supervisor for a state file it refuses. No theorem
-covers these: the actor (`Acorn.Host.Viewer.Supervisor`) and the bootstrap (`NativeApp.Viewer`)
-are effects.
+`Supervision.start`, and constructs no supervisor for a state file it refuses. Every state the
+actor writes goes through `RunDirectory.writeState` with the record of its own configuration's
+child. `RunDirectory.readState` refuses a state file that is unreadable or malformed, refuses
+without opening it an entry that is not a regular file or a link to one, such as a link whose
+target is gone, a directory, a pipe or a device, and reads only a run directory with no entry
+under the state file's name as no file; on a refusal the viewer exits before it serves
+anything and leaves the file as it is, because a file another version wrote is not guessed at
+and reading it as stopped would publish over it. A state built with no file, or restored with
+its intent, is published before supervision begins; a file whose running intent was set aside
+(an earlier version's, or one given for another child) is left as it is until the supervisor's
+first write of the state, which an operator's Start, Stop or Clear causes, so a start-up that
+fails leaves the next viewer the same file and the same reason, and the reading as stopped is
+repeated until one of those acts (`StartSource.kept`, `Supervisor.new`). That a running intent
+in a state file follows a Start given, in some earlier viewer, while its child had the record
+the file names is argued from the write clause and these readings by induction over the
+viewers that owned the run directory, assuming that only viewers write the file and that what
+is written reads back as written. No theorem covers these: the actor
+(`Acorn.Host.Viewer.Supervisor`), the reader and the bootstrap (`NativeApp.Viewer`) are
+effects.
+
+**What the theorem does not cover.** It starts from a durable state that intends to stay
+stopped. A Stop the viewer has acknowledged but not yet written to its state file when the
+viewer crashes, or whose write failed, leaves a running intent on disk, set by the earlier
+Start; the next viewer with the same child resumes it. Holding the acknowledgement of a Stop
+until it is written would close that window and is a change to the control interface. Nor does
+the theorem say who may submit a Start: the viewer serves its page on the loopback interface
+to whoever loads it. And it says nothing of permission: that a Start was given is a property
+of the program, separate from the owner's authorization for a run of a learner.
 -/
 namespace Acorn.Host.Viewer
 
-/-- Every command but Start saves a stopped intent. -/
+/-- The intent of every command but Start is stopped: `Command.desired` computes it, and whether
+it is saved is the step's (a disabled Clear changes nothing). -/
 theorem Command.desired_stopped (command : Command) (other : command ≠ .start) :
     command.desired = .stopped := by
   cases command with
@@ -548,10 +597,11 @@ Start is handed to its step.** The statement of `Reached.stopped_spawns_nothing`
 state that `PersistedState.decode` returns for a JSON value whose `schema_version` member is
 absent, is not a number spelled in decimal digits alone or spells a number other than
 `stateSchema`. -/
-theorem Reached.earlier_spawns_nothing {clearDisabled : Option String} {value : Json.Value}
+theorem Reached.earlier_spawns_nothing {clearDisabled : Option String}
+    {child : Option (List String)} {value : Json.Value}
     {persisted : PersistedState} {reason : String} {reading : Nat} {events : List Event}
     {core : Core} (earlier : stateVersion value ≠ some stateSchema)
-    (decoded : PersistedState.decode value = .ok persisted)
+    (decoded : PersistedState.decode child value = .ok persisted)
     (reached : Reached clearDisabled (Core.start persisted clearDisabled reason reading)
       events core) (startless : Event.command .start ∉ events) :
     (∀ now, core.lifecycle.reserve now = none) ∧ core.lifecycle.desiredValue = .stopped ∧
@@ -560,7 +610,27 @@ theorem Reached.earlier_spawns_nothing {clearDisabled : Option String} {value : 
           ∀ state, pending.call core.lifecycle = .writeState state →
             state.desired = .stopped :=
   Reached.stopped_spawns_nothing
-    (PersistedState.decode_earlier value persisted earlier decoded) reached startless
+    (PersistedState.decode_earlier child value persisted earlier decoded) reached startless
+
+/-- **A supervisor started from a state file that does not name its launch's child waits on no
+spawn while no Start is handed to its step.** The statement of
+`Reached.stopped_spawns_nothing` for every state that `PersistedState.decode` returns to a
+launch that has no child record, or whose record differs from the one the JSON value's `child`
+member names, or that reads a value with no such record. -/
+theorem Reached.unbound_spawns_nothing {clearDisabled : Option String}
+    {child : Option (List String)} {value : Json.Value}
+    {persisted : PersistedState} {reason : String} {reading : Nat} {events : List Event}
+    {core : Core} (unbound : child = none ∨ stateChild value ≠ child)
+    (decoded : PersistedState.decode child value = .ok persisted)
+    (reached : Reached clearDisabled (Core.start persisted clearDisabled reason reading)
+      events core) (startless : Event.command .start ∉ events) :
+    (∀ now, core.lifecycle.reserve now = none) ∧ core.lifecycle.desiredValue = .stopped ∧
+      ∀ pending, core.pending = some pending →
+        (∀ generation plan, pending.call core.lifecycle ≠ .spawn generation plan) ∧
+          ∀ state, pending.call core.lifecycle = .writeState state →
+            state.desired = .stopped :=
+  Reached.stopped_spawns_nothing
+    (PersistedState.decode_unbound child value persisted unbound decoded) reached startless
 
 /-- **The control record of a start with no state file says the run is stopped.** For every
 seed, whether or not a stray checkpoint was adopted, and every Clear configuration, reason,
@@ -575,11 +645,11 @@ theorem Core.start_control (seed : UInt64) (migrated : Bool) (clearDisabled : Op
         some ⟨"actual", .text, "stopped"⟩ :=
   ⟨rfl, rfl⟩
 
-/-! ## A Start does reserve a spawn
+/-! ## After a Start, a spawn can be reached
 
 The theorems above would hold of a supervisor that never spawned. This section shows that the
-supervisor they are about does: from the same start state, a run that holds a Start waits to
-spawn. -/
+supervisor they are about can: from the same start state, there is a run that holds a Start
+and reaches a state that waits to spawn. -/
 
 namespace Core
 
@@ -646,11 +716,13 @@ private theorem resume_spawns (core : Core) (reading : Nat) (state : PersistedSt
   obtain ⟨next, reserved⟩ := reserves (clockWord (core.instant reading))
   simp [Core.resume, Core.resolve, Stepped.at, reserved]
 
-/-- **A submitted Start reserves a spawn.** For every Clear configuration, every durable state
-that admits a launch, and every reason and reading the viewer starts with: there are events
-that hold an operator's Start, and a state reached by them from that start state, that waits
-to spawn the first generation with the launch the durable state admits. The proof's witness
-is the Start and one tick, with every call between them succeeding. -/
+/-- **After a Start, some continuation waits to spawn.** For every Clear configuration, every
+durable state that admits a launch, and every reason and reading the viewer starts with: there
+are events that hold an operator's Start, and a state reached by them from that start state,
+that waits to spawn the first generation with the launch the durable state admits. The proof's
+witness is the Start and one tick, with every call between them succeeding. It is a statement
+of existence: a Start whose intent cannot be written is another continuation and reaches no
+spawn. -/
 theorem start_spawns (persisted : PersistedState) (clearDisabled : Option String)
     (reason : String) (reading : Nat) (plan : CoreLaunch)
     (admitted : persisted.launch = .ok plan) :

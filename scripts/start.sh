@@ -81,7 +81,7 @@ cleanup() {
   rm -f "$lock/control" "$lock/pid" "$lock/installer.sh"
   rmdir "$lock"
   if [[ "$status" -ne 0 ]]; then
-    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run the same command again with the same options, on two conditions: in work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run; and the preparation can install system packages, so an agent reruns it only where the person it works for has agreed to that.\n' "$phase" >&2
+    printf 'Acorn stopped during %s; the diagnostic is above. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.\n' "$phase" >&2
   fi
   exit "$status"
 }
@@ -105,7 +105,7 @@ install_macos() {
       export PATH="$DEVELOPER_DIR/usr/bin:$PATH"
     else
       xcode-select --install || true
-      fail 'Finish the macOS command-line tools installation dialog, then run this script again, on two conditions: in work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run; and the preparation can install system packages, so an agent reruns it only where the person it works for has agreed to that.'
+      fail 'The macOS command-line tools are not installed, and their installation dialog has been opened; the launcher goes no further until they are. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.'
     fi
   fi
   if ! command -v brew >/dev/null 2>&1; then
@@ -176,7 +176,7 @@ phase='build'
 printf 'Building Acorn (subsequent launches reuse unchanged build outputs)…\n'
 ./scripts/lean.sh build acorn-viewer
 if [[ "$prepare_only" == 1 ]]; then
-  printf 'Acorn is built. ./scripts/start.sh launches it. In work on a change to Acorn, launch it only with the authorization of the owner for that run (CONTRIBUTING.md, Running a program).\n'
+  printf 'Acorn is built. ./scripts/start.sh launches it. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for a launch.\n'
   exit 0
 fi
 

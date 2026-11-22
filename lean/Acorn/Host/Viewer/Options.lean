@@ -67,6 +67,11 @@ def LaunchMode.clearDisabled : LaunchMode → Option String
   | .ranked => none
   | .fixed _ => some "Clear unavailable: a fixed command owns its seed and checkpoint paths"
 
+/-- The launch at which a child's argument vector is recorded (`childRecord`): the words that
+carry the run's identity take fixed values here, since the identity the state file holds
+decides them at each launch. -/
+def referenceLaunch : CoreLaunch := ⟨⟨0, 0, 0⟩, 0, .fresh⟩
+
 /-- The ordinary campaign's identity comes entirely from the durable supervisor.
 Arguments are a vector, so spaces in the owned checkpoint path need no shell quoting. -/
 def rankedArguments (checkpoint : Bool) (launch : CoreLaunch) (path : System.FilePath) : Array String :=

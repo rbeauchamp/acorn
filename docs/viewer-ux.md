@@ -28,7 +28,10 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
 - **INV-1 · Observer of the stream, supervisor of the process.** Two roles,
   and the line between them is what the invariant protects. As an
   **observer**, the viewer consumes the core's one-way NDJSON telemetry
-  (`acorn demo --research-profile ranked --telemetry` → child stdout → SSE) and must never change the
+  (the core, which it runs as
+  `acorn-core demo --research-profile ranked --telemetry --control-stdin`
+  followed by the run's seed, identity and checkpoint arguments → child
+  stdout → SSE) and must never change the
   agent's decisions. Telemetry may gain *read-only* fields — quantities
   computed from state the agent already produced — provided the audit digest
   is unchanged. As a **supervisor**, it starts and stops the core as a child
@@ -883,52 +886,97 @@ What each panel must show. How it draws it is the code's.
   The advanced `./lean/.lake/build/bin/acorn-viewer --research-profile ranked --port 8088`
   serves the UI at `http://127.0.0.1:8088/`. In work on a change this invocation is
   driven only on the owner's authorization
-  ([running a program](../CONTRIBUTING.md#running-a-program)). The viewer spawns the core only on
-  an explicit act: `--start` on its command line, a Start on its control
-  endpoint, which the page's Start button sends, or a state
-  file whose running intent an earlier Start set, which it resumes. Launched on
-  a run directory with no state file and without `--start`, it spawns nothing,
-  writes a stopped state and shows the run `stopped` with the Start control
-  until one of those acts. `Acorn.Host.Viewer.Reached.unstarted_spawns_nothing`
-  states, of the supervisor's step, that from that state it waits on no spawn
-  and on no write of a running intent while no Start is handed to it. A state
-  file whose schema version is absent, which is what the viewer wrote before
-  `state.json` carried one, or is not a whole number spelled in decimal digits, is read with its identity
-  and with intent stopped, because that viewer wrote a running intent when it
-  found no file. The viewer then rewrites the file with the schema version, so
-  this happens once: an operator who starts the viewer directly on a run that
-  an earlier viewer left running finds it stopped and presses Start, and
-  `./scripts/start.sh` starts it as before. A state file that names another
-  whole number as its schema version, of any size, is refused like a malformed one, and so is an
-  entry named `state.json` that cannot be opened, such as a symbolic link whose target is gone: the viewer exits before it
-  serves anything and leaves the file as it is, because a file another version
-  wrote is not guessed at. Whenever the run a viewer starts with is shown
-  stopped (no state file, a saved stopped state, or an earlier version's file
-  read as stopped), the viewer says why in one line, for example "Run: stopped
+  ([running a program](../CONTRIBUTING.md#running-a-program)). That a Start was given is a
+  property of the program; the authorization for a run of a learner is a
+  separate matter, which those instructions govern.
+
+  The viewer's supervisor starts its child, the core or the command `--cmd`
+  names, only on an explicit act: `--start` on its command line, a Start on
+  its control endpoint, which the page's Start button sends, or a state file
+  whose running intent an earlier Start set while the supervisor's child was
+  the child this launch starts, which it resumes. Launched on a run directory
+  with no state file and without `--start`, the supervisor starts no child:
+  the viewer writes a stopped state and shows the run `stopped` with the Start
+  control until one of those acts.
+  `Acorn.Host.Viewer.Reached.unstarted_spawns_nothing` states, of the
+  supervisor's step, that from that state it waits on no spawn and on no write
+  of a running intent while no Start is handed to it. The viewer does start
+  two other processes, neither of them a learner: under `--control-stdin` a
+  relay of its standard input, and under `--open-browser` the system's opener
+  for the page.
+
+  What a state file starts depends on four things, and the first is that it
+  can be read at all. An entry named `state.json` that is not a regular file
+  or a link to one (a link whose target is gone, a directory, a pipe, a
+  device) is refused without being opened, and so is a file that is not a JSON
+  object holding the six members of the state, each admitted. On a refusal the
+  viewer exits before it serves anything and leaves the file as it is. The
+  second is the version: the whole number that `schema_version` spells in
+  decimal digits alone. A file that names another such number than the current
+  one, of any size, is refused, because a file another version wrote is not
+  guessed at. A file whose `schema_version` is absent, which is what the
+  viewer wrote before `state.json` carried one, or is spelled any other way (a
+  number with an exponent, such as `3e0`, is read as no readable version and
+  not as the number 3), is read as an earlier version's file: when its other
+  members are admitted, it keeps its identity and its intent is read as
+  stopped, because that viewer wrote a running intent when it found no file.
+  The third is the child. With every state it saves, the viewer records what
+  its supervisor would start: the core's path, the size and modification time
+  of that file, and its arguments. A running intent is resumed only by a
+  launch whose record is the same; under `--cmd` there is no record, because
+  what a shell starts for a command depends on more than the viewer can
+  compare, so a running intent saved under `--cmd` is not carried to another
+  launch, and neither is one saved for a core that has since been rebuilt or
+  moved. The fourth is the launch itself: a run that has started a process
+  needs a next agent epoch within the browser's integers (UX-24 gives what
+  follows a failed start).
+
+  A file whose running intent is set aside, an earlier version's or one given
+  for another child, is left on disk as it is until the first Start, Stop or
+  Clear, which writes the state in the current schema with this launch's
+  child. So the run is shown stopped, with its reason, at every launch until
+  one of those acts, and a start-up that fails, such as on a port already in
+  use, loses nothing: the next viewer reads the same file and says the same.
+  An operator who starts the viewer directly on a run that an earlier viewer
+  left running finds it stopped and presses Start, and `./scripts/start.sh`,
+  which passes `--start`, starts it as before.
+
+  Whenever the state a viewer starts with is stopped (no state file, a saved
+  stopped state, an earlier version's file, or a running intent given for
+  another child), the viewer says why in one line, for example "Run: stopped
   because the run directory holds no saved state; it starts only on a Start on
   the viewer's control endpoint, which the page's Start button sends, or the
-  --start flag": on its standard output, before it writes its start
-  state and so before an earlier version's file is replaced, and as the reason
-  of its first control record, which the page shows in the hover text of the
-  state word (UX-21). It announces nothing when the run is not shown stopped,
-  as under `--start` or when it resumes a running state. A Stop that the viewer
-  has acknowledged but not yet written when the viewer crashes is not made
-  durable: the saved state still says running, by the earlier Start, and the
-  next launch resumes it. When the viewer does
-  spawn, the core runs the
-  explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×
-  4000 steps) with weight checkpointing. `--run-dir <dir>` moves the run
-  directory, `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides
-  the whole campaign, `--port N` overrides the port (`0` requests an available
-  port), `--start` explicitly requests Start, `--open-browser` opens the bound
-  URL, and `--control-stdin` admits cooperative viewer shutdown. An unusable command line
-  is refused with a reason and a usage line, never absorbed into a default: an
-  unknown flag, a flag with no value and an unparseable `--port` are all
-  errors, because serving on 8088 after `--port 80x8` failed to parse would be
-  a run the operator did not ask for. Checkpointing is on by default because
-  the server restarts the core whenever it exits (UX-24): without it a restart
-  would substitute a brand-new agent while the page still read `live` and the
-  explored map — which is the world's, not the agent's — stayed on screen.
+  --start flag". The line is the reason of its first control record, which the
+  page shows in the hover text of the state word (UX-21), under `--start` as
+  well, so the page never shows the run stopped at start-up without it;
+  without `--start` the viewer also prints it on its standard output once it
+  serves the page. Under `--start` the Start is submitted once the listener is
+  bound. The viewer announces nothing of this kind when the state it starts
+  with is running. A Stop that the viewer has acknowledged but not yet written
+  when the viewer crashes is not made durable: the saved state still says
+  running, by the earlier Start, and the next launch with the same child
+  resumes it.
+
+  When the supervisor does start the ranked core, it runs the executable
+  `acorn-core` beside the viewer with the explicitly selected ranked research
+  campaign (`demo --research-profile ranked --telemetry --control-stdin`, then
+  the run's seed and identity,
+  `--side 1024 --steps 4000 --attempts 3 --goals 13 --cycles 0`, and
+  `--checkpoint` with the run's weights file) and so with
+  weight checkpointing. `--run-dir <dir>` moves the run directory,
+  `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides the whole
+  campaign, `--port N` overrides the port (`0` requests an available port),
+  `--start` explicitly requests Start, `--open-browser` opens the bound URL,
+  and `--control-stdin` admits cooperative viewer shutdown. An unusable
+  command line is refused with a reason and a usage line, never absorbed into
+  a default: an unknown flag, a flag with no value and an unparseable `--port`
+  are all errors, because serving on 8088 after `--port 80x8` failed to parse
+  would be a run the operator did not ask for. Checkpointing is on by default
+  because the supervisor restarts the core after an exit while the intent is
+  to run, until three starts in a row have failed (UX-24): without it a
+  restart would substitute a brand-new agent while the page still read `live`
+  and the explored map — which is the world's, not the agent's — stayed on
+  screen.
 - **UX-43 · One run directory.** Everything a run persists lives in one
   directory, so Clear can archive all of it by moving one thing (UX-23):
 
@@ -1040,8 +1088,13 @@ What each panel must show. How it draws it is the code's.
   resumed agent restarts the *world* from its seed, so pose and inventory begin
   again — continuity of knowledge and lifetime experience, not of world state.
 - Force-killing the viewer orphans its core child, which keeps running and
-  absorbs telemetry write errors by design; check with
-  `pgrep -f 'acorn demo --research-profile ranked --telemetry'` after an abrupt kill.
+  absorbs telemetry write errors by design. After an abrupt kill, look for it
+  without starting anything: the viewer runs the ranked core as the executable
+  `acorn-core` beside it, by its full path, with arguments that begin
+  `demo --research-profile ranked --telemetry --control-stdin`, so
+  `pgrep -fl 'acorn-core demo --research-profile ranked --telemetry'` lists a
+  core that is still running, and lists nothing when none is. A child given
+  with `--cmd` has the name its command gives it.
 - The primitive value bars may read exactly zero for a long stretch (UX-36):
   the Swift-Sarsa fixed point at zero reward, not a rendering fault. How long
   the stretch lasts at the current pin is unmeasured.
@@ -1066,8 +1119,9 @@ What each panel must show. How it draws it is the code's.
 
 ## 9 · Telemetry contract (what the UI consumes)
 
-Schema version 7 emits one NDJSON object per step (stdout of `acorn demo
---telemetry`), plus one
+Schema version 7 emits one NDJSON object per step (stdout of the core, which
+the viewer runs as `acorn-core demo --research-profile ranked --telemetry`
+with the run's other arguments), plus one
 terminal frame per attempt. Fields the UI relies on:
 
 | field | type | meaning |

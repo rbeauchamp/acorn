@@ -122,9 +122,11 @@ run, as the paragraph after the command says. From your Acorn checkout, run:
 
 The launcher prepares the dependencies, builds Acorn, starts or resumes the
 agent, and opens your browser. The viewer itself starts the agent only on an
-explicit request, which the launcher passes; started any other way on a run
-that no earlier Start left running, it shows the run stopped until a Start
-reaches its control endpoint, which the page's Start button sends. It runs continuously until you stop it. No
+explicit request. The launcher passes one, the viewer's `--start` flag, and a
+direct start of the viewer can pass it too. Started without it, on a run that
+no earlier Start left running for the same agent program, the viewer shows
+the run stopped until a Start reaches its control endpoint, which the page's
+Start button sends. It runs continuously until you stop it. No
 configuration is required. The first launch needs internet access and may
 require system installation prompts; subsequent launches reuse installed
 dependencies and unchanged build outputs. Automatic setup supports macOS and
@@ -172,7 +174,8 @@ predictions as the run develops.
 - **Ctrl-C** in the launcher's terminal finishes the current attempt and closes
   the viewer after shutdown. Wait for the command to return.
 - Run **`./scripts/start.sh` again** to reopen the viewer and resume; in work on
-  a change, that launch needs the owner's authorization like the first.
+  a change, the conditions for that launch are those of the first
+  ([running a program](CONTRIBUTING.md#running-a-program)).
 - **Clear** archives the run and prepares a fresh agent. If stopped, it stays
   stopped until you choose Start.
 

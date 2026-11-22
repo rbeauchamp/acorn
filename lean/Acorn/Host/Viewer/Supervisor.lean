@@ -38,6 +38,10 @@ structure SupervisorConfig where
   executable : System.FilePath
   /-- Pure argument construction from the admitted launch and run-owned path. -/
   arguments : CoreLaunch → System.FilePath → Array String
+  /-- The record of the child this configuration starts (`childRecord`), written with every
+  state this viewer saves; none when sameness with another launch's child cannot be
+  established. -/
+  child : Option (List String)
   /-- A configuration that cannot preserve whole-run ownership disables Clear. -/
   clearDisabled : Option String
   /-- Actual native source of new terrain seeds, called only for Clear. -/
@@ -91,7 +95,7 @@ private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
     (call : Call) → IO (call.Result × RunDirectory)
   | .writeState state => do
     let result : Except String Unit ← try
-        directory.writeState state
+        directory.writeState supervisor.config.child state
         pure (.ok ())
       catch error => pure (.error error.toString)
     return (result, directory)
@@ -171,15 +175,23 @@ private def Supervisor.observe (supervisor : Supervisor) :
   | .finished stdout stderr log => supervisor.handle (.finished stdout stderr log)
   | .refused reason => supervisor.handle (.refused reason)
 
-/-- Construct only after the bootstrap has admitted the initial state. The state is published
-before supervision begins, so no launch relies on an unpublished state, and the first control
-record is the start's. Its reason carries `account`, the bootstrap's one line on why the run
-is shown stopped, when there is one. -/
+/-- Construct only after the bootstrap has admitted the initial state. A state built with no
+state file, or restored from a file of the current schema, is published before supervision
+begins. A state whose running intent was set aside, because it was read from an earlier
+version's file or was given for another child (`StartSource.kept`), is not: that file stays as
+it is until the supervisor first writes the state, which it does for an operator's Start, Stop
+or Clear, so a start-up that fails, or a viewer that exits before any command, leaves the next
+viewer the same file and the same reason for showing the run stopped. A launch relies on no
+unpublished state either way, since the attempted launch is saved before the spawn
+(`Pending.launch`). The first control record is the start's, and its reason carries the one
+line on why the run is shown stopped (`startAccount`) whenever the start state is stopped,
+under `--start` too. -/
 def Supervisor.new (config : SupervisorConfig) (directory : RunDirectory)
-    (persisted : PersistedState) (account : Option String) : IO Supervisor := do
+    (persisted : PersistedState) (source : StartSource) : IO Supervisor := do
   unless persisted.identity.browserSafe do
     throw (IO.userError "viewer identity exceeds browser integer precision; retained state is unchanged")
-  directory.writeState persisted
+  unless source.kept do directory.writeState config.child persisted
+  let account := startAccount source persisted.desired
   let mapRead ← directory.readMap persisted.identity
   let mapRefused := match mapRead with | .refused _ => true | _ => false
   let broadcast ← Broadcast.new persisted.identity persisted.desired
