@@ -46,7 +46,7 @@ The hazard here is specific: much of this repository's apparent complexity is
 - **Private fields** restrict direct writes. Trace accessors and restoration
   before crediting them with a state invariant; preserve the actual boundary.
 - Non-tautological *why* and decision rationale belong in `docs/` (`docs/design.md`,
-  `docs/prior-art-review.md`, `docs/adr/`, or `site/AcornDocs/Verification.lean`
+  `docs/prior-art-review.md`, or `site/AcornDocs/Verification.lean`
   rendered to `docs/verification.md`), not in new Lean comments (see
   `.no-comments.json`); delete Lean comments that restate the code and migrate
   legacy decision records into `docs/` monotonically rather than adding Lean

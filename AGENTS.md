@@ -90,7 +90,7 @@ it cannot alter learning decisions.
 Verify citations against the actual source before adding them. Paper-based code
 and proofs must identify author, work, venue/year and exact equation, section or
 theorem in Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`,
-`docs/adr/`, all checked by `corpus-audit` via `AcornCorpus.prose`, or
+all checked by `corpus-audit` via `AcornCorpus.prose`, or
 `site/AcornDocs/Verification.lean`, checked through `docs/verification.md`),
 rather than adding comments in Lean files (while legacy in-source citations drain
 via `comment-ratchet.json`). Reproduce derivations
@@ -125,12 +125,13 @@ rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.
 
 Lean source files across `lean/` (including `lean/lakefile.lean`) and `site/`
-code (`site/AcornSite/` and `site/Main.lean`, excluding `site/AcornDocs/` Verso
-`#doc` prose) are governed by the ratcheted `no-comments` ban
+code (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
+`site/AcornDocs.lean` and `site/AcornDocs/` Verso `#doc` prose) are governed by
+the ratcheted `no-comments` ban
 (`.no-comments.json`, `comment-ratchet.json`, pinned in `lean/no-comments.pin`):
 do not add `--`, `/- -/`, `/-- -/`, or `/-! -/` comments to scoped `.lean`
 files, and drain legacy comments monotonically toward `[]`. Record new and migrated semantics, decision records, and rationale in `docs/`
-(`docs/design.md`, `docs/prior-art-review.md`, `docs/adr/`, automatically
+(`docs/design.md`, `docs/prior-art-review.md`, automatically
 checked by `corpus-audit` via `AcornCorpus.prose`, or
 `site/AcornDocs/Verification.lean`, checked via `docs/verification.md`) rather
 than in Lean source comments; Git records chronology.

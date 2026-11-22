@@ -458,7 +458,11 @@ check refusing noncomputable in executing modules).
   `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). A mission with targets
   also adds its entries to `lean/AcornVerif/Landings.lean`, and changes nothing
   under `lean/AcornVerif/Targets/` and no definition that a target names, which
-  together are its contract. Files that make up
+  together are its contract. Record citations and decision rationale in the
+  documentation destinations given in
+  [AGENTS](AGENTS.md#learned-only-and-research-admission) and
+  [review and delivery](AGENTS.md#review-and-delivery) rather than adding Lean
+  comments under `.no-comments.json`. Files that make up
   Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
   `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`,
   `.no-comments.json`, `lean/no-comments.pin`

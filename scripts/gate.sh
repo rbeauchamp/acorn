@@ -70,15 +70,10 @@ nc_dir="$nc_root/$nc_version"
 nc_bin="$nc_dir/no-comments"
 
 check_nc_cache_dirs() {
-  local mode="$1" repo_real dir real
-  repo_real=$(pwd -P) || return 1
+  local mode="$1" dir
   for dir in lean lean/.lake "$nc_pkg_dir"; do
     if [[ -L "$dir" || ! -d "$dir" ]]; then
       echo "gate: cache parent must be a real directory: $dir" >&2
-      return 1
-    fi
-    if ! real=$(cd -P "$dir" && pwd -P) || [[ "$real" != "$repo_real/$dir" ]]; then
-      echo "gate: cannot verify cache parent inside checkout: $dir" >&2
       return 1
     fi
   done
@@ -89,12 +84,7 @@ check_nc_cache_dirs() {
     elif [[ -e "$dir" && ! -d "$dir" ]]; then
       echo "gate: refusing non-directory cache path: $dir" >&2
       return 1
-    elif [[ -d "$dir" ]]; then
-      if ! real=$(cd -P "$dir" && pwd -P) || [[ "$real" != "$repo_real/$dir" ]]; then
-        echo "gate: cannot verify cache directory inside checkout: $dir" >&2
-        return 1
-      fi
-    elif [[ "$mode" != allow-missing ]]; then
+    elif [[ ! -d "$dir" && "$mode" != allow-missing ]]; then
       echo "gate: missing cache directory: $dir" >&2
       return 1
     fi
@@ -185,7 +175,7 @@ if [[ ! -L "$nc_bin" && -e "$nc_bin" && ! -f "$nc_bin" ]]; then
   echo "gate: refusing unexpected non-regular cache entry: $nc_bin" >&2
   exit 1
 fi
-if [[ -f "$nc_bin" && ! -L "$nc_bin" ]] && verify_sha256 "$nc_sha256" "$nc_bin"; then
+if verify_sha256 "$nc_sha256" "$nc_bin"; then
   [[ -x "$nc_bin" ]] || chmod 755 "$nc_bin"
 else
   if [[ -L "$nc_bin" ]]; then

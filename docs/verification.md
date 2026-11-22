@@ -534,7 +534,9 @@ workers never overlap with the Regula audit's memory peak, offline-verifying the
 binary's SHA-256
 from `lean/no-comments.pin` (for `darwin-arm64` and `linux-x86_64`) before
 executing and checking all scoped `.lean`
-files across `lean/` and `site/` code (excluding `site/AcornDocs/` Verso prose)
+files across `lean/` (including `lean/lakefile.lean`) and `site/` code
+(`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
+`site/AcornDocs.lean` and `site/AcornDocs/` Verso prose)
 against `comment-ratchet.json` for exact head sync, plus monotonic non-growth
 against the merge-base ratchet once the merge base holds `comment-ratchet.json`
 (with `--bootstrap` currently admitting first-time adoption when the merge base

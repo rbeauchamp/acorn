@@ -22,7 +22,7 @@ commands:
 
 # Dependency provisioning, the largest part of a run from nothing, is reused across runs. For each
 # run's base commit on the default branch, no-mistakes runs the command once and stores
-# lean/.lake/packages: the locked dependency checkouts and their build outputs. A run starts from a
+# lean/.lake/packages: the locked dependency checkouts, their build outputs, and the pinned no-comments binary. A run starts from a
 # private copy only while each file below has the same content as at that base, so the copy holds
 # the revisions the run's lock files name, built by the same toolchain. Lake then rebuilds whatever
 # its traces do not show current, and the script's provisioning builds anything missing. Acorn's own

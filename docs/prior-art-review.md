@@ -8,10 +8,10 @@ Assessments that were not admitted are kept apart, under
 [Assessments not admitted](#assessments-not-admitted).
 Some entries describe local constructions inspired by prior art, rather than
 an unchanged published algorithm. New and migrated equation-level citations and
-derivations live in `docs/` (`docs/prior-art-review.md`, `docs/design.md`,
-`docs/adr/`) or `site/AcornDocs/Verification.lean` (checked via
-`docs/verification.md`), rather than as comments in Lean files, while legacy
-in-source citations drain under `comment-ratchet.json`.
+derivations live in `docs/` (`docs/prior-art-review.md`, `docs/design.md`) or
+`site/AcornDocs/Verification.lean` (checked via `docs/verification.md`), rather
+than as comments in Lean files, while legacy in-source citations drain under
+`comment-ratchet.json`.
 
 ## Prior art and discovery
 

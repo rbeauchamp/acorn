@@ -56,7 +56,7 @@ surface cannot exercise it; do not audit unrelated repository code.
    otherwise report it as not rechecked.
 7. **Prior-art traceability and defect disclosure** — any code symbol, algorithm,
    or mathematical proof derived from prior art must carry an explicit citation in
-   Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`, `docs/adr/`,
+   Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`,
    all checked by `corpus-audit`, or `site/AcornDocs/Verification.lean`, checked
    via `docs/verification.md`) stating the work, authors, venue/year, and specific
    equation/section/theorem number (never new Lean comments under `no-comments`;
