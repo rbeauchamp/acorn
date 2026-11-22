@@ -453,8 +453,9 @@ Rules that apply to every number, label and colour on the page.
     `⚠ non-finite` where the number would be, and reported as `⚠ the core
     reported a non-finite value in <field>`, naming the field; the hover text
     states the divergence reading as a possibility and says to keep the run
-    and note the world time, and that the value is in the stream the core
-    emits.
+    and note the world time, and that the frame holds a null marker at that
+    field, which gives the field and the frame but not whether the value was
+    NaN, +inf or −inf.
 
   Neither appears in a healthy run. If one does, it is telling you something
   the rest of the page cannot.
@@ -980,8 +981,11 @@ What each panel must show. How it draws it is the code's.
   needs a next agent epoch within the browser's integers (UX-24 gives what
   follows a failed start).
 
-  A file whose running intent is set aside, an earlier version's or one given
-  for another child, is left on disk exactly as it is until the listener is
+  A state built with no state file, or read from a file of the current schema
+  with the intent that file records, is written as the supervisor is built,
+  before the listener binds. An earlier version's file, whatever intent it
+  records, and a file of the current schema whose running intent was given
+  for another child are left on disk exactly as they are until the listener is
   bound. The viewer then prints and flushes the line that says why the run is
   shown stopped, under `--start` as well, and only then publishes the stopped
   state it started from, in the
@@ -1025,10 +1029,12 @@ What each panel must show. How it draws it is the code's.
   line, and one that connects after a later transition has published its
   record shows that transition's reason. The
   viewer also prints it on its standard output, at most once in a launch: for
-  a file whose running intent was set aside the line is printed and flushed
-  after the listener is bound and before the stopped state is published, under
-  `--start` as well; for any other stopped start state it is printed after the
-  ready line and not under `--start`. Under `--start` the Start is submitted once the listener is
+  a file left as it is until the bind (an earlier version's, whatever intent
+  it records, or one of the current schema whose running intent was given for
+  another child) the line is printed and flushed after the listener is bound
+  and before the stopped state is published, under `--start` as well; for no
+  state file, or a file of the current schema that says stopped, it is printed
+  after the ready line and not under `--start`. Under `--start` the Start is submitted once the listener is
   bound. The viewer announces nothing of this kind when the state it starts
   with is running. A Stop that the viewer has acknowledged but not yet written
   when the viewer crashes is not made durable: the saved state still says
@@ -1201,7 +1207,10 @@ What each panel must show. How it draws it is the code's.
 
 ## 9 · Telemetry contract (what the UI consumes)
 
-Schema version 7 emits one NDJSON object per step (stdout of the core, which
+The current telemetry schema, whose version is
+`Acorn.Host.Viewer.telemetrySchemaVersion` (the core writes it in each
+frame's `schema_version`, and the page admits only that version), emits one
+NDJSON object per step (stdout of the core, which
 the viewer runs as `acorn-core demo --research-profile ranked --telemetry`
 with the run's other arguments), plus one
 terminal frame per attempt. Fields the UI relies on:

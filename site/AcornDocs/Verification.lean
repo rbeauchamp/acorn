@@ -1413,9 +1413,14 @@ directory, assuming that only viewers write the file. It is not proved, and the 
 ends with one viewer, says nothing of a crash or of the viewer that comes after it.
 
 The order at start-up is this. The viewer reads the state, builds its supervisor, binds its
-listener, and only then prints the ready line and submits. A state built with no file, or restored with its
-intent, is written before the listener binds. A file whose running intent was set aside, an
-earlier version's or one given for another child, is left exactly as it is
+listener, and only then prints the ready line and submits. When the state is written depends on
+what the decoder ({decl}`Acorn.Host.Viewer.PersistedState.admit`) returns as its source. A state
+built with no file ({decl}`Acorn.Host.Viewer.StartSource.absent`), or read from a file of the
+current version with the intent that file records ({decl}`Acorn.Host.Viewer.StartSource.saved`),
+is written in the supervisor's construction, before the listener binds. An earlier version's
+file, whatever intent it records ({decl}`Acorn.Host.Viewer.StartSource.earlier`), and a file of
+the current version whose running intent was given for another child
+({decl}`Acorn.Host.Viewer.StartSource.other`) are left exactly as they are
 ({decl}`Acorn.Host.Viewer.StartSource.kept`) until the listener is bound. The bootstrap then
 prints and flushes the line that says why the run is shown stopped, under the `--start` flag as
 well, and only then publishes the stopped state it started from, in the current schema with this
@@ -1437,15 +1442,17 @@ viewer if the start-up fails after the publication. If the publication fails, th
 with that error before it prints the ready line, and the file, which is replaced only by a rename
 after a complete write, is still the original. A viewer that fails once its listener is bound
 ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
-turn on that path takes a command from the queue, so nothing is started from the set-aside intent
-and a Start queued by then is not handled. Whenever the start state is stopped, the one
+turn on that path takes a command from the queue, so nothing is started from the intent the file
+records and a Start queued by then is not handled. Whenever the start state is stopped, the one
 line that says why ({decl}`Acorn.Host.Viewer.startAccount`) is in the reason of the first control
 record the supervisor publishes, under the `--start` flag too. A page that connects while that
 record is current shows the line; one that connects after a later transition has published its
 record is sent that record and shows that transition's reason. The viewer also prints the line on its standard output, at most once in a launch: for a file
-whose running intent was set aside the line is printed and flushed after the listener is bound and
-before the stopped state is published, under the `--start` flag as well; for any other stopped
-start state it is printed after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
+left as it is until the bind (an earlier version's, whatever intent it records, or one of the
+current version whose running intent was given for another child) the line is printed and flushed
+after the listener is bound and before the stopped state is published, under the `--start` flag
+as well; for no state file, or a file of the current version that says stopped, it is printed
+after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
 turn of the actor. The viewer says nothing of this kind when the start state is running.
 
 The statement starts from a durable state that intends to stay stopped, so it does not cover a
@@ -1736,9 +1743,10 @@ failed call. The actor hands the step an operator's Start only for a Start that
 {decl}`Acorn.Host.Viewer.Supervisor.submit` queued, and the bootstrap passes the state it built
 or read to {decl}`Acorn.Host.Viewer.Supervision.start`. The supervisor is constructed
 ({decl}`Acorn.Host.Viewer.Supervisor.new`) only after the bootstrap has admitted the initial
-state. A state built with no state file, or restored with the intent its file records, is
-published there, before the listener binds. A state whose running intent was set aside is not
-published there. A launch relies on no unpublished state either way, since the attempted launch
+state. A state built with no state file, or read from a file of the current version with the
+intent that file records, is published there, before the listener binds. A state read from an
+earlier version's file, whatever intent it records, or from a file of the current version whose
+running intent was given for another child, is not published there. A launch relies on no unpublished state either way, since the attempted launch
 is saved before the spawn. The first control record is the start's.
 
 The bootstrap. The bootstrap admits configuration and durable state, binds loopback HTTP, then

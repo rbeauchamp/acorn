@@ -2771,7 +2771,8 @@ function drawStreamHealth() {
              `NaN or ±inf. Weights and step sizes are bounded by construction, ` +
              `so a non-finite learner value would point at a quantity the projections do not cover ` +
              `and would be worth investigating as a divergence. Keep the run and note the world ` +
-             `time; the value is in the stream the core emits.`);
+             `time; the frame holds a null marker at that field, which gives the field and the ` +
+             `frame but not whether the value was NaN, +inf or −inf.`);
   }
   const el = $("s_broken");
   el.textContent = notes.join(" · ");

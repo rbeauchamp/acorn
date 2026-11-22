@@ -105,7 +105,7 @@ install_macos() {
       export PATH="$DEVELOPER_DIR/usr/bin:$PATH"
     else
       xcode-select --install || true
-      fail 'The macOS command-line tools are not installed, and their installation dialog has been opened; the launcher goes no further until they are. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.'
+      fail 'The macOS command-line tools are not installed, and their installation has been requested; the launcher goes no further until they are. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.'
     fi
   fi
   if ! command -v brew >/dev/null 2>&1; then
