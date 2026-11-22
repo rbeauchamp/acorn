@@ -8,7 +8,8 @@ usage() {
 Usage: ./scripts/start.sh [--no-browser] [--prepare-only] [--run-dir DIR] [--port N]
 
 With no options, prepare and build Acorn, open the browser, and start or resume
-the continuous agent. Stop in the viewer, or press Ctrl-C here to finish the
+the continuous agent. The viewer starts the agent only on an explicit request;
+this launcher passes it (--start). Stop in the viewer, or press Ctrl-C here to finish the
 current attempt and close the viewer. Saved learner state stays in acorn-run/.
 
 --help and --prepare-only stop before the launch. In work on a change to
@@ -41,10 +42,10 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || fail "$1 needs a value."
       if [[ "$1" == --run-dir ]]; then run_dir=$2; else port=$2; fi
       shift 2 ;;
-    *) fail "Unknown option $1. Run ./scripts/start.sh --help." ;;
+    *) fail "Unknown option $1. ./scripts/start.sh --help lists the options." ;;
   esac
 done
-[[ $EUID -ne 0 ]] || fail 'Run this script as your normal user, without sudo.'
+[[ $EUID -ne 0 ]] || fail 'This script runs as your normal user, without sudo.'
 cd "$root"
 
 # This lock spans preparation and execution and survives whole-run Clear.
@@ -80,7 +81,7 @@ cleanup() {
   rm -f "$lock/control" "$lock/pid" "$lock/installer.sh"
   rmdir "$lock"
   if [[ "$status" -ne 0 ]]; then
-    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run the same command again with the same options. In work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run.\n' "$phase" >&2
+    printf 'Acorn stopped during %s; the diagnostic is above. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.\n' "$phase" >&2
   fi
   exit "$status"
 }
@@ -104,7 +105,7 @@ install_macos() {
       export PATH="$DEVELOPER_DIR/usr/bin:$PATH"
     else
       xcode-select --install || true
-      fail 'Finish the macOS command-line tools installation dialog, then run this script again; in work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run.'
+      fail 'The macOS command-line tools are not installed, and their installation has been requested; the launcher goes no further until they are. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.'
     fi
   fi
   if ! command -v brew >/dev/null 2>&1; then
@@ -175,7 +176,7 @@ phase='build'
 printf 'Building Acorn (subsequent launches reuse unchanged build outputs)…\n'
 ./scripts/lean.sh build acorn-viewer
 if [[ "$prepare_only" == 1 ]]; then
-  printf 'Acorn is built. ./scripts/start.sh launches it. In work on a change to Acorn, launch it only with the authorization of the owner for that run (CONTRIBUTING.md, Running a program).\n'
+  printf 'Acorn is built. ./scripts/start.sh launches it. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for a launch.\n'
   exit 0
 fi
 

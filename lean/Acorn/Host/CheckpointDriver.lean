@@ -60,7 +60,7 @@ and every image it loads was saved under that order. -/
       let _ ← checked (← store.save admitted.construction state path)
       pure state
     | .load =>
-      unless words.isEmpty do throw (IO.userError "load accepts no transition words; use resume")
+      unless words.isEmpty do throw (IO.userError "load accepts no transition words; resume takes them")
       checked (← loadFile admitted.construction initial path)
     | .resume =>
       let restored ← checked (← loadFile admitted.construction initial path)

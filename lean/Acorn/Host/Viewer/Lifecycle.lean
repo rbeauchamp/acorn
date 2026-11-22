@@ -556,4 +556,118 @@ theorem Lifecycle.request_stopping (state : Lifecycle) (command : Command)
       | phase => phase) = _
     rw [running]
 
+def Lifecycle.Unstarted (state : Lifecycle) : Prop :=
+  state.desired = .stopped ∧ state.clearPending ≠ some .running
+
+theorem Lifecycle.initial_unstarted (identity : Identity) :
+    (Lifecycle.initial identity .stopped).Unstarted :=
+  ⟨rfl, nofun⟩
+
+theorem Lifecycle.unstarted_desired (state : Lifecycle) (unstarted : state.Unstarted) :
+    state.desiredValue = .stopped :=
+  unstarted.1
+
+theorem Lifecycle.unstarted_reserve (state : Lifecycle) (unstarted : state.Unstarted)
+    (now : UInt64) : state.reserve now = none := by
+  have stopped : (state.desired == .running) = false := by rw [unstarted.1]; rfl
+  simp [reserve, stopped]
+
+theorem Lifecycle.unstarted_archiveIntent (state : Lifecycle) (unstarted : state.Unstarted)
+    (intended : Desired) (pending : state.archiveIntent = some intended) :
+    intended = .stopped := by
+  unfold archiveIntent at pending
+  split at pending
+  · cases intended with
+    | stopped => rfl
+    | running => exact absurd pending unstarted.2
+  · cases pending
+
+theorem Lifecycle.request_unstarted (state : Lifecycle) (command : Command)
+    (other : command ≠ .start) (unstarted : state.Unstarted) :
+    (state.request command).Unstarted := by
+  cases command with
+  | start => exact absurd rfl other
+  | stop => exact ⟨rfl, nofun⟩
+  | clear =>
+    refine ⟨rfl, ?_⟩
+    show state.clearPending.or (some state.desired) ≠ some .running
+    rw [unstarted.1]
+    cases held : state.clearPending with
+    | none => exact nofun
+    | some intent =>
+      cases intent with
+      | stopped => exact nofun
+      | running => exact absurd held unstarted.2
+
+theorem Lifecycle.failed_unstarted (state : Lifecycle) (generation now : UInt64)
+    (healthy : Bool) (unstarted : state.Unstarted) :
+    (state.failed generation now healthy).Unstarted := by
+  unfold failed
+  split
+  · refine ⟨?_, unstarted.2⟩
+    show (if (state.retry.failed now healthy).exhausted then Desired.stopped else state.desired) =
+      .stopped
+    split
+    · rfl
+    · exact unstarted.1
+  · exact unstarted
+
+theorem Lifecycle.retire_unstarted (state : Lifecycle) (generation : UInt64)
+    (unstarted : state.Unstarted) : (state.retire generation).Unstarted := by
+  unfold retire
+  split
+  · exact unstarted
+  · exact unstarted
+
+theorem Lifecycle.archiveFailed_unstarted (state : Lifecycle) (unstarted : state.Unstarted) :
+    state.archiveFailed.Unstarted := by
+  unfold archiveFailed
+  split
+  · exact ⟨rfl, nofun⟩
+  · exact unstarted
+
+theorem Lifecycle.adoptFinalIdentity_unstarted (state : Lifecycle) (generation : UInt64)
+    (identity : Identity) (unstarted : state.Unstarted) :
+    (state.adoptFinalIdentity generation identity).Unstarted := by
+  unfold adoptFinalIdentity
+  split
+  · exact unstarted
+  · exact unstarted
+
+theorem Lifecycle.beginArchive_unstarted (state next : Lifecycle)
+    (begun : state.beginArchive = some next) (unstarted : state.Unstarted) : next.Unstarted := by
+  unfold beginArchive at begun
+  split at begun
+  · cases begun; exact unstarted
+  · cases begun
+
+theorem Lifecycle.replacementIntent_unstarted (state : Lifecycle) (unstarted : state.Unstarted) :
+    (state.replacementIntent .stopped).Unstarted := by
+  unfold replacementIntent
+  split
+  · exact ⟨unstarted.1, nofun⟩
+  · exact unstarted
+
+theorem Lifecycle.archived_unstarted (state next : Lifecycle) (identity : Identity)
+    (installed : state.archived identity = some next) (unstarted : state.Unstarted) :
+    next.Unstarted := by
+  unfold archived at installed
+  split at installed
+  · cases installed
+    refine ⟨?_, nofun⟩
+    show state.clearPending.getD state.desired = .stopped
+    cases held : state.clearPending with
+    | none => exact unstarted.1
+    | some intent =>
+      cases intent with
+      | stopped => rfl
+      | running => exact absurd held unstarted.2
+  · cases installed
+
+theorem Lifecycle.start_reserves (identity : Identity) (desired : Desired) (now : UInt64) :
+    ∃ next, ((Lifecycle.initial identity desired).request .start).reserve now =
+      some (1, next) := by
+  have ready : (Retry.initial.ready now) = true := Retry.initial_ready now
+  exact ⟨_, by simp [reserve, request, initial, ready]; exact ⟨⟨rfl, rfl⟩, rfl⟩⟩
+
 end Acorn.Host.Viewer

@@ -6,35 +6,6 @@ Authors: acorn contributors
 import Acorn.Host.Viewer.PipePump
 import Acorn.Host.Viewer.IdentityHandshake
 
-/-!
-# The viewer supervisor's pure core
-
-The viewer supervises the core as a child process: it starts it, winds it up, restarts it after
-an unexpected exit, replaces the whole run on Clear and publishes the lifecycle state the page
-shows. This module makes every one of those decisions, with no effect: a state (`Core`), the
-events the native actor hands it, and one step per event that returns the next state and the
-effects to perform. The actor that reads the world and performs the effects is
-`Acorn.Host.Viewer.Supervisor`.
-
-**One operation at a time.** Some effects have an outcome the supervisor must know before it
-goes on: a write of the state file, a spawn, the stop line, the identity handshake, a fresh
-seed, the archival rename, the replacement directory and a map write. A step that needs one
-ends with it as its `Pending` call, and the actor hands the call's outcome to `Core.resume`
-before it reads anything else. So the state file is written before the spawn that relies on it,
-and a reaction to a failed write is decided by the step that sees the failure.
-
-**Every step ends with what it decided.** The effects of a result (`Stepped.effects`) begin
-with the settlement of its lifecycle and detail: the broadcaster installs that lifecycle, with
-the observer changes the transition makes, and publishes its control record in one serialized
-operation (`Broadcast.settle`). The control record of every result is the one of its state.
-
-**A supervision is sealed by its run.** A `Supervision` holds a state with a derivation (`Ran`)
-from its start by steps and outcomes, for its Clear configuration. There is no other way to a
-value, so every theorem about the states that `Ran` reaches holds of the supervisor the actor
-drives. The instants of a supervision do not go back, whatever the clock reads
-(`Supervision.at_later`). What the step decides is proved here; what the operating system does
-with each effect is the trusted base the actor names.
--/
 namespace Acorn.Host.Viewer
 
 /-- A run longer than this many milliseconds resets the short-failure sequence. -/
@@ -698,9 +669,6 @@ def resolve (core : Core) (now : Nat) :
 
 /-! ## The step -/
 
-/-- The state the viewer starts from, after the bootstrap published `persisted`: no process,
-nothing pending, the lifecycle of the durable identity and intent, and the reason the page is
-shown first. -/
 def start (persisted : PersistedState) (clearDisabled : Option String) (reason : String)
     (reading : Nat) : Core where
   lifecycle := .initial persisted.identity persisted.desired
@@ -755,7 +723,6 @@ end Core
 
 /-- A state is reached from a start by steps and call outcomes, for a Clear configuration. -/
 inductive Ran (clearDisabled : Option String) : Core → Prop where
-  /-- The viewer starts from a published durable state. -/
   | start (persisted : PersistedState) (reason : String) (reading : Nat) :
       Ran clearDisabled (Core.start persisted clearDisabled reason reading)
   /-- A step on an event. -/
