@@ -1094,29 +1094,45 @@ GitHub executes either, and both are accepted risk in Acorn's trusted base.
 
 The first is the [review protocol](../CONTRIBUTING.md#review-protocol), which
 says which review a pull request gets, who assigns its referee or reviewer,
-what the report or short review holds and when work is complete. The gate establishes that the
+what the report, the short review or the validation pipeline's review holds
+and when work is complete. The gate establishes that the
 proofs of a change are sound and that its checks pass on a commit. It
 establishes nothing about whether a theorem states what its pull request
-claims, which the referee reads, and nothing about whether a referee or a
-reviewer was assigned as the protocol requires. The trace of the protocol is the pull
-request itself: the comment that records the assignment and each referee's
-report or short review. One GitHub account serves the owner and the organization's agents, so under
-individual maintainer-led assignment GitHub does not show that the agent that
-assigned a referee or a reviewer is another than the one that did the work; the
-assignment comment states who assigned. Under the single-maintainer interim
-provision (confirmed on 2026-11-21 while Acorn has one human maintainer), a
-truthful assignment comment can instead record the owner's standing designation
-of the no-mistakes validation pipeline's external analyzer/verifier, its model
-family, and the exact head commit without identifying a separate per-PR
-assigning agent, alongside its unedited exact-head report or short review. The
-provision prohibits same-family self-review (disqualifying that model if chosen
-for author-side review, advice, writing or fixing while permitting re-reads
-after findings issued in its designated referee/verifier role), falls back to
-another model family or an uninvolved person under the general rule when
-disqualified, and retires once Acorn has more than one human maintainer; no
-check enforces model-family separation, designated-role vs. author-side advice,
-or multi-maintainer retirement, leaving those checks as accepted risk in the
-written protocol. A
+claims, which the referee reads, nothing about whether a referee or a
+reviewer was assigned as the protocol requires, and nothing about whether a
+pull request passed the maintainers' validation pipeline. The trace of the
+protocol is the pull request itself: the comment that records the assignment
+and each referee's report, the short review or the validation pipeline's
+review. One GitHub account serves the owner and the organization's agents, so
+under individual maintainer-led assignment GitHub does not show that the agent
+that assigned a referee or a reviewer is another than the one that did the work;
+the assignment comment states who assigned. For a pull request that claims no
+result and passed the maintainers' validation pipeline, the assignment comment
+records the owner's standing designation of the validation pipeline's
+configured reviewer, that the pull request passed, the run, the reviewer's
+model family and the exact head commit, beside the run's unedited review.
+Unedited means that a posting withholds nothing but a security
+vulnerability's details and private material, which is a private path, a
+private record or personal data, each withheld part of private material
+marked as withheld with its kind; each finding's existence, the verdict and
+what was done about each finding stay on the pull request.
+Under the single-maintainer interim provision, while Acorn has one human
+maintainer, a truthful assignment comment for a referee's review or a short
+review can instead record the owner's standing designation of the model
+configured as the validation pipeline's reviewer, reading the pull request
+standalone as that review requires, its model family, and the exact head
+commit without identifying a separate per-PR assigning agent, alongside its
+unedited exact-head report or short review. The protocol prohibits same-family
+self-review (disqualifying that model if chosen for author-side review,
+advice, writing or fixing while permitting re-reads after findings issued in
+its designated referee or reviewer role), falls back to another model family
+or an uninvolved person under the general rule when the designated model is
+disqualified, and retires that use of the designation once Acorn has more
+than one human maintainer. No check enforces that a pull request passed the
+validation pipeline, model-family separation, designated-role vs. author-side
+advice, multi-maintainer retirement, or which findings still block after a
+review's third round, leaving those checks as accepted risk in the written
+protocol. A
 referee or a reviewer can be wrong, and two referees can both be wrong. An
 author's own account of a goal that changed while the work was done is
 something the protocol cannot check, since a referee sees the pull request and
