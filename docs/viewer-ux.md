@@ -929,15 +929,24 @@ What each panel must show. How it draws it is the code's.
   only by a launch whose record is the same; under `--cmd` there is no record,
   because what a shell starts for a command depends on more than the viewer
   can compare, so a running intent saved under `--cmd` is not carried to
-  another launch. The viewer reads the record when it starts, and its
-  supervisor reads it again immediately before each spawn of a recorded
-  child, the first and every restart, and spawns only if it is the same. So a
-  running intent is not carried to a core whose file has since changed in
+  another launch. The viewer reads the ranked core's file when it starts, and
+  before every spawn, the first and every restart, its supervisor reads the
+  file again and compares its length and digest with what the viewer read at
+  start, whether or not the state file can hold the record; it spawns only if
+  they are the same, and a ranked core that cannot be read is not spawned. So
+  a running intent is not carried to a core whose file has since changed in
   length or content, or moved; and after a rebuild a Start in a running
-  viewer is refused, with the reason that the core's file is not the one this
-  viewer recorded when it started and that nothing was started: the spawn
+  viewer is refused, with the reason "the core's program changed since this
+  viewer started (the file at its path differs in length or content, or
+  cannot be read), so nothing was started; starting the viewer again records
+  the program as it is now and clears this refusal". Where the file could not
+  be read whole when the viewer started, the reason is "the core's program
+  could not be read when this viewer started, so nothing was started;
+  starting the viewer again when the file can be read clears this refusal".
+  The reason is shown in the page and printed in the viewer's log: the spawn
   fails, and after three failed starts the supervisor gives up (UX-24), until
-  a viewer is started again, which records the new file. Three things are
+  a viewer is started again, which reads the file as it then is. Three things
+  are
   assumed and not compared: that nothing replaces the file between the
   supervisor's last reading of it and the operating system's exec; the
   environment the child inherits; and that two files of equal length and
@@ -954,15 +963,20 @@ What each panel must show. How it draws it is the code's.
   current schema with this launch's child, before it prints its ready line,
   before `--start` submits its Start and before its supervisor's first turn.
   So such a file is read as an earlier version's, or as given for another
-  child, once, in the first launch whose start-up succeeds, and that launch
-  says the reason; a viewer of the earlier version started later on the
+  child, once, in the first launch that publishes the stopped state, and that
+  launch says the reason; a viewer of the earlier version started later on the
   directory meets a file of the current version. A start-up that fails before
-  that publication, such as on a port already in use, loses nothing: the next
-  viewer reads the same file and says the same. A Start that reaches the
-  control endpoint before the publication is only queued and is handled
-  afterwards. If the publication itself fails, the viewer exits with that
-  error before its ready line and before any turn, and the file is still the
-  original. An operator who starts the viewer directly on a run that a viewer
+  that publication, such as on a port already in use, leaves the file as it
+  was: the next viewer reads the same file and says the same. A start-up that
+  fails after it, when the ready line cannot be written for example, leaves a
+  stopped file of the current version, and the reason the next launch gives
+  is that the saved state says stopped. A Start that reaches the control
+  endpoint before the publication is only queued; it is handled afterwards if
+  the start-up goes on, and is lost with the viewer if the start-up fails
+  after the publication. If the publication itself fails, the viewer exits
+  with that error before its ready line and before any turn, and the file is
+  still the original. An operator who starts the viewer directly on a run
+  that a viewer
   of the earlier version left running finds it stopped and presses Start; a
   file of the current schema whose running intent was given for the same
   child resumes; and `./scripts/start.sh`, which passes `--start`, starts the

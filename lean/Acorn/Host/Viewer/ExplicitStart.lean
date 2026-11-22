@@ -70,11 +70,15 @@ launch with no record, or with another record than the file names, intends to st
 (`PersistedState.decode_unbound`), and the theorem holds of a supervisor started from such a
 state (`Reached.unbound_spawns_nothing`). So a running intent saved while the supervisor's
 child was one process is not taken as a Start for another. Sameness is equality of the two
-records, and no more. The actor reads the record again, by the action the bootstrap read it
-with, immediately before each spawn of a child that has one, the first and every restart, and
-spawns only if it equals the record the viewer read when it started; otherwise nothing is
-spawned and the spawn's result is its error (`Supervisor.call`, `childChanged`), which the
-step treats as a failed start. Three things are assumed and not compared: that nothing
+records, and no more. Before every spawn of the ranked core, the first and every restart, the
+actor reads the executable's file again, by the action the bootstrap read it with, and
+compares its length and digest (`ProgramReading`) with what the viewer read when it started,
+whether or not the state file can hold the record (`ChildProgram`). It spawns only if the two
+are the same; a ranked core whose file differs, or could not be read whole at start or cannot
+be now, is not spawned: the spawn's result is its error (`Supervisor.call`, `childChanged`,
+`childUnread`), which the step treats as a failed start, and the actor prints the reason on
+standard error. A fixed command is spawned with no reading. Three things are assumed and not
+compared: that nothing
 replaces the file between the actor's last reading of it and the operating system's exec;
 that the environment the child inherits has not changed; and that two files of equal length
 and equal digest are one. The digest suffices against accident, a rebuilt file that agrees in
@@ -106,7 +110,12 @@ this launch's record, before it prints the ready line, before `--start` submits 
 before the first step (`StartSource.kept`, `Supervisor.new`, `NativeApp.runViewer`). So a
 start-up that fails before that publication leaves the next viewer the same file and the same
 reason, and the file is read as an earlier version's, or as given for another child, once: in
-the first launch whose start-up succeeds. That a running intent in a state file follows a
+the first launch that publishes the stopped state. A start-up that fails after the
+publication, when the ready line cannot be written for example, leaves a current-version
+stopped file, and the reason the next launch gives is that the saved state says stopped. A
+Start queued on the control endpoint between the bind and the publication is processed by a
+later step if the start-up goes on, and is lost with the viewer if the start-up fails after
+the publication. That a running intent in a state file follows a
 Start given, in some earlier viewer, while its child had the record the file names is argued
 from the write clause and these readings by induction over the viewers that owned the run
 directory, assuming that only viewers write the file, that the other fields of a state read

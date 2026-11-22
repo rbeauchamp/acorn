@@ -122,18 +122,32 @@ forgery. -/
 def fileDigest (content : ByteArray) : UInt64 :=
   content.foldl Rng.fnvStep Rng.fnvOffset
 
+/-- What a viewer reads of the file of the program its supervisor would start: the length in
+bytes and the digest (`fileDigest`) of the content. It is a function of the bytes read alone,
+so it does not depend on what the state file can hold. -/
+structure ProgramReading where
+  /-- The length of the file in bytes. -/
+  length : Nat
+  /-- The digest of every byte of the file, in order. -/
+  digest : UInt64
+  deriving DecidableEq, BEq
+
+/-- The reading of a file's content, read whole. -/
+def ProgramReading.of (content : ByteArray) : ProgramReading :=
+  ⟨content.size, fileDigest content⟩
+
 /-- The record of the child a viewer's supervisor would start, as far as the viewer can read
-it before it starts it: the executable's path, the length in bytes and the digest
-(`fileDigest`) of the content read from the file at that path, and the argument vector at a
+it before it starts it: the executable's path, the length in bytes and the digest of the
+content read from the file at that path (`ProgramReading`), and the argument vector at a
 fixed reference launch (`referenceLaunch`). Two launches have the same child, for the purpose
 of a saved running intent, exactly when both have a record and the records are equal word for
 word, so two files of equal length and equal digest are taken as one. A launch has no record
 when sameness cannot be established: a command given to a shell, whose process depends on the
 working directory, the environment and the files the command names; an executable whose file
 cannot be read whole; or words the state file cannot hold. -/
-def childRecord (executable : String) (content : ByteArray) (arguments : List String) :
+def childRecord (executable : String) (reading : ProgramReading) (arguments : List String) :
     Option (List String) :=
-  let words := executable :: toString content.size :: toString (fileDigest content) :: arguments
+  let words := executable :: toString reading.length :: toString reading.digest :: arguments
   if childAdmitted words then some words else none
 
 /-- The `child` member of a state file: the record's words as a JSON array of strings, and
@@ -356,9 +370,11 @@ theorem PersistedState.decode_wide (child : Option (List String)) (value : Json.
 /-- Whether the viewer leaves the state file as it is until its listener is bound: a file
 whose running intent was set aside, an earlier version's or one given for another child. Once
 the listener is bound the bootstrap publishes the stopped state it started from, in the
-current schema with this launch's record, so a start-up that fails before then leaves the next
-viewer the same file and the same reason, and the file is read that way once, in the first
-launch whose start-up succeeds. -/
+current schema with this launch's record, so a start-up that fails before that publication
+leaves the next viewer the same file and the same reason, and the file is read that way once,
+in the first launch that publishes the stopped state. A start-up that fails after the
+publication, when the ready line cannot be written for example, leaves a current-version
+stopped file, and the reason the next launch gives is that the saved state says stopped. -/
 def StartSource.kept : StartSource → Bool
   | .earlier | .other => true
   | .absent | .saved => false

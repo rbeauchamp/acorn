@@ -33,7 +33,10 @@ the stopped state it started from, with this launch's record, before it prints t
 line, before `--start` submits its Start and before the first step. So a start-up that fails
 before that publication leaves that file, and its reason, to the next viewer, and the file
 is read as an earlier version's, or as given for another child, once: in the first launch
-whose start-up succeeds.
+that publishes the stopped state. A start-up that fails after the publication, when the ready
+line cannot be written for example, leaves a current-version stopped file, and the reason the
+next launch gives is that the saved state says stopped; a Start queued on the control endpoint
+by then is lost with the viewer.
 -/
 namespace NativeApp
 open Acorn.Host Acorn.Host.Viewer
@@ -68,42 +71,48 @@ private def initialState (directory : RunDirectory) (child : Option (List String
     let seed ← if migrated then pure Cli.defaultSeed else freshSeed
     return (.unstarted seed migrated, .absent)
 
-/-- The one reading of a recorded child: the record (`Acorn.Host.Viewer.childRecord`) of the
-content read whole from the file at the executable's path, and none when the file cannot be
-read whole. -/
-private def readChild (executable : System.FilePath) (arguments : List String) :
-    IO (Option (List String)) := do
-  try return childRecord executable.toString (← IO.FS.readBinFile executable) arguments
+/-- The one reading of the ranked core's program: the length and the digest
+(`Acorn.Host.Viewer.ProgramReading`) of the content read whole from the file at the
+executable's path, and none when the file cannot be read whole. -/
+private def readProgram (executable : System.FilePath) : IO (Option ProgramReading) := do
+  try return some (.of (← IO.FS.readBinFile executable))
   catch _ => return none
 
-/-- The supervisor's child and its record. The ranked child is the core beside this program,
-named by its path with explicit arguments, so its record is what can be read of it before it
-is started: the path, the file's length in bytes, the 64-bit FNV-1a digest of every byte of
-the file, and the arguments at the reference launch. The configuration holds the action that
-reads it (`readChild`) and the record that action gave here; the actor runs the same action
-again immediately before each spawn, the first and every restart, and spawns only if it
-gives the same record, so a core rebuilt or replaced during this viewer's life is not started
-on a Start given for the file this viewer recorded. Not compared, and assumed: the interval
-between the actor's last reading of the file and the operating system's exec; the
-environment the child inherits; and that two files of equal length and equal digest are one.
-The digest suffices against accident, a rebuilt file that agrees in length and in a 64-bit
-digest by chance; forging it needs no more power than writing the state file by hand. A file
-that cannot be read whole gives no record. A fixed command is given to a shell, and the
-process a shell starts for it depends on the working directory, the environment and the
-files the command names, which this program does not compare: it has no record, so a running
-intent saved under it is not carried to another launch, and it is spawned with no reading. -/
+/-- The supervisor's child, what is compared before it is spawned, and its record. The ranked
+child is the core beside this program, named by its path with explicit arguments. The
+configuration holds the action that reads its file (`readProgram`) and the reading that
+action gave here, the file's length in bytes and the 64-bit FNV-1a digest of every byte of
+it. The actor runs the same action again immediately before every spawn, the first and every
+restart, and spawns only if it gives the same reading, so a core rebuilt or replaced during
+this viewer's life is not started on a Start given for the file this viewer read; a ranked
+core whose file could not be read whole here, or cannot be then, is not spawned. That
+comparison is held in memory and does not depend on the record, on the run directory's path
+or on what the state file can hold. The record written to the state file is the path, that
+reading and the arguments at the reference launch, and none when the file could not be read
+or the state file cannot hold those words. Not compared, and assumed: the interval between
+the actor's last reading of the file and the operating system's exec; the environment the
+child inherits; and that two files of equal length and equal digest are one. The digest
+suffices against accident, a rebuilt file that agrees in length and in a 64-bit digest by
+chance; forging it needs no more power than writing the state file by hand. A fixed command
+is given to a shell, and the process a shell starts for it depends on the working directory,
+the environment and the files the command names, which this program does not compare: it has
+no record, so a running intent saved under it is not carried to another launch, and it is
+spawned with no reading. -/
 private def supervisorConfig (options : ViewerOptions) (directory : RunDirectory) :
     IO SupervisorConfig := do
   match options.launch with
   | .ranked =>
     let executable := (← IO.appDir) / "acorn-core"
     let arguments := rankedArguments options.checkpoint
-    let record := readChild executable
+    let read := readProgram executable
+    let atStart ← read
+    let child := atStart.bind fun reading => childRecord executable.toString reading
       (arguments referenceLaunch (directory.path .weights)).toList
-    return ⟨executable, arguments, ← record, record, options.launch.clearDisabled, freshSeed⟩
+    return ⟨executable, arguments, child, .ranked atStart read, options.launch.clearDisabled,
+      freshSeed⟩
   | .fixed command =>
     return ⟨System.FilePath.mk "/bin/sh", fun _ _ => #["-c", "exec " ++ command], none,
-      pure none, options.launch.clearDisabled, freshSeed⟩
+      .fixed, options.launch.clearDisabled, freshSeed⟩
 
 private abbrev BrowserChild := IO.Process.Child {
   stdin := .null, stdout := .null, stderr := .null }
@@ -158,11 +167,15 @@ def runViewer (arguments : List String) : IO UInt32 := do
       -- between the bind and this publication leaves the original file, and the next launch
       -- says the reason again. Under `--start` the Start is submitted below, and so
       -- processed, after the publication. A Start that arrives on the control endpoint
-      -- before it is only queued by `Supervisor.submit` and is processed by a later
-      -- `supervisor.step`, so it is neither processed first nor lost. If the publication
+      -- before it is only queued by `Supervisor.submit`, so it is not processed first; it
+      -- is processed by a later `supervisor.step` if the start-up goes on, and is lost with
+      -- the viewer if the start-up fails after the publication. If the publication
       -- fails, the viewer exits with that error before it prints the ready line and before
       -- any step: nothing is spawned from the set-aside intent, and the file, which is
-      -- replaced only by a rename after a complete write, is still the original.
+      -- replaced only by a rename after a complete write, is still the original. A failure
+      -- after the publication, when the ready line cannot be written for example, leaves
+      -- a current-version stopped file, and the reason the next launch gives is that the
+      -- saved state says stopped.
       if source.kept then directory.writeState config.child persisted
       let some address := server.localAddr
         | throw (IO.userError "bound viewer address is unavailable")
@@ -170,9 +183,9 @@ def runViewer (arguments : List String) : IO UInt32 := do
       IO.println s!"Acorn is ready: {url}\nRun directory: {directory.rootPath}"
       -- The line on why the run is shown stopped is printed once the page is served, and not
       -- under the Start flag, which starts the run. A start-up that fails before the
-      -- publication above prints nothing of the run and loses nothing: a file whose running
-      -- intent was set aside is still on disk as it was, so the next viewer reads it and
-      -- says the same.
+      -- publication above prints nothing of the run, and a file whose running intent was
+      -- set aside is still on disk as it was, so the next viewer reads it and says the
+      -- same.
       unless options.start do
         if let some line := startAccount source persisted.desired then
           IO.println s!"Run: {line}"

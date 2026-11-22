@@ -31,6 +31,19 @@ from it, as a restarted viewer goes on from the state file.
 -/
 namespace Acorn.Host.Viewer
 
+/-- What the actor compares before it spawns the configuration's child. The bootstrap builds
+the constructor from the launch itself, `ranked` for the core beside the viewer and `fixed`
+for a command given to a shell, so the two are told apart by construction and not by whether
+the state file can hold a record of the child. -/
+inductive ChildProgram where
+  /-- A command given to a shell, spawned with no reading. -/
+  | fixed
+  /-- The ranked core: what this viewer read of the executable's file when it started, none
+  when the file could not be read whole, and the one action that reads it. The bootstrap ran
+  the action for `atStart` and the actor runs it again before every spawn, so the two readings
+  compare the same things. -/
+  | ranked (atStart : Option ProgramReading) (read : IO (Option ProgramReading))
+
 /-- Native bootstrap supplies fixed executable configuration and a fresh seed source.
 Only launch identity and the owned checkpoint path vary between processes. -/
 structure SupervisorConfig where
@@ -38,15 +51,13 @@ structure SupervisorConfig where
   executable : System.FilePath
   /-- Pure argument construction from the admitted launch and run-owned path. -/
   arguments : CoreLaunch → System.FilePath → Array String
-  /-- The record of the child this configuration starts (`childRecord`), as `record` read it
-  when this viewer started, written with every state this viewer saves; none when sameness
-  with another launch's child cannot be established. -/
+  /-- The record of the child this configuration starts (`childRecord`), written with every
+  state this viewer saves; none when sameness with another launch's child cannot be
+  established or the state file cannot hold the record. The comparison before a spawn does
+  not read it. -/
   child : Option (List String)
-  /-- The one action that reads the record of this configuration's child from the file at the
-  executable's path. The bootstrap reads `child` with it, and the actor reads it again
-  before each spawn of a child that has a record, so the two readings compare the same
-  things. -/
-  record : IO (Option (List String))
+  /-- What the actor compares before every spawn of this configuration's child. -/
+  program : ChildProgram
   /-- A configuration that cannot preserve whole-run ownership disables Clear. -/
   clearDisabled : Option String
   /-- Actual native source of new terrain seeds, called only for Clear. -/
@@ -96,19 +107,29 @@ private def Supervisor.perform (supervisor : Supervisor) (directory : RunDirecto
   | .follow (.say text) => try IO.println text catch _ => pure ()
   | .follow (.complain text) => try IO.eprintln s!"viewer shutdown: {text}" catch _ => pure ()
 
-/-- The spawn's error for a recorded child whose file no longer gives the record this viewer
-read when it started. It describes what was found and directs no run. -/
+/-- The spawn's error for a ranked core whose file does not read now as it read when this
+viewer started, or cannot be read whole now. It says what clears the refusal and directs no
+run. -/
 def childChanged : String :=
-  "the core's file is not the one this viewer recorded when it started " ++
-    "(its path, length or content differs, or it cannot be read); nothing was started; " ++
-    "a viewer started afterwards records the file it finds"
+  "the core's program changed since this viewer started (the file at its path differs in " ++
+    "length or content, or cannot be read), so nothing was started; starting the viewer " ++
+    "again records the program as it is now and clears this refusal"
 
-/-- Each case performs the native operation its call names. A spawn of a child that has a
-record, the first and every restart alike, reads the record again immediately before it and
-is made only when the record read equals the configuration's; otherwise nothing is spawned
-and the call's result is the spawn's error, which the step treats as a failed start. The
-interval between this reading and the operating system's exec, and the environment the child
-inherits, are not compared. A child with no record is spawned without a reading. -/
+/-- The spawn's error for a ranked core whose file could not be read whole when this viewer
+started. It says what clears the refusal and directs no run. -/
+def childUnread : String :=
+  "the core's program could not be read when this viewer started, so nothing was started; " ++
+    "starting the viewer again when the file can be read clears this refusal"
+
+/-- Each case performs the native operation its call names. A spawn of the ranked core, the
+first and every restart alike, reads the executable's file again immediately before it and is
+made only when that reading equals the one this viewer took when it started, whether or not
+the state file can hold a record of the child. Otherwise, and when the file could not be read
+whole at start or cannot be now, nothing is spawned: the reason is printed on standard error
+and the call's result is the spawn's error with that reason, which the step treats as a
+failed start and reports in the page. The interval between this reading and the operating
+system's exec, and the environment the child inherits, are not compared. A fixed command is
+spawned without a reading. -/
 private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory) :
     (call : Call) → IO (call.Result × RunDirectory)
   | .writeState state => do
@@ -127,10 +148,15 @@ private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
       catch error => pure (.error error.toString)
     return (result, directory)
   | .spawn generation plan => do
-    if supervisor.config.child.isSome then
-      let found ← try supervisor.config.record catch _ => pure none
-      unless found == supervisor.config.child do
-        return (Except.error childChanged, directory)
+    let refusal : Option String ← match supervisor.config.program with
+      | .fixed => pure none
+      | .ranked none _ => pure (some childUnread)
+      | .ranked (some atStart) read => do
+        let found ← try read catch _ => pure none
+        pure (if found == some atStart then none else some childChanged)
+    if let some reason := refusal then
+      try IO.eprintln reason catch _ => pure ()
+      return (Except.error reason, directory)
     let arguments := supervisor.config.arguments plan (directory.path .weights)
     return (← supervisor.process.spawn generation supervisor.config.executable arguments,
       directory)
