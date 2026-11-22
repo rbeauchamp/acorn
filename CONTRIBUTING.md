@@ -503,9 +503,12 @@ its plain-word account, which the owner confirmed on 2026-11-20. The Lean is
 pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
 
 - **What a submission adds:** a state mechanism, a family of worlds and a goal,
-  and the choice of a standard configuration apart from the seed. It does not
-  change the agent's learners, the way the agent chooses actions or the way it
-  explores.
+  and the choice of a standard configuration apart from the seed and the
+  research profile, which is the primitive profile. It does not change the
+  agent's learners, the way the agent chooses actions or the way it explores.
+  A goal is two conditions on the run without its exploratory flags, one on the
+  whole run and one on each step. The frame's verdict asks the first, and from
+  some time on the second at every step at which the agent did not explore.
 - **How a learner change lands:** separately, and first. It is its own pull
   request to the agent, which states and proves what the change is for on its
   own terms and passes the same review and the same gate as any other
@@ -529,9 +532,11 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   family in which the goal fails of that agent's run. It does not certify that
   the agent's run differs from a compared run in every world of the family.
   Nor does it certify that the goal is a task anyone would pose: a complete
-  result is also one, over the same worlds, for the goal that asks only that
-  the run be the agent's own at some seed
-  (`AcornVerif.LearnedState.Result.recognized`). It goes to a
+  result gives, of each compared agent, a world in which that agent's run,
+  exploratory flags included, is the agent's own run at no seed
+  (`AcornVerif.LearnedState.Result.separated`), and the frame admits the goal
+  whose condition asks only that the run, apart from its flags, be the agent's
+  own at some seed (`AcornVerif.LearnedState.recognizer`). It goes to a
   referee with the eight questions the account lists. A submission that does
   not prove all seven is partial, and is recorded by which of them it proved,
   with any assumption stated.
@@ -566,8 +571,9 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   (`AcornVerif.LearnedState.Small.remembered_refused`). Both are statements
   about that agent with that mechanism. Two general theorems refuse a kind of
   result only under their hypotheses. No mechanism has a complete result on a
-  task whose goal some agent, whose output is a function of the current
-  percept, meets at some seed in every world of the family
+  task whose goal some agent that never explores, and whose output is a
+  function of the current percept, meets at some seed in every world of the
+  family
   (`AcornVerif.LearnedState.Result.history_free_refused`). A mechanism has
   none on a task where, with that mechanism kept, stores fixed in advance meet
   the goal at some seed in every world of the family
@@ -787,6 +793,19 @@ and stop it at the specification, in this order:
    steps that are not mistakes, a bound on it does not follow from the
    measure alone: it needs its own argument that the algorithm makes
    progress.
+
+   An agent whose exploration never ends, as Acorn's does not, takes
+   exploratory actions throughout its run, and an exploratory action can be
+   wrong. For such an agent a mistake is a wrong action at a step at which the
+   agent did not explore, and the steps at which it explored are not scored.
+   The conditions above then read: every mistake strictly lowers the measure,
+   and no other step raises it, exploratory steps included. Under them the
+   mistakes of every run number at most the measure's value where the run
+   starts. A measure that each exploratory decision may raise by a stated
+   charge bounds the mistakes only by its starting value and the charges
+   together, which grow with every exploratory decision, so it gives no
+   statement about the run from some time on while exploration recurs. Such a
+   measure is not a form of goal.
 3. Each device of evaluation has a mathematical counterpart, listed in the
    table below.
 4. Difficulty of proof is an unresolved obligation and never a reason to lower
