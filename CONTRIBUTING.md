@@ -109,14 +109,18 @@ target, an intent record, a decision contract, the
 [viewer specification](docs/viewer-ux.md). Every other pull request is an
 ordinary change.
 
-A pull request passed the maintainers' validation pipeline when a run of it that
-the maintainers started validated the pull request's head commit and pushed it,
-its title and description are as that run read and published them, the run's
-reviewer read the change and the run's review ended with no finding open that
-blocks under [three rounds of review](#three-rounds-of-review), and the run's
-reviewer belongs to another model family than every model that did, fixed or
-advised on the work, the run's own fixers included. Who wrote the pull request
-is no part of this condition.
+A pull request passed the maintainers' validation pipeline only when a run of
+it that the maintainers started reached its successful final outcome for the
+pull request's exact head commit, the checks GitHub registers on that head
+included, the run's reviewer read the change and the run's review ended with
+no finding open that blocks under
+[three rounds of review](#three-rounds-of-review), and the run's reviewer
+belongs to another model family than every model that did, fixed or advised on
+the work, the run's own fixers included. A run that pushed the head but whose
+checks on GitHub failed or have not finished has not passed. What the run's
+review covers of the pull request's title and description is as
+[the validation pipeline's review](#the-validation-pipelines-review) says. Who
+wrote the pull request is no part of this condition.
 
 The maintainers decide which review a pull request gets at triage, from the
 pull request's head, title and description, and decide it again at every push
@@ -130,10 +134,11 @@ skills under .agents/skills describe. It helps the work and discharges nothing
 of this protocol, for any pull request.
 
 The review this protocol requires is posted as a comment on the pull request
-for the exact head commit, title and description, beside a comment that
-records its assignment: a referee's report or a short review from a reviewer
-assigned under the rule of assignment below, or the validation pipeline's
-review as its section below says. A check made by a validation pipeline,
+for the exact head commit, title and description that its reviewer read,
+beside a comment that records its assignment: a referee's report or a short
+review from a reviewer assigned under the rule of assignment below, or the
+validation pipeline's review, with any reading of the title and description
+that its section below requires. A check made by a validation pipeline,
 before or after the pull request opens, discharges nothing of the protocol
 until that review and its assignment comment are posted on the pull request.
 
@@ -224,8 +229,9 @@ passed exact-head `./scripts/gate.sh` and merge.
 **Restoration of full maintainer-led assignment.** Once Acorn has more than one
 human maintainer, this single-maintainer standing designation retires and the
 general per-PR maintainer-led assignment rule above governs every referee's
-review and short review on its own. The validation pipeline's review does not
-rest on this provision. As before, outside pull requests merge only on the
+review and short review on its own. From then on the owner's standing
+designation of the validation pipeline's configured reviewer serves only the
+validation pipeline's review. As before, outside pull requests merge only on the
 owner's word, and any change loosening protections or removing checks merges
 only on the owner's recorded confirmation.
 
@@ -295,10 +301,11 @@ of the pull request's title or description, the pull request has no clean
 report until the referee has read it again and reported: the rule covers
 every field of a pull request that becomes part of the merged commit's
 message or states a claim. This
-repeats until the report is clean or the author withdraws, within the limit
-that [three rounds of review](#three-rounds-of-review) sets. A report is clean
-when its verdict is accept and no finding is open; after the report's third
-round, that section says which findings still keep it from being clean. An
+repeats until the report is clean or the author withdraws: after the report's
+third round, the referee reads the pull request again only as
+[three rounds of review](#three-rounds-of-review) allows, and that section
+says which findings still keep the report from being clean. A report is clean
+when its verdict is accept and no finding is open. An
 author may withdraw at any time; the pull request is then closed. A verdict of
 reject says that no revision can make the claim good: the pull request is
 closed, and new work is a new pull request.
@@ -340,41 +347,51 @@ maintainers rule on it there, a finding that discloses a security
 vulnerability is answered and ruled on by the private route and not on the
 pull request, and after a push, or an edit of the pull request's title or
 description, it has no clean review until the reviewer has read it again.
+After the short review's third round, the reviewer reads the pull request
+again only as [three rounds of review](#three-rounds-of-review) allows, and
+that section says which findings still keep the review from being clean.
 A short review is clean when it counts, its verdict is accept and no finding
-is open; after its third round,
-[three rounds of review](#three-rounds-of-review) says which findings still
-keep it from being clean.
+is open.
 
 ### The validation pipeline's review
 
 A pull request that claims no result and passed the maintainers' validation
 pipeline has that pipeline's review as the review this protocol requires, and
 no short review or referee is assigned to it. The review is what the
-pipeline's reviewer found in every round of every run of it on the change,
-ending with the run that validated the head commit: each finding with its
-place, its reason and what was done about it, and the outcome of that run. It
-counts as the protocol's review when all of the following hold:
+pipeline's reviewer found in every round of the run that reached its
+successful final outcome for the head commit: each finding with its place, its
+reason and what was done about it, and the outcome of that run. It counts as
+the protocol's review when all of the following hold:
 
-- an assignment comment is written on the pull request recording that the
-  pull request passed the validation pipeline, the run, the reviewer's model
-  family and the exact head commit;
+- an assignment comment is written on the pull request recording the owner's
+  standing designation of the validation pipeline's configured reviewer, that
+  the pull request passed the validation pipeline, the run, the reviewer's
+  model family and the exact head commit;
 - the review is posted on the pull request, unedited except for any redaction
   required by the security-vulnerability rule above;
 - the reviewer took no part in writing or fixing the change and belongs to a
   different model family than every model that authored, fixed or advised on
   the work, the run's own fixers included.
 
-The review counts only for the head commit that the run validated and pushed,
-and for the pull request's title and description as that run read and
-published them. After a push, or an edit of the title or description, the
-pull request has not passed the validation pipeline until a run of it
-validates that head and publishes them, and until then it gets the review that
+The review counts only for the head commit, title and description that its
+reviewer read. Where the pull request's title and description were drafted or
+edited after the run's review, the review covers them only when the validation
+pipeline's configured reviewer has read the published title and description
+against the exact head, run standalone as the single-maintainer interim
+provision above allows, and that reading is posted with the run's review.
+After a push, the pull request has not passed the validation pipeline until a
+run of it reaches its successful final outcome for the new head, and until
+then it gets the review that
 [which review a pull request gets](#which-review-a-pull-request-gets) gives a
-pull request that did not pass it. The review is clean when the pull request
-passed the validation pipeline at that head and the review and its assignment
-comment are posted. A finding that discloses a security vulnerability is
-reported, answered and ruled on by the private route, as for a referee's
-report, and the review is not clean while it is open.
+pull request that did not pass it. The review is clean when a run of the
+validation pipeline reached its successful final outcome for that exact head
+commit, the checks GitHub registers on that head included; when the review,
+with any such reading, covers the title and description as they stand and
+leaves no finding open that blocks under
+[three rounds of review](#three-rounds-of-review); and when the review and its
+assignment comment are posted. A finding that discloses a security
+vulnerability is reported, answered and ruled on by the private route, as for
+a referee's report, and the review is not clean while it is open.
 
 ### Three rounds of review
 
@@ -387,15 +404,16 @@ blocks only when its failure would be serious or hard to undo, or when it has
 been observed: it happened, or running code reproduced it.
 [What counts as a run](#what-counts-as-a-run) and
 [running a program](#running-a-program) apply to such code as to any other.
-Every other finding still open after the third round, or raised after it, is
-recorded on the pull request as accepted risk, with its reason, and is no
-longer open; a verdict of revise that rests only on such findings does not
-keep a review from being clean. A reading after the third round, such as one
-of a change that answers a finding that still blocks, raises findings under
-the same rule. Where the author and the reviewer disagree whether a finding
-blocks under this rule, the maintainers rule on it in writing on the pull
-request, or by the private route for a finding that discloses a security
-vulnerability.
+Every other finding still open after the third round is recorded on the pull
+request as accepted risk, with its reason, and is no longer open; a verdict of
+revise that rests only on such findings does not keep a review from being
+clean. After the third round no further full review is made: the reviewer
+reads the pull request again only to check a change that closes a finding
+that still blocks, or to cover a changed head, title, description or claim,
+and such a reading raises only findings that block. Where the author and the
+reviewer disagree whether a finding blocks under this rule, the maintainers
+rule on it in writing on the pull request, or by the private route for a
+finding that discloses a security vulnerability.
 
 ### When work is complete
 
@@ -721,8 +739,8 @@ every promise is one that an organization of one owner and its agents can keep:
   specification), and only once the review that the
   [review protocol](#review-protocol) gives the pull request, each referee's
   report, the short review or the validation pipeline's review, is clean on
-  that head and for the title and
-  description as they stand at the merge. A change to what the
+  that head and for the title and description as they stand at the merge,
+  which its reviewer has read. A change to what the
   review protocol requires, allows or rules out merges only once the owner
   has confirmed it. Changes to the trusted-base files listed in
   [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner. Until the gate
