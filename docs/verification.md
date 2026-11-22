@@ -1476,8 +1476,9 @@ ends through its shutdown, whose turns step the supervisor to close it and can w
 turn on that path takes a command from the queue, so nothing is started from the set-aside intent
 and a Start queued by then is not handled. Whenever the start state is stopped, the one
 line that says why (`Acorn.Host.Viewer.startAccount`) is in the reason of the first control
-record, under the `--start` flag too, so the page never shows the run stopped at start-up without
-it. The viewer also prints the line on its standard output, at most once in a launch: for a file
+record the supervisor publishes, under the `--start` flag too. A page that connects while that
+record is current shows the line; one that connects after a later transition has published its
+record is sent that record and shows that transition's reason. The viewer also prints the line on its standard output, at most once in a launch: for a file
 whose running intent was set aside the line is printed and flushed after the listener is bound and
 before the stopped state is published, under the `--start` flag as well; for any other stopped
 start state it is printed after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
@@ -1522,9 +1523,12 @@ run included, and every Clear configuration, reason and reading,
 `Acorn.Host.Viewer.Core.start` gives a state whose process slot is empty and which waits
 on no call, whose lifecycle is the initial lifecycle of that state's identity and intent
 (`Acorn.Host.Viewer.Lifecycle.initial`), which holds that durable state and no
-replacement, and whose detail is the initial transition with the reason given, which the page
-shows first. That is the definition as written and not a theorem, and the bootstrap gives it
-only a state that it built or admitted. So a supervisor that starts from a matching saved
+replacement, and whose detail is the initial transition with the reason given. The supervisor
+publishes that detail in its first control record. A page is sent the control record that is
+current when it connects (`Acorn.Host.Viewer.Broadcast.subscribe`), so it shows that reason first
+only if it connects before the record of a later transition has replaced that one
+(`Acorn.Host.Viewer.Broadcast.settle`). What the start gives is the definition as written and not
+a theorem, and the bootstrap gives it only a state that it built or admitted. So a supervisor that starts from a matching saved
 running intent takes up that intent at its start and has asked for nothing there: a launch
 becomes pending only in the launch check (`Acorn.Host.Viewer.Core.launchCheck`), which
 the start does not make. The first constructor of `Acorn.Host.Viewer.Ran` is that start,

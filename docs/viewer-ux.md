@@ -1018,9 +1018,12 @@ What each panel must show. How it draws it is the code's.
   because the run directory holds no saved state; it starts only on a Start on
   the viewer's control endpoint, which the page's Start button sends, or the
   --start flag". The line, without the `Run: ` it is printed with, is in the
-  reason of its first control record, after `viewer initialized; `, which the
-  page shows in the hover text of the state word (UX-21), under `--start` as
-  well, so the page never shows the run stopped at start-up without it. The
+  reason of the first control record it publishes, after `viewer initialized; `,
+  under `--start` as well. The page shows the reason of the control record
+  that is current when it connects, in the hover text of the state word
+  (UX-21): a page that connects while that first record is current shows the
+  line, and one that connects after a later transition has published its
+  record shows that transition's reason. The
   viewer also prints it on its standard output, at most once in a launch: for
   a file whose running intent was set aside the line is printed and flushed
   after the listener is bound and before the stopped state is published, under
