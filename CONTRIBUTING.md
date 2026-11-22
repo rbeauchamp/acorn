@@ -115,10 +115,11 @@ pull request's exact head commit, the checks GitHub registers on that head
 included, the run's reviewer read the change and the run's review ended with
 no finding open that blocks under
 [three rounds of review](#three-rounds-of-review), and the run's reviewer
-belongs to another model family than every model that did, fixed or advised on
-the work, the run's own fixers included. A run that pushed the head but whose
-checks on GitHub failed or have not finished has not passed. What the run's
-review covers of the pull request's title and description is as
+meets the rule of no same-family self-review that the single-maintainer
+interim provision below states, the run's own fixers counted among the models
+that fixed the work. A run that pushed the head but whose checks on GitHub
+failed or have not finished has not passed. What the run's review covers of
+the pull request's title and description is as
 [the validation pipeline's review](#the-validation-pipelines-review) says. Who
 wrote the pull request is no part of this condition.
 
@@ -355,13 +356,11 @@ is open.
 
 ### The validation pipeline's review
 
-A pull request that claims no result and passed the maintainers' validation
-pipeline has that pipeline's review as the review this protocol requires, and
-no short review or referee is assigned to it. The review is what the
-pipeline's reviewer found in every round of the run that reached its
-successful final outcome for the head commit: each finding with its place, its
-reason and what was done about it, and the outcome of that run. It counts as
-the protocol's review when all of the following hold:
+The validation pipeline's review is what the pipeline's reviewer found in
+every round of the run that reached its successful final outcome for the head
+commit: each finding with its place, its reason and what was done about it,
+and the outcome of that run. It counts as the protocol's review when all of
+the following hold:
 
 - an assignment comment is written on the pull request recording the owner's
   standing designation of the validation pipeline's configured reviewer, that
@@ -369,9 +368,12 @@ the protocol's review when all of the following hold:
   model family and the exact head commit;
 - the review is posted on the pull request, unedited except for any redaction
   required by the security-vulnerability rule above;
-- the reviewer took no part in writing or fixing the change and belongs to a
-  different model family than every model that authored, fixed or advised on
-  the work, the run's own fixers included.
+- the reviewer meets the rule of no same-family self-review that the
+  single-maintainer interim provision above states: it took no part in
+  writing or fixing the change, did not review it or advise on it for its
+  author, and belongs to a different model family than every model that
+  authored, fixed or advised on the work, the run's own fixers included;
+  reviews it gave as the validation pipeline's reviewer do not disqualify it.
 
 The review counts only for the head commit, title and description that its
 reviewer read. Where the pull request's title and description were drafted or
@@ -388,10 +390,13 @@ validation pipeline reached its successful final outcome for that exact head
 commit, the checks GitHub registers on that head included; when the review,
 with any such reading, covers the title and description as they stand and
 leaves no finding open that blocks under
-[three rounds of review](#three-rounds-of-review); and when the review and its
-assignment comment are posted. A finding that discloses a security
-vulnerability is reported, answered and ruled on by the private route, as for
-a referee's report, and the review is not clean while it is open.
+[three rounds of review](#three-rounds-of-review); when every finding raised
+in an earlier run or round of review whose failure would be serious or hard
+to undo, or that has been observed, is closed or shown not to apply to that
+head; and when the review and its assignment comment are posted. A finding
+that discloses a security vulnerability is reported, answered and ruled on by
+the private route, as for a referee's report, and the review is not clean
+while it is open.
 
 ### Three rounds of review
 
@@ -410,10 +415,14 @@ revise that rests only on such findings does not keep a review from being
 clean. After the third round no further full review is made: the reviewer
 reads the pull request again only to check a change that closes a finding
 that still blocks, or to cover a changed head, title, description or claim,
-and such a reading raises only findings that block. Where the author and the
-reviewer disagree whether a finding blocks under this rule, the maintainers
-rule on it in writing on the pull request, or by the private route for a
-finding that discloses a security vulnerability.
+and such a reading raises only findings that block. Whatever the route, a
+pull request merges only once every finding raised in any run or round of
+review on it or on its change, whose failure would be serious or hard to
+undo, or that has been observed, is closed or shown not to apply to the head
+that merges. Where the author and the reviewer disagree whether a finding
+blocks under this rule, the maintainers rule on it in writing on the pull
+request, or by the private route for a finding that discloses a security
+vulnerability.
 
 ### When work is complete
 

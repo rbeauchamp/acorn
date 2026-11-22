@@ -7,9 +7,13 @@ description: Review Acorn diffs and PRs against proofs, typed invariants, and co
 
 Use this standard for Acorn reviews. When `pr-review-toolkit` loads it as a
 scoring standard, apply these criteria inside that workflow; do not launch a
-second review or simplification cycle. A referee or a reviewer
-assigned under the review protocol uses it as
-[referee's review](#referees-review) below says.
+second review or simplification cycle. A referee, or a reviewer assigned
+under the review protocol to give a short review, uses it as
+[referee's review](#referees-review) below says. The validation pipeline's
+reviewer, its standalone reading of a title and description included, gives
+the review that [the validation pipeline's
+review](../../../CONTRIBUTING.md#the-validation-pipelines-review) describes,
+not a referee's report or a short review.
 
 ## Scoring and relevant context
 
@@ -77,9 +81,10 @@ and is kept there: post it there, except for a pull request that claims a
 discovery, where each of the two referees files its report with the
 maintainers, who post both once they hold both.
 
-A reviewer assigned to an ordinary change gives the protocol's short review
-with the same standard. Read the change at its head commit, adversarially,
-against what its description says and against `AGENTS.md`, asking the
+A reviewer assigned to an ordinary change that did not pass the maintainers'
+validation pipeline gives the protocol's short review with the same standard.
+Read the change at its head commit, adversarially, against what its
+description says and against `AGENTS.md`, asking the
 protocol's three things: does the change do what it says and nothing else,
 does it leave Acorn's tracked text true, does it call for the referee's
 review. File one comment with the head commit read; a line for each of the
