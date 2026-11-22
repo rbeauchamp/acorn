@@ -65,12 +65,13 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   throughout, with a comparator that is not an ablation of it, so even a win
   would not separate learning from authored behavioural structure such as
   exploration duration (U6), or from what persists differently in the two
-  worlds, where the arms end each cycle in different places and with
-  different inventories (U7). Neither observation shows that the agent cannot
-  learn; whether it does better than that policy on goals it does achieve, or
-  over a longer horizon, has not been measured, and what its executed update
-  does on a stated model is a mathematical question that stays open. Both
-  runs were measured before
+  worlds, since each arm carries its own position and inventory into the next
+  cycle and these can differ (U7). Neither observation shows that the agent
+  cannot learn. Whether it learns on goals it does achieve, or over a longer
+  horizon, these comparisons do not settle: U7's per-goal counts are
+  exploratory and cannot say what learning caused, and what its executed
+  update does on a stated model is a mathematical question that stays open.
+  Both runs were measured before
   [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature,
   cue and terrain hashes; they describe the code before that change, and the
   current code has not been run on their protocol.
@@ -545,12 +546,12 @@ F-E left its feature-construction end inert until U3.
   [U6](#conformance-sequence) (goals achieved in one pass) and
   [U7](#conformance-sequence) (the shortening of reach attempts over four
   cycles), each refuted at its horizon. Under its proof-first policy so few
-  observations are deliberate. Whether the agent does better than that policy
-  on goals it does achieve, or over a horizon longer than U7's four cycles, has
-  not been measured. What its learning caused is a claim those measurements
-  cannot settle, since the comparator is not an ablation of the agent, and what
-  its executed update does on a stated model is a mathematical question that
-  stays open.
+  observations are deliberate. Whether the agent learns on goals it does
+  achieve, or over a horizon longer than U7's four cycles, these comparisons do
+  not settle: U7's per-goal counts are exploratory, and since the comparator is
+  not an ablation of the agent no such comparison can say what learning caused;
+  what its executed update does on a stated model is a mathematical question
+  that stays open.
 
 Going by the published designs, the agent they describe differs from Acorn at the
 model and planning links; U3 and U4 brought the feature-testing and
@@ -595,13 +596,14 @@ agent achieved at least one more goal than the comparator on 4 (W), fewer on 9
 and the same number on 7, with none missing (M = 0); the exact 95% interval for
 the fraction of seeds that are wins is 0.057 to 0.437. The result does not show
 that the agent does worse than chance in most worlds: the interval for the
-fraction of losses, 0.230 to 0.685, contains 1/2. Whether the agent learns over
-repeated visits to a goal stays UNKNOWN under that protocol, because a
-comparison over several cycles needs a comparator that follows the same
-campaign in one persistent world.
+fraction of losses, 0.230 to 0.685, contains 1/2. U6's one pass cannot measure
+repeated visits to a goal, because a comparison over several cycles needs a
+comparator that follows the same campaign in one persistent world.
 
-U7's [protocol](studies/repeated-visits-vs-chance/protocol.md) asks that
-question. The comparator now follows the agent's whole campaign: the same
+U7's [protocol](studies/repeated-visits-vs-chance/protocol.md) asks whether,
+over repeated visits to the same two targets, the agent's attempts to reach
+them get shorter, and by more than those of that policy. The comparator now
+follows the agent's whole campaign: the same
 admitted plan and attempt-boundary function, in a second copy of the initial
 world carried from attempt to attempt
 ([outcome CSV](design.md#outcome-csv)). Because inventory and tools persist, an
@@ -644,9 +646,9 @@ is a comparison with one named policy, not evidence about need. The results
 record also discloses a second generator-only evaluation at the study's
 seeds, made by the validation of
 [#74](https://github.com/rbeauchamp/acorn/pull/74) after registration, which
-ran no agent or comparator on them. Whether the agent does better than chance
-on goals it does achieve, or over a longer horizon, stays UNKNOWN, and what its
-learning caused is a claim such a comparison cannot settle.
+ran no agent or comparator on them. Whether the agent learns on goals it does
+achieve, or over a longer horizon, this comparison does not settle: its
+per-goal counts are exploratory and cannot say what learning caused.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
@@ -884,10 +886,10 @@ improves decisions.
     supply one.
   - Uniform hashing for the roughly 1,300 active features.
   - Faithful transcription of the paper equations recorded in earlier reviews.
-- **UNKNOWN.** Whether the agent does better than a uniform-random policy on
-  goals it does achieve, or over a horizon longer than U7's four cycles; how
-  often refreshes occur and units leave the ranking; option and model
-  quality; the benefit of
+- **UNKNOWN.** Whether the agent learns on goals it does achieve, or over a
+  horizon longer than U7's four cycles, which the two comparisons do not
+  settle; how often refreshes occur and units leave the ranking; option and
+  model quality; the benefit of
   planning; the benefit of any of U1 to U5; how often a frame's behaviour has the
   distribution of an option that is not executing. Each depends on the
   experience stream, so no derivation from the definitions can settle it.
