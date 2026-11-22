@@ -2066,7 +2066,10 @@ What these theorems do not establish:
   [Each attempt a campaign boundary ran](#attempts-of-a-campaign-in-the-kernel) and a
   [run of visits](#runs-of-visits-in-the-host) have that composition. The campaign-wide
   requirement is [obligation 2](mission-contract.md#open-obligations), the campaign join.
-- **Whether the composition learns.** That stays empirical.
+- **Whether the composition learns.** What its executed update does on a stated
+  model is a mathematical question that stays open. How the agent does in a
+  world it is meant for is known only from measured runs of the verified agent
+  there, and a comparison of such runs does not say what its learning caused.
 
 ## Implementation scope
 
