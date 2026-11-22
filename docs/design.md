@@ -287,17 +287,17 @@ and returns no agent, in every order.
 ### The generator's words at a greedy decision
 
 One action generator serves both exploration and the choice among tied actions
-([definitions](../lean/Acorn/Policy.lean)). The *candidates* of a frozen policy are
-the actions whose values are within the tie window of the largest
+([definitions](../lean/Acorn/Policy.lean)). The *candidates* of a frozen policy are the
+actions whose values are within the tie window of the largest
 (`PolicySnapshot.candidates`). A greedy draw runs the ordered size-one reservoir over
-the candidates, which reads one word for each of them and picks among them
-(`reservoir`). It then draws one more word for each action that is not a candidate, a
-bounded draw that selects nothing, and keeps the reservoir's pick. So every greedy
-decision draws exactly as many words as there are actions, nine on the grid: the
-generator it leaves is the generator stepped once for each action, whatever the values
-(`PolicySnapshot.greedy_rng`). The action is the reservoir's pick over the candidates,
-read from the first of those words (`PolicySnapshot.greedy_action`); the words after
-the candidates' do not enter it.
+the candidates, which reads one word for each of them and picks one of them, or the
+first action when there is none (`reservoir`, `reservoir_nonempty`). It then draws one
+more word for each action that is not a candidate, a bounded draw that selects nothing,
+and keeps the reservoir's pick. So every greedy decision draws exactly as many words as
+there are actions, nine on the grid: the generator it leaves is the generator stepped
+once for each action, whatever the values (`PolicySnapshot.greedy_rng`). The action is
+the reservoir's pick over the candidates, read from the first of those words
+(`PolicySnapshot.greedy_action`); the words after the candidates' do not enter it.
 
 The count is fixed because how many actions tie follows the values, and anything that
 changes the values (a learned state mechanism, a schedule, a rule) would otherwise move
@@ -311,13 +311,13 @@ policies with one exploration rate, from one generator
 make (`PolicySnapshot.draw_rate`). Each draw takes its flag from its branch word and,
 when it does not explore, takes as its action the reservoir's pick over the candidates
 (`PolicySnapshot.drawPersistent_decision`, `PolicySnapshot.draw_decision`); the
-discarded words enter neither. When every
-action is a candidate no word is discarded, and the greedy draw is the reservoir over
-every action (`PolicySnapshot.greedy_full`, `PolicySnapshot.drawPersistent_full`,
-`PolicySnapshot.draw_full`). That is the case of a controller at rest, whose values are
-all zero words, so the explorer's decisions before a first reward read one word for
-each action through the reservoir (`Explorer.step_eq`), and the theorems on its actions
-(`cold_actions`, `quiet_actions`, `rung_finds`) rest on that reading.
+discarded words enter neither. When every action is a candidate no word is discarded,
+and the greedy draw is the reservoir over every action (`PolicySnapshot.greedy_full`,
+`PolicySnapshot.drawPersistent_full`, `PolicySnapshot.draw_full`). That is the case of
+a controller at rest, whose values are all zero words, so the explorer's decisions
+before a first reward read one word for each action through the reservoir
+(`Explorer.step_eq`), and the theorems on its actions (`cold_actions`, `quiet_actions`,
+`rung_finds`) rest on that reading.
 
 A word drawn and discarded is charged as one reservoir step (`reservoirDraw`): its
 operations, a bounded draw and the pick kept, are those a reservoir step names, and the
