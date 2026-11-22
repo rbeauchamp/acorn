@@ -7,6 +7,8 @@
 /lean/AcornTools.lean @rbeauchamp
 /lean/Bootstrap.lean @rbeauchamp
 /lean/os/ @rbeauchamp
+/.no-comments.json @rbeauchamp
+/lean/no-comments.pin @rbeauchamp
 /.github/ @rbeauchamp
 
 # Statements that missions are to prove, held as Lean definitions of type Prop (targets),

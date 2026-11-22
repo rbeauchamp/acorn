@@ -92,6 +92,7 @@ def externalSymbols : List String := [
   "cargo",
   "pdftotext",
   "ACORN_REGISTRATION_TRUST",
+  "ACORN_BASE_REF",
   "warningAsError",
   "autoImplicit",
   "lintDriverArgs",
