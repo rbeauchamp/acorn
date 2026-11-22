@@ -37,8 +37,9 @@ the [pull request template](.github/pull_request_template.md). Run
 material limits. The merge gate,
 `./scripts/gate.sh`, which the no-mistakes pipeline runs before a pull request
 opens, also requires the [Regula audit](docs/verification.md#regula-audit),
-lean-intent's confirmation and implementation checks of Acorn's intent records, and
-the check that the declarations a pinned target reads are unchanged. When a pull
+lean-intent's confirmation and implementation checks of Acorn's intent records,
+the check that the declarations a pinned target reads are unchanged, and the
+pinned `no-comments` ratchet check. When a pull
 request is opened or reopened, at every push to it, and when its base branch
 changes, from a branch of the
 repository or of a fork, GitHub runs the gate on its head commit and shows the
@@ -471,9 +472,7 @@ check refusing noncomputable in executing modules).
   mission does not touch a path it names unless its contract explicitly
   requires it.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
-  (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
-  `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
-  audit `./scripts/regula.sh`), keep the sections of the
+  ([merge gate](docs/verification.md#build-and-source-inventory)), keep the sections of the
   [pull request template](.github/pull_request_template.md), name its mission
   with `Closes #<id>.` in the description, and paste the output of
   `./scripts/gate.sh` from the exact pull request head.

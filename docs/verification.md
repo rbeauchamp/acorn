@@ -500,8 +500,8 @@ Primitive IEEE interpretation remains a native assumption.
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
 validates, in a checkout that holds only tracked files. GitHub runs the same
-script at each event that gives a pull request its head, within the limits
-described after the frame check below. The gate provisions the pinned dependencies,
+script at each event that gives a pull request its head or changes its base
+branch, within the limits described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
 360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
 sources as the complete command does, then selects every module outside the proof
@@ -616,11 +616,12 @@ has merged its pin file. The digest detects a change; it is no evidence of what 
 declaration means. The dependencies' declarations are not pinned here: Lake's
 manifest pins their commits.
 
-The pipeline stores the provisioned dependency checkouts and their build outputs
-once for each default-branch commit a run starts from, and gives a run a private
-copy only while the run's toolchain and lock files equal that commit's; Lake
-rebuilds whatever its traces do not show current. Acorn's own outputs are never
-carried from one run to another.
+The pipeline stores the provisioned dependency checkouts, their build outputs
+and the pinned `no-comments` binary once for each default-branch commit a run
+starts from, and gives a run a private copy only while the run's toolchain,
+lock and `no-comments` pin files equal that commit's; Lake rebuilds whatever
+its traces do not show current. Acorn's own outputs are never carried from one
+run to another.
 
 GitHub runs the gate through the
 [verification workflow](../.github/workflows/verify.yml): when a pull request is

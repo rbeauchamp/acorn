@@ -60,8 +60,9 @@ code, ownership/gate updates, persistence compatibility and documentation of
 changed semantics. Consider skill or gate updates only when a concrete reusable
 gap requires one; do not mandate changes merely to populate a checklist. Point
 to the relevant canonical docs and shipped review skill instead of duplicating
-whole policies. Keep source comments about current meaning, and the PR/issue
-about the decision and verified result.
+whole policies. Record current meaning and decision rationale in repository
+documentation rather than Lean source comments (see `AGENTS.md`), and keep the
+PR/issue about the decision and verified result.
 
 State what the resulting proofs/checks will not establish. An irreducibly
 empirical quantity stays UNKNOWN with an explanation of why deduction cannot
