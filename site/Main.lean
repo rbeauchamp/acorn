@@ -39,7 +39,7 @@ def markdown (write : Bool) : IO Bool := do
       if write then
         IO.FS.writeFile path text
       else if (← IO.FS.readFile path) != text then
-        IO.eprintln s!"site: {kept} differs from the rendering of {source}; run ./scripts/verify.sh site write"
+        IO.eprintln s!"site: {kept} differs from the rendering of {source}; ./scripts/verify.sh site write writes the rendering"
         current := false
   return current
 

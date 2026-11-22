@@ -355,7 +355,7 @@
     <p>The marker in the center is your agent. The Current goal card above the map says what it is trying to do. For travel goals, look for the gold target or direction arrow.</p>
     <p>Agent lifetime counts total experience. Current world counts steps since the world restarted. Resume restores saved experience and starts a new world clock.</p>
   </div>
-  <p>Watch for a while. <b>Stop</b> finishes the current attempt; <b>Start</b> resumes saved learning when available.
+  <p>Watch for a while. If the run is stopped, <b>Start</b> begins it and resumes saved learning when available; <b>Stop</b> finishes the current attempt.
     <a href="#research">Explore what's happening inside ↓</a></p>
 </section>
 
@@ -2748,20 +2748,20 @@ function drawStreamHealth() {
     notes.push(`⚠ the core sent a value outside its schema`);
     why.push(`${frames(bad.frames)} refused: ${keyList(bad.keys)} present but not ` +
              `holding the value the schema promises. The emitter or the transport ` +
-             `is wrong; rebuilding will not fix it. Keep the run and check the ` +
-             `stream with \`acorn demo --telemetry\`.`);
+             `is wrong; rebuilding will not fix it. Keep the run; the place to ` +
+             `look is the stream the core emits.`);
   }
   if (pageErrors) {
     notes.push(`⚠ the page failed on ${frames(pageErrors)} — a viewer defect`);
     why.push(`${frames(pageErrors)} made the page's own intake throw (last: ${pageErrorLast}). ` +
-             `The frames were valid; the page is what failed. Restart the viewer and report ` +
-             `the browser console's error.`);
+             `The frames were valid; the page is what failed. Report the browser ` +
+             `console's error.`);
   }
   if (controlRefused) {
     notes.push(`⚠ the viewer server sent a control frame this page cannot read`);
     why.push(`${frames(controlRefused)} from the control channel refused. The page ` +
              `and the server are one binary, so this is a viewer defect — not a ` +
-             `build skew and not a core fault. Restart the viewer.`);
+             `build skew and not a core fault. Report it.`);
   }
   if (A.nonFinite) {
     // Not a tooling problem: the core computed NaN or +/-inf. The page names
@@ -2770,8 +2770,9 @@ function drawStreamHealth() {
     why.push(`${fmt(A.nonFinite)} frame${A.nonFinite === 1 ? "" : "s"} carried ` +
              `NaN or ±inf. Weights and step sizes are bounded by construction, ` +
              `so a non-finite learner value would point at a quantity the projections do not cover ` +
-             `and would be worth investigating as a divergence. Keep the run, note the world time, ` +
-             `and check it with: acorn demo --telemetry`);
+             `and would be worth investigating as a divergence. Keep the run and note the world ` +
+             `time; the frame holds a null marker at that field, which gives the field and the ` +
+             `frame but not whether the value was NaN, +inf or −inf.`);
   }
   const el = $("s_broken");
   el.textContent = notes.join(" · ");
@@ -3010,7 +3011,7 @@ function applyControlState(f) {
     nosave.title = f.reason;
     nosave.className = "pill reset";
   } else if (f.checkpointRefused) {
-    nosave.textContent = "⚠ not saving — press Clear to start a fresh run";
+    nosave.textContent = "⚠ not saving — where Clear is available, it archives this run and prepares a fresh one";
     nosave.title = "the core refused its checkpoint and disabled writing for this run";
     nosave.className = "pill reset";
   }

@@ -38,25 +38,25 @@ after it is not. The
 [mission contract](docs/mission-contract.md) states what Acorn promises to prove
 about its agent, the decisions behind it and the sources for each.
 
-On 2026-11-03 the owner of the project stated this intent for Acorn: its
-architecture and mission are driven by the research of Rich Sutton, Khurram
-Javed and Oak Lab, and by the OaK architecture, so what each contract in the
-mission contract requires is what that research indicates. On the same day the
-owner confirmed plain restatements of its four contracts: the agent's interface
-with a world, what makes a class of worlds big, the invariants of learning from
-one stream, and what achieving goals promises. The mission contract
-[records the confirmation](docs/mission-contract.md#the-owners-confirmation-of-2026-11-03),
-with a citation of that research for each sentence that rests on it.
+Acorn's architecture and mission are driven by the research of Rich Sutton,
+Khurram Javed and Oak Lab, and by the OaK architecture, with the aim that what
+each contract in the mission contract requires is what that research indicates.
+The mission contract's
+[four contracts](docs/mission-contract.md#the-mission-contract) are the agent's
+interface with a world, what makes a class of worlds big, the invariants of
+learning from one stream, and what achieving goals promises. Each opens with a
+plain restatement in numbered sentences. Labels on the restatements say where
+each requirement comes from, with a citation of that research for each sentence
+that rests on it. The contract also lists its departures from that research.
 
-On 2026-11-19 the owner stated what the word discover in that mission means for
-Acorn's own work. A discovery is an algorithm nobody has published. Implementing
-a published algorithm, however well it is adapted and however completely it is
-proved, is prior-art work, and much of Acorn so far is that: it is never called
-a discovery or counted as one. Between the two lies a range with no bright
-line, and where a piece of work sits in it is judged by its extent, with the
-reasons written down.
+For Acorn's own work, the word discover in that mission means this: a discovery
+is an algorithm nobody has published. Implementing a published algorithm,
+however well it is adapted and however completely it is proved, is prior-art
+work, and much of Acorn so far is that: it is never called a discovery or
+counted as one. Between the two lies a range with no bright line, and where a
+piece of work sits in it is judged by its extent, with the reasons written down.
 [Prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery) is
-the full statement, in the maintaining agents' wording of what the owner stated.
+the full statement.
 
 The OaK architecture is an overall design for an agent, which Rich Sutton
 presented at the 2025 Reinforcement Learning Conference in
@@ -83,7 +83,7 @@ ones are made. The talk presents this as a vision not yet fully specified: it
 needs reliable continual learning in deep networks and a method for generating
 new features, and Sutton treats both as unsolved.
 
-The owner of the project has chosen two kinds of worlds:
+Acorn's chosen worlds are of two kinds:
 
 - [ARC-AGI-3](https://docs.arcprize.org/) games, interactive games the agent
   learns by playing;
@@ -92,8 +92,23 @@ The owner of the project has chosen two kinds of worlds:
   ([Pollen Robotics](https://pollen-robotics.com/microduck/),
   [design](docs/design.md#an-embodied-world-the-microduck)).
 
-The tile world the viewer shows was chosen by an agent working on Acorn, not by
-the owner. It has no standing beyond being the first world built.
+The tile world the viewer shows is not one of them. It has no standing beyond
+being the first world built.
+
+Two questions are asked of Acorn's agent, and each has its own evidence.
+Whether the agent is built right is settled while it is developed, by
+mathematics: a change is accepted by a proof about the code that runs and by
+review, and no run of the agent, unit test or score stands in for either.
+Whether it is the right agent, one that achieves goals in the world it is
+meant for, is settled only by measured runs of a verified agent in that world,
+which for Acorn means the two kinds of worlds above, ARC-AGI-3 games and the
+Microduck. A theorem covers only the worlds of the class it states, so it does
+not say how the agent does in any other world. Those measurements are the final
+indicator of whether it is the right agent, and a running, live agent is what
+Acorn is for. A measured run follows the rules of
+[scientific evidence](CONTRIBUTING.md#scientific-evidence), with its protocol
+fixed before its observations, and like every run it falls under the owner's
+rule on runs ([running a program](CONTRIBUTING.md#running-a-program)).
 
 Choosing and shaping worlds well needs a model of what a big world is. The mission
 contract states the conditions that make a class of worlds concealed, that make
@@ -121,7 +136,12 @@ run, as the paragraph after the command says. From your Acorn checkout, run:
 ```
 
 The launcher prepares the dependencies, builds Acorn, starts or resumes the
-agent, and opens your browser. It runs continuously until you stop it. No
+agent, and opens your browser. The viewer itself starts the agent only on an
+explicit request. The launcher passes one, the viewer's `--start` flag, and a
+direct start of the viewer can pass it too. Started without it, on a run that
+no earlier Start left running for the same agent program, the viewer shows
+the run stopped until a Start reaches its control endpoint, which the page's
+Start button sends. It runs continuously until you stop it. No
 configuration is required. The first launch needs internet access and may
 require system installation prompts; subsequent launches reuse installed
 dependencies and unchanged build outputs. Automatic setup supports macOS and
@@ -169,7 +189,8 @@ predictions as the run develops.
 - **Ctrl-C** in the launcher's terminal finishes the current attempt and closes
   the viewer after shutdown. Wait for the command to return.
 - Run **`./scripts/start.sh` again** to reopen the viewer and resume; in work on
-  a change, that launch needs the owner's authorization like the first.
+  a change, the conditions for that launch are those of the first
+  ([running a program](CONTRIBUTING.md#running-a-program)).
 - **Clear** archives the run and prepares a fresh agent. If stopped, it stays
   stopped until you choose Start.
 
@@ -201,7 +222,7 @@ Lean is both the implementation language and the proof assistant. Follow the
 You can read the design without installing Lean.
 
 - **New to OaK?** Start with [Oak Lab's mission](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission)
-  (the page as archived; Oak Lab has since withdrawn it), then
+  (the page as archived; Oak Lab no longer publishes it), then
   Acorn's [learning loop and terminology](docs/design.md#the-learning-loop).
 - **Assessing the implementation?** Read the [scope map](docs/design.md#implementation-scope),
   then follow [mechanism owners](docs/design.md#mechanism-owners) to the source

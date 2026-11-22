@@ -1,6 +1,6 @@
 # Missions
 
-Acorn is a Lean project working to prove that a learning agent, written as running code, achieves goals over a formally stated class of big worlds ([mission contract](mission-contract.md)).
+Acorn is a Lean project working to prove that a learning agent, written as running code, achieves goals over a formally stated class of big worlds ([mission contract](mission-contract.md)), on the way to a running, live agent that achieves goals in the worlds it is meant for.
 A *mission* is one self-contained piece of that work, posted as a GitHub issue labelled mission.
 Its *contract* is the exact statement to establish, usually a Lean theorem about a definition that runs.
 A *target* is the statement of such a theorem, held in the repository as a Lean definition, in the directory `lean/AcornVerif/Targets/`. Every build has Lean read each target against the current code, so a statement cannot stop making sense unnoticed; the build does not prove it. A change to a target is the owner's to make: `.github/CODEOWNERS` names the directory, so GitHub asks the owner to review any pull request that changes it, and only the owner merges. A mission establishes its statements by proving each of its targets.
@@ -29,7 +29,7 @@ There is no payment, no trust level and no promise that a mission will suit your
 
 | What you spend | What to expect |
 |---|---|
-| Machine | macOS or Ubuntu/Debian Linux, with about 13 GiB of disk and 12 GiB of memory to spare. Observed once, on 2026-10-30, on a 14-core Mac with Lean already installed: a fresh clone's first gate run took 16 minutes (6.5 of them fetching and building dependencies) and left 10 GiB in the clone; Lean adds 2.8 GiB. Memory peaked at 11.3 GiB when measured on 2026-10-28. Later runs reuse what the first one built. A smaller machine may take longer, and nobody has measured one. |
+| Machine | macOS on Apple silicon (arm64) or Ubuntu/Debian Linux on x86-64, with about 13 GiB of disk and 12 GiB of memory to spare. Observed once, on 2026-10-30, on a 14-core Mac with Lean already installed: a fresh clone's first gate run took 16 minutes (6.5 of them fetching and building dependencies) and left 10 GiB in the clone; Lean adds 2.8 GiB. Memory peaked at 11.3 GiB when measured on 2026-10-28. The serial `no-comments` check added later took ~491 s on macOS arm64. Later runs reuse what the first one built. A smaller machine may take longer, and nobody has measured one. |
 | Agent time and tokens | Unknown in advance: nobody has measured a mission. A contract may also turn out hard or false; say so on the issue, and that finding is useful, but it earns no credit on the board. |
 | A race | Several people may work on one mission at once, and the first pull request that keeps the contract, passes the gate and passes the referee's review merges. A claim reserves nothing exclusively. Step 2 below checks who is already working. |
 | Waiting | The target for a first response to a gate-passing pull request is seven days, with no date promised for the referee's report or the merge. The work is complete when the review protocol says so, not when your agent does. Outside pull requests merge only on the owner's word ([triage and response](../CONTRIBUTING.md#triage-and-response)). |
@@ -107,7 +107,7 @@ cd acorn
 ./scripts/start.sh --prepare-only
 ```
 
-The last command installs what is missing through Homebrew or apt-get and builds Acorn; it may stop for a package-manager password or the macOS command-line tools dialog, which the person directing you must answer. With the tools already installed you can skip that command. The tools are: on macOS the command-line tools, elan, shellcheck, coreutils and openssl@3 from Homebrew; on Ubuntu/Debian build-essential, curl, git, libgmp-dev, openssl, shellcheck, coreutils and [elan](https://github.com/leanprover/elan). The gate fetches and builds the pinned Lean, Mathlib and other dependencies itself.
+The last command installs what is missing through Homebrew or apt-get and builds Acorn; it may stop for a package-manager password or the macOS command-line tools dialog, which the person directing you must answer. With the tools already installed you can skip that command. The tools are: on Apple silicon macOS the command-line tools, elan, shellcheck, coreutils and openssl@3 from Homebrew; on x86-64 Ubuntu/Debian build-essential, curl, git, libgmp-dev, openssl, shellcheck, coreutils and [elan](https://github.com/leanprover/elan). The gate fetches and builds the pinned Lean, Mathlib and other dependencies itself.
 
 Read [AGENTS](../AGENTS.md), the repository's rules for proofs and code, and [Contributing](../CONTRIBUTING.md#missions-for-outside-contributors-and-agents). In brief: a theorem must concern the definition that runs, and no custom axiom, sorry or unsafe definition may enter. Stepping Acorn's agent or one of its learners to see what it does is a run by whatever means, evaluation inside Lean and a copy in another language included; a run needs the owner's authorization first, and step 8 has you list every computation you made on the agent ([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)).
 
@@ -156,7 +156,7 @@ It has passed only when its last line begins `gate: every merge check passed`. A
 
 ### Step 7: commit
 
-Sign your commits with an SSH or GPG key registered with GitHub: the main branch requires verified signatures, and GitHub can refuse to merge a pull request whose commits it cannot verify. Keep the license notice in every file you change.
+Sign your commits with an SSH or GPG key registered with GitHub: the main branch requires verified signatures, and GitHub can refuse to merge a pull request whose commits it cannot verify. Keep [LICENSE](../LICENSE) as Acorn's copyright and license notice; do not add per-file MIT headers or comments to scoped Lean files under the `no-comments` policy (record citations and decision rationale in the documentation destinations given in [AGENTS](../AGENTS.md#learned-only-and-research-admission) and [review and delivery](../AGENTS.md#review-and-delivery)), and preserve existing non-Lean license notices.
 
 ### Step 8: open the pull request
 
@@ -184,7 +184,7 @@ A mission's pull request is accepted when:
 - a referee assigned by the maintainers has filed a clean report on that head, as the [review protocol](../CONTRIBUTING.md#review-protocol) states, and each of two referees has where the pull request claims a discovery;
 - the owner, who alone merges, has run the gate on that head and reviewed it, with a blind read-back of any specification the pull request adds or edits.
 
-A run of the agent in its worlds is a demonstration and decides nothing, and so is any score. [Contributing](../CONTRIBUTING.md#missions-for-outside-contributors-and-agents) says why.
+No run of the agent in its worlds, and no score, decides whether a pull request is accepted. Only measured runs of a verified agent answer a separate question: whether it achieves goals in the world it is meant for. [Contributing](../CONTRIBUTING.md#missions-for-outside-contributors-and-agents) says why the two questions are kept apart and what such a run needs.
 
 ## What the board counts
 
@@ -194,7 +194,7 @@ A run of the agent in its worlds is a demonstration and decides nothing, and so 
 - A mission has landed when GitHub records it as closed because it was completed and records a merged pull request as having closed it, that pull request merged into the default branch at the hand of the repository's owner, and its squash commit's message holds the gate's last line. GitHub records that close in one of two ways, and the board reads both: the issue's last closing event names the pull request, or it names a commit, and that commit is the squash commit of one merged pull request, and of no other, among those GitHub associates with it (`squashedBy_iff`). A close by any other commit, by a project or by hand is no pull request's. Lean theorems prove that every mission the board counts for anyone meets this condition, and that every closed mission meeting it is recorded as landed and counted for each holder its record names ([the board's proofs](../lean/AcornVerif/MissionBoard.lean)). They do not prove that the gate ran: GitHub keeps no record of a local run, so that rests on the owner's merge rule. Nor do they read a referee's report: that each was clean before the merge rests on the same rule.
 - The account is the one GitHub records as having opened the pull request. The agent is what the `Agent:` line of the squash commit says; a commit on the main branch does not change when a pull request's description is edited later. The name is what the author declared, and the owner saw it at merge.
 - A target is listed as proved when the record of proved targets (`AcornVerif.landings`) holds an entry for it, in the checkout the board was generated from. Lean theorems prove that such a target is one the registry holds, with a statement that the entry's proof establishes, and that every entry of the record is listed (`targetRowsOf_proved`, `targetRowsOf_shown`). Credit does not read this list: it follows the rule for a landed mission above.
-- A claim, a comment, an open pull request, a run or a score counts for nothing, and a closed mission that has not landed is listed apart with its reason.
+- On the board, a claim, a comment, an open pull request, a run or a score counts for nothing, and a closed mission that has not landed is listed apart with its reason.
 
 Missions are the only thing counted, not theorems, because the gate accepts a lemma of any size and a count of them would reward volume.
 

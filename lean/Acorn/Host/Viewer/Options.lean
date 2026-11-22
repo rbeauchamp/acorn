@@ -67,6 +67,8 @@ def LaunchMode.clearDisabled : LaunchMode → Option String
   | .ranked => none
   | .fixed _ => some "Clear unavailable: a fixed command owns its seed and checkpoint paths"
 
+def referenceLaunch : CoreLaunch := ⟨⟨0, 0, 0⟩, 0, .fresh⟩
+
 /-- The ordinary campaign's identity comes entirely from the durable supervisor.
 Arguments are a vector, so spaces in the owned checkpoint path need no shell quoting. -/
 def rankedArguments (checkpoint : Bool) (launch : CoreLaunch) (path : System.FilePath) : Array String :=
