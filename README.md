@@ -105,12 +105,10 @@ which for Acorn means the two kinds of worlds above, ARC-AGI-3 games and the
 Microduck. A theorem covers only the worlds of the class it states, so it does
 not say how the agent does in any other world. Those measurements are the final
 indicator of whether it is the right agent, and a running, live agent is what
-Acorn is for. On 2026-11-22 the owner confirmed this account of the two
-questions, given here in the maintaining agents' wording. A measured run
-follows the rules of [scientific evidence](CONTRIBUTING.md#scientific-evidence),
-with its protocol fixed before its observations, and like every run it falls
-under the owner's rule on runs
-([running a program](CONTRIBUTING.md#running-a-program)).
+Acorn is for. A measured run follows the rules of
+[scientific evidence](CONTRIBUTING.md#scientific-evidence), with its protocol
+fixed before its observations, and like every run it falls under the owner's
+rule on runs ([running a program](CONTRIBUTING.md#running-a-program)).
 
 Choosing and shaping worlds well needs a model of what a big world is. The mission
 contract states the conditions that make a class of worlds concealed, that make
