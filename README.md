@@ -113,7 +113,8 @@ the last two are
 
 ## Start with the live viewer
 
-From your Acorn checkout, run:
+In work on a change to Acorn, a launch needs the owner's authorization for that
+run, as the paragraph after the command says. From your Acorn checkout, run:
 
 ```sh
 ./scripts/start.sh
@@ -126,8 +127,16 @@ require system installation prompts; subsequent launches reuse installed
 dependencies and unchanged build outputs. Automatic setup supports macOS and
 Ubuntu/Debian Linux.
 
+Work on a change to Acorn launches it only on the owner's authorization for
+that run: [CONTRIBUTING](CONTRIBUTING.md#running-a-program) says where the
+invocations that such work may drive without it are listed, and a launch is not
+among them.
+
 <details>
 <summary>Need to get the code first?</summary>
+
+The same condition holds here: in work on a change to Acorn, a launch needs the
+owner's authorization for that run.
 
 ```sh
 git clone https://github.com/rbeauchamp/acorn.git
@@ -136,7 +145,8 @@ cd acorn
 ```
 
 You need Git to clone the repository. You can also download and unpack its
-source archive, then run the launcher from that directory.
+source archive, then run the launcher from that directory, under the same
+condition.
 
 </details>
 
@@ -158,7 +168,8 @@ predictions as the run develops.
 - **Start** resumes execution with compatible saved learner state.
 - **Ctrl-C** in the launcher's terminal finishes the current attempt and closes
   the viewer after shutdown. Wait for the command to return.
-- Run **`./scripts/start.sh` again** to reopen the viewer and resume.
+- Run **`./scripts/start.sh` again** to reopen the viewer and resume; in work on
+  a change, that launch needs the owner's authorization like the first.
 - **Clear** archives the run and prepares a fresh agent. If stopped, it stays
   stopped until you choose Start.
 

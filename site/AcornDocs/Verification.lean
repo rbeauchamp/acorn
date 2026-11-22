@@ -52,10 +52,15 @@ verification command remains required for documentation changes.
 tag := "platform-setup"
 %%%
 
+In work on a change a launch needs the owner's authorization for that run;
+[running a program](../CONTRIBUTING.md#running-a-program) says where the
+invocations that may be driven without it are listed.
 Use `./scripts/start.sh` for automatic setup and launch, or
 `./scripts/start.sh --prepare-only` to prepare and build without learning.
 It uses Homebrew on macOS and apt-get on Ubuntu/Debian. It installs missing
-prerequisites and provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
+prerequisites, which changes the machine's package manager state, so an agent
+runs it only where the person it works for has agreed to that, and it
+provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
 available. The bootstrap status that decides this builds nothing, writes only the
 launcher's own override file and asks Lake whether the FloatLib modules the proof
@@ -79,14 +84,16 @@ download fails that step. The workflow keeps no cache: each run provisions the
 dependencies from their pinned sources. Automatic local setup supports macOS and
 Ubuntu/Debian Linux.
 
-For manual setup, install macOS command-line tools and the packages below
+For manual setup, which changes the machine's package manager state and so is
+done by an agent only where the person it works for has agreed to it, install
+macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
 
 ```sh
 brew install coreutils shellcheck openssl@3 elan
 ```
 
-For Ubuntu, install:
+For Ubuntu, under the same condition, install:
 
 ```sh
 sudo apt-get update
@@ -120,11 +127,12 @@ manual builds need a usable OpenSSL on PATH.
 tag := "headless-and-advanced-launch"
 %%%
 
-`./scripts/start.sh --no-browser` prints the actual bound loopback URL.
+In work on a change a launch needs the owner's authorization, with or without a
+browser. `./scripts/start.sh --no-browser` prints the actual bound loopback URL.
 `--run-dir DIR` selects another run directory and `--port N` selects a port;
 the default port is allocated by the OS. Browser opening is optional and its
 failure does not stop the agent. Use `./scripts/start.sh --help` for the launcher
-options. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
+options. `--help` and `--prepare-only` stop before the launch. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
 
 ## Interrupted-launch recovery
 %%%
@@ -139,7 +147,9 @@ to displace an uncertain owner.
 Read `.acorn-launch/pid` and inspect that process and its viewer/core descendants.
 Only after confirming that no process still owns this run, remove the lock's
 temporary files (control, pid and installer.sh) and the
-empty `.acorn-launch/` directory, then rerun the launcher. Preserve `acorn-run/`.
+empty `.acorn-launch/` directory, then rerun the launcher with the options it
+was first given; in work on a change, a rerun that launches needs the owner's
+authorization as the first launch did. Preserve `acorn-run/`.
 Do not manually launch another viewer against a directory already in use.
 
 ## Build and verification failures
@@ -147,7 +157,8 @@ Do not manually launch another viewer against a directory already in use.
 tag := "build-and-verification-failures"
 %%%
 
-If a tool is missing, install the named prerequisite before retrying. On macOS,
+If a tool is missing, install the named prerequisite before retrying, under the
+condition on installing that [platform setup](#platform-setup) states. On macOS,
 check that `xcode-select -p` points to an installed, usable developer toolchain.
 If verification reaches its 360-second deadline, retain the failing command
 and diagnostic for a focused report; do not raise the limit or treat a partial
@@ -1144,6 +1155,9 @@ tag := "mutation-diagnostics"
 
 *Pinned digest: {spliceCode}`digest .declared`*
 
+In work on a change, the command below is run only on the owner's authorization
+for that run.
+
 ```spliced sh
 s!"lean/.lake/build/bin/{executable "acorn-core"} audit --expect {digest .declared}"
 ```
@@ -1162,8 +1176,10 @@ meta span there (PAR-8, D3);
 the declared-rate and differential pins also record the stable, sign-correct
 reward-respecting subtasks, assigned at every free decision boundary, and the
 declared-rate dynamics decision. The fixed audit arms
-are compared through these paired digests. Run these optional diagnostics
-when investigating a dynamics change.
+are compared through these paired digests. Run these optional diagnostics when
+investigating a dynamics change, and in work on a change only on the owner's
+authorization for that run: they are not on the closed list that
+[running a program](../CONTRIBUTING.md#running-a-program) points to.
 
 # Checkpoint admission
 %%%

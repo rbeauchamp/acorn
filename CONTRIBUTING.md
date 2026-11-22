@@ -369,7 +369,8 @@ single blind step (Liew, 2026,
 [arXiv:2605.25931](https://arxiv.org/abs/2605.25931)). Running the agent in its
 worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
 [Microduck](https://github.com/pollen-robotics/microduck)) still
-matters as a smoke test and demonstration, never acceptance evidence.
+matters as a smoke test and demonstration, never acceptance evidence, and each
+such run needs the owner's authorization ([running a program](#running-a-program)).
 
 Because the mission stated above asks for algorithms that are discovered and
 implemented, a mission's theorem is about an executable Acorn definition—the
@@ -677,6 +678,60 @@ authorization. Where none was made, it says so. No check can see an
 evaluation made on a contributor's machine, so this is a written rule and the
 list is its trace
 ([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
+
+### Running a program
+
+On 2026-11-19 the owner of the project ruled that no one makes a run of Acorn's
+agent, or of one of its learners, without the owner's authorization for that
+run. [What counts as a run](#what-counts-as-a-run) defines a run, by whatever
+means it is made, and this section adds nothing to that definition: it says
+how the rule is applied to Acorn's programs. No step of work on a change starts
+a program that steps the agent or a learner over percepts unless the owner's
+authorization for that run is stated in the change's intent. What the step is
+for, and what the run is called, do not matter: a look at the viewer's page, a
+screenshot, a smoke test and a diagnostic are all covered.
+
+The rule is applied through a closed list. The Test instructions of
+`.no-mistakes.yaml` hold the exact invocations of Acorn's executables that work
+on a change may drive without the owner's authorization, each written out token
+for token. Read them before starting an Acorn program, and drive a program only
+by an invocation written there. Every other invocation needs the owner's
+authorization for that run, stated in the change's intent, whether or not it
+would step a learner. The list is policy, and it says nothing about what an
+unlisted invocation does: some invocations are left off that would step
+nothing, to keep the list closed and exact. An invocation joins the list by a
+reviewed change to it, once its source has been read, and no one decides an
+unlisted invocation for themselves while a change is being validated. Asking a
+program for help is an invocation like any other. An entry is on the list
+because its source shows that it takes no step; where a change touches an
+entry's program, that reading is made again on the change's head before the
+entry is driven.
+
+The list answers a fact that a validation step met on 2026-11-21: the viewer,
+started with no state file in its run directory, starts in the running state,
+and its supervisor launches its child process, which is the core unless the
+command line names another command. So the one start of the viewer on the list
+is from an explicitly stopped state with a child command that cannot be a core.
+
+The same instructions say, in their paragraph on files that an earlier run
+left, which files that a run of the agent or a learner produced a step neither
+opens nor cites; read it before opening anything in a run directory or an
+evidence directory, in a validation step and in a repair round alike. They also
+say when the launcher `./scripts/start.sh` may be run. Its preparation can
+install on the machine, and an agent lets it do that only where the person it
+works for has agreed to it.
+
+The listed drives stay available, and they are still asked for where a change
+alters what a program does: building, the merge gate, the audit tools in the
+modes the list gives, and the viewer serving its page from a stopped state are
+among them. Where a change's intent states the owner's authorization, exactly
+what that authorization names or points to may be driven as well, and nothing
+wider: an agent never extends it by likeness to a run it does not name, and no
+agent's intent or instruction creates or widens one. Where it states none, a claim that only a drive outside the list could show is
+reported open with that reason, and that drive is not made.
+
+The rule is an instruction, which the people and agents who work on Acorn
+follow. No program refuses the run.
 
 ### Proof-shaped specifications
 
