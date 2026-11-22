@@ -54,7 +54,6 @@ structure Percept where
   /-- What a state mechanism hands the base agent. A world delivers nothing here. -/
   held : Option Bool
 
-/-- What the agent emits at a step. -/
 structure Output where
   /-- The action. -/
   action : Bool
@@ -127,14 +126,15 @@ def Mind.record (mind : Mind) (paid echo : Bool) : Mind :=
 
 /-- The base agent. With a cue it records the feedback. Asked, it emits the control table's
 action at the key it is handed, or the seed's, and the prediction table's forecast, or false. -/
-def base : Agent Bool Percept Output where
+def base : Agent Bool Percept (Emitted Output) where
   State := Mind
   cold draw := ⟨draw, none, fun _ => none, fun _ => none⟩
   step mind percept :=
     match percept.cue with
-    | some _ => (⟨false, false⟩, mind.record percept.paid percept.echo)
+    | some _ => (⟨⟨false, false⟩, false⟩, mind.record percept.paid percept.echo)
     | none =>
-      (⟨(mind.payers percept.held).getD mind.draw, (mind.echoes percept.held).getD false⟩,
+      (⟨⟨(mind.payers percept.held).getD mind.draw, (mind.echoes percept.held).getD false⟩,
+          false⟩,
         { mind with
           pending := some (percept.held, (mind.payers percept.held).getD mind.draw) })
 
@@ -145,7 +145,7 @@ def setting : Setting where
   seeded := ⟨false⟩
   Percept := Percept
   Action := Bool
-  Output := Output
+  Shown := Output
   action := Output.action
   base := base
   Extra := Option Bool
@@ -205,8 +205,10 @@ theorem world_injective (first second : Member) (same : world first = world seco
 def task : Task setting where
   Family := Member
   world := world
-  goal := Answered
-  sameWorld := sameWorld_of_injective (S := setting) world Answered world_injective
+  condition := Answered
+  scored _ _ _ := True
+  sameWorld := sameWorld_of_injective (S := setting) world Answered (fun _ _ _ => True)
+    world_injective
 
 /-! ## The assembled agent meets the goal -/
 
@@ -233,7 +235,7 @@ theorem sound_step (member : Member) (board : Board) (state : (Mind × Option Bo
     (before : Sound member board state.1.1 state.1.2) :
     Sound member
       ((world member).step board
-        ((assembled setting latch).step state ((world member).percept board)).1.action)
+        ((assembled setting latch).step state ((world member).percept board)).1.shown.action)
       ((assembled setting latch).step state ((world member).percept board)).2.1.1
       ((assembled setting latch).step state ((world member).percept board)).2.1.2 := by
   obtain ⟨⟨mind, held⟩, clock⟩ := state
@@ -275,9 +277,9 @@ agent answers right. -/
 theorem sound_answers (member : Member) (board : Board) (state : (Mind × Option Bool) × Nat)
     (here : Sound member board state.1.1 state.1.2) (asking : board.asking = true)
     (seen : ∃ earlier, earlier < board.trial ∧ member.cues earlier = member.cues board.trial) :
-    ((assembled setting latch).step state ((world member).percept board)).1.action =
+    ((assembled setting latch).step state ((world member).percept board)).1.shown.action =
         need member board.trial ∧
-      ((assembled setting latch).step state ((world member).percept board)).1.forecast =
+      ((assembled setting latch).step state ((world member).percept board)).1.shown.forecast =
         echo member board.trial := by
   obtain ⟨⟨mind, held⟩, clock⟩ := state
   obtain ⟨trial, asked, paid, heard⟩ := board
@@ -296,14 +298,14 @@ theorem sound_answers (member : Member) (board : Board) (state : (Mind × Option
 /-- **The assembled agent meets the goal** from its cold construction, at every seed, in every
 member. -/
 theorem meets : Meets setting (assembled setting latch) task :=
-  fun draw member time asking seen =>
-    sound_answers member _ _ (sound member draw time) asking seen
+  fun draw member => ⟨fun time asking seen =>
+    sound_answers member _ _ (sound member draw time) asking seen, 0, fun _ _ _ => trivial⟩
 
 /-! ## The base agent fails it, and so does the base agent fed by a rule -/
 
 /-- **The base agent fails the goal** at every seed. -/
 theorem baseFails (draw : Bool) : Fails setting setting.base task draw := by
-  refine ⟨⟨false, false, fun trial => trial == 1⟩, fun answered => ?_⟩
+  refine ⟨⟨false, false, fun trial => trial == 1⟩, fun ⟨answered, _⟩ => ?_⟩
   have third := (answered 5 rfl ⟨0, Nat.zero_lt_succ 1, rfl⟩).1
   cases draw <;> exact absurd third (by decide)
 
@@ -312,7 +314,7 @@ percept whatever the cue was, and the hidden bit is chosen against its action. -
 theorem historyNeeded (draw : Bool) (reply : Nat → Percept → Output) :
     Fails setting (responding setting reply) task draw := by
   refine ⟨⟨!(reply 3 ⟨none, false, false, none⟩).action, false, fun _ => false⟩,
-    fun answered => ?_⟩
+    fun ⟨answered, _⟩ => ?_⟩
   have second := (answered 3 rfl ⟨0, Nat.zero_lt_succ 0, rfl⟩).1
   have differs : ∀ action : Bool, action ≠ (false != !action) := by decide
   exact differs _ second
@@ -333,8 +335,8 @@ every seed: at an asking step the rule sees the same percept whatever the trial'
 theorem stateNeeded (draw : Bool) (rule : Nat → Percept → Option Bool) :
     Fails setting (fed setting rule) task draw := by
   refine ⟨⟨false, false, cuesFor
-    (!(trace setting (fed setting rule) draw (world ⟨false, false, cuesFor false⟩) 5).2.action)⟩,
-    fun answered => ?_⟩
+    (!(trace setting (fed setting rule) draw (world ⟨false, false, cuesFor false⟩) 5).2.shown.action)⟩,
+    fun ⟨answered, _⟩ => ?_⟩
   have third := (answered 5 rfl (seen_before _)).1
   have differs : ∀ action : Bool, action ≠ (!action != false) := by decide
   exact differs _ third
@@ -344,7 +346,8 @@ theorem stateNeeded (draw : Bool) (rule : Nat → Percept → Option Bool) :
 /-- **The control store is needed.** -/
 theorem controlNeeded (draw : Bool) (schedule : Nat → Option Bool → Option Bool) :
     Fails setting (withoutControl setting latch schedule) task draw := by
-  refine ⟨⟨!(schedule 3 (some false)).getD draw, false, fun _ => false⟩, fun answered => ?_⟩
+  refine ⟨⟨!(schedule 3 (some false)).getD draw, false, fun _ => false⟩,
+    fun ⟨answered, _⟩ => ?_⟩
   have second := (answered 3 rfl ⟨0, Nat.zero_lt_succ 0, rfl⟩).1
   have differs : ∀ action : Bool, action ≠ (false != !action) := by decide
   exact differs _ second
@@ -352,7 +355,8 @@ theorem controlNeeded (draw : Bool) (schedule : Nat → Option Bool → Option B
 /-- **The prediction store is needed.** -/
 theorem predictionNeeded (draw : Bool) (schedule : Nat → Option Bool → Option Bool) :
     Fails setting (withoutPrediction setting latch schedule) task draw := by
-  refine ⟨⟨false, !(schedule 3 (some false)).getD false, fun _ => false⟩, fun answered => ?_⟩
+  refine ⟨⟨false, !(schedule 3 (some false)).getD false, fun _ => false⟩,
+    fun ⟨answered, _⟩ => ?_⟩
   have second := (answered 3 rfl ⟨0, Nat.zero_lt_succ 0, rfl⟩).2
   have differs : ∀ forecast : Bool, forecast ≠ (false != !forecast) := by decide
   exact differs _ second
@@ -360,7 +364,8 @@ theorem predictionNeeded (draw : Bool) (schedule : Nat → Option Bool → Optio
 /-- **Both stores together are needed.** With both on schedules the agent fails. -/
 theorem learningNeeded (draw : Bool) (predictions controls : Nat → Option Bool → Option Bool) :
     Fails setting (withoutLearning setting latch predictions controls) task draw := by
-  refine ⟨⟨!(controls 3 (some false)).getD draw, false, fun _ => false⟩, fun answered => ?_⟩
+  refine ⟨⟨!(controls 3 (some false)).getD draw, false, fun _ => false⟩,
+    fun ⟨answered, _⟩ => ?_⟩
   have second := (answered 3 rfl ⟨0, Nat.zero_lt_succ 0, rfl⟩).1
   have differs : ∀ action : Bool, action ≠ (false != !action) := by decide
   exact differs _ second

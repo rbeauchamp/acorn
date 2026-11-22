@@ -5,30 +5,6 @@ Authors: acorn contributors
 -/
 import AcornVerif.Targets.LearnedState
 
-/-! # What a complete result entails, and all that it certifies
-
-For every setting, mechanism and task.
-
-**Consequences of a complete result** (a term of `Result`).
-* `Result.history_free_refused`: a goal that an agent whose output is a function of the current
-  percept meets in every world has no result.
-* `Result.handout_not_rule`: at every seed, no one rule of the time and the current percept
-  hands the base agent what the mechanism hands it along the runs in every world of the
-  family. Within one world a rule can. A mechanism whose hand-out ignores its memory has no
-  result (`Result.stateless_refused`).
-* `Result.predictor_not_schedule`, `Result.controller_not_schedule`: at every seed, what each
-  learner store holds along the run is not a schedule over time that is the same in every world
-  of the family.
-* `Result.family_varied`, `Result.goal_separates`: the family has two worlds, and the goal holds
-  of one trace and fails of another.
-
-**All that a complete result certifies about its goal.** `Result.recognized`: every complete
-result is also one for the goal "the trace is the assembled agent's at some seed", which
-recognizes the submission and asks nothing else. `recognized_iff`: for a mechanism and a family
-of worlds, some goal has a complete result exactly when that goal has one. So the fields cannot
-tell a task from that goal.
--/
-
 namespace AcornVerif.LearnedState
 
 variable {S : Setting}
@@ -39,7 +15,7 @@ theorem run_succ (S : Setting) (agent : Agent S.Seed S.Percept S.Output) (seed :
     run S agent seed world (time + 1) =
       (world.step (run S agent seed world time).1
           (S.action (agent.step (run S agent seed world time).2
-            (world.percept (run S agent seed world time).1)).1),
+            (world.percept (run S agent seed world time).1)).1.shown),
         (agent.step (run S agent seed world time).2
           (world.percept (run S agent seed world time).1)).2) := rfl
 
@@ -134,38 +110,35 @@ theorem trace_fed (mechanism : Mechanism S) (rule : Nat → S.Percept → S.Extr
 
 /-- An agent whose output is a function of the current percept moves a world as the responder
 with that reply does. -/
-theorem world_of_stateless (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Output)
-    (stateless : ∀ state percept, (agent.step state percept).1 = reply percept) (seed : S.Seed)
-    (world : World S.Percept S.Action) (time : Nat) :
+theorem world_of_stateless (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Shown)
+    (stateless : ∀ state percept, (agent.step state percept).1.shown = reply percept)
+    (seed : S.Seed) (world : World S.Percept S.Action) (time : Nat) :
     (run S agent seed world time).1 = (run S (responding S fun _ => reply) seed world time).1 := by
   induction time with
   | zero => rfl
   | succ time ih =>
-    show world.step (run S agent seed world time).1 (S.action (agent.step _ _).1) =
+    show world.step (run S agent seed world time).1 (S.action (agent.step _ _).1.shown) =
       world.step (run S (responding S fun _ => reply) seed world time).1
         (S.action (reply (world.percept (run S (responding S fun _ => reply) seed world time).1)))
     rw [stateless, ih]
 
-/-- An agent whose output is a function of the current percept has the trace of the responder
-with that reply. -/
-theorem trace_of_stateless (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Output)
-    (stateless : ∀ state percept, (agent.step state percept).1 = reply percept) (seed : S.Seed)
-    (world : World S.Percept S.Action) :
+theorem trace_of_stateless (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Shown)
+    (stateless : ∀ state percept, (agent.step state percept).1 = ⟨reply percept, false⟩)
+    (seed : S.Seed) (world : World S.Percept S.Action) :
     trace S agent seed world = trace S (responding S fun _ => reply) seed world := by
   funext time
   show ((run S agent seed world time).1, (agent.step _ _).1) =
     ((run S (responding S fun _ => reply) seed world time).1,
-      reply (world.percept (run S (responding S fun _ => reply) seed world time).1))
-  rw [stateless, world_of_stateless agent reply stateless seed world time]
+      ⟨reply (world.percept (run S (responding S fun _ => reply) seed world time).1), false⟩)
+  rw [stateless, world_of_stateless agent reply (fun state percept => by rw [stateless]) seed
+    world time]
 
 variable {mechanism : Mechanism S} {task : Task S}
 
-/-- **The task needs the past.** If an agent whose output is a function of the current percept
-meets the goal in every world of the family, at some seed, there is no result. A constant
-emitter and a responder that copies part of the current percept are such agents. -/
 theorem Result.history_free_refused (result : Result S mechanism task)
-    (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Output)
-    (stateless : ∀ state percept, (agent.step state percept).1 = reply percept) (seed : S.Seed)
+    (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Shown)
+    (stateless : ∀ state percept, (agent.step state percept).1 = ⟨reply percept, false⟩)
+    (seed : S.Seed)
     (met : ∀ member, task.goal member (trace S agent seed (task.world member))) : False := by
   obtain ⟨member, fails⟩ := result.historyNeeded seed fun _ => reply
   apply fails
@@ -253,70 +226,162 @@ theorem Result.goal_separates (result : Result S mechanism task) :
   obtain ⟨member, fails⟩ := result.baseFails seed
   exact ⟨member, _, _, result.meets seed member, fails⟩
 
-/-! ## All that a complete result certifies -/
-
 /-- A goal over a family whose members are determined by their worlds reads a member only
 through its world. -/
 theorem sameWorld_of_injective {S : Setting} {Family : Type}
     (world : Family → World S.Percept S.Action)
-    (goal : (member : Family) → (Nat → (world member).State × S.Output) → Prop)
+    (condition : (member : Family) → (Nat → (world member).State × S.Shown) → Prop)
+    (scored : (member : Family) → (Nat → (world member).State × S.Shown) → Nat → Prop)
     (injective : ∀ first second, world first = world second → first = second)
     (first second : Family) (same : world first = world second)
-    (trace : Nat → (world first).State × S.Output) (holds : goal first trace) :
-    goal second (same ▸ trace) := by
+    (trace : Nat → (world first).State × S.Output)
+    (holds : Verdict (condition first) (scored first) trace) :
+    Verdict (condition second) (scored second) (same ▸ trace) := by
   obtain rfl := injective first second same
   exact holds
+
+theorem responding_unflagged (reply : Nat → S.Percept → S.Shown) (seed : S.Seed)
+    (world : World S.Percept S.Action) (time : Nat) :
+    (trace S (responding S reply) seed world time).2.explored = false := rfl
+
+theorem Verdict.explores_more {State Shown : Type} {condition : (Nat → State × Shown) → Prop}
+    {scored : (Nat → State × Shown) → Nat → Prop} {first second : Nat → State × Emitted Shown}
+    (same : flagFree first = flagFree second)
+    (more : ∃ start, ∀ time, start ≤ time → (second time).2.explored = false →
+      (first time).2.explored = false)
+    (holds : Verdict condition scored first) : Verdict condition scored second := by
+  obtain ⟨met, start, scoredFrom⟩ := holds
+  obtain ⟨later, calm⟩ := more
+  refine ⟨by rw [← same]; exact met, max start later, fun time after unflagged => ?_⟩
+  rw [← same]
+  exact scoredFrom time (Nat.le_trans (Nat.le_max_left _ _) after)
+    (calm time (Nat.le_trans (Nat.le_max_right _ _) after) unflagged)
+
+theorem Verdict.of_flags {State Shown : Type} {condition : (Nat → State × Shown) → Prop}
+    {scored : (Nat → State × Shown) → Nat → Prop} {first second : Nat → State × Emitted Shown}
+    (same : flagFree first = flagFree second)
+    (exempt : ∃ start, ∀ time, start ≤ time →
+      (first time).2.explored ≠ (second time).2.explored → scored (flagFree first) time)
+    (holds : Verdict condition scored first) : Verdict condition scored second := by
+  obtain ⟨met, start, scoredFrom⟩ := holds
+  obtain ⟨later, differ⟩ := exempt
+  refine ⟨by rw [← same]; exact met, max start later, fun time after unflagged => ?_⟩
+  rw [← same]
+  by_cases agree : (first time).2.explored = (second time).2.explored
+  · exact scoredFrom time (Nat.le_trans (Nat.le_max_left _ _) after) (agree.trans unflagged)
+  · exact differ time (Nat.le_trans (Nat.le_max_right _ _) after) agree
+
+theorem Verdict.flags {State Shown : Type} {condition : (Nat → State × Shown) → Prop}
+    {scored : (Nat → State × Shown) → Nat → Prop} {first second : Nat → State × Emitted Shown}
+    (same : flagFree first = flagFree second)
+    (exempt : ∃ start, ∀ time, start ≤ time →
+      (first time).2.explored ≠ (second time).2.explored → scored (flagFree first) time) :
+    Verdict condition scored first ↔ Verdict condition scored second := by
+  refine ⟨Verdict.of_flags same exempt, Verdict.of_flags same.symm ?_⟩
+  obtain ⟨start, differ⟩ := exempt
+  exact ⟨start, fun time after other => by
+    rw [← same]
+    exact differ time after (Ne.symm other)⟩
+
+theorem Task.goal_flags (task : Task S) (member : task.Family)
+    (first second : Nat → (task.world member).State × S.Output)
+    (same : flagFree first = flagFree second)
+    (exempt : ∃ start, ∀ time, start ≤ time →
+      (first time).2.explored ≠ (second time).2.explored →
+        task.scored member (flagFree first) time) :
+    task.goal member first ↔ task.goal member second :=
+  Verdict.flags same exempt
+
+theorem Task.goal_explores_more (task : Task S) (member : task.Family)
+    (first second : Nat → (task.world member).State × S.Output)
+    (same : flagFree first = flagFree second)
+    (more : ∃ start, ∀ time, start ≤ time → (second time).2.explored = false →
+      (first time).2.explored = false)
+    (holds : task.goal member first) : task.goal member second :=
+  Verdict.explores_more same more holds
 
 /-- The trace is the assembled agent's, in a world, at some seed. -/
 def Recognized (S : Setting) (mechanism : Mechanism S) (world : World S.Percept S.Action)
     (trace : Nat → world.State × S.Output) : Prop :=
   ∃ other, AcornVerif.LearnedState.trace S (assembled S mechanism) other world = trace
 
-/-- Being the assembled agent's trace is read off the world alone. -/
-theorem Recognized.cast {S : Setting} {mechanism : Mechanism S}
-    {first second : World S.Percept S.Action} (same : first = second)
-    (trace : Nat → first.State × S.Output) (holds : Recognized S mechanism first trace) :
-    Recognized S mechanism second (same ▸ trace) := by
-  subst same
-  exact holds
+def Unrecognized (S : Setting) (mechanism : Mechanism S) {Family : Type}
+    (world : Family → World S.Percept S.Action) (agent : Agent S.Seed S.Percept S.Output)
+    (seed : S.Seed) : Prop :=
+  ∃ member, ¬ Recognized S mechanism (world member) (trace S agent seed (world member))
 
-/-- The task that only recognizes the submission: over a family of worlds, the goal "the trace
-is the assembled agent's, in that world, at some seed". -/
+structure Separated (S : Setting) (mechanism : Mechanism S) {Family : Type}
+    (world : Family → World S.Percept S.Action) : Prop where
+  baseSeparated : ∀ seed, Unrecognized S mechanism world S.base seed
+  historySeparated : ∀ seed reply, Unrecognized S mechanism world (responding S reply) seed
+  stateSeparated : ∀ seed rule, Unrecognized S mechanism world (fed S rule) seed
+  predictionSeparated : ∀ seed schedule,
+    Unrecognized S mechanism world (withoutPrediction S mechanism schedule) seed
+  controlSeparated : ∀ seed schedule,
+    Unrecognized S mechanism world (withoutControl S mechanism schedule) seed
+  learningSeparated : ∀ seed predictions controls,
+    Unrecognized S mechanism world (withoutLearning S mechanism predictions controls) seed
+
+theorem Result.unrecognized (result : Result S mechanism task)
+    {agent : Agent S.Seed S.Percept S.Output} {seed : S.Seed} (fails : Fails S agent task seed) :
+    Unrecognized S mechanism task.world agent seed := by
+  obtain ⟨member, failed⟩ := fails
+  refine ⟨member, ?_⟩
+  rintro ⟨other, same⟩
+  exact failed (same ▸ result.meets other member)
+
+theorem Result.separated (result : Result S mechanism task) :
+    Separated S mechanism task.world :=
+  ⟨fun seed => result.unrecognized (result.baseFails seed),
+    fun seed reply => result.unrecognized (result.historyNeeded seed reply),
+    fun seed rule => result.unrecognized (result.stateNeeded seed rule),
+    fun seed schedule => result.unrecognized (result.predictionNeeded seed schedule),
+    fun seed schedule => result.unrecognized (result.controlNeeded seed schedule),
+    fun seed predictions controls =>
+      result.unrecognized (result.learningNeeded seed predictions controls)⟩
+
+theorem trace_eq_of_flagFree {State Shown : Type} {first second : Nat → State × Emitted Shown}
+    (same : flagFree first = flagFree second)
+    (flags : ∀ time, (first time).2.explored = (second time).2.explored) : first = second := by
+  funext time
+  have parts := congrFun same time
+  have flag := flags time
+  unfold flagFree at parts
+  generalize first time = one at parts flag ⊢
+  generalize second time = other at parts flag ⊢
+  obtain ⟨state, shown, explored⟩ := one
+  obtain ⟨state', shown', explored'⟩ := other
+  simp only [Prod.mk.injEq] at parts
+  obtain ⟨rfl, rfl⟩ := parts
+  cases flag
+  rfl
+
+def ShownRecognized (S : Setting) (mechanism : Mechanism S) (world : World S.Percept S.Action)
+    (shown : Nat → world.State × S.Shown) : Prop :=
+  ∃ other, flagFree (trace S (assembled S mechanism) other world) = shown
+
+theorem sameWorld_of_world {S : Setting} {Family : Type}
+    (world : Family → World S.Percept S.Action)
+    (condition : (one : World S.Percept S.Action) → (Nat → one.State × S.Shown) → Prop)
+    (scored : (one : World S.Percept S.Action) → (Nat → one.State × S.Shown) → Nat → Prop)
+    (first second : Family) (same : world first = world second)
+    (trace : Nat → (world first).State × S.Output)
+    (holds : Verdict (condition (world first)) (scored (world first)) trace) :
+    Verdict (condition (world second)) (scored (world second)) (same ▸ trace) := by
+  have key : ∀ (one other : World S.Percept S.Action) (equal : one = other)
+      (trace : Nat → one.State × S.Output),
+      Verdict (condition one) (scored one) trace →
+        Verdict (condition other) (scored other) (equal ▸ trace) := by
+    rintro one other rfl trace holds
+    exact holds
+  exact key _ _ same trace holds
+
 def recognizer (S : Setting) (mechanism : Mechanism S) {Family : Type}
     (world : Family → World S.Percept S.Action) : Task S where
   Family := Family
   world := world
-  goal member := Recognized S mechanism (world member)
-  sameWorld _ _ same trace holds := holds.cast same trace
-
-/-- **Every complete result is also one for the task that only recognizes the submission**,
-over the same worlds: an agent that fails the goal has, in that world, a trace that is the
-assembled agent's at no seed. So no field depends on the goal being a task. -/
-theorem Result.recognized {S : Setting} {mechanism : Mechanism S} {task : Task S}
-    (result : Result S mechanism task) :
-    Result S mechanism (recognizer S mechanism task.world) := by
-  have fails : ∀ agent seed, Fails S agent task seed →
-      Fails S agent (recognizer S mechanism task.world) seed := by
-    rintro agent seed ⟨member, failed⟩
-    refine ⟨member, ?_⟩
-    rintro ⟨other, same⟩
-    exact failed (same ▸ result.meets other member)
-  exact ⟨fun seed _ => ⟨seed, rfl⟩,
-    fun seed => fails _ seed (result.baseFails seed),
-    fun seed reply => fails _ seed (result.historyNeeded seed reply),
-    fun seed rule => fails _ seed (result.stateNeeded seed rule),
-    fun seed schedule => fails _ seed (result.predictionNeeded seed schedule),
-    fun seed schedule => fails _ seed (result.controlNeeded seed schedule),
-    fun seed predictions controls =>
-      fails _ seed (result.learningNeeded seed predictions controls)⟩
-
-/-- **All that a complete result certifies about its goal.** For a mechanism and a family of
-worlds, some task over those worlds has a complete result exactly when the task that only
-recognizes the submission has one. -/
-theorem recognized_iff (S : Setting) (mechanism : Mechanism S) {Family : Type}
-    (world : Family → World S.Percept S.Action) :
-    (∃ goal sameWorld, Result S mechanism ⟨Family, world, goal, sameWorld⟩) ↔
-      Result S mechanism (recognizer S mechanism world) :=
-  ⟨fun ⟨_, _, result⟩ => result.recognized, fun result => ⟨_, _, result⟩⟩
+  condition member := ShownRecognized S mechanism (world member)
+  scored _ _ _ := True
+  sameWorld := sameWorld_of_world world (ShownRecognized S mechanism) (fun _ _ _ => True)
 
 end AcornVerif.LearnedState

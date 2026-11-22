@@ -7,49 +7,18 @@ import Acorn.Host.AgentAdmission
 import AcornVerif.Kernel
 import AcornVerif.Targets.LearnedState
 
-/-! # The frame of a learned-state result, at Acorn's agent
-
-`AcornVerif.LearnedState.Result` is stated over a setting. This module gives it Acorn's.
-
-* **The seeds** are the words of `UInt64`: the standard construction admits every one.
-* **The base agent** (`base`) is Acorn's agent: it starts at the cold construction of the
-  standard construction at the seed and steps by `Agent.actOrdered`, the whole step of the
-  configuration's step order. A result needs no change to it, and a submission makes none. Its
-  names are gathered in the namespace `Base`.
-* **What a mechanism hands the base agent** is a list of sensor words, appended to the words of
-  the frame (`extend`). Words that are appended are coded like the world's own words. Two words
-  can fall on the same feature, and nothing here says that an appended word gives a new feature
-  or that any learner comes to use it. A list that would overfill the frame, or that uses a
-  prediction feedback channel, is not appended. A mechanism does not touch the reward, the
-  symbols, the signals, the potentials or the achievement flag.
-* **The prediction learners' store** is the demon bank, and **the control learners' store** is
-  the primitive controller with the meta controller (`predictor`, `controller`).
-* **A step emits** its action and the prediction words it stored (`Emitted`). A goal reads
-  those and a world's states.
-* **A submission chooses** the research profile, the criterion, the planning selection and the
-  step order (`Configuration`), a mechanism and a task.
-
-`Complete` is the statement a complete submission proves.
-
-**What is not there yet.** No host calls a mechanism, so Acorn's program does not yet run the
-assembled agent. A frame that is already full takes none of a mechanism's words; every frame
-the grid adapter builds leaves room for `Grid.seatWords` of them (`Grid.frame_room`). Until a
-host calls a mechanism, this module states what a complete result is and nobody can produce
-one for the program as it runs. Nothing here says that a complete result
-exists for Acorn's agent.
--/
-
 namespace AcornVerif.LearnedState.Acorn
 open _root_.Acorn _root_.Acorn.Handcrafted _root_.Acorn.Features
 
-/-- The choices of a standard construction other than its seed. -/
 structure Configuration where
-  /-- The research profile and the criterion. -/
-  selection : Host.AgentSelection
+  criterion : Criterion
   /-- The planning selection. -/
   planning : PlanningSelection
   /-- The order of the two parts of a step. -/
   order : StepOrder
+
+def Configuration.selection (configuration : Configuration) : Host.AgentSelection :=
+  ⟨.primitive, configuration.criterion⟩
 
 /-- The standard construction of a configuration at a seed. -/
 def Configuration.construction (configuration : Configuration) (seed : UInt64) :
@@ -57,10 +26,7 @@ def Configuration.construction (configuration : Configuration) (seed : UInt64) :
   AgentConstruction.standard seed configuration.selection configuration.planning
     configuration.order
 
-/-- What a step of the agent emits, which a goal may read: the action the world receives, and
-the prediction words the agent stored for its own feedback. A goal reads nothing else of the
-agent. -/
-structure Emitted where
+structure Shown where
   /-- The action of the step's decision. -/
   action : Kernel.Act Grid.interface
   /-- The prediction words the agent stored at the step, in the order of its questions. -/
@@ -116,11 +82,13 @@ end Base
 
 /-- The base agent, from its cold construction at each seed. Its state carries the seed, since
 the type of an agent's state depends on it. -/
-def base (configuration : Configuration) : Agent UInt64 (Percept Grid.interface) Emitted where
+def base (configuration : Configuration) :
+    Agent UInt64 (Percept Grid.interface) (Emitted Shown) where
   State := Σ seed : UInt64, Base.State (configuration.construction seed)
   cold seed := ⟨seed, Base.cold (configuration.construction seed)⟩
   step state percept :=
-    (⟨(Base.step state.2 percept).2.action, Base.predictions (Base.step state.2 percept).1⟩,
+    (⟨⟨(Base.step state.2 percept).2.action, Base.predictions (Base.step state.2 percept).1⟩,
+        (Base.step state.2 percept).2.explored⟩,
       ⟨state.1, (Base.step state.2 percept).1⟩)
 
 /-- A percept with a mechanism's words appended to its frame's words. Words that would overfill
@@ -150,8 +118,8 @@ def setting (configuration : Configuration) : Setting where
   seeded := ⟨0⟩
   Percept := Percept Grid.interface
   Action := Kernel.Act Grid.interface
-  Output := Emitted
-  action := Emitted.action
+  Shown := Shown
+  action := Shown.action
   base := base configuration
   Extra := List SensorWord
   extend := extend

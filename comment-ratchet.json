@@ -14272,34 +14272,26 @@
     "f6b4d669becc3783",
     "ff0d7d1dc3acd6c3"
   ]},
-  {"file": "lean/AcornVerif/LearnedStateFrame.lean", "comments": 25, "lines": 69, "fingerprints": [
+  {"file": "lean/AcornVerif/LearnedStateFrame.lean", "comments": 17, "lines": 31, "fingerprints": [
     "04571dec3358e8a9",
-    "1372962ad37b6495",
     "1b98da4ddc15947e",
-    "1bf6ba441f77fa42",
     "25898483cdc47cad",
     "2a872029be3a72f4",
     "5153678e1ad92552",
-    "5773142545c53d8f",
     "5e4f54d64fe1529c",
     "69656cd1c1325dd8",
     "76319a6adfed7b5c",
     "792e166592a680ac",
-    "7f49179fc03055f0",
     "84a6982c37becae8",
-    "88ad533872b2caa5",
     "8970ae75c7b9b2bf",
-    "8f2a5415393bf729",
     "9c87ff226e6c2c58",
-    "acc789e5f35d445c",
-    "b95f6f717c45b5f2",
     "baf2fd6d3ac71df4",
     "bda9d447dbc9f81e",
     "cd5f9e6313b54ec1",
     "dd1bebe9790973ae",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/AcornVerif/LearnedStateRefusals.lean", "comments": 20, "lines": 77, "fingerprints": [
+  {"file": "lean/AcornVerif/LearnedStateRefusals.lean", "comments": 18, "lines": 33, "fingerprints": [
     "3224610f806d525e",
     "3aa983e2c0e18041",
     "5ffea8580d641542",
@@ -14313,15 +14305,13 @@
     "9bc5b8a0031aa327",
     "a6b63da6658885d5",
     "a7931b577dd3af97",
-    "b40b12643ebe0d82",
-    "ca2eb0c8d88c7a1a",
     "cceaf3daf249d85e",
     "dffe74046d6734d5",
     "e4a3167bfce625d6",
     "f6b4d669becc3783",
     "f6da2d8de9c69417"
   ]},
-  {"file": "lean/AcornVerif/LearnedStateSmall.lean", "comments": 54, "lines": 101, "fingerprints": [
+  {"file": "lean/AcornVerif/LearnedStateSmall.lean", "comments": 53, "lines": 100, "fingerprints": [
     "06f1a0d517056cfe",
     "098855f8e4e0c45f",
     "1018c59960ccd8b1",
@@ -14346,7 +14336,6 @@
     "6834c0937ef127dd",
     "6d0bbb72607db634",
     "783178fa0e8ad0db",
-    "7eca213948fdb24e",
     "8700b2f1f0e6c3d2",
     "88d009aad703bf7d",
     "8b4b3dca3993040a",
@@ -15742,7 +15731,7 @@
     "9dae855db5a0cd35",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/AcornVerif/Targets/LearnedState.lean", "comments": 62, "lines": 132, "fingerprints": [
+  {"file": "lean/AcornVerif/Targets/LearnedState.lean", "comments": 57, "lines": 77, "fingerprints": [
     "029f35f7d9581431",
     "054a56228abb7163",
     "066aa24035eb3a7c",
@@ -15756,15 +15745,12 @@
     "3939f2085ddd9343",
     "3bef2761b77fab91",
     "40025424fe6d5fd8",
-    "42e292f22b99ca1e",
     "482d8470a2101651",
     "4ed249859ca17828",
     "5139c9b366ce9de4",
-    "52b053800d0f86cb",
     "56730a4379c43fe8",
     "646c68565f47f8a1",
     "66785460894ec0b4",
-    "6822e177fc2a00fc",
     "690f6b8d0d8dd9cc",
     "6d52ff020908daf7",
     "6db2ec5e5d9cbac0",
@@ -15777,7 +15763,6 @@
     "88d009aad703bf7d",
     "89a41fc00b943cb8",
     "908e588109a5ad58",
-    "90c5ce3c8dca06a2",
     "911b94e22750ab2b",
     "96dae7398ac8fe26",
     "9938214b69cd70b7",
@@ -15786,7 +15771,6 @@
     "9e6f6a8de50bf393",
     "9e990f686c56f282",
     "a3961e220a0ebc0b",
-    "a58e7ef9dc1cb4a9",
     "b01740734ea7e758",
     "b9827d4cbff49969",
     "c09be225bdb92a03",
@@ -15806,7 +15790,7 @@
     "f97a3726845a94ad",
     "fdb6d46e2f1836f2"
   ]},
-  {"file": "lean/AcornVerif/Targets/LearnedStateAcorn.lean", "comments": 24, "lines": 65, "fingerprints": [
+  {"file": "lean/AcornVerif/Targets/LearnedStateAcorn.lean", "comments": 20, "lines": 29, "fingerprints": [
     "008e1330fc54a2c0",
     "0642ac6ed89f1399",
     "0841d47d4d0d7f36",
@@ -15818,16 +15802,12 @@
     "5399f2fa863a2a98",
     "58de864aea843daa",
     "59f7102fae16bb69",
-    "65273349041e13fa",
     "792303b2e9c8463b",
     "89bf635b978a03c5",
     "8fb82f8c9f06363c",
     "93da1669d983b95f",
-    "943efaf006a8402f",
-    "b6643643944df4b7",
     "beb016ead4ec256d",
     "c898aceda057b89c",
-    "d136727e98171c73",
     "f6a9009ba9049f04",
     "f6b4d669becc3783",
     "fad2979e66956fd3"
