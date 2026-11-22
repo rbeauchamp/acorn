@@ -450,7 +450,8 @@ Rules that apply to every number, label and colour on the page.
     `⚠ non-finite` where the number would be, and reported as `⚠ the core
     reported a non-finite value in <field>`, naming the field; the hover text
     states the divergence reading as a possibility and says to keep the run
-    and check it with `acorn demo --research-profile ranked --telemetry`.
+    and note the world time, and that the value is in the stream the core
+    emits.
 
   Neither appears in a healthy run. If one does, it is telling you something
   the rest of the page cannot.
@@ -554,8 +555,9 @@ Rules that apply to every number, label and colour on the page.
 - **UX-25 · A refused checkpoint is reported.** The core disarms saving for
   the whole run when it refuses a checkpoint, which on stderr alone is
   invisible to anyone watching: a healthy-looking run that is quietly
-  persisting nothing. The top bar raises `⚠ not saving — Clear starts a fresh
-  run`, naming the remedy rather than only the diagnosis.
+  persisting nothing. The top bar raises `⚠ not saving — Clear archives this
+  run and prepares a fresh one`, naming the remedy rather than only the
+  diagnosis.
 - **UX-26 · Transport.** Controls: ⏮/⏭ (jump 500 frames), ⏸/▶, ⚡ LIVE (pin
   to the newest frame), replay rates 10 / 60 / 250 / 1000 frames per second, a
   scrub slider, the buffered-frame position and a lag readout, each with a
@@ -882,7 +884,8 @@ What each panel must show. How it draws it is the code's.
   serves the UI at `http://127.0.0.1:8088/`. In work on a change this invocation is
   driven only on the owner's authorization
   ([running a program](../CONTRIBUTING.md#running-a-program)). The viewer spawns the core only on
-  an explicit act: `--start` on its command line, Start in the page, or a state
+  an explicit act: `--start` on its command line, a Start on its control
+  endpoint, which the page's Start button sends, or a state
   file whose running intent an earlier Start set, which it resumes. Launched on
   a run directory with no state file and without `--start`, it spawns nothing,
   writes a stopped state and shows the run `stopped` with the Start control
@@ -890,19 +893,21 @@ What each panel must show. How it draws it is the code's.
   states, of the supervisor's step, that from that state it waits on no spawn
   and on no write of a running intent while no Start is handed to it. A state
   file whose schema version is absent, which is what the viewer wrote before
-  `state.json` carried one, or is not a whole number, is read with its identity
+  `state.json` carried one, or is not a whole number spelled in decimal digits, is read with its identity
   and with intent stopped, because that viewer wrote a running intent when it
   found no file. The viewer then rewrites the file with the schema version, so
   this happens once: an operator who starts the viewer directly on a run that
   an earlier viewer left running finds it stopped and presses Start, and
   `./scripts/start.sh` starts it as before. A state file that names another
-  whole number as its schema version is refused like a malformed one: the viewer exits before it
+  whole number as its schema version, of any size, is refused like a malformed one, and so is an
+  entry named `state.json` that cannot be opened, such as a symbolic link whose target is gone: the viewer exits before it
   serves anything and leaves the file as it is, because a file another version
   wrote is not guessed at. Whenever the run a viewer starts with is shown
   stopped (no state file, a saved stopped state, or an earlier version's file
   read as stopped), the viewer says why in one line, for example "Run: stopped
-  because the run directory holds no saved state; it starts only on Start in
-  the page or the --start flag": on its standard output, before it writes its start
+  because the run directory holds no saved state; it starts only on a Start on
+  the viewer's control endpoint, which the page's Start button sends, or the
+  --start flag": on its standard output, before it writes its start
   state and so before an earlier version's file is replaced, and as the reason
   of its first control record, which the page shows in the hover text of the
   state word (UX-21). It announces nothing when the run is not shown stopped,

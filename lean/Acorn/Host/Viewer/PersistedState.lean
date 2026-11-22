@@ -12,7 +12,9 @@ import Acorn.Host.Viewer.Wire
 The current state file has seven fields: its schema version and six of state. Strict
 JSON syntax and exact integer admission precede identity construction. Missing files
 and refused files have different result constructors; a caller cannot mistake parse
-failure for a successful restore. Publication uses an exclusively created temporary
+failure for a successful restore. Only a run directory with no entry named state.json
+reads as a missing file: an entry that exists and cannot be opened, such as a symbolic
+link whose target is gone, is refused. Publication uses an exclusively created temporary
 file and rename after a complete write and flush. Filesystem stability and POSIX
 rename remain the RunDirectory trust boundary; no power-loss durability is claimed.
 
@@ -28,8 +30,10 @@ current one is decoded with its other fields as written and with intent stopped:
 intent is the one field whose value an operator may never have chosen.
 `PersistedState.decode_earlier` proves the stopped intent, and
 `PersistedState.decode_running` that the decoder returns a running intent only under the
-current version. A file that names another natural number is refused
-(`PersistedState.decode_other`).
+current version. The version a file names is the natural number its `schema_version`
+member spells in decimal digits, of any size (`stateVersion`). A file that names another
+natural number is refused (`PersistedState.decode_other`), and so is one whose digits spell
+a number of `2 ^ 64` or more (`PersistedState.decode_wide`).
 -/
 namespace Acorn.Host.Viewer
 
@@ -90,11 +94,15 @@ def PersistedState.encode (state : PersistedState) : String :=
   ",\"origin\":\"" ++ state.origin.tag ++
   "\",\"process_started\":" ++ (if state.processStarted then "true" else "false") ++ "}\n"
 
-/-- The schema version a state file names: the natural number its `schema_version` member
-spells, and nothing when the member is absent or is not a natural number. Before schema
-version 2 the viewer wrote files with no such member. -/
+/-- The schema version a state file names: the natural number, of any size, that its
+`schema_version` member spells in decimal digits alone (`Digits.read`), and nothing when the
+member is absent or is not a number so spelled. Before schema version 2 the viewer wrote files
+with no such member. -/
 def stateVersion (value : Json.Value) : Option Nat :=
-  (value.member "schema_version").bind fun mark => mark.natural.toOption
+  (value.member "schema_version").bind fun mark =>
+    match mark with
+    | .number spelling => Digits.read spelling
+    | _ => none
 
 /-- Admission of the version a state file names, decided once: a natural number other than
 `stateSchema` is refused, so that a file another version wrote is neither guessed at nor
@@ -126,8 +134,8 @@ def PersistedState.fields (marked : Bool) : Json.Decoder PersistedState := do
 
 /-- The complete state schema refuses unknown fields, partial identity and a schema version
 that is a natural number other than `stateSchema`. A file whose version does not read as
-`stateSchema`, because it has no `schema_version` member or one that is not a natural number,
-is read as an earlier version's file: it keeps every field but its intent, which is admitted
+`stateSchema`, because it has no `schema_version` member or one that is not a number spelled
+in decimal digits alone, is read as an earlier version's file: it keeps every field but its intent, which is admitted
 as stopped. -/
 def PersistedState.decode (value : Json.Value) : Except String PersistedState := do
   admitVersion (stateVersion value)
@@ -167,6 +175,21 @@ theorem PersistedState.decode_other (value : Json.Value) (version : Nat)
   simp only [admitVersion, other, ↓reduceIte]
   exact ⟨_, rfl⟩
 
+/-- **A state file whose schema version spells a number of `2 ^ 64` or more is refused.** For
+every JSON value whose `schema_version` member is a number whose spelling `Digits.read` reads
+as a natural number of `2 ^ 64` or more. -/
+theorem PersistedState.decode_wide (value : Json.Value) (spelling : String) (version : Nat)
+    (mark : value.member "schema_version" = some (.number spelling))
+    (spelled : Digits.read spelling = some version) (wide : 2 ^ 64 ≤ version) :
+    ∃ reason, PersistedState.decode value = .error reason := by
+  refine PersistedState.decode_other value version ?_ ?_
+  · unfold stateVersion
+    rw [mark]
+    exact spelled
+  · intro same
+    rw [same, stateSchema] at wide
+    omega
+
 /-- Where the state a viewer starts from came from. -/
 inductive StartSource where
   /-- The run directory held no state file. -/
@@ -187,20 +210,23 @@ def startAccount (source : StartSource) (desired : Desired) : Option String :=
   | .running, _ => none
   | .stopped, .absent =>
     some ("stopped because the run directory holds no saved state; " ++
-      "it starts only on Start in the page or the --start flag")
+      "it starts only on a Start on the viewer's control endpoint, " ++
+      "which the page's Start button sends, or the --start flag")
   | .stopped, .earlier =>
-    some ("stopped because the saved state was written before state.json recorded a schema " ++
-      "version, so its intent is not taken as a Start; " ++
-      "it starts only on Start in the page or the --start flag")
+    some ("stopped because the saved state names no readable schema version, " ++
+      "so its intent is not taken as a Start; " ++
+      "it starts only on a Start on the viewer's control endpoint, " ++
+      "which the page's Start button sends, or the --start flag")
   | .stopped, .saved =>
     some ("stopped because the saved state says stopped; " ++
-      "it starts only on Start in the page or the --start flag")
+      "it starts only on a Start on the viewer's control endpoint, " ++
+      "which the page's Start button sends, or the --start flag")
 
 /-- Absence, refusal and successful restore require distinct caller branches. -/
 inductive StateRead where
-  /-- No prior state file exists. -/
+  /-- The run directory holds no entry named state.json. -/
   | missing
-  /-- IO, syntax or schema refused the prior file. -/
+  /-- IO, syntax or schema refused the prior file, an entry that cannot be opened included. -/
   | refused (reason : String)
   /-- The complete state was admitted, with whether the file's version reads as the current
   one; when it does not, the file was read as an earlier version's. -/
@@ -214,13 +240,18 @@ private def stateBytes (handle : IO.FS.Handle) (remaining : Nat) (bytes : ByteAr
   else throw (IO.userError "viewer state exceeds 4096 bytes")
 termination_by remaining
 
-/-- A bounded read preserves the distinction between missing and malformed state. -/
+/-- A bounded read preserves the distinction between missing and malformed state. Only the
+absence of the directory entry, which `System.FilePath.symlinkMetadata` reads without
+following a symbolic link, is a missing state; an entry that exists and cannot be opened, a symbolic link whose
+target is gone included, is refused. -/
 def RunDirectory.readState (directory : RunDirectory) : IO StateRead := do
+  try discard (directory.path .state).symlinkMetadata
+  catch error =>
+    match error with
+    | .noFileOrDirectory _ _ _ => return .missing
+    | _ => return .refused error.toString
   let handle ← try directory.openRead .state
-    catch error =>
-      match error with
-      | .noFileOrDirectory _ _ _ => return .missing
-      | _ => return .refused error.toString
+    catch error => return .refused error.toString
   try
     let bytes ← stateBytes handle 4096 ByteArray.empty
     let some text := String.fromUTF8? bytes | return .refused "invalid state UTF-8"

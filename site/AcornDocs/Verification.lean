@@ -1249,8 +1249,9 @@ semantics, the file system's durability, the Lean runtime's IO, mutexes and cloc
 a core reports, and the actor's mapping of each effect to the native operation it names remain
 the trusted base.
 
-The viewer starts its core only on an explicit act: the `--start` flag, a Start the page
-sends, or a state file whose running intent an earlier Start set. The state the bootstrap builds
+The viewer starts its core only on an explicit act: the `--start` flag, a Start on the
+viewer's control endpoint, which the page's Start button sends, or a state file whose running
+intent an earlier Start set. The state the bootstrap builds
 when the run directory holds no state file intends to stay stopped
 ({decl}`Acorn.Host.Viewer.PersistedState.unstarted`). For every Clear configuration, every durable
 state that intends to stay stopped, and every state reached from the start on it by steps on
@@ -1268,8 +1269,9 @@ Start and a state reached by them that waits to spawn the first generation
 for every seed within the browser's integers ({decl}`Acorn.Host.Viewer.Core.unstarted_launch`). The
 control record of the start on the state built with no state file says the run is desired
 stopped and actually stopped ({decl}`Acorn.Host.Viewer.Core.start_control`). A state file whose
-schema version does not read as the current one, because the member is absent, is not a natural
-number or spells another number, is decoded with intent stopped whenever it is decoded
+schema version does not read as the current one, because the member is absent, is not a number
+spelled in decimal digits alone or spells another number, is decoded with intent stopped
+whenever it is decoded
 ({decl}`Acorn.Host.Viewer.PersistedState.decode_earlier`), so the decoder returns a running intent
 only under the current version ({decl}`Acorn.Host.Viewer.PersistedState.decode_running`), and the
 statement above holds of the supervisor started from what such a file decodes to
@@ -1287,11 +1289,17 @@ file follows a Start in some earlier viewer is argued from the write clause abov
 over the viewers that owned the run directory, and is not proved.
 
 The cases of a state file are four. With no file the run is stopped. A file whose schema version
-is absent or is not a natural number is read as an earlier version's file: stopped, once, as
-above. A file that names the schema version the viewer writes
+is absent or is not a number spelled in decimal digits alone is read as an earlier version's
+file: stopped, once, as above. The version a file names is the natural number those digits
+spell, of any size ({decl}`Acorn.Host.Viewer.stateVersion`). A file that names the schema version the
+viewer writes
 ({decl}`Acorn.Host.Viewer.stateSchema`) starts the run with the intent it records, so a running one
 resumes. A file that names another natural number is refused by the decoder
-({decl}`Acorn.Host.Viewer.PersistedState.decode_other`), like an unreadable or malformed one: the
+({decl}`Acorn.Host.Viewer.PersistedState.decode_other`), and so is a file whose schema version
+is a number whose digits spell two to the power 64 or more
+({decl}`Acorn.Host.Viewer.PersistedState.decode_wide`), like an unreadable or malformed one,
+and like a state file that exists and cannot be opened, such as a symbolic link whose target is
+gone; only a run directory with no entry under the state file's name reads as no file. The
 viewer exits before it serves anything, constructs no supervisor and leaves the file as it is,
 because a file another version wrote is not guessed at and reading it as stopped would publish
 over it. Whenever the run a viewer starts with is shown stopped, the viewer says why in one line

@@ -27,15 +27,18 @@ decodes to (`Reached.earlier_spawns_nothing`).
 
 **Every state file a viewer can meet.** With no state file the bootstrap builds
 `PersistedState.unstarted`, and the run is stopped. A file whose `schema_version` member is
-absent, as in every file the viewer wrote before the file carried one, or is not a natural
-number, is read as an earlier version's file: decoded with intent stopped. The viewer publishes
+absent, as in every file the viewer wrote before the file carried one, or is not a number
+spelled in decimal digits alone, is read as an earlier version's file: decoded with intent
+stopped. The viewer publishes
 its start state in the schema it writes before it supervises, so the file names the schema
 afterwards and this reading happens once. A file that names `stateSchema` starts the run with
 the intent it records, so a running one resumes; the decoder returns a running intent only for
 such a file (`PersistedState.decode_running`), and by the write clause of the theorem a
 supervisor waits on the write of a running intent only after a Start was handed to its step,
 or from a start state that held one. A file that names another natural number is refused by
-the decoder (`PersistedState.decode_other`), like one that is unreadable or malformed: the
+the decoder (`PersistedState.decode_other`), and so is a file whose `schema_version` member
+is a number whose digits spell a number of `2 ^ 64` or more (`PersistedState.decode_wide`),
+like one that is unreadable or malformed: the
 bootstrap constructs no supervisor, so nothing is spawned, and the file is left as it is,
 because a file another version wrote is not guessed at and reading it as stopped would publish
 over it. The publication before supervision, and that a refusal constructs no supervisor, are

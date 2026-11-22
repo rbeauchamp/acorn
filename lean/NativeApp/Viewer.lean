@@ -94,7 +94,7 @@ def runViewer (arguments : List String) : IO UInt32 := do
     | .ok options => pure options
     | .error error => throw (IO.userError (error.message ++
         "\nusage: acorn-viewer (--research-profile ranked | --cmd COMMAND) [--port N] [--run-dir DIR] [--no-checkpoint] [--start] [--open-browser] [--control-stdin]" ++
-        "\nThe core starts only with --start, with Start in the page, or when state.json in the run directory names schema_version 2 and intends to run." ++
+        "\nThe core starts only with --start, on a Start on the viewer's control endpoint, which the page's Start button sends, or when state.json in the run directory names schema_version 2 and intends to run." ++
         s!"\nN is below 65536. {Acorn.Digits.usage}"))
   let directory ← RunDirectory.open options.directory
   let config ← supervisorConfig options

@@ -81,7 +81,7 @@ cleanup() {
   rm -f "$lock/control" "$lock/pid" "$lock/installer.sh"
   rmdir "$lock"
   if [[ "$status" -ne 0 ]]; then
-    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run the same command again with the same options. In work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run.\n' "$phase" >&2
+    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run the same command again with the same options, on two conditions: in work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run; and the preparation can install system packages, so an agent reruns it only where the person it works for has agreed to that.\n' "$phase" >&2
   fi
   exit "$status"
 }
@@ -105,7 +105,7 @@ install_macos() {
       export PATH="$DEVELOPER_DIR/usr/bin:$PATH"
     else
       xcode-select --install || true
-      fail 'Finish the macOS command-line tools installation dialog, then run this script again; in work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run.'
+      fail 'Finish the macOS command-line tools installation dialog, then run this script again, on two conditions: in work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run; and the preparation can install system packages, so an agent reruns it only where the person it works for has agreed to that.'
     fi
   fi
   if ! command -v brew >/dev/null 2>&1; then

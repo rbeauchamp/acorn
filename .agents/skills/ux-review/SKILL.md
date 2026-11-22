@@ -40,7 +40,8 @@ answers a fact met on 2026-11-21, of the viewer as it then was: with no state
 file in its run directory it started running without being asked, and its
 supervisor launched its child, which is the core unless the command line names
 another command. The viewer now starts its child only on an explicit act
-(`--start`, Start in the page, or a saved state that an earlier Start set to
+(`--start`, a Start on the viewer's control endpoint, which the page's Start
+button sends, or a saved state that an earlier Start set to
 running), and the recipe stays as it is: a review drives the viewer built from
 the change under review, which that change can have altered, and a Start
 pressed in the page starts the child. In a viewer started by that
