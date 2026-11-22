@@ -95,6 +95,21 @@ Acorn's chosen worlds are of two kinds:
 The tile world the viewer shows is not one of them. It has no standing beyond
 being the first world built.
 
+Two questions are asked of Acorn's agent, and each has its own evidence.
+Whether the agent is built right is settled while it is developed, by
+mathematics: a change is accepted by a proof about the code that runs and by
+review, and no run of the agent, unit test or score stands in for either.
+Whether it is the right agent, one that achieves goals in the world it is
+meant for, is settled only by measured runs of a verified agent in that world,
+which for Acorn means the two kinds of worlds above, ARC-AGI-3 games and the
+Microduck. A theorem covers only the worlds of the class it states, so it does
+not say how the agent does in any other world. Those measurements are the final
+indicator of whether it is the right agent, and a running, live agent is what
+Acorn is for. A measured run follows the rules of
+[scientific evidence](CONTRIBUTING.md#scientific-evidence), with its protocol
+fixed before its observations, and like every run it falls under the owner's
+rule on runs ([running a program](CONTRIBUTING.md#running-a-program)).
+
 Choosing and shaping worlds well needs a model of what a big world is. The mission
 contract states the conditions that make a class of worlds concealed, that make
 perceiving needed in it, and that make it big for a stated bound on the agent
