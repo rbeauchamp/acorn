@@ -173,7 +173,7 @@ def run (args : List String) : IO UInt32 := do
   -- `AcornTools.Theorems`'s consumers link are current.
   if args == ["provision-status"] then return if ready then 0 else 2
   unless ready do
-    throw (IO.userError "missing pinned dependencies; run scripts/start.sh --prepare-only")
+    throw (IO.userError "missing pinned dependencies; scripts/start.sh --prepare-only provisions them, and in work on a change to Acorn, CONTRIBUTING.md (\"Running a program\") states the conditions for running it")
   let child ← IO.Process.spawn (lake path args.toArray)
   child.wait
 

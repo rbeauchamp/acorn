@@ -68,6 +68,11 @@ def Retry.failed (retry : Retry) (now : UInt64) (healthy : Bool) : Retry :=
 /-- The complete budget is not exhausted. -/
 theorem Retry.initial_not_exhausted : Retry.initial.exhausted = false := rfl
 
+theorem Retry.initial_ready (now : UInt64) : Retry.initial.ready now = true := by
+  have fresh := initial_not_exhausted
+  have due : now ≥ Retry.initial.next := UInt64.zero_le
+  simp [ready, fresh, due]
+
 /-- An exhausted budget can never admit a timed restart. -/
 theorem Retry.exhausted_not_ready (retry : Retry) (now : UInt64)
     (exhausted : retry.exhausted = true) : retry.ready now = false := by
