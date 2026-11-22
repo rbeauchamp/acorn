@@ -3,6 +3,7 @@ import Acorn.Rng
 import Acorn.Word
 import AcornVerif.CurrentExplorer
 import AcornVerif.CurrentTemporal
+import AcornVerif.Resource.ControlWork
 import AcornVerif.TemporalSupport
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Polynomial.Div
@@ -24,7 +25,7 @@ private def mask64 : Nat := (1 <<< 64) - 1
 private def mask255 : Nat := (1 <<< 255) - 1
 private def mask256 : Nat := (1 <<< 256) - 1
 
-def stepNat (v : Nat) : Nat :=
+private def stepNat (v : Nat) : Nat :=
   let s0 := v &&& mask64
   let s1 := (v >>> 64) &&& mask64
   let s2 := (v >>> 128) &&& mask64
@@ -38,56 +39,55 @@ def stepNat (v : Nat) : Nat :=
   let s3b := ((s3a <<< 45) &&& mask64) ||| (s3a >>> 19)
   s0b ||| (s1b <<< 64) ||| (s2b <<< 128) ||| (s3b <<< 192)
 
-def pLow : Nat :=
+private def pLow : Nat :=
   0x3c03c3f3ecb1904b4edcf26259f850280002bcefd1a5e9d116f2bb0f0f001
 
-def barrettQ0 : Nat :=
+private def barrettQ0 : Nat :=
   0x8001e01cb799614c0995b0f93bc5b4f0d5094bf56eaf3b5bc9d4836cab7de244
 
 private def repMask : Nat → Nat → Nat → Nat
   | acc, _, 0 => acc
   | acc, period, k + 1 => repMask (acc ||| (acc <<< period)) (2 * period) k
 
-private def sLo (b k : Nat) : Nat := repMask ((1 <<< b) - 1) (32 * b) k
-private def sHi (b k : Nat) : Nat := (sLo b k) <<< b
-private def cLo (b k : Nat) : Nat := repMask ((1 <<< b) - 1) (32 * b) k
-private def cHi (b k : Nat) : Nat := (cLo b k) <<< (16 * b)
+private def stageLo (b k : Nat) : Nat := repMask ((1 <<< b) - 1) (32 * b) k
+private def sHi (b k : Nat) : Nat := (stageLo b k) <<< b
+private def cHi (b k : Nat) : Nat := (stageLo b k) <<< (16 * b)
 private def lane0Mask : Nat := repMask 1 16 9
 
-private def mSLo128 := sLo 128 0
+private def mSLo128 := stageLo 128 0
 private def mSHi128 := sHi 128 0
-private def mSLo64 := sLo 64 1
+private def mSLo64 := stageLo 64 1
 private def mSHi64 := sHi 64 1
-private def mSLo32 := sLo 32 2
+private def mSLo32 := stageLo 32 2
 private def mSHi32 := sHi 32 2
-private def mSLo16 := sLo 16 3
+private def mSLo16 := stageLo 16 3
 private def mSHi16 := sHi 16 3
-private def mSLo8 := sLo 8 4
+private def mSLo8 := stageLo 8 4
 private def mSHi8 := sHi 8 4
-private def mSLo4 := sLo 4 5
+private def mSLo4 := stageLo 4 5
 private def mSHi4 := sHi 4 5
-private def mSLo2 := sLo 2 6
+private def mSLo2 := stageLo 2 6
 private def mSHi2 := sHi 2 6
-private def mSLo1 := sLo 1 7
+private def mSLo1 := stageLo 1 7
 private def mSHi1 := sHi 1 7
 
-private def mCLo1 := cLo 1 8
+private def mCLo1 := stageLo 1 8
 private def mCHi1 := cHi 1 8
-private def mCLo2 := cLo 2 7
+private def mCLo2 := stageLo 2 7
 private def mCHi2 := cHi 2 7
-private def mCLo4 := cLo 4 6
+private def mCLo4 := stageLo 4 6
 private def mCHi4 := cHi 4 6
-private def mCLo8 := cLo 8 5
+private def mCLo8 := stageLo 8 5
 private def mCHi8 := cHi 8 5
-private def mCLo16 := cLo 16 4
+private def mCLo16 := stageLo 16 4
 private def mCHi16 := cHi 16 4
-private def mCLo32 := cLo 32 3
+private def mCLo32 := stageLo 32 3
 private def mCHi32 := cHi 32 3
-private def mCLo64 := cLo 64 2
+private def mCLo64 := stageLo 64 2
 private def mCHi64 := cHi 64 2
-private def mCLo128 := cLo 128 1
+private def mCLo128 := stageLo 128 1
 private def mCHi128 := cHi 128 1
-private def mCLo256 := cLo 256 0
+private def mCLo256 := stageLo 256 0
 private def mCHi256 := cHi 256 0
 
 private def sStep (mLo mHi s x : Nat) : Nat := (x &&& mLo) ||| ((x &&& mHi) <<< s)
@@ -103,9 +103,9 @@ private def compress16 (y : Nat) : Nat :=
     cStep mCLo32 mCHi32 480 <| cStep mCLo16 mCHi16 240 <| cStep mCLo8 mCHi8 120 <|
     cStep mCLo4 mCHi4 60 <| cStep mCLo2 mCHi2 30 <| cStep mCLo1 mCHi1 15 <| (y &&& lane0Mask)
 
-def clMul (a b : Nat) : Nat := compress16 (spread16 a * spread16 b)
+private def clMul (a b : Nat) : Nat := compress16 (spread16 a * spread16 b)
 
-def polyMul (a b : Nat) : Nat :=
+private def polyMul (a b : Nat) : Nat :=
   let c := clMul a b
   let q := (clMul (c >>> 256) barrettQ0) >>> 255
   (c ^^^ clMul q pLow) &&& mask256
@@ -119,7 +119,7 @@ private def polyPowGo : Nat → Nat → Nat → Nat → Nat
       let acc1 := if e &&& 1 == 1 then polyMul acc a else acc
       polyPowGo fuel (polyMul a a) (e >>> 1) acc1
 
-def polyPow (a e : Nat) : Nat := polyPowGo 257 a e 1
+private def polyPow (a e : Nat) : Nat := polyPowGo 257 a e 1
 
 private def evalPolyGo : Nat → Nat → Nat → Nat → Nat
   | 0, _, _, acc => acc
@@ -127,9 +127,9 @@ private def evalPolyGo : Nat → Nat → Nat → Nat → Nat
     let acc1 := if f &&& 1 == 1 then acc ^^^ cur else acc
     evalPolyGo n (f >>> 1) (stepNat cur) acc1
 
-def evalPoly (f : Nat) : Nat := evalPolyGo 256 f 1 0
+private def evalPoly (f : Nat) : Nat := evalPolyGo 256 f 1 0
 
-def iterStep : Nat → Nat → Nat
+private def iterStep : Nat → Nat → Nat
   | 0, v => v
   | n + 1, v => iterStep n (stepNat v)
 
@@ -398,16 +398,11 @@ private def evalBinvGo : Nat → List Nat → Nat → Nat
     let acc1 := if v &&& 1 == 1 then acc ^^^ b else acc
     evalBinvGo (v >>> 1) bs acc1
 
-def evalBinv (v : Nat) : Nat := evalBinvGo v invBasisList 0
+private def evalBinv (v : Nat) : Nat := evalBinvGo v invBasisList 0
 
 private def checkInvBasisB : Nat → List Nat → Bool
   | _, [] => true
   | idx, b :: bs => (evalPoly b == 1 <<< idx) && checkInvBasisB (idx + 1) bs
-
-private def checkInvBasisLeftAt : Nat → Nat → Nat → Bool
-  | _, 0, _ => true
-  | k, n + 1, cur =>
-    (evalBinv cur == 1 <<< k) && checkInvBasisLeftAt (k + 1) n (stepNat cur)
 
 private def primeFactors256 : List Nat := [
   3, 5, 17, 257, 641, 65537, 274177, 6700417,
@@ -444,9 +439,6 @@ private theorem charpoly_check : evalPoly pLow = iterStep 256 1 := by decide
 
 set_option maxRecDepth 8192 in
 private theorem b_invbasis_check : checkInvBasisB 0 invBasisList = true := by decide
-
-set_option maxRecDepth 8192 in
-private theorem b_invbasis_left_check : checkInvBasisLeftAt 0 256 1 = true := by decide
 
 set_option maxRecDepth 8192 in
 private theorem pow_period_one : polyPow 2 (2 ^ 256 - 1) = 1 := by decide
@@ -1161,7 +1153,8 @@ private theorem natToPoly_clMul (a b : Nat) (ha : a < 2 ^ 256) (hb : b < 2 ^ 256
       · rfl
     simp [hk, hS0]
 
-noncomputable def charPoly : Polynomial (ZMod 2) := Polynomial.X ^ 256 + natToPoly pLow
+private noncomputable def charPoly : Polynomial (ZMod 2) :=
+  Polynomial.X ^ 256 + natToPoly pLow
 
 private theorem charPoly_monic : charPoly.Monic :=
   Polynomial.monic_X_pow_add (natToPoly_degree_lt pLow 256 pLow_lt)
@@ -2094,7 +2087,7 @@ private theorem poly_surj_x_pow {f : Nat} (hfPos : 0 < f) (hfLt : f < 2 ^ 256) :
   rw [hV, natToPoly_two] at hPm
   exact hPm
 
-def packState (r : Rng.Xoshiro256) : Nat :=
+private def packState (r : Rng.Xoshiro256) : Nat :=
   r.s0.toNat ||| (r.s1.toNat <<< 64) ||| (r.s2.toNat <<< 128) ||| (r.s3.toNat <<< 192)
 
 private theorem ui64_testBit_ge {w : UInt64} {i : Nat} (hi : 64 ≤ i) :
@@ -2556,116 +2549,23 @@ private theorem evalPoly_evalBinv {v : Nat} (hv : v < 2 ^ 256) :
   have h := evalPoly_evalBinvGo invBasisList 0 v 0 hvLen b_invbasis_check
   simpa [evalBinv, evalPoly_zero] using h
 
-private theorem evalBinvGo_acc :
-    ∀ (bs : List Nat) (v acc : Nat), evalBinvGo v bs acc = acc ^^^ evalBinvGo v bs 0
-  | [], _, acc => by simp [evalBinvGo]
-  | b :: rest, v, acc => by
-    unfold evalBinvGo
-    dsimp only
-    by_cases hOdd : (v &&& 1 == 1) = true
-    · simp only [hOdd, ↓reduceIte, Nat.zero_xor]
-      rw [evalBinvGo_acc rest (v >>> 1) (acc ^^^ b),
-        evalBinvGo_acc rest (v >>> 1) b, Nat.xor_assoc]
-    · have hEven : (v &&& 1 == 1) = false := Bool.eq_false_iff.mpr hOdd
-      simp only [hEven, Bool.false_eq_true, ↓reduceIte]
-      exact evalBinvGo_acc rest (v >>> 1) acc
-
-private theorem evalBinvGo_xor :
-    ∀ (bs : List Nat) (u v : Nat),
-      evalBinvGo (u ^^^ v) bs 0 = evalBinvGo u bs 0 ^^^ evalBinvGo v bs 0
-  | [], _, _ => by simp [evalBinvGo]
-  | b :: rest, u, v => by
-    unfold evalBinvGo
-    dsimp only
-    rw [xor_land, xor_shiftRight]
-    have huMod : (u &&& 1 = 0) ∨ (u &&& 1 = 1) := by rw [Nat.and_one_is_mod]; omega
-    have hvMod : (v &&& 1 = 0) ∨ (v &&& 1 = 1) := by rw [Nat.and_one_is_mod]; omega
-    rcases huMod with huB | huB <;> rcases hvMod with hvB | hvB
-    · simp only [huB, hvB, Nat.xor_zero,
-        show (0 == 1) = false by decide, Bool.false_eq_true, ↓reduceIte]
-      exact evalBinvGo_xor rest (u >>> 1) (v >>> 1)
-    · simp only [huB, hvB, Nat.zero_xor, beq_self_eq_true,
-        show (0 == 1) = false by decide, Bool.false_eq_true, ↓reduceIte]
-      rw [evalBinvGo_acc rest (v >>> 1) b,
-        evalBinvGo_acc rest ((u >>> 1) ^^^ (v >>> 1)) b,
-        evalBinvGo_xor rest (u >>> 1) (v >>> 1)]
-      apply Nat.eq_of_testBit_eq; intro k
-      simp only [Nat.testBit_xor]
-      cases b.testBit k <;>
-        cases (evalBinvGo (u >>> 1) rest 0).testBit k <;>
-        cases (evalBinvGo (v >>> 1) rest 0).testBit k <;> rfl
-    · simp only [huB, hvB, Nat.xor_zero, Nat.zero_xor, beq_self_eq_true,
-        show (0 == 1) = false by decide, Bool.false_eq_true, ↓reduceIte]
-      rw [evalBinvGo_acc rest (u >>> 1) b,
-        evalBinvGo_acc rest ((u >>> 1) ^^^ (v >>> 1)) b,
-        evalBinvGo_xor rest (u >>> 1) (v >>> 1), Nat.xor_assoc]
-    · simp only [huB, hvB, Nat.xor_self, show (0 == 1) = false by decide,
-        beq_self_eq_true, Bool.false_eq_true, ↓reduceIte, Nat.zero_xor]
-      rw [evalBinvGo_acc rest (u >>> 1) b, evalBinvGo_acc rest (v >>> 1) b,
-        evalBinvGo_xor rest (u >>> 1) (v >>> 1)]
-      apply Nat.eq_of_testBit_eq; intro k
-      simp only [Nat.testBit_xor]
-      cases b.testBit k <;>
-        cases (evalBinvGo (u >>> 1) rest 0).testBit k <;>
-        cases (evalBinvGo (v >>> 1) rest 0).testBit k <;> rfl
-
-private theorem evalBinv_xor (u v : Nat) : evalBinv (u ^^^ v) = evalBinv u ^^^ evalBinv v :=
-  evalBinvGo_xor invBasisList u v
-
-private theorem evalBinvGo_zero : ∀ bs : List Nat, evalBinvGo 0 bs 0 = 0
-  | [] => rfl
-  | _ :: rest => by unfold evalBinvGo; simp [evalBinvGo_zero rest]
-
-private theorem evalBinv_zero : evalBinv 0 = 0 := evalBinvGo_zero invBasisList
-
-private theorem evalBinv_evalPolyGo :
-    ∀ (n k f cur : Nat),
-      f < 2 ^ n → checkInvBasisLeftAt k n cur = true →
-      evalBinv (evalPolyGo n f cur 0) = f <<< k
-  | 0, _, f, _, hf, _ => by
-    have hf0 : f = 0 := by rw [Nat.pow_zero] at hf; omega
-    subst hf0
-    simp [evalPolyGo, evalBinv_zero]
-  | n + 1, k, f, cur, hf, hChk => by
-    rw [checkInvBasisLeftAt] at hChk
-    have hPair := Bool.and_eq_true_iff.mp hChk
-    have hCurEq : evalBinv cur = 1 <<< k := eq_of_beq hPair.1
-    have hfHalf : f >>> 1 < 2 ^ n := by
-      rw [Nat.pow_succ, Nat.mul_comm] at hf
-      rw [Nat.shiftRight_eq_div_pow, Nat.pow_one]
-      exact Nat.div_lt_of_lt_mul hf
-    unfold evalPolyGo
-    dsimp only
-    have hMod : f &&& 1 = f % 2 := Nat.and_one_is_mod f
-    by_cases hOdd : (f &&& 1 == 1) = true
-    · simp only [hOdd, ↓reduceIte, Nat.zero_xor]
-      rw [evalPolyGo_acc, evalBinv_xor, hCurEq,
-        evalBinv_evalPolyGo n (k + 1) (f >>> 1) (stepNat cur) hfHalf hPair.2]
-      have hFMod : f % 2 = 1 := by have := eq_of_beq hOdd; omega
-      have hfDecomp : f = 2 * (f >>> 1) + 1 := by rw [Nat.shiftRight_eq_div_pow]; omega
-      have hShift : (f >>> 1) <<< (k + 1) = (((f >>> 1) <<< 1) <<< k) := by
-        simp only [Nat.shiftLeft_eq, Nat.pow_succ]
-        ring
-      rw [hShift, one_shiftLeft_xor_even_shift]
-      conv_rhs => rw [hfDecomp]
-    · have hEven : (f &&& 1 == 1) = false := Bool.eq_false_iff.mpr hOdd
-      simp only [hEven, Bool.false_eq_true, ↓reduceIte]
-      rw [evalBinv_evalPolyGo n (k + 1) (f >>> 1) (stepNat cur) hfHalf hPair.2]
-      have hFMod : f % 2 ≠ 1 := fun h => hOdd (by rw [hMod, h]; rfl)
-      have hfDecomp : f = 2 * (f >>> 1) := by rw [Nat.shiftRight_eq_div_pow]; omega
-      have hShift : (f >>> 1) <<< (k + 1) = (2 * (f >>> 1)) <<< k := by
-        simp only [Nat.shiftLeft_eq, Nat.pow_succ]
-        ring
-      rw [hShift, ← hfDecomp]
-
-private theorem evalBinv_evalPoly {f : Nat} (hf : f < 2 ^ 256) :
-    evalBinv (evalPoly f) = f := by
-  have h := evalBinv_evalPolyGo 256 0 f 1 hf b_invbasis_left_check
-  simpa [evalPoly] using h
-
 private theorem evalPoly_inj {f g : Nat} (hf : f < 2 ^ 256) (hg : g < 2 ^ 256)
     (h : evalPoly f = evalPoly g) : f = g := by
-  rw [← evalBinv_evalPoly hf, ← evalBinv_evalPoly hg, h]
+  let evalPolyFin : Fin (2 ^ 256) → Fin (2 ^ 256) :=
+    fun x => ⟨evalPoly x.val, evalPoly_lt x.val⟩
+  have hSurj : Function.Surjective evalPolyFin := by
+    intro y
+    refine ⟨⟨evalBinv y.val, evalBinv_lt y.val⟩, ?_⟩
+    apply Fin.ext
+    dsimp only [evalPolyFin]
+    exact evalPoly_evalBinv y.isLt
+  have hBij : Function.Bijective evalPolyFin :=
+    (Fintype.bijective_iff_surjective_and_card evalPolyFin).mpr ⟨hSurj, rfl⟩
+  have hEq : evalPolyFin ⟨f, hf⟩ = evalPolyFin ⟨g, hg⟩ := by
+    apply Fin.ext
+    dsimp only [evalPolyFin]
+    exact h
+  exact congrArg Fin.val (hBij.1 hEq)
 
 private theorem evalPolyGo_stepNat :
     ∀ n f c acc : Nat,
@@ -2816,12 +2716,6 @@ private theorem evalPoly_polyMul_two {f : Nat} (hf : f < 2 ^ 256) :
     dsimp only [res]
     rw [evalPoly_xor, evalPoly_shl1_lt hfLoLt, ← stepNat_bit255, ← stepNat_xor,
       ← evalPoly_xor, ← hfDecomp]
-
-private theorem iterStep_add :
-    ∀ m n v : Nat, iterStep (m + n) v = iterStep m (iterStep n v)
-  | 0, _, _ => by simp [iterStep]
-  | m + 1, n, v => by
-    rw [Nat.add_right_comm, iterStep_succ_right, iterStep_succ_right, iterStep_add m n v]
 
 private theorem iterStep_evalPoly :
     ∀ k f : Nat, k < 2 ^ 256 → f < 2 ^ 256 →
@@ -3059,11 +2953,6 @@ private theorem leftToServe_remLeft_le {count : Word.Count} (r : Option (Explora
     remLeft (leftToServe r) ≤ 127 :=
   remLeft_le (leftToServe r)
 
-private theorem policy_candidates_len_le {count : Word.Count} (pol : PolicySnapshot count) :
-    pol.candidates.length ≤ count.word.toNat := by
-  rw [PolicySnapshot.candidates_def]
-  exact Nat.le_trans (List.length_filter_le _ _) (by rw [List.length_finRange])
-
 private theorem remLeft_eq_zero_iff {count : Word.Count} (r : Option (ExploratoryRun count)) :
     r.bind ExploratoryRun.serve = none ↔ remLeft r = 0 := by
   cases r with
@@ -3143,7 +3032,7 @@ private theorem stepOver_transition {count : Word.Count} (hCount : count.word.to
       have hG : (pol.greedy (beginExploration count pol.epsilon ex.rng).2).2 =
           Rng.advance (pol.candidates.length + 1) ex.rng := by
         rw [PolicySnapshot.greedy_def, reservoir_rng, hRngMatch, ← advance_add]
-      have hLen := Nat.le_trans (policy_candidates_len_le pol) hCount
+      have hLen := Nat.le_trans (AcornVerif.Resource.Twin.candidates_length pol) hCount
       have hNz : (Rng.advance (pol.candidates.length + 1) ex.rng) ≠ Rng.Xoshiro256.zero :=
         Rng.advance_nonzero _ _ hZero
       dsimp only
