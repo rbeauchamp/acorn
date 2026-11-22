@@ -40,8 +40,7 @@ opens, also requires the [Regula audit](docs/verification.md#regula-audit),
 lean-intent's confirmation and implementation checks of Acorn's intent records,
 the check that the declarations a pinned target reads are unchanged, and the
 pinned `no-comments` ratchet check. When a pull
-request is opened or reopened, at every push to it, and when its base branch
-changes, from a branch of the
+request is opened or reopened and at every push to it, from a branch of the
 repository or of a fork, GitHub runs the gate on its head commit and shows the
 job's result on the pull request. Neither the absence of a run of that job nor a
 failed run is by itself the result of a check: the

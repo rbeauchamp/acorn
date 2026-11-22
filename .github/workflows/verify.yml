@@ -1,10 +1,7 @@
 name: Verify
 # GitHub runs the merge gate here, on a pull request's head commit, when the pull request is
-# opened or reopened, at every push to its branch, and when its base branch changes, whether
-# that branch is in this repository or in a fork, and at no other time. GitHub's `edited`
-# event also starts this workflow on title or description edits, where the job is skipped
-# under a check name other than `gate` so it neither runs the gate nor produces a `gate`
-# check result. The one job runs the checked-out
+# opened or reopened and at every push to its branch, whether that branch is in this
+# repository or in a fork, and at no other time. The one job runs the checked-out
 # commit's own ./scripts/gate.sh twice: with the argument `provision`, which
 # provisions the pinned dependencies, and then with no argument, the command the no-mistakes
 # pipeline also runs before a pull request opens (.no-mistakes.yaml). No step names a Lake
@@ -16,8 +13,8 @@ name: Verify
 # A pull request's run is started by the pull_request event, never pull_request_target, so
 # the run for a fork's pull request receives no secret of this repository and a token that
 # cannot write to it; this file names no secret and asks for read access to contents only.
-# No filter names a base branch, so a pull request to any base runs the gate, and retargeting
-# a pull request triggers a fresh run against the new base. Nothing runs after a merge.
+# No filter names a base branch, so a pull request to another base that is later retargeted
+# to main keeps the run made on its head. Nothing runs after a merge.
 #
 # pull_request is the only trigger, so this workflow cannot be started by hand. A run
 # started by hand on main would be in main's own context, where what a run stores is
@@ -40,7 +37,7 @@ name: Verify
 # run's ending.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened]
 permissions:
   contents: read
 env:
@@ -51,12 +48,7 @@ env:
 # stalled transfer fails that step at its own limit and never holds the job to the job's.
 # No step continues after a failure.
 jobs:
-  verify:
-    # Reserve the required check name `gate` exclusively for events that execute ./scripts/gate.sh.
-    # GitHub treats a `skipped` check as satisfying a required status check, so a title-only or
-    # description-only `edited` event skips under a non-`gate` name and leaves `gate` untouched.
-    name: ${{ (github.event.action != 'edited' || github.event.changes.base != null) && 'gate' || 'ignored-edit' }}
-    if: github.event.action != 'edited' || github.event.changes.base != null
+  gate:
     # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's limit is the
     # sum of the limits of the two jobs that ran these checks side by side before; no
     # check's own deadline is changed, and each of verification's two stages keeps

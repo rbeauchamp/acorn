@@ -175,8 +175,8 @@ check of each target's pinned frame (`lean/AcornTools/Frame.lean`), and the
 pinned `no-comments` ratchet check (`.no-comments.json`,
 `comment-ratchet.json`, `lean/no-comments.pin`); GitHub runs the same checks on
 a pull request's
-head commit when it is opened or reopened, at every push to it, and when its
-base branch changes (`.github/workflows/verify.yml`). Resolve required checks,
+head commit when it is opened or reopened and at every push to it
+(`.github/workflows/verify.yml`). Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need

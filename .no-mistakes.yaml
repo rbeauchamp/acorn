@@ -11,7 +11,7 @@
 # (.no-comments.json, comment-ratchet.json, lean/no-comments.pin). Any failing check fails the step.
 #
 # GitHub runs the same script on a pull request's head commit at each event that gives the pull
-# request its head or changes its base branch (.github/workflows/verify.yml). This file sets no `no_ci`, the declaration that a
+# request its head (.github/workflows/verify.yml). This file sets no `no_ci`, the declaration that a
 # repository has no checks on its forge, so the pipeline expects them: once it has opened a pull
 # request it reports the pull request ready only when every check that GitHub registers on the
 # pull request's head commit has passed, and never while GitHub registers none there

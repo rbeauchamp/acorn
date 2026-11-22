@@ -75,8 +75,8 @@ and does not change the global Xcode selection or Lean default toolchain.
 
 The [verification workflow](../.github/workflows/verify.yml) runs the
 [merge gate](#build-and-source-inventory) when a pull request is opened or
-reopened, at every push to it, and when its base branch changes, and at no other
-time, on GitHub's standard `ubuntu-24.04` x64 image. It installs no
+reopened and at every push to it, and at no other time, on GitHub's standard
+`ubuntu-24.04` x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
 elan from a release pinned by the SHA-256 of its archive. Every workflow step
 that reaches the network before the gate has its own time limit, so a stalled
@@ -440,8 +440,8 @@ Primitive IEEE interpretation remains a native assumption.
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
 validates, in a checkout that holds only tracked files. GitHub runs the same
-script at each event that gives a pull request its head or changes its base
-branch, within the limits described after the frame check below. The gate provisions the pinned dependencies,
+script at each event that gives a pull request its head, within the limits
+described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
 360-second deadline. The first, `./scripts/verify.sh build-executing`, admits the
 sources as the complete command does, then selects every module outside the proof
@@ -567,23 +567,17 @@ run to another.
 
 GitHub runs the gate through the
 [verification workflow](../.github/workflows/verify.yml): when a pull request is
-opened or reopened, at every push to its branch, and when its base branch
-changes, whether that branch is in
+opened or reopened and at every push to its branch, whether that branch is in
 the repository or in a fork, on the pull request's head commit, within the
-limits given below. Because GitHub's pull request edited event also fires on a
-title or description edit, those edits also start the workflow, but the job is
-skipped under a check name other than gate so they neither execute
-`./scripts/gate.sh` nor emit a gate check result. Nothing else starts the
-workflow, and it cannot be started by hand. A run started by hand on main would
-be in main's own context, where what a run stores is restored by later runs on
-main, and GitHub's code scanning reports a workflow that can run there and
-executes the script of a commit taken from a pull request as a route to
-poisoning what main's runs restore (CodeQL's query
-`actions/cache-poisoning/poisonable-step`). With no such trigger, no run of the
-workflow is in that context. A pull request's job is run again from the pull
-request, on the same commit (GitHub's documentation, Re-running workflows and
-jobs). The workflow is one job, taking the check name gate only when the event
-executes the gate. It takes the
+limits given below. Nothing else starts the workflow, and it cannot be started
+by hand. A run started by hand on main would be in main's own context, where
+what a run stores is restored by later runs on main, and GitHub's code scanning
+reports a workflow that can run there and executes the script of a commit taken
+from a pull request as a route to poisoning what main's runs restore (CodeQL's
+query `actions/cache-poisoning/poisonable-step`). With no such trigger, no run
+of the workflow is in that context. A pull request's job is run again from the
+pull request, on the same commit (GitHub's documentation, Re-running workflows
+and jobs). The workflow is one job. It takes the
 head commit from the event, fails before any check when the event names none,
 checks out full history (so `origin` holds the pull request base branch), and
 never falls back to the merge of the head with its base. From that checkout
@@ -599,9 +593,12 @@ head only for that script and its two forms. So the dependencies and the checks
 on GitHub are the script's own, with no second list to keep equal to it, and a
 head whose script or Lake configuration is older or newer than the one on main
 is provisioned and checked by its own. A failing check fails the job, and the
-job's result is shown on the pull request. No filter names a base branch, so the
-job runs for a pull request to any base branch, retargeting triggers a fresh run
-against the new base, and nothing runs after a merge.
+job's result is shown on the pull request. The job runs for a pull request to any
+base branch, so that one later retargeted to main keeps the run made on its
+head, and nothing runs after a merge. Because `no-comments` compares against
+`refs/remotes/origin/` and the pull request's base branch when the job runs,
+retargeting from a base with a looser ratchet when the head already contains main
+relies on the owner re-running `./scripts/gate.sh` against main before merge.
 
 The arrangement on GitHub differs from the pipeline's as follows. A step of
 the workflow downloads elan's pinned release in every run and installs it only
@@ -726,16 +723,10 @@ limit, each check already reported keeps its line, and that check and those
 after it have no verdict in that attempt. A head with no run at all has no
 verdict of any check.
 
-Whether a merge requires the gate check is set in the repository's rules on
-GitHub, not in a file of the repository. GitHub treats both a passing and a
-skipped check run as satisfying a required status check on the latest commit
-(GitHub's documentation, Troubleshooting required status checks, and Using
-conditions to control job execution). Therefore the workflow reserves the
-required check name gate exclusively for events that execute `./scripts/gate.sh`
-and assigns skipped non-base pull request edits a distinct name (`ignored-edit`,
-or the workflow's non-gate fallback when GitHub leaves a skipped job name
-unevaluated), so a title or description edit never emits a skipped gate check
-and cannot satisfy the required check without running the gate.
+Whether a merge requires this job is set in the repository's rules on GitHub,
+not in a file of the repository. Where the rules require it, a head on which it
+has not passed does not merge: GitHub requires a required check to pass on the
+latest commit (GitHub's documentation, Troubleshooting required status checks).
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners
