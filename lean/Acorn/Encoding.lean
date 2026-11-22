@@ -123,7 +123,7 @@ theorem magnitudeEq_exact (x : Binary32) (word : UInt32) :
 def Finite (x : Binary32) : Prop := x.magnitude < 0x7f800000
 
 /-- The magnitude field's word comparison, `UInt32.decLt` applied directly: compiled, it is one
-native word comparison. Through `inferInstanceAs`, Lean v4.35.0 unfolds the instance into a
+native word comparison. Through `inferInstanceAs`, Lean v4.36.0 unfolds the instance into a
 comparison of natural numbers. -/
 instance (x : Binary32) : Decidable x.Finite :=
   UInt32.decLt (x.bits &&& 0x7fffffff) 0x7f800000

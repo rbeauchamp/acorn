@@ -13,9 +13,11 @@ you inspect its predictions, chosen actions, options and planning as it runs.
 ## Point an agent at a mission
 
 Acorn's open problems are posted as *missions*: GitHub issues that each freeze
-one exact statement to establish, usually a Lean theorem about code that runs. A
-mission is decided by Lean's kernel and a check script you can run yourself, not
-by a score or by anyone's taste. To contribute with an AI agent, give it one
+one exact statement to establish, usually a Lean theorem about code that runs. Whether
+a mission's theorem is proved is decided by Lean's kernel and a check script
+you can run yourself, not by a score or by anyone's taste; a referee then
+reads the pull request against the whole contract
+([review protocol](CONTRIBUTING.md#review-protocol)). To contribute with an AI agent, give it one
 instruction:
 
 > Read https://github.com/rbeauchamp/acorn/blob/main/docs/missions.md and follow its instructions for agents.
@@ -111,7 +113,8 @@ the last two are
 
 ## Start with the live viewer
 
-From your Acorn checkout, run:
+In work on a change to Acorn, a launch needs the owner's authorization for that
+run, as the paragraph after the command says. From your Acorn checkout, run:
 
 ```sh
 ./scripts/start.sh
@@ -126,8 +129,16 @@ require system installation prompts; subsequent launches reuse installed
 dependencies and unchanged build outputs. Automatic setup supports macOS and
 Ubuntu/Debian Linux.
 
+Work on a change to Acorn launches it only on the owner's authorization for
+that run: [CONTRIBUTING](CONTRIBUTING.md#running-a-program) says where the
+invocations that such work may drive without it are listed, and a launch is not
+among them.
+
 <details>
 <summary>Need to get the code first?</summary>
+
+The same condition holds here: in work on a change to Acorn, a launch needs the
+owner's authorization for that run.
 
 ```sh
 git clone https://github.com/rbeauchamp/acorn.git
@@ -136,7 +147,8 @@ cd acorn
 ```
 
 You need Git to clone the repository. You can also download and unpack its
-source archive, then run the launcher from that directory.
+source archive, then run the launcher from that directory, under the same
+condition.
 
 </details>
 
@@ -158,7 +170,8 @@ predictions as the run develops.
 - **Start** resumes execution with compatible saved learner state.
 - **Ctrl-C** in the launcher's terminal finishes the current attempt and closes
   the viewer after shutdown. Wait for the command to return.
-- Run **`./scripts/start.sh` again** to reopen the viewer and resume.
+- Run **`./scripts/start.sh` again** to reopen the viewer and resume; in work on
+  a change, that launch needs the owner's authorization like the first.
 - **Clear** archives the run and prepares a fresh agent. If stopped, it stays
   stopped until you choose Start.
 
@@ -216,6 +229,8 @@ You can read the design without installing Lean.
 | How close is Acorn to the published baseline, and what work remains? | [Baseline assessment](docs/baseline-assessment.md) and [roadmap](docs/roadmap.md) |
 | How should work be proposed and checked? | [Contributing](CONTRIBUTING.md) and [missions](docs/missions.md) |
 | How is a result on learned agent state stated, and what does it certify? | [The frame of a learned-state result](docs/learned-state-frame.md) |
+| How is a submission on learned agent state read, and what does a referee's report record? | [How a submission on learned agent state is checked](docs/learned-state-check.md) |
+| What is the modular 4-layer and always-on architectural foundation? | [Architectural intent](docs/architectural-intent.md) and [Architectural foundation](docs/architecture-foundation.md) |
 | Which missions are open, and who has landed what? | [Mission board](docs/mission-board.md) |
 
 Research criticism, proof/implementation review and contributions are welcome,

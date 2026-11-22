@@ -5,22 +5,26 @@ Authors: acorn contributors
 -/
 import AcornTools.Boundary.Audit
 import AcornTools.Ownership
+import Regula.Load
 
 /-!
 # Compiler-backed theorem inventory
 
 Count `.thmInfo` declarations by the module index recorded in compiled Lean
-environments, and refuse a native replacement on any project declaration. Source
-filenames discover the owned modules, including modules outside either library
-root's import closure; source text never decides whether a declaration is a
-theorem. Imported Lean and Mathlib theorems are excluded by their owning module,
-even if their declaration names resemble project names.
+environments, and refuse a native replacement on any project declaration except
+a verified compiler-generated `T.ctorIdx` / `T.ctorIdx._impl` pair on Lean v4.36.0.
+Source filenames discover the owned modules, including modules outside either
+library root's import closure; source text never decides whether a declaration
+is a theorem. Imported Lean and Mathlib theorems are excluded by their owning
+module, even if their declaration names resemble project names.
 
 The inventory includes compiler-generated auxiliary theorem declarations and
 private theorems. Counts report this complete scope of compiled declarations.
 The axioms of each declaration, project axioms, and `unsafe` and `partial`
 declarations are checked by the Regula audit of the claimed modules, not here.
-The replacement refusal stays: the Regula audit reads no replacement or extern.
+The general replacement refusal stays: Regula v0.13.1 reads `implemented_by` and
+`extern` only to qualify RG1006's exempted forms (`helperForm` and `ctorIdxPair`)
+and has no general rule refusing them on safe declarations.
 -/
 
 namespace AcornTheoremCount
@@ -54,16 +58,42 @@ def Counts.report (counts : Counts) : IO Unit := do
   let total := counts.verification + counts.current + counts.application + counts.document
   IO.println s!"theorem-count total={total}"
 
+/-- Whether `name` is the safe half `ind.ctorIdx` of a verified compiler-generated `ctorIdx` pair
+(`Lean/Meta/Constructions/CtorIdx.lean:40-141` at Lean v4.36.0), matching Regula v0.13.1's
+structural check (`Regula.Load.ctorIdxFormOf` and `Regula.Closed.Tables.ctorIdxPair`): `ind` is a
+safe inductive in the same module `owner`, `name` has `@[implemented_by ind.ctorIdx._impl]` and no
+`@[extern]`, `ind.ctorIdx._impl` is in `owner` with the exact `@getObjTagNat` body and neither
+`@[implemented_by]` nor `@[extern]`, and `getObjTagNat` comes from the toolchain's `Init` library. -/
+def isCompilerCtorIdx (env : Environment) (library : System.FilePath) (owner name : Name)
+    (info : ConstantInfo) : IO Bool := do
+  if (getExternAttrData? env name).isSome then return false
+  let .defn ind := Regula.Load.ctorIdxFormOf env name info | return false
+  let implName := Name.str name "_impl"
+  unless Compiler.getImplementedBy? env name == some implName do return false
+  unless (← AcornBoundaryAudit.declarationOwner env ind) == owner do return false
+  let some implInfo := env.find? implName | return false
+  unless (← AcornBoundaryAudit.declarationOwner env implName) == owner do return false
+  unless Regula.Load.ctorIdxFormOf env implName implInfo == .impl ind do return false
+  if (Compiler.getImplementedBy? env implName).isSome then return false
+  if (getExternAttrData? env implName).isSome then return false
+  let tagOwner ← AcornBoundaryAudit.declarationOwner env `getObjTagNat
+  unless (`Init).isPrefixOf tagOwner do return false
+  AcornBoundaryAudit.checkOrigin library tagOwner
+  return true
+
 /-- Count the selected owning modules in one compiled environment. A declaration of a
-selected module with `implemented_by` or `extern` is refused. -/
+selected module with `implemented_by` or `extern` is refused, except for a verified
+compiler-generated `T.ctorIdx` -> `T.ctorIdx._impl` pair on Lean v4.36.0. -/
 def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
+  let library ← getLibDir (← findSysroot)
   let selected := owners.foldl (fun selected owner => selected.insert owner) ({} : NameSet)
   let mut counts : Counts := {}
   for (name, info) in env.constants do
     let owner ← AcornBoundaryAudit.declarationOwner env name
     if !selected.contains owner then continue
     if (Compiler.getImplementedBy? env name).isSome || (getExternAttrData? env name).isSome then
-      throw (IO.userError s!"{owner}: native replacement for {name}")
+      unless (← isCompilerCtorIdx env library owner name info) do
+        throw (IO.userError s!"{owner}: native replacement for {name}")
     if let .thmInfo _ := info then
       if (`AcornVerif).isPrefixOf owner then
         counts := { counts with verification := counts.verification + 1 }

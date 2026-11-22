@@ -3,7 +3,10 @@
 Acorn studies how an agent can keep learning predictions, representations and
 temporally extended behavior from a single stream of experience. This page
 introduces the running system; the [prior-art review](prior-art-review.md) gives
-the detailed assumptions and adaptations of each mechanism.
+the detailed assumptions and adaptations of each mechanism, and the
+[architectural foundation](architecture-foundation.md) records the planned modular
+evolution from the current single-package realization to a 4-layer federated and
+always-on architecture.
 
 ## The learning loop
 
@@ -799,7 +802,10 @@ What these do not establish:
   was reached.
 
 **The certificate tool.** `world-certificates` generates the standard world of
-each listed seed, proposes certificates and prints what the checkers accepted:
+each listed seed, proposes certificates and prints what the checkers accepted.
+In work on a change, this command with arguments is not on the closed list that
+[running a program](../CONTRIBUTING.md#running-a-program) points to, and it is
+driven only on the owner's authorization:
 
 ```sh
 ./scripts/lean.sh exe world-certificates SIDE CAP SEED [SEED ...]
@@ -2107,7 +2113,10 @@ discipline, and **F** an unresolved research question.
 
 The [launcher](../scripts/start.sh) supplies the walkthrough settings. You do
 not need to select these flags to use it; this section is for investigating the
-configuration or running the core directly.
+configuration or running the core directly. In work on a change, a command
+below that starts the core is driven only on the owner's authorization for that
+run, unless it is on the closed list that
+[running a program](../CONTRIBUTING.md#running-a-program) points to.
 
 A **research profile** is a named combination of agent mechanisms, selected with
 `--research-profile`.
@@ -2140,7 +2149,8 @@ The core's `--criterion` flag is independent of the profile:
   to a learned average reward per step. See [continuing control](frontier.md#f4--continuing-control-and-exploration)
   for the research questions around this criterion.
 
-For example, to select both explicitly in a bounded terminal run:
+In work on a change, the run below needs the owner's authorization. For example,
+to select both explicitly in a bounded terminal run:
 
 ```sh
 lean/.lake/build/bin/acorn-core demo --research-profile ranked --criterion discounted --side 64 --steps 250 --attempts 1 --goals 1 --cycles 1
@@ -2414,7 +2424,9 @@ separator such as `_` and white space are refused
 of terrain coordinates of `world-native terrain X Y SEED SCALE_BITS`, which take an
 optional leading `-` or `+` and range from -2^63 to 2^63 - 1.
 
-After building with the launcher, a short terminal example is:
+After building with the launcher, a short terminal example, which in work on a
+change needs the owner's authorization
+([running a program](../CONTRIBUTING.md#running-a-program)), is:
 
 ```sh
 lean/.lake/build/bin/acorn-core demo --research-profile ranked --side 64 --steps 250 --attempts 1 --goals 1 --cycles 1

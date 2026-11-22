@@ -19,7 +19,9 @@ is governed by the [Code of Conduct](CODE_OF_CONDUCT.md); use
 [AGENTS](AGENTS.md) is the engineering and review policy: proof-first correctness,
 learned-only boundaries, prior-art admission, and delivery requirements. Follow
 its [review and delivery](AGENTS.md#review-and-delivery) section for checks,
-signed commits and independent review. The shipped skills under .agents/skills
+signed commits and the review an author runs; the
+[review protocol](#review-protocol) below says which review decides when work
+is complete. The shipped skills under .agents/skills
 provide the review workflow, proof-specific questions and how the
 [Regula audit](docs/verification.md#regula-audit) applies to writing Lean.
 
@@ -57,6 +59,285 @@ Releases follow [Semantic Versioning](https://semver.org/): fix implies a patch
 release, feat a minor release and a breaking change a major release, or a minor
 release before 1.0.
 
+## Review protocol
+
+One protocol governs every pull request, whoever wrote it: an outside
+contributor, an agent they direct, the owner or one of the organization's
+agents. It decides when work is complete. No statement by an author decides
+that, and neither does a passing gate or the verdict of a reviewer the author
+chose.
+
+The maintainers are the owner and the organization's agents
+([triage and response](#triage-and-response)); a human maintainer is the owner
+or another person granted maintainer authority on the repository. A model family
+is the models of one developer.
+
+### Which review a pull request gets
+
+Every pull request requires an independent review under this protocol (by the
+maintainers' per-PR assignment below, or under the single-maintainer interim
+provision while Acorn has one human maintainer), and never by a reviewer the
+author chose; any model reviewer must belong to another model family than every
+model that did the work, and the applicable assignment rule determines when an
+uninvolved person is eligible. What differs is the depth. A pull request gets
+the referee's review when it does any of these:
+
+- it claims to complete or advance a mission, or an issue that asks for a
+  proof or a discovery;
+- it adds or changes the statement of a theorem about the agent, which is a
+  theorem that says what the executed agent or one of its learners does, or
+  it adds or changes a specification, which is a statement of what is to be
+  established, such as a target, an intent record, a decision contract, the
+  [mission contract](docs/mission-contract.md), an issue's contract or the
+  [viewer specification](docs/viewer-ux.md);
+- it claims learning or discovery.
+
+Every other pull request is an ordinary change and gets the short review. The
+line is drawn by what a pull request claims or changes, never by who wrote it
+or by how its author describes it. The maintainers decide it at triage, from the pull request's
+head, title and description, and decide it again whenever what the pull
+request claims or changes changes, by a push or by an edit of its title or
+description. In doubt, a pull request gets the referee's review.
+
+An author may run a review of their own on any pull request, with a reviewer
+of their choice, as [AGENTS](AGENTS.md#review-and-delivery) and the review
+skills under .agents/skills describe. It helps the work and discharges nothing
+of this protocol, for any pull request.
+
+This holds for the organization's own changes as for anyone's. The review this
+protocol requires is the review of a reviewer assigned under the rule of
+assignment below, posted as a comment on the pull request for the exact head
+commit, title and description. A pre-PR or post-PR check made by a validation
+pipeline discharges nothing of the protocol on its own without that assignment
+comment and the reviewer's posted unedited report or short review on the pull
+request (and if a validation-pipeline run is relied on under the
+single-maintainer provision below, both the assignment comment naming the head
+commit and that unedited review on the pull request are still required).
+
+### The gate on the exact head
+
+GitHub runs the gate on a pull request's head commit and shows the job's result
+on the pull request, where the contributor and the maintainers see the same
+result. What the absence of a run or a failed run says of the checks is under
+[working on code and proofs](#working-on-code-and-proofs). Before
+a merge, the maintainers confirm the gate's pass on that exact head commit, by running
+`./scripts/gate.sh` on it ([merge authority](#triage-and-response)). A result
+on an earlier head counts for nothing.
+
+### The referee's review
+
+**Who the referee is.** The maintainers assign the referee (and for a short review,
+the reviewer). The author never does, and an author's request for a reviewer or
+against one, in the pull request or anywhere else, has no weight: the
+maintainers neither take nor pass over a reviewer because of it. Outside the
+cases covered by the single-maintainer interim provision below, each pull request
+(including every pull request once Acorn has more than one human maintainer, any
+fallback review when the interim designation cannot apply, and the second
+referee on a claim of discovery) receives an individual maintainer-led
+assignment:
+
+- the referee is of another model family than every model that did the work,
+  or is a person. Whom this admits for work a person did with no model is the
+  maintainers' call;
+- the referee took no part in the work: it did not write it, advise on it or
+  review it for the author;
+- where the author is one of the maintainers, another of them assigns: an
+  agent other than the one that did the work, or a human maintainer;
+- the assignment is written on the pull request: who assigned, and the
+  referee's model family or that the referee is a person.
+
+**Single-maintainer interim provision (owner-confirmed 2026-11-21).** While
+Acorn has only one human maintainer, independent human maintainer cross-checking
+on every pull request is unavailable. During this single-maintainer phase,
+independent review remains mandatory on every pull request (by an external
+model of another model family than every model that did the work, or an
+uninvolved person where the general rule above admits one), with the same
+referee's review or short review depth, exact head commit binding, findings, and
+verdict of accept, revise or reject, plus exact-head `./scripts/gate.sh` and
+any blind specification read-back required at merge under
+[triage and response](#triage-and-response). Under this provision, the external
+model configured as the analyzer/verifier in Acorn's no-mistakes validation
+pipeline satisfies the protocol by standing owner designation (whether run via
+no-mistakes or standalone against the exact pull request head, title and
+description) when all of the following hold:
+
+- an assignment comment is written on the pull request recording the owner's
+  standing single-maintainer designation, the designated reviewer's model
+  family, and the exact head commit;
+- the reviewer's report or short review for that exact head commit, title and
+  description is posted on the pull request, unedited except for any redaction
+  required by the security-vulnerability rule below (and for a claim of
+  discovery, withheld and posted together with the second referee's report under
+  the discovery rule below);
+- **no same-family self-review:** the designated reviewer took no part in writing
+  or fixing the change and belongs to a different model family than every model
+  that authored, fixed or advised on the work. In particular, if any contributing
+  or pipeline-fixing model (whether directed by an outside contributor, an
+  organization agent or a human maintainer) belongs to the same model family as
+  the validation pipeline's configured analyzer/verifier, that analyzer/verifier
+  cannot satisfy the protocol for that pull request and another reviewer is
+  assigned under the general rule above (of another model family or an
+  uninvolved person). Earlier review findings and reports issued by that model
+  strictly in its designated referee or analyzer/verifier role (under Findings
+  and revision below or in designated validation-pipeline verification rounds on
+  revised commits) do not disqualify it from re-reading revised commits (and an
+  author may relay the designated reviewer's unedited report), whereas seeking
+  optional author-side review, advice, writing or fixing from that model does
+  disqualify it;
+- for a claim of discovery requiring two referees, this standing designation
+  supplies at most one cross-family referee and never substitutes for the second
+  independent referee assigned under the general rule above.
+
+A review qualifying under this provision enters [When work is complete](#when-work-is-complete) once it is clean (verdict accept with no open findings), alongside the passed exact-head `./scripts/gate.sh` and merge.
+
+**Restoration of full maintainer-led assignment.** Once Acorn has more than one
+human maintainer, this single-maintainer standing designation retires and the
+general per-PR maintainer-led assignment rule above governs every pull request
+on its own. As before, outside pull requests merge only on the owner's word,
+and any change loosening protections or removing checks merges only on the
+owner's recorded confirmation.
+
+A review by anyone who was not assigned under the applicable rule above, from
+any account, is an ordinary comment. It is welcome as criticism and discharges
+nothing.
+
+**What the referee reads, and against what.** The maintainers give the referee
+the pull request at its head commit, the issue it names and Acorn's tracked
+text. The author addresses the referee only on the pull request, except on a
+finding that discloses a security vulnerability, where the private route
+given under the report below is the only one. The review is
+adversarial: for each claim the referee looks for the cheapest way it could be
+false, or weaker than the pull request says, while every check passes. It reads
+the claims against the issue's contract, against Acorn's
+[proof standard](.agents/skills/proof-review/references/proof-standard.md),
+which includes its two questions on credit to learning, and against
+[AGENTS](AGENTS.md). It reads the Lean statements themselves, not their names
+or the description. The referee does not repair the work.
+
+**The report.** The referee's report is a comment on the pull request, and
+stays there. It names the head commit it read, counts only for that commit
+and for the pull request's title and description as it read them, and has
+four parts:
+
+- what is claimed: each claim of the pull request, with the theorem,
+  definition or text that is to carry it;
+- what is established: for each claim, whether it is established, established
+  under hypotheses that the report names, or not established, and which
+  statement was read to say so;
+- what must change: the findings, each with its place, its reason and what
+  would correct it;
+- a verdict: accept, revise or reject.
+
+A report that restates the gate's result is no report. The gate shows that
+proofs are sound; it does not show that they are proofs of what is claimed.
+
+A finding that discloses a security vulnerability is not written out on the
+pull request. The referee reports it through the private route that
+[SECURITY](SECURITY.md) names, and what is said of it afterwards goes by that
+route too: the author's answer, any objection and the maintainers' ruling.
+While such a finding is open, no text on the pull request says what the
+vulnerability is or where it is, whoever writes it and wherever it stands:
+not the title, not the description or any section of it, and so not the
+commit message that the description becomes, and not a comment, a review or
+a reply. The pull request says only that a finding of that kind is open, or
+that it is closed. This rule comes before every sentence of Acorn's tracked
+text that asks for or describes what is written on a pull request. What the
+pull request template and the guides ask an author to record there, such as
+each place found, a finding accepted or a computation made, is recorded for
+such a finding in the private report, until the process that
+[SECURITY](SECURITY.md) sets out makes it public. The report is not clean
+until that finding is closed. Whether a finding discloses a security
+vulnerability is the maintainers' call: one that they judge does not is
+written out, answered and ruled on on the pull request like any other, and
+nothing else is kept off the pull request under this rule. The same holds
+for a short review and its reviewer.
+
+**Findings and revision.** The findings written out in the report go back to
+the author on the pull request. The author answers each of them there, by a
+change to the work or by a reasoned objection, and each stays open until the
+referee withdraws it or the maintainers rule on it in writing on the pull
+request. A finding that discloses a security vulnerability goes back, is
+answered and is ruled on in the same way, by the private route and not on
+the pull request. After a push, or an edit
+of the pull request's title or description, the pull request has no clean
+report until the referee has read it again and reported: the rule covers
+every field of a pull request that becomes part of the merged commit's
+message or states a claim. This
+repeats until the report is clean or the author withdraws. A report is clean
+when its verdict is accept and no finding is open. An author may withdraw at
+any time; the pull request is then closed. A verdict of reject says that no
+revision can make the claim good: the pull request is closed, and new work is
+a new pull request.
+
+**A claim of discovery.** A pull request that claims a discovery, in the sense
+of [prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery),
+has two referees, each assigned by the rule above. Neither sees the other's
+report before filing its own: each files with the maintainers, who post both on
+the pull request once they hold both. Whether the two are also of different
+model families from each other is the maintainers' choice. Both reports must
+be clean.
+
+### The short review
+
+The maintainers assign the reviewer of an ordinary change by the rule of
+assignment above, as they assign a referee, and write the assignment on the
+pull request. The reviewer reads the change at its head commit, adversarially,
+against what the description says the change does and against Acorn's rules
+([AGENTS](AGENTS.md)), asking three things:
+
+- does the change do what its description says, and nothing else;
+- does it leave Acorn's tracked text true;
+- does it claim or change anything that calls for the referee's review.
+
+The short review is one comment on the pull request, and stays there. It
+counts as the review of an ordinary change only if it names the head commit it
+read and states, in a line each, the three things it checked: that the change
+does what its description says and nothing else; that it leaves Acorn's
+tracked text true; and that it claims nothing that calls for the referee's
+review. Then it gives its findings, each with its
+place, its reason and what would correct it, or says that it has none, and a
+verdict of accept, revise or reject. A comment that gives only a verdict, or
+only that there are no findings, does not count, and the pull request has no
+clean review until one that does is posted. Findings and revision go as they do for a referee's
+report: the author answers each finding written out in the review on the pull
+request, such a finding stays open until the reviewer withdraws it or the
+maintainers rule on it there, a finding that discloses a security
+vulnerability is answered and ruled on by the private route and not on the
+pull request, and after a push, or an edit of the pull request's title or
+description, it has no clean review until the reviewer has read it again.
+A short review is clean when it counts, its verdict is accept and no finding
+is open.
+
+### When work is complete
+
+Work under the referee's review is complete when its pull request has merged
+and, on the head commit that merged and for the title and description it
+merged with, each referee's report is clean and the gate has passed. An ordinary change is complete when its pull request has
+merged and, on the head commit that merged and for the title and description
+it merged with, its short review is clean and the gate has passed.
+
+Until then the work is submitted, under review or accepted by its referees or
+its reviewer, and nothing calls it complete: not its description, a commit message, a
+comment, or its author's last message. A description says what the work
+claims. An issue's own section on completion or acceptance says what is to be
+established, and its line on the gate names one check; whether a pull request
+has established it is decided here.
+
+The owner's merge and the owner's review of changes to the trusted base are as
+[triage and response](#triage-and-response) states them; this protocol changes
+neither. No pull request merges before the review this protocol gives it is
+clean: each referee's report, or the short review.
+
+### What the protocol does not promise
+
+No date is promised for an assignment, a report, a short review or a merge;
+the target for a first response is in
+[triage and response](#triage-and-response). The protocol is a written rule
+that no check of the gate executes, a referee or a reviewer can be wrong, and
+no rule can see whether the three lines of a short review were written after
+reading or copied as a formula
+([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
+
 ## Missions for outside contributors and agents
 
 [Missions](docs/missions.md) is the way in: what a mission costs and pays, step-by-step
@@ -66,9 +347,13 @@ credits what has landed. This section states the rules those instructions rest o
 Acorn's mission is to discover and implement algorithms that enable agents to
 achieve goals in big worlds. Pursuing it here means formally proving that they
 work—that the agent achieves goals over a formally modelled class of big worlds.
-In Acorn, missions are the work that serves it, and each mission's
-acceptance is decided by the stated theorem or contract checked by Lean's
-kernel and the repository gate (`./scripts/gate.sh`). Landing a mission is not
+In Acorn, missions are the work that serves it, and each mission
+states the theorem or contract to establish. Lean's kernel and the
+repository gate (`./scripts/gate.sh`) decide whether a theorem is proved and
+whether the gate's checks pass. A referee reads the pull request against the
+whole contract, the list of files it may change included, which no check
+reads, and the [review protocol](#review-protocol) decides when a mission's
+pull request is accepted. Landing a mission is not
 by that fact a discovery: a discovery is an algorithm nobody has published, and
 a mission that implements or proves a published algorithm is prior-art work.
 [Prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery)
@@ -84,7 +369,8 @@ single blind step (Liew, 2026,
 [arXiv:2605.25931](https://arxiv.org/abs/2605.25931)). Running the agent in its
 worlds ([ARC-AGI-3](https://docs.arcprize.org/) games or
 [Microduck](https://github.com/pollen-robotics/microduck)) still
-matters as a smoke test and demonstration, never acceptance evidence.
+matters as a smoke test and demonstration, never acceptance evidence, and each
+such run needs the owner's authorization ([running a program](#running-a-program)).
 
 Because the mission stated above asks for algorithms that are discovered and
 implemented, a mission's theorem is about an executable Acorn definition—the
@@ -103,7 +389,10 @@ check refusing noncomputable in executing modules).
 - **What a mission is:** a GitHub issue labelled mission whose contract, the
   exact Lean theorem statement or decision contract to establish, is frozen and
   may not be weakened. Each mission states the theorem or contract
-  that decides its acceptance, checked by Lean's kernel and `./scripts/gate.sh`;
+  that its pull request must establish. Lean's kernel and
+  `./scripts/gate.sh` decide whether a theorem is proved and whether the
+  gate's checks pass, and a referee reads the pull request against the whole
+  contract under the [review protocol](#review-protocol);
   runs of the agent in its worlds are demonstrations, not acceptance evidence.
 - **Where a contract is frozen:** a theorem's statement is frozen as a *target*,
   a Lean definition whose value is the statement, in a module under
@@ -173,7 +462,12 @@ check refusing noncomputable in executing modules).
   and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
   the owner's review on every pull request that changes them, and only the
   owner's account, the one with write access, merges outside pull requests; do
-  not touch them unless the mission contract explicitly requires it.
+  not touch them unless the mission contract explicitly requires it. One
+  document under `docs/` is also the owner's,
+  [how a submission on learned agent state is checked](docs/learned-state-check.md):
+  [CODEOWNERS](.github/CODEOWNERS) is the list of every such path, and a
+  mission does not touch a path it names unless its contract explicitly
+  requires it.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
   (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
   `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
@@ -195,9 +489,7 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
 - **What a submission adds:** a state mechanism, a family of worlds and a goal,
   and the choice of a standard configuration apart from the seed. It does not
   change the agent's learners, the way the agent chooses actions or the way it
-  explores. This is narrower than issue #295 read before the frame was adopted:
-  its text asks a contributor to change how the agent learns, and that text is
-  revised by a separate change.
+  explores.
 - **How a learner change lands:** separately, and first. It is its own pull
   request to the agent, which states and proves what the change is for on its
   own terms and passes the same review and the same gate as any other
@@ -214,8 +506,16 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   `AcornVerif.LearnedState.Acorn.Complete` for the submitted configuration,
   mechanism and task: the seven statements the account lists, from the agent's
   cold start, at every seed. It is necessary and not sufficient for a
-  learned-state result. It certifies that the agent's run satisfies a statement
-  the contributor wrote and that the named comparisons do not, and it goes to a
+  learned-state result. It certifies that the goal the contributor wrote holds
+  of the run of the agent with the mechanism in every world of the family, at
+  every seed, and that for each agent it is compared with, whichever rule or
+  schedule that agent is given, and for each seed, there is a world of the
+  family in which the goal fails of that agent's run. It does not certify that
+  the agent's run differs from a compared run in every world of the family.
+  Nor does it certify that the goal is a task anyone would pose: a complete
+  result is also one, over the same worlds, for the goal that asks only that
+  the run be the agent's own at some seed
+  (`AcornVerif.LearnedState.Result.recognized`). It goes to a
   referee with the eight questions the account lists. A submission that does
   not prove all seven is partial, and is recorded by which of them it proved,
   with any assumption stated.
@@ -227,13 +527,35 @@ pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
   states what a complete result is and nobody can produce one for the program
   as it runs. It is also not known whether any complete result exists for the
   agent as it stands. [#296](https://github.com/rbeauchamp/acorn/issues/296)
-  bears on it: that issue asks whether the standard agent's learners can make
-  quick use of one added state feature, and its answer may leave part of this
-  open.
+  and [#297](https://github.com/rbeauchamp/acorn/issues/297) bear on it and
+  come ahead of #295 in the
+  [roadmap's order](docs/roadmap.md#learned-agent-state-beside-the-active-rung);
+  neither is a logical prerequisite of a complete result. #296 asks whether the
+  standard agent's learners can make quick use of one added state feature
+  within a stated horizon: a proved case in which they do need not meet all
+  seven statements, an obstruction for one feature says nothing of several,
+  and so its answer may leave part of this open. #297 asks for a reusable
+  theorem about what the learners acquire after a first reward and for one
+  designed place where a state feature enters the default agent; the seven
+  statements name neither.
 - **That the frame is not empty** is proved of a small agent of its own, not
   of Acorn's: `lean/AcornVerif/LearnedStateSmall.lean` proves all seven
-  statements of it, and `lean/AcornVerif/LearnedStateRefusals.lean` shows
-  cheap kinds of result that have no proof.
+  statements of it with one mechanism and one task
+  (`AcornVerif.LearnedState.Small.inhabited`).
+  `lean/AcornVerif/LearnedStateRefusals.lean` proves that the same small agent
+  with the same mechanism has no complete result on two variants of that task:
+  one whose goal gains an alternative that a constant answer satisfies
+  (`AcornVerif.LearnedState.Small.alternative_refused`), and one over the
+  worlds in which the cue the mechanism holds is itself the answer
+  (`AcornVerif.LearnedState.Small.remembered_refused`). Both are statements
+  about that agent with that mechanism. Two general theorems refuse a kind of
+  result only under their hypotheses. No mechanism has a complete result on a
+  task whose goal some agent, whose output is a function of the current
+  percept, meets at some seed in every world of the family
+  (`AcornVerif.LearnedState.Result.history_free_refused`). A mechanism has
+  none on a task where, with that mechanism kept, stores fixed in advance meet
+  the goal at some seed in every world of the family
+  (`AcornVerif.LearnedState.fixed_stores_refused`).
 
 ### AI-generated contributions
 
@@ -257,8 +579,10 @@ contribute.
   ([what the board counts](docs/missions.md#what-the-board-counts)); it counts
   nothing else and grants no repository privilege.
 - **Acceptance:** every contribution is judged by Lean's kernel, the frozen
-  theorem or decision contract, and `./scripts/gate.sh`, never by trust in the
-  author or the model.
+  theorem or decision contract, `./scripts/gate.sh` and the
+  [review protocol](#review-protocol), never by trust in the author or the
+  model. That protocol, and no statement of the author or the model, says when
+  it is complete.
 
 ### Triage and response
 
@@ -284,8 +608,20 @@ every promise is one that an organization of one owner and its agents can keep:
   only on the owner's word. Only the owner's account has write access to merge,
   after running `./scripts/gate.sh` on the exact pull request head (and a blind
   specification read-back when a pull request introduces or edits a
-  specification). Changes to the trusted-base files listed in
-  [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner.
+  specification), and only once the review that the
+  [review protocol](#review-protocol) gives the pull request, each referee's
+  report or the short review, is clean on that head and for the title and
+  description as they stand at the merge. A change to what the
+  review protocol requires, allows or rules out merges only once the owner
+  has confirmed it. Changes to the trusted-base files listed in
+  [CODEOWNERS](.github/CODEOWNERS) are reviewed by the owner. Until the gate
+  checks it, this holds as a practice: a change to those files prepared by the
+  owner's agents that keeps or tightens a protection is read in full by the
+  agent supervising the work and landed by the agent that coordinates them,
+  under the owner's delegation of 2026-11-20; one that loosens a protection or
+  removes a check is admitted only by the owner's own recorded words; and a
+  pull request from any other account is read on the owner's side, its whole
+  diff, before it is merged. No check enforces any of this yet.
 - **Keeping the board current:** whoever files or merges a mission may
   [regenerate the board](docs/missions.md#regenerating-the-board) in a pull request,
   and the organization's agents do so when they triage, with no schedule promised.
@@ -304,6 +640,101 @@ shown before one is proposed. The viewer starts the agent only on an explicit
 act: its `--start` flag, Start in its page, or a saved state that an earlier
 Start set to running. `./scripts/start.sh` passes that act, so the launcher
 does start the agent.
+
+### What counts as a run
+
+Stepping the agent, or one of its learners, over a sequence of percepts of any
+length is a run, by whatever means: the compiled binary, evaluation inside
+Lean, or a re-implementation in any language. The tool does not decide it. A
+learner stepped alone is a run, and so is stepping a copy of the agent's
+arithmetic in another language.
+
+Inside Lean, what makes a computation a run is that the step of the agent or
+of a learner is evaluated or reduced on given percepts to see what it yields,
+and no theorem of the pull request checks what it yielded. The command does
+not decide it: an evaluation command, a reduction command, a tactic, and an
+example stated to print or inspect a value all count.
+
+Three things are not runs. Proof search is computing a value that a theorem in
+the pull request then checks: the theorem states the value and Lean's kernel
+checks it, so nothing rests on the computation having been right. Lean's
+kernel checking a theorem of the pull request is never a run, whatever its
+proof evaluates: the gate does that for every theorem. And trying to prove a
+stated proposition and failing is proof work and not a run. Where an attempt,
+failed or not, evaluated the step on given percepts to see what it yields,
+the criterion above decides: it is a run unless a theorem kept in the pull
+request checks what it yielded. Stating
+propositions about what the step yields on given percepts and discarding them
+is different. Each is an evaluation of the step, and it is a run unless a
+theorem kept in the pull request checks the value.
+
+[AGENTS](AGENTS.md#correct-by-construction) says what a run needs before it is
+made. Every pull request lists, on the line the
+[pull request template](.github/pull_request_template.md) gives it, every
+computation made on the agent or on one of its learners in preparing the
+change, every evaluation of the step on given percepts included, whether or
+not anything of it was kept: what was computed, by what means and what it
+showed. An entry for a computation that stepped the agent or a learner over
+one or more percepts, by any means, also names the theorem of the pull
+request that checks its value, or says that it was a run and under what
+authorization. Where none was made, it says so. No check can see an
+evaluation made on a contributor's machine, so this is a written rule and the
+list is its trace
+([verification](docs/verification.md#review-protocol-and-the-rule-on-runs)).
+
+### Running a program
+
+On 2026-11-19 the owner of the project ruled that no one makes a run of Acorn's
+agent, or of one of its learners, without the owner's authorization for that
+run. [What counts as a run](#what-counts-as-a-run) defines a run, by whatever
+means it is made, and this section adds nothing to that definition: it says
+how the rule is applied to Acorn's programs. No step of work on a change starts
+a program that steps the agent or a learner over percepts unless the owner's
+authorization for that run is stated in the change's intent. What the step is
+for, and what the run is called, do not matter: a look at the viewer's page, a
+screenshot, a smoke test and a diagnostic are all covered.
+
+The rule is applied through a closed list. The Test instructions of
+`.no-mistakes.yaml` hold the exact invocations of Acorn's executables that work
+on a change may drive without the owner's authorization, each written out token
+for token. Read them before starting an Acorn program, and drive a program only
+by an invocation written there. Every other invocation needs the owner's
+authorization for that run, stated in the change's intent, whether or not it
+would step a learner. The list is policy, and it says nothing about what an
+unlisted invocation does: some invocations are left off that would step
+nothing, to keep the list closed and exact. An invocation joins the list by a
+reviewed change to it, once its source has been read, and no one decides an
+unlisted invocation for themselves while a change is being validated. Asking a
+program for help is an invocation like any other. An entry is on the list
+because its source shows that it takes no step; where a change touches an
+entry's program, that reading is made again on the change's head before the
+entry is driven.
+
+The list answers a fact that a validation step met on 2026-11-21: the viewer,
+started with no state file in its run directory, starts in the running state,
+and its supervisor launches its child process, which is the core unless the
+command line names another command. So the one start of the viewer on the list
+is from an explicitly stopped state with a child command that cannot be a core.
+
+The same instructions say, in their paragraph on files that an earlier run
+left, which files that a run of the agent or a learner produced a step neither
+opens nor cites; read it before opening anything in a run directory or an
+evidence directory, in a validation step and in a repair round alike. They also
+say when the launcher `./scripts/start.sh` may be run. Its preparation can
+install on the machine, and an agent lets it do that only where the person it
+works for has agreed to it.
+
+The listed drives stay available, and they are still asked for where a change
+alters what a program does: building, the merge gate, the audit tools in the
+modes the list gives, and the viewer serving its page from a stopped state are
+among them. Where a change's intent states the owner's authorization, exactly
+what that authorization names or points to may be driven as well, and nothing
+wider: an agent never extends it by likeness to a run it does not name, and no
+agent's intent or instruction creates or widens one. Where it states none, a claim that only a drive outside the list could show is
+reported open with that reason, and that drive is not made.
+
+The rule is an instruction, which the people and agents who work on Acorn
+follow. No program refuses the run.
 
 ### Proof-shaped specifications
 

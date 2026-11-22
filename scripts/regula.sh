@@ -1,5 +1,5 @@
 #!/bin/bash
-# The Regula audit: Regula v0.13.0's proof verdict on the package in lean/, by the route that
+# The Regula audit: Regula v0.13.1's proof verdict on the package in lean/, by the route that
 # the release publishes (its README and specification/README.md at the tag, "What a pass
 # means" and "The named configurations"). Its two commands run in order on one build, each from
 # the package's own directory with no option of Lake's and with REGULA_FULL unset:
@@ -7,7 +7,7 @@
 # claim in Lean's kernel into an empty environment and runs Regula's rules under the profile of
 # the package's `lintDriverArgs`. It exits 0 for a pass, 1 for a fail and 2 for an incomplete run
 # (RG2001), and its last line states the verdict. The audit passes only when `lake lint` exits 0
-# and its last line is the pass on this directory's real path, as Regula v0.13.0 prints it
+# and its last line is the pass on this directory's real path, as Regula v0.13.1 prints it
 # (`Regula.Closed.Verdict.proofLineOn`, lean/Regula/Verdict.lean at the tag); any other exit or
 # last line fails it.
 #

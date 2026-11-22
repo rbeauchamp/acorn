@@ -4,7 +4,10 @@ Acorn's mission is to discover and implement algorithms that enable agents to
 achieve goals in big worlds. The Alberta Plan guides its work on continual learning and
 planning in Lean. [Design](docs/design.md) owns implementation coverage;
 [prior-art review](docs/prior-art-review.md) owns technical admission and default
-qualification; [learned-only binding](docs/learned-only-binding.md) owns departures.
+qualification; [learned-only binding](docs/learned-only-binding.md) owns departures;
+[architectural intent](docs/architectural-intent.md) and
+[architectural foundation](docs/architecture-foundation.md) own the modular 4-layer
+federated and always-on live-upgrade target architecture.
 Core calls select an explicit research profile. The prior-art register records
 current qualification decisions.
 
@@ -44,7 +47,18 @@ test or a diagnostic that only chooses a direction. What deterministic code does
 at a fixed seed is a mathematical question. Before proposing a run, state the
 question and why derivation or proof cannot answer it effectively and
 efficiently, with the cost of each, and obtain the owner's authorization.
-Computing data that a proof then checks is proof search, not a run.
+Stepping the agent or one of its learners over a sequence of percepts by any
+means, whether the binary, evaluation inside Lean or a re-implementation in any
+language, is a run. Proof search is computing a value that a theorem in the
+pull request then checks, and nothing else is.
+[What counts as a run](CONTRIBUTING.md#what-counts-as-a-run) gives the cases
+and what every pull request lists of the computations made on the agent.
+No step of work on a change starts a program that steps the agent or one of its
+learners over percepts, whatever the step is for, unless the owner's
+authorization for that run is stated in the change's intent;
+[running a program](CONTRIBUTING.md#running-a-program) says where the
+invocations that may be driven without that authorization are listed, and where
+to read which files that such a run produced no step opens.
 
 The habit of evaluation returns through specifications. When a specification
 seems to need a run to check it, treat that first as a defect in the
@@ -92,8 +106,17 @@ negative and inconclusive evidence honest; exclusion is not a positive result.
 ## Review and delivery
 
 Use the shipped proof-review standard and pr-review-toolkit for review-and-fix.
-One independent reviewer is the default; add a specialist only for a concrete
-uncertainty. Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
+For that review, which the author runs, one independent reviewer is the
+default; add a specialist only for a concrete uncertainty. It does not decide
+when work is complete and discharges no review that Acorn requires. The
+[review protocol](CONTRIBUTING.md#review-protocol) does, for every author:
+every pull request requires an independent review (under maintainer-led
+assignment, or under the protocol's single-maintainer standing designation of
+the validation pipeline's external verifier while Acorn has one human
+maintainer); any model reviewer must belong to another model family than every
+model that did the work, and the applicable assignment rule determines when an
+uninvolved person is eligible.
+Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
 rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.
 
@@ -105,7 +128,7 @@ broader scope or new follow-up issues. Prefer small coherent changes over rewrit
 Apply [performance engineering](docs/performance-engineering.md) to performance-sensitive work; preserve proofs and
 admission predicates. Do not replace unresolved proof obligations with measurements.
 
-Provision pinned Lean/Mathlib v4.35.0, FloatLib, lean-intent, Verso, OpenSSL 3, GNU coreutils, ShellCheck and a C
+Provision pinned Lean/Mathlib v4.36.0, FloatLib, lean-intent, Verso, OpenSSL 3, GNU coreutils, ShellCheck and a C
 compiler first. A fresh worktree has no `lean/.lake` dependencies; run
 `(cd lean && lake exe cache get && lake build Mathlib regula/lint floatlibBridge regulaInterface leanIntentBridge leanIntentNative)` and then
 `(cd site && lake build verso/VersoManual verso/VersoManual:shared)` there before verifying.

@@ -765,11 +765,11 @@ theorem retire_weight_other (state : NumericState cfg dimension) (feature slot :
   have distinct : feature.val ≠ slot.val := fun equal => different (Fin.ext equal)
   rw [NumericState.retireIndex_def]
   dsimp only
-  split <;>
-  · simp only [NumericState.writeBetaValue, NumericState.writeWeight, vector_get,
+  split <;> (
+    simp only [NumericState.writeBetaValue, NumericState.writeWeight, vector_get,
       Vector.getElem_set_ne _ _ distinct]
-    rw [← vector_get, ← vector_get, (clear_feature_knowledge _ feature slot).1]
-    try rfl
+    rw [← vector_get, ← vector_get, (clear_feature_knowledge _ feature slot).1])
+  rfl
 
 /-- A retirement keeps every slot dormant. -/
 theorem retire_dormant (controller : Controller cfg dimension actions) (feature : FeatIdx dimension)

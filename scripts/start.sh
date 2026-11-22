@@ -12,6 +12,12 @@ the continuous agent. The viewer starts the agent only on an explicit request;
 this launcher passes it (--start). Stop in the viewer, or press Ctrl-C here to finish the
 current attempt and close the viewer. Saved learner state stays in acorn-run/.
 
+--help and --prepare-only stop before the launch. In work on a change to
+Acorn, no step starts the agent or one of its learners unless the owner's
+authorization for that run is stated in the change's intent, and a launch is
+not among the invocations that may be driven without it (CONTRIBUTING.md,
+"Running a program").
+
   --no-browser    Print the viewer URL without opening a browser.
   --prepare-only  Install prerequisites and build, without starting a run.
   --run-dir DIR   Use another run directory (relative paths use the repo root).
@@ -75,7 +81,7 @@ cleanup() {
   rm -f "$lock/control" "$lock/pid" "$lock/installer.sh"
   rmdir "$lock"
   if [[ "$status" -ne 0 ]]; then
-    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run ./scripts/start.sh again.\n' "$phase" >&2
+    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run the same command again with the same options. In work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run.\n' "$phase" >&2
   fi
   exit "$status"
 }
@@ -99,7 +105,7 @@ install_macos() {
       export PATH="$DEVELOPER_DIR/usr/bin:$PATH"
     else
       xcode-select --install || true
-      fail 'Finish the macOS command-line tools installation dialog, then run this script again.'
+      fail 'Finish the macOS command-line tools installation dialog, then run this script again; in work on a change to Acorn, a rerun that launches needs the authorization of the owner for that run.'
     fi
   fi
   if ! command -v brew >/dev/null 2>&1; then
@@ -159,10 +165,10 @@ case "$dependency_status" in
   2)
     printf 'Downloading the pinned Lean, Mathlib and FloatLib dependencies (first run needs network access)…\n'
     # The upstream cache can omit modules; Lake compiles only those it lacks.
-    # FloatLib and lean-intent publish no cache, so the modules the proof bridge, the
-    # intent bridge and the gate's intent-check import are built here, with the native
-    # objects intent-check links and the Regula interface modules the decision registries
-    # import.
+    # FloatLib, lean-intent and Regula publish no cache, so the modules the proof bridge,
+    # the intent bridge and the gate's intent-check import are built here, with the native
+    # objects intent-check links and the Regula modules the decision registries and
+    # AcornTools.Theorems import with their native objects.
     (cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface leanIntentBridge leanIntentNative) ;;
   *) fail 'Dependency admission failed; the diagnostic above must be resolved before provisioning.' ;;
 esac
@@ -170,7 +176,7 @@ phase='build'
 printf 'Building Acorn (subsequent launches reuse unchanged build outputs)…\n'
 ./scripts/lean.sh build acorn-viewer
 if [[ "$prepare_only" == 1 ]]; then
-  printf 'Acorn is built. Run ./scripts/start.sh to open the viewer and start learning.\n'
+  printf 'Acorn is built. ./scripts/start.sh launches it. In work on a change to Acorn, launch it only with the authorization of the owner for that run (CONTRIBUTING.md, Running a program).\n'
   exit 0
 fi
 

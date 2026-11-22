@@ -22,17 +22,23 @@ verification command remains required for documentation changes.
 
 ## Platform setup
 
+In work on a change a launch needs the owner's authorization for that run;
+[running a program](../CONTRIBUTING.md#running-a-program) says where the
+invocations that may be driven without it are listed.
 Use `./scripts/start.sh` for automatic setup and launch, or
 `./scripts/start.sh --prepare-only` to prepare and build without learning.
 It uses Homebrew on macOS and apt-get on Ubuntu/Debian. It installs missing
-prerequisites and provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
+prerequisites, which changes the machine's package manager state, so an agent
+runs it only where the person it works for has agreed to that, and it
+provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
 available. The bootstrap status that decides this builds nothing, writes only the
 launcher's own override file and asks Lake whether the FloatLib modules the proof
 bridge imports, the lean-intent modules that the intent bridge and the gate's
 lean-intent checker `lean/AcornTools/Intent.lean` import, the native objects of the
 lean-intent modules that checker links, and the Regula modules the decision
-registries import are current.
+registries and the theorem inventory `lean/AcornTools/Theorems.lean` import with
+the native objects the theorem inventory links are current.
 The first setup may need network access, a package-manager password prompt or
 the macOS command-line tools installation dialog. It never runs Acorn as root
 and does not change the global Xcode selection or Lean default toolchain.
@@ -48,14 +54,16 @@ download fails that step. The workflow keeps no cache: each run provisions the
 dependencies from their pinned sources. Automatic local setup supports macOS and
 Ubuntu/Debian Linux.
 
-For manual setup, install macOS command-line tools and the packages below
+For manual setup, which changes the machine's package manager state and so is
+done by an agent only where the person it works for has agreed to it, install
+macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
 
 ```sh
 brew install coreutils shellcheck openssl@3 elan
 ```
 
-For Ubuntu, install:
+For Ubuntu, under the same condition, install:
 
 ```sh
 sudo apt-get update
@@ -66,11 +74,11 @@ Ensure Lean and Lake are available in your shell, then run
 `(cd lean && lake exe cache get && lake build Mathlib regula/lint floatlibBridge regulaInterface leanIntentBridge leanIntentNative)` from the
 repository root to provision the pinned toolchain/dependencies; the build compiles
 only Mathlib modules absent from the upstream cache, plus Regula's lint driver.
-FloatLib and lean-intent publish no cache, so the same command
+FloatLib, lean-intent and Regula publish no cache, so the same command
 compiles the FloatLib modules that the proof bridge imports, the lean-intent modules
 that the intent bridge and the lean-intent checker import with the native objects
-the checker links, and the two Regula interface modules that the decision
-registries import.
+the checker links, and the Regula modules that the decision registries and the
+theorem inventory import with the native objects the theorem inventory links.
 The offline bootstrap asks Lake whether every artifact those imports need is
 current and refuses to run until it is: verification never compiles a dependency
 inside its deadline. Verification also builds the
@@ -86,11 +94,12 @@ manual builds need a usable OpenSSL on PATH.
 
 ### Headless and advanced launch
 
-`./scripts/start.sh --no-browser` prints the actual bound loopback URL.
+In work on a change a launch needs the owner's authorization, with or without a
+browser. `./scripts/start.sh --no-browser` prints the actual bound loopback URL.
 `--run-dir DIR` selects another run directory and `--port N` selects a port;
 the default port is allocated by the OS. Browser opening is optional and its
 failure does not stop the agent. Use `./scripts/start.sh --help` for the launcher
-options. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
+options. `--help` and `--prepare-only` stop before the launch. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
 
 ### Interrupted-launch recovery
 
@@ -102,12 +111,15 @@ to displace an uncertain owner.
 Read `.acorn-launch/pid` and inspect that process and its viewer/core descendants.
 Only after confirming that no process still owns this run, remove the lock's
 temporary files (control, pid and installer.sh) and the
-empty `.acorn-launch/` directory, then rerun the launcher. Preserve `acorn-run/`.
+empty `.acorn-launch/` directory, then rerun the launcher with the options it
+was first given; in work on a change, a rerun that launches needs the owner's
+authorization as the first launch did. Preserve `acorn-run/`.
 Do not manually launch another viewer against a directory already in use.
 
 ### Build and verification failures
 
-If a tool is missing, install the named prerequisite before retrying. On macOS,
+If a tool is missing, install the named prerequisite before retrying, under the
+condition on installing that [platform setup](#platform-setup) states. On macOS,
 check that `xcode-select -p` points to an installed, usable developer toolchain.
 If verification reaches its 360-second deadline, retain the failing command
 and diagnostic for a focused report; do not raise the limit or treat a partial
@@ -130,7 +142,8 @@ import, fails the build. Source/compiled admission checks imports, capability
 owners, artifact origins and native routes. The Regula audit, not ordinary
 verification, checks the axioms that each declaration of the claimed libraries
 depends on. The theorem inventory counts the theorem declarations and refuses a
-native replacement. Every proof passes through the kernel.
+native replacement other than a verified compiler-generated constructor-index
+pair. Every proof passes through the kernel.
 
 The modules that compose the agent import no world. Source and compiled admission
 refuse a declared module that imports a host module, or references a declaration
@@ -761,7 +774,7 @@ compete for the same processors.
 ## Regula audit
 
 [Regula](https://github.com/rbeauchamp/regula) is an audit of Lean builds. Acorn
-requires its release v0.13.0, pinned in `lean/lakefile.lean` and locked in
+requires its release v0.13.1, pinned in `lean/lakefile.lean` and locked in
 `lean/lake-manifest.json` at the commit that the release's tag names, and the
 merge gate requires the Regula audit:
 
@@ -806,7 +819,7 @@ Acorn is its own project, written to be verified and not aimed at Regula's
 checker or Lean's toolchain, and the audit relies on that: it is an assumption
 of Acorn's trusted base, which no check of the gate establishes. The pass also
 rests on Regula's own list of assumptions about Lean, Lake and the operating
-system, and holds only in Regula's named configurations: Lean v4.35.0, the
+system, and holds only in Regula's named configurations: Lean v4.36.0, the
 route above, and macOS 27.2 on Apple silicon or Ubuntu 24.04.5 LTS on x86-64.
 It says nothing about what a compiled program runs, which the checks of
 ordinary verification below cover, or about whether a theorem states what was
@@ -820,9 +833,9 @@ system, no code of the project runs while it builds. Acorn cannot get it: only a
 project with no dependency in its Lake configuration and no Mathlib in its
 imports can, and Acorn requires Mathlib, Regula, FloatLib and lean-intent.
 Regula's
-[README](https://github.com/rbeauchamp/regula/tree/v0.13.0#what-a-pass-means)
+[README](https://github.com/rbeauchamp/regula/tree/v0.13.1#what-a-pass-means)
 and
-[specification](https://github.com/rbeauchamp/regula/blob/v0.13.0/specification/README.md#a-project-aimed-at-the-checker)
+[specification](https://github.com/rbeauchamp/regula/blob/v0.13.1/specification/README.md#a-project-aimed-at-the-checker)
 state both verdicts and what each rests on.
 
 The claim is the modules of the default targets of the Lake configuration and
@@ -970,9 +983,12 @@ paragraph gives an input that shows it, and that check stays.
 
 Ordinary verification alone therefore does not refuse a project axiom, a
 dependency on an axiom outside propext, Quot.sound and Classical.choice, a
-compiler-trusting proof, or a compiled unsafe or partial declaration. The Regula
-audit refuses each of them, and the merge gate requires it. Run
-`./scripts/regula.sh` for it before proposing a change to a Lean source.
+compiler-trusting proof, or a compiled unsafe or partial declaration outside
+RG1006's exempted forms (a partial recursion helper of a terminating recursive
+definition, or the unsafe implementation half of a verified compiler-generated
+constructor-index pair). The Regula audit refuses each of them, and the merge
+gate requires it. Run `./scripts/regula.sh` for it before proposing a change to
+a Lean source.
 Ordinary verification still refuses the words `axiom`, `sorry`, `unsafe`,
 partial and `native_decide` in every executing and proof source, through source
 admission, and a proof hole through the build, where a warning is an error.
@@ -996,11 +1012,13 @@ depends on Lean's proof-hole axiom, directly or through an import, and RG1004 on
 that depends on an axiom that `native_decide` or a related tactic adds. Both rules
 read the transitive axiom set. The tools make no such check.
 
-**Unsafe, partial and looping declarations.** RG1006 refuses an unsafe or partial
-constant of a claimed module, a constant with the name of a recursion helper
-without the form that Lean gives the helper of a terminating recursive
-definition, and a constant whose value mentions the loop constructs that while
-and repeat compile to. The tools make no such check of compiled declarations.
+**Unsafe, partial and looping declarations.** RG1006 refuses a constant of a
+claimed module that is unsafe, partial or named as a recursion helper, without
+an exempted form (a partial recursion helper of a terminating recursive
+definition, or the unsafe implementation half of a verified compiler-generated
+constructor-index pair on Lean v4.36.0), or a constant whose value mentions the
+loop constructs that while and repeat compile to. The tools make no such check
+of compiled declarations.
 The host's loops that run until something outside the program happens, such as
 the end of a stream or a stop request, iterate over `Acorn.Host.forever`, whose
 iteration in IO and BaseIO is a fixed-point definition with the one-step
@@ -1020,13 +1038,19 @@ kernel's refusal. The tools make no such check.
 **Native replacements: the tools refuse more.** The theorem inventory refuses each
 declaration of a module of Acorn, AcornVerif, NativeApp, AcornDocument or Entry
 that carries a replacement attribute or an extern attribute, whatever reaches it
-and whatever is proved about it. The Regula audit reads no replacement or extern:
-a pass says nothing about what a compiled program runs. Source admission refuses
-both attributes as words in every executing and proof source, so the inventory
-adds the declarations that elaboration generates. This check runs once, in the
-theorem inventory. A copy in the compiled boundary admission would repeat the
-same predicate for a subset of the same modules in the same command,
-`./scripts/verify.sh`.
+and whatever is proved about it, except a verified compiler-generated
+constructor-index replacement that Lean v4.36.0 emits for every safe, non-Prop,
+non-builtin inductive type whose constructor count is not one
+(`AcornTheoremCount.isCompilerCtorIdx`, matching Regula v0.13.1's structural
+check on the pair and its toolchain constructor-tag helper). The Regula audit
+reads replacement and extern attributes only to qualify RG1006's exempted forms
+(recursion helpers and constructor-index pairs) and has no general rule refusing
+them on safe declarations: a pass says nothing about what a compiled program
+runs. Source admission refuses both attributes as words in every executing and
+proof source, so the inventory adds the declarations that elaboration generates.
+This check runs once, in the theorem inventory. A copy in the compiled boundary
+admission would repeat the same predicate for a subset of the same modules in
+the same command, `./scripts/verify.sh`.
 
 **Reach of each entry: the tools refuse more.** The ownership audit follows the
 compiler's intermediate code from the entry point of each executable, the tool
@@ -1069,6 +1093,68 @@ Regula has no rule for the import layers of the learned-only boundary, the
 capability owners, source syntax admission, the departures register, native
 admission, the corpus checks or the required proof links. Those checks are
 Acorn's own.
+
+## Review protocol and the rule on runs
+
+Two of Acorn's rules are written rules. No check of the gate, of Regula or of
+GitHub executes either, and both are accepted risk in Acorn's trusted base.
+
+The first is the [review protocol](../CONTRIBUTING.md#review-protocol), which
+says which review a pull request gets, who assigns its referee or reviewer,
+what the report or short review holds and when work is complete. The gate establishes that the
+proofs of a change are sound and that its checks pass on a commit. It
+establishes nothing about whether a theorem states what its pull request
+claims, which the referee reads, and nothing about whether a referee or a
+reviewer was assigned as the protocol requires. The trace of the protocol is the pull
+request itself: the comment that records the assignment and each referee's
+report or short review. One GitHub account serves the owner and the organization's agents, so under
+individual maintainer-led assignment GitHub does not show that the agent that
+assigned a referee or a reviewer is another than the one that did the work; the
+assignment comment states who assigned. Under the single-maintainer interim
+provision (confirmed on 2026-11-21 while Acorn has one human maintainer), a
+truthful assignment comment can instead record the owner's standing designation
+of the no-mistakes validation pipeline's external analyzer/verifier, its model
+family, and the exact head commit without identifying a separate per-PR
+assigning agent, alongside its unedited exact-head report or short review. The
+provision prohibits same-family self-review (disqualifying that model if chosen
+for author-side review, advice, writing or fixing while permitting re-reads
+after findings issued in its designated referee/verifier role), falls back to
+another model family or an uninvolved person under the general rule when
+disqualified, and retires once Acorn has more than one human maintainer; no
+check enforces model-family separation, designated-role vs. author-side advice,
+or multi-maintainer retirement, leaving those checks as accepted risk in the
+written protocol. A
+referee or a reviewer can be wrong, and two referees can both be wrong. An
+author's own account of a goal that changed while the work was done is
+something the protocol cannot check, since a referee sees the pull request and
+not how it was produced; the referee's reading of the work is what can catch
+it (a risk the owner allowed on 2026-11-20). A short
+review must state the three things it checked; that
+its three lines were written after reading, and not copied as a formula, is
+something no rule can see. Whom the rule of
+assignment admits as a referee or a reviewer for work that a person did with
+no model is the
+maintainers' call. A change to what the protocol requires, allows or rules
+out merges only once the owner has confirmed it, and no check enforces that
+either: [CODEOWNERS](../.github/CODEOWNERS) names neither the contributor
+guide nor the review skills, so GitHub requests the owner's review of no
+change to them. A review counts only for the commit, title and description it
+read, and GitHub lets a title or a description be edited at any time, so that
+the description that merged is the one that was reviewed rests on the
+maintainers' reading at the merge. A finding that discloses a security
+vulnerability is reported, answered and ruled on by the private route and
+only named as open or closed on the pull request; that it is closed before a
+merge is likewise checked by no tool.
+
+The second is the rule on runs
+([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)): stepping
+the agent or one of its learners over a sequence of percepts is a run by
+whatever means, and every pull request lists the computations made on the
+agent, with the parts that section gives for each entry. No cheap executable guard exists for an evaluation
+made in a scratch file or on a contributor's machine, since nothing of it need
+reach the pull request. The rule's trace is the list in the pull request's
+description, which rests on its author's account and which the referee or
+reviewer reads against the change.
 
 ## Documentation site
 
@@ -1114,6 +1200,9 @@ still decides whether the prose describes that owner faithfully.
 
 **Pinned digest: `0x28c98382d02dbf12`**
 
+In work on a change, the command below is run only on the owner's authorization
+for that run.
+
 ```sh
 lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12
 ```
@@ -1132,8 +1221,10 @@ meta span there (PAR-8, D3);
 the declared-rate and differential pins also record the stable, sign-correct
 reward-respecting subtasks, assigned at every free decision boundary, and the
 declared-rate dynamics decision. The fixed audit arms
-are compared through these paired digests. Run these optional diagnostics
-when investigating a dynamics change.
+are compared through these paired digests. Run these optional diagnostics when
+investigating a dynamics change, and in work on a change only on the owner's
+authorization for that run: they are not on the closed list that
+[running a program](../CONTRIBUTING.md#running-a-program) points to.
 
 ## Checkpoint admission
 

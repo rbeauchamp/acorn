@@ -59,7 +59,7 @@ def nativeDigest (path : System.FilePath) : IO String := do
 /-- The package. Its default targets are the libraries that hold every Acorn theorem and every
 definition those theorems are about, so they are the modules of Regula's claim: the modules
 of the root package's default targets and each root-package module their imports reach
-(Regula v0.13.0, README, "The checks"). `lake lint` imports those modules into one environment,
+(Regula v0.13.1, README, "The checks"). `lake lint` imports those modules into one environment,
 so at most one of them can declare a top-level `main`: that one is `Bootstrap`'s, which
 `lean --run` interprets before anything is built, and every executable's `main` lies in a module
 of the `Entry` library, outside the claim. -/
@@ -91,7 +91,7 @@ package acorn where
     ⟨`weak.linter.hashCommand, false⟩,
     ⟨`weak.linter.style.longFile, .ofNat 0⟩,
   ]
-  -- The Regula audit (`scripts/regula.sh`) runs Regula v0.13.0's two commands of its proof
+  -- The Regula audit (`scripts/regula.sh`) runs Regula v0.13.1's two commands of its proof
   -- verdict on one build, `lake build --wfail` and then `lake lint`, which reads this profile.
   -- The one profile covers the whole claim: `standard-logical` admits `propext`, `Quot.sound` and
   -- `Classical.choice`, and the binary32 and binary64 operations of Lean's core float model,
@@ -327,14 +327,11 @@ lean_exe «frame-check» where
   supportInterpreter := true
 
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
-`PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.35.0; leanprover/lean4#15435) stores a
-facet-qualified key under its target as written, while every other route stores that
-facet under the target's resolved form, which names the package by its key name. The two
-entries differ unless the key was written in that form. Whatever its form, the facet is
-fetched from an asynchronous continuation, which races other fetches on the
-unsynchronized build store. Either way a second job can run on the same output file.
-A facetless key is resolved through its package and fetched synchronously, so it is the
-form admitted. -/
+`PartialBuildKey.fetchInCoreAux` (Lake, Lean v4.36.0, `Lake/Build/Target/Fetch.lean:54-67`;
+leanprover/lean4#15435) fetches a facet-qualified key from an asynchronous `bindM` continuation,
+which races other fetches on the unsynchronized build store so a second job can run on the same
+output file. A facetless key is resolved through its package and fetched synchronously, so it is
+the form admitted. -/
 def singleJobKey (key : PartialBuildKey) : Bool :=
   match (key : BuildKey) with
   | .facet .. => false
@@ -380,23 +377,24 @@ script intentLibraries do
   return 0
 
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4" @ "v4.35.0"
+  "https://github.com/leanprover-community/mathlib4" @ "v4.36.0"
 
-/-- Regula v0.13.0: the lint driver of the Regula audit (`lake lint`), and the library
-`RegulaContract`, whose contract and registration types the two decision registries import. -/
+/-- Regula v0.13.1: the lint driver of the Regula audit (`lake lint`), the library
+`RegulaContract`, whose contract and registration types the two decision registries import,
+and `Regula.Load`, whose `ctorIdx` classifier `AcornTools.Theorems` imports. -/
 require regula from git
-  "https://github.com/rbeauchamp/regula" @ "v0.13.0"
+  "https://github.com/rbeauchamp/regula" @ "v0.13.1"
 
 /-- Real-valued rounding theory about Lean core's float model. Only the proof
 library's bridge module imports it; no executable library does. -/
 require floatlib from git
-  "https://github.com/lean-dojo/FloatLib" @ "1f5771b3e36a98f17fcac2c6d76aaa024b36aa37"
+  "https://github.com/lean-dojo/FloatLib" @ "d24844f039320a024c7548f992920562d9a71a60"
 
 /-- Intent records, their adequacy obligations and the refinement link from an
 implementation to its record. The proof library's intent bridge imports these definitions;
 the gate's `AcornTools.Intent` imports the build readers. No application library imports it. -/
 require "lean-intent" from git
-  "https://github.com/rbeauchamp/lean-intent" @ "58608794f9fee126f296da1de21e3afb1fb33c1e"
+  "https://github.com/rbeauchamp/lean-intent" @ "bd7af6c0fc90d7adddcfd03fed93cf63eef1e3b3"
 
 /-- The artifacts of every module of `library` that the given sources import, read from
 their own import lines so that each source stays the single owner of its imports. -/
@@ -409,7 +407,23 @@ def importedArtifacts (sources : Array System.FilePath) (library : String) :
         let name := ((line.drop 7).trimAscii.toString).toName
         let some mod ← findModule? name
           | error s!"{path} imports an unknown module: {name}"
-        job := job.mix (← mod.leanArts.fetch)
+        job := job.mix (← mod.irArts.fetch)
+  return job
+
+/-- The native objects of every module of `library` that the given sources import, and every
+workspace module those modules transitively import, read from the sources' own import lines. -/
+def importedNativeObjects (sources : Array System.FilePath) (library : String) :
+    FetchM (Job Unit) := do
+  let mut job : Job Unit := Job.nil
+  for path in sources do
+    for line in (← IO.FS.readFile path).splitOn "\n" do
+      if line.startsWith s!"import {library}." then
+        let name := ((line.drop 7).trimAscii.toString).toName
+        let some mod ← findModule? name
+          | error s!"{path} imports an unknown module: {name}"
+        let imported ← (← mod.transImports.fetch).await
+        for dependency in imported.push mod do
+          job := job.mix ((← dependency.coExport.fetch).map fun _ => ())
   return job
 
 /-- The FloatLib modules the proof bridge imports. Provisioning builds this target beside
@@ -418,13 +432,17 @@ dependency inside its deadline. -/
 target floatlibBridge pkg : Unit :=
   importedArtifacts #[pkg.dir / "AcornVerif" / "FloatLibBridge.lean"] "FloatLib"
 
-/-- The Regula interface modules the two decision registries import: the contract type and
-the registration type. Provisioning builds this target beside `floatlibBridge`, for the
-same reason. -/
-target regulaInterface pkg : Unit :=
-  importedArtifacts
+/-- The Regula modules that the two decision registries and `AcornTools.Theorems` import, with
+the native objects that `theorem-count` and `ownership-audit` link from `AcornTools.Theorems`'s
+Regula imports. Provisioning builds this target beside `floatlibBridge`, so that verification,
+which builds every declared executable, compiles no dependency inside its deadline. -/
+target regulaInterface pkg : Unit := do
+  let registries :=
     #[pkg.dir / "Acorn" / "Decisions.lean", pkg.dir / "AcornVerif" / "Decisions.lean"]
-    "Regula"
+  let tools := #[pkg.dir / "AcornTools" / "Theorems.lean"]
+  let arts ← importedArtifacts (registries ++ tools) "Regula"
+  let native ← importedNativeObjects tools "Regula"
+  return arts.mix native
 
 /-- The lean-intent modules the intent bridge and the gate's `intent-check` import. Provisioning
 builds this target beside `floatlibBridge`, for the same reason. -/
@@ -437,16 +455,7 @@ target leanIntentBridge pkg : Unit :=
 it or the intent bridge imports, read from their import lines, and every module that one imports.
 Provisioning builds this target beside `leanIntentBridge`, so that verification, which builds every
 declared executable, compiles no dependency inside its deadline. -/
-target leanIntentNative pkg : Unit := do
-  let mut job : Job Unit := Job.nil
-  for path in #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean",
-      pkg.dir / "AcornTools" / "Intent.lean"] do
-    for line in (← IO.FS.readFile path).splitOn "\n" do
-      if line.startsWith "import LeanIntent." then
-        let name := ((line.drop 7).trimAscii.toString).toName
-        let some mod ← findModule? name
-          | error s!"{path} imports an unknown module: {name}"
-        let imported ← (← mod.transImports.fetch).await
-        for dependency in imported.push mod do
-          job := job.mix ((← dependency.coExport.fetch).map fun _ => ())
-  return job
+target leanIntentNative pkg : Unit :=
+  importedNativeObjects
+    #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean", pkg.dir / "AcornTools" / "Intent.lean"]
+    "LeanIntent"
