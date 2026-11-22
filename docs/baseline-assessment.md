@@ -55,15 +55,22 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   (F-A) erased option learning until U1 repaired it, and a locally derived
   exploration rate made about 90% of early primitive steps random until U2
   replaced it (F-C). Options learned only while executing until U4 (F-F).
-- **Learning: two observations, each refuted at its horizon; otherwise
-  UNKNOWN.** In one pass of the curriculum from a fresh agent, the agent
+- **Learning: open; two measurements against chance, each refuted at its
+  horizon.** In one pass of the curriculum from a fresh agent, the agent
   achieved more goals than a uniform-random policy on 4 of 20 seeds
   ([U6](#conformance-sequence)). Over four cycles of the curriculum, its
   attempts to reach a target shortened by more than that policy's on 0 of 20
   seeds: of 160 reach visits the agent achieved one and the policy none
-  ([U7](#conformance-sequence)). Neither observation shows that the agent
-  cannot learn; whether it learns on goals it does achieve, or over a longer
-  horizon, has not been observed. Both runs were measured before
+  ([U7](#conformance-sequence)). Each compares the whole agent, learning
+  throughout, with a comparator that is not an ablation of it, so even a win
+  would not separate learning from authored behavioural structure such as
+  exploration duration (U6), or from what persists differently in the two
+  worlds, where the arms end each cycle in different places and with
+  different inventories (U7). Neither observation shows that the agent cannot
+  learn; whether it does better than that policy on goals it does achieve, or
+  over a longer horizon, has not been measured, and what its executed update
+  does on a stated model is a mathematical question that stays open. Both
+  runs were measured before
   [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature,
   cue and terrain hashes; they describe the code before that change, and the
   current code has not been run on their protocol.
@@ -534,11 +541,16 @@ F-E left its feature-construction end inert until U3.
 - **Evaluation.** Every source above establishes usefulness empirically: SwiftTD
   on Atari prediction, Swift-Sarsa on an operant-conditioning benchmark,
   reward-respecting subtasks with planning curves in grid worlds. Acorn has two
-  observations of learning, [U6](#conformance-sequence) and
-  [U7](#conformance-sequence), each refuted at its horizon. Under its
-  proof-first policy so few observations are deliberate, but whether the agent
-  learns on goals it does achieve, or over a horizon longer than U7's four
-  cycles, is irreducibly empirical and still open.
+  measurements of the whole agent against a uniform-random policy,
+  [U6](#conformance-sequence) (goals achieved in one pass) and
+  [U7](#conformance-sequence) (the shortening of reach attempts over four
+  cycles), each refuted at its horizon. Under its proof-first policy so few
+  observations are deliberate. Whether the agent does better than that policy
+  on goals it does achieve, or over a horizon longer than U7's four cycles, has
+  not been measured. What its learning caused is a claim those measurements
+  cannot settle, since the comparator is not an ablation of the agent, and what
+  its executed update does on a stated model is a mathematical question that
+  stays open.
 
 Going by the published designs, the agent they describe differs from Acorn at the
 model and planning links; U3 and U4 brought the feature-testing and
@@ -632,8 +644,9 @@ is a comparison with one named policy, not evidence about need. The results
 record also discloses a second generator-only evaluation at the study's
 seeds, made by the validation of
 [#74](https://github.com/rbeauchamp/acorn/pull/74) after registration, which
-ran no agent or comparator on them. Whether the agent learns on goals it does
-achieve, or over a longer horizon, stays UNKNOWN.
+ran no agent or comparator on them. Whether the agent does better than chance
+on goals it does achieve, or over a longer horizon, stays UNKNOWN, and what its
+learning caused is a claim such a comparison cannot settle.
 
 The roadmap also tracks the missing published pieces that no unit covers:
 
@@ -871,9 +884,10 @@ improves decisions.
     supply one.
   - Uniform hashing for the roughly 1,300 active features.
   - Faithful transcription of the paper equations recorded in earlier reviews.
-- **UNKNOWN.** Whether the agent learns on goals it does achieve, or over a
-  horizon longer than U7's four cycles; how often refreshes occur
-  and units leave the ranking; option and model quality; the benefit of
+- **UNKNOWN.** Whether the agent does better than a uniform-random policy on
+  goals it does achieve, or over a horizon longer than U7's four cycles; how
+  often refreshes occur and units leave the ranking; option and model
+  quality; the benefit of
   planning; the benefit of any of U1 to U5; how often a frame's behaviour has the
   distribution of an option that is not executing. Each depends on the
   experience stream, so no derivation from the definitions can settle it.
