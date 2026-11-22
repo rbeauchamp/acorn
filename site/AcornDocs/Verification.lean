@@ -1481,6 +1481,20 @@ and no state or Clear intent that says running). The intent of every command but
 ({decl}`Acorn.Host.Viewer.Command.desired_stopped`): {decl}`Acorn.Host.Viewer.Command.desired`
 computes it, and whether it is saved is the step's, since a disabled Clear changes nothing.
 
+The start itself asks for no launch. For every durable state it is given, one that intends to
+run included, and every Clear configuration, reason and reading,
+{decl}`Acorn.Host.Viewer.Core.start` gives a state whose process slot is empty and which waits
+on no call, whose lifecycle is the initial lifecycle of that state's identity and intent
+({decl}`Acorn.Host.Viewer.Lifecycle.initial`), which holds that durable state and no
+replacement, and whose detail is the initial transition with the reason given, which the page
+shows first. That is the definition as written and not a theorem, and the bootstrap gives it
+only a state that it built or admitted. So a supervisor that starts from a matching saved
+running intent takes up that intent at its start and has asked for nothing there: a launch
+becomes pending only in the launch check ({decl}`Acorn.Host.Viewer.Core.launchCheck`), which
+the start does not make. The first constructor of {decl}`Acorn.Host.Viewer.Ran` is that start,
+for every durable state, reason and reading. Whether the durable state is on disk when the
+supervisor starts is a separate matter, given with the order at start-up above.
+
 A lifecycle that intends to stop, with no running intent held for a pending Clear to restore,
 admits no reservation, for every such lifecycle and every instant
 ({decl}`Acorn.Host.Viewer.Lifecycle.unstarted_reserve`), and it keeps both under every
@@ -1589,8 +1603,9 @@ only when the file names the current version and names the child record of this 
 must have one: the saved intent was then written by a viewer whose supervisor would start the
 same child. In every other case the state keeps every field but its intent, which is admitted as
 stopped: a file whose version does not read as the current one, because it has no
-`schema_version` member or one that is not a number spelled in decimal digits alone, which is an
-earlier version's file and carries no record of its child; a file whose `child` member is absent,
+`schema_version` member or one that is not a number spelled in decimal digits alone, which is
+read as an earlier version's file whatever `child` member it holds (the viewer wrote none before
+the file carried a version); a file whose `child` member is absent,
 is not an array of strings or names another record; and any file read by a launch that has no
 record. The intent is the one field whose value an operator may never have chosen, and the other
 fields are kept as written. Where the state a viewer starts from came from is one of four cases.
