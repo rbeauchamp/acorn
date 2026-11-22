@@ -477,12 +477,10 @@ executing and checking all scoped `.lean`
 files across `lean/` (including `lean/lakefile.lean`) and `site/` code
 (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
 `site/AcornDocs.lean` and `site/AcornDocs/` Verso prose)
-against `comment-ratchet.json` for exact head sync, plus monotonic non-growth
-against the merge-base ratchet once the merge base holds `comment-ratchet.json`
-(with `--bootstrap` currently admitting first-time adoption when the merge base
-lacks `comment-ratchet.json`, and rejecting newly excluded files that still hold
-comments at the merge base; tracked files with zero comments carry no ratchet
-entry).
+against `comment-ratchet.json` for exact head sync, plus unconditional
+monotonic non-growth against the merge-base ratchet alongside rejecting newly
+excluded files that still hold comments at the merge base (tracked files with
+zero comments carry no ratchet entry).
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake

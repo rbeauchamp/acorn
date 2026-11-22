@@ -292,7 +292,7 @@ elif ! verify_sha256 "$nc_sha256" "$nc_bin"; then
   commented=1
   step 'no-comments check refused (integrity check failed)'
 else
-  nc_args=(check --bootstrap)
+  nc_args=(check)
   if [[ -n "${ACORN_BASE_REF:-}" ]]; then
     nc_args+=(--base-ref "$ACORN_BASE_REF")
   fi
