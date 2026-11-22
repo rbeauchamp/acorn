@@ -2761,7 +2761,7 @@ function drawStreamHealth() {
     notes.push(`⚠ the viewer server sent a control frame this page cannot read`);
     why.push(`${frames(controlRefused)} from the control channel refused. The page ` +
              `and the server are one binary, so this is a viewer defect — not a ` +
-             `build skew and not a core fault. Report it with the browser console's error.`);
+             `build skew and not a core fault. Report it.`);
   }
   if (A.nonFinite) {
     // Not a tooling problem: the core computed NaN or +/-inf. The page names
@@ -3010,7 +3010,7 @@ function applyControlState(f) {
     nosave.title = f.reason;
     nosave.className = "pill reset";
   } else if (f.checkpointRefused) {
-    nosave.textContent = "⚠ not saving — Clear archives this run and prepares a fresh one";
+    nosave.textContent = "⚠ not saving — where Clear is available, it archives this run and prepares a fresh one";
     nosave.title = "the core refused its checkpoint and disabled writing for this run";
     nosave.className = "pill reset";
   }

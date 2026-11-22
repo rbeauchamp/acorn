@@ -20,29 +20,32 @@ reaches a state that waits to spawn (`Core.start_spawns`).
 **The state built when no state file exists** is `PersistedState.unstarted`, which intends to
 stay stopped, so the theorem holds of the supervisor started from it
 (`Reached.unstarted_spawns_nothing`), and the control record of that start state says the run
-is desired stopped and actually stopped (`Core.start_control`). A state file whose version
-does not read as the current one is decoded by `PersistedState.decode` with intent stopped
-(`PersistedState.decode_earlier`), so the theorem holds of the supervisor started from what it
-decodes to (`Reached.earlier_spawns_nothing`).
+is desired stopped and actually stopped (`Core.start_control`). Every state that
+`PersistedState.decode` returns for a state file whose version does not read as the current
+one intends to stay stopped (`PersistedState.decode_earlier`), so the theorem holds of the
+supervisor started from such a state (`Reached.earlier_spawns_nothing`).
 
 **Every state file a viewer can meet.** With no state file the bootstrap builds
 `PersistedState.unstarted`, and the run is stopped. A file whose `schema_version` member is
 absent, as in every file the viewer wrote before the file carried one, or is not a number
-spelled in decimal digits alone, is read as an earlier version's file: decoded with intent
-stopped. The viewer publishes
+spelled in decimal digits alone, is read as an earlier version's file: the state decoded from it
+intends to stay stopped. The viewer publishes
 its start state in the schema it writes before it supervises, so the file names the schema
 afterwards and this reading happens once. A file that names `stateSchema` starts the run with
 the intent it records, so a running one resumes; the decoder returns a running intent only for
 such a file (`PersistedState.decode_running`), and by the write clause of the theorem a
 supervisor waits on the write of a running intent only after a Start was handed to its step,
-or from a start state that held one. A file that names another natural number is refused by
-the decoder (`PersistedState.decode_other`), and so is a file whose `schema_version` member
-is a number whose digits spell a number of `2 ^ 64` or more (`PersistedState.decode_wide`),
-like one that is unreadable or malformed: the
-bootstrap constructs no supervisor, so nothing is spawned, and the file is left as it is,
-because a file another version wrote is not guessed at and reading it as stopped would publish
-over it. The publication before supervision, and that a refusal constructs no supervisor, are
-read from `Supervisor.new` and the bootstrap.
+or from a start state that held one. For a file that names another natural number the decoder
+returns an error (`PersistedState.decode_other`), and so it does for a file whose
+`schema_version` member is a number whose digits spell a number of `2 ^ 64` or more
+(`PersistedState.decode_wide`). The rest is read from `RunDirectory.readState` and the
+bootstrap, and is not proved: a state file that is unreadable or malformed, or that exists
+and cannot be opened, such as a symbolic link whose target is gone, is refused; only a run
+directory with no entry under the state file's name reads as no file; and on a refusal the
+viewer exits before it serves anything, constructs no supervisor, so nothing is spawned, and
+leaves the file as it is, because a file another version wrote is not guessed at and reading it
+as stopped would publish over it. The publication before supervision is read from
+`Supervisor.new` and the bootstrap.
 
 **What the theorem does not cover.** It starts from a durable state that intends to stay
 stopped. A Stop the viewer has acknowledged but not yet written to its state file when the
@@ -543,7 +546,8 @@ theorem Reached.unstarted_spawns_nothing {clearDisabled : Option String} {seed :
 /-- **A supervisor started from an earlier version's state file waits on no spawn while no
 Start is handed to its step.** The statement of `Reached.stopped_spawns_nothing` for every
 state that `PersistedState.decode` returns for a JSON value whose `schema_version` member is
-absent, is not a natural number or spells a number other than `stateSchema`. -/
+absent, is not a number spelled in decimal digits alone or spells a number other than
+`stateSchema`. -/
 theorem Reached.earlier_spawns_nothing {clearDisabled : Option String} {value : Json.Value}
     {persisted : PersistedState} {reason : String} {reading : Nat} {events : List Event}
     {core : Core} (earlier : stateVersion value ≠ some stateSchema)

@@ -555,9 +555,9 @@ Rules that apply to every number, label and colour on the page.
 - **UX-25 · A refused checkpoint is reported.** The core disarms saving for
   the whole run when it refuses a checkpoint, which on stderr alone is
   invisible to anyone watching: a healthy-looking run that is quietly
-  persisting nothing. The top bar raises `⚠ not saving — Clear archives this
-  run and prepares a fresh one`, naming the remedy rather than only the
-  diagnosis.
+  persisting nothing. The top bar raises `⚠ not saving — where Clear is
+  available, it archives this run and prepares a fresh one`, naming the remedy
+  rather than only the diagnosis.
 - **UX-26 · Transport.** Controls: ⏮/⏭ (jump 500 frames), ⏸/▶, ⚡ LIVE (pin
   to the newest frame), replay rates 10 / 60 / 250 / 1000 frames per second, a
   scrub slider, the buffered-frame position and a lag readout, each with a

@@ -25,15 +25,17 @@ no operator's Start is handed to its step (`Acorn.Host.Viewer.ExplicitStart`). T
 running intent on disk therefore follows a Start in some viewer that owned the run
 directory is argued from that theorem by induction over those viewers, and is not
 proved. Before schema version 2 the viewer wrote `running` when it found no file, with
-no Start, and its files name no schema. So a file whose version does not read as the
-current one is decoded with its other fields as written and with intent stopped: the
-intent is the one field whose value an operator may never have chosen.
-`PersistedState.decode_earlier` proves the stopped intent, and
-`PersistedState.decode_running` that the decoder returns a running intent only under the
+no Start, and its files name no schema. So a file whose `schema_version` member is absent
+or is not a number spelled in decimal digits alone is decoded with its other fields as
+written and with intent stopped: the intent is the one field whose value an operator may
+never have chosen. `PersistedState.decode_earlier` proves that every state the decoder
+returns for a file whose version does not read as the current one intends to stay stopped,
+and `PersistedState.decode_running` that the decoder returns a running intent only under the
 current version. The version a file names is the natural number its `schema_version`
-member spells in decimal digits, of any size (`stateVersion`). A file that names another
-natural number is refused (`PersistedState.decode_other`), and so is one whose digits spell
-a number of `2 ^ 64` or more (`PersistedState.decode_wide`).
+member spells in decimal digits, of any size (`stateVersion`). For a file that names another
+natural number the decoder returns an error (`PersistedState.decode_other`), and so it does
+for one whose `schema_version` member is a number whose digits spell a number of `2 ^ 64` or
+more (`PersistedState.decode_wide`).
 -/
 namespace Acorn.Host.Viewer
 
@@ -142,9 +144,10 @@ def PersistedState.decode (value : Json.Value) : Except String PersistedState :=
   let state ← Json.decode value (PersistedState.fields (value.member "schema_version").isSome)
   return if stateVersion value = some stateSchema then state else { state with desired := .stopped }
 
-/-- **A state file whose version does not read as the current one is admitted with intent
-stopped.** For every JSON value whose `schema_version` member is absent, is not a natural
-number or spells another number, and every state the decoder returns for it. -/
+/-- **A state the decoder returns for a file whose version does not read as the current one
+intends to stay stopped.** For every JSON value whose `schema_version` member is absent, is not
+a number spelled in decimal digits alone or spells another number, and every state the decoder
+returns for it. -/
 theorem PersistedState.decode_earlier (value : Json.Value) (state : PersistedState)
     (earlier : stateVersion value ≠ some stateSchema)
     (decoded : PersistedState.decode value = .ok state) : state.desired = .stopped := by
@@ -165,8 +168,9 @@ theorem PersistedState.decode_running (value : Json.Value) (state : PersistedSta
   rw [stopped] at running
   cases running
 
-/-- **A state file that names another schema version is refused.** For every JSON value
-whose `schema_version` member spells a natural number other than `stateSchema`. -/
+/-- **The decoder returns an error for a state file that names another schema version.** For
+every JSON value whose `schema_version` member spells a natural number other than
+`stateSchema`. -/
 theorem PersistedState.decode_other (value : Json.Value) (version : Nat)
     (named : stateVersion value = some version) (other : version ≠ stateSchema) :
     ∃ reason, PersistedState.decode value = .error reason := by
@@ -175,9 +179,9 @@ theorem PersistedState.decode_other (value : Json.Value) (version : Nat)
   simp only [admitVersion, other, ↓reduceIte]
   exact ⟨_, rfl⟩
 
-/-- **A state file whose schema version spells a number of `2 ^ 64` or more is refused.** For
-every JSON value whose `schema_version` member is a number whose spelling `Digits.read` reads
-as a natural number of `2 ^ 64` or more. -/
+/-- **The decoder returns an error for a state file whose schema version spells a number of
+`2 ^ 64` or more.** For every JSON value whose `schema_version` member is a number whose
+spelling `Digits.read` reads as a natural number of `2 ^ 64` or more. -/
 theorem PersistedState.decode_wide (value : Json.Value) (spelling : String) (version : Nat)
     (mark : value.member "schema_version" = some (.number spelling))
     (spelled : Digits.read spelling = some version) (wide : 2 ^ 64 ≤ version) :
