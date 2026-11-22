@@ -1328,13 +1328,21 @@ this viewer read when it started, and starting the viewer again records it as it
 program cannot be read now, and the refusal clears in this viewer when the file can be read again
 with the same content, while starting the viewer again does not help as long as it stays
 unreadable; the program could not be read when the viewer started, and starting the viewer again
-when it can be read clears it. A fixed command is written and spawned with no reading.
-Three things are
+when it can be read clears it. A fixed command is written and spawned with no reading: a Start
+under `--cmd` is an explicit act for that command line as given, and it covers the restarts of
+the command by the viewer that received the Start, whatever program the command designates when
+each restart is made, so a program replaced under that command line between a Start and a restart
+is run by the restart. Where a launcher passes `--cmd` with a command that names the core, a Start
+is an explicit act for a learner and its restarts are covered by that act. For the ranked core
+three things are
 assumed and not compared: that nothing replaces the file between the actor's last reading of it
 and the operating system's exec; that the environment the child inherits is unchanged; and that
 two files of equal length and equal digest are one. The digest suffices against accident, a
 rebuilt file that agrees in length and in a 64-bit digest by chance, and forging it needs no more
-power than writing the state file by hand, which is an accepted risk already. A file that names
+power than writing the state file by hand, which is an accepted risk already. The fixed command
+is a fourth accepted limit beside these three: making use of it needs the power to replace a
+program on this machine between a Start and a restart, which the other limits already assume, and
+the ranked core, which is the learner, is compared before every start. A file that names
 the current version and this launch's child is restored with the intent it records. A running one
 resumes when its launch is admitted
 ({decl}`Acorn.Host.Viewer.PersistedState.launch`: a run that has started a process needs a next

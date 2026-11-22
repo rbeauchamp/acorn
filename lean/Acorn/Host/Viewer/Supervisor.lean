@@ -160,7 +160,8 @@ file changes between the two readings.
 Every refusal is printed on standard error and reported in the page by the step, as the
 reason of the failed call. The interval between the second reading and the operating
 system's exec, and the environment the child inherits, are not compared. A fixed command is
-written and spawned without a reading. -/
+written and spawned without a reading, at a Start and at each restart alike, whatever program
+the command then designates. -/
 private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
     (launching : Bool) : (call : Call) → IO (call.Result × RunDirectory)
   | .writeState state => do

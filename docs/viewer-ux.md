@@ -929,7 +929,14 @@ What each panel must show. How it draws it is the code's.
   only by a launch whose record is the same; under `--cmd` there is no record,
   because what a shell starts for a command depends on more than the viewer
   can compare, so a running intent saved under `--cmd` is not carried to
-  another launch. The viewer reads the ranked core's file when it starts, and
+  another launch. Within one viewer a Start under `--cmd` is an explicit act
+  for that command line as given: it covers the restarts of the command by the
+  viewer that received the Start, whatever program the command designates when
+  each restart is made, and nothing is compared for it, so a program replaced
+  under that command line between a Start and a restart is run by the restart.
+  A launcher or a script that passes `--cmd` with a command that names the
+  core should know this: a Start is then an explicit act for a learner, and
+  its restarts are covered by that act. The viewer reads the ranked core's file when it starts, and
   before the core is started, the first time and at every restart, its
   supervisor reads the file again and compares its length and digest with
   what the viewer read at start, whether or not the state file can hold the
@@ -960,7 +967,11 @@ What each panel must show. How it draws it is the code's.
   equal digest are one. The digest suffices against accident, a rebuilt file
   that agrees in length and in a 64-bit digest by chance; forging it needs no
   more power than writing the state file by hand, which is an accepted risk
-  already. The fourth is the launch itself: a run that has started a process
+  already. The fixed command, covered across its restarts as said above, is a
+  fourth accepted limit beside these three: making use of it needs the power
+  to replace a program on this machine between a Start and a restart, which
+  the other limits already assume, and the ranked core, which is the learner,
+  is compared before every start. The fourth is the launch itself: a run that has started a process
   needs a next agent epoch within the browser's integers (UX-24 gives what
   follows a failed start).
 

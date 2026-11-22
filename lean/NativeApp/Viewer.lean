@@ -97,7 +97,8 @@ chance; forging it needs no more power than writing the state file by hand. A fi
 is given to a shell, and the process a shell starts for it depends on the working directory,
 the environment and the files the command names, which this program does not compare: it has
 no record, so a running intent saved under it is not carried to another launch, and it is
-spawned with no reading. -/
+spawned with no reading: within this viewer a Start under a fixed command is for the command
+line as given, across its restarts, whatever program it designates at each of them. -/
 private def supervisorConfig (options : ViewerOptions) (directory : RunDirectory) :
     IO SupervisorConfig := do
   match options.launch with

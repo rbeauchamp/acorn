@@ -82,8 +82,12 @@ before the spawn; a refusal there, reached only when the file changes between th
 readings, is the spawn's error, a failed start, and by then the launch is recorded, as it is
 whenever an attempted spawn fails. The reason (`childDiffers`, `childUnreadable`,
 `childUnread`) is reported in the page and printed on standard error. A fixed command is
-written and spawned with no reading. Three things are assumed and not
-compared: that nothing
+written and spawned with no reading: a Start under `--cmd` is an explicit act for that command
+line as given, and it covers the restarts of the command by the viewer that received the
+Start, whatever program the command designates when each restart is made, so a program
+replaced under that command line between a Start and a restart is run by the restart. That is
+an accepted limit of the guarantee, beside the three of the ranked core's record, of which
+three things are assumed and not compared: that nothing
 replaces the file between the actor's last reading of it and the operating system's exec;
 that the environment the child inherits has not changed; and that two files of equal length
 and equal digest are one. The digest suffices against accident, a rebuilt file that agrees in

@@ -714,7 +714,11 @@ core unless the command line names another command. The viewer's supervisor
 now starts its child, the core or the command `--cmd` names, only on an
 explicit act: the `--start` flag, a Start on the viewer's control endpoint,
 which the page's Start button sends, or a saved state that an earlier Start
-set to running while the supervisor's child was the same one. With no state
+set to running while the supervisor's child was the same one. The ranked core
+is compared with what the viewer read of it before every start; under `--cmd`
+nothing is compared, and a Start is for the command line as given, its
+restarts by that viewer included, whatever program the command comes to
+designate. With no state
 file and no such act the supervisor starts no child and the page shows the
 run stopped. The relay of standard input that the viewer starts under
 `--control-stdin`, and the browser opener under `--open-browser`, are other
