@@ -28,6 +28,9 @@ Status notes record what has changed since; the
 - **Assumed**: a stated modelling assumption, such as an idealized random
   number generator.
 - **UNKNOWN**: an irreducibly empirical quantity with no observation yet.
+- **Open**: a question that neither a theorem nor an observation has yet
+  settled and that is not only empirical, such as what the executed
+  definitions do on a stated model.
 
 The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 [frontier](frontier.md) are research questions.
@@ -886,13 +889,15 @@ improves decisions.
     supply one.
   - Uniform hashing for the roughly 1,300 active features.
   - Faithful transcription of the paper equations recorded in earlier reviews.
-- **UNKNOWN.** Whether the agent learns on goals it does achieve, or over a
-  horizon longer than U7's four cycles, which the two comparisons do not
-  settle; how often refreshes occur and units leave the ranking; option and
-  model quality; the benefit of
+- **UNKNOWN.** How often refreshes occur
+  and units leave the ranking; option and model quality; the benefit of
   planning; the benefit of any of U1 to U5; how often a frame's behaviour has the
   distribution of an option that is not executing. Each depends on the
   experience stream, so no derivation from the definitions can settle it.
+- **Open.** Whether the agent learns on goals it does achieve, or over a
+  horizon longer than U7's four cycles: the two comparisons do not settle it,
+  and what its executed update does on a stated model is a mathematical
+  question.
 
 ## References
 
