@@ -709,7 +709,7 @@ that it ran and passed is such a line with the status 0. The only evidence that
 every check of the head's script passed is the line
 `gate: every merge check passed`. Each attempt of a run is read by its own log.
 In the attempt being read, a check with no line that reports its exit status has
-no verdict (including when `no-comments` prints
+no verdict (including when the script prints
 `gate: no-comments check refused (integrity check failed)` or
 `gate: no-comments check refused (verification failed)` before starting the
 binary, which still fails the gate), and an attempt without the passing line is
