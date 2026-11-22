@@ -1,20 +1,23 @@
 name: Verify
 # GitHub runs the merge gate here, on a pull request's head commit, when the pull request is
-# opened or reopened and at every push to its branch, whether that branch is in this
-# repository or in a fork, and at no other time. The one job runs the checked-out
-# commit's own ./scripts/gate.sh twice: with the argument `provision`, which provisions the
-# pinned dependencies, and then with no argument, the command the no-mistakes pipeline also
-# runs before a pull request opens (.no-mistakes.yaml). No step names a Lake target, a
-# module, a package or another script of the project: the job relies on the head only for
-# that script and its two forms. So the dependencies and the checks are that script's, and
-# a head whose script or Lake configuration is older or newer than main's is provisioned
-# and checked by its own.
+# opened or reopened, at every push to its branch, and when its base branch changes, whether
+# that branch is in this repository or in a fork, and at no other time. GitHub's `edited`
+# event also starts this workflow on title or description edits, where the job is skipped
+# under a check name other than `gate` so it neither runs the gate nor produces a `gate`
+# check result. The one job runs the checked-out
+# commit's own ./scripts/gate.sh twice: with the argument `provision`, which
+# provisions the pinned dependencies, and then with no argument, the command the no-mistakes
+# pipeline also runs before a pull request opens (.no-mistakes.yaml). No step names a Lake
+# target, a module, a package or another script of the project: the job relies on the head only
+# for that script and its two forms. So the dependencies and the checks are that script's, and
+# a head whose script or Lake configuration is older or newer than main's is provisioned and
+# checked by its own.
 #
 # A pull request's run is started by the pull_request event, never pull_request_target, so
 # the run for a fork's pull request receives no secret of this repository and a token that
 # cannot write to it; this file names no secret and asks for read access to contents only.
-# No filter names a base branch, so a pull request to another base that is later retargeted
-# to main keeps the run made on its head. Nothing runs after a merge.
+# No filter names a base branch, so a pull request to any base runs the gate, and retargeting
+# a pull request triggers a fresh run against the new base. Nothing runs after a merge.
 #
 # pull_request is the only trigger, so this workflow cannot be started by hand. A run
 # started by hand on main would be in main's own context, where what a run stores is
@@ -37,7 +40,7 @@ name: Verify
 # run's ending.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
 permissions:
   contents: read
 env:
@@ -48,7 +51,12 @@ env:
 # stalled transfer fails that step at its own limit and never holds the job to the job's.
 # No step continues after a failure.
 jobs:
-  gate:
+  verify:
+    # Reserve the required check name `gate` exclusively for events that execute ./scripts/gate.sh.
+    # GitHub treats a `skipped` check as satisfying a required status check, so a title-only or
+    # description-only `edited` event skips under a non-`gate` name and leaves `gate` untouched.
+    name: ${{ (github.event.action != 'edited' || github.event.changes.base != null) && 'gate' || 'ignored-edit' }}
+    if: github.event.action != 'edited' || github.event.changes.base != null
     # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's limit is the
     # sum of the limits of the two jobs that ran these checks side by side before; no
     # check's own deadline is changed, and each of verification's two stages keeps
@@ -80,7 +88,7 @@ jobs:
         with:
           ref: ${{ steps.commit.outputs.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Confirm checked-out commit
         env:
           ACORN_VERIFY_SHA: ${{ steps.commit.outputs.sha }}
@@ -140,8 +148,13 @@ jobs:
       # matches the checked-out source, toolchain and options, and builds everything else.
       # The script then runs the Regula audit (scripts/regula.sh,
       # docs/verification.md#regula-audit), lean-intent's confirmation and implementation
-      # checks (lean/AcornTools/Intent.lean) and the check of each target's pin file
-      # (lean/AcornTools/Frame.lean), each also when an earlier check failed, and exits
-      # non-zero when any check failed. Its `gate:` lines give the time of each part.
+      # checks (lean/AcornTools/Intent.lean), and the check of each target's pin file
+      # (lean/AcornTools/Frame.lean), each also when an earlier check failed. Serially afterward,
+      # and only when ordinary verification succeeded (so un-admitted sources are never
+      # elaborated), it runs the pinned no-comments check (.no-comments.json, comment-ratchet.json,
+      # lean/no-comments.pin). The script exits non-zero when any check failed, and its `gate:`
+      # lines give the time of each part.
       - name: The merge gate on the exact source
+        env:
+          ACORN_BASE_REF: refs/remotes/origin/${{ github.base_ref }}
         run: ./scripts/gate.sh

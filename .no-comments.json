@@ -1,0 +1,23 @@
+{
+  "workspaces": [
+    {
+      "dir": "lean",
+      "lakeArgs": ["--offline", "--no-cache"]
+    },
+    {
+      "dir": "site",
+      "lakeArgs": ["--offline", "--no-cache"]
+    }
+  ],
+  "exclude": [
+    {
+      "prefix": "site/AcornDocs.lean",
+      "reason": "Verso #doc manual root page (documentation source, not Lean code)"
+    },
+    {
+      "prefix": "site/AcornDocs/",
+      "reason": "Verso #doc manual pages (documentation source, not Lean code)"
+    }
+  ],
+  "ratchet": "comment-ratchet.json"
+}

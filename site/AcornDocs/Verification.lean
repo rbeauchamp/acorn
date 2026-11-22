@@ -75,8 +75,8 @@ and does not change the global Xcode selection or Lean default toolchain.
 
 The [verification workflow](../.github/workflows/verify.yml) runs the
 [merge gate](#build-and-source-inventory) when a pull request is opened or
-reopened and at every push to it, and at no other time, on GitHub's standard
-`ubuntu-24.04` x64 image. It installs no
+reopened, at every push to it, and when its base branch changes, and at no other
+time, on GitHub's standard `ubuntu-24.04` x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
 elan from a release pinned by the SHA-256 of its archive. Every workflow step
 that reaches the network before the gate has its own time limit, so a stalled
@@ -174,8 +174,7 @@ AcornVerif, NativeApp, AcornDocument or Entry, which Lake's globs assign, or a
 listed tool module. The [Regula audit](#regula-audit) claims the first four with
 Bootstrap; Entry holds the executables' roots. Every retained native target is
 built and checked against Lake's evaluated targets and compiled entry owners;
-each executable root must be a maintained module with a non-empty module
-docstring. Ownership admission refuses a facet-qualified build key in the root
+each executable root must be a maintained module. Ownership admission refuses a facet-qualified build key in the root
 package's Lake configuration. The [Lake configuration](../lean/lakefile.lean)
 documents the restriction and its pinned-Lake rationale. Before any Lake
 command, `Bootstrap.lean` must elaborate with no message, and Lake runs with
@@ -459,12 +458,29 @@ the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
 [Regula audit](#regula-audit), lean-intent's two checks and the frame
-check on the same commit, each also when an earlier step failed, and passes only
-when both runs, the audit and the checks pass. When ordinary verification
-passed, lean-intent's two checks and the frame check run one after another in a
+check on the same commit (each also when an earlier step failed), and serially
+after them (only when ordinary verification succeeded, so un-admitted sources
+are never elaborated) the pinned `no-comments`
+check (`.no-comments.json`, `comment-ratchet.json`, `lean/no-comments.pin`),
+passing only when both runs, the audit and all four post-checks pass. When
+ordinary verification passed,
+lean-intent's two checks and the frame check run one after another in a
 background subshell beside the Regula audit, because every module and executable
 is already built and all three read the finished build without writing to
-`lean/.lake/`; when verification failed, all three run one after another.
+`lean/.lake/`; when verification failed, all three run one after another, and the
+`no-comments` check is refused without executing the binary. Otherwise, once
+verification succeeded, the `no-comments` check runs serially afterward so its
+workers never overlap with the Regula audit's memory peak, offline-verifying the
+binary's SHA-256
+from `lean/no-comments.pin` (for `darwin-arm64` and `linux-x86_64`) before
+executing and checking all scoped `.lean`
+files across `lean/` and `site/` code (excluding `site/AcornDocs/` Verso prose)
+against `comment-ratchet.json` for exact head sync, plus monotonic non-growth
+against the merge-base ratchet once the merge base holds `comment-ratchet.json`
+(with `--bootstrap` currently admitting first-time adoption when the merge base
+lacks `comment-ratchet.json`, and rejecting newly excluded files that still hold
+comments at the merge base; tracked files with zero comments carry no ratchet
+entry).
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake
@@ -548,30 +564,41 @@ carried from one run to another.
 
 GitHub runs the gate through the
 [verification workflow](../.github/workflows/verify.yml): when a pull request is
-opened or reopened and at every push to its branch, whether that branch is in
+opened or reopened, at every push to its branch, and when its base branch
+changes, whether that branch is in
 the repository or in a fork, on the pull request's head commit, within the
-limits given below. Nothing else starts the workflow, and it cannot be started
-by hand. A run started by hand on main would be in main's own context, where
-what a run stores is restored by later runs on main, and GitHub's code scanning
-reports a workflow that can run there and executes the script of a commit taken
-from a pull request as a route to poisoning what main's runs restore (CodeQL's
-query `actions/cache-poisoning/poisonable-step`). With no such trigger, no run
-of the workflow is in that context. A pull request's job is run again from the
-pull request, on the same commit (GitHub's documentation, Re-running workflows
-and jobs). The workflow is one job. It takes the
+limits given below. Because GitHub's pull request edited event also fires on a
+title or description edit, those edits also start the workflow, but the job is
+skipped under a check name other than gate so they neither execute
+`./scripts/gate.sh` nor emit a gate check result. Nothing else starts the
+workflow, and it cannot be started by hand. A run started by hand on main would
+be in main's own context, where what a run stores is restored by later runs on
+main, and GitHub's code scanning reports a workflow that can run there and
+executes the script of a commit taken from a pull request as a route to
+poisoning what main's runs restore (CodeQL's query
+`actions/cache-poisoning/poisonable-step`). With no such trigger, no run of the
+workflow is in that context. A pull request's job is run again from the pull
+request, on the same commit (GitHub's documentation, Re-running workflows and
+jobs). The workflow is one job, taking the check name gate only when the event
+executes the gate. It takes the
 head commit from the event, fails before any check when the event names none,
-and never falls back to the merge of the head with its base. From that checkout
-it runs `./scripts/gate.sh provision` to provision the pinned dependencies, then
-`./scripts/gate.sh` to run the same gate as the pipeline's Test step.
+checks out full history (so `origin` holds the pull request base branch), and
+never falls back to the merge of the head with its base. From that checkout
+it runs `./scripts/gate.sh provision` to provision the pinned dependencies
+(including the SHA-256-verified `no-comments` binary into `lean/.lake/packages`),
+then runs `./scripts/gate.sh` with ACORN_BASE_REF set to `refs/remotes/origin/`
+and the pull request's base branch name (which the script passes through
+`--base-ref` to the pinned checker, which resolves it and refuses an
+unavailable reference) to run the same gate as the pipeline's Test step.
 No step of the workflow names a Lake target, a module, a package or another
 script of the project, so the job relies on the
 head only for that script and its two forms. So the dependencies and the checks
 on GitHub are the script's own, with no second list to keep equal to it, and a
 head whose script or Lake configuration is older or newer than the one on main
 is provisioned and checked by its own. A failing check fails the job, and the
-job's result is shown on the pull request. The job
-runs for a pull request to any base branch, so that one later retargeted to main
-keeps the run made on its head, and nothing runs after a merge.
+job's result is shown on the pull request. No filter names a base branch, so the
+job runs for a pull request to any base branch, retargeting triggers a fresh run
+against the new base, and nothing runs after a merge.
 
 The arrangement on GitHub differs from the pipeline's as follows. A step of
 the workflow downloads elan's pinned release in every run and installs it only
@@ -657,21 +684,36 @@ first check and then reports each check's exit status on its own line:
 (or `gate: verification exited N; Regula audit` when verification exited
 non-zero) for verification's two stages together,
 `gate: Regula audit exited N; lean-intent checks`,
-`gate: lean-intent checks exited N; frame check` and `gate: frame check exited N`
-(when verification passed, those last three lines are printed in order once both
-the Regula audit and the background subshell finish).
+`gate: lean-intent checks exited N; frame check`,
+`gate: frame check exited N; no-comments check` and
+`gate: no-comments check exited N` (or
+`gate: no-comments check refused (integrity check failed)` when the cached
+binary fails offline SHA-256 verification before starting, or
+`gate: no-comments check refused (verification failed)` when ordinary verification
+failed before source admission succeeded); when verification passed,
+`gate: verification exited 0; Regula audit beside lean-intent and frame checks`
+prints before either starts, while
+`gate: Regula audit exited N; lean-intent checks`,
+`gate: lean-intent checks exited N; frame check` and
+`gate: frame check exited N; no-comments check` wait until both the Regula
+audit and the background subshell finish.
 It prints `gate: every merge check passed` last, and only when every status
 is 0. A head that holds another revision of the script runs that revision's
 checks and prints that revision's lines, which the head's own `scripts/gate.sh`
-gives: a revision from before the frame check prints no line for it.
+gives: a revision from before the `no-comments` check or frame check prints no
+line for it.
 
 For each check, the only evidence that it ran on the head and failed is a
 `gate:` line that reports its exit status as other than 0, and the only evidence
 that it ran and passed is such a line with the status 0. The only evidence that
 every check of the head's script passed is the line
 `gate: every merge check passed`. Each attempt of a run is read by its own log.
-In the attempt being read, a check with no line that reports its status has no
-verdict, and an attempt without the passing line is no pass of the gate. So an
+In the attempt being read, a check with no line that reports its exit status has
+no verdict (including when `no-comments` prints
+`gate: no-comments check refused (integrity check failed)` or
+`gate: no-comments check refused (verification failed)` before starting the
+binary, which still fails the gate), and an attempt without the passing line is
+no pass of the gate. So an
 attempt gives no check a verdict when GitHub marked it failed before a runner
 started, as when an approval was never given; when a step before the last
 failed; and when the last step ended before `gate: verification, stage one`, as
@@ -681,10 +723,16 @@ limit, each check already reported keeps its line, and that check and those
 after it have no verdict in that attempt. A head with no run at all has no
 verdict of any check.
 
-Whether a merge requires this job is set in the repository's rules on GitHub,
-not in a file of the repository. Where the rules require it, a head on which it
-has not passed does not merge: GitHub requires a required check to pass on the
-latest commit (GitHub's documentation, Troubleshooting required status checks).
+Whether a merge requires the gate check is set in the repository's rules on
+GitHub, not in a file of the repository. GitHub treats both a passing and a
+skipped check run as satisfying a required status check on the latest commit
+(GitHub's documentation, Troubleshooting required status checks, and Using
+conditions to control job execution). Therefore the workflow reserves the
+required check name gate exclusively for events that execute `./scripts/gate.sh`
+and assigns skipped non-base pull request edits a distinct name (`ignored-edit`,
+or the workflow's non-gate fallback when GitHub leaves a skipped job name
+unevaluated), so a title or description edit never emits a skipped gate check
+and cannot satisfy the required check without running the gate.
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners

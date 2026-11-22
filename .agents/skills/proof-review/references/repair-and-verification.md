@@ -45,9 +45,13 @@ The hazard here is specific: much of this repository's apparent complexity is
   gate-suite check is not redundant because it has never fired.
 - **Private fields** restrict direct writes. Trace accessors and restoration
   before crediting them with a state invariant; preserve the actual boundary.
-- A comment asserting *why* is not noise. Delete comments that restate the code;
-  keep the ones a reader could not derive. Apply lens 3's rationale-yes /
-  changelog-no rule to anything you rewrite here.
+- Non-tautological *why* and decision rationale belong in `docs/` (`docs/design.md`,
+  `docs/prior-art-review.md`, `docs/adr/`, or `site/AcornDocs/Verification.lean`
+  rendered to `docs/verification.md`), not in new Lean comments (see
+  `.no-comments.json`); delete Lean comments that restate the code and migrate
+  legacy decision records into `docs/` monotonically rather than adding Lean
+  comments. Apply lens 3's rationale-yes / changelog-no rule to anything you
+  write in docs.
 
 Account for the purpose of any enforcement artifact a simplification would
 remove, and establish appropriate replacement coverage before retiring it.

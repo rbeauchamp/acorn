@@ -39,7 +39,8 @@ material limits. The merge gate,
 opens, also requires the [Regula audit](docs/verification.md#regula-audit),
 lean-intent's confirmation and implementation checks of Acorn's intent records, and
 the check that the declarations a pinned target reads are unchanged. When a pull
-request is opened or reopened and at every push to it, from a branch of the
+request is opened or reopened, at every push to it, and when its base branch
+changes, from a branch of the
 repository or of a fork, GitHub runs the gate on its head commit and shows the
 job's result on the pull request. Neither the absence of a run of that job nor a
 failed run is by itself the result of a check: the
@@ -458,7 +459,8 @@ check refusing noncomputable in executing modules).
   under `lean/AcornVerif/Targets/` and no definition that a target names, which
   together are its contract. Files that make up
   Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
-  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
+  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`,
+  `.no-comments.json`, `lean/no-comments.pin`
   and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
   the owner's review on every pull request that changes them, and only the
   owner's account, the one with write access, merges outside pull requests; do
