@@ -117,11 +117,10 @@ correspondence arguments connecting the required guarantees to the new execution
 ## Evidence for performance claims
 
 Keep contributor verification economical within its full admission contract.
-The merge gate reuses only pinned dependencies: the no-mistakes pipeline stores
-the provisioned dependency checkouts and their build outputs once for each
-default-branch commit a run starts from, and gives a run a private copy only
-while its toolchains and lock files equal that commit's, so an exact match avoids
-repeated provisioning. A changed set of FloatLib modules that the proof bridge
+The merge gate reuses only pinned dependencies, as described in
+[verification](verification.md#build-and-source-inventory): the no-mistakes
+pipeline reuses provisioned outputs only while a run's toolchain, lock and pin
+files match the base commit. A changed set of FloatLib modules that the proof bridge
 imports keeps the same locked dependencies, and Lake builds only the added ones.
 Provisioning is stored apart from every run's checks, so a project failure does
 not discard useful provisioning work. On GitHub the verification workflow stores

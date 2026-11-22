@@ -55,12 +55,15 @@ surface cannot exercise it; do not audit unrelated repository code.
    ([running a program](../../../../CONTRIBUTING.md#running-a-program)), and
    otherwise report it as not rechecked.
 7. **Prior-art traceability and defect disclosure** — any code symbol, algorithm,
-   or mathematical proof derived from prior art must carry an explicit in-code
-   citation (`/-- ... -/` or `/-! ... -/` in Lean) stating the
-   work, authors, venue/year, and specific equation/section/theorem number. If
-   the code or proof repairs an issue, degenerate case, or defect in published
-   prior art, the fix must be documented both in doc comments and as a formal
-   characterization theorem or identity (the `stepRef_hTemp_error` model).
+   or mathematical proof derived from prior art must carry an explicit citation in
+   Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`,
+   all checked by `corpus-audit`, or `site/AcornDocs/Verification.lean`, checked
+   via `docs/verification.md`) stating the work, authors, venue/year, and specific
+   equation/section/theorem number (never new Lean comments under `no-comments`;
+   legacy in-source citations drain under `comment-ratchet.json`). If the code or
+   proof repairs an issue, degenerate case, or defect in published prior art, the
+   fix must be documented both in those documents and as a formal characterization
+   theorem or identity (the `stepRef_hTemp_error` model).
    Peer reviewers must be able to verify correctness directly against the
    cited source text. Apply the [canonical admission standard](../../../../docs/prior-art-review.md#admission-standard)
    to the implemented mechanism, including its material adaptations and semantic

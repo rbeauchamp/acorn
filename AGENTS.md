@@ -89,9 +89,13 @@ it cannot alter learning decisions.
 
 Verify citations against the actual source before adding them. Paper-based code
 and proofs must identify author, work, venue/year and exact equation, section or
-theorem in source documentation. Reproduce derivations and explain material
-adaptations, their rationale, semantic consequences and composition compatibility.
-Fix defects found in prior art, with a characterization theorem or identity and
+theorem in Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`,
+all checked by `corpus-audit` via `AcornCorpus.prose`, or
+`site/AcornDocs/Verification.lean`, checked through `docs/verification.md`),
+rather than adding comments in Lean files (while legacy in-source citations drain
+via `comment-ratchet.json`). Reproduce derivations
+and explain material adaptations, their rationale, semantic consequences and
+composition compatibility there. Fix defects found in prior art, with a characterization theorem or identity and
 present-tense explanation. Do not replicate a known error for fidelity.
 Implementing a published algorithm is prior-art work and is never called or
 counted as a discovery;
@@ -120,7 +124,17 @@ Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) c
 rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.
 
-Keep comments about current semantics and rationale; Git records chronology.
+Lean source files across `lean/` (including `lean/lakefile.lean`) and `site/`
+code (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
+`site/AcornDocs.lean` and `site/AcornDocs/` Verso `#doc` prose) are governed by
+the ratcheted `no-comments` ban
+(`.no-comments.json`, `comment-ratchet.json`, pinned in `lean/no-comments.pin`):
+do not add `--`, `/- -/`, `/-- -/`, or `/-! -/` comments to scoped `.lean`
+files, and drain legacy comments monotonically toward `[]`. Record new and migrated semantics, decision records, and rationale in `docs/`
+(`docs/design.md`, `docs/prior-art-review.md`, automatically
+checked by `corpus-audit` via `AcornCorpus.prose`, or
+`site/AcornDocs/Verification.lean`, checked via `docs/verification.md`) rather
+than in Lean source comments; Git records chronology.
 Name files and modules for their current role; rename or remove artifacts named
 for a retired implementation.
 Fix authorized concrete defects, preserve unrelated work and ask before materially
@@ -150,12 +164,17 @@ Then run the complete command in the actual Git checkout:
 - FloatLib is a proof dependency: only the proof bridge imports it, and no
   executing module may.
 
-Sign commits and preserve license notices. The merge gate, `./scripts/gate.sh`,
-which the no-mistakes pipeline runs on the exact proposed head before a pull
-request opens, runs the same command and, outside that deadline, the Regula
-audit `./scripts/regula.sh`, lean-intent's confirmation and implementation
-checks (`lean/AcornTools/Intent.lean`) and the check of each target's pinned frame
-(`lean/AcornTools/Frame.lean`); GitHub runs the same checks on a pull request's
+Sign commits and keep `LICENSE` as Acorn's copyright and license notice (do not
+add per-file MIT headers to Lean sources under the `no-comments` policy;
+existing non-Lean notices such as `lean/os/checkpoint-sync.c` stay). The merge
+gate, `./scripts/gate.sh`, which the no-mistakes pipeline runs on the exact
+proposed head before a pull request opens, runs the same command and, outside
+that deadline, the Regula audit `./scripts/regula.sh`, lean-intent's
+confirmation and implementation checks (`lean/AcornTools/Intent.lean`), the
+check of each target's pinned frame (`lean/AcornTools/Frame.lean`), and the
+pinned `no-comments` ratchet check (`.no-comments.json`,
+`comment-ratchet.json`, `lean/no-comments.pin`); GitHub runs the same checks on
+a pull request's
 head commit when it is opened or reopened and at every push to it
 (`.github/workflows/verify.yml`). Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass

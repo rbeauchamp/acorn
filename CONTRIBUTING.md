@@ -37,8 +37,9 @@ the [pull request template](.github/pull_request_template.md). Run
 material limits. The merge gate,
 `./scripts/gate.sh`, which the no-mistakes pipeline runs before a pull request
 opens, also requires the [Regula audit](docs/verification.md#regula-audit),
-lean-intent's confirmation and implementation checks of Acorn's intent records, and
-the check that the declarations a pinned target reads are unchanged. When a pull
+lean-intent's confirmation and implementation checks of Acorn's intent records,
+the check that the declarations a pinned target reads are unchanged, and the
+pinned `no-comments` ratchet check. When a pull
 request is opened or reopened and at every push to it, from a branch of the
 repository or of a fork, GitHub runs the gate on its head commit and shows the
 job's result on the pull request. Neither the absence of a run of that job nor a
@@ -456,9 +457,14 @@ check refusing noncomputable in executing modules).
   `lean/AcornVerif/Decisions.lean`, `docs/` or `site/`). A mission with targets
   also adds its entries to `lean/AcornVerif/Landings.lean`, and changes nothing
   under `lean/AcornVerif/Targets/` and no definition that a target names, which
-  together are its contract. Files that make up
+  together are its contract. Record citations and decision rationale in the
+  documentation destinations given in
+  [AGENTS](AGENTS.md#learned-only-and-research-admission) and
+  [review and delivery](AGENTS.md#review-and-delivery) rather than adding Lean
+  comments under `.no-comments.json`. Files that make up
   Acorn's trusted base (`scripts/`, `lean/lakefile.lean`, `site/lakefile.toml`,
-  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`
+  `lean/AcornTools/`, `lean/AcornTools.lean`, `lean/Bootstrap.lean`, `lean/os/`,
+  `.no-comments.json`, `lean/no-comments.pin`
   and `.github/`) are listed in [CODEOWNERS](.github/CODEOWNERS), which requests
   the owner's review on every pull request that changes them, and only the
   owner's account, the one with write access, merges outside pull requests; do
@@ -469,9 +475,7 @@ check refusing noncomputable in executing modules).
   mission does not touch a path it names unless its contract explicitly
   requires it.
 - **Gate to pass:** every mission pull request must pass `./scripts/gate.sh`
-  (which provisions dependencies, runs `./scripts/verify.sh build-executing` and
-  `./scripts/verify.sh` each under its 360-second deadline, and runs the Regula
-  audit `./scripts/regula.sh`), keep the sections of the
+  ([merge gate](docs/verification.md#build-and-source-inventory)), keep the sections of the
   [pull request template](.github/pull_request_template.md), name its mission
   with `Closes #<id>.` in the description, and paste the output of
   `./scripts/gate.sh` from the exact pull request head.

@@ -29,7 +29,7 @@ There is no payment, no trust level and no promise that a mission will suit your
 
 | What you spend | What to expect |
 |---|---|
-| Machine | macOS or Ubuntu/Debian Linux, with about 13 GiB of disk and 12 GiB of memory to spare. Observed once, on 2026-10-30, on a 14-core Mac with Lean already installed: a fresh clone's first gate run took 16 minutes (6.5 of them fetching and building dependencies) and left 10 GiB in the clone; Lean adds 2.8 GiB. Memory peaked at 11.3 GiB when measured on 2026-10-28. Later runs reuse what the first one built. A smaller machine may take longer, and nobody has measured one. |
+| Machine | macOS on Apple silicon (arm64) or Ubuntu/Debian Linux on x86-64, with about 13 GiB of disk and 12 GiB of memory to spare. Observed once, on 2026-10-30, on a 14-core Mac with Lean already installed: a fresh clone's first gate run took 16 minutes (6.5 of them fetching and building dependencies) and left 10 GiB in the clone; Lean adds 2.8 GiB. Memory peaked at 11.3 GiB when measured on 2026-10-28. The serial `no-comments` check added later took ~491 s on macOS arm64. Later runs reuse what the first one built. A smaller machine may take longer, and nobody has measured one. |
 | Agent time and tokens | Unknown in advance: nobody has measured a mission. A contract may also turn out hard or false; say so on the issue, and that finding is useful, but it earns no credit on the board. |
 | A race | Several people may work on one mission at once, and the first pull request that keeps the contract, passes the gate and passes the referee's review merges. A claim reserves nothing exclusively. Step 2 below checks who is already working. |
 | Waiting | The target for a first response to a gate-passing pull request is seven days, with no date promised for the referee's report or the merge. The work is complete when the review protocol says so, not when your agent does. Outside pull requests merge only on the owner's word ([triage and response](../CONTRIBUTING.md#triage-and-response)). |
@@ -107,7 +107,7 @@ cd acorn
 ./scripts/start.sh --prepare-only
 ```
 
-The last command installs what is missing through Homebrew or apt-get and builds Acorn; it may stop for a package-manager password or the macOS command-line tools dialog, which the person directing you must answer. With the tools already installed you can skip that command. The tools are: on macOS the command-line tools, elan, shellcheck, coreutils and openssl@3 from Homebrew; on Ubuntu/Debian build-essential, curl, git, libgmp-dev, openssl, shellcheck, coreutils and [elan](https://github.com/leanprover/elan). The gate fetches and builds the pinned Lean, Mathlib and other dependencies itself.
+The last command installs what is missing through Homebrew or apt-get and builds Acorn; it may stop for a package-manager password or the macOS command-line tools dialog, which the person directing you must answer. With the tools already installed you can skip that command. The tools are: on Apple silicon macOS the command-line tools, elan, shellcheck, coreutils and openssl@3 from Homebrew; on x86-64 Ubuntu/Debian build-essential, curl, git, libgmp-dev, openssl, shellcheck, coreutils and [elan](https://github.com/leanprover/elan). The gate fetches and builds the pinned Lean, Mathlib and other dependencies itself.
 
 Read [AGENTS](../AGENTS.md), the repository's rules for proofs and code, and [Contributing](../CONTRIBUTING.md#missions-for-outside-contributors-and-agents). In brief: a theorem must concern the definition that runs, and no custom axiom, sorry or unsafe definition may enter. Stepping Acorn's agent or one of its learners to see what it does is a run by whatever means, evaluation inside Lean and a copy in another language included; a run needs the owner's authorization first, and step 8 has you list every computation you made on the agent ([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)).
 
@@ -156,7 +156,7 @@ It has passed only when its last line begins `gate: every merge check passed`. A
 
 ### Step 7: commit
 
-Sign your commits with an SSH or GPG key registered with GitHub: the main branch requires verified signatures, and GitHub can refuse to merge a pull request whose commits it cannot verify. Keep the license notice in every file you change.
+Sign your commits with an SSH or GPG key registered with GitHub: the main branch requires verified signatures, and GitHub can refuse to merge a pull request whose commits it cannot verify. Keep [LICENSE](../LICENSE) as Acorn's copyright and license notice; do not add per-file MIT headers or comments to scoped Lean files under the `no-comments` policy (record citations and decision rationale in the documentation destinations given in [AGENTS](../AGENTS.md#learned-only-and-research-admission) and [review and delivery](../AGENTS.md#review-and-delivery)), and preserve existing non-Lean license notices.
 
 ### Step 8: open the pull request
 
