@@ -1,5 +1,9 @@
 #!/bin/bash
 # Complete local merge checks in the actual Git checkout, within six minutes.
+# Arguments pass to acorn-gates. In work on a change, run this script only in a
+# form that the closed list in the Test instructions of .no-mistakes.yaml gives;
+# the diagnostics argument is not on that list and needs the owner's
+# authorization for that run (CONTRIBUTING.md, "Running a program").
 set -euo pipefail
 
 if command -v gtimeout >/dev/null 2>&1; then
