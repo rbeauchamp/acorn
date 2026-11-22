@@ -1312,15 +1312,23 @@ So a running intent saved while the supervisor's child was one process is not ta
 another: a Start given under a fixed command does not start the ranked core at a later launch, and
 neither does one given for a core at another path, of another length or content, or with
 other arguments. Sameness is equality of the two records and no more. This part is read from the
-code and not proved: before every spawn of the ranked core, the first and every restart, the
+code and not proved: before the ranked core is started, the first time and at every restart, the
 actor reads the executable's file again by the same action and compares its length and digest
 ({decl}`Acorn.Host.Viewer.ProgramReading`) with what the viewer read when it started, whether or not
-the state file can hold the record. It spawns only if the two are the same, and a ranked core
-whose file could not be read whole at start, or cannot be now, is not spawned. Otherwise nothing
-is spawned and the spawn's result is its error, which the step treats as a failed start; its
-reason, shown in the page and printed on the viewer's standard error, says that the core's program
-changed since this viewer started, or could not be read when it started, that nothing was started,
-and that starting the viewer again clears the refusal. A fixed command is spawned with no reading.
+the state file can hold the record. It does so twice. The first reading is made before the launch
+is recorded: a refusal there writes nothing, so the saved state is exactly as it was, not marked
+as having started a process and with its agent epoch unspent, and the run is shown stopped with
+the reason. No process could have been created on that path. The second reading is made
+immediately before the spawn, and a refusal there, reached only when the file changes between the
+two readings, is a failed start: by then the launch is recorded, as it is when a spawn fails for
+any other reason or the viewer crashes at that point, because an attempted spawn may have created
+a process. The reason of a refusal is shown in the page and printed on the viewer's standard
+error, and it tells three cases apart, each with what clears it: the program differs from what
+this viewer read when it started, and starting the viewer again records it as it is now; the
+program cannot be read now, and the refusal clears in this viewer when the file can be read again
+with the same content, while starting the viewer again does not help as long as it stays
+unreadable; the program could not be read when the viewer started, and starting the viewer again
+when it can be read clears it. A fixed command is written and spawned with no reading.
 Three things are
 assumed and not compared: that nothing replaces the file between the actor's last reading of it
 and the operating system's exec; that the environment the child inherits is unchanged; and that
@@ -1357,20 +1365,24 @@ intent, is written before the listener binds. A file whose running intent was se
 earlier version's or one given for another child, is left exactly as it is
 ({decl}`Acorn.Host.Viewer.StartSource.kept`) until the listener is bound. The bootstrap then
 publishes the stopped state it started from, in the current schema with this launch's record,
-before it prints the ready line, before the `--start` flag submits its Start and before the
-actor's first turn. So a start-up that fails before that publication, with or without the
+before it prints the ready line, before the `--start` flag submits its Start and before any
+command is processed. So a start-up that fails before that publication, with or without the
 `--start` flag, leaves the next viewer the same file and the same reason, and such a file is read
 as an earlier version's, or as given for another child, once: in the first launch that publishes
-the stopped state. After it, a viewer of the earlier version started on the directory meets a file
+the stopped state. That is the boundary, and no other: the reason is not lost by a failure before
+the publication, and after the publication it has been given, in that launch's first control
+record and, without the flag, in its log, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
 of the current version. A crash between the bind and the publication leaves the original file. A
 start-up that fails after the publication, when the ready line cannot be written for example,
 leaves a current-version stopped file, and the reason the next launch gives is that the saved
 state says stopped. A Start that reaches the control endpoint before the publication is only
 queued; it is handled at a later turn of the actor if the start-up goes on, and is lost with the
 viewer if the start-up fails after the publication. If the publication fails, the viewer exits
-with that error before it
-prints the ready line and before any turn, and the file, which is replaced only by a rename after
-a complete write, is still the original. Whenever the start state is stopped, the one
+with that error before it prints the ready line, and the file, which is replaced only by a rename
+after a complete write, is still the original. A viewer that fails once its listener is bound
+ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
+turn on that path takes a command from the queue, so nothing is started from the set-aside intent
+and a Start queued by then is not handled. Whenever the start state is stopped, the one
 line that says why ({decl}`Acorn.Host.Viewer.startAccount`) is the reason of the first control
 record, under the `--start` flag too, so the page never shows the run stopped at start-up without
 it. Without the flag the viewer also prints the line on its standard output once it serves its

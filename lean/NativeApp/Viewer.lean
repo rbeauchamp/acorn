@@ -30,7 +30,7 @@ the bind, except for a file whose running intent was set aside
 (`Acorn.Host.Viewer.StartSource.kept`), an earlier version's or one given for another child.
 That file stays exactly as it is until the listener is bound; the bootstrap then publishes
 the stopped state it started from, with this launch's record, before it prints the ready
-line, before `--start` submits its Start and before the first step. So a start-up that fails
+line, before `--start` submits its Start and before any command is processed. So a start-up that fails
 before that publication leaves that file, and its reason, to the next viewer, and the file
 is read as an earlier version's, or as given for another child, once: in the first launch
 that publishes the stopped state. A start-up that fails after the publication, when the ready
@@ -170,9 +170,11 @@ def runViewer (arguments : List String) : IO UInt32 := do
       -- before it is only queued by `Supervisor.submit`, so it is not processed first; it
       -- is processed by a later `supervisor.step` if the start-up goes on, and is lost with
       -- the viewer if the start-up fails after the publication. If the publication
-      -- fails, the viewer exits with that error before it prints the ready line and before
-      -- any step: nothing is spawned from the set-aside intent, and the file, which is
-      -- replaced only by a rename after a complete write, is still the original. A failure
+      -- fails, the viewer exits with that error before it prints the ready line. The
+      -- `finally` below then shuts the supervisor down, and its closing turns step the
+      -- supervisor and can write the map, but none of them takes a command from the queue:
+      -- nothing is spawned from the set-aside intent, and the file, which is replaced only
+      -- by a rename after a complete write, is still the original. A failure
       -- after the publication, when the ready line cannot be written for example, leaves
       -- a current-version stopped file, and the reason the next launch gives is that the
       -- saved state says stopped.

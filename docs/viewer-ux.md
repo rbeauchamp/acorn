@@ -906,12 +906,12 @@ What each panel must show. How it draws it is the code's.
   for the page.
 
   What a state file starts depends on four things, and the first is that it
-  can be read at all. Only an entry named `state.json` that is not a regular
-  file or a link to one (a link whose target is gone, a directory, a pipe, a
-  device) is refused without being opened. A regular file is opened and read
-  within its bound of 4096 bytes, and is then refused for its content when
-  that is not a JSON object holding the six members of the state, each
-  admitted. On a refusal the viewer exits before it serves anything and leaves
+  can be read at all. An entry named `state.json` that is not a regular file
+  or a link to one (a link whose target is gone, a directory, a pipe, a
+  device) is refused for its kind, and is the one case refused without being
+  opened. A regular file is opened: it is refused if the open or the read
+  fails, if it holds more than 4096 bytes, or if its content is not a JSON
+  object holding the six members of the state, each admitted. On a refusal the viewer exits before it serves anything and leaves
   the file as it is. The
   second is the version: the whole number that `schema_version` spells in
   decimal digits alone. A file that names another such number than the current
@@ -930,23 +930,30 @@ What each panel must show. How it draws it is the code's.
   because what a shell starts for a command depends on more than the viewer
   can compare, so a running intent saved under `--cmd` is not carried to
   another launch. The viewer reads the ranked core's file when it starts, and
-  before every spawn, the first and every restart, its supervisor reads the
-  file again and compares its length and digest with what the viewer read at
-  start, whether or not the state file can hold the record; it spawns only if
-  they are the same, and a ranked core that cannot be read is not spawned. So
-  a running intent is not carried to a core whose file has since changed in
-  length or content, or moved; and after a rebuild a Start in a running
-  viewer is refused, with the reason "the core's program changed since this
-  viewer started (the file at its path differs in length or content, or
-  cannot be read), so nothing was started; starting the viewer again records
-  the program as it is now and clears this refusal". Where the file could not
-  be read whole when the viewer started, the reason is "the core's program
+  before the core is started, the first time and at every restart, its
+  supervisor reads the file again and compares its length and digest with
+  what the viewer read at start, whether or not the state file can hold the
+  record. So a running intent is not carried to a core whose file has since
+  changed in length or content, or moved, and a core rebuilt while a viewer
+  runs is not started by that viewer. The supervisor reads the file before it
+  records the launch: a refusal there leaves the saved state exactly as it
+  was, not marked as having started a process and with its agent epoch
+  unspent, and the run is shown `stopped` with the reason, which is also
+  printed in the viewer's log. It reads the file once more immediately before
+  the spawn; a refusal there, which needs the file to change between the two
+  readings, is a failed start (UX-24). The reason tells three cases apart,
+  each with what clears it. The program differs from what this viewer read:
+  "the core's program differs from what this viewer read when it started (the
+  file at its path changed in length or content), so nothing was started;
+  starting the viewer again records the program as it is now and clears this
+  refusal". The program cannot be read now: "the core's program cannot be read
+  now, so nothing was started; the refusal clears in this viewer when the file
+  can be read again with the content it had when this viewer started, and
+  starting the viewer again does not help while the file stays unreadable".
+  The program could not be read when the viewer started: "the core's program
   could not be read when this viewer started, so nothing was started;
   starting the viewer again when the file can be read clears this refusal".
-  The reason is shown in the page and printed in the viewer's log: the spawn
-  fails, and after three failed starts the supervisor gives up (UX-24), until
-  a viewer is started again, which reads the file as it then is. Three things
-  are
+  Three things are
   assumed and not compared: that nothing replaces the file between the
   supervisor's last reading of it and the operating system's exec; the
   environment the child inherits; and that two files of equal length and
@@ -961,10 +968,11 @@ What each panel must show. How it draws it is the code's.
   for another child, is left on disk exactly as it is until the listener is
   bound. The viewer then publishes the stopped state it started from, in the
   current schema with this launch's child, before it prints its ready line,
-  before `--start` submits its Start and before its supervisor's first turn.
+  before `--start` submits its Start and before any command is processed.
   So such a file is read as an earlier version's, or as given for another
   child, once, in the first launch that publishes the stopped state, and that
-  launch says the reason; a viewer of the earlier version started later on the
+  launch gives the reason, in its first control record and, without `--start`,
+  in its log; it is not given again; a viewer of the earlier version started later on the
   directory meets a file of the current version. A start-up that fails before
   that publication, such as on a port already in use, leaves the file as it
   was: the next viewer reads the same file and says the same. A start-up that
@@ -974,8 +982,10 @@ What each panel must show. How it draws it is the code's.
   endpoint before the publication is only queued; it is handled afterwards if
   the start-up goes on, and is lost with the viewer if the start-up fails
   after the publication. If the publication itself fails, the viewer exits
-  with that error before its ready line and before any turn, and the file is
-  still the original. An operator who starts the viewer directly on a run
+  with that error before its ready line, and the file is still the original.
+  A viewer that fails once its listener is bound ends through its shutdown,
+  whose turns step the supervisor to close it and can write the map; no turn
+  on that path takes a command from the queue. An operator who starts the viewer directly on a run
   that a viewer
   of the earlier version left running finds it stopped and presses Start; a
   file of the current schema whose running intent was given for the same
@@ -1133,9 +1143,12 @@ What each panel must show. How it draws it is the code's.
   without starting anything: the viewer runs the ranked core as the executable
   `acorn-core` beside it, by its full path, with arguments that begin
   `demo --research-profile ranked --telemetry --control-stdin`, so
-  `pgrep -fl 'acorn-core demo --research-profile ranked --telemetry'` lists a
-  core that is still running, and lists nothing when none is. A child given
-  with `--cmd` has the name its command gives it.
+  `pgrep -fl 'acorn-core demo --research-profile ranked --telemetry'` lists
+  candidates: every process whose command line holds that text, which a core
+  still running does, and so can a ranked core of another run or an unrelated
+  process that quotes the text. A candidate's `--run-id`, and its
+  `--checkpoint` argument when it has one, tell which run it belongs to. A
+  child given with `--cmd` has the name its command gives it.
 - The primitive value bars may read exactly zero for a long stretch (UX-36):
   the Swift-Sarsa fixed point at zero reward, not a rendering fault. How long
   the stretch lasts at the current pin is unmeasured.

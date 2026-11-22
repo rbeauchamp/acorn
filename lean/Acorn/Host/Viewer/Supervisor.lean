@@ -107,32 +107,67 @@ private def Supervisor.perform (supervisor : Supervisor) (directory : RunDirecto
   | .follow (.say text) => try IO.println text catch _ => pure ()
   | .follow (.complain text) => try IO.eprintln s!"viewer shutdown: {text}" catch _ => pure ()
 
-/-- The spawn's error for a ranked core whose file does not read now as it read when this
-viewer started, or cannot be read whole now. It says what clears the refusal and directs no
-run. -/
-def childChanged : String :=
-  "the core's program changed since this viewer started (the file at its path differs in " ++
-    "length or content, or cannot be read), so nothing was started; starting the viewer " ++
-    "again records the program as it is now and clears this refusal"
+/-- The refusal of a start of the ranked core whose file reads now but not as it read when this
+viewer started. It says what clears the refusal and directs no run. -/
+def childDiffers : String :=
+  "the core's program differs from what this viewer read when it started (the file at its " ++
+    "path changed in length or content), so nothing was started; starting the viewer again " ++
+    "records the program as it is now and clears this refusal"
 
-/-- The spawn's error for a ranked core whose file could not be read whole when this viewer
-started. It says what clears the refusal and directs no run. -/
+/-- The refusal of a start of the ranked core whose file cannot be read whole now, though it
+could when this viewer started. It says what clears the refusal and directs no run. -/
+def childUnreadable : String :=
+  "the core's program cannot be read now, so nothing was started; the refusal clears in " ++
+    "this viewer when the file can be read again with the content it had when this viewer " ++
+    "started, and starting the viewer again does not help while the file stays unreadable"
+
+/-- The refusal of a start of the ranked core whose file could not be read whole when this
+viewer started. It says what clears the refusal and directs no run. -/
 def childUnread : String :=
   "the core's program could not be read when this viewer started, so nothing was started; " ++
     "starting the viewer again when the file can be read clears this refusal"
 
-/-- Each case performs the native operation its call names. A spawn of the ranked core, the
-first and every restart alike, reads the executable's file again immediately before it and is
-made only when that reading equals the one this viewer took when it started, whether or not
-the state file can hold a record of the child. Otherwise, and when the file could not be read
-whole at start or cannot be now, nothing is spawned: the reason is printed on standard error
-and the call's result is the spawn's error with that reason, which the step treats as a
-failed start and reports in the page. The interval between this reading and the operating
+/-- Why the configuration's child may not be started now, and nothing when it may. A fixed
+command is never refused here. The ranked core is refused when its file could not be read
+whole when this viewer started, cannot be read whole now, or reads now otherwise than it did
+then, whether or not the state file can hold a record of the child. -/
+private def Supervisor.refusal (supervisor : Supervisor) : IO (Option String) :=
+  match supervisor.config.program with
+  | .fixed => pure none
+  | .ranked none _ => pure (some childUnread)
+  | .ranked (some atStart) read => do
+    match ← (try read catch _ => pure none) with
+    | none => pure (some childUnreadable)
+    | some found => pure (if found == atStart then none else some childDiffers)
+
+/-- Each case performs the native operation its call names. Before the ranked core is started,
+the first time and at every restart alike, its file is read twice and compared with the
+reading this viewer took when it started (`Supervisor.refusal`).
+
+The first reading is made before the launch is recorded, when `launching` says the state to
+write is the one that marks a launch as attempted (`Pending.launch`). A refusal there writes
+nothing: the call's result is the write's error with the reason, which the step treats as a
+launch that could not be recorded, so the run stops and the saved state is exactly as it was,
+not marked as having started a process and with its agent epoch unspent. No process could have
+been created on that path.
+
+The second reading is made immediately before the spawn. A refusal there spawns nothing, and
+its result is the spawn's error, a failed start. By then the launch is recorded, as it is
+when a spawn fails for any other reason or the viewer crashes at that point, because a spawn
+that is attempted may have created a process; this second refusal is reached only when the
+file changes between the two readings.
+
+Every refusal is printed on standard error and reported in the page by the step, as the
+reason of the failed call. The interval between the second reading and the operating
 system's exec, and the environment the child inherits, are not compared. A fixed command is
-spawned without a reading. -/
-private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory) :
-    (call : Call) → IO (call.Result × RunDirectory)
+written and spawned without a reading. -/
+private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
+    (launching : Bool) : (call : Call) → IO (call.Result × RunDirectory)
   | .writeState state => do
+    if launching then
+      if let some reason ← supervisor.refusal then
+        try IO.eprintln reason catch _ => pure ()
+        return (Except.error reason, directory)
     let result : Except String Unit ← try
         directory.writeState supervisor.config.child state
         pure (.ok ())
@@ -148,13 +183,7 @@ private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
       catch error => pure (.error error.toString)
     return (result, directory)
   | .spawn generation plan => do
-    let refusal : Option String ← match supervisor.config.program with
-      | .fixed => pure none
-      | .ranked none _ => pure (some childUnread)
-      | .ranked (some atStart) read => do
-        let found ← try read catch _ => pure none
-        pure (if found == some atStart then none else some childChanged)
-    if let some reason := refusal then
+    if let some reason ← supervisor.refusal then
       try IO.eprintln reason catch _ => pure ()
       return (Except.error reason, directory)
     let arguments := supervisor.config.arguments plan (directory.path .weights)
@@ -189,7 +218,10 @@ private def Supervisor.drive (supervisor : Supervisor) (effects : List Effect) :
     match waiting : actor.supervision.core.pending with
     | none => return
     | some pending =>
-      let (result, directory) ← supervisor.call actor.directory
+      let launching := match pending with
+        | .launch _ _ => true
+        | _ => false
+      let (result, directory) ← supervisor.call actor.directory launching
         (pending.call actor.supervision.core.lifecycle)
       let (supervision, next) := actor.supervision.resume waiting (← IO.monoMsNow) result
       set ({ supervision, directory } : Actor supervisor.config.clearDisabled)
@@ -228,7 +260,8 @@ state file, or restored with the intent its file records, is published here, bef
 listener binds. A state whose running intent was set aside, because it was read from an
 earlier version's file or was given for another child (`StartSource.kept`), is not published
 here: that file stays exactly as it is until the listener is bound, and the bootstrap then
-publishes this stopped state with this launch's record before it prints, submits or steps
+publishes this stopped state with this launch's record before it prints or submits, and
+before any command is processed
 (`NativeApp.runViewer`). So a start-up that fails before that publication leaves the next
 viewer the same file and the same reason for showing the run stopped. A launch relies on no
 unpublished state either way, since the attempted launch is saved before the spawn
