@@ -52,11 +52,11 @@ verification command remains required for documentation changes.
 tag := "platform-setup"
 %%%
 
-Use `./scripts/start.sh` for automatic setup and launch, or
-`./scripts/start.sh --prepare-only` to prepare and build without learning.
 In work on a change a launch needs the owner's authorization for that run;
 [running a program](../CONTRIBUTING.md#running-a-program) says where the
 invocations that may be driven without it are listed.
+Use `./scripts/start.sh` for automatic setup and launch, or
+`./scripts/start.sh --prepare-only` to prepare and build without learning.
 It uses Homebrew on macOS and apt-get on Ubuntu/Debian. It installs missing
 prerequisites, which changes the machine's package manager state, so an agent
 runs it only where the person it works for has agreed to that, and it
@@ -127,13 +127,12 @@ manual builds need a usable OpenSSL on PATH.
 tag := "headless-and-advanced-launch"
 %%%
 
-`./scripts/start.sh --no-browser` prints the actual bound loopback URL.
+In work on a change a launch needs the owner's authorization, with or without a
+browser. `./scripts/start.sh --no-browser` prints the actual bound loopback URL.
 `--run-dir DIR` selects another run directory and `--port N` selects a port;
 the default port is allocated by the OS. Browser opening is optional and its
 failure does not stop the agent. Use `./scripts/start.sh --help` for the launcher
-options. `--no-browser` does not change what a launch starts, and in work on a
-change a launch needs the owner's authorization; `--help` and `--prepare-only`
-stop before the launch. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
+options. `--help` and `--prepare-only` stop before the launch. Raw viewer options are documented in [the viewer specification](viewer-ux.md).
 
 ## Interrupted-launch recovery
 %%%
