@@ -143,6 +143,16 @@ that its section below requires. A check made by a validation pipeline,
 before or after the pull request opens, discharges nothing of the protocol
 until that review and its assignment comment are posted on the pull request.
 
+Private material is a private path, a private record or personal data. A
+posting that this protocol requires on the pull request, whether a referee's
+report, a short review, the validation pipeline's review with the findings of
+every round of its run, a reading of a title and description posted with that
+review, a ruling or a record of accepted risk, may withhold private material,
+besides what the security-vulnerability rule below keeps off the pull request.
+Each withheld part is marked in the posting as withheld, with its kind, one of
+those three, and the posting still shows each finding, the verdict and what
+was done about each finding.
+
 ### The gate on the exact head
 
 GitHub runs the gate on a pull request's head commit and shows the job's result
@@ -196,7 +206,8 @@ pull request head, title and description, and when all of the following hold:
   family, and the exact head commit;
 - the reviewer's report or short review for that exact head commit, title and
   description is posted on the pull request, unedited except for any redaction
-  required by the security-vulnerability rule below (and for a claim of
+  required by the security-vulnerability rule below and any private material
+  withheld under the rule on private material above (and for a claim of
   discovery, withheld and posted together with the second referee's report under
   the discovery rule below);
 - **no same-family self-review:** the designated reviewer took no part in writing
@@ -367,7 +378,8 @@ the following hold:
   the pull request passed the validation pipeline, the run, the reviewer's
   model family and the exact head commit;
 - the review is posted on the pull request, unedited except for any redaction
-  required by the security-vulnerability rule above;
+  required by the security-vulnerability rule above and any private material
+  withheld under the rule on private material above;
 - the reviewer meets the rule of no same-family self-review that the
   single-maintainer interim provision above states: it took no part in
   writing or fixing the change, did not review it or advise on it for its

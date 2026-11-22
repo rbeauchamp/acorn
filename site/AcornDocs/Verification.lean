@@ -1107,6 +1107,11 @@ result and passed the maintainers' validation pipeline, the assignment comment
 records the owner's standing designation of the validation pipeline's
 configured reviewer, that the pull request passed, the run, the reviewer's
 model family and the exact head commit, beside the run's unedited review.
+Unedited means that a posting withholds nothing but a security
+vulnerability's details and private material, which is a private path, a
+private record or personal data, each withheld part of private material
+marked as withheld with its kind; each finding's existence, the verdict and
+what was done about each finding stay on the pull request.
 Under the single-maintainer interim provision, while Acorn has one human
 maintainer, a truthful assignment comment for a referee's review or a short
 review can instead record the owner's standing designation of the model
