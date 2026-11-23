@@ -118,7 +118,8 @@ def silentElaboration : IO Unit := do
 `--wfail` makes any logged warning fail the build, including header-time warnings
 (for example a deprecated import) that `warningAsError` does not reach. -/
 def lake (overrides : System.FilePath) (args : Array String) : IO.Process.SpawnArgs := {
-  cmd := "lake", args := #["--no-cache", "--wfail", s!"--packages={overrides}"] ++ args,
+  cmd := "lake",
+  args := #["-f", "lakefile.lean", "--no-cache", "--wfail", s!"--packages={overrides}"] ++ args,
   stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
 
 /-- The proof bridge is the single owner of its FloatLib imports, the intent bridge and the gate's
@@ -138,6 +139,93 @@ def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
   throw (IO.userError
     s!"Lake could not decide dependency provisioning:\n{output.stdout}{output.stderr}")
 
+private def stripNewline (text : String) : String :=
+  (text.dropEndWhile fun c => c == '\n' || c == '\r').toString
+
+private def verifyTrackedConfigFile (rel : String) : IO Unit := do
+  regularFile rel
+  let out ← IO.Process.output {
+    cmd := "git",
+    args := #["-C", ".", "-c", "core.quotePath=false", "ls-files", "--stage", "-z", "--", rel],
+    stdin := .null }
+  unless out.exitCode == 0 do
+    throw (IO.userError s!"git ls-files failed for {rel}: {out.stderr}")
+  let records := (out.stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
+  let [record] := records | throw (IO.userError s!"path is not tracked: {rel}")
+  let [metaPart, path] := record.splitOn "\t"
+    | throw (IO.userError s!"malformed git ls-files record: {record}")
+  let [mode, _, stage] := metaPart.splitOn " "
+    | throw (IO.userError s!"malformed git ls-files metadata: {metaPart}")
+  unless (mode == "100644" || mode == "100755") && stage == "0" && path == rel do
+    throw (IO.userError s!"path is not a tracked regular file: {rel}")
+
+private def removeRegularIfExists (path : System.FilePath) : IO Unit := do
+  let meta? ← try some <$> path.symlinkMetadata catch error =>
+    if error matches .noFileOrDirectory .. then pure none else throw error
+  if let some m := meta? then
+    unless m.type == .file do
+      throw (IO.userError s!"non-regular cached config entry: {path}")
+    try IO.FS.removeFile path catch error =>
+      if error matches .noFileOrDirectory .. then pure () else throw error
+
+private def clearLakeConfigCache (lakeDir : System.FilePath) : IO Unit := do
+  let configDir := lakeDir / "config"
+  let meta? ← try some <$> configDir.symlinkMetadata catch error =>
+    if error matches .noFileOrDirectory .. then pure none else throw error
+  let some m := meta? | return
+  unless m.type == .dir do
+    throw (IO.userError s!"non-directory Lake config cache: {configDir}")
+  removeRegularIfExists (configDir / "lakefile.olean")
+  removeRegularIfExists (configDir / "lakefile.olean.trace")
+  for entry in ← configDir.readDir do
+    let entryMeta ← try some <$> entry.path.symlinkMetadata catch error =>
+      if error matches .noFileOrDirectory .. then pure none else throw error
+    if let some em := entryMeta then
+      if em.type == .dir then
+        removeRegularIfExists (entry.path / "lakefile.olean")
+        removeRegularIfExists (entry.path / "lakefile.olean.trace")
+
+private def syncTrackedConfigTrace : IO Unit := do
+  let topOut ← IO.Process.output {
+    cmd := "git", args := #["-C", ".", "rev-parse", "--show-toplevel"], stdin := .null }
+  unless topOut.exitCode == 0 do
+    throw (IO.userError s!"git rev-parse --show-toplevel failed: {topOut.stderr}")
+  let prefixOut ← IO.Process.output {
+    cmd := "git", args := #["-C", ".", "rev-parse", "--show-prefix"], stdin := .null }
+  unless prefixOut.exitCode == 0 do
+    throw (IO.userError s!"git rev-parse --show-prefix failed: {prefixOut.stderr}")
+  unless stripNewline prefixOut.stdout == "lean/" do
+    throw (IO.userError s!"unexpected git prefix in lean directory")
+  let expectedDir := System.FilePath.mk (stripNewline topOut.stdout) / "lean"
+  unless (← IO.FS.realPath expectedDir) == (← IO.FS.realPath ".") do
+    throw (IO.userError "git root mismatch in lean directory")
+  verifyTrackedConfigFile "lakefile.lean"
+  verifyTrackedConfigFile "lake-manifest.json"
+  let out ← IO.Process.output {
+    cmd := "git",
+    args := #["-C", ".", "-c", "core.quotePath=false", "ls-files", "--stage", "-z",
+      "--", "*.lean"],
+    stdin := .null }
+  unless out.exitCode == 0 do
+    throw (IO.userError s!"git ls-files *.lean failed: {out.stderr}")
+  if out.stdout.isEmpty then
+    throw (IO.userError "git ls-files *.lean returned no tracked modules")
+  let desired := out.stdout.toUTF8
+  let stampPath : System.FilePath := ".lake/acorn-tracked-modules.z"
+  let current? ← try some <$> IO.FS.readBinFile stampPath catch error =>
+    if error matches .noFileOrDirectory .. then pure none else throw error
+  unless current? == some desired do
+    clearLakeConfigCache ".lake"
+    clearLakeConfigCache "../site/.lake"
+    IO.FS.createDirAll ".lake"
+    let tmp : System.FilePath := s!"{stampPath}.{← IO.Process.getPID}.tmp"
+    try
+      IO.FS.writeBinFile tmp desired
+      IO.FS.rename tmp stampPath
+    catch error =>
+      try IO.FS.removeFile tmp catch _ => pure ()
+      throw error
+
 /-- Invoke Lake only after local dependency admission. -/
 def run (args : List String) : IO UInt32 := do
   silentElaboration
@@ -146,6 +234,7 @@ def run (args : List String) : IO UInt32 := do
       args == ["script", "run", "acornTargets"] ||
       args == ["script", "run", "intentLibraries"])) do
     throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
+  syncTrackedConfigTrace
   let (contents, available) ← overrides
   let path : System.FilePath := ".lake/acorn-path-packages.json"
   -- Lake validates its configuration trace against source and toolchain changes;

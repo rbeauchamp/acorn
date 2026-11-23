@@ -7,6 +7,7 @@ import Lean.Data.Json.Parser
 import Lean.Data.Json.FromToJson.Basic
 import AcornTools.ModuleInventory
 import AcornTools.Ownership
+import AcornTools.TrackedFiles
 
 /-! # Ownership admission before application compilation -/
 namespace AcornOwnershipAudit
@@ -39,6 +40,8 @@ def siteSources : IO Unit := do
     require (AcornOwnership.siteModules.contains name) s!"unowned site module {name}"
   for name in AcornOwnership.siteModules do
     require (actual.contains name) s!"stale site module owner {name}"
+  AcornTrackedFiles.ensureTrackedRegular ".." (some "") "site/lake-manifest.json"
+  AcornTrackedFiles.ensureTrackedRegular "." (some "lean/") "lake-manifest.json"
   let site : System.FilePath := System.FilePath.mk ".." / "site" / "lake-manifest.json"
   let lock ← IO.ofExcept (Json.parse (← IO.FS.readFile site))
   require ((lock.getObjValAs? String "packagesDir").toOption == some "../lean/.lake/packages")

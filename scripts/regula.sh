@@ -25,12 +25,46 @@ unset REGULA_FULL
 # Acorn's verification keeps Lake's artifact cache off.
 export LAKE_ARTIFACT_CACHE=false
 
-lake build --wfail
+sync_tracked_lake_config() {
+  local top prefix_dir tracked_tmp entry
+  top=$(git -C . rev-parse --show-toplevel)
+  prefix_dir=$(git -C . rev-parse --show-prefix)
+  if [[ -z "$top" || "$prefix_dir" != "lean/" || "$(pwd -P)" != "$(cd "$top" && pwd -P)/lean" ]]; then
+    echo "regula: must run inside tracked lean/ directory" >&2
+    exit 1
+  fi
+  if [[ -L lakefile.lean || ! -f lakefile.lean ]]; then
+    echo "regula: lean/lakefile.lean must be a regular file" >&2
+    exit 1
+  fi
+  git -C . -c core.quotePath=false ls-files --error-unmatch -- lakefile.lean >/dev/null
+  mkdir -p .lake
+  tracked_tmp=$(mktemp .lake/acorn-tracked-modules.z.XXXXXX)
+  if ! git -C . -c core.quotePath=false ls-files --stage -z -- '*.lean' > "$tracked_tmp" || [[ ! -s "$tracked_tmp" ]]; then
+    rm -f "$tracked_tmp"
+    echo "regula: failed to enumerate tracked lean/*.lean modules" >&2
+    exit 1
+  fi
+  if [[ ! -f .lake/acorn-tracked-modules.z ]] || ! cmp -s "$tracked_tmp" .lake/acorn-tracked-modules.z; then
+    for entry in .lake/config/lakefile.olean .lake/config/lakefile.olean.trace .lake/config/*/lakefile.olean .lake/config/*/lakefile.olean.trace ../site/.lake/config/lakefile.olean ../site/.lake/config/lakefile.olean.trace ../site/.lake/config/*/lakefile.olean ../site/.lake/config/*/lakefile.olean.trace; do
+      if [[ -e "$entry" || -L "$entry" ]]; then
+        rm -f "$entry"
+      fi
+    done
+    mv -f "$tracked_tmp" .lake/acorn-tracked-modules.z
+  else
+    rm -f "$tracked_tmp"
+  fi
+}
+
+sync_tracked_lake_config
+
+lake -f lakefile.lean build --wfail
 
 report=$(mktemp)
 trap 'rm -f "$report"' EXIT
 status=0
-lake lint > "$report" || status=$?
+lake -f lakefile.lean lint > "$report" || status=$?
 cat "$report"
 
 verdict=$(tail -n 1 "$report")

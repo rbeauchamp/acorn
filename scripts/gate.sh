@@ -17,7 +17,8 @@ export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PAT
 step() { printf 'gate: %s at %s (%d s)\n' "$1" "$(date -u +%H:%M:%SZ)" "$SECONDS"; }
 
 nc_pin='lean/no-comments.pin'
-if [[ -L lean || ! -d lean || ! -f "$nc_pin" || -L "$nc_pin" ]]; then
+if [[ -L lean || ! -d lean || ! -f "$nc_pin" || -L "$nc_pin" ]] ||
+    ! git -C . -c core.quotePath=false ls-files --error-unmatch -- "$nc_pin" >/dev/null 2>&1; then
   echo "gate: missing or non-regular pin file: $nc_pin" >&2
   exit 1
 fi
@@ -134,6 +135,38 @@ dependency_git() {
   export GIT_CONFIG_COUNT=$((n + 1)) "GIT_CONFIG_KEY_$n=core.symlinks" "GIT_CONFIG_VALUE_$n=false"
 }
 
+sync_tracked_lake_config() {
+  local top prefix_dir tracked_tmp entry
+  top=$(git -C . rev-parse --show-toplevel)
+  prefix_dir=$(git -C . rev-parse --show-prefix)
+  if [[ -z "$top" || "$prefix_dir" != "lean/" || "$(pwd -P)" != "$(cd "$top" && pwd -P)/lean" ]]; then
+    echo "gate: must run tracked Lake sync inside tracked lean/ directory" >&2
+    exit 1
+  fi
+  if [[ -L lakefile.lean || ! -f lakefile.lean ]]; then
+    echo "gate: lean/lakefile.lean must be a regular file" >&2
+    exit 1
+  fi
+  git -C . -c core.quotePath=false ls-files --error-unmatch -- lakefile.lean >/dev/null
+  mkdir -p .lake
+  tracked_tmp=$(mktemp .lake/acorn-tracked-modules.z.XXXXXX)
+  if ! git -C . -c core.quotePath=false ls-files --stage -z -- '*.lean' > "$tracked_tmp" || [[ ! -s "$tracked_tmp" ]]; then
+    rm -f "$tracked_tmp"
+    echo "gate: failed to enumerate tracked lean/*.lean modules" >&2
+    exit 1
+  fi
+  if [[ ! -f .lake/acorn-tracked-modules.z ]] || ! cmp -s "$tracked_tmp" .lake/acorn-tracked-modules.z; then
+    for entry in .lake/config/lakefile.olean .lake/config/lakefile.olean.trace .lake/config/*/lakefile.olean .lake/config/*/lakefile.olean.trace ../site/.lake/config/lakefile.olean ../site/.lake/config/lakefile.olean.trace ../site/.lake/config/*/lakefile.olean ../site/.lake/config/*/lakefile.olean.trace; do
+      if [[ -e "$entry" || -L "$entry" ]]; then
+        rm -f "$entry"
+      fi
+    done
+    mv -f "$tracked_tmp" .lake/acorn-tracked-modules.z
+  else
+    rm -f "$tracked_tmp"
+  fi
+}
+
 step 'provisioning the pinned dependencies'
 (
   # Parallel cache extraction can exhaust macOS's inherited 256-descriptor limit.
@@ -145,30 +178,36 @@ step 'provisioning the pinned dependencies'
   fi
   dependency_git
   cd lean
+  sync_tracked_lake_config
   # Lake decides whether Mathlib and Regula's lint driver need provisioning: with
   # --no-build it exits 3 unless every artifact and trace of these targets is current.
   current=0
-  lake build --no-build Mathlib regula/lint || current=$?
+  lake -f lakefile.lean build --no-build Mathlib regula/lint || current=$?
   case "$current" in
     0) ;;
     3)
       # The upstream cache can omit modules; Lake compiles only those it lacks.
-      lake exe cache get
-      lake build Mathlib regula/lint ;;
+      lake -f lakefile.lean exe cache get
+      lake -f lakefile.lean build Mathlib regula/lint ;;
     *) exit "$current" ;;
   esac
   # FloatLib, lean-intent and Regula publish no build cache. This builds the modules the proof
   # bridge imports, the lean-intent modules the intent bridge and intent-check import with the
   # native objects intent-check links, and the Regula modules the decision registries and
   # AcornTools.Theorems import with their native objects.
-  lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
+  lake -f lakefile.lean build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
 )
 ./scripts/lean.sh provision-status
 (
   dependency_git
   cd site
+  if [[ -L lakefile.toml || ! -f lakefile.toml ]]; then
+    echo "gate: site/lakefile.toml must be a regular file" >&2
+    exit 1
+  fi
+  git -C . -c core.quotePath=false ls-files --error-unmatch -- lakefile.toml >/dev/null
   # Verso's modules and the shared library its documents load.
-  lake build verso/VersoManual verso/VersoManual:shared
+  lake -f lakefile.toml build verso/VersoManual verso/VersoManual:shared
 )
 check_nc_cache_dirs allow-missing
 if [[ ! -L "$nc_bin" && -e "$nc_bin" && ! -f "$nc_bin" ]]; then
@@ -292,11 +331,20 @@ elif ! verify_sha256 "$nc_sha256" "$nc_bin"; then
   commented=1
   step 'no-comments check refused (integrity check failed)'
 else
-  nc_args=(check)
-  if [[ -n "${ACORN_BASE_REF:-}" ]]; then
-    nc_args+=(--base-ref "$ACORN_BASE_REF")
+  for nc_file in .no-comments.json comment-ratchet.json; do
+    if [[ -L "$nc_file" || ! -f "$nc_file" ]] ||
+        ! git -C . -c core.quotePath=false ls-files --error-unmatch -- "$nc_file" >/dev/null 2>&1; then
+      echo "gate: missing or untracked non-regular file: $nc_file" >&2
+      commented=1
+    fi
+  done
+  if [[ "$commented" == 0 ]]; then
+    nc_args=(check)
+    if [[ -n "${ACORN_BASE_REF:-}" ]]; then
+      nc_args+=(--base-ref "$ACORN_BASE_REF")
+    fi
+    ( dependency_git; "$nc_bin" "${nc_args[@]}" ) || commented=$?
   fi
-  ( dependency_git; "$nc_bin" "${nc_args[@]}" ) || commented=$?
   step "no-comments check exited $commented"
 fi
 [[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 ]] || exit 1

@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import AcornTools.ModuleInventory
 import AcornTools.OwnershipSource
+import AcornTools.TrackedFiles
 
 /-! # Ordinary Lean verification
 
@@ -52,6 +53,7 @@ def lake (args : Array String) : IO Unit :=
 
 /-- Verify a generated resource as complete bytes, never as a sampled semantic claim. -/
 def browserKernel : IO Unit := do
+  AcornTrackedFiles.ensureTrackedRegular ".." (some "") "viewer/static/browser-kernel.js"
   let child ← IO.Process.spawn {
     cmd := ".lake/build/bin/browser-kernel",
     stdin := .null, stdout := .piped, stderr := .inherit }
@@ -79,6 +81,7 @@ materializes it in, `Name.toString (escape := false)` of its locked name read by
 `String.toName` (`PackageEntry.dirName`, Lake of Lean v4.36.0), so the escaped name
 `«lean-intent»` has the directory `lean-intent`. -/
 def siteOverrides : IO String := do
+  AcornTrackedFiles.ensureTrackedRegular ".." (some "") "site/lake-manifest.json"
   let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile "../site/lake-manifest.json"))
   let mut entries : Array Lean.Json := #[]
   for entry in ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages") do
@@ -112,7 +115,10 @@ interpreted; a linked executable would compile the native code of every proof mo
 document imports. `whole` prints each step's output in one piece, for a check that runs
 beside others. -/
 def site (write : Bool) (whole : Bool := false) : IO Unit := do
-  let flags := #["--no-cache", "--wfail", s!"--packages={← siteOverrides}"]
+  AcornTrackedFiles.ensureTrackedRegular ".." (some "") "site/lakefile.toml"
+  AcornTrackedFiles.ensureTrackedRegular ".." (some "") "site/Main.lean"
+  AcornTrackedFiles.syncTrackedConfigTrace "." (some "lean/") ".lake" #["../site/.lake"]
+  let flags := #["-f", "lakefile.toml", "--no-cache", "--wfail", s!"--packages={← siteOverrides}"]
   let env := #[("LAKE_ARTIFACT_CACHE", some "false")]
   let ready ← IO.Process.output {
     cmd := "lake", args := flags ++ #["build", "--no-build", "verso/VersoManual"],

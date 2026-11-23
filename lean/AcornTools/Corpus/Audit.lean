@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Acorn.Host.AuditPins
 import AcornTools.ModuleInventory
+import AcornTools.TrackedFiles
 import AcornTools.Corpus.Documents
 import AcornTools.Corpus.Pins
 import AcornTools.Corpus.Browser
@@ -23,22 +24,18 @@ private def require (legal : Bool) (message : String) : IO Unit :=
 private def excluded : List String := [".git", "target", "viewer/target", "gates/target",
   "lean/.lake", "lean/lake-packages", "site/.lake", "site/_out", "session"]
 
-/-- The complete corpus is traversed without symlink or unreadable-file fallback. -/
+private def isExcluded (path : String) : Bool :=
+  (System.FilePath.mk path).fileName == some ".DS_Store" ||
+    excluded.any fun prefixPath => path == prefixPath || path.startsWith (prefixPath ++ "/")
+
+private def corpusFilesFrom (tracked : Array String) : IO (Array String) := do
+  let result := tracked.filter (!isExcluded ·)
+  if result.isEmpty then
+    throw (IO.userError "tracked corpus is empty")
+  return result
+
 def files : IO (Array String) := do
-  let mut pending := #[""]
-  let mut result := #[]
-  while !pending.isEmpty do
-    let some dir := pending.back? | throw (IO.userError "corpus lost pending directory")
-    pending := pending.pop
-    let root : System.FilePath := if dir.isEmpty then "." else dir
-    for entry in ← root.readDir do
-      let path := if dir.isEmpty then entry.fileName else dir ++ "/" ++ entry.fileName
-      unless entry.fileName == ".DS_Store" || excluded.contains path do
-        match (← entry.path.symlinkMetadata).type with
-        | .dir => pending := pending.push path
-        | .file => result := result.push path
-        | _ => throw (IO.userError s!"corpus rejects nonregular entry {path}")
-  return result.qsort (· < ·)
+  corpusFilesFrom (← AcornTrackedFiles.listTracked "." (some ""))
 
 private def pythonToken (text : String) : Bool :=
   (text.splitOn " ").any fun word =>
@@ -153,9 +150,13 @@ def priorArtTexts (reviewText design frontier : String) : IO Unit := do
 retains document checks and cannot substitute for the complete suite. -/
 unsafe def check (documentsOnly : Bool := false)
     (env? : Option Lean.Environment := none) : IO Unit := do
-  let paths ← files
+  let tracked ← AcornTrackedFiles.listTracked "." (some "")
+  let paths ← corpusFilesFrom tracked
   unless documentsOnly do
     for path in paths do language path
+  for fixed in #["docs/prior-art-review.md", "docs/design.md", "docs/frontier.md"] do
+    unless tracked.contains fixed do
+      throw (IO.userError s!"missing tracked corpus file: {fixed}")
   priorArtTexts (← IO.FS.readFile "docs/prior-art-review.md")
     (← IO.FS.readFile "docs/design.md") (← IO.FS.readFile "docs/frontier.md")
   let documents ← (paths.filter prose).mapM fun (path : String) => do
@@ -163,6 +164,7 @@ unsafe def check (documentsOnly : Bool := false)
   AcornBrowserAudit.check
   AcornPinAudit.check documents
   AcornDocument.check documents (← AcornModuleInventory.allModules "lean") (env? := env?)
+    (tracked? := some tracked)
   IO.println (if documentsOnly then "corpus: document references and prior-art qualifications admitted"
     else "corpus: language, document references and prior-art qualifications admitted")
 

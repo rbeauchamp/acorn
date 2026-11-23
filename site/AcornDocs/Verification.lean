@@ -173,17 +173,20 @@ run as a pass. Run the complete command to check all verification owners.
 tag := "compiler-and-execution-boundary"
 %%%
 
-Every discovered Lean source must be a module of the libraries Acorn,
-AcornVerif, NativeApp, AcornDocument or Entry, which Lake's globs assign, or a
-listed tool module. The [Regula audit](#regula-audit) claims the first four with
-Bootstrap; Entry holds the executables' roots. Every retained native target is
-built and checked against Lake's evaluated targets and compiled entry owners;
-each executable root must be a maintained module. Ownership admission refuses a facet-qualified build key in the root
-package's Lake configuration. The [Lake configuration](../lean/lakefile.lean)
-documents the restriction and its pinned-Lake rationale. Before any Lake
-command, `Bootstrap.lean` must elaborate with no message, and Lake runs with
-`--wfail`, so any warning, including a header-time warning such as a deprecated
-import, fails the build. Source/compiled admission checks imports, capability
+Every Git-tracked Lean source below `lean/` must be a regular file and a module
+of the libraries Acorn, AcornVerif, NativeApp, AcornDocument or Entry, which
+[the Lake configuration](../lean/lakefile.lean) assigns only from tracked
+modules, or a listed tool module. The [Regula audit](#regula-audit) claims the
+first four with Bootstrap; Entry holds the executables' roots. Every retained
+native target is built and checked against Lake's evaluated targets and compiled
+entry owners; each executable root must be a maintained module. Ownership
+admission refuses a facet-qualified build key in the root package's Lake
+configuration. The [Lake configuration](../lean/lakefile.lean) documents the
+restriction and its pinned-Lake rationale. Before any Lake command,
+`Bootstrap.lean` must elaborate with no message, and Lake runs explicitly
+against the tracked configuration (`-f lakefile.lean`, and `-f lakefile.toml`
+for the documentation site) with `--wfail`, so any warning, including a
+header-time warning such as a deprecated import, fails the build. Source/compiled admission checks imports, capability
 owners, artifact origins and native routes. The Regula audit, not ordinary
 verification, checks the axioms that each declaration of the claimed libraries
 depends on. The theorem inventory counts the theorem declarations and refuses a
@@ -431,11 +434,21 @@ and the Regula audit's pass rests on the assumption about Acorn that the
 tag := "build-and-source-inventory"
 %%%
 
-The build tools discover every Lean source below lean and check explicit
-inventories of the tool modules and of the native entries. Runtime `--research-profile` selects
+The build tools enumerate Git-tracked files through `git ls-files --stage -z`
+and require every tracked path and ancestor directory to be regular, ignoring
+untracked working-copy files and run directories while failing closed on an
+empty or non-Git tree or any tracked symbolic link or non-regular entry, and
+check explicit inventories of the tool modules and of the native entries.
+Repository-relative document path references, browser assets, Lake manifests and
+native inputs likewise require tracked regular entries (with `lean/.lake` and
+`lean/.lake/packages` admitted only as directory references in documentation).
+When tracked Lean files change, the gate scripts and bootstrap clear cached
+`lakefile.olean` traces before invoking Lake with `-f lakefile.lean` (and
+`-f lakefile.toml` under `site/`) so closed library globs cannot read a stale
+configuration cache. Runtime `--research-profile` selects
 agent mechanisms; it does not change verification. Resource, route and compiler
 flag admission, browser byte generation, corpus and declaration checks always
-run. Missing files fail admission.
+run. Missing or untracked referenced files fail admission.
 
 Numerical proofs use the executing Lean definitions. Native admission checks
 their compiler IR, primitive calls, resource contracts and compiler flags.
@@ -443,7 +456,8 @@ Primitive IEEE interpretation remains a native assumption.
 
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
-validates, in a checkout that holds only tracked files. GitHub runs the same
+validates, and every gate check reads only Git-tracked regular files so
+untracked working-copy entries do not affect the verdict. GitHub runs the same
 script at each event that gives a pull request its head, within the limits
 described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
@@ -453,7 +467,7 @@ library `AcornVerif` except `AcornTools.AxiomPins`, and every executable. It bui
 these targets and their dependencies, with native objects where applicable, and
 admits nothing after the build. The axiom pins import the proof library, so they
 remain in the second stage despite belonging to the tools. The second is the
-identical complete command, which selects every discovered module: Lake
+identical complete command, which selects every tracked module: Lake
 reuses an output of the first only where its trace matches the checked-out
 source, toolchain and options, and builds the rest. So in the gate the cold
 build and the checks no longer share one deadline: the first bounds the build of
@@ -480,7 +494,10 @@ from `lean/no-comments.pin` (for `darwin-arm64` and `linux-x86_64`) before
 executing and checking all scoped `.lean`
 files across `lean/` (including `lean/lakefile.lean`) and `site/` code
 (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
-`site/AcornDocs.lean` and `site/AcornDocs/` Verso prose)
+`site/AcornDocs.lean` and `site/AcornDocs/` Verso prose), using explicit
+`-f lakefile.lean` and `-f lakefile.toml` workspace configuration flags in
+`.no-comments.json` after verifying `.no-comments.json`, `comment-ratchet.json`,
+and `lean/no-comments.pin` are tracked regular files,
 against `comment-ratchet.json` for exact head sync, plus unconditional
 monotonic non-growth against the merge-base ratchet alongside rejecting newly
 excluded files that still hold comments at the merge base (tracked files with
@@ -522,9 +539,11 @@ the target's text. A pin file beside it, a regular file ending in `.frame` in
 names a submission may change, the names kept and not followed, and, for every
 other declaration of the project that the target reaches through types and
 definitions, the SHA-256 digest of its printed kind, universe parameters, type and
-value. The check lists that directory and admits only regular files ending in
-`.lean` and regular files ending in `.frame`; any other entry, a subdirectory or
-a symbolic link included, fails it and is named. The check reads declarations
+value. The check enumerates Git-tracked regular files under
+`lean/AcornVerif/Targets/` and admits only regular files ending in `.lean` and
+regular files ending in `.frame`; any other tracked entry under that directory,
+a subdirectory or a symbolic link included, fails it and is named, while
+untracked working-copy entries are ignored. The check reads declarations
 from compiled modules, never from sources, and running it builds the checking
 program and no module that program reads. So for each pin file it first
 requires the module the file names to be, under exactly that name, one of the
@@ -541,9 +560,10 @@ not hold the module, when Lake does not report the module and every module of
 the workspace it imports current, when Lake reads the module's source from
 another place, and when Lean finds the module's compiled
 file elsewhere. A module of a dependency or of the documentation package is
-refused as no source of this package, and an entry below the package directory
-that is neither a directory nor a regular file fails the inventory and the
-check with it. The command that prints a pin file requires the same things
+refused as no source of this package, and any tracked entry below the package
+directory that is neither a regular file nor below regular directories fails
+the inventory and the check with it. The command that prints a pin file requires
+the same things
 before it reads a module. So a compiled file that an earlier build left
 behind is not read in
 place of the tree's source, as far as Lake's record of what is current is
@@ -1049,14 +1069,18 @@ module on the way, and requires that the entry reaches each definition that
 `entryUses` lists for it, the claimed entry function first. Regula examines no
 compiled code.
 
-*Module inventory: the tools refuse more.* Lake's glob decides which library has
-a source. A new source below Acorn, AcornVerif or NativeApp is therefore a module
-of that library, the claim covers it, and Acorn's boundary predicates class it by
-its name. The tools keep no written list of these modules. A new source below
+*Module inventory: the tools refuse more.* The Lake configuration sets
+`roots := #[]` on its libraries and constructs explicit per-module globs solely
+from Git-tracked regular `.lean` files below `lean/`. A new tracked source
+below Acorn, AcornVerif or NativeApp is therefore a module of that library, the
+claim covers it, and Acorn's boundary predicates class it by its name; untracked
+files on disk are neither assigned nor buildable. The tools keep no written
+list of those application modules. A new tracked source below
 `lean/AcornTools` is a module of a tool library outside the claim: ownership
-admission requires each discovered source outside the five libraries that Lake's
-globs assign to be an entry of `toolingModules`, and each entry to be a source. A
-source below lean that no library has is outside the claim unless a claimed
+admission enumerates tracked regular `.lean` files from Git and requires each
+tracked source outside the five libraries assigned from tracked modules to be an
+entry of `toolingModules`, and each entry to be a tracked source. A tracked
+source below `lean/` that no library has is outside the claim unless a claimed
 module imports it: the same requirement refuses it, and Lake refuses the build
 request for a module that no library has.
 
@@ -1197,10 +1221,14 @@ Lake fetches nothing, and refuses to run until Lake reports pinned Verso built.
 The renderer runs in Lean's interpreter: a linked executable would compile the
 native code of every proof module a document imports. If the site check stops
 fitting the verification deadline, it becomes a separate check of the merge
-gate with its own bound; the deadline is not raised. Verification also admits the site's source
-inventory and requires `site/lake-manifest.json` to lock every dependency of
-`lean/lake-manifest.json` to the same revision, because both packages share one
-set of dependency checkouts.
+gate with its own bound; the deadline is not raised. `site/lakefile.toml`
+likewise sets `roots = []` with explicit module lists for AcornSite and
+AcornDocs, and verification invokes Lake with `-f lakefile.toml` after verifying
+tracked regular entries and clearing stale config traces, admits the site's
+Git-tracked source inventory against `AcornOwnership.siteModules`, and requires
+`site/lake-manifest.json` to lock every dependency of `lean/lake-manifest.json`
+to the same revision, because both packages share one set of dependency
+checkouts.
 
 The site package is documentation tooling outside the Regula claim.
 [Verso](https://github.com/leanprover/verso), pinned in `site/lakefile.toml`, and

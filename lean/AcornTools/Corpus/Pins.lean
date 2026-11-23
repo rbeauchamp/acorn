@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import NativeApp.MutationAudit
+import AcornTools.TrackedFiles
 
 /-! # Published mutation-pin consistency
 
@@ -67,6 +68,8 @@ def checkTexts (documents : Array (String × String)) (verification readiness : 
 
 /-- The maintained documentation binds every current audit arm to its pin. -/
 def check (documents : Array (String × String)) : IO Unit := do
+  AcornTrackedFiles.ensureTrackedRegular "." (some "") "docs/verification.md"
+  AcornTrackedFiles.ensureTrackedRegular "." (some "") "docs/frontier.md"
   checkTexts documents (← IO.FS.readFile "docs/verification.md")
     (← IO.FS.readFile "docs/frontier.md")
 

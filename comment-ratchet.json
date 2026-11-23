@@ -8976,10 +8976,9 @@
     "c95704fd3ae79d61",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/AcornTools/Corpus/Audit.lean", "comments": 6, "lines": 16, "fingerprints": [
+  {"file": "lean/AcornTools/Corpus/Audit.lean", "comments": 5, "lines": 15, "fingerprints": [
     "01cd9c6b370e935e",
     "18f3d5657752d1f3",
-    "2c946bfd6b8645b0",
     "beb0e56f376d0da6",
     "ef39866bc7cea149",
     "f6b4d669becc3783"
@@ -9016,7 +9015,7 @@
     "f0c29c8c511f079a",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/AcornTools/Frame.lean", "comments": 36, "lines": 178, "fingerprints": [
+  {"file": "lean/AcornTools/Frame.lean", "comments": 34, "lines": 105, "fingerprints": [
     "02ce83ba7f047bf8",
     "050707fbc4c98691",
     "0c9af9f8b95efad5",
@@ -9042,10 +9041,8 @@
     "913df75cca1c8c50",
     "91940c064b348169",
     "926c7c6fc638bd85",
-    "97ba249dec6f50cf",
     "9a482554b05151de",
     "a4b712d16d2aa366",
-    "af70b8b641f25125",
     "b07a92d7fd81c721",
     "b26bde2b489de150",
     "c15ed12a5f4c5e58",
@@ -9092,11 +9089,8 @@
     "e8ceca36fd35f408",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/AcornTools/ModuleInventory.lean", "comments": 10, "lines": 30, "fingerprints": [
-    "0e9f060cae3e3932",
-    "1e8c38021e35d65b",
+  {"file": "lean/AcornTools/ModuleInventory.lean", "comments": 7, "lines": 22, "fingerprints": [
     "74f83895a49a6392",
-    "979a1fdadce41e06",
     "9e3d1cea0b6c380e",
     "a1138526b7d3a226",
     "b8a636eb1b2871fd",
