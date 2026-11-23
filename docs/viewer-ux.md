@@ -434,8 +434,9 @@ Rules that apply to every number, label and colour on the page.
   with one remedy each, naming the wire keys involved (so an earlier missing key
   takes precedence over a later `schema_version` or constant mismatch):
   - `schema_version` not this page's, a fixed protocol constant
-    (`agreement_version` `1`, `agreement_scale` `1000000`) or count mismatch, or
-    an array length that disagrees with the page's constants → `⚠ stream shape
+    (`agreement_version` `1`, `agreement_scale` `1000000`) or embedded constant
+    count mismatch, or an array length that disagrees with the page's constants
+    → `⚠ stream shape
     mismatch — rebuild the core and viewer from one tree`; the page is embedded
     in the viewer binary, so a wire-shape disagreement can indicate the two were
     built from different trees, and the hover text carries the expected shape
