@@ -4,22 +4,6 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Intent.DayCycle
-import AcornVerif.Intent.Delegation
-
-/-!
-# The day record's consequences
-
-Each consequence of the record that a design decision settles is a `LeanIntent.Consequence` with
-a proof that it holds of the record, and `dayCycleExplained` glosses every statement of the record
-in plain words. It records each consequence it shows as answered by the agents under the owner's
-delegation (`AcornVerif.Intent.agentsAnswer`), and its restatement as unconfirmed by the owner,
-since the record is the agents' design. The decisions themselves, made on the owner's behalf, are
-recorded in `AcornVerif.Intent.Decisions`. Three consequences answer where a second, blind formalization of
-the same words by a model of another provider read them differently: it let days differ in
-length (`everyDayAlike`), required the agent to read its exact position in the day
-(`seesQuarterOfDay`, `dayOrNightOnlyWorld`) and priced every night moment of a day alike
-(`nightCostVaries`).
--/
 
 namespace AcornVerif.Intent.DayCycle
 
@@ -195,34 +179,34 @@ def dayCycleExplained (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi) (hlt' 
           day's night falls at the same ticks of the day."
         rulesOut := "Days of different lengths."
         allows := "Any one day length shared by all days."
-        freedom := "The length itself." }, .answered agentsAnswer .confirmed⟩,
+        freedom := "The length itself." }, .unsettled⟩,
     ⟨nightAlwaysDearer, nightAlwaysDearer_holds,
       { requires := "Even the cheapest action costs more at any night moment than at any \
           daytime moment, in the same situation."
         rulesOut := "Any action that is no dearer at some night moment."
         allows := "Any extra amount."
-        freedom := "How much more." }, .answered agentsAnswer .confirmed⟩,
+        freedom := "How much more." }, .unsettled⟩,
     ⟨tellsDayFromNightAlways, tellsDayFromNightAlways_holds,
       { requires := "From what it sees, the agent can always tell whether it is day or night."
         rulesOut := "An agent that cannot tell day from night at some moment."
         allows := "An agent that sees more than that."
-        freedom := "How much more it sees." }, .answered agentsAnswer .confirmed⟩,
+        freedom := "How much more it sees." }, .unsettled⟩,
     ⟨seesQuarterOfDay, seesQuarterOfDay_holds,
       { requires := "From what it sees, the agent can always tell which quarter of the day it \
           is in."
         rulesOut := "An agent that sees only day or night."
         allows := "Seeing a finer part of the day, or the exact tick."
-        freedom := "How much finer than a quarter." }, .answered agentsAnswer .confirmed⟩,
+        freedom := "How much finer than a quarter." }, .unsettled⟩,
     ⟨longDay, longDay_holds hlt hsight,
       { requires := "Nothing more: a world whose day lasts 1000 ticks can meet the record."
         rulesOut := "Nothing."
         allows := "Short days and long days alike."
-        freedom := "The day's length." }, .answered agentsAnswer .confirmed⟩,
+        freedom := "The day's length." }, .unsettled⟩,
     ⟨nightCostVaries, nightCostVaries_holds c a hlt hlt' hne hsight,
       { requires := "Nothing more: an action may cost more at one night moment than at another, \
           as long as every night cost is above every daytime cost."
         rulesOut := "Nothing."
         allows := "A night that is dearer at midnight than at dusk."
-        freedom := "Whether the night's extra changes during the night." }, .answered agentsAnswer .confirmed⟩]
+        freedom := "Whether the night's extra changes during the night." }, .unsettled⟩]
 
 end AcornVerif.Intent.DayCycle

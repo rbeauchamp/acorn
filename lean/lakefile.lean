@@ -388,7 +388,7 @@ require floatlib from git
 implementation to its record. The proof library's intent bridge imports these definitions;
 the gate's `AcornTools.Intent` imports the build readers. No application library imports it. -/
 require "lean-intent" from git
-  "https://github.com/rbeauchamp/lean-intent" @ "bd7af6c0fc90d7adddcfd03fed93cf63eef1e3b3"
+  "https://github.com/rbeauchamp/lean-intent" @ "v0.1.0"
 
 /-- The artifacts of every module of `library` that the given sources import, read from
 their own import lines so that each source stays the single owner of its imports. -/

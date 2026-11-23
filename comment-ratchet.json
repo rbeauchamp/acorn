@@ -13432,8 +13432,7 @@
     "ee319a54e6040046",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/AcornVerif/Intent/DayCycleConsequences.lean", "comments": 12, "lines": 32, "fingerprints": [
-    "070760febc0015a1",
+  {"file": "lean/AcornVerif/Intent/DayCycleConsequences.lean", "comments": 11, "lines": 18, "fingerprints": [
     "179d826e5be65879",
     "278eacfe11edd2dd",
     "53db5e1a621d912c",

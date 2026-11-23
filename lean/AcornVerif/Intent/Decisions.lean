@@ -4,6 +4,7 @@ Released under the MIT license as described in the repository LICENSE.
 Authors: acorn contributors
 -/
 import AcornVerif.Intent.DayCycleConsequences
+import AcornVerif.Intent.Delegation
 import AcornVerif.Intent.HashConsequences
 import AcornVerif.Intent.WorldInterfaceConsequences
 import AcornVerif.Intent.OneStreamConsequences
@@ -88,8 +89,12 @@ theorem quarterSight_injective : ∀ i j, quarterSight i = quarterSight j → i 
 /-- The day record explained at the types of Acorn's world, with the witnesses its consequences
 need: the one situation, waiting, the energy amounts 0, 1 and 2, and the quarters' sights. -/
 def dayExplained : Explanation dayCycle :=
-  dayCycleExplained () .wait (lo := 0) (hi := 1) (hi' := 2) (by decide) (by decide) (by decide)
-    quarterSight_injective
+  let base := dayCycleExplained () .wait (lo := 0) (hi := 1) (hi' := 2) (by decide) (by decide)
+    (by decide) quarterSight_injective
+  ({ base with
+      consequences := base.consequences.map fun s =>
+        { s with settled := .answered agentsAnswer .confirmed } } :
+    Explanation (dayCycleFor Unit Acorn.Host.Action UInt8 Nat))
 
 end AcornVerif.Intent.DayCycle
 
