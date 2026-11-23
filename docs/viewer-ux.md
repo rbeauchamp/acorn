@@ -434,9 +434,11 @@ Rules that apply to every number, label and colour on the page.
   naming the wire keys involved:
   - `schema_version` not this page's, or a count or array length that
     disagrees with the page's constants → `⚠ stream shape mismatch — rebuild
-    the viewer against this core`; the page is embedded in the viewer binary,
+    the core and viewer from one tree`; the page is embedded in the viewer binary,
     so the two were built from different trees, and the hover text carries the
-    expected shape and the two build commands;
+    expected shape and the rebuild commands (`./scripts/lean.sh build acorn-core acorn-viewer`,
+    or `./scripts/start.sh --prepare-only` when pinned dependencies also need
+    provisioning without starting a run);
   - a required key the core does not emit → `⚠ stream shape mismatch — the
     page requires a field this core does not emit`: a source defect,
     rebuilding will not fix it;
