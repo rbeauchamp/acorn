@@ -670,4 +670,371 @@ theorem Lifecycle.start_reserves (identity : Identity) (desired : Desired) (now 
   have ready : (Retry.initial.ready now) = true := Retry.initial_ready now
   exact ⟨_, by simp [reserve, request, initial, ready]; exact ⟨⟨rfl, rfl⟩, rfl⟩⟩
 
+def Lifecycle.Archival (state : Lifecycle) : Prop :=
+  (state.clearPending.isSome = true → state.desired = .stopped) ∧
+    (state.phase = .archiving → state.desired = .stopped)
+
+theorem Lifecycle.initial_archival (identity : Identity) (desired : Desired) :
+    (Lifecycle.initial identity desired).Archival :=
+  ⟨(fun h => by cases h), (fun h => by cases h)⟩
+
+theorem Lifecycle.request_stop_unstarted (state : Lifecycle) :
+    (state.request .stop).Unstarted :=
+  ⟨rfl, nofun⟩
+
+theorem Lifecycle.request_archival (state : Lifecycle) (command : Command)
+    (hsafe : command = .start → state.phase ≠ .archiving) :
+    state.Archival → (state.request command).Archival := by
+  intro arch
+  cases command with
+  | start =>
+    refine ⟨(fun h => by cases h), fun hphase => ?_⟩
+    have harch : state.phase = .archiving := by
+      cases hp : state.phase <;> simp_all [request]
+    exact absurd harch (hsafe rfl)
+  | stop => exact ⟨(fun h => by cases h), fun _ => rfl⟩
+  | clear => exact ⟨fun _ => rfl, fun _ => rfl⟩
+
+theorem Lifecycle.reserve_archival (state : Lifecycle) (now : UInt64)
+    (generation : UInt64) (next : Lifecycle)
+    (hres : state.reserve now = some (generation, next)) (arch : state.Archival) :
+    next.Archival := by
+  unfold reserve at hres
+  split at hres
+  · cases hres
+    exact ⟨arch.1, (fun h => by cases h)⟩
+  · cases hres
+
+theorem Lifecycle.started_archival (state : Lifecycle) (generation : UInt64)
+    (arch : state.Archival) : (state.started generation).Archival := by
+  unfold started
+  split
+  · refine ⟨arch.1, fun h => ?_⟩
+    split at h <;> cases h
+  · exact arch
+
+theorem Lifecycle.failed_archival (state : Lifecycle) (generation now : UInt64)
+    (healthy : Bool) (arch : state.Archival) :
+    (state.failed generation now healthy).Archival := by
+  unfold failed
+  split
+  · refine ⟨fun hc => ?_, (fun hp => by cases hp)⟩
+    show (if (state.retry.failed now healthy).exhausted then Desired.stopped else state.desired) =
+      .stopped
+    split
+    · rfl
+    · exact arch.1 hc
+  · exact arch
+
+theorem Lifecycle.retire_archival (state : Lifecycle) (generation : UInt64)
+    (arch : state.Archival) : (state.retire generation).Archival := by
+  unfold retire
+  split
+  · exact ⟨arch.1, (fun hp => by cases hp)⟩
+  · exact arch
+
+theorem Lifecycle.beginArchive_archival (state next : Lifecycle)
+    (hbeg : state.beginArchive = some next) (arch : state.Archival) : next.Archival := by
+  unfold beginArchive at hbeg
+  split at hbeg
+  · rename_i hcond
+    cases hbeg
+    have hc : state.clearPending.isSome = true := by
+      simp only [Bool.and_eq_true] at hcond
+      exact hcond.2
+    exact ⟨fun _ => arch.1 hc, fun _ => arch.1 hc⟩
+  · cases hbeg
+
+theorem Lifecycle.archived_archival (state next : Lifecycle) (identity : Identity)
+    (hins : state.archived identity = some next) : next.Archival := by
+  unfold archived at hins
+  split at hins
+  · cases hins
+    exact ⟨(fun h => by cases h), (fun h => by cases h)⟩
+  · cases hins
+
+theorem Lifecycle.archiveFailed_archival (state : Lifecycle) (arch : state.Archival) :
+    state.archiveFailed.Archival := by
+  unfold archiveFailed
+  split
+  · exact ⟨(fun h => by cases h), (fun h => by cases h)⟩
+  · exact arch
+
+theorem Lifecycle.adoptFinalIdentity_archival (state : Lifecycle) (generation : UInt64)
+    (identity : Identity) (arch : state.Archival) :
+    (state.adoptFinalIdentity generation identity).Archival := by
+  unfold adoptFinalIdentity
+  split <;> exact arch
+
+theorem Lifecycle.replacementIntent_archival (state : Lifecycle) (desired : Desired)
+    (arch : state.Archival) : (state.replacementIntent desired).Archival := by
+  unfold replacementIntent
+  split
+  · rename_i hph
+    have harch : state.phase = .archiving := by
+      simpa [Phase.beq_archiving] using hph
+    exact ⟨fun _ => arch.2 harch, fun _ => arch.2 harch⟩
+  · exact arch
+
+theorem Lifecycle.replacementIntent_stopped_unstarted (state : Lifecycle) (identity : Identity)
+    (arch : state.Archival) :
+    (∀ next, (state.replacementIntent .stopped).archived identity = some next → next.Unstarted) ∧
+      ((state.replacementIntent .stopped).archived identity = none →
+        state.phase = .archiving → (state.replacementIntent .stopped).Unstarted) := by
+  have helper : state.phase = .archiving → (state.replacementIntent .stopped).Unstarted := by
+    intro hph
+    unfold replacementIntent
+    have hbeq : (state.phase == .archiving) = true := (Phase.beq_archiving state.phase).mpr hph
+    rw [hbeq]
+    exact ⟨arch.2 hph, nofun⟩
+  refine ⟨?_, fun _ hph => helper hph⟩
+  intro next hins
+  have harch : state.phase = .archiving := by
+    unfold archived replacementIntent at hins
+    cases hp : (state.phase == .archiving) <;> simp_all [Phase.beq_archiving]
+  exact Lifecycle.archived_unstarted (state.replacementIntent .stopped) next identity hins
+    (helper harch)
+
+theorem Lifecycle.retire_phase_eq (state : Lifecycle) (generation : UInt64)
+    (harch : state.phase = .archiving) : (state.retire generation).phase = .archiving := by
+  unfold retire
+  split
+  · rename_i hbad
+    rw [harch] at hbad
+    change (Phase.archiving.accepts generation || (Phase.archiving == Phase.starting generation)) = true at hbad
+    have hfalse : (Phase.archiving.accepts generation || (Phase.archiving == Phase.starting generation)) = false := rfl
+    rw [hfalse] at hbad
+    cases hbad
+  · exact harch
+
+theorem Lifecycle.failed_phase_ne_archiving (state : Lifecycle) (generation now : UInt64)
+    (healthy : Bool) : (state.failed generation now healthy).phase = .archiving ↔ state.phase = .archiving := by
+  unfold failed acceptsFailure
+  split
+  · rename_i hacc
+    cases hp : state.phase <;> simp [hp] at hacc ⊢
+    have hfalse : ((Phase.archiving == Phase.starting generation) = true ∨ (Phase.archiving == Phase.running generation) = true) → False := by
+      intro h; rcases h with h1 | h2
+      · cases h1
+      · cases h2
+    exact False.elim (hfalse hacc)
+  · rfl
+
+theorem Lifecycle.request_phase_archiving (state : Lifecycle) (command : Command) :
+    (state.request command).phase = .archiving ↔ state.phase = .archiving := by
+  cases command <;> cases hp : state.phase <;> simp [request, hp]
+
+theorem Lifecycle.adoptFinalIdentity_phaseValue (state : Lifecycle) (generation : UInt64)
+    (identity : Identity) :
+    (state.adoptFinalIdentity generation identity).phaseValue = state.phaseValue := by
+  exact Lifecycle.finalIdentity_phase state generation identity
+
+theorem Lifecycle.archiveIntent_phase_ne_archiving (state : Lifecycle) (intended : Desired)
+    (hint : state.archiveIntent = some intended) : state.phaseValue ≠ .archiving := by
+  unfold archiveIntent at hint
+  split at hint
+  · rename_i hidle
+    intro harch
+    rw [show state.phase = .archiving from harch] at hidle
+    cases hidle
+  · cases hint
+
+theorem Lifecycle.replacementIntent_phaseValue (state : Lifecycle) (desired : Desired) :
+    (state.replacementIntent desired).phaseValue = state.phaseValue := by
+  unfold replacementIntent phaseValue
+  split <;> rfl
+
+theorem Lifecycle.reserve_guards (state : Lifecycle) (now generation : UInt64) (next : Lifecycle)
+    (hres : state.reserve now = some (generation, next)) :
+    state.phaseValue ≠ .archiving ∧ state.clearPendingValue = none ∧ next.phaseValue ≠ .archiving := by
+  unfold reserve at hres
+  split at hres
+  · rename_i hcond
+    cases hres
+    simp only [Bool.and_eq_true] at hcond
+    have hph : state.phase ≠ .archiving := by
+      intro harch
+      have : (state.phase == .idle) = false := by
+        change (state.phase == Phase.idle) = false
+        rw [harch]
+        rfl
+      rw [this] at hcond
+      cases hcond.1.1.1.1
+    have hcp : state.clearPending = none := by
+      cases hnone : state.clearPending with
+      | none => rfl
+      | some _ =>
+        have hfalse : (state.clearPending.isNone) = false := by simp [hnone]
+        rw [hfalse] at hcond
+        cases hcond.1.1.2
+    exact ⟨hph, hcp, fun h => by cases h⟩
+  · cases hres
+
+theorem Lifecycle.started_phase_archiving (state : Lifecycle) (generation : UInt64) :
+    (state.started generation).phaseValue = .archiving ↔ state.phaseValue = .archiving := by
+  unfold started phaseValue
+  split
+  · rename_i hph
+    constructor
+    · intro h; split at h <;> cases h
+    · intro h
+      exfalso
+      have : (Phase.archiving == Phase.starting generation) = false := rfl
+      change (state.phase == Phase.starting generation) = true at hph
+      rw [h, this] at hph
+      cases hph
+  · rfl
+
+theorem Lifecycle.retire_phaseValue_archiving (state : Lifecycle) (generation : UInt64) :
+    (state.retire generation).phaseValue = .archiving ↔ state.phaseValue = .archiving := by
+  unfold retire phaseValue
+  split
+  · rename_i hacc
+    constructor
+    · intro h; cases h
+    · intro h
+      exfalso
+      change (state.phase.accepts generation || (state.phase == Phase.starting generation)) = true at hacc
+      have : (Phase.archiving.accepts generation || (Phase.archiving == Phase.starting generation)) = false := rfl
+      rw [h, this] at hacc
+      cases hacc
+  · rfl
+
+theorem Lifecycle.failed_phaseValue_archiving (state : Lifecycle) (generation now : UInt64)
+    (healthy : Bool) :
+    (state.failed generation now healthy).phaseValue = .archiving ↔ state.phaseValue = .archiving :=
+  Lifecycle.failed_phase_ne_archiving state generation now healthy
+
+theorem Lifecycle.request_phaseValue_archiving (state : Lifecycle) (command : Command) :
+    (state.request command).phaseValue = .archiving ↔ state.phaseValue = .archiving :=
+  Lifecycle.request_phase_archiving state command
+
+theorem Lifecycle.archived_phase_ne_archiving (state next : Lifecycle) (identity : Identity)
+    (hins : state.archived identity = some next) : next.phaseValue ≠ .archiving := by
+  unfold archived at hins
+  split at hins
+  · cases hins; intro h; cases h
+  · cases hins
+
+theorem Lifecycle.archiveFailed_phase_ne_archiving (state : Lifecycle) :
+    state.archiveFailed.phaseValue ≠ .archiving := by
+  unfold archiveFailed phaseValue
+  split
+  · intro h; cases h
+  · rename_i hph
+    intro h
+    change ¬(state.phase == Phase.archiving) = true at hph
+    have : (Phase.archiving == Phase.archiving) = true := rfl
+    rw [h, this] at hph
+    exact hph rfl
+
+theorem Lifecycle.beginArchive_phaseValue (state next : Lifecycle)
+    (hbeg : state.beginArchive = some next) : next.phaseValue = .archiving := by
+  unfold beginArchive at hbeg
+  split at hbeg
+  · cases hbeg; rfl
+  · cases hbeg
+
+theorem Lifecycle.request_clear_unstarted (state : Lifecycle) (unstarted : state.Unstarted) :
+    (state.request .clear).Unstarted := by
+  refine ⟨rfl, ?_⟩
+  intro h
+  unfold request at h
+  dsimp at h
+  cases hcp : state.clearPending with
+  | none =>
+    simp [hcp, Option.or] at h
+    exact absurd h (by rw [unstarted.1]; intro hc; cases hc)
+  | some prev =>
+    simp [hcp, Option.or] at h
+    subst h
+    exact unstarted.2 hcp
+
+theorem Lifecycle.Archival.desired_stopped (state : Lifecycle) (arch : state.Archival)
+    (h : state.clearPendingValue.isSome = true ∨ state.phaseValue = .archiving) :
+    state.desiredValue = .stopped :=
+  h.elim arch.1 arch.2
+
+theorem Lifecycle.Unstarted.desired_stopped (state : Lifecycle) (u : state.Unstarted) :
+    state.desiredValue = .stopped :=
+  u.1
+
+theorem Lifecycle.request_start_clearPendingValue (state : Lifecycle) :
+    (state.request .start).clearPendingValue = none := rfl
+
+theorem Lifecycle.request_stop_clearPendingValue (state : Lifecycle) :
+    (state.request .stop).clearPendingValue = none := rfl
+
+theorem Lifecycle.reserve_clearPendingValue (state : Lifecycle) (now generation : UInt64)
+    (next : Lifecycle) (hres : state.reserve now = some (generation, next)) :
+    next.clearPendingValue = none := by
+  have hcp := (Lifecycle.reserve_guards state now generation next hres).2.1
+  unfold reserve at hres
+  split at hres
+  · cases hres; exact hcp
+  · cases hres
+
+theorem Lifecycle.started_clearPendingValue (state : Lifecycle) (generation : UInt64) :
+    (state.started generation).clearPendingValue = state.clearPendingValue := by
+  unfold started clearPendingValue; split <;> rfl
+
+theorem Lifecycle.failed_clearPendingValue (state : Lifecycle) (generation now : UInt64)
+    (healthy : Bool) :
+    (state.failed generation now healthy).clearPendingValue = state.clearPendingValue := by
+  unfold failed clearPendingValue; split <;> rfl
+
+theorem Lifecycle.retire_clearPendingValue (state : Lifecycle) (generation : UInt64) :
+    (state.retire generation).clearPendingValue = state.clearPendingValue := by
+  unfold retire clearPendingValue; split <;> rfl
+
+theorem Lifecycle.beginArchive_clearPendingValue (state next : Lifecycle)
+    (hbeg : state.beginArchive = some next) :
+    next.clearPendingValue = state.clearPendingValue := by
+  unfold beginArchive at hbeg
+  split at hbeg
+  · cases hbeg; rfl
+  · cases hbeg
+
+theorem Lifecycle.beginArchive_clearPending_isSome (state next : Lifecycle)
+    (hbeg : state.beginArchive = some next) :
+    state.clearPendingValue.isSome = true := by
+  unfold beginArchive at hbeg
+  split at hbeg
+  · rename_i hcond
+    simp only [Bool.and_eq_true] at hcond
+    exact hcond.2
+  · cases hbeg
+
+theorem Lifecycle.beginArchive_old_phaseValue (state next : Lifecycle)
+    (hbeg : state.beginArchive = some next) :
+    state.phaseValue ≠ .archiving := by
+  unfold beginArchive at hbeg
+  split at hbeg
+  · rename_i hcond
+    simp only [Bool.and_eq_true] at hcond
+    have hidle : (state.phase == Phase.idle) = true := hcond.1
+    intro h
+    have : (Phase.archiving == Phase.idle) = false := rfl
+    rw [show state.phase = .archiving from h, this] at hidle
+    cases hidle
+  · cases hbeg
+
+theorem Lifecycle.archived_clearPendingValue (state next : Lifecycle) (identity : Identity)
+    (hins : state.archived identity = some next) : next.clearPendingValue = none := by
+  unfold archived at hins
+  split at hins
+  · cases hins; rfl
+  · cases hins
+
+theorem Lifecycle.archiveFailed_clearPendingValue (state : Lifecycle) :
+    state.archiveFailed.clearPendingValue.isSome = true →
+      state.clearPendingValue.isSome = true := by
+  unfold archiveFailed clearPendingValue
+  split <;> intro h <;> first | cases h | exact h
+
+theorem Lifecycle.adoptFinalIdentity_clearPendingValue (state : Lifecycle)
+    (generation : UInt64) (identity : Identity) :
+    (state.adoptFinalIdentity generation identity).clearPendingValue = state.clearPendingValue := by
+  unfold adoptFinalIdentity clearPendingValue; split <;> rfl
+
 end Acorn.Host.Viewer

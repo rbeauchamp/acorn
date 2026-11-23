@@ -44,6 +44,12 @@ inductive ControlResult where
   | busy
   /-- Clear cannot preserve this configuration's file ownership. -/
   | clearUnavailable
+  | refused (reason : String)
+  deriving Nonempty
+
+inductive ControlDispatch where
+  | immediate (result : ControlResult)
+  | pending (task : Task (Option ControlResult))
 
 /-- Immutable resource bytes loaded by the bootstrap from fixed maintained paths. -/
 structure ViewerAssets where
@@ -57,12 +63,12 @@ structure HttpViewer where
   private token : String
   private assets : ViewerAssets
   private initial : ReplaySnapshot → BaseIO InitialFrames
-  private submit : Command → BaseIO ControlResult
+  private submit : Command → BaseIO ControlDispatch
 
 /-- Startup requires OS entropy; there is no predictable token fallback. -/
 def HttpViewer.new (broadcast : Broadcast) (assets : ViewerAssets)
-    (initial : ReplaySnapshot → BaseIO InitialFrames) (submit : Command → BaseIO ControlResult) :
-    IO HttpViewer := do
+    (initial : ReplaySnapshot → BaseIO InitialFrames)
+    (submit : Command → BaseIO ControlDispatch) : IO HttpViewer := do
   return ⟨broadcast, ← mintControlToken, assets, initial, submit⟩
 
 private def singleHeader (head : Request.Head) (name : Header.Name) : Option String := do
@@ -85,6 +91,42 @@ private def response (status : Status) (contentType : Header.Value) (bytes : Byt
 private def refused : Async (Response Body.Any) :=
   response .forbidden (.mk "application/json") "{\"ok\":false,\"reason\":\"control request refused\"}".toUTF8
 
+private def controlTimeout : Std.Time.Millisecond.Offset := 10000
+
+private def stopDiagnostic (reason : String) : String :=
+  if reason.isEmpty then "stop could not be persisted" else reason
+
+private def controlResponse : ControlResult → ContextAsync (Response Body.Any)
+  | .accepted => response .accepted (.mk "application/json") "{\"ok\":true}".toUTF8
+  | .clearUnavailable => refused
+  | .unavailable | .busy =>
+    response .serviceUnavailable (.mk "application/json")
+      "{\"ok\":false,\"reason\":\"supervisor unavailable or busy\"}".toUTF8
+  | .refused reason =>
+    response .serviceUnavailable (.mk "application/json")
+      ("{\"ok\":false,\"reason\":" ++ telemetryString (stopDiagnostic reason) ++ "}").toUTF8
+
+private def promiseSelector {α : Type} (task : Task (Option α)) : Selector (Option α) where
+  tryFn := do
+    if ← IO.hasFinished task then
+      let value ← (show BaseIO (Option α) from IO.wait task)
+      return some value
+    else return none
+  registerFn waiter := do
+    BaseIO.chainTask task fun value =>
+      waiter.race (pure ()) (fun promise => promise.resolve (.ok value))
+  unregisterFn := pure ()
+
+private def awaitControl (task : Task (Option ControlResult)) : ContextAsync ControlResult := do
+  Selectable.one #[
+    .case (promiseSelector task) fun outcome =>
+      pure (outcome.getD (.refused "supervisor stopped before persisting stop")),
+    .case (← ContextAsync.doneSelector) fun _ =>
+      pure (.refused "viewer shutdown interrupted stop request"),
+    .case (← Selector.sleep controlTimeout) fun _ =>
+      pure (.refused "timed out waiting for stop persistence")
+  ]
+
 private def HttpViewer.control (viewer : HttpViewer) (request : Request Body.Stream) :
     ContextAsync (Response Body.Any) := do
   let headers := controlHeaders request.line
@@ -96,25 +138,11 @@ private def HttpViewer.control (viewer : HttpViewer) (request : Request Body.Str
   let some body := controlBody bytes | return ← refused
   let .ok command := authorizeCommand headers viewer.token body | return ← refused
   match ← viewer.submit command.command with
-  | .accepted => return ← response .accepted (.mk "application/json") "{\"ok\":true}".toUTF8
-  | .clearUnavailable => return ← refused
-  | .unavailable | .busy =>
-    return ← response .serviceUnavailable (.mk "application/json")
-      "{\"ok\":false,\"reason\":\"supervisor unavailable or busy\"}".toUTF8
+  | .immediate result => return ← controlResponse result
+  | .pending task => return ← controlResponse (← awaitControl task)
 
 private def sendLine (stream : Body.Stream) (text : String) : Async Unit :=
   stream.send (.ofByteArray ("data: " ++ text ++ "\n\n").toUTF8)
-
-private def wakeSelector (task : Task (Option Unit)) : Selector (Option Unit) where
-  tryFn := do
-    if ← IO.hasFinished task then
-      let value ← (show BaseIO (Option Unit) from IO.wait task)
-      return some value
-    else return none
-  registerFn waiter := do
-    BaseIO.chainTask task fun value =>
-      waiter.race (pure ()) (fun promise => promise.resolve (.ok value))
-  unregisterFn := pure ()
 
 /-- Send each frame of the subscription as it arrives, and a keepalive line after five seconds
 without one, until the subscription closes or its wake is dropped. It iterates with Std's own
@@ -130,7 +158,7 @@ private def liveFrames (subscription : Subscription) (stream : Body.Stream) : As
       return .yield ()
     | .wait task =>
       let result ← Selectable.one #[
-        .case (wakeSelector task) (fun wake => pure (some wake)),
+        .case (promiseSelector task) (fun wake => pure (some wake)),
         .case (← Selector.sleep 5000) (fun _ => pure none)]
       match result with
       | some none => return .done ()

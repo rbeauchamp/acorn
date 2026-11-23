@@ -480,7 +480,13 @@ Rules that apply to every number, label and colour on the page.
   `127.0.0.1`, POST-only, JSON-only, and gated by a token minted per viewer
   start and read from the served page, so a page left open from a previous
   start holds a stale one and is refused; bodies are capped and rejections say
-  little about which check failed.
+  little about which check failed. For a browser Stop, `POST /control` holds its
+  HTTP response until the supervisor actor completes the `state.json` write for
+  `desired: "stopped"`: it returns `202` (`{"ok":true}`) only once the stopped
+  state has been written and renamed on disk, and returns `503`
+  (`{"ok":false,"reason":...}`) if persisting fails, another stop supersedes it,
+  the wait times out, or the viewer closes, so the page raises the fault pill
+  instead of acknowledging an unpersisted Stop.
 - **UX-22 · Stop is cooperative and persistent.** The core finishes its current
   finite attempt, attempts a checkpoint if saving is armed, and exits through
   the same writer as periodic and finite-campaign completion. Successful save
@@ -513,7 +519,7 @@ Rules that apply to every number, label and colour on the page.
   The launcher owns terminal SIGINT and forwards this request, so Ctrl-C does
   not interrupt the viewer/core process group. No kill deadline is introduced.
   Shutdown retains the durable intent; browser Stop remains the operation that
-  persists stopped intent.
+  persists stopped intent and returns HTTP `202` only after that write is durable.
 - **UX-23 · Clear is one click: stop → archive → reseed → restore.** The
   whole run directory is renamed into the archive (UX-43) and a new random
   seed is taken. Cooperative stop happens first and attempts an armed save.
@@ -1038,10 +1044,14 @@ What each panel must show. How it draws it is the code's.
   state file, or a file of the current schema that says stopped, it is printed
   after the ready line and not under `--start`. Under `--start` the Start is submitted once the listener is
   bound. The viewer announces nothing of this kind when the state it starts
-  with is running. A Stop that the viewer has acknowledged but not yet written
-  when the viewer crashes is not made durable: the saved state still says
-  running, by the earlier Start, and the next launch with the same child
-  resumes it.
+  with is running. Browser Stop (`POST /control`) returns HTTP `202` only after
+  `state.json` has been durably written with `desired: "stopped"` (and returns
+  HTTP `503` without acknowledging if writing fails, shuts down before
+  completion, or times out), so once a browser Stop is acknowledged (with no
+  later Start admitted while open), a viewer crash at any step leaves the
+  on-disk state stopped — or absent during a Clear archive before the
+  replacement state is written — and the next launch with the same child
+  cannot resume running without an explicit Start.
 
   When the supervisor does start the ranked core, it runs the executable
   `acorn-core` beside the viewer with the explicitly selected ranked research
