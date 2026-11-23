@@ -87,6 +87,10 @@ def projectModules : IO (Array String × Array Name) := do
     throw (IO.userError "Lake lists a module twice")
   return (libraries, modules)
 
+def describeQuestion : LeanIntent.Confirmation.Asked → String
+  | .restatement => LeanIntent.Confirmation.restatementConsequence
+  | .consequence name => s!"consequence '{name}'"
+
 /-- A confirmation finding, in words. -/
 def describe : LeanIntent.Confirmation.Finding → String
   | .noLog => "the project has no owners' log"
@@ -98,11 +102,11 @@ def describe : LeanIntent.Confirmation.Finding → String
   | .repeated id => s!"the id {id.toString} is repeated"
   | .noDeliverable => "the project declares no deliverable"
   | .sourceless id => s!"answer {id.toString} records no source"
-  | .unanswered record consequence older refused =>
-    s!"{record}: '{consequence}' is not answered at the current revision (older: \
+  | .unanswered record question older refused =>
+    s!"{record}: {describeQuestion question} is not answered at the current revision (older: \
       {older.map (·.toString)}, refused: {refused.map (·.toString)})"
-  | .declined record consequence ids =>
-    s!"{record}: '{consequence}' is declined by {ids.map (·.toString)}"
+  | .declined record question ids =>
+    s!"{record}: {describeQuestion question} is declined by {ids.map (·.toString)}"
   | .ownerUnrecorded record ids =>
     s!"{record}: the owner's confirmations {ids.map (·.toString)} are not recorded"
   | .statusDisagrees record consequence ids =>

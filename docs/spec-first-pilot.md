@@ -3,7 +3,7 @@
 This report answers [#177](https://github.com/rbeauchamp/acorn/issues/177): a pilot of the intent-first method on three Acorn functions, `World.dayPhase` and the hash functions `Rng.hash2` and `Rng.hash3`.
 The pilot ran the method under the name spec-first; the owner renamed it intent-first on 2026-11-03.
 
-The method, carried by the owner's skill for it and the [lean-intent](https://github.com/rbeauchamp/lean-intent) library (pinned during the pilot at commit 30fe70d; Acorn now pins commit bd7af6c), turns an owner's words into an *intent record*, a Lean structure of named properties of a subject, before any code; proves the record adequate (lean-intent's obligations O1 to O5: well formed, satisfiable, each property refutable, a step that does nothing refused, and any freedom between models made explicit); compares it with a second model's blind formalization of the same words; settles its consequences; and then proves the code against it.
+The method, carried by the owner's skill for it and the [lean-intent](https://github.com/rbeauchamp/lean-intent) library (pinned during the pilot at commit 30fe70d; Acorn now pins v0.1.0, commit b8080de), turns an owner's words into an *intent record*, a Lean structure of named properties of a subject, before any code; proves the record adequate (lean-intent's obligations O1 to O5: well formed, satisfiable, each property refutable, a step that does nothing refused, and any freedom between models made explicit); compares it with a second model's blind formalization of the same words; settles its consequences; and then proves the code against it.
 
 ## The owner's decision on this report
 
