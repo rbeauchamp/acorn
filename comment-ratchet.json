@@ -5338,13 +5338,12 @@
     "fd8666f767faa9f3",
     "fefcb0baaf6121bb"
   ]},
-  {"file": "lean/Acorn/Host/Viewer/BrowserSchema.lean", "comments": 44, "lines": 68, "fingerprints": [
+  {"file": "lean/Acorn/Host/Viewer/BrowserSchema.lean", "comments": 42, "lines": 64, "fingerprints": [
     "037134dbcd52f582",
     "2239a7b36216f562",
     "294937c8df87a34a",
     "2bab8de93f1dfdea",
     "2c859be4c0ca3160",
-    "2f39bd0ee56ec07d",
     "3222402134f0e01f",
     "362e771ae81beae4",
     "36e5cc9c09526ac5",
@@ -5378,7 +5377,6 @@
     "e349a73619218fe0",
     "e534fc1523ed197a",
     "ea351e443ef7d99d",
-    "f349fc846f17bf76",
     "f6b4d669becc3783",
     "f7d920b0628b2dbb",
     "f99801d2f2ea2eb7",
