@@ -732,33 +732,26 @@ theorem selectSpawn_post {config : WorldConfig} (world : World config)
     (fun offset state => Open world (Seen config radius direction offset) state)
     (Closed world) _ ?_ _ edge start inner
   intro offset state next _ held taken
-  split at taken
-  · rename_i x horizontal
-    split at taken
-    · rename_i y vertical
-      obtain ⟨pair, considered, rest⟩ := bind_ok _ _ _ taken
-      obtain ⟨selected, finished⟩ := pair
-      dsimp only at rest
-      have step := offset_step world radius direction offset state.2 selected finished
-        x.val y.val (Coordinate.checked_exact _ _ horizontal)
-        (Coordinate.checked_exact _ _ vertical) held.2 considered
-      cases finished with
-      | false =>
-        simp only [Bool.false_eq_true, ↓reduceIte, pure, Except.pure, Except.ok.injEq] at rest
-        subst rest
-        refine ⟨fun after same => ?_, fun after same => ?_⟩
-        · cases same
-          exact ⟨rfl, step.1 rfl⟩
-        · cases same
-      | true =>
-        simp only [↓reduceIte, pure, Except.pure, Except.ok.injEq] at rest
-        subst rest
-        refine ⟨fun after same => ?_, fun after same => ?_⟩
-        · cases same
-        · cases same
-          exact ⟨_, rfl, step.2 rfl⟩
-    · simp [bind, Except.bind] at taken
-  · simp [bind, Except.bind] at taken
+  obtain ⟨pair, considered, rest⟩ := bind_ok _ _ _ taken
+  obtain ⟨selected, finished⟩ := pair
+  dsimp only at rest
+  have step := offset_step world radius direction offset state.2 selected finished
+    _ _ rfl rfl held.2 considered
+  cases finished with
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte, pure, Except.pure, Except.ok.injEq] at rest
+    subst rest
+    refine ⟨fun after same => ?_, fun after same => ?_⟩
+    · cases same
+      exact ⟨rfl, step.1 rfl⟩
+    · cases same
+  | true =>
+    simp only [↓reduceIte, pure, Except.pure, Except.ok.injEq] at rest
+    subst rest
+    refine ⟨fun after same => ?_, fun after same => ?_⟩
+    · cases same
+    · cases same
+      exact ⟨_, rfl, step.2 rfl⟩
 
 /-- If any tile of the box would end the search, the spawn is a walkable tile whose
 trees plus stone within four tiles are at least two. Two trees near the spawn itself do
@@ -785,14 +778,18 @@ theorem initial_spawn (config : WorldConfig) (world : World config)
     (h : World.initial config = .ok world) :
     selectSpawn (World.empty config) = .ok world.body.position := by
   unfold World.initial at h
-  cases hs : selectSpawn (World.empty config) with
-  | error error => simp [hs, bind, Except.bind] at h
-  | ok position =>
-    simp only [hs, bind, Except.bind] at h
-    cases hd : initializeDeer (World.empty config) with
-    | error error => simp [hd] at h
-    | ok pair =>
-      simp only [hd, pure, Except.pure, Except.ok.injEq] at h
-      rw [← h]
+  cases hadm : config.raw.admissible with
+  | false => simp [hadm, bind, Except.bind] at h
+  | true =>
+    simp only [hadm, Bool.not_true, Bool.false_eq_true, ↓reduceIte, bind, Except.bind] at h
+    cases hs : selectSpawn (World.empty config) with
+    | error error => simp [hs] at h
+    | ok position =>
+      simp only [hs] at h
+      cases hd : initializeDeer (World.empty config) with
+      | error error => simp [hd] at h
+      | ok pair =>
+        simp only [hd, pure, Except.pure, Except.ok.injEq] at h
+        rw [← h]
 
 end AcornVerif.CurrentSpawn

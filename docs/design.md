@@ -745,10 +745,10 @@ them shows that a goal can be achieved.
 | Where the terrain refuses | The generator refuses a position exactly when, at one of its four octave scales (the base scale doubled zero to three times), the binary32 quotient of a coordinate of the position by the scale is positive infinity or a finite value of at least 2⁶³ − 1. The saturating signed 64-bit cast of that quotient's floor then produces the last coordinate, which has no successor. The seed enters no refusal. The effective kind of a tile and an entry into it are refused at exactly the same positions. | `terrain_isOk`, `tileKind_isOk`, `enterable_isOk` |
 | Which paid actions are refused | A paid action reads the terrain of at most one tile. A move reads the tile one step ahead when that tile is in the box, a harvest reads the tile that the body faces, in the box or not, and waiting, crafting and eating read none. The effect of the action is refused exactly when the terrain refuses that tile, and the paid action exactly when, in addition, the energy pays the cost of the action; an action that the energy does not pay for rests the body and is accepted. A move never overflows a coordinate, because the body is in the box. | `performAction_isOk`, `payAndAct_isOk` |
 | Passability is static | Whether the body may enter a tile depends on the tile's generated terrain and on the boat, and on nothing else: not harvesting, regrowth or time. A mountain tile is never enterable, and a water tile exactly when the body owns a boat. A step leaves the body where it is or moves it one tile in one of the four directions, never onto a mountain and never onto water without a boat. | `enterable_static`, `mountain_closed`, `water_needs_boat`, `step_adjacent`, `step_terrain` |
-| The spawn | The spawn search follows a spiral whose schedule contains every tile of the box, and one application of its rule reports an early exit only at a walkable tile with two trees within four tiles. Either the spawn is a walkable tile whose trees plus stone within four tiles are at least two; or no tile of the box is walkable with two trees within four tiles, and the spawn is a walkable tile whose trees-plus-stone score no scored tile of the box exceeds, or the center of the box when no tile is walkable. The first case holds whenever some tile of the box is walkable with two trees within four tiles; it bounds trees plus stone, so two trees near the spawn are not guaranteed. A scored tile is a walkable one whose two counts were not refused. Holds whenever the search returns a spawn. | `selectSpawn_post`, `spawn_of_rich`, `spawn_walkable`, `spiral_covers`, `considerSpawn_contract`, `countKindNear_eq` |
+| The spawn | The spawn search follows a spiral whose schedule contains every tile of the box, and one application of its rule reports an early exit only at a walkable tile with two trees within four tiles. Either the spawn is a walkable tile whose trees plus stone within four tiles are at least two; or no tile of the box is walkable with two trees within four tiles, and the spawn is a walkable tile whose trees-plus-stone score no scored tile of the box exceeds, or the center of the box when no tile is walkable. The first case holds whenever some tile of the box is walkable with two trees within four tiles; it bounds trees plus stone, so two trees near the spawn are not guaranteed. A scored tile is a walkable one whose two counts were not refused. | `selectSpawn_post`, `spawn_of_rich`, `spawn_walkable`, `spiral_covers`, `considerSpawn_contract`, `countKindNear_eq` |
+| Admission and reachable non-refusal | Admitted signed 64-bit coordinates enter `coordinateFloat` (`coordinateFloatWord`) with exact signed ingress and a single binary32 rounding (`coordinateIngress_exact`, `coordinateFloat_eq`). `WorldConfig.admit` and `World.initial` admit a configuration iff `0 < side ≤ 2⁶³ − 5`, `0 < dayLength`, and all four octave scales keep both domain endpoints (`[-5, side + 4]` for `deerCap = 0`, full signed 64-bit bounds for `deerCap ≠ 0`) below the terrain lattice threshold (`world_config_admit`, `world_initial_accepts`). `selectSpawn` evaluates spiral candidates directly without boundary coordinate overflow and `wanderDeer` stays put if a step translates out of range. The standard configurations meet this bound. On every admitted configuration and initial world, every reachable state satisfies `World.observe`, `World.step`, and `World.advanceActions` without refusal (`world_observe_accepts`, `world_step_accepts`, `world_admitted_nonrefusal`); exceeding `RawWorldConfig.maxSide` (`2⁶³ − 5`) causes `World.observe` to refuse at `side - 1`. | `coordinateIngress_exact`, `coordinateFloat_eq`, `world_config_admit`, `initial_isOk_iff`, `standard_admits`, `admitted_world_nonrefusal`, `initial_reachable_nonrefusal`, `admitted_config_reachable_nonrefusal`, `observe_refuses_exceeds_maxSide`, `world_observe_accepts`, `world_initial_accepts`, `world_step_accepts`, `world_admitted_nonrefusal` |
 
-Not proved for every seed: that the spawn search returns a spawn rather than a
-refusal; that a goal box can be entered or reached; that the walkable terrain is
+Not proved for every seed: that a goal box can be entered or reached; that the walkable terrain is
 connected; and any bound on the distance from the spawn to a target. No theorem
 states that a goal box can be reached for every seed: the generator places each
 target by a hash of the seed without reading the terrain, so nothing in its
@@ -759,8 +759,9 @@ at every cap (`blocked_infeasible`). The owners of the table's theorems are the
 [terrain proofs](../lean/AcornVerif/CurrentTerrain.lean),
 [goal proofs](../lean/AcornVerif/CurrentGoals.lean),
 [curriculum proofs](../lean/AcornVerif/CurrentCurriculum.lean),
-[spawn proofs](../lean/AcornVerif/CurrentSpawn.lean) and
-[action proofs](../lean/AcornVerif/CurrentActions.lean).
+[spawn proofs](../lean/AcornVerif/CurrentSpawn.lean),
+[action proofs](../lean/AcornVerif/CurrentActions.lean) and
+[world admission proofs](../lean/AcornVerif/CurrentWorld.lean).
 
 ### What a certificate establishes about one seed
 
@@ -1277,8 +1278,11 @@ What these theorems do not establish:
   starts again. The theorem does not say which visit a process resumed at.
 - **That the native entry runs the loop as stated.** No theorem ties `acorn-core visits` to
   the loop; that it starts the loop from the admitted world and target rests on reading it.
-- **That a world never refuses, or that an agent learns or solves anything.** Every theorem
-  here is about a run the world accepted so far, and each bound is an upper bound.
+- **That a world without admission never refuses, or that an agent learns or solves anything.**
+  The visit-loop theorems quantify over arbitrary `WorldConfig` values and track runs accepted so
+  far (every bound is an upper bound); for admitted configurations,
+  `admitted_config_reachable_nonrefusal` guarantees every reachable state accepts `observe` and
+  `step`.
 - **A choice of constants, or a run.** Which window, cap and number of visits a study uses is
   that study's choice, and logs beyond each visit's outcome are not part of this loop. A save
   made inside a visit is not covered, since the loop makes none.

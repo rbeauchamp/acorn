@@ -93,9 +93,7 @@ def selectSpawn {config : WorldConfig} (world : World config) :
         let k : Int := (offset : Int) - radius
         let x := (config.side / 2 : Nat) + dx * radius + dy * k
         let y := (config.side / 2 : Nat) + dy * radius + dx * k
-        let some x := Coordinate.checked x | .error .coordinateOverflow
-        let some y := Coordinate.checked y | .error .coordinateOverflow
-        let (candidate, finished) ← considerSpawn world x.val y.val best
+        let (candidate, finished) ← considerSpawn world x y best
         best := candidate
         if finished then return best.map (·.position) |>.getD (BoxPosition.center config)
   return best.map (·.position) |>.getD (BoxPosition.center config)
@@ -121,10 +119,18 @@ def initializeDeer {config : WorldConfig} (world : World config) :
 
 /-- Complete initialization through the actual spawn and population constructors. -/
 def World.initial (config : WorldConfig) : Except WorldError (World config) := do
+  if !config.raw.admissible then .error .coordinateOverflow
   let world := World.empty config
   let position ← selectSpawn world
   let (deer, rng) ← initializeDeer world
   return { world with body := { world.body with position := position }, deer := deer, rng := rng }
+
+theorem World.initial_admissible (config : WorldConfig) (world : World config)
+    (h : initial config = .ok world) : config.raw.admissible = true := by
+  unfold initial at h
+  cases hadm : config.raw.admissible with
+  | false => simp [hadm, bind, Except.bind] at h
+  | true => rfl
 
 /-- Generation changes only spawn position, deer population and the placement RNG. -/
 theorem World.initial_fields (config : WorldConfig) (world : World config)
@@ -133,15 +139,19 @@ theorem World.initial_fields (config : WorldConfig) (world : World config)
     world.body.energy = Energy.new FeatureConstants.energyMax ∧
     world.body.facing = .north ∧ world.food.entries = #[] ∧ world.harvested.size = 0 := by
   unfold initial at h
-  cases hs : selectSpawn (World.empty config) with
-  | error error => simp [hs, bind, Except.bind] at h
-  | ok position =>
-    simp only [hs, bind, Except.bind] at h
-    cases hd : initializeDeer (World.empty config) with
-    | error error => simp [hd] at h
-    | ok pair =>
-      simp only [hd, pure, Except.pure, Except.ok.injEq] at h
-      rw [← h]
-      simp [World.empty, Population.empty]
+  cases hadm : config.raw.admissible with
+  | false => simp [hadm, bind, Except.bind] at h
+  | true =>
+    simp only [hadm, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h
+    cases hs : selectSpawn (World.empty config) with
+    | error error => simp [hs, bind, Except.bind] at h
+    | ok position =>
+      simp only [hs, bind, Except.bind] at h
+      cases hd : initializeDeer (World.empty config) with
+      | error error => simp [hd] at h
+      | ok pair =>
+        simp only [hd, pure, Except.pure, Except.ok.injEq] at h
+        rw [← h]
+        simp [World.empty, Population.empty]
 
 end Acorn.Host

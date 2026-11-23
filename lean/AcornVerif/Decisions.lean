@@ -19,6 +19,7 @@ import AcornVerif.CurrentRunner
 import AcornVerif.CurrentSpawn
 import AcornVerif.CurrentTemporal
 import AcornVerif.CurrentTerrain
+import AcornVerif.CurrentWorld
 import AcornVerif.Decimal
 import AcornVerif.Endurance
 import AcornVerif.FloatLibBridge
@@ -1530,15 +1531,11 @@ private theorem complete_isOk {order : StepOrder} {config : Host.WorldConfig} {�
   simp only [Host.Attempt.complete, Host.Attempt.close, finished]
   rfl
 
-/-- The observation accepts the world of `fresh` (`fresh_observes`).
-`Acorn.Decisions.world_observe` states what an accepted observation carries and keeps no kind for
-the reason given there; this statement is a requirement with no kind beside it, and a function
-that refuses every world fails it.
-
-**Not claimed:** which other worlds observe without a refusal. -/
 theorem world_observe_accepts : Regula.ExecutableContract @Host.World.observe (fun observe =>
-    ∀ cap : UInt64, (observe (fresh cap).run.world).isOk = true) :=
-  ⟨fresh_observes⟩
+    (∀ cap : UInt64, (observe (fresh cap).run.world).isOk = true) ∧
+      ∀ {config : Host.WorldConfig}, config.raw.admissible = true →
+        ∀ world : Host.World config, (observe world).isOk = true) :=
+  ⟨⟨fresh_observes, fun hadm world => CurrentWorld.admissible_observe_isOk hadm world⟩⟩
 
 /-- Finishing accepts the attempt `fresh`, for every step cap, callbacks and context: its final
 observation is that of `fresh_observes`. `Acorn.Decisions.attempt_finish` states what an accepted
@@ -2041,24 +2038,21 @@ private theorem select_oneTile : (Host.selectSpawn (Host.World.empty oneTile)).i
         subst radiusZero
         have offsetZero : offset = 0 := by omega
         subst offsetZero
-        have column : Host.Coordinate.checked
+        have centerCoord :
             (((oneTile.side / 2 : Nat) : Int) +
               (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
                 ((0 : Nat) : Int) +
               (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
-                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = some ⟨0, by decide⟩ := by
-          simp only [side, Nat.cast_zero, mul_zero, sub_self, add_zero]
-          rfl
-        have row : Host.Coordinate.checked
+                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = 0 := by
+          simp [side]
+        have centerRow :
             (((oneTile.side / 2 : Nat) : Int) +
               (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
                 ((0 : Nat) : Int) +
               (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
-                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = some ⟨0, by decide⟩ := by
-          simp only [side, Nat.cast_zero, mul_zero, sub_self, add_zero]
-          rfl
-        rw [column, row]
-        dsimp only
+                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = 0 := by
+          simp [side]
+        rw [centerCoord, centerRow]
         refine bind_isOk _ _ (consider_center _) fun _ => ?_
         split <;> rfl
       · split <;> rfl
@@ -2095,20 +2089,30 @@ theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =
   ⟨⟨fun world spawn selected => CurrentSpawn.selectSpawn_post world spawn selected,
     ⟨oneTile, Host.World.empty oneTile, select_oneTile⟩⟩⟩
 
-/-- World generation accepts the configuration `oneTile`: its spawn search succeeds
-(`select_oneTile`), and at the deer cap zero the placement of the deer runs no pass
-(`deer_oneTile`). `Acorn.Decisions.world_initial` states what an initial world holds and keeps
-no kind for the reason given there; this statement is a requirement with no kind beside it, and
-a function that refuses every configuration fails it.
-
-**Not claimed:** which other configurations initialize, or that the spawn search returns a spawn
-for every seed. -/
 theorem world_initial_accepts : Regula.ExecutableContract Host.World.initial (fun initial =>
-    (initial oneTile).isOk = true) :=
-  ⟨by
-    unfold Host.World.initial
-    dsimp only
-    exact bind_isOk _ _ select_oneTile fun _ => bind_isOk _ _ deer_oneTile fun _ => rfl⟩
+    (initial oneTile).isOk = true ∧
+      ∀ config : Host.WorldConfig, (initial config).isOk = true ↔
+        config.raw.admissible = true) :=
+  ⟨⟨by
+      have hadm : oneTile.raw.admissible = true := by decide
+      unfold Host.World.initial
+      simp only [hadm, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      exact bind_isOk _ _ select_oneTile fun _ => bind_isOk _ _ deer_oneTile fun _ => rfl,
+    CurrentWorld.initial_isOk_iff⟩⟩
+
+theorem world_step_accepts : Regula.ExecutableContract @Host.World.step (fun step =>
+    ∀ {config : Host.WorldConfig}, config.raw.admissible = true →
+      ∀ (world : Host.World config) (action : Host.Action), (step world action).isOk = true) :=
+  ⟨fun hadm world action => CurrentWorld.admissible_step_isOk hadm world action⟩
+
+theorem world_admitted_nonrefusal {raw : Host.RawWorldConfig} {config : Host.WorldConfig}
+    (hadmit : Host.WorldConfig.admit raw = .ok config) (initial world : Host.World config)
+    (hinit : Host.World.initial config = .ok initial)
+    (hreach : CurrentWorld.Reachable initial world) :
+    (world.observe).isOk = true ∧
+      (∀ action : Host.Action, (world.step action).isOk = true) ∧
+      (∀ actions : List Host.Action, (world.advanceActions actions).isOk = true) :=
+  CurrentWorld.admitted_config_reachable_nonrefusal hadmit initial world hinit hreach
 
 /-! ## Learner admissions -/
 

@@ -49,6 +49,40 @@ def Position.translate (position : Position) (dx dy : Int) : Option Position := 
   let y ← Coordinate.checked (position.y.val + dy)
   pure ⟨x, y⟩
 
+theorem coordinateIngress_exact (coordinate : Coordinate) :
+    (Int64.ofInt coordinate.val).toInt = coordinate.val := by
+  rw [Int64.toInt_ofInt, Int.bmod_eq_of_le coordinate.property.1 coordinate.property.2]
+
+def coordinateFloatWord (value : Int64) : Binary32 :=
+  let negative := value.toUInt64 ≥ (0x8000000000000000 : UInt64)
+  let magnitude := Binary32.ofUInt64 (if negative then -value.toUInt64 else value.toUInt64)
+  if negative then ⟨magnitude.bits ^^^ 0x80000000⟩ else magnitude
+
+theorem coordinateFloatWord_eq (value : Int64) : coordinateFloatWord value =
+    let magnitude := Binary32.ofUInt64 value.toInt.natAbs.toUInt64;
+    if value.toInt < 0 then ⟨magnitude.bits ^^^ 0x80000000⟩ else magnitude := by
+  have magnitude : (if value < 0 then -value.toUInt64 else value.toUInt64) =
+      value.toInt.natAbs.toUInt64 := by
+    apply UInt64.toNat.inj
+    rw [Conversion.i64Magnitude_exact]
+    have bound : value.toInt.natAbs < 2^64 := by
+      rw [← Conversion.i64Magnitude_exact]
+      exact UInt64.toNat_lt _
+    exact (UInt64.toNat_ofNat_of_lt' bound).symm
+  unfold coordinateFloatWord
+  simp only [Conversion.i64Sign_eq]
+  rw [magnitude]
+  simp only [Int64.lt_iff_toInt_lt]
+  rfl
+
+def coordinateFloat (coordinate : Coordinate) : Binary32 :=
+  coordinateFloatWord (Int64.ofInt coordinate.val)
+
+theorem coordinateFloat_eq (coordinate : Coordinate) : coordinateFloat coordinate =
+    let magnitude := Binary32.ofUInt64 coordinate.val.natAbs.toUInt64;
+    if coordinate.val < 0 then ⟨magnitude.bits ^^^ 0x80000000⟩ else magnitude := by
+  rw [coordinateFloat, coordinateFloatWord_eq, coordinateIngress_exact]
+
 /-- Public custom fields before configuration admission. -/
 structure RawWorldConfig where
   /-- Seed of the environment stream and procedural terrain. -/
@@ -78,6 +112,8 @@ inductive WorldConfigError where
   | nonpositiveSide
   /-- Day-phase modulo requires a nonzero day length. -/
   | zeroDayLength
+  | sideExceedsPatch
+  | scaleOverflow
   deriving DecidableEq
 
 /-- Immutable admitted configuration; custom fields cannot invalidate its geometry. -/
@@ -89,13 +125,114 @@ structure WorldConfig where
   /-- The day-phase denominator is nonzero. -/
   positiveDay : 0 < raw.dayLength.toNat
 
-/-- Custom admission seals only the geometry and denominator preconditions.
-Terrain and entity arithmetic have their own per-operation refusal boundaries. -/
+def RawWorldConfig.maxSide : Int := 2 ^ 63 - 5
+
+def isPastLast (quotient : Binary32) : Bool :=
+  0x5f000000 ≤ quotient.bits.toNat && quotient.bits.toNat ≤ 0x7f800000
+
+def octaveScale (scale : Binary32) : Nat → Binary32
+  | 0 => scale
+  | octave + 1 => octaveScale (scale.mul ⟨0x40000000⟩) octave
+
+def scaleAdmitsOctave (lo hi : Coordinate) (scale : Binary32) : Bool :=
+  !isPastLast ((coordinateFloat lo).div scale) &&
+    !isPastLast ((coordinateFloat hi).div scale)
+
+def scaleAdmitsRange (lo hi : Coordinate) (baseScale : Binary32) : Bool :=
+  scaleAdmitsOctave lo hi (octaveScale baseScale 0) &&
+    scaleAdmitsOctave lo hi (octaveScale baseScale 1) &&
+    scaleAdmitsOctave lo hi (octaveScale baseScale 2) &&
+    scaleAdmitsOctave lo hi (octaveScale baseScale 3)
+
+def RawWorldConfig.admitLo (raw : RawWorldConfig) : Coordinate :=
+  if raw.deerCap == 0 then ⟨-5, by decide⟩ else ⟨-(2 ^ 63), by decide⟩
+
+def RawWorldConfig.admitHi (raw : RawWorldConfig) : Coordinate :=
+  if raw.deerCap == 0 then
+    if h : -(2 ^ 63) ≤ raw.side.val + 4 ∧ raw.side.val + 4 < 2 ^ 63 then ⟨raw.side.val + 4, h⟩
+    else ⟨2 ^ 63 - 1, by decide⟩
+  else ⟨2 ^ 63 - 1, by decide⟩
+
+def RawWorldConfig.admissible (raw : RawWorldConfig) : Bool :=
+  0 < raw.side.val && raw.side.val ≤ RawWorldConfig.maxSide && 0 < raw.dayLength.toNat &&
+    scaleAdmitsRange raw.admitLo raw.admitHi raw.baseScale
+
 def WorldConfig.admit (raw : RawWorldConfig) : Except WorldConfigError WorldConfig :=
   if hs : 0 < raw.side.val then
-    if hd : 0 < raw.dayLength.toNat then .ok ⟨raw, hs, hd⟩
-    else .error .zeroDayLength
+    if _hm : raw.side.val ≤ RawWorldConfig.maxSide then
+      if hd : 0 < raw.dayLength.toNat then
+        if _hsc : scaleAdmitsRange raw.admitLo raw.admitHi raw.baseScale then .ok ⟨raw, hs, hd⟩
+        else .error .scaleOverflow
+      else .error .zeroDayLength
+    else .error .sideExceedsPatch
   else .error .nonpositiveSide
+
+theorem RawWorldConfig.admitLo_val (raw : RawWorldConfig) :
+    raw.admitLo.val = if raw.deerCap = 0 then -5 else -(2 ^ 63) := by
+  unfold RawWorldConfig.admitLo
+  by_cases h : raw.deerCap = 0 <;> simp [h]
+
+theorem RawWorldConfig.admitHi_val (raw : RawWorldConfig) (hpos : 0 < raw.side.val)
+    (hmax : raw.side.val ≤ RawWorldConfig.maxSide) :
+    raw.admitHi.val = if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1 := by
+  unfold RawWorldConfig.admitHi RawWorldConfig.maxSide at *
+  by_cases h : raw.deerCap = 0
+  · simp [h]
+    split
+    · rfl
+    · omega
+  · simp [h]
+
+theorem scaleAdmitsRange_iff (lo hi : Coordinate) (baseScale : Binary32) :
+    scaleAdmitsRange lo hi baseScale = true ↔
+      ∀ octave < 4,
+        isPastLast ((coordinateFloat lo).div (octaveScale baseScale octave)) = false ∧
+        isPastLast ((coordinateFloat hi).div (octaveScale baseScale octave)) = false := by
+  unfold scaleAdmitsRange scaleAdmitsOctave
+  simp only [Bool.and_eq_true, Bool.not_eq_true']
+  constructor
+  · intro ⟨⟨⟨h0, h1⟩, h2⟩, h3⟩ octave below
+    rcases octave with _ | _ | _ | _ | _
+    · exact h0
+    · exact h1
+    · exact h2
+    · exact h3
+    · omega
+  · intro all
+    exact ⟨⟨⟨all 0 (by decide), all 1 (by decide)⟩, all 2 (by decide)⟩, all 3 (by decide)⟩
+
+theorem RawWorldConfig.admissible_iff (raw : RawWorldConfig) :
+    raw.admissible = true ↔
+      0 < raw.side.val ∧ raw.side.val ≤ RawWorldConfig.maxSide ∧ 0 < raw.dayLength.toNat ∧
+        scaleAdmitsRange raw.admitLo raw.admitHi raw.baseScale = true := by
+  unfold RawWorldConfig.admissible
+  simp only [Bool.and_eq_true, decide_eq_true_eq, and_assoc]
+
+theorem WorldConfig.admit_isOk_iff (raw : RawWorldConfig) :
+    (WorldConfig.admit raw).isOk = true ↔ raw.admissible = true := by
+  unfold WorldConfig.admit RawWorldConfig.admissible
+  by_cases hs : 0 < raw.side.val <;>
+    by_cases hm : raw.side.val ≤ RawWorldConfig.maxSide <;>
+    by_cases hd : 0 < raw.dayLength.toNat <;>
+    by_cases hsc : scaleAdmitsRange raw.admitLo raw.admitHi raw.baseScale = true <;>
+    simp [hs, hm, hd, hsc, Except.isOk, Except.toBool]
+
+theorem WorldConfig.admit_admissible (raw : RawWorldConfig) (config : WorldConfig)
+    (h : WorldConfig.admit raw = .ok config) : config.raw.admissible = true := by
+  have ok : (WorldConfig.admit raw).isOk = true := by rw [h]; rfl
+  have rawEq : config.raw = raw := by
+    unfold WorldConfig.admit at h
+    split at h
+    · split at h
+      · split at h
+        · split at h
+          · cases h; rfl
+          · cases h
+        · cases h
+      · cases h
+    · cases h
+  rw [rawEq]
+  exact (WorldConfig.admit_isOk_iff raw).mp ok
 
 /-- Number of coordinates on one side of the campaign box. -/
 def WorldConfig.side (config : WorldConfig) : Nat := config.raw.side.val.toNat

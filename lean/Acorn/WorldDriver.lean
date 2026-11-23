@@ -26,6 +26,7 @@ def worldError : WorldError → String
 def configError : WorldConfigError → String
   | .sideTooSmall => "SideTooSmall" | .sideTooLarge => "SideTooLarge"
   | .nonpositiveSide => "NonpositiveSide" | .zeroDayLength => "ZeroDayLength"
+  | .sideExceedsPatch => "SideExceedsPatch" | .scaleOverflow => "ScaleOverflow"
 
 /-- CLI diagnostics retain their closed category and offending text. -/
 def cliError : Cli.Error → String

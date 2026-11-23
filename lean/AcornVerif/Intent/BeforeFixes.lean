@@ -88,14 +88,14 @@ theorem dayPhaseBefore_unfulfilled {config : WorldConfig} (base : World config)
 /-- A configuration whose day lasts 20 ticks exists: `WorldConfig.admit` accepts it, so the
 refusal above is about a world Acorn can build. -/
 theorem twentyTickDay_admitted (raw : RawWorldConfig) (hside : 0 < raw.side.val)
-    (hday : raw.dayLength = 20) : ∃ config, WorldConfig.admit raw = .ok config ∧
+    (hmax : raw.side.val ≤ RawWorldConfig.maxSide) (hday : raw.dayLength = 20)
+    (hscale : scaleAdmitsRange raw.admitLo raw.admitHi raw.baseScale = true) :
+    ∃ config, WorldConfig.admit raw = .ok config ∧
       config.raw.dayLength.toNat = 20 := by
   have hd : 0 < raw.dayLength.toNat := by rw [hday]; decide
   refine ⟨⟨raw, hside, hd⟩, ?_, by rw [hday]; decide⟩
   unfold WorldConfig.admit
-  split
-  · rfl
-  · contradiction
+  simp [hside, hmax, hd, hscale]
 
 /-- `Acorn.Rng.hash2` as it was before #161. -/
 def hash2Before (x y seed : UInt64) : UInt64 :=

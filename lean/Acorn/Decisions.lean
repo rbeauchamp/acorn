@@ -1091,18 +1091,256 @@ theorem coordinate_checked : Regula.ExecutableContract Host.Coordinate.checked
 theorem Host_Coordinate_checked_registered :
     Regula.RegisteredDecision @Host.Coordinate.checked := ⟨⟩
 
-/-- Custom world admission accepts exactly a positive side and a nonzero day length. -/
+private theorem exp190_helper (e f n c : Nat) (hn : 40 + n = 190 + c) (he : 190 ≤ e) :
+    (2 ^ 63 - 1) * 2 ^ n ≤ (2 ^ 23 + f) * 2 ^ (e + c) := by
+  have heq : e + c = (e - 150) + n := by omega
+  rw [heq, Nat.pow_add]
+  have h23 : 2 ^ 23 ≤ 2 ^ 23 + f := Nat.le_add_right _ _
+  have hpow : 2 ^ 40 ≤ 2 ^ (e - 150) := Nat.pow_le_pow_right (by decide) (by omega)
+  have hmul : 2 ^ 23 * 2 ^ 40 ≤ (2 ^ 23 + f) * 2 ^ (e - 150) := Nat.mul_le_mul h23 hpow
+  have h63 : 2 ^ 63 - 1 ≤ (2 ^ 23 + f) * 2 ^ (e - 150) :=
+    Nat.le_trans (by decide : 2 ^ 63 - 1 ≤ 2 ^ 23 * 2 ^ 40) hmul
+  rw [← Nat.mul_assoc]
+  exact Nat.mul_le_mul_right (2 ^ n) h63
+
+private theorem exp0_helper (f n c : Nat) (hn : 23 + c ≤ n) (hf : f < 2 ^ 23) :
+    f * 2 ^ c < (2 ^ 63 - 1) * 2 ^ n := by
+  have hle : 2 ^ 23 * 2 ^ c ≤ 2 ^ n := by
+    rw [← Nat.pow_add]
+    exact Nat.pow_le_pow_right (by decide) hn
+  have hlt1 : f * 2 ^ c < 2 ^ 23 * 2 ^ c :=
+    Nat.mul_lt_mul_of_pos_right hf (Nat.two_pow_pos c)
+  have hlt2 : 2 ^ n < (2 ^ 63 - 1) * 2 ^ n := by
+    calc 2 ^ n = 1 * 2 ^ n := (Nat.one_mul _).symm
+      _ < (2 ^ 63 - 1) * 2 ^ n :=
+        Nat.mul_lt_mul_of_pos_right (by decide) (Nat.two_pow_pos n)
+  exact Nat.lt_trans hlt1 (Nat.lt_of_le_of_lt hle hlt2)
+
+private theorem exp189_helper (e f n c : Nat) (hn : 39 + n = 189 + c) (he : e ≤ 189)
+    (hf : 2 ^ 23 + f ≤ 2 ^ 24 - 1) :
+    (2 ^ 23 + f) * 2 ^ (e + c) < (2 ^ 63 - 1) * 2 ^ n := by
+  have hpow : 2 ^ (e + c) ≤ 2 ^ (39 + n) :=
+    Nat.pow_le_pow_right (by decide) (by omega)
+  rw [Nat.pow_add 2 39 n] at hpow
+  have hmul : (2 ^ 23 + f) * 2 ^ (e + c) ≤ ((2 ^ 24 - 1) * 2 ^ 39) * 2 ^ n := by
+    rw [Nat.mul_assoc]
+    exact Nat.mul_le_mul hf hpow
+  have hlt : ((2 ^ 24 - 1) * 2 ^ 39) * 2 ^ n < (2 ^ 63 - 1) * 2 ^ n :=
+    Nat.mul_lt_mul_of_pos_right (by decide) (Nat.two_pow_pos n)
+  exact Nat.lt_of_le_of_lt hmul hlt
+
+private theorem isPastLast_iff_units_core (q : Binary32) :
+    Host.isPastLast q = true ↔
+      q = ⟨0x7f800000⟩ ∨
+        (q.Finite ∧ ¬ q.Negative ∧
+          (2 ^ 63 - 1) * 2 ^ 1074 ≤ Conversion.magnitudeUnits32 q) := by
+  have hb := q.bits.toNat_lt
+  have hmag : q.magnitude = q.bits.toNat % 2 ^ 31 := by
+    unfold Binary32.magnitude
+    rw [UInt32.toNat_and, show (0x7fffffff : UInt32).toNat = 2 ^ 31 - 1 by decide]
+    exact Nat.and_two_pow_sub_one_eq_mod _ 31
+  constructor
+  · intro hp
+    unfold Host.isPastLast at hp
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at hp
+    rcases hp with ⟨hlo, hhi⟩
+    by_cases heq : q.bits.toNat = 0x7f800000
+    · left
+      cases q; congr 1; apply UInt32.eq_of_toBitVec_eq
+      apply BitVec.eq_of_toNat_eq; exact heq
+    · right
+      have hb_hi : q.bits.toNat < 2 ^ 31 := by omega
+      have hnneg : ¬ q.Negative := by unfold Binary32.Negative; omega
+      have hmag_eq : q.magnitude = q.bits.toNat := by
+        rw [hmag]; exact Nat.mod_eq_of_lt hb_hi
+      have hfin : q.Finite := by unfold Binary32.Finite; omega
+      refine ⟨hfin, hnneg, ?_⟩
+      have hexp : 190 ≤ q.magnitude / 2 ^ 23 := by omega
+      unfold Conversion.magnitudeUnits32
+      dsimp only
+      rw [ite_eq_right (by omega : q.magnitude / 2 ^ 23 ≠ 0)]
+      exact exp190_helper _ _ 1074 924 (by decide) hexp
+  · intro h
+    rcases h with rfl | ⟨hfin, hnneg, hunits⟩
+    · decide
+    · have hb_lo : q.bits.toNat < 2 ^ 31 := by unfold Binary32.Negative at hnneg; omega
+      have hmag_eq : q.magnitude = q.bits.toNat := by
+        rw [hmag]; exact Nat.mod_eq_of_lt hb_lo
+      have hfin' : q.magnitude < 0x7f800000 := hfin
+      have hpow_hi : 0x5f000000 ≤ q.bits.toNat := by
+        apply Classical.byContradiction
+        intro hlt
+        have hlt' : q.bits.toNat < 0x5f000000 := by omega
+        have hexp_hi : q.magnitude / 2 ^ 23 ≤ 189 := by omega
+        unfold Conversion.magnitudeUnits32 at hunits
+        dsimp only at hunits
+        by_cases h0 : q.magnitude / 2 ^ 23 = 0
+        · rw [ite_eq_left h0] at hunits
+          have hf : q.magnitude % 2 ^ 23 < 2 ^ 23 := Nat.mod_lt _ (by decide)
+          exact absurd (Nat.lt_of_le_of_lt hunits (exp0_helper _ 1074 925 (by decide) hf))
+            (Nat.lt_irrefl _)
+        · rw [ite_eq_right h0] at hunits
+          have hfrac : 2 ^ 23 + q.magnitude % 2 ^ 23 ≤ 2 ^ 24 - 1 := by
+            have := Nat.mod_lt q.magnitude (by decide : 0 < 2 ^ 23)
+            have h24 : (2 ^ 24 : Nat) = 2 * 2 ^ 23 := by decide
+            omega
+          exact absurd
+            (Nat.lt_of_le_of_lt hunits
+              (exp189_helper _ _ 1074 924 (by decide) hexp_hi hfrac))
+            (Nat.lt_irrefl _)
+      unfold Host.isPastLast
+      simp only [Bool.and_eq_true, decide_eq_true_eq]
+      exact ⟨hpow_hi, by omega⟩
+
+private theorem not_isPastLast_iff (q : Binary32) :
+    (!Host.isPastLast q) = true ↔
+      q ≠ ⟨0x7f800000⟩ ∧
+        (q.Finite → q.Negative ∨
+          Conversion.magnitudeUnits32 q < (2 ^ 63 - 1) * 2 ^ 1074) := by
+  have h := isPastLast_iff_units_core q
+  constructor
+  · intro hb
+    have hf : Host.isPastLast q ≠ true := by
+      intro ht; rw [ht] at hb; cases hb
+    constructor
+    · intro heq; exact hf (h.mpr (Or.inl heq))
+    · intro hfin
+      by_cases hneg : q.Negative
+      · exact Or.inl hneg
+      · right
+        exact Nat.lt_of_not_le fun hle => hf (h.mpr (Or.inr ⟨hfin, hneg, hle⟩))
+  · intro ⟨hne, hrem⟩
+    cases hpl : Host.isPastLast q
+    · rfl
+    · exfalso
+      rcases h.mp hpl with rfl | ⟨hfin, hneg, hle⟩
+      · exact hne rfl
+      · rcases hrem hfin with hn | hlt
+        · exact hneg hn
+        · omega
+
+private theorem world_config_admit_iff (raw : Host.RawWorldConfig) :
+    (Host.WorldConfig.admit raw).isOk = true ↔
+      0 < raw.side.val ∧ raw.side.val ≤ 2 ^ 63 - 5 ∧ 0 < raw.dayLength.toNat ∧
+        ∀ lo hi : Host.Coordinate,
+          lo.val = (if raw.deerCap = 0 then -5 else -2 ^ 63) →
+          hi.val = (if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1) →
+          ∀ s0 s1 s2 s3 : Binary32,
+            s0 = raw.baseScale →
+            s1 = s0.mul ⟨0x40000000⟩ →
+            s2 = s1.mul ⟨0x40000000⟩ →
+            s3 = s2.mul ⟨0x40000000⟩ →
+            ∀ s ∈ [s0, s1, s2, s3],
+              let qLo := (Host.coordinateFloat lo).div s
+              let qHi := (Host.coordinateFloat hi).div s
+              (qLo ≠ ⟨0x7f800000⟩ ∧
+                (qLo.Finite → qLo.Negative ∨
+                  Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
+              (qHi ≠ ⟨0x7f800000⟩ ∧
+                (qHi.Finite → qHi.Negative ∨
+                  Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)) := by
+  rw [Host.WorldConfig.admit_isOk_iff, Host.RawWorldConfig.admissible_iff]
+  have hmax : Host.RawWorldConfig.maxSide = 2 ^ 63 - 5 := rfl
+  have hlo_val : raw.admitLo.val = if raw.deerCap = 0 then -5 else -2 ^ 63 := by
+    simpa [UInt64.eq_iff_toBitVec_eq] using Host.RawWorldConfig.admitLo_val raw
+  constructor
+  · intro ⟨hpos, hmx, hday, hsc⟩
+    have hmx' : raw.side.val ≤ 2 ^ 63 - 5 := by rw [← hmax]; exact hmx
+    refine ⟨hpos, hmx', hday, ?_⟩
+    intro lo hi hlo hhi s0 s1 s2 s3 hs0 hs1 hs2 hs3 s hmem
+    have hhi_val : raw.admitHi.val =
+        if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1 := by
+      simpa [UInt64.eq_iff_toBitVec_eq] using Host.RawWorldConfig.admitHi_val raw hpos hmx
+    have hlo_eq : lo = raw.admitLo := Subtype.ext (hlo.trans hlo_val.symm)
+    have hhi_eq : hi = raw.admitHi := Subtype.ext (hhi.trans hhi_val.symm)
+    rw [hlo_eq, hhi_eq]
+    rw [Host.scaleAdmitsRange_iff] at hsc
+    have ho_s : Host.scaleAdmitsOctave raw.admitLo raw.admitHi s = true := by
+      have ho_fn : ∀ octave, octave < 4 →
+          Host.scaleAdmitsOctave raw.admitLo raw.admitHi
+            (Host.octaveScale raw.baseScale octave) = true := by
+        intro octave hlt
+        obtain ⟨hl, hr⟩ := hsc octave hlt
+        unfold Host.scaleAdmitsOctave
+        simp only [hl, hr, Bool.not_false, Bool.and_self]
+      have h0 := ho_fn 0 (by decide)
+      have h1 := ho_fn 1 (by decide)
+      have h2 := ho_fn 2 (by decide)
+      have h3 := ho_fn 3 (by decide)
+      simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
+      rcases hmem with rfl | rfl | rfl | rfl
+      · simpa [hs0, Host.octaveScale] using h0
+      · simpa [hs1, hs0, Host.octaveScale] using h1
+      · simpa [hs2, hs1, hs0, Host.octaveScale] using h2
+      · simpa [hs3, hs2, hs1, hs0, Host.octaveScale] using h3
+    unfold Host.scaleAdmitsOctave at ho_s
+    simp only [Bool.and_eq_true] at ho_s
+    exact ⟨(not_isPastLast_iff _).mp ho_s.1, (not_isPastLast_iff _).mp ho_s.2⟩
+  · intro ⟨hpos, hmx, hday, hforall⟩
+    have hmx' : raw.side.val ≤ Host.RawWorldConfig.maxSide := by rw [hmax]; exact hmx
+    refine ⟨hpos, hmx', hday, ?_⟩
+    rw [Host.scaleAdmitsRange_iff]
+    have hhi_val : raw.admitHi.val =
+        if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1 := by
+      simpa [UInt64.eq_iff_toBitVec_eq] using Host.RawWorldConfig.admitHi_val raw hpos hmx'
+    have hspec := hforall raw.admitLo raw.admitHi hlo_val hhi_val
+      (Host.octaveScale raw.baseScale 0)
+      (Host.octaveScale raw.baseScale 1)
+      (Host.octaveScale raw.baseScale 2)
+      (Host.octaveScale raw.baseScale 3)
+      rfl rfl rfl rfl
+    intro octave hlt
+    have hmem : Host.octaveScale raw.baseScale octave ∈
+        [Host.octaveScale raw.baseScale 0, Host.octaveScale raw.baseScale 1,
+          Host.octaveScale raw.baseScale 2, Host.octaveScale raw.baseScale 3] := by
+      match octave, hlt with
+      | 0, _ => simp
+      | 1, _ => simp
+      | 2, _ => simp
+      | 3, _ => simp
+    obtain ⟨hl, hr⟩ := hspec _ hmem
+    have nl : Host.isPastLast ((Host.coordinateFloat raw.admitLo).div
+        (Host.octaveScale raw.baseScale octave)) = false := by
+      have := (not_isPastLast_iff _).mpr hl
+      cases h : Host.isPastLast ((Host.coordinateFloat raw.admitLo).div
+          (Host.octaveScale raw.baseScale octave))
+      · rfl
+      · simp [h] at this
+    have nr : Host.isPastLast ((Host.coordinateFloat raw.admitHi).div
+        (Host.octaveScale raw.baseScale octave)) = false := by
+      have := (not_isPastLast_iff _).mpr hr
+      cases h : Host.isPastLast ((Host.coordinateFloat raw.admitHi).div
+          (Host.octaveScale raw.baseScale octave))
+      · rfl
+      · simp [h] at this
+    exact ⟨nl, nr⟩
+
 theorem world_config_admit : Regula.ExecutableContract Host.WorldConfig.admit
     (Regula.Decides (·.isOk = true) (fun raw : Host.RawWorldConfig =>
-      0 < raw.side.val ∧ 0 < raw.dayLength.toNat)) :=
+      0 < raw.side.val ∧ raw.side.val ≤ 2 ^ 63 - 5 ∧ 0 < raw.dayLength.toNat ∧
+        ∀ lo hi : Host.Coordinate,
+          lo.val = (if raw.deerCap = 0 then -5 else -2 ^ 63) →
+          hi.val = (if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1) →
+          ∀ s0 s1 s2 s3 : Binary32,
+            s0 = raw.baseScale →
+            s1 = s0.mul ⟨0x40000000⟩ →
+            s2 = s1.mul ⟨0x40000000⟩ →
+            s3 = s2.mul ⟨0x40000000⟩ →
+            ∀ s ∈ [s0, s1, s2, s3],
+              let qLo := (Host.coordinateFloat lo).div s
+              let qHi := (Host.coordinateFloat hi).div s
+              (qLo ≠ ⟨0x7f800000⟩ ∧
+                (qLo.Finite → qLo.Negative ∨
+                  Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
+              (qHi ≠ ⟨0x7f800000⟩ ∧
+                (qHi.Finite → qHi.Negative ∨
+                  Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)))) :=
   ⟨decides
-    (fun raw => by
-      show (Host.WorldConfig.admit raw).isOk = true ↔ _
-      unfold Host.WorldConfig.admit
-      by_cases side : 0 < raw.side.val <;> by_cases day : 0 < raw.dayLength.toNat <;>
-        simp [side, day, Except.isOk, Except.toBool])
-    ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩
-    ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩⟩
+    (fun raw => world_config_admit_iff raw)
+    ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+      (world_config_admit_iff _).mp (by decide)⟩
+    ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+      fun h => absurd ((world_config_admit_iff _).mpr h) (by decide)⟩⟩
 
 /-- Registers `Host.WorldConfig.admit` as a decision function. -/
 theorem Host_WorldConfig_admit_registered : Regula.RegisteredDecision @Host.WorldConfig.admit := ⟨⟩
@@ -8209,17 +8447,6 @@ theorem ansi_tick_accepts : Regula.ExecutableContract @Host.AnsiState.tick (fun 
     simp only [Host.AgentCallbacks.act, waiting, stepped, Except.mapError, bind, Except.bind]
     rfl⟩
 
-/-- An initial world starts at time zero with no goal, full energy, facing north, no food and
-no harvest (`Host.World.initial_fields`).
-
-The statement keeps no kind. Initialization refuses where the spawn search or the placement of
-the deer refuses, and that the spawn search returns a spawn for every seed is not proved
-(`docs/design.md`, "What the world guarantees").
-`AcornVerif.Decisions.world_initial_accepts` states an accepted input: the configuration
-`AcornVerif.Decisions.oneTile`, of one tile, with no deer and the noise scale one.
-
-**Not claimed:** which other configurations initialize, or the spawn and the deer of an initial
-world. -/
 theorem world_initial : Regula.ExecutableContract Host.World.initial (fun initial =>
     ∀ (config : Host.WorldConfig) (world : Host.World config), initial config = .ok world →
       world.time = 0 ∧ world.goal = none ∧ world.goalStart = 0 ∧
@@ -8227,18 +8454,6 @@ theorem world_initial : Regula.ExecutableContract Host.World.initial (fun initia
         world.body.facing = .north ∧ world.food.entries = #[] ∧ world.harvested.size = 0) :=
   ⟨fun config world initialized => Host.World.initial_fields config world initialized⟩
 
-/-- An observation carries the world's task relation, the input of the reward predicate
-(`Host.World.observe_task`).
-
-The statement keeps no kind. The observation refuses a window tile whose coordinates leave the
-signed range, and wherever `Host.World.tileKind` refuses a tile of the window: where the value
-noise of the tile has no lattice successor at an octave of the noise scale
-(`AcornVerif.CurrentTerrain.tileKind_isOk`). `Host.WorldConfig.admit` does not bound the noise
-scale. No theorem composes these refusals into the set of worlds that the observation refuses.
-`AcornVerif.Decisions.world_observe_accepts` states an accepted input: the world of the attempt
-`fresh`.
-
-**Not claimed:** which worlds observe without a refusal, or the tiles of an observation. -/
 theorem world_observe : Regula.ExecutableContract @Host.World.observe (fun observe =>
     ∀ {config} (world : Host.World config) (observation : Host.Observation),
       observe world = .ok observation → observation.task = world.taskObservation) :=

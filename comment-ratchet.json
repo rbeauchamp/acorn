@@ -582,7 +582,7 @@
     "fdbcaafdf7833996",
     "fecb739fc96742ad"
   ]},
-  {"file": "lean/Acorn/Decisions.lean", "comments": 888, "lines": 2581, "fingerprints": [
+  {"file": "lean/Acorn/Decisions.lean", "comments": 885, "lines": 2557, "fingerprints": [
     "0027143ca071b22f",
     "009d2a4de9ca7984",
     "0107cad7feb24b81",
@@ -890,7 +890,6 @@
     "5346555b722e0198",
     "53af55aa44335c3f",
     "53af55aa44335c3f",
-    "5435d2545170ca08",
     "544a4a454224d52d",
     "5474a29630f250ce",
     "55162b9d940752b2",
@@ -1138,7 +1137,6 @@
     "940a425150314ad6",
     "94a53f9dc5f9d3e7",
     "9514792a16e9e673",
-    "960de1f0b491eda3",
     "974a11ba202b9167",
     "975eaaea175ffd26",
     "980eb159b63ecff9",
@@ -1319,7 +1317,6 @@
     "cc231e81f6294044",
     "cc3e6bae262dd0d9",
     "cc55e1c9414bbdc7",
-    "cd2aab1953c59dbf",
     "cd8d9a38ad694613",
     "cdefb049b7609858",
     "cdf1122071378627",
@@ -4005,7 +4002,7 @@
     "cbf3f392812dedf0",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/Acorn/Host/Geometry.lean", "comments": 42, "lines": 56, "fingerprints": [
+  {"file": "lean/Acorn/Host/Geometry.lean", "comments": 41, "lines": 54, "fingerprints": [
     "02aafbbbef7c12df",
     "07dbae5372207e72",
     "1ca4985d3dfe6a12",
@@ -4019,7 +4016,6 @@
     "40d2dd4a5f39f588",
     "47762c0989bd55eb",
     "4b80c743c7bdad8b",
-    "5dc33362fb6791e9",
     "69d665b0d9aa8a40",
     "6dda42e431ad5902",
     "79a5748e0011532a",
@@ -5051,11 +5047,9 @@
     "870ea553926cb1b8",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/Acorn/Host/Terrain.lean", "comments": 51, "lines": 71, "fingerprints": [
-    "02dd4bc2bd73f1af",
+  {"file": "lean/Acorn/Host/Terrain.lean", "comments": 46, "lines": 66, "fingerprints": [
     "0575df2eec608017",
     "0c2b1a1562cc2992",
-    "10584dc296127c59",
     "1430b2c523d09b8d",
     "2a9699d341a92d2c",
     "2cb57e1a21f482a2",
@@ -5064,7 +5058,6 @@
     "3c82f0d6af1f06bb",
     "3da530135f20515c",
     "3f4ac5f5cba8cbc6",
-    "42eba6e938ef6b9f",
     "441f2f550a86ef22",
     "4cb0a6ef7ee76a6d",
     "535572d8130f0778",
@@ -5089,14 +5082,12 @@
     "bea4e6f8a6656898",
     "bff55cec7efd9373",
     "c17fe55b5b06f6a2",
-    "c1d1b6216ae410c4",
     "cadb9a2454b5c680",
     "ce7b09ced2641eae",
     "d25dda33e20b8772",
     "d7e2f3c5ecc97fc9",
     "d961ce720ad6f1bb",
     "d9b024e3a5524133",
-    "e3514dcde426717f",
     "f4df0bde977d5f2c",
     "f6b4d669becc3783",
     "f83b0c546ea7caa5",
@@ -12823,7 +12814,7 @@
     "fb55d4c3ebec87df",
     "ff1776b7d77cbcfa"
   ]},
-  {"file": "lean/AcornVerif/Decisions.lean", "comments": 251, "lines": 1028, "fingerprints": [
+  {"file": "lean/AcornVerif/Decisions.lean", "comments": 249, "lines": 1014, "fingerprints": [
     "0027d4e7a765f143",
     "013bf857d1b00fbe",
     "02e579bc1b855d5b",
@@ -12850,10 +12841,8 @@
     "21ef55faca79883c",
     "2282ecfcaa43b5eb",
     "23a967a08475c98f",
-    "23bd55c2d610701c",
     "2675e0b25820e235",
     "2840eb6ef6a1cc2d",
-    "28d1066d18d14133",
     "2b181bf7b8478f2a",
     "2b2802dbb09a42d4",
     "2bc562d9a91db21e",
