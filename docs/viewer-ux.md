@@ -429,14 +429,17 @@ Rules that apply to every number, label and colour on the page.
   non-finite frames are counted and reported with their remedy, in the top
   bar, drawn before the render loop looks for a frame, because the condition
   that most needs reporting is the one where every frame is refused and the
-  ring stays empty. A frame is refused whole, never partly absorbed, and
-  counted by the reason it was refused — a closed set with one remedy each,
-  naming the wire keys involved:
-  - `schema_version` not this page's, or a count or array length that
-    disagrees with the page's constants → `⚠ stream shape mismatch — rebuild
-    the core and viewer from one tree`; the page is embedded in the viewer binary,
-    so the two were built from different trees, and the hover text carries the
-    expected shape and the rebuild commands (`./scripts/lean.sh build acorn-core acorn-viewer`,
+  ring stays empty. A frame is refused whole at the first failing check, never
+  partly absorbed, and counted by that check's refusal reason — a closed set
+  with one remedy each, naming the wire keys involved (so an earlier missing key
+  takes precedence over a later `schema_version` or constant mismatch):
+  - `schema_version` not this page's, a fixed protocol constant
+    (`agreement_version` `1`, `agreement_scale` `1000000`) or count mismatch, or
+    an array length that disagrees with the page's constants → `⚠ stream shape
+    mismatch — rebuild the core and viewer from one tree`; the page is embedded
+    in the viewer binary, so a wire-shape disagreement can indicate the two were
+    built from different trees, and the hover text carries the expected shape
+    and the rebuild commands (`./scripts/lean.sh build acorn-core acorn-viewer`,
     or `./scripts/start.sh --prepare-only` when pinned dependencies also need
     provisioning without starting a run);
   - a required key the core does not emit → `⚠ stream shape mismatch — the
