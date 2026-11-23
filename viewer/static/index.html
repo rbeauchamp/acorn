@@ -2731,9 +2731,10 @@ function drawStreamHealth() {
   }
   const skew = refused[Reject.schema].frames + refused[Reject.cardinality].frames;
   if (skew) {
-    // The page's schema number and shape constants are compiled into the
-    // viewer binary, so a disagreement means the two halves were built from
-    // different trees. Only these two reasons can say so.
+    // The page's schema number, fixed protocol constants and shape constants
+    // are compiled into the viewer binary, so a disagreement can indicate the
+    // two halves were built from different trees. Only these two reasons offer
+    // the rebuild remedy.
     const keys = refused[Reject.schema].keys.concat(refused[Reject.cardinality].keys);
     notes.push(`⚠ stream shape mismatch — rebuild the core and viewer from one tree`);
     why.push(`${frames(skew)} refused at ${keyList(keys)}: this page expects schema ${SCHEMA}, ` +
