@@ -1,42 +1,19 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Handcrafted.PredictionControl
 import AcornVerif.CurrentBackupBounds
 import AcornVerif.CurrentFeatureConsumers
 import AcornVerif.CurrentPrediction
 
-/-!
-# Contracts of the executing prediction/control composition
-
-These theorems reuse the actual numeric learner and its admitted schedule.
-Off-policy credit (Precup, Sutton & Singh, ICML (2000), §4, Algorithm 2) and
-stopping credit pass raw words to the same learner entries.
-The action update is Javed & Sutton, *Swift-Sarsa*, arXiv:2507.19539v1 (2025),
-Algorithm 1 / equation (4), with the PAR-2 meta-gradient adaptation owned by
-`MetaGradient`. Each theorem identifies its machine-word or ideal-real domain.
-
-The last section characterizes the greedy draw's near-maximum candidates over the executed
-binary32 words: a gap above the tie window leaves one action, and zero weights outside an anchor
-set leave the anchor's candidates.
--/
 namespace AcornVerif.CurrentControl
 open Acorn Acorn.Features AcornVerif.CurrentFeatureConsumers AcornVerif.CurrentLearner
 
 variable {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
 
-/-- Every live controller row carries the actual learner's support, pruning
-reference, unique-eligibility and readiness invariants. -/
 theorem controller_schedule (controller : Controller config dimension actions)
     (action : Action actions) :
     ScheduleInv (controller.learners.get action).state
       (controller.learners.get action).phase :=
   managed_schedule (controller.learners.get action)
 
-/-- Complete shared-error execution preserves stored weight/beta legality and
-eligibility capacity, for arbitrary raw reward, bootstrap and decay words. -/
 theorem values_step_legal (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 actions)
     (action observed : Action actions) (reward bootstrap decay : Binary32)
@@ -49,9 +26,6 @@ theorem values_step_legal (controller : Controller config dimension actions)
   dsimp only
   exact ⟨weight_legal _, (by exact Bounded32.legal _), managed_capacity _⟩
 
-/-- The shared-error kernel preserves stored weight/beta legality and eligibility
-capacity for arbitrary raw lag, error and decay words; tree-backup credit and the
-zero-error start of an off-policy trajectory are instances. -/
 theorem credit_step_legal (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action observed : Action actions)
     (lag delta decay : Binary32) (index : FeatIdx dimension) :
@@ -63,7 +37,6 @@ theorem credit_step_legal (controller : Controller config dimension actions)
   dsimp only
   exact ⟨weight_legal _, (by exact Bounded32.legal _), managed_capacity _⟩
 
-/-- Stopping credit preserves the same stored legality and eligibility capacity. -/
 theorem stop_step_legal (controller : Controller config dimension actions)
     (delta : Binary32) (observed : Action actions) (index : FeatIdx dimension) :
     let learner := (controller.stopStep delta).learners.get observed
@@ -73,9 +46,6 @@ theorem stop_step_legal (controller : Controller config dimension actions)
   dsimp only
   exact ⟨weight_legal _, (by exact Bounded32.legal _), managed_capacity _⟩
 
-/-- At zero trace decay a visited finite trace is pruned, for every managed learner
-and every error and accumulator word, so the release after stopping credit has
-nothing left to visit when the eligible traces are finite. -/
 theorem stop_prunes (learner : Managed config dimension) (idx : FeatIdx dimension)
     (delta vDelta : Binary32) (finite : (learner.state.transient.z.get idx).value.Finite) :
     (learner.state.firstLoopElement idx delta vDelta .zero).2 = true := by
@@ -91,19 +61,12 @@ theorem stop_prunes (learner : Managed config dimension) (idx : FeatIdx dimensio
     rw [trace, zero] at kept
     contradiction
 
-/-- Work bound at a stop: stopping credit leaves every action learner nothing
-eligible, for every state and every trace word, because its last entry releases
-the list structurally. The start that follows a stop therefore visits no earlier
-trace. -/
 theorem stop_step_empty (controller : Controller config dimension actions) (delta : Binary32)
     (action : Action actions) :
     ((controller.stopStep delta).learners.get action).state.eligibleCount = 0 := by
   simp only [Controller.stopStep_eq, vector_get, Vector.getElem_map]
   rfl
 
-/-- A closed span leaves every action learner nothing eligible, and the first loop of
-whatever credit comes next is the identity on it, for every error, accumulator and decay
-word: no reward delivered after the close reaches an action credited before it. -/
 theorem close_step_idle (controller : Controller config dimension actions)
     (reward continuation : Binary32) (duration : UInt32) (action : Action actions)
     (delta vDelta decay : Binary32) :
@@ -117,9 +80,6 @@ theorem close_step_idle (controller : Controller config dimension actions)
   simp only [Controller.stopStep_eq, vector_get, Vector.getElem_map]
   exact release_idle _ delta vDelta decay
 
-/-- A release leaves every action learner nothing eligible and with its weights,
-so the first loops of the start that follows read no trace and credit no earlier
-transition (`release_idle`). -/
 theorem release_rows (controller : Controller config dimension actions) (action : Action actions)
     (idx : FeatIdx dimension) :
     (controller.release.learners.get action).state.eligibleCount = 0 ∧
@@ -128,7 +88,6 @@ theorem release_rows (controller : Controller config dimension actions) (action 
   simp only [Controller.release_def, vector_get, Vector.getElem_map]
   exact ⟨rfl, (release_knowledge _ idx).1⟩
 
-/-- The selected row executes first-loop credit then precisely one second loop. -/
 theorem selected_row (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 actions)
     (action : Action actions) (reward bootstrap decay : Binary32) :
@@ -140,7 +99,6 @@ theorem selected_row (controller : Controller config dimension actions)
           config features .zero).1 := by
   simp [Controller.valuesStep_def, Controller.creditStep_eq, Vector.get, Fin.cast]
 
-/-- Every unselected row receives the same first-loop error, without a second loop. -/
 theorem unselected_row (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (values : Vector Binary32 actions)
     (action other : Action actions) (different : other ≠ action)
@@ -153,7 +111,6 @@ theorem unselected_row (controller : Controller config dimension actions)
   have indices : other.val ≠ action.val := fun h => different (Fin.ext h)
   simp [Controller.valuesStep_def, Controller.creditStep_eq, Vector.get, Fin.cast, Ne.symm indices]
 
-/-- Terminal closeout clears all trajectory registers in every action row. -/
 theorem terminal_clears (controller : Controller config dimension actions)
     (reward : Binary32)
     (action : Action actions) :
@@ -162,8 +119,6 @@ theorem terminal_clears (controller : Controller config dimension actions)
   simp [Controller.terminal_eq, Controller.clear_def, Vector.get, Managed.apply_state,
     SwiftTd.Entry.apply_def, NumericState.clearTransient_def]
 
-/-- Controller observations are finite because they sum the actual refined weights,
-not because the output is clamped or a separately written prediction model is assumed. -/
 theorem prediction_finite (controller : Controller config dimension actions)
     (features : SwiftTd.ActiveSet dimension) (action : Action actions) :
     ((controller.predictAll features).get action).Finite := by
@@ -172,8 +127,6 @@ theorem prediction_finite (controller : Controller config dimension actions)
   simpa [Controller.predictAll_def, Vector.get, NumericState.linearPrediction_eq_sumFrom,
     List.map_map, Fin.cast, Function.comp_def] using result.1
 
-/-- An actual greedy draw returns a threshold candidate whenever one exists;
-otherwise its exact raw-domain behavior is the first-action fallback. -/
 theorem greedy_support {count : Word.Count} (snapshot : PolicySnapshot count)
     (rng : Rng.Xoshiro256) :
     if snapshot.candidates = [] then (snapshot.greedy rng).1 = firstAction count
@@ -184,8 +137,6 @@ theorem greedy_support {count : Word.Count} (snapshot : PolicySnapshot count)
     simpa [PolicySnapshot.greedy_def, h] using
       reservoir_nonempty action rest (firstAction count) rng
 
-/-- Every finite sequence of actual local control transitions retains the receiver's
-same configuration, legal knowledge and resource scheduling; no replay is stored. -/
 theorem finite_prefix_schedule (initial : Controller config dimension actions)
     (inputs : List (SwiftTd.ActiveSet dimension × Action actions × Binary32))
     (action : Action actions) :
@@ -194,42 +145,26 @@ theorem finite_prefix_schedule (initial : Controller config dimension actions)
     ScheduleInv (final.learners.get action).state (final.learners.get action).phase := by
   exact controller_schedule _ action
 
-/-- Every actual bank transition preserves the current learner's resource bound
-at every heterogeneous reader, independently of its signal discount. -/
 theorem demon_step_capacity {discounts : List Discount} (bank : DemonBank dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (rewards : Cumulants discounts)
     (reader : PackedLearner dimension)
     (_member : reader ∈ (bank.step features rewards).bank.readers) :
     reader.2.state.eligibleCount ≤ dimension.capacity := managed_capacity reader.2
 
-/-! ## A bias on a few slots and the greedy choice
-
-The greedy draw keeps the actions whose frozen value is within the tie window of the ordered
-maximum (`PolicySnapshot.candidates`). The theorems below characterize that list over the executed
-binary32 words, NaN, signed zeros and rounding included. A finite value more than the window above
-every other is the one candidate (`candidates_of_gap`). Weights that are zero words on the active
-slots outside an anchor set leave the anchor's candidates (`candidates_of_resting`). Among finite
-values the ordered maximum is one of them and no value is above it (`best_bounds`), so the greedy
-draw returns a candidate (`greedy_candidate`). Each takes the values or weights as a hypothesis
-and says nothing about whether a run reaches them. -/
-
 section Bias
 open Float.Model (Format UnpackedFloat)
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder AcornVerif.CurrentOperations
   AcornVerif.CurrentBackupBounds
 
-/-- The magnitude field is the stored word modulo `2^31`, the word without its sign bit. -/
 theorem magnitude_mod (word : Binary32) : word.magnitude = word.bits.toNat % 2 ^ 31 := by
   unfold Binary32.magnitude
   rw [UInt32.toNat_and]
   exact Nat.and_two_pow_sub_one_eq_mod _ 31
 
-/-- A finite word is not a NaN. -/
 theorem finite_not_isNaN {word : Binary32} (finite : word.Finite) : ¬word.IsNaN := by
   rw [← Binary32.isNaN_iff, Binary32.finite_not_nan word finite]
   decide
 
-/-- A zero word is positive or negative zero. -/
 theorem zero_cases (word : Binary32) (zero : word.isZero = true) :
     word = ⟨0⟩ ∨ word = ⟨0x80000000⟩ := by
   have key := zero_key word zero
@@ -245,11 +180,9 @@ theorem zero_cases (word : Binary32) (zero : word.isZero = true) :
   · exact Or.inl (congrArg Binary32.mk (UInt32.toNat_inj.mp low))
   · exact Or.inr (congrArg Binary32.mk (UInt32.toNat_inj.mp high))
 
-/-- A zero word is finite. -/
 theorem zero_finite (word : Binary32) (zero : word.isZero = true) : word.Finite := by
   rcases zero_cases word zero with rfl | rfl <;> decide
 
-/-- Two words with one key are one word, or both zero words. -/
 theorem key_inj (left right : Binary32) (same : left.key = right.key) :
     left = right ∨ (left.isZero = true ∧ right.isZero = true) := by
   by_cases zero : left.key = 0
@@ -271,14 +204,11 @@ theorem key_inj (left right : Binary32) (same : left.key = right.key) :
       split_ifs at same zero <;> omega
     exact congrArg Binary32.mk (UInt32.toNat_inj.mp equal)
 
-/-- Both zero words less the tie window give one word, by a closed computation. -/
 theorem zero_sub_tie (left right : Binary32) (lz : left.isZero = true)
     (rz : right.isZero = true) : left.sub tieWindow = right.sub tieWindow := by
   rcases zero_cases left lz with rfl | rfl <;> rcases zero_cases right rz with rfl | rfl <;>
     decide +kernel
 
-/-- A normalized model value below `2^128` in magnitude passes the packing guard, so it packs to a
-finite binary32 word. -/
 theorem fits_of_abs_lt (value : UnpackedFloat) (normal : ModelNormalized Format.binary32 value)
     (bound : |unpackedValue value| < (2 : ℚ) ^ (128 : Int)) :
     ModelFits Format.binary32 value := by
@@ -312,12 +242,10 @@ theorem fits_of_abs_lt (value : UnpackedFloat) (normal : ModelNormalized Format.
     change (exponent + (127 : Nat) + (23 : Nat)).toNat + 1 < 2 ^ 8
     omega
 
-/-- The tie window's exact value, `8796093 · 2^(-43)`, a little below `10^(-6)`. -/
 theorem tie_value : numerical32 tieWindow = 8796093 * (2 : ℚ) ^ (-43 : Int) := by
   change (1 : ℚ) * 8796093 * (2 : ℚ) ^ (-43 : Int) = _
   ring
 
-/-- Every finite word's value is at most the largest finite value, `(2^24 - 1) · 2^104`. -/
 theorem below_highest (word : Binary32) (finite : word.Finite) :
     numerical32 word ≤ 16777215 * (2 : ℚ) ^ (104 : Int) := by
   have value : numerical32 (⟨0x7f7fffff⟩ : Binary32) = 16777215 * (2 : ℚ) ^ (104 : Int) := by
@@ -329,8 +257,6 @@ theorem below_highest (word : Binary32) (finite : word.Finite) :
   unfold Binary32.Finite at finite
   split <;> omega
 
-/-- Every finite word other than the most negative one has value at least `-(2^24 - 2) · 2^104`,
-the next finite value above the most negative. -/
 theorem above_lowest (word : Binary32) (finite : word.Finite) (other : word ≠ ⟨0xff7fffff⟩) :
     -16777214 * (2 : ℚ) ^ (104 : Int) ≤ numerical32 word := by
   have value : numerical32 (⟨0xff7ffffe⟩ : Binary32) = -16777214 * (2 : ℚ) ^ (104 : Int) := by
@@ -350,9 +276,6 @@ theorem above_lowest (word : Binary32) (finite : word.Finite) (other : word ≠ 
     other (congrArg Binary32.mk (UInt32.toNat_inj.mp same))
   split_ifs <;> omega
 
-/-- Subtracting the tie window from a finite word gives a word that is not a NaN and has a key at
-most the word's own. The difference is rounded once, never above the word and never past the
-finite range; the most negative finite word is the one case a closed computation settles. -/
 theorem sub_tie_le (word : Binary32) (finite : word.Finite) :
     ¬(word.sub tieWindow).IsNaN ∧ (word.sub tieWindow).key ≤ word.key := by
   by_cases lowest : word = ⟨0xff7fffff⟩
@@ -415,22 +338,17 @@ theorem sub_tie_le (word : Binary32) (finite : word.Finite) :
   rw [decoded]
   exact upper
 
-/-- No word is strictly below itself. -/
 theorem less_irrefl (word : Binary32) : ¬word.Less word := fun less => lt_irrefl _ less.2.2
 
-/-- Strict order of words is asymmetric. -/
 theorem less_asymm {left right : Binary32} (less : left.Less right) : ¬right.Less left :=
   fun back => lt_asymm less.2.2 back.2.2
 
-/-- Every member of a vector's list is one of its entries. -/
 theorem vector_member {α : Type} {size : Nat} (items : Vector α size) (item : α)
     (member : item ∈ items.toList) : ∃ index : Fin size, item = items.get index := by
   obtain ⟨index, bound, same⟩ := List.mem_iff_getElem.mp member
   have small : index < size := by simpa using bound
   exact ⟨⟨index, small⟩, by simp [vector_get, ← same]⟩
 
-/-- The ordered maximum's fold ends at `top` when it starts at `top`, or below `top` with `top`
-still to read, and every value it reads is `top` or below it. -/
 theorem fold_top (top : Binary32) :
     ∀ (rest : List Binary32) (start : Binary32), (start = top ∨ (start.Less top ∧ top ∈ rest)) →
       (∀ value ∈ rest, value = top ∨ value.Less top) →
@@ -463,7 +381,6 @@ theorem fold_top (top : Binary32) :
         · exact ⟨below, later⟩
         · exact ⟨less, later⟩
 
-/-- The actions filtered by a test that admits exactly `winner` are `[winner]`. -/
 theorem filter_single {size : Nat} (winner : Fin size) (keep : Fin size → Bool)
     (exact : ∀ action, keep action = true ↔ action = winner) :
     (List.finRange size).filter keep = [winner] := by
@@ -485,8 +402,6 @@ theorem filter_single {size : Nat} (winner : Fin size) (keep : Fin size → Bool
       subst next
       simp at distinct
 
-/-- A finite value more than the tie window above every other is the one candidate, and the greedy
-draw returns it whatever the generator. -/
 theorem candidates_of_gap {count : Word.Count} (snapshot : PolicySnapshot count)
     (winner : Action count.word.toNat) (finite : (snapshot.values.get winner).Finite)
     (gap : ∀ action, action ≠ winner →
@@ -535,14 +450,12 @@ theorem candidates_of_gap {count : Word.Count} (snapshot : PolicySnapshot count)
   rw [candidates] at support
   simpa using support
 
-/-- A zero word decodes to a zero of some sign. -/
 theorem zero_decoded (word : Binary32) (zero : word.isZero = true) :
     ∃ sign, decoded32 word = .zero sign := by
   rcases zero_cases word zero with rfl | rfl
   · exact ⟨_, rfl⟩
   · exact ⟨_, rfl⟩
 
-/-- A zero word plus a finite word has the finite word's value, for either zero sign. -/
 theorem zero_add_same (zero word : Binary32) (zeroWord : zero.isZero = true)
     (finite : word.Finite) : numerical32 (zero.add word) = numerical32 word := by
   have zf := zero_finite zero zeroWord
@@ -568,7 +481,6 @@ theorem zero_add_same (zero word : Binary32) (zeroWord : zero.isZero = true)
   | zero other => cases sign <;> cases other <;> rfl
   | _ => cases sign <;> rfl
 
-/-- A finite word plus a zero word keeps its value, for either zero sign. -/
 theorem add_zero_same (word zero : Binary32) (finite : word.Finite)
     (zeroWord : zero.isZero = true) : numerical32 (word.add zero) = numerical32 word := by
   have zf := zero_finite zero zeroWord
@@ -594,8 +506,6 @@ theorem add_zero_same (word zero : Binary32) (finite : word.Finite)
   | zero other => cases sign <;> cases other <;> rfl
   | _ => cases sign <;> rfl
 
-/-- Adding finite words of one value to finite words of one value gives one value: each pair is
-one word, or two zero words, and a zero word of either sign adds like the other. -/
 theorem add_same_values (left right first second : Binary32) (lf : left.Finite)
     (rf : right.Finite) (ff : first.Finite) (sf : second.Finite)
     (same : numerical32 left = numerical32 right)
@@ -614,16 +524,11 @@ theorem add_same_values (left right first second : Binary32) (lf : left.Finite)
   · rw [add_zero_same left first lf fz, add_zero_same right second rf sz]
     exact same
 
-/-- Adding one finite word to two finite words of one value gives one value. -/
 theorem add_same_value (left right term : Binary32) (lf : left.Finite) (rf : right.Finite)
     (tf : term.Finite) (same : numerical32 left = numerical32 right) :
     numerical32 (left.add term) = numerical32 (right.add term) :=
   add_same_values left right term term lf rf tf tf same rfl
 
-/-- Where the weights outside `keep` are zero words, the ordered sum of the weights has the value
-of the ordered sum of the kept weights. Every partial sum of legal weights is finite
-(`CurrentPrediction.legal_weight_sum_bound`), so each step adds one word to two finite words of one
-value, or a zero word to one of them. -/
 theorem resting_sum {rule : ValueRule} {dimension : Dimension}
     (weight : FeatIdx dimension → Weight rule) (keep : FeatIdx dimension → Bool)
     (slots : List (FeatIdx dimension))
@@ -654,8 +559,6 @@ theorem resting_sum {rule : ValueRule} {dimension : Dimension}
       exact (add_zero_same _ _ (finiteOf slots)
         (rest slot (List.mem_append_right _ List.mem_cons_self) kept)).trans previous
 
-/-- Where a row's weights on the active slots outside `anchor` are zero words, its prediction on
-the frame has the value of its prediction on `anchor`. -/
 theorem resting_row {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (features anchor : SwiftTd.ActiveSet dimension)
     (order : anchor.indices = features.indices.filter (fun slot => decide (slot ∈ anchor.indices)))
@@ -667,8 +570,6 @@ theorem resting_row {config : Acorn.Config} {dimension : Dimension}
   exact resting_sum (fun slot => learner.state.weights.get slot) _ _ fun slot member out =>
     rest slot member (by simpa using out)
 
-/-- The ordered maximum's folds over pointwise related finite words end at related words: both
-finite, with one key. -/
 theorem fold_related :
     ∀ (lefts rights : List Binary32),
       List.Forall₂ (fun left right => left.Finite ∧ right.Finite ∧ left.key = right.key)
@@ -696,8 +597,6 @@ theorem fold_related :
     · rw [ite_eq_right less, ite_eq_right (fun more => less (decision.mpr more))]
       exact ⟨lf, rf, key⟩
 
-/-- Snapshots whose values are pointwise finite with one key have one candidate list: the two
-maxima are one word or both zero words, so the two thresholds are one word. -/
 theorem candidates_related {count : Word.Count} (left right : PolicySnapshot count)
     (pair : ∀ action, (left.values.get action).Finite ∧ (right.values.get action).Finite ∧
       (left.values.get action).key = (right.values.get action).key) :
@@ -724,8 +623,6 @@ theorem candidates_related {count : Word.Count} (left right : PolicySnapshot cou
   simp only [Binary32.LessOrEqual, finite_not_isNaN lf, finite_not_isNaN rf, key,
     not_false_eq_true, true_and]
 
-/-- Where every row's weights on the active slots outside `anchor` are zero words, the frame has
-the near-maximum candidates of `anchor` alone. -/
 theorem candidates_of_resting {count : Word.Count} {config : Acorn.Config} {dimension : Dimension}
     (controller : Controller config dimension count.word.toNat)
     (features anchor : SwiftTd.ActiveSet dimension)
@@ -752,8 +649,6 @@ theorem candidates_of_resting {count : Word.Count} {config : Acorn.Config} {dime
   · exact (numerical32_order _ _ lf rf).mp same.le
   · exact (numerical32_order _ _ rf lf).mp same.ge
 
-/-- The ordered maximum's fold over finite words ends at its start or at a word it read, and at a
-key no lower than the start's and every read word's. -/
 theorem fold_max :
     ∀ (rest : List Binary32) (start : Binary32), start.Finite → (∀ value ∈ rest, value.Finite) →
       (rest.foldl (fun best value => if best.Less value then value else best) start = start ∨
@@ -791,7 +686,6 @@ theorem fold_max :
       · exact le_trans below low
       · exact high other later
 
-/-- The ordered maximum of finite values is one of them, and no value's key is above its key. -/
 theorem best_bounds {count : Word.Count} (snapshot : PolicySnapshot count)
     (finite : ∀ action, (snapshot.values.get action).Finite) :
     (∃ action, snapshot.best = snapshot.values.get action) ∧
@@ -816,8 +710,6 @@ theorem best_bounds {count : Word.Count} (snapshot : PolicySnapshot count)
       congr 1
       omega
 
-/-- The greedy draw from a policy of finite values returns a near-maximum candidate: the action
-of the ordered maximum is one, so the list is not empty. -/
 theorem greedy_candidate {count : Word.Count} (snapshot : PolicySnapshot count)
     (finite : ∀ action, (snapshot.values.get action).Finite) (rng : Rng.Xoshiro256) :
     (snapshot.greedy rng).1 ∈ snapshot.candidates := by
