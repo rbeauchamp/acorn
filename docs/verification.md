@@ -1516,38 +1516,59 @@ as well; for no state file, or a file of the current version that says stopped, 
 after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
 turn of the actor. The viewer says nothing of this kind when the start state is running.
 
-Browser Stop persistence closes that crash window. In the control endpoint
+The explicit-start statement above starts from a durable state that intends to stay stopped;
+browser Stop persistence closes the crash window between acknowledging a browser Stop and
+writing `desired = .stopped` to `state.json`. In the control endpoint
 (`lean/Acorn/Host/Viewer/HttpServer.lean`) and supervisor actor
-(`lean/Acorn/Host/Viewer/Supervisor.lean`), a `stop` request waits until the
-state-file write completes rather than replying on queue admission alone.
+(`lean/Acorn/Host/Viewer/Supervisor.lean`), `Acorn.Host.Viewer.Supervisor.submitControl`
+holds an admitted `stop` request behind a promise until the supervisor actor completes the
+state-file write rather than replying on queue admission alone (and
+`Acorn.Host.Viewer.Supervisor.submit` refuses `.stop` so callers cannot bypass durable
+dispatch). For the pure supervisor step,
 `Acorn.Host.Viewer.Core.step_no_ackStop` shows no step emits
 `Acorn.Host.Viewer.Follow.ackStop`; `Acorn.Host.Viewer.Core.resolve_ackStop_spec`
 and `Acorn.Host.Viewer.Core.resume_ackStop_spec` establish that
 `Acorn.Host.Viewer.Follow.ackStop` is emitted only upon a successful write
 whose written `Acorn.Host.Viewer.PersistedState` has `desired = .stopped`,
 and `Acorn.Host.Viewer.Core.resume_error_no_ackStop` ensures every
-write-error outcome omits `Acorn.Host.Viewer.Follow.ackStop` and answers
-instead via `Acorn.Host.Viewer.Follow.refuseStop` (`HTTP 503`).
-`Acorn.Host.Viewer.Core.stop_acknowledges_or_refuses` covers accepting
-`.command .stop` when idle and open through its write resolution. Under an
-interleaving state machine over disk updates and crashes between any two steps
-(`Acorn.Host.Viewer.CrashState`, `Acorn.Host.Viewer.CrashStep`,
+write-error outcome omits `Acorn.Host.Viewer.Follow.ackStop`.
+`Acorn.Host.Viewer.Core.stop_acknowledges_or_refuses` covers every supervisor state
+(idle or busy, open or closing/closed, current or retired owner, with or without a waiting
+replacement): stepping `.command .stop` either refuses immediately via
+`Acorn.Host.Viewer.Follow.refuseStop` without emitting
+`Acorn.Host.Viewer.Follow.ackStop`, or schedules a `.writeState` of a stopped
+`Acorn.Host.Viewer.PersistedState` (without acknowledging on the step) whose resolution
+emits `Acorn.Host.Viewer.Follow.ackStop` on write success and
+`Acorn.Host.Viewer.Follow.refuseStop` without `Acorn.Host.Viewer.Follow.ackStop`
+on write error. Under an interleaving state machine over disk updates, crashes between any two
+steps, and reboots (including optional startup state write-back and arbitrary Clear
+configurations) (`Acorn.Host.Viewer.CrashState`, `Acorn.Host.Viewer.CrashStep`,
 `Acorn.Host.Viewer.CrashReached`, `Acorn.Host.Viewer.CrashState.Invariant`,
 `Acorn.Host.Viewer.CrashReached.invariant`),
 `Acorn.Host.Viewer.PersistedState.encode_decode_stopped`,
 `Acorn.Host.Viewer.CrashReached.crashed_disk_stopped` and
 `Acorn.Host.Viewer.CrashReached.startup_cannot_resume_running` prove that
 once `Acorn.Host.Viewer.Follow.ackStop` has been observed with no later
-Start admitted while open, a crash at any point leaves the on-disk state
-stopped (or absent mid-Clear archive), so rebooting via
-`Acorn.Host.Viewer.DiskState.BootState` yields a `stopped` loaded state
-that never resumes running without a later explicit Start, while
-`Acorn.Host.Viewer.CrashReached.stop_never_acked_on_write_error` records
-write refusal without acknowledgement and
-`Acorn.Host.Viewer.exists_stop_crash_restart_witness` witnesses an end-to-end
-`running -> stop -> write -> ack -> crash -> reboot` trace; atomicity of the
-host temporary-file rename and directory sync remains an assumption at the POSIX
-IO boundary. Nor does the theorem say who may
+Start admitted by an idle, open supervisor, a crash at any point leaves the on-disk state
+stopped (or absent mid-Clear archive), so whenever a reboot loads the state via
+`Acorn.Host.Viewer.DiskState.BootState` (covering both missing-file startup and any
+successful parse and decode), the loaded state has `desired = .stopped` and never resumes
+running without a later explicit Start, while
+`Acorn.Host.Viewer.CrashReached.stop_never_acked_on_write_error` proves that a failed
+write step leaves `ackedStop` and the on-disk state unchanged without emitting
+`Acorn.Host.Viewer.Follow.ackStop` and
+`Acorn.Host.Viewer.exists_stop_crash_restart_witness` establishes non-vacuity from every
+running persisted state through a `stop -> write -> ack -> crash -> reboot` trace.
+The boundary between these theorems and the host program is read from the code and not proved:
+`Acorn.Host.Viewer.RunDirectory.writeState` writes and flushes an exclusively created
+temporary file and renames it over `state.json`, so atomicity of POSIX rename under the run
+directory's stable-path assumption remains a trust boundary and neither the temporary file nor
+the directory is fsynced (power-loss durability is not claimed); mapping
+`Acorn.Host.Viewer.Follow.ackStop` and `Acorn.Host.Viewer.Follow.refuseStop` to
+HTTP `202` and `503` (along with queue-full, 10-second `awaitControl` timeout, and closing or
+shutdown refusals in `HttpServer.lean` and `Supervisor.lean`) and exiting without starting a
+core on a parse or schema refusal from `Acorn.Host.Viewer.RunDirectory.readState` in
+`lean/NativeApp/Viewer.lean` are likewise read from the code. Nor does the theorem say who may
 submit a Start: the viewer serves its page on the loopback interface to whoever loads it. And that
 a Start was given is a property of the program: it is separate from the owner's authorization for
 a run of a learner, which [running a program](../CONTRIBUTING.md#running-a-program) governs.
@@ -1828,8 +1849,10 @@ write is the one that marks a launch as attempted (`Acorn.Host.Viewer.Pending.la
 refusal there writes nothing and spawns nothing: the call's result is the write's error with the
 reason, which the step treats as a launch that could not be recorded, so the run stops. Every
 refusal is printed on standard error and reported in the page by the step, as the reason of the
-failed call. The actor hands the step an operator's Start only for a Start that
-`Acorn.Host.Viewer.Supervisor.submit` queued, and the bootstrap passes the state it built
+failed call. The actor hands the step an operator's Start only for a Start queued by
+`Acorn.Host.Viewer.Supervisor.submit` (the `--start` flag) or
+`Acorn.Host.Viewer.Supervisor.submitControl` (the HTTP control endpoint),
+and the bootstrap passes the state it built
 or read to `Acorn.Host.Viewer.Supervision.start`. The supervisor is constructed
 (`Acorn.Host.Viewer.Supervisor.new`) only after the bootstrap has admitted the initial
 state. A state built with no state file, or read from a file of the current version with the

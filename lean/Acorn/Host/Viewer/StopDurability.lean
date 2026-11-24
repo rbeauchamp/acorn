@@ -3530,14 +3530,15 @@ inductive CrashStep : CrashState → CrashState → Prop where
           archiveMoved := none
           archiveFailedDisk := none }
   | boot (st : CrashState) (persisted : PersistedState) (seed : UInt64) (migrated : Bool)
-      (nextChild : Option (List String)) (reason : String) (reading : Nat)
+      (nextChild : Option (List String)) (nextClearDisabled : Option String) (wroteDisk : Bool)
+      (reason : String) (reading : Nat)
       (hdead : st.live = false)
       (hboot : DiskState.BootState st.disk seed migrated nextChild persisted) :
       CrashStep st
-        { clearDisabled := st.clearDisabled
+        { clearDisabled := nextClearDisabled
           live := true
-          core := Core.start persisted st.clearDisabled reason reading
-          disk := st.disk
+          core := Core.start persisted nextClearDisabled reason reading
+          disk := if wroteDisk then .file (persisted.encode nextChild) nextChild else st.disk
           tmpWrite := none
           writeDone := none
           archiveMoved := none
@@ -3834,16 +3835,19 @@ theorem CrashStep.invariant {st next : CrashState} (inv : st.Invariant)
       (fun _ h => by cases h), (fun _ _ _ h => by cases h), ?_⟩
     intro hack hns
     exact ⟨(inv.durableStop hack hns).1, (fun h => by cases h)⟩
-  | boot persisted seed migrated nextChild reason reading hdead hboot =>
-    refine ⟨Core.ShapeInvariant.start persisted st.clearDisabled reason reading,
-      Core.ArchiveClean.start persisted st.clearDisabled reason reading,
+  | boot persisted seed migrated nextChild nextClearDisabled wroteDisk reason reading hdead hboot =>
+    refine ⟨Core.ShapeInvariant.start persisted nextClearDisabled reason reading,
+      Core.ArchiveClean.start persisted nextClearDisabled reason reading,
       (fun _ _ h => by cases h), (fun _ h => by cases h),
       (fun _ h => by cases h), (fun _ _ _ h => by cases h), ?_⟩
     intro hack hns
     have hdisk := (inv.durableStop hack hns).1
     have hpers := hboot.stopped hdisk
-    exact ⟨hdisk, fun _ => ⟨Core.start_stopGuard persisted st.clearDisabled reason reading hpers,
+    refine ⟨?_, fun _ => ⟨Core.start_stopGuard persisted nextClearDisabled reason reading hpers,
       (fun _ _ h => by cases h), (fun _ h => by cases h)⟩⟩
+    cases wroteDisk
+    · exact hdisk
+    · exact ⟨persisted, rfl, hpers⟩
 
 theorem CrashReached.invariant {origin st : CrashState} (inv : origin.Invariant)
     (reached : CrashReached origin st) : st.Invariant := by
@@ -3867,15 +3871,15 @@ theorem CrashReached.startup_cannot_resume_running {persisted : PersistedState}
     (reached : CrashReached (CrashState.initial persisted clearDisabled reason reading disk) st)
     (hacked : st.ackedStop = true) (hnoStart : st.startAfterAck = false)
     (seed : UInt64) (migrated : Bool) (nextChild : Option (List String))
-    (loaded : PersistedState)
+    (nextClearDisabled : Option String) (loaded : PersistedState)
     (hboot : DiskState.BootState st.disk seed migrated nextChild loaded)
     (bootReason : String) (bootReading : Nat) :
     loaded.desired = .stopped ∧
-      (Core.start loaded st.clearDisabled bootReason bootReading).StopGuard ∧
-      (Core.start loaded st.clearDisabled bootReason bootReading).lifecycle.Unstarted ∧
+      (Core.start loaded nextClearDisabled bootReason bootReading).StopGuard ∧
+      (Core.start loaded nextClearDisabled bootReason bootReading).lifecycle.Unstarted ∧
       (∀ events core,
-        Reached st.clearDisabled
-          (Core.start loaded st.clearDisabled bootReason bootReading) events core →
+        Reached nextClearDisabled
+          (Core.start loaded nextClearDisabled bootReason bootReading) events core →
         Event.command .start ∉ events →
         (∀ now, core.lifecycle.reserve now = none) ∧ core.lifecycle.desiredValue = .stopped ∧
           ∀ pending, core.pending = some pending →
@@ -3883,60 +3887,66 @@ theorem CrashReached.startup_cannot_resume_running {persisted : PersistedState}
               ∀ s, pending.call core.lifecycle = .writeState s → s.desired = .stopped) := by
   have hdisk := CrashReached.crashed_disk_stopped reached hacked hnoStart
   have hstopped := hboot.stopped hdisk
-  refine ⟨hstopped, Core.start_stopGuard loaded st.clearDisabled bootReason bootReading hstopped,
+  refine ⟨hstopped, Core.start_stopGuard loaded nextClearDisabled bootReason bootReading hstopped,
     ⟨hstopped, (fun h => by cases h)⟩, fun events core hreach hns =>
       Reached.stopped_spawns_nothing hstopped hreach hns⟩
 
-theorem CrashReached.stop_never_acked_on_write_error (st next : CrashState) (reading : Nat)
+theorem CrashReached.stop_never_acked_on_write_error (st : CrashState) (reading : Nat)
     (p : Pending) (reason : String) (result : (p.call st.core.lifecycle).Result)
-    (_hlive : st.live = true) (_hp : st.core.pending = some p)
-    (_hd : st.writeDone = none) (_ha : st.archiveMoved = none) (_hf : st.archiveFailedDisk = none)
-    (herr : (p.call st.core.lifecycle).IsWriteStateErr result reason)
-    (hstep : next = { st with core := (st.core.resume reading p result).core, tmpWrite := none }) :
-    next.ackedStop = st.ackedStop ∧
-      Follow.ackStop ∉ (st.core.resume reading p result).follows := by
-  refine ⟨by subst hstep; rfl, Core.resume_error_no_ackStop st.core reading p reason result herr⟩
+    (hlive : st.live = true) (hp : st.core.pending = some p)
+    (hd : st.writeDone = none) (ha : st.archiveMoved = none) (hf : st.archiveFailedDisk = none)
+    (herr : (p.call st.core.lifecycle).IsWriteStateErr result reason) :
+    let next := { st with core := (st.core.resume reading p result).core, tmpWrite := none }
+    CrashStep st next ∧ next.ackedStop = st.ackedStop ∧ next.disk = st.disk ∧
+      Follow.ackStop ∉ (st.core.resume reading p result).follows :=
+  ⟨CrashStep.writeFail st reading p reason result hlive hp hd ha hf herr,
+    rfl, rfl, Core.resume_error_no_ackStop st.core reading p reason result herr⟩
 
-theorem exists_stop_crash_restart_witness :
-    ∃ (persisted0 : PersistedState) (origin mid : CrashState),
+theorem exists_stop_crash_restart_witness (persisted0 : PersistedState)
+    (clearDisabled : Option String) (reason : String) (reading : Nat) (disk : DiskState)
+    (recordedChild : Option (List String)) (hrun : persisted0.desired = .running) :
+    ∃ (mid : CrashState),
       persisted0.desired = .running ∧
-      CrashReached origin mid ∧
+      CrashReached (CrashState.initial persisted0 clearDisabled reason reading disk) mid ∧
       mid.live = false ∧
       mid.ackedStop = true ∧
       mid.startAfterAck = false ∧
       mid.disk.Stopped ∧
       ∀ (seed : UInt64) (migrated : Bool) (nextChild : Option (List String))
+        (nextClearDisabled : Option String) (wroteDisk : Bool)
         (loaded : PersistedState) (bootReason : String) (bootReading : Nat),
         DiskState.BootState mid.disk seed migrated nextChild loaded →
         ∃ rebooted : CrashState,
           CrashStep mid rebooted ∧
-          rebooted.core = Core.start loaded mid.clearDisabled bootReason bootReading ∧
+          rebooted.core = Core.start loaded nextClearDisabled bootReason bootReading ∧
+          rebooted.disk = (if wroteDisk then .file (loaded.encode nextChild) nextChild else mid.disk) ∧
           loaded.desired = .stopped := by
-  let persisted0 : PersistedState := ⟨⟨1, 42, 0⟩, .running, .fresh, true⟩
   let stoppedState : PersistedState := { persisted0 with desired := .stopped }
-  let origin := CrashState.initial persisted0 none "init" 0 (.file (persisted0.encode none) none)
+  let origin := CrashState.initial persisted0 clearDisabled reason reading disk
   let s1 : CrashState :=
     { origin with
-      core := (origin.core.step none 1 (.command .stop)).core
+      core := (origin.core.step clearDisabled (reading + 1) (.command .stop)).core
       startAfterAck := origin.startAfterAck ||
         (origin.ackedStop && (Event.command .stop).isStart &&
           origin.core.pending.isNone && (origin.core.closing == .open)) }
-  have step1 : CrashStep origin s1 := CrashStep.step origin 1 (.command .stop) rfl
-  have hp1 : s1.core.pending = some (.intent .stop stoppedState) := rfl
-  let s2 : CrashState := { s1 with tmpWrite := some (stoppedState, none) }
+  have step1 : CrashStep origin s1 := CrashStep.step origin (reading + 1) (.command .stop) rfl
+  have hp1 : s1.core.pending = some (.intent .stop stoppedState) := by
+    simp [s1, origin, CrashState.initial, Core.step, Core.dispatch, Core.start, Core.command,
+      Stepped.at, Command.desired, stoppedState, Core.command_beq]
+  let s2 : CrashState := { s1 with tmpWrite := some (stoppedState, recordedChild) }
   have step2 : CrashStep s1 s2 :=
-    CrashStep.writeTmp s1 (.intent .stop stoppedState) stoppedState none rfl hp1 rfl rfl rfl rfl rfl
+    CrashStep.writeTmp s1 (.intent .stop stoppedState) stoppedState recordedChild
+      rfl hp1 rfl rfl rfl rfl rfl
   let s3 : CrashState :=
     { s2 with
       tmpWrite := none
       writeDone := some stoppedState
-      disk := .file (stoppedState.encode none) none }
-  have step3 : CrashStep s2 s3 := CrashStep.writeRename s2 stoppedState none rfl rfl
-  let stepped4 := s3.core.resume 2 (.intent .stop stoppedState) (.ok ())
+      disk := .file (stoppedState.encode recordedChild) recordedChild }
+  have step3 : CrashStep s2 s3 := CrashStep.writeRename s2 stoppedState recordedChild rfl rfl
+  let stepped4 := s3.core.resume (reading + 2) (.intent .stop stoppedState) (.ok ())
   have hfol4 : stepped4.follows = [Follow.ackStop] := by
     simp [stepped4, Core.resume, Core.resolve, Core.intentSaved, Stepped.at, stoppedState,
-      persisted0, s3, s2, s1, origin, Core.step, Core.dispatch, Core.command, Command.desired]
-    rfl
+      Core.desired_beq]
   have hackBool4 : stepped4.follows.any Follow.hasAckStop = true := by
     rw [hfol4]
     rfl
@@ -3947,8 +3957,8 @@ theorem exists_stop_crash_restart_witness :
       ackedStop := s3.ackedStop || stepped4.follows.any Follow.hasAckStop
       startAfterAck := if stepped4.follows.any Follow.hasAckStop then false else s3.startAfterAck }
   have step4 : CrashStep s3 s4 :=
-    CrashStep.writeFinishOk s3 2 (.intent .stop stoppedState) stoppedState (.ok ()) rfl rfl rfl
-      rfl trivial
+    CrashStep.writeFinishOk s3 (reading + 2) (.intent .stop stoppedState) stoppedState (.ok ())
+      rfl hp1 rfl rfl trivial
   let mid : CrashState :=
     { s4 with
       live := false
@@ -3963,13 +3973,13 @@ theorem exists_stop_crash_restart_witness :
   have hnoStartMid : mid.startAfterAck = false := by simp [mid, s4, hackBool4]
   have hdiskMid : mid.disk.Stopped :=
     CrashReached.crashed_disk_stopped hreach hackedMid hnoStartMid
-  refine ⟨persisted0, origin, mid, rfl, hreach, rfl, hackedMid, hnoStartMid, hdiskMid, ?_⟩
-  intro seed migrated nextChild loaded bootReason bootReading hboot
+  refine ⟨mid, hrun, hreach, rfl, hackedMid, hnoStartMid, hdiskMid, ?_⟩
+  intro seed migrated nextChild nextClearDisabled wroteDisk loaded bootReason bootReading hboot
   let rebooted : CrashState :=
-    { clearDisabled := mid.clearDisabled
+    { clearDisabled := nextClearDisabled
       live := true
-      core := Core.start loaded mid.clearDisabled bootReason bootReading
-      disk := mid.disk
+      core := Core.start loaded nextClearDisabled bootReason bootReading
+      disk := if wroteDisk then .file (loaded.encode nextChild) nextChild else mid.disk
       tmpWrite := none
       writeDone := none
       archiveMoved := none
@@ -3978,8 +3988,8 @@ theorem exists_stop_crash_restart_witness :
       startAfterAck := mid.startAfterAck }
   have hstopped :=
     (CrashReached.startup_cannot_resume_running hreach hackedMid hnoStartMid seed migrated nextChild
-      loaded hboot bootReason bootReading).1
-  exact ⟨rebooted, CrashStep.boot mid loaded seed migrated nextChild bootReason bootReading rfl
-    hboot, rfl, hstopped⟩
+      nextClearDisabled loaded hboot bootReason bootReading).1
+  exact ⟨rebooted, CrashStep.boot mid loaded seed migrated nextChild nextClearDisabled wroteDisk
+    bootReason bootReading rfl hboot, rfl, rfl, hstopped⟩
 
 end Acorn.Host.Viewer
