@@ -1,39 +1,23 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentLifetimeArithmetic
 
-/-!
-# Current lifetime sum invariants
-
-The update adds one projected observation and caps at the incremented count's
-closed quantity bound. All unsigned counts, saturation, shared-history narrower
-caps and raw observation encodings are included. Rounded conversion and ordered
-binary64 operations use the same executing definitions as the native agent.
--/
 set_option maxRecDepth 4096
 
 namespace AcornVerif.CurrentLifetime
 open Acorn Acorn.Lifetime
 open CurrentFloat CurrentPower CurrentArithmetic CurrentOrder CurrentLifetimeArithmetic
 
-/-- Integer enclosures for the closed machine reading caps, not real-horizon substitutions. -/
 def quantityLow : Quantity → UInt64
   | .reward => 1
   | .squaredError .g90 => 399
   | .squaredError .g95 => 1599
   | .squaredError .g99 => 40000
 
-/-- Upper integer enclosures account for the machine gamma and squared-bound rounding. -/
 def quantityHigh : Quantity → UInt64
   | .reward => 1
   | .squaredError .g90 => 400
   | .squaredError .g95 => 1600
   | .squaredError .g99 => 40001
 
-/-- Each closed bound lies within its machine-checked integer enclosure. -/
 theorem quantity_enclosure (quantity : Quantity) :
     (quantityLow quantity).toNat ≤ numerical64 (Conversion.widen quantity.bound) ∧
       numerical64 (Conversion.widen quantity.bound) ≤ (quantityHigh quantity).toNat := by
@@ -58,7 +42,6 @@ theorem quantity_enclosure (quantity : Quantity) :
     | reward => decide
     | squaredError d => cases d <;> decide
 
-/-- The closed quantities have finite positive reading bounds. -/
 theorem quantity_bound (quantity : Quantity) :
     quantity.bound.Finite ∧
       1 ≤ numerical64 (Conversion.widen quantity.bound) ∧
@@ -76,7 +59,6 @@ theorem quantity_bound (quantity : Quantity) :
     le_trans (by exact_mod_cast low) bounds.1,
     le_trans bounds.2 (by exact_mod_cast high)⟩
 
-/-- Distinct closed caps are separated enough for half-relative rounding enclosures. -/
 theorem quantity_separation (left right : Quantity) (ordered : left.bound.key ≤ right.bound.key) :
     left = right ∨ 3 * numerical64 (Conversion.widen left.bound) ≤
       numerical64 (Conversion.widen right.bound) := by
@@ -99,13 +81,11 @@ theorem quantity_separation (left right : Quantity) (ordered : left.bound.key �
       exact_mod_cast gap
     linarith
 
-/-- A zero count computes exactly the zero cap for every closed quantity. -/
 theorem cap_zero (quantity : Quantity) : maximumSum quantity 0 = Binary64.ofUInt64 0 := by
   cases quantity with
   | reward => decide
   | squaredError discount => cases discount <;> decide
 
-/-- Positive count caps are finite, with a loose relative enclosure and wide absolute bound. -/
 theorem cap_positive (quantity : Quantity) (count : UInt64) (positive : 0 < count.toNat) :
     (maximumSum quantity count).Finite ∧
       (numerical64 (Binary64.ofUInt64 count) * numerical64 (Conversion.widen quantity.bound)) / 2 ≤
@@ -135,7 +115,6 @@ theorem cap_positive (quantity : Quantity) (count : UInt64) (positive : 0 < coun
   dsimp only [maximumSum]
   linarith
 
-/-- Every count cap is finite and nonnegative, including the exactly empty total. -/
 theorem cap_bounds (quantity : Quantity) (count : UInt64) :
     (maximumSum quantity count).Finite ∧ 0 ≤ numerical64 (maximumSum quantity count) ∧
       numerical64 (maximumSum quantity count) ≤ (2 : ℚ) ^ (82 : Int) := by
@@ -152,7 +131,6 @@ theorem cap_bounds (quantity : Quantity) (count : UInt64) :
     have countLower := (count_nonnegative count).2 positive
     exact ⟨cap.1, by linarith [cap.2.1], cap.2.2.2⟩
 
-/-- Narrower per-channel history caps remain below the receiving widest quantity cap. -/
 theorem cap_monotone (left right : Quantity) (ordered : left.bound.key ≤ right.bound.key)
     (count : UInt64) : (maximumSum left count).key ≤ (maximumSum right count).key := by
   by_cases zero : count.toNat = 0
@@ -171,7 +149,6 @@ theorem cap_monotone (left right : Quantity) (ordered : left.bound.key ≤ right
       have scalar := quantity_bound left
       linarith [leftCap.2.2.1, rightCap.2.1]
 
-/-- Reading projection supplies the finite nonnegative observation consumed by the machine sum. -/
 theorem reading_bounds (quantity : Quantity) (value : Binary32) :
     (Conversion.widen (quantity.range.saturate value)).Finite ∧
       0 ≤ numerical64 (Conversion.widen (quantity.range.saturate value)) ∧
@@ -188,8 +165,6 @@ theorem reading_bounds (quantity : Quantity) (value : Binary32) :
   · rw [numerical_widen_exact _ reading.1]
     exact high.trans bound
 
-/-- One actual source-ordered write preserves the receiving numeric invariant, including
-narrower channel writes into shared history and the complete saturated count domain. -/
 theorem sumUpdate_legal (quantity written : Quantity) (count : UInt64) (sum : Binary64)
     (value : Binary32) (ordered : written.bound.key ≤ quantity.bound.key)
     (legal : LegalSum quantity count sum) :
@@ -234,7 +209,6 @@ theorem sumUpdate_legal (quantity written : Quantity) (count : UInt64) (sum : Bi
     · exact ((numerical64_order added cap addedSafe.1 capSafe.1).mp numericalBelow).trans
         orderedCaps
 
-/-- Erased admission provenance entails the actual numeric state invariant after every write. -/
 theorem sum_admitted_legal (quantity : Quantity) (count : UInt64) (sum : Binary64)
     (admitted : SumAdmitted quantity count sum) : LegalSum quantity count sum := by
   induction admitted with
@@ -242,7 +216,6 @@ theorem sum_admitted_legal (quantity : Quantity) (count : UInt64) (sum : Binary6
   | observation count sum value written ordered prior ih =>
     exact sumUpdate_legal quantity written count sum value ordered ih
 
-/-- Every stored total is finite, nonnegative, count-capped and zero when empty. -/
 theorem stored_sum_legal {quantity : Quantity} (state : SumCount quantity) :
     LegalSum quantity state.count state.sum := sum_admitted_legal _ _ _ state.admitted
 

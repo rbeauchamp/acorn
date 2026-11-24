@@ -1,74 +1,6 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentGridWorld
 import AcornVerif.CurrentTerrain
 import AcornVerif.Replay
-
-/-!
-# A concealed target in the executed grid world
-
-`Host.Goal.find` is a reach goal whose observation conceals its target: the observation is
-the one cue of its family and whether the body is in the goal box
-(`CurrentGoals.find_observe`). This module builds the class of concealed targets over one
-host world from the executed step, observation and percept adapter of
-`AcornVerif.CurrentGridWorld`, and proves of it the bounds of `AcornVerif.Concealment`,
-`AcornVerif.Visits` and `AcornVerif.Replay`.
-
-`findClass` installs, in one host world with one carried result, each target whose goal box
-does not hold the body's position. Its members conceal their goals behind the same world with
-the target `nowhere` installed, whose box holds no position of the body's box
-(`find_conceals`). Three executed facts give it: the dynamics do not read the goal
-(`step_physical`), so a member and the reference step to worlds that differ only in their
-goals (`twin_paths`); the observation reads the goal only through the task relation
-(`observe_twins`); and the task relation of a concealed target that is not met is the same
-for every target (`find_task`). A walk of `cap` steps comes within three tiles of at most
-`49 + 7 cap` targets (`find_covered`). So:
-
-- **First visit, every agent.** Every agent, the executed agent included, solves at most
-  `49 + 7 cap` members (`find_need`, `executed_find_first`).
-- **Every visit, experience-free agents.** In visits of `cap` steps, every experience-free
-  agent, the uniform-random comparator included, solves at most `49 + 7 cap` members on each
-  visit (`find_visits_need`, `comparator_find_visits`). At a cap of 3000 and a window of
-  radius 120 that is at most 21049 of the at least 57551 members in the window: the window's
-  57600 tiles less at most 49 within three tiles of the start (`far_window_visits`).
-- **First success, every agent.** On each visit every agent solves at most `49 + 7 cap`
-  members it has not solved before, and over `n` visits at most `n (49 + 7 cap)`
-  (`find_visits_first_success`, `find_visits_ever`).
-- **Re-solving and separation.** The percept's achievement flag after a step is the goal's
-  completion (`achieved_decodes`), so the replaying agent with that flag as its signal, which
-  is not experience-free (`find_replay_learns`), solves on every later visit each member it
-  has solved once (`find_replay`). If its explorations of the visits up to one visit meet
-  more than `49 + 7 cap` targets, on that visit it solves all of them while every
-  experience-free agent solves fewer on every visit (`find_replay_separates`). Whether an
-  exploration meets a target depends on the terrain, so the theorem takes it as a hypothesis;
-  `witness_separation` discharges it in one world, the standard configuration at seed 1 and
-  side 64 with no deer and no food (`witness_standard`): three visits of seven steps east,
-  west and south from the box's center meet 147 members, more than the bound 98, so there the
-  replaying agent solves 147 on visit 2 and every experience-free agent fewer on every visit.
-  The executed step along the three walks (`witness_walk`) reduces structurally to elevation-only
-  terrain checks on the 21 entered tiles (`fbm_eq_fastFbm`, discharging moisture via
-  `CurrentTerrain.fbm_isOk`); the count is structural.
-- **A class with the kernel's form of conditions (a) to (c).** `findClass` holds targets no walk
-  can reach within a visit. `feasibleFind` holds the concealed targets a visit can meet, so its
-  members are feasible by how it is indexed; it keeps the concealment and the bound
-  (`feasibleFind_conceals`, `feasibleFind_covered`). In the same world, with visits of seven
-  steps, the 147 members above make it a `Kernel.ConcealedClass` with the bound 98
-  (`witness_concealed`). This says nothing about obligation 4 of `docs/mission-contract.md`, the
-  goal-information and exploration premises. That structure states condition (c) as fewer than
-  all, so the class is not thereby shown to be a concealed class (sentence 5 of contract 2 there).
-  Every member's target lies within `3 + length` tiles of the start, for every terrain
-  (`feasible_window`), so the class is finite, with at most `(2 (3 + length) + 1)² - 49` members
-  (`feasible_count`): at most 392 for visits of seven steps.
-
-Hypotheses and limits. The class is of target positions over one host world: reading a bound
-as a fraction of seeds would assume that the seed hash places targets independently of the
-agent's walk (assumed). A visit is the kernel's world in visits of the executed grid world;
-`AcornVerif.CurrentVisits` relates the host's loop of visits to it. A step the host refuses
-leads to the absorbing refused state, where no goal is met, in a member and the reference alike.
--/
 
 namespace AcornVerif.CurrentConcealedTarget
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -77,13 +9,8 @@ open AcornVerif.CurrentCurriculum
 
 variable {config : Host.WorldConfig}
 
-/-! ## The reference target -/
-
-/-- A target whose goal box holds no position of any body's box: four tiles before the box's
-first corner on both axes. -/
 def nowhere : Host.Position := ⟨⟨-4, by omega⟩, ⟨-4, by omega⟩⟩
 
-/-- No world reports the target `nowhere` met. -/
 theorem nowhere_unmet (world : Host.World config)
     (installed : world.goal = some (.find nowhere)) : world.goalSatisfied = false := by
   cases met : world.goalSatisfied with
@@ -95,8 +22,6 @@ theorem nowhere_unmet (world : Host.World config)
     simp only [nowhere, FeatureConstants.reachRadius] at horizontal
     omega
 
-/-- With a concealed target installed, the world's task relation is the family's cue and
-whether the target is met. -/
 theorem find_task (world : Host.World config) (target : Host.Position)
     (installed : world.goal = some (.find target)) :
     world.taskObservation = .find (Rng.hash3 5 0 0) world.goalSatisfied := by
@@ -105,10 +30,6 @@ theorem find_task (world : Host.World config) (target : Host.Position)
   rw [installed]
   exact find_observe _ _ _ _
 
-/-! ## Worlds that differ in their goals -/
-
-/-- Two worlds that differ at most in their installed goals, and deliver one task relation,
-deliver one observation. -/
 theorem observe_twins (first second : Host.World config)
     (twins : physical first = physical second)
     (task : first.taskObservation = second.taskObservation) :
@@ -126,8 +47,6 @@ theorem observe_twins (first second : Host.World config)
   rw [task]
   rfl
 
-/-- Two worlds that differ at most in their installed goals, and deliver one task relation,
-deliver one sensed observation. -/
 theorem sensed_twins (first second : Host.World config)
     (twins : physical first = physical second)
     (task : first.taskObservation = second.taskObservation) :
@@ -135,21 +54,15 @@ theorem sensed_twins (first second : Host.World config)
   unfold sensed
   rw [observe_twins first second twins task]
 
-/-- A step result with no completion is unchanged by clearing its completion. -/
 theorem clear_done (events : Host.StepResult) (unmet : events.done = false) :
     { events with done := false } = events := by
   cases events
   cases unmet
   rfl
 
-/-- The start of a member: the host world with the concealed target installed. -/
 def member (live : Live config) (target : Host.Position) : Option (Live config) :=
   some ⟨live.world.setGoal (.find target), live.carried⟩
 
-/-- Along every action sequence, a member's path and the reference's path are both refused,
-or both live with worlds that differ only in their goals, which stay installed. Where the
-member's goal has not been met, they carry one result and the member reports its goal
-unmet. -/
 theorem twin_paths (mode : TaskFeatureMode) (live : Live config) (target : Host.Position)
     (outside : ¬ InGoalBox target live.world.body.position.position) (cap : ℕ)
     (actions : ℕ → Kernel.Act Grid.interface) (time : ℕ)
@@ -244,20 +157,12 @@ theorem twin_paths (mode : TaskFeatureMode) (live : Live config) (target : Host.
           exact ⟨⟨world, events.raw⟩, ⟨worldBase, eventsBase.raw⟩, rfl, rfl, twinsNext,
             goalNext, goalBaseNext, by rw [sameEvents], unmetNext⟩
 
-/-! ## The class of concealed targets -/
-
-/-- The class of concealed targets over one host world: each member installs a target whose
-goal box does not hold the body's position, in the same world with the same carried
-result. -/
 def findClass (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config) :
     Kernel.WorldClass Grid.interface where
   Index := { target : Host.Position // ¬ InGoalBox target live.world.body.position.position }
   world := fun _ => gridWorld config mode
   start := fun target => member live target.1
 
-/-- The class of concealed targets conceals its goals behind the same world with the target
-`nowhere` installed: before a member's target is met, the member delivers the reference's
-percept along every action sequence. -/
 theorem find_conceals (mode : TaskFeatureMode) (live : Live config) (cap : ℕ) :
     Kernel.Conceals (findClass config mode live) (fun _ => completion config mode cap)
       (gridWorld config mode) (member live nowhere) := by
@@ -280,8 +185,6 @@ theorem find_conceals (mode : TaskFeatureMode) (live : Live config) (cap : ℕ) 
       Grid.percept mode (sensed base.world) base.carried.reward base.carried.events.done
     rw [sensed_twins found.world base.world twins task, carried]
 
-/-- A concealed target that an action sequence meets within `cap` steps lies within three
-tiles of the first `cap + 1` points of the body's walk. -/
 theorem find_met_swept (mode : TaskFeatureMode) (live : Live config) (cap : ℕ)
     (actions : ℕ → Kernel.Act Grid.interface) (target : Host.Position)
     (met : (completion config mode cap).MetBy (member live target) actions) :
@@ -304,9 +207,6 @@ theorem find_met_swept (mode : TaskFeatureMode) (live : Live config) (cap : ℕ)
     exact box_of_goalBox target _ inside
   exact box_subset_swept 3 _ cap time high near
 
-/-- A concealed target within three tiles of the tile the body stands on after a step of an
-action sequence is met at that step: the world's dynamics do not read the installed goal. This is
-the converse of `find_met_swept` at one step. -/
 theorem find_near_met (mode : TaskFeatureMode) (live : Live config) (cap : ℕ)
     (actions : ℕ → Kernel.Act Grid.interface) (step : ℕ) (point : ℤ × ℤ)
     (walked : (physicalPath (physical live.world) actions step).map
@@ -333,8 +233,6 @@ theorem find_near_met (mode : TaskFeatureMode) (live : Live config) (cap : ℕ)
       exact near
     exact ⟨final, rfl, (find_goal_iff final.world target installed).mpr (mem_box.mp close)⟩
 
-/-- One action sequence meets the concealed targets of at most `49 + 7 cap` members in `cap`
-steps, for every terrain. -/
 theorem find_covered (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
     (cap : ℕ) :
     Kernel.Covered (findClass config mode live) (fun _ => completion config mode cap)
@@ -354,18 +252,12 @@ theorem find_covered (config : Host.WorldConfig) (mode : TaskFeatureMode) (live 
         card_swept 3 _ cap (fun index _ => walk_near _ actions index)
     _ = 49 + 7 * cap := rfl
 
-/-! ## Bounds -/
-
-/-- The first-visit bound. Every agent solves at most `49 + 7 cap` concealed targets in `cap`
-steps. -/
 theorem find_need (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
     (cap : ℕ) :
     Kernel.Need (findClass config mode live) (fun _ => completion config mode cap)
       (fun _ => True) (49 + 7 * cap) :=
   (find_conceals mode live cap).need (find_covered config mode live cap)
 
-/-- The executed agent, from every state of it, solves at most `49 + 7 cap` concealed
-targets on a first visit. -/
 theorem executed_find_first {profile : FeatureProfile} {features : Features.Config}
     {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
     (state : Agent Grid.interface profile features criterion dimension planning)
@@ -376,8 +268,6 @@ theorem executed_find_first {profile : FeatureProfile} {features : Features.Conf
     solved.card ≤ 49 + 7 * cap :=
   find_need config profile.taskMode live cap (executedAgent state) trivial solved each
 
-/-- Need on every visit. In visits of `cap` steps, every experience-free agent solves at most
-`49 + 7 cap` concealed targets on each visit. -/
 theorem find_visits_need (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (cap : ℕ) {agent : Kernel.Agent Grid.interface}
     (free : Kernel.ExperienceFree agent) (count : ℕ)
@@ -388,8 +278,6 @@ theorem find_visits_need (config : Host.WorldConfig) (mode : TaskFeatureMode)
   Kernel.visits_need (find_conceals mode live cap) (find_covered config mode live cap) free
     count solved each
 
-/-- The uniform-random comparator, whatever its stream, solves at most `49 + 7 cap` concealed
-targets on each visit of `cap` steps. -/
 theorem comparator_find_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (cap : ℕ) (stream : Rng.Xoshiro256) (count : ℕ)
     (solved : Finset (findClass config mode live).Index)
@@ -399,8 +287,6 @@ theorem comparator_find_visits (config : Host.WorldConfig) (mode : TaskFeatureMo
   find_visits_need config mode live cap (comparator_openLoop stream).experienceFree count
     solved each
 
-/-- First success. On each visit of `cap` steps every agent solves at most `49 + 7 cap`
-concealed targets it solved on no earlier visit. -/
 theorem find_visits_first_success (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (cap : ℕ) (agent : Kernel.Agent Grid.interface) (count : ℕ)
     (solved : Finset (findClass config mode live).Index)
@@ -413,8 +299,6 @@ theorem find_visits_first_success (config : Host.WorldConfig) (mode : TaskFeatur
   Kernel.visits_first_success (find_conceals mode live cap) (find_covered config mode live cap)
     agent count solved each
 
-/-- Over its first `count` visits of `cap` steps every agent solves at most
-`count (49 + 7 cap)` concealed targets. -/
 theorem find_visits_ever (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (cap : ℕ) (agent : Kernel.Agent Grid.interface) (count : ℕ)
     (solved : Finset (findClass config mode live).Index)
@@ -425,14 +309,8 @@ theorem find_visits_ever (config : Host.WorldConfig) (mode : TaskFeatureMode)
   Kernel.visits_ever (find_conceals mode live cap) (find_covered config mode live cap) agent
     count solved each
 
-/-! ## Re-solving -/
-
-/-- The signal of the achievement flag: whether the percept's preceding transition met the
-installed goal. -/
 def achievedSignal (percept : Percept Grid.interface) : Bool := percept.frame.achieved
 
-/-- After every step of the grid world, the percept's achievement flag is set exactly when the
-step meets the installed goal. -/
 theorem achieved_decodes (config : Host.WorldConfig) (mode : TaskFeatureMode) (cap : ℕ)
     (state : Option (Live config)) (action : Kernel.Act Grid.interface) :
     achievedSignal ((gridWorld config mode).percept ((gridWorld config mode).step state action)) =
@@ -465,9 +343,6 @@ theorem achieved_decodes (config : Host.WorldConfig) (mode : TaskFeatureMode) (c
       exact ⟨fun met => ⟨⟨world, events.raw⟩, rfl, met⟩,
         fun ⟨found, same, met⟩ => by cases same; exact met⟩
 
-/-- The replaying agent with the achievement flag as its signal, one agent for the whole
-class, solves on every later visit of `cap` steps each concealed target it has solved on
-one visit. -/
 theorem find_replay (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
     (cap : ℕ) (explore : ℕ → ℕ → Kernel.Act Grid.interface)
     (target : (findClass config mode live).Index) (count later : ℕ) (after : count < later)
@@ -479,19 +354,12 @@ theorem find_replay (config : Host.WorldConfig) (mode : TaskFeatureMode) (live :
   Kernel.replay_solves (findClass config mode live) (fun _ => completion config mode cap) cap
     achievedSignal explore target (achieved_decodes config mode cap) count later after solved
 
-/-- The replaying agent with the achievement flag as its signal is not experience-free: what
-it stores depends on whether its percept shows the flag. -/
 theorem find_replay_learns (mode : TaskFeatureMode) (cap : ℕ)
     (explore : ℕ → ℕ → Kernel.Act Grid.interface) :
     ¬ Kernel.ExperienceFree (Kernel.replay Grid.interface cap achievedSignal explore) :=
   Kernel.replay_not_experienceFree cap achievedSignal explore
     (Grid.percept mode blank ⟨0⟩ true) (Grid.percept mode blank ⟨0⟩ false) rfl rfl
 
-/-- The separation in the grid world. If the replaying agent's explorations of the visits up to
-`last` meet, from the host world within `cap` steps, more concealed targets than
-`49 + 7 cap`, then on visit `last` it solves all of them, while on every visit every
-experience-free agent solves fewer. Whether an exploration meets a target depends on the
-terrain; it is a hypothesis here. -/
 theorem find_replay_separates (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (cap : ℕ) (explore : ℕ → ℕ → Kernel.Act Grid.interface)
     (members : Finset (findClass config mode live).Index) (last : ℕ)
@@ -510,10 +378,6 @@ theorem find_replay_separates (config : Host.WorldConfig) (mode : TaskFeatureMod
   Kernel.replay_separates (find_conceals mode live cap) (find_covered config mode live cap)
     achievedSignal explore (fun _ => achieved_decodes config mode cap) members last explored many
 
-/-! ## The far window -/
-
-/-- A target is a member of the class exactly when its tile is not within three tiles of the
-body's start. -/
 theorem member_tile (live : Live config) (target : Host.Position) :
     ¬ InGoalBox target live.world.body.position.position ↔
       tile target ∉ box 3 (tile live.world.body.position.position) :=
@@ -521,11 +385,6 @@ theorem member_tile (live : Live config) (target : Host.Position) :
     have close := mem_box.mp near
     exact close⟩
 
-/-- At a cap of 3000 steps and a window of radius 120, every experience-free agent solves on
-each visit at most 21049 of the members in the window. The window has 57600 tiles; the tiles
-of the members in it are those not within three tiles of the start, at least 57551 of them,
-and at least 36502 of those are tiles of no member the agent solves. 21049 is under 36.6
-percent of 57551. -/
 theorem far_window_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (side : Host.Coordinate) {agent : Kernel.Agent Grid.interface}
     (free : Kernel.ExperienceFree agent) (count : ℕ)
@@ -555,58 +414,37 @@ theorem far_window_visits (config : Host.WorldConfig) (mode : TaskFeatureMode)
       (fun first second same => Subtype.ext (tile_injective same))
   refine ⟨few, by omega, by omega, by decide⟩
 
-/-! ## A world in which the separation holds -/
-
-/-- The configuration of the separation witness: the standard configuration at seed 1 and the
-smallest side, 64, with no food and no deer (`witness_standard`). Seed 1 is the least seed at
-which the host's own world was observed to start at the box's center, where this world starts
-(`docs/roadmap.md` records the observation; no theorem says it). -/
 def witnessConfig : Host.WorldConfig :=
   ⟨⟨1, ⟨64, by decide⟩, 2048, 400, 48, 0, 0, ⟨0x41000000⟩⟩, by decide, by decide⟩
 
-/-- The witness's configuration is the one the host's standard constructor builds at seed 1 and
-side 64, with its two capacities set to zero: it keeps that configuration's day, regrowth, food
-interval and noise scale, and so its terrain. -/
 theorem witness_standard :
     ∃ standard, Host.WorldConfig.standard 1 ⟨64, by decide⟩ = .ok standard ∧
       witnessConfig.raw = { standard.raw with foodCap := 0, deerCap := 0 } :=
   ⟨_, rfl, rfl⟩
 
-/-- The host world of the witness: the configuration's empty world, with the body at the box's
-center and its energy full, and an empty carried result. It is not the world the host generates
-for a run, which holds deer and starts where its spawn search ends. -/
 def witnessLive : Live witnessConfig := ⟨Host.World.empty witnessConfig, {}⟩
 
-/-- The exploration of the witness: east at every step of visit 0, west on visit 1 and south
-on every later visit. -/
 def witnessExplore (visit : ℕ) (_ : ℕ) : Kernel.Act Grid.interface :=
   code (match visit with | 0 => .east | 1 => .west | _ => .south)
 
-/-- The tile each visit of the witness ends on: seven tiles east, west and south of the
-center `(32, 32)`. -/
 def witnessEnd : ℕ → ℤ × ℤ
   | 0 => (39, 32)
   | 1 => (25, 32)
   | _ => (32, 39)
 
-/-- The body of the witness starts on the center `(32, 32)`. -/
 theorem witness_start : tile witnessLive.world.body.position.position = (32, 32) := by
   decide
 
-/-- The elevation-field seed of `witnessConfig`. -/
 private def witnessElevSeed : UInt64 := 1 ^^^ 0xe1e0e1e000000001
 
-/-- A coordinate in the witness's `[25, 39]` walk window. -/
 private def windowCoord (n : Fin 15) : Host.Coordinate := ⟨25 + n.val, by omega⟩
 
-/-- The four octave scales of `witnessConfig`, starting from `baseScale = 8.0`. -/
 private def octaveBaseScale : Fin 4 → Binary32
   | ⟨0, _⟩ => ⟨0x41000000⟩
   | ⟨1, _⟩ => ⟨0x41800000⟩
   | ⟨2, _⟩ => ⟨0x42000000⟩
   | ⟨3, _⟩ => ⟨0x42800000⟩
 
-/-- Memoized 1D octave lattice indices and smoothstep weights for coordinates `25..39`. -/
 private def axisTable : Fin 4 → Fin 15 → Nat × UInt32
   | ⟨0, _⟩, c => (#[
       (3, 1026555904), (3, 1042284544), (3, 1050804224), (3, 1056964608), (3, 1060044800),
@@ -629,7 +467,6 @@ private def axisTable : Fin 4 → Fin 15 → Nat × UInt32
       (0, 1058140800), (0, 1058529280), (0, 1058914688), (0, 1059296256), (0, 1059673216)
     ] : Array (Nat × UInt32))[c.val]'(c.isLt)
 
-/-- Memoized elevation lattice noise values on `[0, 5]²` at `witnessElevSeed`. -/
 private def latticeTable : Fin 6 → Fin 6 → UInt32
   | ⟨0, _⟩, yi => (#[1022074183, 1057848264, 1061288971, 1059690444, 1058456244, 1045630691] :
       Array UInt32)[yi.val]'(yi.isLt)
@@ -644,8 +481,6 @@ private def latticeTable : Fin 6 → Fin 6 → UInt32
   | ⟨5, _⟩, yi => (#[1063663349, 1056095266, 1055274743, 1020443018, 1034418930, 1030576842] :
       Array UInt32)[yi.val]'(yi.isLt)
 
-/-- Every entry of `axisTable` equals the executed 1D noise coordinate, smoothstep weight and
-valid lattice index at `windowCoord c` and `octaveBaseScale oct`. -/
 private theorem axisTable_spec : ∀ (oct : Fin 4) (c : Fin 15),
     let fx := (Host.coordinateFloat (windowCoord c)).div (octaveBaseScale oct)
     let x0 := Host.floor32 fx
@@ -654,13 +489,11 @@ private theorem axisTable_spec : ∀ (oct : Fin 4) (c : Fin 15),
       Host.smooth (fx.sub x0) = ⟨(axisTable oct c).2⟩ := by
   decide +kernel
 
-/-- Every entry of `latticeTable` equals the executed elevation lattice hash at `(xi, yi)`. -/
 private theorem latticeTable_spec : ∀ (xi yi : Fin 6),
     Host.lattice ⟨xi.val, by omega⟩ ⟨yi.val, by omega⟩ witnessElevSeed =
       ⟨latticeTable xi yi⟩ := by
   decide +kernel
 
-/-- Bilinear interpolation of one elevation octave from the memoized axis and lattice tables. -/
 private def fastOctave (oct : Fin 4) (x y : Fin 15) : Binary32 :=
   let ax := axisTable oct x
   let ay := axisTable oct y
@@ -676,15 +509,12 @@ private def fastOctave (oct : Fin 4) (x y : Fin 15) : Binary32 :=
   let bot := h01.add ((h11.sub h01).mul tx)
   top.add ((bot.sub top).mul ty)
 
-/-- Four-octave elevation field inside `[25, 39]²`, reading only memoized 1D axes and lattice
-corners. -/
 def fastFbm (x y : Fin 15) : Binary32 :=
   let s0 : Binary32 := (⟨0⟩ : Binary32).add ((⟨0x3f000000⟩ : Binary32).mul (fastOctave 0 x y))
   let s1 : Binary32 := s0.add ((⟨0x3e800000⟩ : Binary32).mul (fastOctave 1 x y))
   let s2 : Binary32 := s1.add ((⟨0x3e000000⟩ : Binary32).mul (fastOctave 2 x y))
   s2.add ((⟨0x3d800000⟩ : Binary32).mul (fastOctave 3 x y))
 
-/-- Helper: `Host.valueNoise` rewrites purely algebraically once axis and lattice terms match. -/
 private theorem valueNoise_of_eq (pos : Host.Position) (scale : Binary32) (seed : UInt64)
     (xi yi x1 y1 : Host.Coordinate) (tx ty h00 h10 h01 h11 : Binary32)
     (hcx : Host.coordinateCast (Host.floor32 ((Host.coordinateFloat pos.x).div scale)) = xi)
@@ -709,7 +539,6 @@ private theorem valueNoise_of_eq (pos : Host.Position) (scale : Binary32) (seed 
   dsimp only [bind, Except.bind, pure, Except.pure]
   rw [hl00, hl10, hl01, hl11]
 
-/-- One octave of `Host.valueNoise` at `witnessElevSeed` equals `fastOctave`. -/
 private theorem valueNoise_eq_fastOctave (oct : Fin 4) (x y : Fin 15) :
     Host.valueNoise ⟨windowCoord x, windowCoord y⟩ (octaveBaseScale oct) witnessElevSeed =
       .ok (fastOctave oct x y) := by
@@ -744,7 +573,6 @@ private theorem valueNoise_eq_fastOctave (oct : Fin 4) (x y : Fin 15) :
   unfold fastOctave
   simp only [hxiMod, hyiMod]
 
-/-- **Executed elevation equals `fastFbm` on `[25, 39]²`.** -/
 theorem fbm_eq_fastFbm (x y : Fin 15) :
     Host.fbm ⟨windowCoord x, windowCoord y⟩ witnessElevSeed ⟨0x41000000⟩ = .ok (fastFbm x y) := by
   have hs0 : (⟨0x41000000⟩ : Binary32).mul ⟨0x40000000⟩ = ⟨0x41800000⟩ := by decide
@@ -771,20 +599,16 @@ theorem fbm_eq_fastFbm (x y : Fin 15) :
   rw [show (⟨0x42800000⟩ : Binary32) = octaveBaseScale 3 from rfl, valueNoise_eq_fastOctave 3 x y]
   rfl
 
-/-- Whether the elevation at `(25 + x, 25 + y)` lies in the walkable band `[0.30, 0.80)`. -/
 def fastWalkable (x y : Fin 15) : Bool :=
   !decide ((fastFbm x y).Less ⟨Acorn.Constants.band030Bits⟩) &&
     decide ((fastFbm x y).Less ⟨Acorn.Constants.band080Bits⟩)
 
-/-- Every coordinate in `[24, 40]` has valid octave quotients at `witnessConfig`'s noise scale,
-covering all tiles entered or faced from `[25, 39]²`. -/
 private theorem admits_24_40 : ∀ (c : Fin 17) (oct : Fin 4),
     ¬CurrentTerrain.PastLast
       ((Host.coordinateFloat ⟨24 + c.val, by omega⟩).div
         (CurrentTerrain.octaveScale ⟨0x41000000⟩ oct.val)) := by
   decide +kernel
 
-/-- Every tile in `[24, 40]²` is admitted by the value noise of `witnessConfig`. -/
 private theorem latticeAdmits_24_40 (pos : Host.Position)
     (hx : 24 ≤ pos.x.val ∧ pos.x.val ≤ 40) (hy : 24 ≤ pos.y.val ∧ pos.y.val ≤ 40) :
     CurrentTerrain.LatticeAdmits pos ⟨0x41000000⟩ := by
@@ -797,8 +621,6 @@ private theorem latticeAdmits_24_40 (pos : Host.Position)
   exact ⟨admits_24_40 ⟨(pos.x.val - 24).toNat, by omega⟩ ⟨oct, hlt⟩,
     admits_24_40 ⟨(pos.y.val - 24).toNat, by omega⟩ ⟨oct, hlt⟩⟩
 
-/-- Any tile in `[25, 39]²` accepted by `fastWalkable` is enterable in any world of
-`witnessConfig`, independently of the moisture field and harvest state. -/
 theorem witness_enterable_fast (world : Host.World witnessConfig) (x y : Fin 15)
     (ok : fastWalkable x y = true) :
     world.enterable ⟨windowCoord x, windowCoord y⟩ = .ok true := by
@@ -854,8 +676,6 @@ theorem witness_enterable_fast (world : Host.World witnessConfig) (x y : Fin 15)
     | mountain => exact absurd rfl hkw.2
     | sand | grass | forest | tree | stone | ore => rfl
 
-/-- Passive dynamics in `witnessConfig` (zero deer and food capacity) always succeed and leave
-the body untouched. -/
 private theorem witness_passive_ok (world : Host.World witnessConfig) :
     ∃ passive, Host.passiveChange world = .ok passive := by
   have hdeer : world.deer.entries.size = 0 := by
@@ -886,14 +706,10 @@ private theorem witness_passive_ok (world : Host.World witnessConfig) :
   rw [hcond]
   exact ⟨_, rfl⟩
 
-/-- Every host action costs at most 4 energy. -/
 private theorem action_energyCost_le (action : Host.Action) (night : Bool) :
     action.energyCost night ≤ 4 := by
   cases action <;> cases night <;> decide
 
-/-- One physical step in `witnessConfig` from a world with energy at least 4 and body in
-`[25, 39]²`: directional moves into a `fastWalkable` tile in `[25, 39]²` advance to that tile,
-and non-directional actions keep the tile. Energy drops by at most 4. -/
 theorem witness_physicalStep_fast (world : Host.World witnessConfig) (action : Host.Action)
     (energyOk : 4 ≤ world.body.energy.val)
     (inWin : 25 ≤ (tile world.body.position.position).1 ∧
@@ -1097,8 +913,6 @@ theorem witness_physicalStep_fast (world : Host.World witnessConfig) (action : H
               amount, body', harv', bind, Except.bind, pure, Except.pure])
             (by simp [hdir, body', world']) hspentVal
 
-/-- Pure fast-terrain walk check inside `[25, 39]²`: every entered tile lies in the window and
-passes `fastWalkable`. -/
 def witnessWalkFast (point : ℤ × ℤ) : List Host.Action → Bool
   | [] => true
   | action :: rest =>
@@ -1114,8 +928,6 @@ def witnessWalkFast (point : ℤ × ℤ) : List Host.Action → Bool
       else false
     | none => witnessWalkFast point rest
 
-/-- Expected final tile after executing a list of actions assuming every entered tile is
-walkable. -/
 def witnessWalkEnd (point : ℤ × ℤ) : List Host.Action → ℤ × ℤ
   | [] => point
   | action :: rest =>
@@ -1124,8 +936,6 @@ def witnessWalkEnd (point : ℤ × ℤ) : List Host.Action → ℤ × ℤ
       | none => point
     witnessWalkEnd next rest
 
-/-- Executing a constant directional action `count` times in `witnessConfig` reaches the
-expected tile whenever `witnessWalkFast` accepts `List.replicate count action`. -/
 theorem witness_physicalPath_const (world : Host.World witnessConfig) (action : Host.Action)
     (count : ℕ) (energyOk : 4 * count ≤ world.body.energy.val)
     (inWin : 25 ≤ (tile world.body.position.position).1 ∧
@@ -1204,25 +1014,18 @@ theorem witness_physicalPath_const (world : Host.World witnessConfig) (action : 
     rw [ih next (by omega) ⟨hnx1, hnx2, hny1, hny2⟩ hrest]
     simp only [List.replicate_succ, witnessWalkEnd, hpos]
 
-/-- Seven steps east from `(32, 32)` stay in the walkable elevation band. -/
 theorem witness_east_walkable :
     witnessWalkFast (32, 32) (List.replicate 7 .east) = true := by
   decide +kernel
 
-/-- Seven steps west from `(32, 32)` stay in the walkable elevation band. -/
 theorem witness_west_walkable :
     witnessWalkFast (32, 32) (List.replicate 7 .west) = true := by
   decide +kernel
 
-/-- Seven steps south from `(32, 32)` stay in the walkable elevation band. -/
 theorem witness_south_walkable :
     witnessWalkFast (32, 32) (List.replicate 7 .south) = true := by
   decide +kernel
 
-/-- Seven steps of each of the first three visits' explorations carry the body, from the
-witness world, to that visit's end tile. The proof reduces the executed world step structurally
-to elevation-only terrain checks on the 21 entered tiles, discharging moisture via
-`CurrentTerrain.fbm_isOk`. -/
 theorem witness_walk (visit : ℕ) (within : visit ≤ 2) :
     (physicalPath (physical witnessLive.world) (witnessExplore visit) 7).map
       (fun world => tile world.body.position.position) = some (witnessEnd visit) := by
@@ -1250,8 +1053,6 @@ theorem witness_walk (visit : ℕ) (within : visit ≤ 2) :
       witness_physicalPath_const (physical witnessLive.world) .south 7 hen hwin
         (hstart ▸ witness_south_walkable)
 
-/-- Every concealed target within three tiles of a visit's end tile is met by that visit's
-exploration at its seventh step. -/
 theorem witness_meets (mode : TaskFeatureMode) (cap visit : ℕ) (within : visit ≤ 2)
     (target : Host.Position) (near : tile target ∈ box 3 (witnessEnd visit)) :
     (completion witnessConfig mode cap).satisfied
@@ -1260,19 +1061,15 @@ theorem witness_meets (mode : TaskFeatureMode) (cap visit : ℕ) (within : visit
   find_near_met mode witnessLive cap (witnessExplore visit) 7 (witnessEnd visit)
     (witness_walk visit within) target near
 
-/-- The coordinate of an integer, clamped to the signed 64-bit range. -/
 def clampCoordinate (value : ℤ) : Host.Coordinate :=
   ⟨max (-(2 ^ 63)) (min value (2 ^ 63 - 1)), by omega⟩
 
-/-- The position of a lattice point, each coordinate clamped to the signed range. -/
 def pointPosition (point : ℤ × ℤ) : Host.Position :=
   ⟨clampCoordinate point.1, clampCoordinate point.2⟩
 
-/-- The tiles of the witness's members: those within three tiles of the three end tiles. -/
 def witnessTiles : Finset (ℤ × ℤ) :=
   box 3 (witnessEnd 0) ∪ box 3 (witnessEnd 1) ∪ box 3 (witnessEnd 2)
 
-/-- A tile of the witness is within three tiles of one of the three end tiles. -/
 theorem witnessTiles_near (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
     ∃ visit, visit ≤ 2 ∧ point ∈ box 3 (witnessEnd visit) := by
   simp only [witnessTiles, Finset.mem_union] at inside
@@ -1281,8 +1078,6 @@ theorem witnessTiles_near (point : ℤ × ℤ) (inside : point ∈ witnessTiles)
   · exact ⟨1, by omega, second⟩
   · exact ⟨2, by omega, third⟩
 
-/-- Every tile of the witness is the tile of its position, and lies more than three tiles
-from the start. -/
 theorem witnessTiles_admitted (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
     tile (pointPosition point) = point ∧ point ∉ box 3 (32, 32) := by
   obtain ⟨visit, within, near⟩ := witnessTiles_near point inside
@@ -1294,7 +1089,6 @@ theorem witnessTiles_admitted (point : ℤ × ℤ) (inside : point ∈ witnessTi
     simp only [tile, pointPosition, clampCoordinate] at * <;>
     omega
 
-/-- The witness has 147 member tiles: the three boxes are disjoint. -/
 theorem card_witnessTiles : witnessTiles.card = 147 := by
   have apart : ∀ (first second : ℤ × ℤ) (point : ℤ × ℤ),
       7 ≤ (first.1 - second.1).natAbs ∨ 7 ≤ (first.2 - second.2).natAbs →
@@ -1311,9 +1105,6 @@ theorem card_witnessTiles : witnessTiles.card = 147 := by
     · exact apart _ _ point (by simp only [witnessEnd]; omega) first
     · exact apart _ _ point (by simp only [witnessEnd]; omega) second
 
-/-- The 147 concealed targets within three tiles of the three end tiles of the witness's
-explorations. Each is met, from the witness world, by the exploration of one of the visits 0 to 2 at
-its seventh step. -/
 theorem witness_explored (mode : TaskFeatureMode) :
     ∃ members : Finset (findClass witnessConfig mode witnessLive).Index,
       members.card = 147 ∧
@@ -1344,10 +1135,6 @@ theorem witness_explored (mode : TaskFeatureMode) :
   rw [(witnessTiles_admitted point.1 point.2).1]
   exact near
 
-/-- The separation holds in the executed grid world. In the witness world, with visits of seven
-steps, the replaying agent with the achievement flag as its signal solves on visit 2 the 147
-concealed targets within three tiles of the three end tiles, while on every visit every
-experience-free agent solves fewer: 147 is more than the covering bound 49 + 7 · 7 = 98. -/
 theorem witness_separation (mode : TaskFeatureMode) :
     ∃ members : Finset (findClass witnessConfig mode witnessLive).Index,
       49 + 7 * 7 < members.card ∧
@@ -1364,9 +1151,6 @@ theorem witness_separation (mode : TaskFeatureMode) :
     2 explored (by rw [count]; decide)
   exact ⟨members, by rw [count]; decide, separated⟩
 
-/-! ## A class with the kernel's form of conditions (a) to (c) -/
-
-/-- The concealed targets some action sequence meets within a visit of `length` steps. -/
 def feasibleFind (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Live config)
     (length : ℕ) : Kernel.WorldClass Grid.interface where
   Index := { target : (findClass config mode live).Index //
@@ -1374,15 +1158,11 @@ def feasibleFind (config : Host.WorldConfig) (mode : TaskFeatureMode) (live : Li
   world := fun _ => gridWorld config mode
   start := fun target => member live target.1.1
 
-/-- The feasible concealed targets conceal their goals behind the world with no target met,
-as all concealed targets do. -/
 theorem feasibleFind_conceals (mode : TaskFeatureMode) (live : Live config) (length cap : ℕ) :
     Kernel.Conceals (feasibleFind config mode live length) (fun _ => completion config mode cap)
       (gridWorld config mode) (member live nowhere) :=
   fun target actions time unmet => find_conceals mode live cap target.1 actions time unmet
 
-/-- A walk of `length` steps meets at most `49 + 7 length` feasible concealed targets, as it does
-of all concealed targets. -/
 theorem feasibleFind_covered (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (length : ℕ) :
     Kernel.Covered (feasibleFind config mode live length)
@@ -1398,9 +1178,6 @@ theorem feasibleFind_covered (config : Host.WorldConfig) (mode : TaskFeatureMode
   obtain ⟨original, picked, rfl⟩ := Finset.mem_image.mp chosen
   exact each original picked
 
-/-- **The window.** A concealed target that some action sequence meets within `length` steps lies
-within `3 + length` tiles of the start on both axes. So the window of that radius around the start
-holds every member of a class of feasible concealed targets, whatever the terrain. -/
 theorem feasible_window (mode : TaskFeatureMode) (live : Live config) (length : ℕ)
     (target : Host.Position)
     (feasible : Kernel.Feasible (completion config mode length) (member live target)) :
@@ -1410,8 +1187,6 @@ theorem feasible_window (mode : TaskFeatureMode) (live : Live config) (length : 
     (walk_near (physical live.world) actions) length
     (find_met_swept mode live length actions target met)
 
-/-- A class of feasible concealed targets has at most `(2 (3 + length) + 1)² - 49` members: the
-tiles of its window less those within three tiles of the start. -/
 theorem feasible_count (mode : TaskFeatureMode) (live : Live config) (length : ℕ)
     (members : Finset (feasibleFind config mode live length).Index) :
     members.card ≤ (2 * (3 + length) + 1) * (2 * (3 + length) + 1) - 49 := by
@@ -1437,9 +1212,6 @@ theorem feasible_count (mode : TaskFeatureMode) (live : Live config) (length : �
     _ = (2 * (3 + length) + 1) * (2 * (3 + length) + 1) - 49 := by
         rw [Finset.card_sdiff_of_subset nested, card_box, card_box]
 
-/-- In every admitted world, a finite set of more feasible concealed targets than the covering
-bound makes the class a `Kernel.ConcealedClass`. Feasibility holds by how the class is indexed, so
-the theorem's content is the concealment, the bound and the count. -/
 theorem feasibleFind_concealed_of (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (length : ℕ)
     (members : Finset (feasibleFind config mode live length).Index)
@@ -1454,16 +1226,6 @@ theorem feasibleFind_concealed_of (config : Host.WorldConfig) (mode : TaskFeatur
      members := members
      large := many }⟩
 
-/-- **A class meeting the kernel's form of conditions (a) to (c).** In the witness's world, at
-seed 1 and side 64, with visits of seven steps, the feasible concealed targets are a
-`Kernel.ConcealedClass` with the bound 98: the
-147 members of `witness_separation` are each feasible, since each is solved on a visit. This is a
-lemma the mission theorem on the first class of the ladder uses. It says nothing about obligation 4
-of `docs/mission-contract.md`, the goal-information and exploration premises, and it is no result
-about learning. That structure states condition (c) as fewer than all, so the class is not thereby
-shown to be a concealed class (sentence 5 of contract 2 there). The bound 98 is the one this
-theorem is stated at; `AcornVerif.CurrentForkedTargetBoth.feasibleFind_covered_sharp` proves the
-sharper covering bound 49 of the same class. -/
 theorem witness_concealed (mode : TaskFeatureMode) :
     Nonempty (Kernel.ConcealedClass (feasibleFind witnessConfig mode witnessLive 7)
       (fun _ => completion witnessConfig mode 7) 7 (49 + 7 * 7)) := by

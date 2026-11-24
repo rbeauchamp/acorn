@@ -1,18 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentLearnerArithmetic
 
-/-!
-# Machine arithmetic for raw model backups
-
-The small reward-duration intermediate is bounded before its addition to the
-raw aggregate continuation. These lemmas connect the executing binary32
-wrappers to the pinned standard model; native compiler/runtime correspondence
-remains trusted. No real-arithmetic identity is substituted for rounded execution.
--/
 open Acorn
 open Float.Model (Format UnpackedFloat)
 open Float.Model.UnpackedFloat
@@ -20,7 +7,6 @@ open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmeti
 open AcornVerif.CurrentOperations AcornVerif.CurrentLearnerArithmetic
 namespace AcornVerif.CurrentModelArithmetic
 
-/-- A normalized small intermediate with at most unit rounding error fits binary32. -/
 theorem small_fits (value : UnpackedFloat) (exactValue : ℚ)
     (normal : ModelNormalized Format.binary32 value) (bound : |exactValue| ≤ 512)
     (error : |unpackedValue value - exactValue| ≤ 1) : ModelFits Format.binary32 value := by
@@ -31,7 +17,6 @@ theorem small_fits (value : UnpackedFloat) (exactValue : ℚ)
   norm_num
   linarith only [triangle, bound, error]
 
-/-- Actual small binary32 multiplication is finite and has at most unit absolute error. -/
 theorem small_mul (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left * numerical32 right| ≤ 512) :
     (left.mul right).Finite ∧
@@ -54,7 +39,6 @@ theorem small_mul (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     exact model_normalized_finite _ _ operation.1
   · simpa only [numerical32, decoded] using error
 
-/-- Actual small binary32 subtraction is finite and has at most unit absolute error. -/
 theorem small_sub (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left - numerical32 right| ≤ 512) :
     (left.sub right).Finite ∧
