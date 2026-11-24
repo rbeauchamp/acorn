@@ -172,14 +172,15 @@ add per-file MIT headers to Lean sources under the `no-comments` policy;
 existing non-Lean notices such as `lean/os/checkpoint-sync.c` stay). The merge
 gate, `./scripts/gate.sh`, which the no-mistakes pipeline runs on the exact
 proposed head before a pull request opens, runs the same command and, outside
-that deadline, the Regula audit `./scripts/regula.sh`, lean-intent's
-confirmation and implementation checks (`lean/AcornTools/Intent.lean`), the
-check of each target's pinned frame (`lean/AcornTools/Frame.lean`), and the
-pinned `no-comments` ratchet check (`.no-comments.json`,
-`comment-ratchet.json`, `lean/no-comments.pin`); GitHub runs the same checks on
-a pull request's
-head commit when it is opened or reopened and at every push to it
-(`.github/workflows/verify.yml`). Resolve required checks,
+`verify.sh`'s deadline under individual hard deadlines, the Regula audit
+`./scripts/regula.sh`, lean-intent's confirmation and implementation checks
+(`lean/AcornTools/Intent.lean`), the check of each target's pinned frame
+(`lean/AcornTools/Frame.lean`), and the pinned `no-comments` ratchet check
+(`.no-comments.json`, `comment-ratchet.json`, `lean/no-comments.pin`); GitHub
+runs the same checks on a pull request's head commit when it is opened or
+reopened and at every push to it (`.github/workflows/verify.yml`), bounded by
+calibrated job and step `timeout-minutes` limits with per-phase
+`$GITHUB_STEP_SUMMARY` timings and `::warning::` budget alerts. Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need

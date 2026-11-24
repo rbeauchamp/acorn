@@ -49,14 +49,16 @@ env:
 # No step continues after a failure.
 jobs:
   gate:
-    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's limit is the
-    # sum of the limits of the two jobs that ran these checks side by side before; no
-    # check's own deadline is changed, and each of verification's two stages keeps
-    # verify.sh's 360-second deadline. Regula's contract names Ubuntu 24.04.5 LTS on x86-64,
-    # the release that this runner image held when Regula observed it; an image of another
-    # release is outside that contract.
+    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's 20-minute ceiling
+    # and the 12-minute provisioning / 13-minute merge-gate step ceilings bound total wall-clock
+    # time with headroom for normal ubuntu-24.04 runner variance while failing regressions
+    # immediately; each verification stage keeps verify.sh's 360-second deadline and scripts/gate.sh
+    # bounds Regula (360s), lean-intent (180s), frame-check (120s) and no-comments (300s)
+    # individually. Regula's contract names Ubuntu 24.04.5 LTS on x86-64, the release that this
+    # runner image held when Regula observed it; an image of another release is outside that
+    # contract.
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - name: Identify the commit to verify
         id: commit
@@ -75,6 +77,7 @@ jobs:
             exit 1
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         timeout-minutes: 2
         with:
@@ -124,11 +127,20 @@ jobs:
             exit 1
           fi
       # The pinned dependencies, by the script of the commit under verification, as that
-      # commit's Lake configuration and lock files name them. The limit bounds a stalled
-      # download and is no check's deadline; no check runs in this step.
+      # commit's Lake configuration and lock files name them. The 12-minute limit bounds a
+      # stalled download and is no check's deadline; no check runs in this step.
       - name: Provision the pinned dependencies
-        timeout-minutes: 27
-        run: ./scripts/gate.sh provision
+        id: provision
+        timeout-minutes: 12
+        run: |
+          start_epoch=$(date +%s)
+          ./scripts/gate.sh provision
+          elapsed=$(( $(date +%s) - start_epoch ))
+          echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
+          if (( elapsed > 480 )); then
+            printf '::warning title=Verify / gate budget::Provision took %dm %02ds (%d s) (target <= 8m 00s (480 s)).\n' \
+              $((elapsed / 60)) $((elapsed % 60)) "$elapsed"
+          fi
       # The merge gate itself, by the same script with no argument. Its own provisioning
       # finds the dependencies current. It then runs verification as two timed
       # stages, each under verify.sh's own 360-second deadline: the cold build fills all four
@@ -139,14 +151,21 @@ jobs:
       # complete command unchanged: Lake reuses a stage one output only where its trace
       # matches the checked-out source, toolchain and options, and builds everything else.
       # The script then runs the Regula audit (scripts/regula.sh,
-      # docs/verification.md#regula-audit), lean-intent's confirmation and implementation
-      # checks (lean/AcornTools/Intent.lean), and the check of each target's pin file
-      # (lean/AcornTools/Frame.lean), each also when an earlier check failed. Serially afterward,
-      # and only when ordinary verification succeeded (so un-admitted sources are never
-      # elaborated), it runs the pinned no-comments check (.no-comments.json, comment-ratchet.json,
-      # lean/no-comments.pin). The script exits non-zero when any check failed, and its `gate:`
-      # lines give the time of each part.
+      # docs/verification.md#regula-audit, 360-second deadline), lean-intent's confirmation and
+      # implementation checks (lean/AcornTools/Intent.lean, 180-second deadline), and the check
+      # of each target's pin file (lean/AcornTools/Frame.lean, 120-second deadline), each also
+      # when an earlier check failed. Only when ordinary verification succeeded (so un-admitted
+      # sources are never elaborated), after admitting cache containment, offline SHA-256 and
+      # tracked config/ratchet files upfront, it runs the pinned no-comments check
+      # (.no-comments.json, comment-ratchet.json, lean/no-comments.pin, 300-second deadline)
+      # after lean-intent and frame-check inside the background subshell beside Regula. The
+      # script writes a per-phase duration table to $GITHUB_STEP_SUMMARY, emits ::warning::
+      # budget alerts when target budgets are exceeded, exits non-zero when any check failed,
+      # and prints its `gate:` lines with each part's status and time.
       - name: The merge gate on the exact source
+        timeout-minutes: 13
         env:
           ACORN_BASE_REF: refs/remotes/origin/${{ github.base_ref }}
+          ACORN_PROVISION_SECONDS: ${{ steps.provision.outputs.seconds }}
+          ACORN_JOB_START_EPOCH: ${{ steps.commit.outputs.start_epoch }}
         run: ./scripts/gate.sh
