@@ -586,10 +586,12 @@ external name must be listed in full), and the module imports only Lean's
 prelude so the Regula proof claim covers it and `AcornDocument.external_listed`.
 In `lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.code` conservatively
 strips JavaScript comments, strings, and regex literals and fails closed on
-unterminated constructs; its specification table check scans `docs/viewer-ux.md`
-from `## Appendix A · Constants this document quotes` to the end of the file,
-requiring Appendix A to remain the final section with no other `|` table lines
-after it.
+unterminated constructs; its specification table check requires a unique line
+containing the Appendix A title with exact heading
+`## Appendix A · Constants this document quotes`, then scans from that heading
+to the end of `docs/viewer-ux.md` (without stopping at a later heading),
+requiring the generated constants table to appear consecutively once and
+rejecting any other line containing `|` after that heading.
 
 Numerical proofs use the executing Lean definitions. Native admission checks
 their compiler IR, primitive calls, resource contracts and compiler flags. In `lean/AcornTools/Native/Audit.lean`, definition scanning matches `static` rather
@@ -788,7 +790,12 @@ before it reads a module. So a compiled file that an earlier build left
 behind is not read in
 place of the tree's source, as far as Lake's record of what is current is
 right: that record, and that nothing but Lake has written the compiled files
-since, are trusted. The check relies besides, as every check of the gate does,
+since, are trusted. Because AcornFrameCheck.current compares real paths for the
+named root module alone before AcornFrameCheck.imported loads its dependency
+closure (a boundary shared by verification and `frame-check print`), Lean's
+search path, which the bootstrap's `lake exe` sets with the workspace's own
+library directories first, is also trusted to resolve the pinned module's
+imports to the compiled artifacts Lake checked. The check relies besides, as every check of the gate does,
 on the stability of the file system while it runs, which the
 [compiler and execution boundary](#compiler-and-execution-boundary) lists among
 the trusted boundaries. The check then computes

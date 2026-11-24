@@ -436,10 +436,13 @@ have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
 The encoding of a frame is also the value of its costed
 definition (`Agent.frame`), and so are the words
-the coder reads (`Agent.words`, from the stored predictions' words and their feedback
-words; compiled `Agent.words` and `feedbackWords` build each word before the recursive
-call and cons it on the return, so `Agent.wordsCosted` and `feedbackWordsCosted` charge
-the word before the descent and a visit on the return), each generated unit's projection and output (`Bank.activations`), the tiled and
+the coder reads (`Agent.words`, where `Agent.wordsCosted` reads the stored predictions'
+words from the cache, computes their feedback words with `feedbackWordsCosted`, and
+prepends the frame's words with `Costed.append`—accounted separately in
+`AcornVerif.Resource.Twin.wordsBound` and `AcornVerif.Resource.Twin.wordsCosted_within`—and
+where compiled `feedbackWords` builds each feedback word before its recursive call and
+conses it on the return, so `feedbackWordsCosted` charges the word before the descent and
+a visit on the return, plus a visit at the end), each generated unit's projection and output (`Bank.activations`), the tiled and
 imprinted features and their concatenation, the first-occurrence filtering with its
 builder's empty value and finish (`unique`), and the frame of the current bank
 (`FeatureRuntime.encodeCurrent`, `EncodingFrame.compute`). So are an option model's input
