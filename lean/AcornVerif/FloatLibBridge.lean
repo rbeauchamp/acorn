@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentDivision
 import Acorn.Host.Geometry
 import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel
@@ -23,10 +18,6 @@ open FloatLib.Floats.Formats.Flocq (ulp ulp_abs ulp_bpow ulp_mono_pos error_boun
 
 namespace AcornVerif.FloatLibBridge
 
-/-! ## Format-generic statements about Lean core's unpacked model -/
-
-/-- Acorn's rational reading and FloatLib's real reading of an unpacked value
-are the same number; both send exceptional constructors to zero. -/
 theorem unpackedToReal_eq (value : UnpackedFloat) :
     unpackedToReal value = ((unpackedValue value : ℚ) : ℝ) := by
   cases value with
@@ -39,8 +30,6 @@ theorem unpackedToReal_eq (value : UnpackedFloat) :
         FloatLib.Numerics.Dyadic.toReal, FloatLib.Numerics.Dyadic.signedSignificand,
         modelSignBit]
 
-/-- Packing a canonical value that fits the format and reading it back through
-FloatLib's `toReal` returns its real value. -/
 theorem toReal_ofModel_fits (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     (value : UnpackedFloat) (normal : ModelNormalized fmt.toModel value)
     (fits : ModelFits fmt.toModel value) :
@@ -49,8 +38,6 @@ theorem toReal_ofModel_fits (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
   change unpackedToReal (unpack fmt.toModel (pack fmt.toModel value)) = _
   rw [model_unpack_pack_normalized _ _ normal fits]
 
-/-- Lean core's unpacked multiplication of canonical finite operands, when its
-packed result is finite, is the exact real product rounded once to nearest-even. -/
 theorem mul_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     (left right : UnpackedFloat) (leftFinite : left.isFinite = true)
     (rightFinite : right.isFinite = true)
@@ -85,10 +72,6 @@ theorem mul_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
         (model_product_exponent_ready fmt.toModel mantissa mantissa' exponent exponent'
           sign sign' positive positive' leftNormal rightNormal) finite
 
-/-- Lean core's unpacked addition of canonical finite operands that fit the
-format, when its packed result is finite, is the exact real sum rounded once to
-nearest-even. A zero operand returns the other operand, which is already on the
-format's grid. -/
 theorem add_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     (left right : UnpackedFloat) (leftFinite : left.isFinite = true)
     (rightFinite : right.isFinite = true)
@@ -126,24 +109,18 @@ theorem add_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
       exact toReal_ofModel_add_finite_eq_roundAt fmt ieee sign sign' mantissa mantissa'
         exponent exponent' positive positive' finite
 
-/-- Sign change keeps a finite value finite. -/
 theorem neg_isFinite (value : UnpackedFloat) (finite : value.isFinite = true) :
     (UnpackedFloat.neg value).isFinite = true := by
   cases value <;> exact finite
 
-/-- Sign change keeps the packing exponent guard. -/
 theorem neg_fits (spec : Format) (value : UnpackedFloat) (fits : ModelFits spec value) :
     ModelFits spec (UnpackedFloat.neg value) := by
   cases value <;> exact fits
 
-/-- Sign change negates FloatLib's real reading. -/
 theorem unpackedToReal_neg (value : UnpackedFloat) :
     unpackedToReal (UnpackedFloat.neg value) = -unpackedToReal value := by
   rw [unpackedToReal_eq, unpackedToReal_eq, model_neg_value, Rat.cast_neg]
 
-/-- Lean core's unpacked subtraction of canonical finite operands that fit the
-format, when its packed result is finite, is the exact real difference rounded
-once to nearest-even. -/
 theorem sub_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     (left right : UnpackedFloat) (leftFinite : left.isFinite = true)
     (rightFinite : right.isFinite = true)
@@ -157,11 +134,6 @@ theorem sub_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
   exact add_roundAt fmt ieee left _ leftFinite (neg_isFinite right rightFinite) leftNormal
     leftFits (model_neg_normalized _ right rightNormal) (neg_fits _ right rightFits) finite
 
-/-- Lean core's unpacked division of finite operands by a nonzero divisor,
-when its packed result is finite, is the exact real quotient rounded once to
-nearest-even. Two nonzero operands are FloatLib's
-`toReal_ofModel_div_finite_eq_roundAt`, which includes a zero
-provisional quotient. -/
 theorem div_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
     (left right : UnpackedFloat) (leftFinite : left.isFinite = true)
     (rightFinite : right.isFinite = true) (nonzero : unpackedValue right ≠ 0)
@@ -183,25 +155,17 @@ theorem div_roundAt (fmt : FloatFormat) (ieee : fmt.isIEEE = true)
       exact toReal_ofModel_div_finite_eq_roundAt fmt ieee sign sign' mantissa
         mantissa' exponent exponent' positive positive' finite
 
-/-! ## Binary64 -/
-
-/-- The same 64 bits, viewed as FloatLib's `Model`. -/
 def model64 (value : Binary64) : Model FloatFormat.binary64 := ⟨value.bits.toBitVec⟩
 
-/-- FloatLib's binary64 descriptor denotes Lean core's binary64 format. -/
 theorem format64 : FloatFormat.binary64.toModel = Format.binary64 := rfl
 
-/-- Both sides unpack the same word with Lean core's decoder. -/
 theorem toModel_model64 (value : Binary64) : toModel (model64 value) = decoded64 value := rfl
 
-/-- FloatLib's real reading of the word is Acorn's rational reading, on every
-word: both send exceptional words to zero. -/
 theorem toReal_model64 (value : Binary64) :
     toReal (model64 value) = ((numerical64 value : ℚ) : ℝ) := by
   rw [toReal_eq_unpackedToReal_toModel rfl, toModel_model64, unpackedToReal_eq]
   rfl
 
-/-- FloatLib's finiteness test on the word is Acorn's raw-word `Finite`. -/
 theorem isFinite_model64 (value : Binary64) :
     isFinite (model64 value) = true ↔ value.Finite := by
   rw [← model_decoded64_finite value, decoded64, model_unpack_finite_exponent]
@@ -220,7 +184,6 @@ theorem isFinite_model64 (value : Binary64) :
   simp only [bne_iff_ne, ne_eq, decide_eq_true_eq]
   omega
 
-/-- Every finite word decodes to canonical components that fit the format. -/
 theorem canonical64 (value : Binary64) (finite : value.Finite) :
     (decoded64 value).isFinite = true ∧ ModelNormalized Format.binary64 (decoded64 value) ∧
       ModelFits Format.binary64 (decoded64 value) :=
@@ -228,8 +191,6 @@ theorem canonical64 (value : Binary64) (finite : value.Finite) :
     model_unpack_format Format.binary64 (by decide) value.bits.toBitVec
       ((model_decoded64_finite value).mpr finite)⟩
 
-/-- On finite operands the executing addition is FloatLib's packing of Lean
-core's unpacked sum, word for word. -/
 theorem model64_add (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     model64 (left.add right) = ofModel FloatFormat.binary64
@@ -237,8 +198,6 @@ theorem model64_add (left right : Binary64) (leftFinite : left.Finite)
   rw [← model_ofBits64_decoded left leftFinite, ← model_ofBits64_decoded right rightFinite]
   rfl
 
-/-- On finite operands the executing subtraction is FloatLib's packing of Lean
-core's unpacked difference, word for word. -/
 theorem model64_sub (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     model64 (left.sub right) = ofModel FloatFormat.binary64
@@ -246,8 +205,6 @@ theorem model64_sub (left right : Binary64) (leftFinite : left.Finite)
   rw [← model_ofBits64_decoded left leftFinite, ← model_ofBits64_decoded right rightFinite]
   rfl
 
-/-- On finite operands the executing multiplication is FloatLib's packing of
-Lean core's unpacked product, word for word. -/
 theorem model64_mul (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     model64 (left.mul right) = ofModel FloatFormat.binary64
@@ -255,8 +212,6 @@ theorem model64_mul (left right : Binary64) (leftFinite : left.Finite)
   rw [← model_ofBits64_decoded left leftFinite, ← model_ofBits64_decoded right rightFinite]
   rfl
 
-/-- On finite operands the executing division is FloatLib's packing of Lean
-core's unpacked quotient, word for word. -/
 theorem model64_div (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     model64 (left.div right) = ofModel FloatFormat.binary64
@@ -264,8 +219,6 @@ theorem model64_div (left right : Binary64) (leftFinite : left.Finite)
   rw [← model_ofBits64_decoded left leftFinite, ← model_ofBits64_decoded right rightFinite]
   rfl
 
-/-- The executing binary64 addition, on finite operands with a finite result,
-is the exact real sum rounded once to nearest-even. -/
 theorem binary64_add_roundAt (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.add right).Finite) :
     ((numerical64 (left.add right) : ℚ) : ℝ) =
@@ -284,8 +237,6 @@ theorem binary64_add_roundAt (left right : Binary64) (leftFinite : left.Finite)
   rw [← packed, toReal_model64, unpackedToReal_eq, unpackedToReal_eq] at result
   exact result
 
-/-- The executing binary64 subtraction, on finite operands with a finite
-result, is the exact real difference rounded once to nearest-even. -/
 theorem binary64_sub_roundAt (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.sub right).Finite) :
     ((numerical64 (left.sub right) : ℚ) : ℝ) =
@@ -304,8 +255,6 @@ theorem binary64_sub_roundAt (left right : Binary64) (leftFinite : left.Finite)
   rw [← packed, toReal_model64, unpackedToReal_eq, unpackedToReal_eq] at result
   exact result
 
-/-- The executing binary64 multiplication, on finite operands with a finite
-result, is the exact real product rounded once to nearest-even. -/
 theorem binary64_mul_roundAt (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.mul right).Finite) :
     ((numerical64 (left.mul right) : ℚ) : ℝ) =
@@ -324,9 +273,6 @@ theorem binary64_mul_roundAt (left right : Binary64) (leftFinite : left.Finite)
   rw [← packed, toReal_model64, unpackedToReal_eq, unpackedToReal_eq] at result
   exact result
 
-/-- The executing binary64 division of finite operands by a nonzero divisor,
-when the result is finite, is the exact real quotient rounded once to
-nearest-even. -/
 theorem binary64_div_roundAt (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (nonzero : numerical64 right ≠ 0)
     (finite : (left.div right).Finite) :
@@ -346,25 +292,17 @@ theorem binary64_div_roundAt (left right : Binary64) (leftFinite : left.Finite)
   rw [← packed, toReal_model64, unpackedToReal_eq, unpackedToReal_eq] at result
   exact result
 
-/-! ## Binary32 -/
-
-/-- The same 32 bits, viewed as FloatLib's `Model`. -/
 def model32 (value : Binary32) : Model FloatFormat.binary32 := ⟨value.bits.toBitVec⟩
 
-/-- FloatLib's binary32 descriptor denotes Lean core's binary32 format. -/
 theorem format32 : FloatFormat.binary32.toModel = Format.binary32 := rfl
 
-/-- Both sides unpack the same word with Lean core's decoder. -/
 theorem toModel_model32 (value : Binary32) : toModel (model32 value) = decoded32 value := rfl
 
-/-- FloatLib's real reading of the word is Acorn's rational reading, on every
-word: both send exceptional words to zero. -/
 theorem toReal_model32 (value : Binary32) :
     toReal (model32 value) = ((numerical32 value : ℚ) : ℝ) := by
   rw [toReal_eq_unpackedToReal_toModel rfl, toModel_model32, unpackedToReal_eq]
   rfl
 
-/-- FloatLib's finiteness test on the word is Acorn's raw-word `Finite`. -/
 theorem isFinite_model32 (value : Binary32) :
     isFinite (model32 value) = true ↔ value.Finite := by
   rw [← model_decoded32_finite value, decoded32, model_unpack_finite_exponent]
@@ -383,7 +321,6 @@ theorem isFinite_model32 (value : Binary32) :
   simp only [bne_iff_ne, ne_eq, decide_eq_true_eq]
   omega
 
-/-- Every finite word decodes to canonical components that fit the format. -/
 theorem canonical32 (value : Binary32) (finite : value.Finite) :
     (decoded32 value).isFinite = true ∧ ModelNormalized Format.binary32 (decoded32 value) ∧
       ModelFits Format.binary32 (decoded32 value) :=
@@ -391,8 +328,6 @@ theorem canonical32 (value : Binary32) (finite : value.Finite) :
     model_unpack_format Format.binary32 (by decide) value.bits.toBitVec
       ((model_decoded32_finite value).mpr finite)⟩
 
-/-- On finite operands the executing addition is FloatLib's packing of Lean
-core's unpacked sum, word for word. -/
 theorem model32_add (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     model32 (left.add right) = ofModel FloatFormat.binary32
@@ -400,8 +335,6 @@ theorem model32_add (left right : Binary32) (leftFinite : left.Finite)
   rw [← model_ofBits32_decoded left leftFinite, ← model_ofBits32_decoded right rightFinite]
   rfl
 
-/-- On finite operands the executing subtraction is FloatLib's packing of Lean
-core's unpacked difference, word for word. -/
 theorem model32_sub (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     model32 (left.sub right) = ofModel FloatFormat.binary32
@@ -409,8 +342,6 @@ theorem model32_sub (left right : Binary32) (leftFinite : left.Finite)
   rw [← model_ofBits32_decoded left leftFinite, ← model_ofBits32_decoded right rightFinite]
   rfl
 
-/-- On finite operands the executing multiplication is FloatLib's packing of
-Lean core's unpacked product, word for word. -/
 theorem model32_mul (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     model32 (left.mul right) = ofModel FloatFormat.binary32
@@ -418,8 +349,6 @@ theorem model32_mul (left right : Binary32) (leftFinite : left.Finite)
   rw [← model_ofBits32_decoded left leftFinite, ← model_ofBits32_decoded right rightFinite]
   rfl
 
-/-- On finite operands the executing division is FloatLib's packing of Lean
-core's unpacked quotient, word for word. -/
 theorem model32_div (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     model32 (left.div right) = ofModel FloatFormat.binary32
@@ -427,8 +356,6 @@ theorem model32_div (left right : Binary32) (leftFinite : left.Finite)
   rw [← model_ofBits32_decoded left leftFinite, ← model_ofBits32_decoded right rightFinite]
   rfl
 
-/-- The executing binary32 addition, on finite operands with a finite result,
-is the exact real sum rounded once to nearest-even. -/
 theorem binary32_add_roundAt (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.add right).Finite) :
     ((numerical32 (left.add right) : ℚ) : ℝ) =
@@ -447,8 +374,6 @@ theorem binary32_add_roundAt (left right : Binary32) (leftFinite : left.Finite)
   rw [← packed, toReal_model32, unpackedToReal_eq, unpackedToReal_eq] at result
   exact result
 
-/-- The executing binary32 subtraction, on finite operands with a finite
-result, is the exact real difference rounded once to nearest-even. -/
 theorem binary32_sub_roundAt (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.sub right).Finite) :
     ((numerical32 (left.sub right) : ℚ) : ℝ) =
@@ -467,8 +392,6 @@ theorem binary32_sub_roundAt (left right : Binary32) (leftFinite : left.Finite)
   rw [← packed, toReal_model32, unpackedToReal_eq, unpackedToReal_eq] at result
   exact result
 
-/-- The executing binary32 multiplication, on finite operands with a finite
-result, is the exact real product rounded once to nearest-even. -/
 theorem binary32_mul_roundAt (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.mul right).Finite) :
     ((numerical32 (left.mul right) : ℚ) : ℝ) =
@@ -487,9 +410,6 @@ theorem binary32_mul_roundAt (left right : Binary32) (leftFinite : left.Finite)
   rw [← packed, toReal_model32, unpackedToReal_eq, unpackedToReal_eq] at result
   exact result
 
-/-- The executing binary32 division of finite operands by a nonzero divisor,
-when the result is finite, is the exact real quotient rounded once to
-nearest-even. -/
 theorem binary32_div_roundAt (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (nonzero : numerical32 right ≠ 0)
     (finite : (left.div right).Finite) :
@@ -509,10 +429,6 @@ theorem binary32_div_roundAt (left right : Binary32) (leftFinite : left.Finite)
   rw [← packed, toReal_model32, unpackedToReal_eq, unpackedToReal_eq] at result
   exact result
 
-/-! ## First consumers -/
-
-/-- Nearest-even rounding to binary64 moves a real of magnitude at most `2^16`
-by at most half the grid spacing at that magnitude, `2^(-37)`. -/
 theorem roundAt64_error (x : ℝ) (bound : |x| ≤ 65536) :
     |roundAt FloatFormat.binary64 x - x| ≤ 1 / 137438953472 := by
   by_cases zero : x = 0
@@ -541,11 +457,6 @@ theorem roundAt64_error (x : ℝ) (bound : |x| ≤ 65536) :
         ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary64) x / 2 := half
     _ ≤ 1 / 137438953472 := by linarith
 
-/-- The executing binary64 division stays finite and is within half the grid
-spacing, `2^(-37)`, of the exact quotient whenever that quotient has magnitude
-at most `2^16`. This is one quarter of the two-unit radius in
-`binary64_div_finite_error`, under the same hypotheses: the result is the
-correctly rounded quotient by `binary64_div_roundAt`. -/
 theorem binary64_div_half_unit_error (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (nonzero : numerical64 right ≠ 0)
     (bound : |numerical64 left / numerical64 right| ≤ 65536) :
@@ -561,8 +472,6 @@ theorem binary64_div_half_unit_error (left right : Binary64) (leftFinite : left.
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
-/-- Nearest-even rounding to binary32 moves a real of magnitude at most `2^7` by at most half
-the grid spacing at that magnitude, `2^(-17)`. -/
 theorem roundAt32_error_unit (x : ℝ) (bound : |x| ≤ 128) :
     |roundAt FloatFormat.binary32 x - x| ≤ 1 / 131072 := by
   by_cases zero : x = 0
@@ -591,8 +500,6 @@ theorem roundAt32_error_unit (x : ℝ) (bound : |x| ≤ 128) :
         ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x / 2 := half
     _ ≤ 1 / 131072 := by linarith
 
-/-- Nearest-even rounding to binary32 moves a real of magnitude at most `2^13` by at most half
-the grid spacing at that magnitude, `2^(-11)`. -/
 theorem roundAt32_error_sum (x : ℝ) (bound : |x| ≤ 8192) :
     |roundAt FloatFormat.binary32 x - x| ≤ 1 / 2048 := by
   by_cases zero : x = 0
@@ -621,8 +528,6 @@ theorem roundAt32_error_sum (x : ℝ) (bound : |x| ≤ 8192) :
         ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x / 2 := half
     _ ≤ 1 / 2048 := by linarith
 
-/-- Nearest-even rounding to binary32 has the standard model with gradual
-underflow: it moves a real by at most `2^(-24)` of its magnitude plus `2^(-150)`. -/
 theorem roundAt32_relative (x : ℝ) :
     |roundAt FloatFormat.binary32 x - x| ≤ |x| / 16777216 + 1 / 2 ^ 150 := by
   by_cases zero : x = 0
@@ -666,8 +571,6 @@ theorem roundAt32_relative (x : ℝ) :
         ulp FloatLib.Numerics.binaryRadix (fexpOf FloatFormat.binary32) x / 2 := half
     _ ≤ |x| / 16777216 + 1 / 2 ^ 150 := by linarith
 
-/-- The executing binary32 addition with a finite result is within `2^(-24)` of the exact
-sum relative to its magnitude, plus `2^(-150)` (`binary32_add_roundAt`). -/
 theorem binary32_add_relative (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.add right).Finite) :
     |numerical32 (left.add right) - (numerical32 left + numerical32 right)| ≤
@@ -677,8 +580,6 @@ theorem binary32_add_relative (left right : Binary32) (leftFinite : left.Finite)
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
-/-- The executing binary32 subtraction with a finite result is within `2^(-24)` of the
-exact difference relative to its magnitude, plus `2^(-150)` (`binary32_sub_roundAt`). -/
 theorem binary32_sub_relative (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.sub right).Finite) :
     |numerical32 (left.sub right) - (numerical32 left - numerical32 right)| ≤
@@ -688,9 +589,6 @@ theorem binary32_sub_relative (left right : Binary32) (leftFinite : left.Finite)
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
-/-- The executing binary32 multiplication with a finite result is within `2^(-17)` of the
-exact product whenever that product has magnitude at most `2^7`: it is the product rounded
-once (`binary32_mul_roundAt`). -/
 theorem binary32_mul_unit_error (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.mul right).Finite)
     (bound : |numerical32 left * numerical32 right| ≤ 128) :
@@ -702,8 +600,6 @@ theorem binary32_mul_unit_error (left right : Binary32) (leftFinite : left.Finit
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
-/-- The executing binary32 addition with a finite result is within `2^(-17)` of the exact
-sum whenever that sum has magnitude at most `2^7` (`binary32_add_roundAt`). -/
 theorem binary32_add_unit_error (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.add right).Finite)
     (bound : |numerical32 left + numerical32 right| ≤ 128) :
@@ -715,8 +611,6 @@ theorem binary32_add_unit_error (left right : Binary32) (leftFinite : left.Finit
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
-/-- The executing binary32 addition with a finite result is within `2^(-11)` of the exact
-sum whenever that sum has magnitude at most `2^13` (`binary32_add_roundAt`). -/
 theorem binary32_add_sum_error (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.add right).Finite)
     (bound : |numerical32 left + numerical32 right| ≤ 8192) :
@@ -728,8 +622,6 @@ theorem binary32_add_sum_error (left right : Binary32) (leftFinite : left.Finite
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
-/-- Acorn's integer nearest-even quotient and FloatLib's are the same function,
-so FloatLib's quotient-rounding theorems apply to the executing word paths. -/
 theorem nearestEven_eq_roundQuotientEven (numerator denominator : Nat) :
     Rounding.nearestEven numerator denominator =
       FloatLib.Numerics.roundQuotientEven numerator denominator := by
@@ -756,9 +648,6 @@ theorem nearestEven_eq_roundQuotientEven (numerator denominator : Nat) :
         rw [ite_eq_left up]
         simp [odd]
 
-/-- A positive normal binary32 word below one whose exact value lies strictly
-within half an ulp of a positive fraction in its binade is that fraction
-rounded once to nearest-even. -/
 theorem nearest32 (word : UInt32) (numerator denominator : Nat) (value : ℝ)
     (expOk : 1 ≤ word.toNat / 2 ^ 23 ∧ word.toNat / 2 ^ 23 ≤ 126)
     (denominatorPositive : denominator ≠ 0)
@@ -843,174 +732,144 @@ theorem nearest32 (word : UInt32) (numerator denominator : Nat) (value : ℝ)
       e, div_eq_mul_inv]
   rw [hwordReal, hround]
 
-/-! ### Decimal constants
-
-Each binary32 constant in `Acorn.Constants` that names a decimal value is that
-value rounded once to nearest-even. `CurrentConstants` records the exact dyadic
-value of each word; these theorems tie the word to the decimal it is named for. -/
-
-/-- `band030Bits` is `0.3` rounded to nearest-even binary32. -/
 theorem band030_nearest :
     ((numerical32 (Binary32.mk Constants.band030Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.3 :=
   nearest32 Constants.band030Bits 3 10 0.3 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `band0335Bits` is `0.335` rounded to nearest-even binary32. -/
 theorem band0335_nearest :
     ((numerical32 (Binary32.mk Constants.band0335Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.335 :=
   nearest32 Constants.band0335Bits 335 1000 0.335 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `band060Bits` is `0.6` rounded to nearest-even binary32. -/
 theorem band060_nearest :
     ((numerical32 (Binary32.mk Constants.band060Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.6 :=
   nearest32 Constants.band060Bits 6 10 0.6 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `band072Bits` is `0.72` rounded to nearest-even binary32. -/
 theorem band072_nearest :
     ((numerical32 (Binary32.mk Constants.band072Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.72 :=
   nearest32 Constants.band072Bits 72 100 0.72 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `band080Bits` is `0.8` rounded to nearest-even binary32. -/
 theorem band080_nearest :
     ((numerical32 (Binary32.mk Constants.band080Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.8 :=
   nearest32 Constants.band080Bits 8 10 0.8 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `moist040Bits` is `0.4` rounded to nearest-even binary32. -/
 theorem moist040_nearest :
     ((numerical32 (Binary32.mk Constants.moist040Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.4 :=
   nearest32 Constants.moist040Bits 4 10 0.4 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `gamma90Bits` is `0.9` rounded to nearest-even binary32. -/
 theorem gamma90_nearest :
     ((numerical32 (Binary32.mk Constants.gamma90Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.9 :=
   nearest32 Constants.gamma90Bits 9 10 0.9 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `gamma95Bits` is `0.95` rounded to nearest-even binary32. -/
 theorem gamma95_nearest :
     ((numerical32 (Binary32.mk Constants.gamma95Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.95 :=
   nearest32 Constants.gamma95Bits 95 100 0.95 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `gamma99Bits` is `0.99` rounded to nearest-even binary32. -/
 theorem gamma99_nearest :
     ((numerical32 (Binary32.mk Constants.gamma99Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.99 :=
   nearest32 Constants.gamma99Bits 99 100 0.99 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `alphaInit5e5Bits` is `0.00005` rounded to nearest-even binary32. -/
 theorem alphaInit5e5_nearest :
     ((numerical32 (Binary32.mk Constants.alphaInit5e5Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.00005 :=
   nearest32 Constants.alphaInit5e5Bits 5 100000 0.00005 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `alphaInit1e4Bits` is `0.0001` rounded to nearest-even binary32. -/
 theorem alphaInit1e4_nearest :
     ((numerical32 (Binary32.mk Constants.alphaInit1e4Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.0001 :=
   nearest32 Constants.alphaInit1e4Bits 1 10000 0.0001 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `epsilon1e5Bits` is `0.00001` rounded to nearest-even binary32. -/
 theorem epsilon1e5_nearest :
     ((numerical32 (Binary32.mk Constants.epsilon1e5Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.00001 :=
   nearest32 Constants.epsilon1e5Bits 1 100000 0.00001 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `eta01Bits` is `0.1` rounded to nearest-even binary32. -/
 theorem eta01_nearest :
     ((numerical32 (Binary32.mk Constants.eta01Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.1 :=
   nearest32 Constants.eta01Bits 1 10 0.1 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `eta025Bits` is `0.25` rounded to nearest-even binary32. -/
 theorem eta025_nearest :
     ((numerical32 (Binary32.mk Constants.eta025Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.25 :=
   nearest32 Constants.eta025Bits 25 100 0.25 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `etaMin1e10Bits` is `0.0000000001` rounded to nearest-even binary32. -/
 theorem etaMin1e10_nearest :
     ((numerical32 (Binary32.mk Constants.etaMin1e10Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.0000000001 :=
   nearest32 Constants.etaMin1e10Bits 1 10000000000 0.0000000001 (by decide) (by decide)
     (by norm_num) (by decide) (by decide) (by decide)
 
-/-- `decay0999Bits` is `0.999` rounded to nearest-even binary32. -/
 theorem decay0999_nearest :
     ((numerical32 (Binary32.mk Constants.decay0999Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.999 :=
   nearest32 Constants.decay0999Bits 999 1000 0.999 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `meta1e3Bits` is `0.001` rounded to nearest-even binary32. -/
 theorem meta1e3_nearest :
     ((numerical32 (Binary32.mk Constants.meta1e3Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.001 :=
   nearest32 Constants.meta1e3Bits 1 1000 0.001 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `meta3e2Bits` is `0.03` rounded to nearest-even binary32. -/
 theorem meta3e2_nearest :
     ((numerical32 (Binary32.mk Constants.meta3e2Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.03 :=
   nearest32 Constants.meta3e2Bits 3 100 0.03 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `tie1e6Bits` is `0.000001` rounded to nearest-even binary32. -/
 theorem tie1e6_nearest :
     ((numerical32 (Binary32.mk Constants.tie1e6Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.000001 :=
   nearest32 Constants.tie1e6Bits 1 1000000 0.000001 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `epsStartBits` is `0.5` rounded to nearest-even binary32. -/
 theorem epsStart_nearest :
     ((numerical32 (Binary32.mk Constants.epsStartBits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.5 :=
   nearest32 Constants.epsStartBits 5 10 0.5 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `epsMinBits` is `0.05` rounded to nearest-even binary32. -/
 theorem epsMin_nearest :
     ((numerical32 (Binary32.mk Constants.epsMinBits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.05 :=
   nearest32 Constants.epsMinBits 5 100 0.05 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `epsDecayBits` is `0.99999` rounded to nearest-even binary32. -/
 theorem epsDecay_nearest :
     ((numerical32 (Binary32.mk Constants.epsDecayBits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.99999 :=
   nearest32 Constants.epsDecayBits 99999 100000 0.99999 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `optionEpsilonBits` is `0.1` rounded to nearest-even binary32. -/
 theorem optionEpsilon_nearest :
     ((numerical32 (Binary32.mk Constants.optionEpsilonBits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.1 :=
   nearest32 Constants.optionEpsilonBits 1 10 0.1 (by decide) (by decide) (by norm_num)
     (by decide) (by decide) (by decide)
 
-/-- `exploreRate1e2Bits` is `0.01` rounded to nearest-even binary32. -/
 theorem exploreRate1e2_nearest :
     ((numerical32 (Binary32.mk Constants.exploreRate1e2Bits) : ℚ) : ℝ) =
       roundAt FloatFormat.binary32 0.01 :=

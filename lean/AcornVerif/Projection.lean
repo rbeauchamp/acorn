@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Mathlib.Basic.Real.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.FieldSimp
@@ -11,29 +6,12 @@ import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Ring
 import AcornVerif.ModelConstants
 
-/-!
-# The value-range projection
-
-For a cumulant in `[0,1]` and discount `0 ≤ γ < 1`, the discounted return lies
-in `[0, 1/(1-γ)]`. `projectR` models symmetric projection onto `[-b,b]` over
-ℝ. Its range, identity and non-expansiveness theorems state their hypotheses
-explicitly; non-expansiveness requires the target to lie in the interval.
-
-`horizon_covers_true_bound` checks the rational discount/horizon pairs in
-`AcornVerif.ModelConstants`. The current finite constant interface is checked in
-`AcornVerif.CurrentConstants`. Machine-word totality, NaNs, infinities and
-rounding require the executable admission and arithmetic contracts; they are
-outside this real-arithmetic projection model.
--/
-
 namespace AcornVerif
 
 open AcornVerif.ModelConstants
 
-/-- Symmetric real projection: clamp `v` into `[-b, b]`. -/
 def projectR (b v : ℝ) : ℝ := max (-b) (min b v)
 
-/-- Real projection lands inside every nonnegative bound. -/
 theorem project_mem_range (b v : ℝ) (hb : 0 ≤ b) :
     -b ≤ projectR b v ∧ projectR b v ≤ b := by
   constructor
@@ -45,17 +23,11 @@ theorem project_mem_range (b v : ℝ) (hb : 0 ≤ b) :
     · rw [max_eq_left h]
       linarith
 
-/-- Real projection fixes every value already inside the interval. -/
 theorem project_id_of_mem (b v : ℝ) (h1 : -b ≤ v) (h2 : v ≤ b) :
     projectR b v = v := by
   unfold projectR
   rw [min_eq_right h2, max_eq_right h1]
 
-/-- **Projection is non-expansive** toward any target inside the bound.
-
-The target is assumed to lie inside the rail. This establishes non-increasing
-distance, not strict contraction, convergence, or admissibility of that rail
-for each coefficient of a learned representation. -/
 theorem project_nonexpansive (b v t : ℝ) (ht1 : -b ≤ t) (ht2 : t ≤ b) :
     |projectR b v - t| ≤ |v - t| := by
   have hb : (0 : ℝ) ≤ b := by linarith
@@ -72,9 +44,6 @@ theorem project_nonexpansive (b v t : ℝ) (ht1 : -b ≤ t) (ht2 : t ≤ b) :
         abs_of_nonneg (by linarith : 0 ≤ v - t)]
       linarith
 
-/-- Every rational discount/horizon pair in `ModelConstants.discounts` bounds the
-corresponding real discounted return. Current constant compatibility is checked
-separately by `AcornVerif.CurrentConstants`. -/
 theorem horizon_covers_true_bound :
     ∀ p ∈ ModelConstants.discounts, 1 / (1 - p.1) ≤ p.2 := by
   intro p hp
@@ -83,34 +52,18 @@ theorem horizon_covers_true_bound :
     norm_num [ModelConstants.gammaG90, ModelConstants.gammaG95, ModelConstants.gammaG99,
       ModelConstants.horizonG90, ModelConstants.horizonG95, ModelConstants.horizonG99]
 
-/-- **The fixed point of a constant-cumulant GVF.**
-
-If the cumulant is the constant `c` at every step, the TD target `v = c + γ·v`
-has the unique solution `c / (1 - γ)`. For `c = 1` and `γ = 0.99` that is
-exactly `100`.
-
-This is stated because a learner's convergence to it is the one property worth
-knowing about a constant-reward problem, and it is *decidable* — a sampled run
-that watches an estimate approach 100 observes one trajectory, where this
-settles every one. It also says what `Discount.horizon` is: the fixed point of
-the largest cumulant the demons admit, which is why projecting onto it discards
-nothing reachable. -/
 theorem constant_cumulant_fixed_point (c γ : ℝ) (hγ : γ < 1) :
     c / (1 - γ) = c + γ * (c / (1 - γ)) := by
   have h : (1 : ℝ) - γ ≠ 0 := by linarith
   field_simp
   ring
 
-/-- The fixed point is *unique*: nothing else satisfies the TD equation, so a
-learner that reaches a stationary point of a constant-cumulant problem has
-reached this value and no other. -/
 theorem constant_cumulant_fixed_point_unique (c γ v : ℝ) (hγ : γ < 1)
     (hv : v = c + γ * v) : v = c / (1 - γ) := by
   have h : (1 : ℝ) - γ ≠ 0 := by linarith
   rw [eq_div_iff h]
   linear_combination hv
 
-/-- Every discount in the closed set is a proper contraction. -/
 theorem gamma_is_contraction :
     ∀ p ∈ ModelConstants.discounts, 0 < p.1 ∧ p.1 < 1 := by
   intro p hp

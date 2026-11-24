@@ -1,25 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Mathlib.Probability.CondVar
 import Mathlib.Tactic.Ring
 
-/-!
-# Squared-loss interpretation
-
-These are conditional real-probability statements, not identification claims
-about one evolving stream. They reuse Mathlib's conditional expectation and
-conditional variance. A forecast must be measurable with respect to the
-information available at capture; both forecast and return must be square
-integrable. No independence of overlapping returns is assumed or concluded.
--/
 namespace AcornVerif.AgreementInterpretation
 open MeasureTheory ProbabilityTheory Filter
 
-/-- Conditional squared loss separates forecast discrepancy from outcome variance.
-The mathematical conditional mean is not estimated by this instrument. -/
 theorem squared_loss_decomposition {Ω : Type*} {m₀ m : MeasurableSpace Ω}
     (hm : m ≤ m₀) (μ : Measure[m₀] Ω) [IsFiniteMeasure μ]
     (forecast outcome : Ω → ℝ) (forecastKnown : StronglyMeasurable[m] forecast)
@@ -48,8 +32,6 @@ theorem squared_loss_decomposition {Ω : Type*} {m₀ m : MeasurableSpace Ω}
   rw [variance]
   ring
 
-/-- Every information-measurable forecast has conditional squared loss at least
-the conditional variance; equality requires zero conditional-mean discrepancy. -/
 theorem conditional_mean_minimizes {Ω : Type*} {m₀ m : MeasurableSpace Ω}
     (hm : m ≤ m₀) (μ : Measure[m₀] Ω) [IsFiniteMeasure μ]
     (forecast outcome : Ω → ℝ) (forecastKnown : StronglyMeasurable[m] forecast)
@@ -61,13 +43,11 @@ theorem conditional_mean_minimizes {Ω : Type*} {m₀ m : MeasurableSpace Ω}
   rw [decomposition]
   exact le_add_of_nonneg_left (sq_nonneg _)
 
-/-- The conditional mean belongs to the same information-measurable square-integrable class. -/
 theorem conditional_mean_admissible {Ω : Type*} {m₀ m : MeasurableSpace Ω}
     (μ : Measure[m₀] Ω) (outcome : Ω → ℝ) (square : MemLp outcome 2 μ) :
     StronglyMeasurable[m] (condExp m μ outcome) ∧ MemLp (condExp m μ outcome) 2 μ :=
   ⟨stronglyMeasurable_condExp, MemLp.condExp one_le_two square⟩
 
-/-- The admissible conditional mean attains the lower bound by variance's exact definition. -/
 theorem conditional_mean_attains {Ω : Type*} {m₀ m : MeasurableSpace Ω}
     (μ : Measure[m₀] Ω) (outcome : Ω → ℝ) :
     condExp m μ ((outcome - condExp m μ outcome)^2) = condVar m outcome μ := rfl
