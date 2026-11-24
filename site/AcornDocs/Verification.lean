@@ -760,7 +760,7 @@ value. The checker implements SHA-256 directly over UTF-8 bytes
 (AcornFrameCheck.roundConstants, AcornFrameCheck.initialHash,
 AcornFrameCheck.padded, AcornFrameCheck.compress, and AcornFrameCheck.sha256)
 following NIST's
-[FIPS 180-4](https://csrc.nist.gov/files/pubs/fips/180-4/final/docs/fips180-4.pdf)
+[FIPS 180-4](https://doi.org/10.6028/NIST.FIPS.180-4)
 (Secure Hash Standard, August 2015, §4.1.2, §4.2.2, §5.1.1, §5.3.3, and §6.2).
 Before AcornFrameCheck.run reads any pin file, AcornFrameCheck.vectorsHold
 checks three published digests: the empty message (zero bytes, NIST CAVP
