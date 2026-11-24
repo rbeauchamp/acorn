@@ -173,85 +173,103 @@ private def longLakeOptsWithArg : Array String := #[
   "--solution-from-export"
 ]
 
+private def optionFuel (xs : List String) : Nat :=
+  3 * (xs.foldl (fun acc s => acc + s.length + 1) 1) + 1
+
+private inductive OptionStep where
+  | stop
+  | positional (arg : String) (rest : List String)
+  | disallowed (opt : String)
+  | next (rest : List String)
+
+private def stepLakeOption (arg : String) (rest : List String) : OptionStep :=
+  if arg.isEmpty then
+    .next rest
+  else if arg.length > 1 && arg.startsWith "-" then
+    if arg.startsWith "--" then
+      let (lhs, eqVal?) := splitFirstChar arg '='
+      let afterEq := match eqVal? with | some v => v :: rest | none => rest
+      let (optName, spVal?) := splitFirstChar lhs ' '
+      let nextArgs := match spVal? with | some v => v :: afterEq | none => afterEq
+      if optName == "--" then
+        .stop
+      else if optName == "--file" || optName == "--dir" || optName == "--packages" then
+        .disallowed optName
+      else if longLakeOptsWithArg.contains optName then
+        .next (nextArgs.drop 1)
+      else
+        .next nextArgs
+    else
+      let chars := arg.toList
+      match chars[1]? with
+      | none => .stop
+      | some c =>
+        let nextArgs :=
+          if chars.length == 2 then rest
+          else match chars[2]? with
+            | some '=' => (arg.drop 3).toString :: rest
+            | some ' ' => (arg.drop 2).trimAsciiStart.toString :: rest
+            | _ => (arg.drop 2).toString :: rest
+        if c == 'f' || c == 'd' then
+          .disallowed s!"-{c}"
+        else if c == 'K' || c == 'o' then
+          .next (nextArgs.drop 1)
+        else
+          .next nextArgs
+  else
+    .positional arg rest
+
 private def scanLakeOptions : Nat → List String → Bool → IO Unit
   | 0, _, _ => throw (IO.userError "Lake option validation exceeded step bound")
   | _ + 1, [], _ => pure ()
-  | fuel + 1, arg :: rest, stopAtPositional => do
-    if arg.isEmpty then
-      scanLakeOptions fuel rest stopAtPositional
-    else if arg.length > 1 && arg.startsWith "-" then
-      if arg.startsWith "--" then
-        let (lhs, eqVal?) := splitFirstChar arg '='
-        let afterEq := match eqVal? with | some v => v :: rest | none => rest
-        let (optName, spVal?) := splitFirstChar lhs ' '
-        let nextArgs := match spVal? with | some v => v :: afterEq | none => afterEq
-        if optName == "--" then
-          return
-        if optName == "--file" || optName == "--dir" || optName == "--packages" then
-          throw (IO.userError s!"disallowed Lake override option in bootstrap invocation: {optName}")
-        let remaining := if longLakeOptsWithArg.contains optName then nextArgs.drop 1 else nextArgs
-        scanLakeOptions fuel remaining stopAtPositional
-      else
-        let chars := arg.toList
-        match chars[1]? with
-        | none => pure ()
-        | some c =>
-          let nextArgs :=
-            if chars.length == 2 then rest
-            else match chars[2]? with
-              | some '=' => (arg.drop 3).toString :: rest
-              | some ' ' => (arg.drop 2).trimAsciiStart.toString :: rest
-              | _ => (arg.drop 2).toString :: rest
-          if c == 'f' || c == 'd' then
-            throw (IO.userError s!"disallowed Lake override option in bootstrap invocation: -{c}")
-          let remaining := if c == 'K' || c == 'o' then nextArgs.drop 1 else nextArgs
-          scanLakeOptions fuel remaining stopAtPositional
-    else if stopAtPositional then
-      return
-    else
-      scanLakeOptions fuel rest stopAtPositional
+  | fuel + 1, arg :: rest, stopAtPositional =>
+    match stepLakeOption arg rest with
+    | .stop => pure ()
+    | .disallowed opt =>
+      throw (IO.userError s!"disallowed Lake override option in bootstrap invocation: {opt}")
+    | .next remaining => scanLakeOptions fuel remaining stopAtPositional
+    | .positional _ remaining =>
+      if stopAtPositional then pure () else scanLakeOptions fuel remaining stopAtPositional
 
 private def validateCallerArgs (args : List String) : IO Unit := do
   if args == ["provision-status"] ||
       args == ["script", "run", "acornTargets"] ||
       args == ["script", "run", "intentLibraries"] then
     return
-  let fuel (xs : List String) : Nat :=
-    3 * (xs.foldl (fun acc s => acc + s.length + 1) 1) + 1
   match args with
   | "build" :: rest | "query" :: rest =>
-    scanLakeOptions (fuel rest) rest false
+    scanLakeOptions (optionFuel rest) rest false
   | "exe" :: rest | "env" :: rest =>
-    scanLakeOptions (fuel rest) rest true
+    scanLakeOptions (optionFuel rest) rest true
   | _ =>
     throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
 
-private def findExeTarget : List String → Option (String × List String)
-  | [] => none
-  | "--" :: name :: tail => some (name, tail)
-  | "--" :: [] => none
-  | arg :: rest =>
-    if arg.length > 1 && arg.startsWith "-" then
-      if arg.startsWith "--" then
-        let (lhs, eqVal?) := splitFirstChar arg '='
-        let (optName, spVal?) := splitFirstChar lhs ' '
-        if eqVal?.isNone && spVal?.isNone && longLakeOptsWithArg.contains optName then
-          match rest with
-          | [] => none
-          | _ :: after => findExeTarget after
-        else
-          findExeTarget rest
-      else
-        let chars := arg.toList
-        let c := chars[1]?.getD ' '
-        if chars.length == 2 && (c == 'K' || c == 'o') then
-          match rest with
-          | [] => none
-          | _ :: after => findExeTarget after
-        else
-          findExeTarget rest
+private def toLakeName (s : String) : Name :=
+  if s.toName.isAnonymous then Name.mkSimple s else s.toName
+
+private def normalizeExeTarget (spec : String) : Option String :=
+  match spec.splitOn "/" with
+  | [target] => some ((toLakeName target).toString (escape := false))
+  | [pkg, target] =>
+    let pkg := if pkg.startsWith "@" then (pkg.drop 1).toString else pkg
+    if pkg.isEmpty || toLakeName pkg == `acorn then
+      some ((toLakeName target).toString (escape := false))
     else
-      some (arg, rest)
+      none
+  | _ => none
+
+private def findExeTargetAux : Nat → List String → Option (String × List String)
+  | 0, _ => none
+  | _ + 1, [] => none
+  | fuel + 1, arg :: rest =>
+    match stepLakeOption arg rest with
+    | .stop | .disallowed _ => none
+    | .next remaining => findExeTargetAux fuel remaining
+    | .positional target remaining =>
+      (normalizeExeTarget target).map (·, remaining)
+
+private def findExeTarget (args : List String) : Option (String × List String) :=
+  findExeTargetAux (optionFuel args) args
 
 private def requiresCleanHead (args : List String) : Bool :=
   match args with

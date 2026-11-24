@@ -43,30 +43,52 @@ admit_tracked_helper() {
 requires_clean_exe() {
   [[ "$#" -ge 2 && "$1" == "exe" ]] || return 1
   shift
-  local arg opt target=''
+  local arg opt target='' lhs rhs c2 pkg rest_target
   while (( $# > 0 )); do
     arg="$1"
     shift
-    if [[ "$arg" == "--" ]]; then
-      (( $# > 0 )) || return 1
-      target="$1"
-      shift
-      break
+    if [[ -z "$arg" ]]; then
+      continue
     elif [[ "${#arg}" -gt 1 && "$arg" == -* ]]; then
       if [[ "$arg" == --* ]]; then
-        if [[ "$arg" != *=* && "$arg" != *" "* ]]; then
-          case "$arg" in
-            --package|--service|--scope|--repo|--platform|--toolchain|--rev|\
-            --max-revs|--log-level|--fail-level|--linters|--lint-only|--checks|\
-            --only|--add-downstream|--add-public-downstream|--config|\
-            --from-export|--challenge-from-export|--solution-from-export|\
-            --file|--dir|--packages)
-              (( $# > 0 )) && shift ;;
-          esac
+        if [[ "$arg" == *=* ]]; then
+          lhs="${arg%%=*}"
+          rhs="${arg#*=}"
+          set -- "$rhs" "$@"
+          arg="$lhs"
         fi
+        if [[ "$arg" == *" "* ]]; then
+          lhs="${arg%% *}"
+          rhs="${arg#* }"
+          set -- "$rhs" "$@"
+          arg="$lhs"
+        fi
+        if [[ "$arg" == "--" ]]; then
+          return 1
+        fi
+        case "$arg" in
+          --package|--service|--scope|--repo|--platform|--toolchain|--rev|\
+          --max-revs|--log-level|--fail-level|--linters|--lint-only|--checks|\
+          --only|--add-downstream|--add-public-downstream|--config|\
+          --from-export|--challenge-from-export|--solution-from-export|\
+          --file|--dir|--packages)
+            (( $# > 0 )) && shift ;;
+        esac
       else
         opt="${arg:1:1}"
-        if [[ "${#arg}" == 2 && ( "$opt" == "K" || "$opt" == "o" || "$opt" == "f" || "$opt" == "d" ) ]]; then
+        if (( ${#arg} > 2 )); then
+          c2="${arg:2:1}"
+          if [[ "$c2" == "=" ]]; then
+            set -- "${arg:3}" "$@"
+          elif [[ "$c2" == " " ]]; then
+            rhs="${arg:2}"
+            rhs="${rhs#"${rhs%%[![:space:]]*}"}"
+            set -- "$rhs" "$@"
+          else
+            set -- "${arg:2}" "$@"
+          fi
+        fi
+        if [[ "$opt" == "K" || "$opt" == "o" || "$opt" == "f" || "$opt" == "d" ]]; then
           (( $# > 0 )) && shift
         fi
       fi
@@ -75,6 +97,25 @@ requires_clean_exe() {
       break
     fi
   done
+  [[ -n "$target" ]] || return 1
+  if [[ "$target" == */* ]]; then
+    pkg="${target%%/*}"
+    rest_target="${target#*/}"
+    if [[ "$rest_target" != */* ]]; then
+      case "$pkg" in
+        ''|@|acorn|@acorn|'«acorn»'|'@«acorn»')
+          target="$rest_target" ;;
+        *)
+          return 1 ;;
+      esac
+    else
+      return 1
+    fi
+  fi
+  if [[ "$target" == '«'*'»' ]]; then
+    target="${target#«}"
+    target="${target%»}"
+  fi
   case "$target" in
     acorn-gates)
       if [[ ( "$#" == 2 && "$1" == "site" && "$2" == "write" ) ||
