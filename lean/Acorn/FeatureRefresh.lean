@@ -1,107 +1,46 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.FeatureConstants
 import Acorn.FeatureLifecycle
 
-/-!
-# Assignment refresh at the free dispatch boundary
-
-Ranked assignments use the actual stored Demon-0 weights. Objective identity is
-the selected unit: the first slot holding a still-ranked unit keeps its policy,
-model, prediction cache and meta-controller row bit-identical while its held bonus
-can only rise; every other slot takes the next entrant or the neutral objective and
-is reinstalled when its unit changes. No two slots hold the same unit. Retirement
-releases a slot holding the replaced unit only at a free boundary. An ending
-activation retains the replaced owner for terminal credit. The activation payload
-is parametric: refresh neither reads nor rewrites it. Continuing activations do
-not inhabit this free-boundary interface.
-
-The assignment refresh runs at every free boundary and reads no host event (Sutton,
-Bowling and Pilarski, *The Alberta Plan for AI Research*, arXiv:2208.11173v3 (2023),
-p. 2: the meta-algorithms for constructing subtasks "operate on every time step").
-After it the slots hold exactly the units of the ranked candidates
-(`refresh_covers`, `refresh_ranked`): as many slots hold a unit as the ranking has
-candidates (`refresh_occupancy`), and all do once it has one for each (`refresh_full`).
-The refresh reads the Demon-0 weights as they stand when it runs. The full agent runs
-it during selection, before the reward delivered with that decision is learned, so a
-candidate that reward creates is installed at the next free dispatch
-(`TemporalControl.select_assigns`).
-
-The same ranking decides which feature slots every option's expectation model
-reads and predicts (Sutton, Bowling and Pilarski, *The Alberta Plan for AI Research*,
-arXiv:2208.11173v3 (2023), Step 8(d), p. 9): the ranked score blocks of positive
-Demon-0 weight, one fewer than the ranked width, of which the first `skillCount` are
-the subtask candidates. Every free boundary installs it in every model, after the
-assignments; a slot that stays ranked keeps its position, its row and that row's
-weights from every other retained slot.
--/
 namespace Acorn.Features
 
 variable {actions : Word.Count}
 
-/-- Raw process-local model prediction words. Their producer's numeric theorems
-are separate from these lifecycle operations, which hold for arbitrary words. -/
 structure ModelCache where
-  /-- Cached reward estimate. -/
   reward : Binary32
-  /-- Cached continuation estimate. -/
   continuation : Binary32
-  /-- Cached duration estimate. -/
   duration : Binary32
   deriving DecidableEq
 
-/-- Current fresh model cache: zero reward/continuation and one-step duration. -/
 def ModelCache.initial : ModelCache := ⟨.zero, .zero, .one⟩
 
-/-- An ending activation's payload travels with its original learner owner. -/
 structure Closing (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) (payload : Type) where
-  /-- Table slot that owned the ending activation. -/
   slot : Fin Acorn.FeatureConstants.skillCount
-  /-- Uninterpreted activation and terminal-reason state. -/
   activation : payload
-  /-- Detached owner when refresh replaces that slot before terminal credit. -/
   oldOwner : Option (Skill actions config criterion dimension discounts)
 
-/-- Complete state changed by ranking, admitted only at a free dispatch boundary.
-Unchanged temporal caches can be carried by the surrounding dispatcher without
-being mistaken for encodings of the new projection bank. -/
 structure FreeDispatch (shape : PatchShape) (actions : Word.Count) (config : Config) (criterion : Criterion)
     (dimension : Dimension) (discounts : List Discount) (payload : Type) where
-  /-- Receiver-owned representation and all consumers, with Demon 0 fixed to G99. -/
   lifecycle : Lifecycle shape actions config criterion dimension (.g99 :: discounts)
-  /-- Exactly one current model prediction per option table slot. -/
   predictions : Vector ModelCache Acorn.FeatureConstants.skillCount
-  /-- Optional ending activation awaiting its remaining terminal credit. -/
   closing : Option (Closing actions config criterion dimension (.g99 :: discounts) payload)
 
-/-- Meta action zero delegates to primitives; subsequent actions name skills. -/
 def metaOfSkill (slot : Fin Acorn.FeatureConstants.skillCount) :
     Fin Acorn.FeatureConstants.metaActionCount :=
   ⟨slot.val + 1, by have := slot.isLt; simp [Acorn.FeatureConstants.skillCount,
     Acorn.FeatureConstants.metaActionCount] at *; omega⟩
 
-/-- Learned identity compares selected units; declared targets always require replacement. -/
 def Interest.sameAssignment {config : Config} (interest : Interest config)
     (target : Assignment config) : Bool :=
   match interest with
   | .learned prior => prior.same target
   | .declared _ _ => false
 
-/-- Matching a target is equality of learned unit identity, never of its bonus or slot. -/
 theorem Interest.sameAssignment_iff {config : Config} (interest : Interest config)
     (target : Assignment config) : interest.sameAssignment target = true ↔
       ∃ prior, interest = .learned prior ∧ prior.identity = target.identity := by
   cases interest <;> simp [Interest.sameAssignment, Assignment.same_iff]
 
-/-- A slot whose unit is unchanged receives its target objective, including a raised
-held bonus, and keeps its policy, model, cache and meta-controller row. A slot whose
-unit changed atomically receives its target, fresh policy/model, a reset
-meta-controller row and fresh cache. The closing payload is retained, with the
-original owner detached at the same write. -/
 def FreeDispatch.install {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -124,9 +63,6 @@ def FreeDispatch.install {shape : PatchShape} {config : Config} {criterion : Cri
         if ending.slot == slot then
           { ending with oldOwner := some (ending.oldOwner.getD previous) } else ending }
 
-/-- Release every slot holding a replaced unit: it receives the neutral objective with
-fresh policy and model and a reset meta-controller row, and the next free boundary
-installs its entrant. -/
 def Ensemble.release {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (unit : Fin config.units.count) : Ensemble actions config criterion dimension discounts :=
@@ -139,7 +75,6 @@ def Ensemble.release {config : Config} {criterion : Criterion} {dimension : Dime
         controller.resetAction (metaOfSkill slot)
       else controller) ensemble.metaController }
 
-/-- After release, no slot holds the released unit. -/
 theorem Ensemble.release_holds {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (unit : Fin config.units.count) (slot : Fin Acorn.FeatureConstants.skillCount) :
@@ -149,7 +84,6 @@ theorem Ensemble.release_holds {config : Config} {criterion : Criterion} {dimens
   · rfl
   · simp_all
 
-/-- Releasing a unit no slot holds changes nothing. -/
 theorem Ensemble.release_unheld {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (unit : Fin config.units.count) (unheld : ensemble.holds unit = false) :
@@ -175,12 +109,10 @@ theorem Ensemble.release_unheld {config : Config} {criterion : Criterion} {dimen
       exact ih
   simp only [Ensemble.release, skills, rows]
 
-/-- No two slots hold the same learned unit. -/
 def Ensemble.Distinct {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts) : Prop :=
   Assignment.Distinct (ensemble.skills.map (·.interest.held))
 
-/-- Feature retirement keeps every objective, so it keeps distinct held units. -/
 theorem Ensemble.retire_distinct {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (feature : FeatIdx dimension) (distinct : ensemble.Distinct) : (ensemble.retire feature).Distinct := by
@@ -188,7 +120,6 @@ theorem Ensemble.retire_distinct {config : Config} {criterion : Criterion} {dime
   intro slot unit named
   simpa [Ensemble.retire, Skill.retire] using named
 
-/-- Release only clears objectives, so it keeps distinct held units. -/
 theorem Ensemble.release_distinct {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (unit : Fin config.units.count) (distinct : ensemble.Distinct) : (ensemble.release unit).Distinct := by
@@ -199,12 +130,10 @@ theorem Ensemble.release_distinct {config : Config} {criterion : Criterion} {dim
   · simp [Skill.initial, Interest.held, Assignment.identity] at held
   · exact held
 
-/-- Demon 0 is selected structurally from its immutable horizon-indexed bank. -/
 def DemonBank.rankingWeights {dimension : Dimension} {discounts : List Discount}
     (bank : DemonBank dimension (.g99 :: discounts)) : WeightArray (.discounted .g99) dimension :=
   match bank with | .cons learner _ => learner.state.weights
 
-/-- Install the slot-stable ranking of the current Demon-0 weights in slot order. -/
 def FreeDispatch.refreshRanked {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
@@ -214,17 +143,12 @@ def FreeDispatch.refreshRanked {shape : PatchShape} {config : Config} {criterion
   (List.finRange Acorn.FeatureConstants.skillCount).foldl
     (fun current slot => current.install slot targets[slot.val]) state
 
-/-- The feature slots an expectation model reads and predicts: the slot of each
-ranked score block of positive Demon-0 weight, in rank order, at most one fewer than
-the ranked width because the last position is the bias. The slots are distinct
-(`rankedSlots_nodup`). -/
 def rankedSlots (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) : List (FeatIdx dimension) :=
   (ranked ((rankDimension dimension).capacity - 1)
     ((List.finRange config.units.count).filterMap (candidateOfWeight config weights))).map
     fun candidate => unitFeature dimension config candidate.unit
 
-/-- A candidate's key is the weight word at its own slot. -/
 theorem candidateOfWeight_key (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) (unit : Fin config.units.count)
     (candidate : Candidate config) (found : candidateOfWeight config weights unit = some candidate) :
@@ -236,9 +160,6 @@ theorem candidateOfWeight_key (dimension : Dimension) (config : Config)
     rfl
   · contradiction
 
-/-- The ranked slots are distinct: ranked score blocks have strictly decreasing keys,
-and a candidate's key is the weight word at its slot, so two candidates at one slot
-would have one key. -/
 theorem rankedSlots_nodup (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) :
     (rankedSlots dimension config weights).Nodup := by
@@ -252,15 +173,12 @@ theorem rankedSlots_nodup (dimension : Dimension) (config : Config)
     candidateOfWeight_key dimension config weights _ second foundRight, same] at lower
   exact Nat.lt_irrefl _ lower
 
-/-- The work and result bound of the model ranking is the ranked width less the bias. -/
 theorem rankedSlots_length (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) :
     (rankedSlots dimension config weights).length ≤ (rankDimension dimension).capacity - 1 := by
   simpa [rankedSlots] using ranked_length ((rankDimension dimension).capacity - 1)
     ((List.finRange config.units.count).filterMap (candidateOfWeight config weights))
 
-/-- Install the current feature ranking in every option's expectation model. Only the
-transition parts change; objectives, policies and full-width model learners are kept. -/
 def FreeDispatch.rerankModels {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
@@ -271,33 +189,22 @@ def FreeDispatch.rerankModels {shape : PatchShape} {config : Config} {criterion 
         { skill with model := skill.model.rerank order (rankedSlots_nodup dimension config
           state.lifecycle.consumers.demons.rankingWeights) } } } }
 
-/-- The complete free-boundary refresh: install the slot-stable assignment ranking
-when the caller's subtasks are the ranked ones, then install the current feature
-ranking in every option model. Both run at every free boundary, so neither waits for
-an event that can precede the first reward. A caller with declared subtasks passes
-`assign := false` and keeps them. Both merges are stable: a unit that stays ranked
-keeps its slot, and a slot that stays ranked keeps its row. -/
 def FreeDispatch.refreshModels {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) (assign : Bool) :
     FreeDispatch shape actions config criterion dimension discounts payload :=
   (if assign then state.refreshRanked else state).rerankModels
 
-/-- The assigning refresh installs the assignment ranking, then the model ranking. -/
 theorem FreeDispatch.refreshModels_assign {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
     state.refreshModels true = state.refreshRanked.rerankModels := rfl
 
-/-- The refresh of declared subtasks installs the model ranking only. -/
 theorem FreeDispatch.refreshModels_keep {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
     state.refreshModels false = state.rerankModels := rfl
 
-/-- Reranking the models keeps the cache, closing owner, representation and every
-non-skill consumer. `rerankModels_skill` gives each slot's objective, policy and
-trajectory link. -/
 theorem FreeDispatch.rerankModels_preserves {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
@@ -310,8 +217,6 @@ theorem FreeDispatch.rerankModels_preserves {shape : PatchShape} {config : Confi
       state.rerankModels.lifecycle.consumers.demons = state.lifecycle.consumers.demons :=
   ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- Reranking the models writes each slot's model and nothing else of the slot: the
-model is the slot's own model reranked with the receiver's current ranking. -/
 theorem FreeDispatch.rerankModels_skill {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -324,7 +229,6 @@ theorem FreeDispatch.rerankModels_skill {shape : PatchShape} {config : Config}
             state.lifecycle.consumers.demons.rankingWeights) } := by
   simp [FreeDispatch.rerankModels]
 
-/-- Reranking the models keeps distinct held units. -/
 theorem FreeDispatch.rerankModels_distinct {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -334,8 +238,6 @@ theorem FreeDispatch.rerankModels_distinct {shape : PatchShape} {config : Config
   intro slot unit named
   simpa [FreeDispatch.rerankModels] using named
 
-/-- Unchanged unit identity writes only the target objective: no learner, cache,
-meta-controller row or pending-credit mutation. -/
 theorem FreeDispatch.install_same {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -349,7 +251,6 @@ theorem FreeDispatch.install_same {shape : PatchShape} {config : Config} {criter
       (state.install slot target).closing = state.closing := by
   simp [FreeDispatch.install, same]
 
-/-- A changed unit identity clears its cache at the write boundary. -/
 theorem FreeDispatch.install_cache {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -358,7 +259,6 @@ theorem FreeDispatch.install_cache {shape : PatchShape} {config : Config} {crite
     (state.install slot target).predictions[slot.val] = ModelCache.initial := by
   simp [FreeDispatch.install, changed]
 
-/-- A changed unit identity starts with no stored off-policy trajectory. -/
 theorem FreeDispatch.install_unlinked {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -367,7 +267,6 @@ theorem FreeDispatch.install_unlinked {shape : PatchShape} {config : Config} {cr
     (state.install slot target).lifecycle.consumers.skills[slot.val].following = none := by
   simp [FreeDispatch.install, changed, Skill.initial]
 
-/-- A released slot starts with no stored off-policy trajectory. -/
 theorem Ensemble.release_unlinked {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (unit : Fin config.units.count) (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -375,7 +274,6 @@ theorem Ensemble.release_unlinked {config : Config} {criterion : Criterion} {dim
     (ensemble.release unit).skills[slot.val].following = none := by
   simp [Ensemble.release, held, Skill.initial]
 
-/-- Every installed slot has exactly its requested target, including the unchanged branch. -/
 theorem FreeDispatch.install_target {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -385,8 +283,6 @@ theorem FreeDispatch.install_target {shape : PatchShape} {config : Config} {crit
   | false => simp [FreeDispatch.install, same, Skill.initial]
   | true => simp [FreeDispatch.install, same]
 
-/-- A closing slot keeps its first detached learner across every further replacement;
-when no owner is detached yet, the current table learner becomes that owner. -/
 theorem FreeDispatch.install_closing_owner {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -399,8 +295,6 @@ theorem FreeDispatch.install_closing_owner {shape : PatchShape} {config : Config
         oldOwner := some (ending.oldOwner.getD state.lifecycle.consumers.skills[slot.val]) } := by
   simp [FreeDispatch.install, changed, closing, owns]
 
-/-- Once terminal credit has an owner, even repeated installation at the same
-slot cannot replace it with a learner belonging to a later objective. -/
 theorem FreeDispatch.install_retains_owner {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -419,7 +313,6 @@ theorem FreeDispatch.install_retains_owner {shape : PatchShape} {config : Config
       simp_all
     · rfl
 
-/-- Installation preserves the projection/history owner regardless of target identity. -/
 theorem FreeDispatch.install_representation {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -428,7 +321,6 @@ theorem FreeDispatch.install_representation {shape : PatchShape} {config : Confi
   simp only [FreeDispatch.install]
   split <;> rfl
 
-/-- Updating one option cannot mutate another option or its cached model values. -/
 theorem FreeDispatch.install_other {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -441,8 +333,6 @@ theorem FreeDispatch.install_other {shape : PatchShape} {config : Config}
   simp only [FreeDispatch.install]
   split <;> simp [Ne.symm values]
 
-/-- Installing targets cannot change ranking weights or alter primitive-controller
-storage. -/
 theorem FreeDispatch.install_preserves {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -452,7 +342,6 @@ theorem FreeDispatch.install_preserves {shape : PatchShape} {config : Config}
   simp only [FreeDispatch.install]
   split <;> exact ⟨rfl, rfl⟩
 
-/-- The actual installation fold preserves its representation owner. -/
 theorem FreeDispatch.fold_preserves {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (slots : List (Fin Acorn.FeatureConstants.skillCount))
@@ -466,7 +355,6 @@ theorem FreeDispatch.fold_preserves {shape : PatchShape} {config : Config}
     exact (ih (state.install slot targets[slot.val])).trans
       (state.install_representation slot targets[slot.val])
 
-/-- The actual installation fold reads the Demon-0 weights and never writes a demon. -/
 theorem FreeDispatch.fold_demons {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (slots : List (Fin Acorn.FeatureConstants.skillCount))
@@ -480,8 +368,6 @@ theorem FreeDispatch.fold_demons {shape : PatchShape} {config : Config}
     exact (ih (state.install slot targets[slot.val])).trans
       (state.install_preserves slot targets[slot.val]).1
 
-/-- Installing the requested vector preserves targets already installed and
-establishes every target named by the fold, for arbitrary slot order and aliases. -/
 theorem FreeDispatch.fold_target {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (slots : List (Fin Acorn.FeatureConstants.skillCount))
@@ -501,7 +387,6 @@ theorem FreeDispatch.fold_target {shape : PatchShape} {config : Config}
       · exact Or.inl ((List.mem_cons.mp member).resolve_left same)
       · exact Or.inr (by rw [(state.install_other next slot targets[next.val] same).1]; exact already)
 
-/-- Installing one slot cannot mutate another slot's meta-controller row. -/
 theorem FreeDispatch.install_meta_other {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -517,8 +402,6 @@ theorem FreeDispatch.install_meta_other {shape : PatchShape} {config : Config}
   · rfl
   · simp [Controller.resetAction, values]
 
-/-- A slot whose held unit is its target's unit keeps its policy, model, cache and
-meta-controller row bit-identical through the whole installation fold, for arbitrary slot order. -/
 theorem FreeDispatch.fold_retains {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (slots : List (Fin Acorn.FeatureConstants.skillCount))
@@ -553,8 +436,6 @@ theorem FreeDispatch.fold_retains {shape : PatchShape} {config : Config}
       rw [other.1, other.2, row] at after
       exact after
 
-/-- The assignment refresh preserves projection identity, whether or not it replaced
-any target. -/
 theorem FreeDispatch.refresh_conserves {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
@@ -562,8 +443,6 @@ theorem FreeDispatch.refresh_conserves {shape : PatchShape} {config : Config}
   unfold FreeDispatch.refreshRanked
   exact FreeDispatch.fold_preserves _ _ _
 
-/-- Every option receives the slot-stable ranking computed from this receiver's
-actual Demon-0 words and its held objectives. -/
 theorem FreeDispatch.refresh_targets {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -574,8 +453,6 @@ theorem FreeDispatch.refresh_targets {shape : PatchShape} {config : Config} {cri
   unfold FreeDispatch.refreshRanked
   exact FreeDispatch.fold_target _ _ _ slot (Or.inl (List.mem_finRange slot))
 
-/-- After the assignment refresh no two slots hold the same unit, whatever the held
-input. -/
 theorem FreeDispatch.refresh_distinct {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
@@ -586,10 +463,6 @@ theorem FreeDispatch.refresh_distinct {shape : PatchShape} {config : Config}
   rw [state.refresh_targets right] at rightHolds
   exact rankAssignments_distinct dimension config _ _ left right unit leftHolds rightHolds
 
-/-- Timing, one direction: after the assignment refresh every candidate of the
-ranking is some slot's unit, for every state and Demon-0 weight array. A candidate
-therefore waits for no later event: the free boundary at which the ranking first has
-it is the boundary that installs it. -/
 theorem FreeDispatch.refresh_covers {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -604,9 +477,6 @@ theorem FreeDispatch.refresh_covers {shape : PatchShape} {config : Config}
     (state.lifecycle.consumers.skills.map (·.interest.held)) candidate member
   exact ⟨slot, by rw [state.refresh_targets slot]; exact named⟩
 
-/-- Timing, the other direction: every unit a slot holds after the assignment
-refresh is a candidate of the ranking, so a unit that left the ranking is held by no
-slot. -/
 theorem FreeDispatch.refresh_ranked {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -618,9 +488,6 @@ theorem FreeDispatch.refresh_ranked {shape : PatchShape} {config : Config}
   rw [state.refresh_targets slot] at named
   exact rankAssignments_ranked dimension config _ _ slot unit named
 
-/-- Timing, the full table: after the assignment refresh at which the ranking has a
-candidate for every slot, every slot holds a unit. With fewer candidates than slots,
-`refresh_occupancy` gives one slot to each candidate and leaves the others neutral. -/
 theorem FreeDispatch.refresh_full {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -634,9 +501,6 @@ theorem FreeDispatch.refresh_full {shape : PatchShape} {config : Config}
     (state.lifecycle.consumers.skills.map (·.interest.held)) full slot
   exact ⟨unit, bonus, by rw [state.refresh_targets slot, target]⟩
 
-/-- Timing, the count: after the assignment refresh as many slots hold a unit as the
-ranking has candidates, for every state and Demon-0 weight array. With one candidate one
-slot holds a unit, with two candidates two do, and with three all do. -/
 theorem FreeDispatch.refresh_occupancy {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
@@ -651,8 +515,6 @@ theorem FreeDispatch.refresh_occupancy {shape : PatchShape} {config : Config}
   rw [state.refresh_targets slot]
   rfl
 
-/-- The ranking's target for the first slot holding a still-ranked unit is that unit,
-with a bonus at least the held one, so installing it changes no unit identity. -/
 theorem FreeDispatch.refresh_keeps {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -680,9 +542,6 @@ theorem FreeDispatch.refresh_keeps {shape : PatchShape} {config : Config} {crite
   rw [holds, target]
   simp [Interest.sameAssignment, Assignment.same]
 
-/-- T1: for every state and Demon-0 weight array, the first slot holding a still-ranked
-unit keeps its policy, model, cached prediction and meta-controller row bit-identical,
-and keeps that unit with a held bonus that never decreases. -/
 theorem FreeDispatch.refresh_retains {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -707,7 +566,6 @@ theorem FreeDispatch.refresh_retains {shape : PatchShape} {config : Config} {cri
   exact ⟨kept.1, kept.2.1, kept.2.2.1, kept.2.2.2, raised,
     (state.refresh_targets slot).trans (by rw [target]), raises⟩
 
-/-- Assignment refresh reads the Demon-0 weights and never writes a demon. -/
 theorem FreeDispatch.refresh_demons {shape : PatchShape} {config : Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) :
@@ -715,7 +573,6 @@ theorem FreeDispatch.refresh_demons {shape : PatchShape} {config : Config} {crit
   unfold FreeDispatch.refreshRanked
   exact FreeDispatch.fold_demons _ _ _
 
-/-- Every complete refresh, assigning or not, keeps distinct held units. -/
 theorem FreeDispatch.refreshModels_distinct {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) (assign : Bool)
@@ -729,8 +586,6 @@ theorem FreeDispatch.refreshModels_distinct {shape : PatchShape} {config : Confi
     rw [FreeDispatch.refreshModels_assign]
     exact state.refreshRanked.rerankModels_distinct state.refresh_distinct
 
-/-- The model reranking keeps every slot's objective, so the complete assigning refresh
-holds the units the assignment refresh installed. -/
 theorem FreeDispatch.refreshModels_interest {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload)
@@ -739,10 +594,6 @@ theorem FreeDispatch.refreshModels_interest {shape : PatchShape} {config : Confi
       state.refreshRanked.lifecycle.consumers.skills[slot.val].interest := by
   simp only [FreeDispatch.refreshModels_assign, FreeDispatch.rerankModels_skill]
 
-/-- T1 for the complete refresh: for every state and Demon-0 weight array, the first
-slot holding a still-ranked unit keeps its policy, cached prediction and
-meta-controller row bit-identical, and keeps that unit with a held bonus that never
-decreases. Its model is `refreshModels_model`'s. -/
 theorem FreeDispatch.refreshModels_retains {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) (assign : Bool)
@@ -783,10 +634,6 @@ theorem FreeDispatch.refreshModels_retains {shape : PatchShape} {config : Config
     · rw [reranked]
       exact interest
 
-/-- The retained slot's model across a refresh, assigning or not, is its own model with
-the current feature ranking installed: its reward, continuation and duration learners
-are untouched, and its transition part keeps the position and weights of every slot
-that stays ranked. -/
 theorem FreeDispatch.refreshModels_model {shape : PatchShape} {config : Config}
     {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
     (state : FreeDispatch shape actions config criterion dimension discounts payload) (assign : Bool)
