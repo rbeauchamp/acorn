@@ -1,59 +1,18 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Separation
-
-/-!
-# Agents that read their percept through its feedback alone
-
-A *feedback* is any projection of a percept, such as its reward word. This module defines, over
-every sequence of percepts and not over the runs of one world, the agents whose actions depend on
-their clock and on the feedback they have received, and proves that a fork defeats them.
-
-- `driven` and `response` are an agent's memory and action on a sequence of percepts that no
-  world need produce. A closed loop's memory and action are those on the loop's own percepts
-  (`memoryAt_driven`, `actionAt_response`).
-- `FeedbackDriven`: on every two sequences of percepts that give one feedback at every time up to
-  a time, the agent takes one action at that time. `Stepped` is the sufficient condition on the
-  step: it reads the percept through the feedback alone (`Stepped.feedbackDriven`). An agent
-  resumed from a memory it reaches on some sequence of percepts is feedback-driven when the agent
-  is (`FeedbackDriven.resume`).
-- `FeedbackDriven.fork`: take two worlds and a goal in each. If along every action sequence the
-  two give one feedback at every time before which neither goal has been met, and no single
-  action sequence meets both goals, then no feedback-driven agent achieves both. Whatever tells
-  the two worlds apart before a goal is met is not in the feedback, and such an agent does not
-  read it.
-- `chooser` is an agent whose action is a fixed selection applied to a preference. A selection
-  law excludes no feedback-driven agent by itself (`chooser_stepped`). `aloof` replaces the
-  preference by a resting one on a set of percepts; in a world that delivers no percept of the
-  set, the chooser made aloof and the chooser itself have one closed loop (`aloof_loop`). So an
-  agent that differs from a feedback-driven one only on percepts a class never delivers acts as
-  that agent in every member of the class.
-
-`AcornVerif.Turns` applies the fork to a class whose visits start in one of two situations.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface} {Φ : Type}
 
-/-! ## An agent on an arbitrary sequence of percepts -/
-
-/-- The agent's memory before the percept at a time, on a sequence of percepts that no world
-need produce. -/
 def driven (agent : Agent interface) (percepts : ℕ → Percept interface) : ℕ → agent.Memory
   | 0 => agent.initial
   | time + 1 => (agent.act (driven agent percepts time) (percepts time)).2
 
-/-- The agent's action at a time on a sequence of percepts. -/
 def response (agent : Agent interface) (percepts : ℕ → Percept interface) (time : ℕ) :
     Act interface :=
   (agent.act (driven agent percepts time) (percepts time)).1
 
-/-- A closed loop's memory is the memory driven by the loop's own percepts. -/
 theorem memoryAt_driven (world : World interface) (agent : Agent interface) (start : world.State)
     (time : ℕ) :
     memoryAt world agent start time = driven agent (perceptAt world agent start) time := by
@@ -65,7 +24,6 @@ theorem memoryAt_driven (world : World interface) (agent : Agent interface) (sta
         (perceptAt world agent start time)).2
     rw [ih]
 
-/-- A closed loop's action is the response to the loop's own percepts. -/
 theorem actionAt_response (world : World interface) (agent : Agent interface)
     (start : world.State) (time : ℕ) :
     actionAt world agent start time = response agent (perceptAt world agent start) time := by
@@ -73,7 +31,6 @@ theorem actionAt_response (world : World interface) (agent : Agent interface)
   rw [memoryAt_driven]
   rfl
 
-/-- The memory driven by a sequence of percepts depends on the percepts before its time only. -/
 theorem driven_congr (agent : Agent interface) (first second : ℕ → Percept interface)
     (time : ℕ)
     (same : ∀ earlier, earlier < time → first earlier = second earlier) :
@@ -86,22 +43,15 @@ theorem driven_congr (agent : Agent interface) (first second : ℕ → Percept i
     rw [ih (fun earlier before => same earlier (Nat.lt_succ_of_lt before)),
       same time (Nat.lt_succ_self time)]
 
-/-- **Driven by feedback.** On every two sequences of percepts, whether or not a world produces
-them, that give one feedback at every time up to a time, the agent takes one action at that
-time. Its actions depend on its clock and on the feedback it has received, and on nothing else
-of what it perceives. -/
 def FeedbackDriven (feedback : Percept interface → Φ) (agent : Agent interface) : Prop :=
   ∀ (first second : ℕ → Percept interface) (time : ℕ),
     (∀ earlier, earlier ≤ time → feedback (first earlier) = feedback (second earlier)) →
       response agent first time = response agent second time
 
-/-- **Stepped by feedback.** The step is a function of the memory and of the percept's feedback
-alone. -/
 def Stepped (feedback : Percept interface → Φ) (agent : Agent interface) : Prop :=
   ∃ step : agent.Memory → Φ → Act interface × agent.Memory,
     ∀ memory percept, agent.act memory percept = step memory (feedback percept)
 
-/-- An agent stepped by a feedback is driven by it. -/
 theorem Stepped.feedbackDriven {feedback : Percept interface → Φ} {agent : Agent interface}
     (stepped : Stepped feedback agent) : FeedbackDriven feedback agent := by
   obtain ⟨step, law⟩ := stepped
@@ -121,13 +71,10 @@ theorem Stepped.feedbackDriven {feedback : Percept interface → Φ} {agent : Ag
     (agent.act (driven agent second time) (second time)).1
   rw [law, law, memory time (Nat.le_refl time), same time (Nat.le_refl time)]
 
-/-- A sequence of percepts that follows one sequence before a time and another from it on. -/
 def spliced (before : ℕ → Percept interface) (time : ℕ) (after : ℕ → Percept interface) :
     ℕ → Percept interface :=
   fun index => if index < time then before index else after (index - time)
 
-/-- The memory driven by a spliced sequence, from the splice on, is the memory of the agent
-resumed from its memory at the splice, driven by the later sequence. -/
 theorem driven_spliced (agent : Agent interface) (before : ℕ → Percept interface) (time : ℕ)
     (after : ℕ → Percept interface) (later : ℕ) :
     driven agent (spliced before time after) (time + later) =
@@ -144,9 +91,6 @@ theorem driven_spliced (agent : Agent interface) (before : ℕ → Percept inter
     simp only [spliced, ite_eq_right (Nat.not_lt.mpr (Nat.le_add_right time later)),
       Nat.add_sub_cancel_left]
 
-/-- **A feedback-driven agent stays feedback-driven when resumed.** Resumed from a memory it
-reaches on some sequence of percepts, such as its memory at any time of any closed loop, the
-agent's actions still depend on its clock and its feedback alone. -/
 theorem FeedbackDriven.resume {feedback : Percept interface → Φ} {agent : Agent interface}
     (blind : FeedbackDriven feedback agent) (before : ℕ → Percept interface) (time : ℕ) :
     FeedbackDriven feedback (agent.resume (driven agent before time)) := by
@@ -170,9 +114,6 @@ theorem FeedbackDriven.resume {feedback : Percept interface → Φ} {agent : Age
   rw [← unfold first, ← unfold second]
   exact joined
 
-/-! ## A fork: one feedback, two goals no one action sequence meets -/
-
-/-- A property that holds at some time holds at a first time. -/
 theorem exists_first {holds : ℕ → Prop} (once : ∃ time, holds time) :
     ∃ time, holds time ∧ ∀ earlier, earlier < time → ¬ holds earlier := by
   obtain ⟨time, held⟩ := once
@@ -184,9 +125,6 @@ theorem exists_first {holds : ℕ → Prop} (once : ∃ time, holds time) :
     · exact ⟨time, held, fun earlier before heldEarlier =>
         sooner ⟨earlier, before, heldEarlier⟩⟩
 
-/-- In two worlds that give one feedback along every action sequence until one of two conditions
-is met, a feedback-driven agent takes the same actions in both up to any time before which
-neither condition has been met in its own runs. -/
 theorem FeedbackDriven.agree {feedback : Percept interface → Φ} {agent : Agent interface}
     (blind : FeedbackDriven feedback agent) {first second : World interface}
     (origin : first.State) (start : second.State)
@@ -230,11 +168,6 @@ theorem FeedbackDriven.agree {feedback : Percept interface → Φ} {agent : Agen
     rw [stateAt_eq_path first agent origin earlier, track earlier le]
     exact shown
 
-/-- **A fork defeats every feedback-driven agent.** Take two worlds and a goal in each. Suppose
-that along every action sequence the two give one feedback at every time before which neither
-goal has been met, and that no single action sequence meets both goals. Then no feedback-driven
-agent achieves both: whatever tells the two worlds apart before a goal is met is not in the
-feedback, and the agent does not read it. -/
 theorem FeedbackDriven.fork {feedback : Percept interface → Φ} {agent : Agent interface}
     (blind : FeedbackDriven feedback agent) {first second : World interface}
     (origin : first.State) (start : second.State)
@@ -284,13 +217,8 @@ theorem FeedbackDriven.fork {feedback : Percept interface → Φ} {agent : Agent
     rwa [path_congr second start (actionAt first agent origin) (actionAt second agent start)
       soonSecond (fun index before => same index (by omega))]
 
-/-! ## Agents that choose by a selection over preferences -/
-
 variable {E Core V : Type}
 
-/-- An agent whose action is a fixed selection applied to a part of its memory and to a
-preference it forms from the rest of its memory and its percept. The selection also leaves the
-first part's next value. -/
 def chooser (select : E → V → Act interface × E) (core : Core) (seed : E)
     (prefer : Core → Percept interface → V)
     (advance : Core → Percept interface → Act interface → Core) : Agent interface where
@@ -301,9 +229,6 @@ def chooser (select : E → V → Act interface × E) (core : Core) (seed : E)
       (advance memory.1 percept (select memory.2 (prefer memory.1 percept)).1,
         (select memory.2 (prefer memory.1 percept)).2))
 
-/-- **A selection law over preferences excludes no feedback-driven agent by itself.** A chooser
-whose preference and whose memory read the percept through a feedback alone is stepped by that
-feedback, whatever the selection. -/
 theorem chooser_stepped (feedback : Percept interface → Φ)
     (select : E → V → Act interface × E) (core : Core) (seed : E) (prefer : Core → Φ → V)
     (advance : Core → Φ → Act interface → Core) :
@@ -316,14 +241,10 @@ theorem chooser_stepped (feedback : Percept interface → Φ)
         (select memory.2 (prefer memory.1 shown)).2)),
     fun _ _ => rfl⟩
 
-/-- A preference replaced by the resting one on the percepts of a set. -/
 def aloof (alien : Percept interface → Prop) [DecidablePred alien] (rest : V)
     (prefer : Core → Percept interface → V) : Core → Percept interface → V :=
   fun inner percept => if alien percept then rest else prefer inner percept
 
-/-- **A chooser made aloof on a set is the chooser wherever the set's percepts do not occur.**
-In a world that delivers no percept of the set, the two have one closed loop: the same states,
-memories and actions at every time. -/
 theorem aloof_loop (select : E → V → Act interface × E) (core : Core) (seed : E)
     (prefer : Core → Percept interface → V)
     (advance : Core → Percept interface → Act interface → Core)

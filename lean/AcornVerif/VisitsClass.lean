@@ -1,40 +1,10 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Visits
-
-/-!
-# A class of worlds, each run in visits
-
-`AcornVerif.Kernel.visits` runs one world in visits. `WorldClass.inVisits` is a whole class run
-that way: each member's world in visits of one length, from the start of a visit. `visitsGoals`
-counts a member's goal met at a state of such a world that at least one step of a visit has
-reached, as `AcornVerif.Kernel.SolvesOnVisit` does.
-
-`visits_path` gives the states of a world in visits under any action sequence: at step `step` of
-visit `count`, the state the world itself reaches after `step` of that visit's actions, with the
-step count. So a class that conceals its goals still conceals them when it is run in visits, behind
-its reference world run in visits (`Conceals.inVisits`): the theorems of
-`AcornVerif.Concealment` then say, of every agent's whole run across visits, that it perceives in a
-member what it perceives in the reference until that member's goal is first met.
-
-`visits_foldl` folds a list of actions that fits in the rest of a visit, and `visits_step_shape`
-says what a step of a world in visits does: it begins a visit in the start state, or it is a step of
-the world itself.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-! ## Paths -/
-
-/-- From a time at which a world in visits is at the start of a visit, under any action sequence,
-after at most `length` more steps it is in the state the world itself reaches under those steps'
-actions, with the step count. -/
 theorem visits_path_within (world : World interface) (start : world.State) (length : ℕ)
     (actions : ℕ → Act interface) (base : ℕ)
     (begun : path (visits world start length) (visitStart world start length) actions base =
@@ -55,8 +25,6 @@ theorem visits_path_within (world : World interface) (start : world.State) (leng
     simp only [visits, dite_eq_left short]
     rfl
 
-/-- Under any action sequence, a world in visits is at the start of a visit after each multiple of
-`length + 1` steps. -/
 theorem visits_path_period (world : World interface) (start : world.State) (length : ℕ)
     (actions : ℕ → Act interface) (count : ℕ) :
     path (visits world start length) (visitStart world start length) actions
@@ -78,9 +46,6 @@ theorem visits_path_period (world : World interface) (start : world.State) (leng
     simp only [visits, dite_eq_right (Nat.lt_irrefl length)]
     rfl
 
-/-- The states of a world in visits under any action sequence: at step `step` of visit `count`,
-the state the world itself reaches from its start after `step` of that visit's actions, with the
-step count. -/
 theorem visits_path (world : World interface) (start : world.State) (length : ℕ)
     (actions : ℕ → Act interface) (count step : ℕ) (within : step ≤ length) :
     path (visits world start length) (visitStart world start length) actions
@@ -90,8 +55,6 @@ theorem visits_path (world : World interface) (start : world.State) (length : �
   visits_path_within world start length actions (count * (length + 1))
     (visits_path_period world start length actions count) step within
 
-/-- A list of actions that fits in the rest of a visit moves a world in visits as it moves the
-world itself, and counts its steps. -/
 theorem visits_foldl (world : World interface) (start : world.State) (length : ℕ)
     (actions : List (Act interface)) (state : world.State) (count : Fin (length + 1))
     (room : count.val + actions.length ≤ length) :
@@ -118,8 +81,6 @@ theorem visits_foldl (world : World interface) (start : world.State) (length : �
     change count.val + 1 + rest.length = count.val + (rest.length + 1)
     omega
 
-/-- A step of a world in visits begins a visit in the start state, or is a step of the world
-itself within a visit. -/
 theorem visits_step_shape (world : World interface) (start : world.State) (length : ℕ)
     (state : (visits world start length).State) (action : Act interface) :
     (((visits world start length).step state action).2.val = 0 ∧
@@ -138,9 +99,6 @@ theorem visits_step_shape (world : World interface) (start : world.State) (lengt
     rw [stepped]
     exact .inl ⟨rfl, rfl⟩
 
-/-- Every state of an agent's closed loop in a world in visits, from the start of a visit, is the
-start state with no step counted, or a state a step of the world itself reached, with at least one
-step counted. -/
 theorem visits_shape (world : World interface) (start : world.State) (length : ℕ)
     (agent : Agent interface) (time : ℕ) :
     ((stateAt (visits world start length) agent (visitStart world start length) time).2.val = 0 ∧
@@ -160,16 +118,11 @@ theorem visits_shape (world : World interface) (start : world.State) (length : �
     · exact .inl begun
     · exact .inr ⟨counted, _, _, stepped⟩
 
-/-! ## A class in visits -/
-
-/-- A class of worlds, each run in visits of one length from the start of a visit. -/
 def WorldClass.inVisits (family : WorldClass interface) (length : ℕ) : WorldClass interface where
   Index := family.Index
   world := fun index => visits (family.world index) (family.start index) length
   start := fun index => visitStart (family.world index) (family.start index) length
 
-/-- The goals of a class run in visits: a member's goal is met at a state that at least one step
-of a visit has reached and that satisfies the member's goal. -/
 def visitsGoals {family : WorldClass interface} (goals : family.Goals) (length : ℕ) :
     (family.inVisits length).Goals :=
   fun index =>
@@ -179,9 +132,6 @@ def visitsGoals {family : WorldClass interface} (goals : family.Goals) (length :
 variable {family : WorldClass interface} {goals : family.Goals}
   {reference : World interface} {origin : reference.State}
 
-/-- A class that conceals its goals conceals them when it is run in visits, behind its reference
-world run in visits: along every action sequence, each member in visits delivers the percept of the
-reference in visits at every time before that member's goal is first met on any visit. -/
 theorem Conceals.inVisits (hidden : Conceals family goals reference origin) (length : ℕ) :
     Conceals (family.inVisits length) (visitsGoals goals length) (visits reference origin length)
       (visitStart reference origin length) := by

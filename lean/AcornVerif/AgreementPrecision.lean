@@ -1,24 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Mathlib.Analysis.SpecificLimits.Normed
 import Mathlib.Analysis.InnerProductSpace.PiL2
 
-/-!
-# Deterministic precision propagation
-
-Geometric domination bounds an omitted continuation of unit-bounded nonnegative
-signals. The normalized Euclidean norm is exactly RMS. Its reverse triangle
-inequality propagates per-outcome bounds to per-question RMSE and, again, across
-the equal-question aggregate. These are deterministic bounds, not confidence
-intervals; they require the same outcome population on both sides.
--/
 namespace AcornVerif.AgreementPrecision
 open scoped BigOperators
 
-/-- A finite discounted prefix omits at most the remaining geometric mass. -/
 theorem omitted_tail (gamma : ℝ) (lower : 0 ≤ gamma) (upper : gamma < 1)
     (signal : Nat → ℝ) (signals : ∀ n, 0 ≤ signal n ∧ signal n ≤ 1) (horizon : Nat) :
     Summable (fun n => gamma^n * signal n) ∧
@@ -51,11 +36,9 @@ theorem omitted_tail (gamma : ℝ) (lower : 0 ≤ gamma) (upper : gamma < 1)
   rw [difference, abs_of_nonneg tailPositive]
   exact bound
 
-/-- RMS is the normalized Euclidean norm over a fixed, nonempty population. -/
 noncomputable def rms {ι : Type*} [Fintype ι] (values : EuclideanSpace ℝ ι) : ℝ :=
   ‖values‖ / Real.sqrt (Fintype.card ι)
 
-/-- The norm definition is exactly the mean-square/root convention used by the instrument. -/
 theorem rms_formula {ι : Type*} [Fintype ι] (values : EuclideanSpace ℝ ι) :
     rms values = Real.sqrt ((∑ i, (values.ofLp i)^2) / Fintype.card ι) := by
   have nonnegative : (0 : ℝ) ≤ ∑ i, (values.ofLp i)^2 :=
@@ -63,7 +46,6 @@ theorem rms_formula {ι : Type*} [Fintype ι] (values : EuclideanSpace ℝ ι) :
   rw [rms, EuclideanSpace.norm_eq, Real.sqrt_div nonnegative]
   simp only [Real.norm_eq_abs, sq_abs]
 
-/-- Uniform per-coordinate precision propagates through RMS without an independence assumption. -/
 theorem rms_precision {ι : Type*} [Fintype ι] (nonempty : 0 < Fintype.card ι)
     (left right : EuclideanSpace ℝ ι) (radius : ℝ) (radiusNonnegative : 0 ≤ radius)
     (coordinate : ∀ i, |left.ofLp i - right.ofLp i| ≤ radius) :
@@ -84,7 +66,6 @@ theorem rms_precision {ι : Type*} [Fintype ι] (nonempty : 0 < Fintype.card ι)
   apply (div_le_iff₀ rootPositive).mpr
   exact le_trans (abs_norm_sub_norm_le left right) (by simpa [mul_comm] using normBound)
 
-/-- Complementing error reverses endpoints and scales the precision by 100 points. -/
 theorem agreement_precision (measured reference radius : ℝ)
     (bound : |measured - reference| ≤ radius) :
     100 * (1 - measured) - 100 * radius ≤ 100 * (1 - reference) ∧
