@@ -1,64 +1,30 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CuedDoorsPupil
-
-/-!
-# Failing examples for the kernel's forms of contract 2 and the postcondition
-
-* `muteConcealed`, `mute_unlearnable`: the kernel's `ConcealedClass`, the form of conditions (a)
-  to (c) for a class concealed behind one reference world, holds of a class of two members that
-  show one percept at every state. In it no agent solves both members on any visit, so no agent
-  ever exceeds the covering bound: the class meets (a), (b) and the count that is the kernel's
-  form of (c), an agent that keeps nothing solving at most one of its two members,
-  and nothing can be learned in it. This is the obstruction `docs/mission-contract.md` argues
-  under contract 2, machine-checked. The intent record of contract 2 excludes the class by its
-  clause that success shows.
-* `mute_not_decides`: the same class fails condition (e), `PerceivingDecides`, for separation at
-  its covering bound. No agent separates there, so perceiving is needed with nothing to exclude and
-  no agent that reads its observation does better.
-* `ExperienceFree.not_separatesBy`: an agent that keeps nothing never separates from a covering
-  bound in a class that conceals its goals.
-* `fickle_forgets`: an agent that solves a cued door on its first visit and not on its second,
-  which fails retention before visit 2 with no lapse.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-! ## A `ConcealedClass` with nothing to learn -/
-
-/-- One of two different actions. -/
 def pick (two : 2 ≤ interface.actions.word.toNat) (door : Bool) : Act interface :=
   match door with
   | false => ⟨0, by omega⟩
   | true => ⟨1, by omega⟩
 
-/-- The two picked actions differ. -/
 theorem pick_differ (two : 2 ≤ interface.actions.word.toNat) :
     (pick two false).val ≠ (pick two true).val :=
   fun same => Nat.zero_ne_one same
 
-/-- There are two doors. -/
 theorem two_doors : 1 < ({false, true} : Finset Bool).card := by decide
 
-/-- The mute doors: two members, each the world that shows one percept at every state and records
-the first action it receives. -/
 abbrev mute (interface : Interface) (shown : Percept interface) : WorldClass interface where
   Index := Bool
   world := fun _ => firstActionWorld interface shown
   start := fun _ => (none : Option (Act interface))
 
-/-- A mute door's goal: its own action was the first, within one step. -/
 def muteGoals (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface) :
     (mute interface shown).Goals :=
   fun door => ⟨fun (state : Option (Act interface)) => state = some (pick two door), 1⟩
 
-/-- A mute door's goal is met within a visit of one step exactly by its own action first. -/
 theorem mute_met (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface)
     (door : Bool) (actions : ℕ → Act interface)
     (met : (visitGoals (muteGoals two shown) 1 door).MetBy ((mute interface shown).start door)
@@ -69,10 +35,6 @@ theorem mute_met (two : 2 ≤ interface.actions.word.toNat) (shown : Percept int
   have outcome : some (actions 0) = some (pick two door) := reached
   exact Option.some.inj outcome
 
-/-- **The mute doors are a `ConcealedClass`**, the kernel's form of conditions (a) to (c) behind
-one reference world, with visits of one step and the covering bound one against its two members.
-Whether one of two is the small share that condition (c) of `docs/mission-contract.md` asks is not
-established (obligation 32 there). -/
 def muteConcealed (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface) :
     ConcealedClass (mute interface shown) (muteGoals two shown) 1 1 where
   reference := firstActionWorld interface shown
@@ -92,9 +54,6 @@ def muteConcealed (two : 2 ≤ interface.actions.word.toNat) (shown : Percept in
   members := {false, true}
   large := two_doors
 
-/-- **In the mute doors no agent solves both members on any visit.** Its runs in the two members
-are one run, so on each visit it takes one first action. No agent separates from the covering
-bound there, whatever it keeps of its experience. -/
 theorem mute_unlearnable (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface)
     (agent : Agent interface) (visit : ℕ) :
     ¬ (SolvesOnVisit (mute interface shown) (muteGoals two shown) 1 agent visit false ∧
@@ -107,7 +66,6 @@ theorem mute_unlearnable (two : 2 ≤ interface.actions.word.toNat) (shown : Per
   have same : some (pick two false) = some (pick two true) := metFirst.symm.trans metSecond
   exact absurd (congrArg Fin.val (Option.some.inj same)) (pick_differ two)
 
-/-- So no agent separates from the mute doors' covering bound, before any visit. -/
 theorem mute_no_separation (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface)
     (agent : Agent interface) (counted : List Bool) (limit : ℕ) :
     ¬ SeparatesBy (mute interface shown) (muteGoals two shown) 1 1 counted limit agent := by
@@ -125,10 +83,6 @@ theorem mute_no_separation (two : 2 ≤ interface.actions.word.toNat) (shown : P
   exact mute_unlearnable two shown agent visit
     ⟨(each false (both false)).2, (each true (both true)).2⟩
 
-/-- **The mute doors fail condition (e), though perceiving is needed in them.** For every
-feedback, no agent whose effect on every run of the class is that of a clock-and-feedback agent
-separates from the covering bound there, because no agent does. The negative half of the condition
-holds with nothing to exclude, and no agent that reads its observation does better. -/
 theorem mute_not_decides {Φ : Type} (feedback : Percept interface → Φ)
     (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface) (counted : List Bool)
     (limit : ℕ) :
@@ -139,13 +93,9 @@ theorem mute_not_decides {Φ : Type} (feedback : Percept interface → Φ)
   not_decides_of_unmet feedback _
     (fun agent => mute_no_separation two shown agent counted limit)
 
-/-! ## Separation and retention -/
-
 variable {family : WorldClass interface} {goals : family.Goals}
   {reference : World interface} {origin : reference.State}
 
-/-- **An agent that keeps nothing never separates** from a covering bound, in a class that
-conceals its goals. -/
 theorem ExperienceFree.not_separatesBy {agent : Agent interface} (free : ExperienceFree agent)
     (hidden : Conceals family goals reference origin) {length bound : ℕ}
     (covered : Covered family (visitGoals goals length) bound) (counted : List family.Index)
@@ -154,15 +104,11 @@ theorem ExperienceFree.not_separatesBy {agent : Agent interface} (free : Experie
   exact absurd many (Nat.not_lt.mpr (visits_need hidden covered free visit solved
     (fun index member => (each index member).2)))
 
-/-- An agent that tries the first cued door's key at its first step and the second door's key at
-every later step, reading nothing. -/
 def fickle (four : 4 ≤ interface.actions.word.toNat) : Agent interface where
   Memory := ℕ
   initial := 0
   act := fun count _ => (if count = 0 then key four false false else key four false true, count + 1)
 
-/-- **The fickle agent solves a cued door once and not again**, so it does not retain before
-visit 2 with no lapse. -/
 theorem fickle_forgets (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) :
     SolvesOnVisit (cuedDoors four quiet win) (cuedGoals four quiet win) 1 (fickle four) 0

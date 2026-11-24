@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Regula.Contract
 import Acorn.Host.Attempt
 import AcornVerif.AgreementLifecycle
@@ -29,73 +24,46 @@ namespace AcornVerif.Decisions
 open Acorn Acorn.Checkpoint Acorn.Features Acorn.Handcrafted Acorn.Lifetime
 open Acorn.Handcrafted.FeatureProfile (Resumable)
 
-/-- A world configuration whose box reaches the last coordinate, with a noise scale of one.
-The kernel evaluates the terrain of its tiles at that scale, so a tile of this configuration
-is the accepted input of `terrain_walkable`. -/
 def wide : Host.WorldConfig :=
   ⟨⟨0, ⟨2 ^ 63 - 1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
 
-/-- The position with the last horizontal coordinate. At the noise scale of `wide` the terrain
-generator refuses it with a coordinate overflow, and the kernel evaluates that refusal. -/
 def last : Host.Position := ⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩⟩
 
-/-- The configuration of `wide` with another noise scale. -/
 def wideAt (scale : Binary32) : Host.WorldConfig :=
   ⟨{ wide.raw with baseScale := scale }, wide.positiveSide, wide.positiveDay⟩
 
-/-- A two-way decision from an acceptance equivalence about the function, an input that
-satisfies the specification and one that does not. -/
 private theorem decides.{u, v} {α : Sort u} {ρ : Sort v} {accepts : ρ → Prop} {spec : α → Prop}
     {f : α → ρ} (iff : ∀ x, accepts (f x) ↔ spec x) (holds : ∃ x, spec x)
     (fails : ∃ x, ¬spec x) : Regula.Decides accepts spec f :=
   .of_iff iff (holds.elim fun x satisfied => ⟨x, (iff x).mpr satisfied⟩)
     (fails.elim fun x unsatisfied => ⟨x, fun accepted => unsatisfied ((iff x).mp accepted)⟩)
 
-/-! ## Closed inputs of the kinds with a dependent type
-
-The witnesses of a kind are inputs of the function. Each definition below is a closed value,
-or makes a value from closed parts, and is an input or a part of an input of the kinds of
-this module. -/
-
-/-- A bank configuration with one unit. -/
 def bank : Features.Config :=
   ⟨0, 1, by decide, ⟨1, by decide, by decide⟩, ⟨1, by decide, by decide, 0, .zero, .zero⟩⟩
 
-/-- The feature space with one index. -/
 def narrow : Dimension := ⟨1, by decide, ⟨0, rfl⟩, by decide⟩
 
-/-- The resumable profile. -/
 def resumable : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
 
-/-- A construction of the given profile over `bank` and `narrow`. -/
 def construction (profile : FeatureProfile) : AgentConstruction :=
   ⟨profile, .discounted, .none, .learnThenAct, bank, narrow⟩
 
-/-- The control configuration of a learner, with the differential value rule. -/
 def control : Acorn.Config := ⟨.control, .differential⟩
 
-/-- The one index of `narrow`. -/
 def first : FeatIdx narrow := ⟨0, by decide⟩
 
-/-- The fresh learner of `control` over `narrow` with the trace of `first` set to one. -/
 def traced : NumericState control narrow :=
   let fresh := NumericState.initial control narrow
   { fresh with transient := { fresh.transient with z := #v[⟨⟨0x3f800000⟩⟩] } }
 
-/-- A pending sample of the discount `Discount.g99` at the largest age. -/
 def oldestSample : PendingPrediction Discount.g99 :=
   ⟨⟨FeatureConstants.maxSettlement, by decide⟩, Prediction.project _ .zero, .zero, .one, 0⟩
 
-/-- A tile of `wide` from which a tree to the west can be harvested. -/
 def stand : Host.BoxPosition wide := ⟨⟨3, by decide⟩, ⟨1, by decide⟩⟩
 
-/-- The stance checker accepts the wood stance on `stand`, facing west. The kernel evaluates
-the terrain of its three tiles. -/
 private theorem stood : Host.stanceCertified wide stand .west .wood = true := by
   decide +kernel
 
-/-- An admitted total holds the two input words unchanged: admission makes the record from
-the words and the proof of their legality. -/
 private theorem sum_written {quantity : Quantity} {words : SumWords}
     {record : SumCount quantity} (admitted : admitSum quantity words = some record) :
     words = sumWords record := by
@@ -105,12 +73,6 @@ private theorem sum_written {quantity : Quantity} {words : SumWords}
     rfl
   · exact nomatch admitted
 
-/-- Total admission accepts exactly the words of a stored total of the receiving quantity. An
-accepted pair is the words of the total that admission returns (`sum_written`), and the words
-of every stored total are accepted (`CurrentImage.sum_roundtrip`). The accepted input is
-the zero total of the reward quantity. The refused input is a count of one with the sum two
-under the reward quantity, whose bound for one observation is one. `sum_admit_value` states
-the total that admission returns. -/
 theorem sum_admit : Regula.ExecutableContract admitSum (fun admit =>
     Regula.Decides (· = true)
       (fun input : Quantity × SumWords => ∃ record : SumCount input.1, input.2 = sumWords record)
@@ -126,20 +88,11 @@ theorem sum_admit : Regula.ExecutableContract admitSum (fun admit =>
     ⟨(.reward, (0, ⟨0⟩)), by decide⟩
     ⟨(.reward, (1, ⟨0x4000000000000000⟩)), by decide⟩⟩
 
-/-- Total admission returns the total whose words it reads (`CurrentImage.sum_roundtrip`).
-A kind does not state the value of a result, so this statement is a requirement with no kind
-beside the kind `sum_admit`. -/
 theorem sum_admit_value : Regula.ExecutableContract admitSum (fun admit =>
     ∀ (quantity : Quantity) (record : SumCount quantity),
       admit quantity (sumWords record) = some record) :=
   ⟨fun _ => CurrentImage.sum_roundtrip⟩
 
-/-! ## Certificate checkers -/
-
-/-- A goal is achieved at a position, with an inventory, after an elapsed time: the position
-is in the goal box of a reach goal or of a concealed target, the inventory holds the count of
-a collect goal or owns the tool of a craft goal, and the elapsed time is at least the duration
-of a survive goal. -/
 def Achieved (goal : Host.Goal) (position : Host.Position) (inventory : Host.Inventory)
     (elapsed : UInt64) : Prop :=
   match goal with
@@ -149,24 +102,13 @@ def Achieved (goal : Host.Goal) (position : Host.Position) (inventory : Host.Inv
   | .survive required => required.toNat ≤ elapsed.toNat
   | .find target => CurrentGoals.InGoalBox target position
 
-/-- The arguments of `Host.replayCertified` and of `Host.ReplayCertificate.check`, in order. -/
 structure Replay where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The world before the goal is installed. -/
   world : Host.World config
-  /-- The goal to install. -/
   goal : Host.Goal
-  /-- The most actions the list may hold. -/
   cap : Nat
-  /-- The actions to replay. -/
   actions : List Host.Action
 
-/-- An action list replays its goal from a world within a cap: the list holds at least one and
-at most `cap` actions, and the run of the executed world step over them, from the world with the
-goal installed, ends in a world in which the goal is attained (`Host.World.Attained`, on the
-stored fields of the final world). The run is a run of the executed world step, which is the
-subject of the claim. -/
 def Replays {config : Host.WorldConfig} (world : Host.World config) (goal : Host.Goal) (cap : Nat)
     (actions : List Host.Action) : Prop :=
   0 < actions.length ∧ actions.length ≤ cap ∧
@@ -174,10 +116,6 @@ def Replays {config : Host.WorldConfig} (world : Host.World config) (goal : Host
       CurrentStep.Trace (world.setGoal goal) trace final ∧ trace.map (·.1) = actions ∧
         final.Attained goal
 
-/-- The replay checker accepts exactly an action list that replays its goal: the run of the
-fold is a run of the step (`CurrentStep.actions_trace`, `CurrentStep.trace_actions`), it keeps
-the installed goal (`CurrentCertificates.trace_goal`), and the completion flag of its final
-world is set exactly when that goal is attained (`Host.World.goalSatisfied_iff`). -/
 private theorem replayCertified_iff {config : Host.WorldConfig} (world : Host.World config)
     (goal : Host.Goal) (cap : Nat) (actions : List Host.Action) :
     Host.replayCertified world goal cap actions = true ↔ Replays world goal cap actions := by
@@ -216,17 +154,6 @@ private theorem replayCertified_iff {config : Host.WorldConfig} (world : Host.Wo
     | nil => exact absurd positive (Nat.lt_irrefl 0)
     | cons action rest => rfl
 
-/-- The replay checker accepts exactly an action list that replays its goal (`Replays`): at least
-one and at most `cap` actions whose run of the executed world step, from the world with the goal
-installed, ends in a world in which the goal is attained. The specification names the world
-step, which decides the propositions `Host.World.GoalSatisfied`, `Host.FoodDue` and
-`Host.Inventory.Owns` and compares actions, tile kinds and positions by their equality, and
-`Host.World.Attained` in the place of the completion predicate that the checker runs. The
-accepted input is the action `wait` from the empty world of `wide` with the goal to survive no
-step, at the cap one; the kernel evaluates that step. The refused input is the empty action list.
-
-**Not claimed:** completeness about the goal. The checker refuses an action list that does not
-itself replay the goal, whether or not the goal can be reached. -/
 theorem replay_certified : Regula.ExecutableContract @Host.replayCertified (fun check =>
     Regula.Decides (· = true)
       (fun input : Replay => Replays input.world input.goal input.cap input.actions)
@@ -238,21 +165,12 @@ theorem replay_certified : Regula.ExecutableContract @Host.replayCertified (fun 
     ⟨⟨wide, Host.World.empty wide, .survive 0, 1, []⟩,
       fun ⟨positive, _⟩ => absurd positive (Nat.lt_irrefl 0)⟩⟩
 
-/-- The goal box of a target is unreachable from a start tile: after any run of steps and goal
-installations from a world whose body is on the start tile, the body is outside the goal box.
-With `boat` false the statement covers only the runs that end without a boat. -/
 def Unreachable (config : Host.WorldConfig) (boat : Bool) (target start : Host.Position) :
     Prop :=
   ∀ world final : Host.World config, world.body.position.position = start →
     CurrentGoals.Later world final → (boat = false → final.body.inventory.boat = false) →
       ¬CurrentGoals.InGoalBox target final.body.position.position
 
-/-- The blocked checker accepts only a region that shows the goal box of its target
-unreachable from its start tile (`CurrentCertificates.blocked_outside`), and it accepts the
-empty region for a goal box that lies outside the box of the world.
-
-**Not claimed:** completeness. The checker refuses every region that is not closed, whether or
-not the goal box is reachable. -/
 theorem region_blocked : Regula.ExecutableContract Host.regionBlocked (fun check =>
     Regula.DecidesSoundly (· = true)
       (fun input :
@@ -266,17 +184,14 @@ theorem region_blocked : Regula.ExecutableContract Host.regionBlocked (fun check
        ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩), []), ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩),
        by decide⟩ }⟩
 
-/-- A movement action and the direction it heads in, stated by their constructors. -/
 def Heads (action : Host.Action) (direction : Host.Direction) : Prop :=
   (action = .north ∧ direction = .north) ∨ (action = .south ∧ direction = .south) ∨
     (action = .east ∧ direction = .east) ∨ (action = .west ∧ direction = .west)
 
-/-- The direction table gives the direction that a movement action heads in. -/
 private theorem heads_direction {action : Host.Action} {direction : Host.Direction}
     (heads : Heads action direction) : action.direction = some direction := by
   rcases heads with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> rfl
 
-/-- No stance of a box with one tile is accepted: no tile of that box is behind the stance. -/
 private theorem single_refused {config : Host.WorldConfig} (single : config.side = 1)
     (stance : Host.BoxPosition config) (direction : Host.Direction) (item : Host.Item) :
     Host.stanceCertified config stance direction item = false := by
@@ -292,26 +207,14 @@ private theorem single_refused {config : Host.WorldConfig} (single : config.side
     simp only [Host.BoxPosition.position] at column row
     cases direction <;> simp only [Host.Direction.delta] at column row <;> omega
 
-/-- The offset of one move in a direction, stated by the constructors: north is one tile
-toward negative y, south one toward positive y, east one toward positive x and west one toward
-negative x. It names no offset table. -/
 def Offset (direction : Host.Direction) (dx dy : Int) : Prop :=
   (direction = .north ∧ dx = 0 ∧ dy = -1) ∨ (direction = .south ∧ dx = 0 ∧ dy = 1) ∨
     (direction = .east ∧ dx = 1 ∧ dy = 0) ∨ (direction = .west ∧ dx = -1 ∧ dy = 0)
 
-/-- The offset table `Host.Direction.delta` gives the offset that `Offset` states. -/
 private theorem offset_delta {direction : Host.Direction} {dx dy : Int}
     (offset : Offset direction dx dy) : direction.delta = (dx, dy) := by
   rcases offset with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ <;> rfl
 
-/-- What an accepted stance shows, in every world of the configuration, for the offset of one
-move in the direction: a paid harvest from the stance, facing the direction, yields the item,
-when the tile one offset ahead holds a standing tree for a wood stance; a paid move in the
-direction from the tile one offset behind the stance enters it facing the resource; and the
-tile one offset behind is in the box and can be entered. The tiles are stated by equations
-on the stored box indices and on coordinates, the move by the constructors of the action and
-the direction (`Heads`, `Offset`), with no checked translation, no direction table and no
-offset table. A successful step is a hypothesis. -/
 def Harvests (config : Host.WorldConfig) (stance : Host.BoxPosition config)
     (direction : Host.Direction) (item : Host.Item) : Prop :=
   ∀ dx dy : Int, Offset direction dx dy →
@@ -335,9 +238,6 @@ def Harvests (config : Host.WorldConfig) (stance : Host.BoxPosition config)
           tile.x.val = approach.x.val → tile.y.val = approach.y.val →
             world.enterable tile = .ok true
 
-/-- An accepted stance has the properties of `Harvests`
-(`CurrentCertificates.stance_harvest`, `stance_enter`, `stance_approach`,
-`walkable_enterable`). -/
 private theorem stance_sound {config : Host.WorldConfig} {stance : Host.BoxPosition config}
     {direction : Host.Direction} {item : Host.Item}
     (accepted : Host.stanceCertified config stance direction item = true) :
@@ -364,24 +264,12 @@ private theorem stance_sound {config : Host.WorldConfig} {stance : Host.BoxPosit
     rw [same]
     exact CurrentCertificates.walkable_enterable world approach.position walkable
 
-/-- The arguments of `Host.stanceCertified`, in order. -/
 structure StanceCertified where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The stance tile. -/
   stance : Host.BoxPosition config
-  /-- The direction the body faces. -/
   direction : Host.Direction
-  /-- The item. -/
   item : Host.Item
 
-/-- The stance checker accepts only a stance that `Harvests` holds of (`stance_sound`). The
-specification states the geometry by constructors and stored indices; the checker reads the
-offset table `Host.Direction.delta`, the facing position and the checked translation, and
-`offset_delta` connects the table. The accepted input is the wood stance on `stand`, whose
-three tiles the kernel evaluates. `stance_certified_refused` states a class of refused inputs.
-
-**Not claimed:** completeness, or that a step succeeds. -/
 theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun check =>
     Regula.DecidesSoundly (· = true)
       (fun input : StanceCertified =>
@@ -391,18 +279,12 @@ theorem stance_certified : Regula.ExecutableContract Host.stanceCertified (fun c
   ⟨{ sound := fun _ accepted => stance_sound accepted
      accepted := ⟨⟨wide, stand, .west, .wood⟩, stood⟩ }⟩
 
-/-- The stance checker refuses every stance of a box with one tile, because no tile of that
-box is behind the stance. A sound kind does not state a set of refused inputs, so this
-statement is a requirement with no kind beside the kind `stance_certified`. -/
 theorem stance_certified_refused : Regula.ExecutableContract Host.stanceCertified (fun check =>
     ∀ (config : Host.WorldConfig) (stance : Host.BoxPosition config)
       (direction : Host.Direction) (item : Host.Item),
       config.side = 1 → check config stance direction item = false) :=
   ⟨fun _ stance direction item single => single_refused single stance direction item⟩
 
-/-- Replay checking returns a certificate exactly for an action list that replays its goal
-(`Replays`, which `replay_certified` states): the constructor returns a certificate exactly where
-the checker accepts. The witnesses are those of `replay_certified`. -/
 theorem replay_check : Regula.ExecutableContract @Host.ReplayCertificate.check (fun check =>
     Regula.Decides (· = true)
       (fun input : Replay => Replays input.world input.goal input.cap input.actions)
@@ -420,24 +302,13 @@ theorem replay_check : Regula.ExecutableContract @Host.ReplayCertificate.check (
     ⟨⟨wide, Host.World.empty wide, .survive 0, 1, [.wait]⟩, by decide +kernel⟩
     ⟨⟨wide, Host.World.empty wide, .survive 0, 1, []⟩, by decide⟩⟩
 
-/-- The arguments of `Host.BlockedCertificate.check`, in order. -/
 structure BlockedCheck where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- Whether the runs may end with a boat. -/
   boat : Bool
-  /-- The target of the goal box. -/
   target : Host.Position
-  /-- The start tile. -/
   start : Host.Position
-  /-- The cells of the region. -/
   cells : List Host.Position
 
-/-- Blocked checking returns a certificate only for a region that shows the goal box
-unreachable from the start tile (`CurrentCertificates.blocked_outside`). The specification
-names the unreachability relation and not the Boolean checker. The accepted input is the one
-of `region_blocked`: the empty region for a goal box outside the box of the world.
-`blocked_check_refused` states a class of refused inputs. -/
 theorem blocked_check : Regula.ExecutableContract Host.BlockedCertificate.check (fun check =>
     Regula.DecidesSoundly (· = true)
       (fun input : BlockedCheck => Unreachable input.config input.boat input.target input.start)
@@ -453,30 +324,18 @@ theorem blocked_check : Regula.ExecutableContract Host.BlockedCertificate.check 
        ⟨⟨100, by decide⟩, ⟨100, by decide⟩⟩, ⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩, []⟩,
        by decide⟩ }⟩
 
-/-- Blocked checking refuses the region that holds only the start tile. A sound kind does not
-state a set of refused inputs, so this statement is a requirement with no kind beside the kind
-`blocked_check`. -/
 theorem blocked_check_refused : Regula.ExecutableContract Host.BlockedCertificate.check
     (fun check =>
       ∀ (config : Host.WorldConfig) (boat : Bool) (target start : Host.Position),
         check config boat target start [start] = none) :=
   ⟨fun _ _ _ _ => by simp [Host.BlockedCertificate.check, Host.regionBlocked, Host.inRegion]⟩
 
-/-- The arguments of `Host.StanceCertificate.check`, in order. -/
 structure StanceCheck where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The item. -/
   item : Host.Item
-  /-- The stance tile. -/
   stance : Host.BoxPosition config
-  /-- The direction the body faces. -/
   direction : Host.Direction
 
-/-- Stance checking returns a certificate only for a stance that `Harvests` holds of
-(`stance_certified` states the relation). The specification names the relation and not the
-Boolean checker. The accepted input is the one of `stance_certified`.
-`stance_check_refused` states a class of refused inputs. -/
 theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (fun check =>
     Regula.DecidesSoundly (· = true)
       (fun input : StanceCheck => Harvests input.config input.stance input.direction input.item)
@@ -498,9 +357,6 @@ theorem stance_check : Regula.ExecutableContract Host.StanceCertificate.check (f
        Option.isSome_iff_exists.mpr
          ⟨⟨stand, .west, stood⟩, dite_eq_left_of_eq_true (eq_true stood)⟩⟩ }⟩
 
-/-- Stance checking refuses every stance of a box with one tile. A sound kind does not state a
-set of refused inputs, so this statement is a requirement with no kind beside the kind
-`stance_check`. -/
 theorem stance_check_refused : Regula.ExecutableContract Host.StanceCertificate.check
     (fun check =>
       ∀ (config : Host.WorldConfig) (item : Host.Item) (stance : Host.BoxPosition config)
@@ -509,8 +365,6 @@ theorem stance_check_refused : Regula.ExecutableContract Host.StanceCertificate.
   ⟨fun _ item stance direction single => by
     simp [Host.StanceCertificate.check, single_refused single stance direction item]⟩
 
-/-- A tile that the body may enter in every world of a configuration is walkable: the empty
-world has no boat, so the terrain of the tile is not water. -/
 private theorem enterable_walkable {config : Host.WorldConfig} {tile : Host.Position}
     (enterable : ∀ world : Host.World config, world.enterable tile = .ok true) :
     Host.walkableTile config tile = true := by
@@ -526,11 +380,6 @@ private theorem enterable_walkable {config : Host.WorldConfig} {tile : Host.Posi
     cases kind <;>
       simp_all [Except.map, CurrentStep.passable, Host.TileKind.walkable, Host.World.empty]
 
-/-- The walkable test accepts exactly a tile that the body may enter in every world of the
-configuration, with or without a boat (`CurrentCertificates.walkable_enterable`, and
-`enterable_walkable` for the converse). Enterability is the executed test of the world, which
-is the subject of the claim. The accepted input is the grass tile (2, 0) of the wide world, and
-the refused input is the last coordinate, whose terrain the generator refuses. -/
 theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test =>
     Regula.Decides (· = true)
       (fun input : Host.WorldConfig × Host.Position =>
@@ -543,19 +392,6 @@ theorem terrain_walkable : Regula.ExecutableContract Host.walkableTile (fun test
     ⟨(wide, ⟨⟨2, by decide⟩, ⟨0, by decide⟩⟩), by decide +kernel⟩
     ⟨(wide, last), by decide +kernel⟩⟩
 
-/-! ## Checkpoint admissions
-
-Each admission below composes the admissions of its parts, and its round trip is proved in
-`CurrentCheckpoint`. Each statement gives the inputs that an admission accepts: an accepted input
-is the written form of the value that it returns (`payload_written`, `candidate_written`), and
-the value that it returns is a separate statement, under its name with `_value`. Neither keeps a
-kind, for the reason `payload_admit` gives. -/
-
-/-- An admitted payload is the payload of the image that admission returns, and the receiving
-profile is resumable. Header admission fixes every header word but the clock and the reward
-rate (`admitHeader_checks`); the image format reads exactly the encodings of images, so the
-body is the image's encoding (`CurrentImage.imageFormat_exact`); and admission requires the
-header's clock and rate words to be the image's. -/
 private theorem payload_written {construction : AgentConstruction}
     {payload : Payload} {image : construction.Image}
     (admitted : admitPayload construction payload = .ok image) :
@@ -590,10 +426,6 @@ private theorem payload_written {construction : AgentConstruction}
   refine ⟨resumable, ?_⟩
   simp only [imagePayload, resumable, ↓reduceIte]
 
-/-- An accepted byte list is the encoding of the payload of the image that loading returns,
-and the receiving profile is resumable: decoding reads only the bytes that the writer writes
-(`Checkpoint.decode_written`), and payload admission accepts only the payload of its image
-(`payload_written`). -/
 private theorem candidate_written {construction : AgentConstruction} {bytes : List UInt8}
     {image : construction.Image} (loaded : loadCandidate construction bytes = .ok image) :
     Resumable construction.profile ∧
@@ -608,8 +440,6 @@ private theorem candidate_written {construction : AgentConstruction} {bytes : Li
   obtain ⟨resumable, written⟩ := payload_written loaded
   exact ⟨resumable, by rw [decode_written _ _ decoded, written]⟩
 
-/-- Payload admission accepts exactly the payloads of the agent images of a resumable
-construction (`CurrentCheckpoint.image_roundtrip`, and `payload_written` for the converse). -/
 private theorem payload_iff (construction : AgentConstruction)
     (payload : Payload) :
     (admitPayload construction payload).isOk = true ↔
@@ -627,16 +457,6 @@ private theorem payload_iff (construction : AgentConstruction)
       ((FeatureProfile.checkpoint_iff _).mpr supported)]
     rfl
 
-/-- Payload admission accepts exactly the payloads of the agent images of a resumable
-construction (`payload_iff`). `payload_admit_value` states the image that it returns.
-
-The statement keeps no kind: the rule of `Acorn.Decisions` for tests that a specification does
-not share excludes the two-way kind with this specification. The specification quantifies over
-agent images, whose type declares the invariants of their learners,
-and it names the writer `imagePayload`, whose format holds the reader of each field beside its
-writer. Both reach ten tests that the admission runs, among them the stored-word check
-`NumericState.resumable`, `Binary32.isNaN` and `Binary32.less`. Which images there are depends on
-those tests, so a kind needs a statement of the written payloads that does not depend on them. -/
 theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
     ∀ (construction : AgentConstruction) (payload : Payload),
       (admit construction payload).isOk = true ↔
@@ -644,19 +464,12 @@ theorem payload_admit : Regula.ExecutableContract admitPayload (fun admit =>
           payload = imagePayload construction image) :=
   ⟨payload_iff⟩
 
-/-- Payload admission returns the image whose payload it reads
-(`CurrentCheckpoint.image_roundtrip`). A kind does not state the value of a result, so this
-statement is a requirement with no kind beside the requirement `payload_admit`, which also keeps
-no kind. -/
 theorem payload_admit_value : Regula.ExecutableContract admitPayload (fun admit =>
     ∀ (construction : AgentConstruction) (image : construction.Image),
       construction.profile.checkpointSupported = true →
         admit construction (imagePayload construction image) = .ok image) :=
   ⟨CurrentCheckpoint.image_roundtrip⟩
 
-/-- Candidate loading accepts exactly the encoded payloads of the agent images of a resumable
-construction (`CurrentCheckpoint.candidate_roundtrip`, and `candidate_written` for the
-converse). -/
 private theorem candidate_iff (construction : AgentConstruction) (bytes : List UInt8) :
     (loadCandidate construction bytes).isOk = true ↔
       ∃ image : construction.Image, Resumable construction.profile ∧
@@ -673,11 +486,6 @@ private theorem candidate_iff (construction : AgentConstruction) (bytes : List U
       ((FeatureProfile.checkpoint_iff _).mpr supported)]
     rfl
 
-/-- Candidate loading accepts exactly the encoded payloads of the agent images of a resumable
-construction (`candidate_iff`). `candidate_load_value` states the image that it returns.
-
-The statement keeps no kind, for the reason that `payload_admit` gives, with the same ten tests.
--/
 theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
     ∀ (construction : AgentConstruction) (bytes : List UInt8),
       (load construction bytes).isOk = true ↔
@@ -685,20 +493,12 @@ theorem candidate_load : Regula.ExecutableContract loadCandidate (fun load =>
           bytes = encode (imagePayload construction image)) :=
   ⟨candidate_iff⟩
 
-/-- Candidate loading returns the image whose encoded payload it reads
-(`CurrentCheckpoint.candidate_roundtrip`). A kind does not state the value of a result, so
-this statement is a requirement with no kind beside the requirement `candidate_load`, which also
-keeps no kind. -/
 theorem candidate_load_value : Regula.ExecutableContract loadCandidate (fun load =>
     ∀ (construction : AgentConstruction) (image : construction.Image),
       construction.profile.checkpointSupported = true →
         load construction (encode (imagePayload construction image)) = .ok image) :=
   ⟨CurrentCheckpoint.candidate_roundtrip⟩
 
-/-! ## World and goal tests -/
-
-/-- Checked translation accepts exactly an origin and two offsets whose exact sums are the
-coordinates of a position (`CurrentCertificates.translate_some`, `translate_of_eq`). -/
 theorem position_translate : Regula.ExecutableContract Host.Position.translate (fun translate =>
     Regula.Decides (·.isSome = true)
       (fun input : (Host.Position × Int) × Int =>
@@ -717,13 +517,6 @@ theorem position_translate : Regula.ExecutableContract Host.Position.translate (
     ⟨((⟨⟨0, by decide⟩, ⟨0, by decide⟩⟩, 0), 0), by decide⟩
     ⟨((⟨⟨2 ^ 63 - 1, by decide⟩, ⟨0, by decide⟩⟩, 1), 0), by decide⟩⟩
 
-/-- The completion predicate accepts the observation that `Goal.observe` produces for every
-achieved goal (`CurrentGoals.reach_satisfied_iff`, `collect_satisfied_iff`,
-`survive_satisfied_iff`, `craft_satisfied`, `find_satisfied_iff`), and it refuses the
-observation of no goal.
-
-**Not claimed:** soundness for an observation that `Goal.observe` did not produce. The five
-theorems state the converse for the observations it does produce. -/
 theorem task_satisfied : Regula.ExecutableContract Host.TaskObservation.satisfied
     (Regula.DecidesCompletely (· = true)
       (fun observation => ∃ goal position inventory elapsed,
@@ -747,13 +540,6 @@ theorem task_satisfied : Regula.ExecutableContract Host.TaskObservation.satisfie
          exact (CurrentGoals.find_satisfied_iff target position inventory elapsed).mpr achieved
      refused := ⟨.none, by decide⟩ }⟩
 
-/-- The completion predicate, on the observation of each goal family, is exactly: a position
-in the goal box for a reach goal or a concealed target, an inventory that holds the count for
-a collect goal and an elapsed time of at least the duration for a survive goal; for a craft
-goal it is the ownership of the tool (`CurrentGoals.reach_satisfied_iff`,
-`collect_satisfied_iff`, `survive_satisfied_iff`, `craft_satisfied`, `find_satisfied_iff`).
-These equivalences are both directions for the observations that `Goal.observe` produces;
-`task_satisfied` states the kind. -/
 theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
     (fun satisfied =>
     (∀ (target position : Host.Position) (inventory : Host.Inventory) (elapsed : UInt64),
@@ -778,11 +564,6 @@ theorem task_observed : Regula.ExecutableContract Host.TaskObservation.satisfied
     CurrentGoals.survive_satisfied_iff, CurrentGoals.craft_satisfied,
     CurrentGoals.find_satisfied_iff⟩⟩
 
-/-- The exponential classifier sends a word to reduction, with no saturated result, exactly
-when the word is finite and strictly between the underflow and the overflow thresholds
-(`CurrentExponential.expSaturation_ends`). The strict order is the proposition
-`Binary32.Less`, which names no test, and `Binary32.less_iff` connects it with the word
-comparison that the classifier runs. -/
 theorem exp_saturation : Regula.ExecutableContract Portable.expSaturation
     (Regula.Decides (· = none)
       (fun value : Binary32 => value.Finite ∧
@@ -812,10 +593,6 @@ theorem exp_saturation : Regula.ExecutableContract Portable.expSaturation
          simp [number, above, below] at ends
      refused := ⟨⟨0x7fc00000⟩, by decide⟩ }⟩
 
-/-- Rank selection returns an index only when the cumulative count through some bin reaches
-the target rank (`Endurance.rankIndex_spec`, which also states that no earlier bin does).
-
-**Not claimed:** completeness. No theorem states that a reachable rank is always found. -/
 theorem rank_index : Regula.ExecutableContract Host.Endurance.rankIndex (fun index =>
     Regula.DecidesSoundly (·.isSome = true)
       (fun input : ((Nat × Nat) × Nat) × List Nat =>
@@ -826,23 +603,6 @@ theorem rank_index : Regula.ExecutableContract Host.Endurance.rankIndex (fun ind
        exact ⟨i, (Endurance.rankIndex_spec input.1.1.1 input.1.1.2 input.1.2 input.2 i found).1⟩
      accepted := ⟨(((0, 1), 0), [0]), by decide⟩ }⟩
 
-/-! ## Refusals of the terrain
-
-The value noise refuses a position exactly when the quotient of a coordinate by its scale
-reaches a lattice coordinate with no successor, `CurrentTerrain.PastLast`, which states the
-condition on the exact value of the quotient. The fold of the value noise over the octaves
-refuses exactly when one of its octaves does, and a field of the terrain, the terrain generator
-and its two readers in the world refuse exactly when one of the four octaves of the base scale
-does, `CurrentTerrain.LatticeAdmits`. The witnesses of the six kinds are the last coordinate at
-the noise scales of two and of one half. A generator that read every scale as one would fail
-each kind: at the scale one it refuses the last coordinate. -/
-
-/-- The value noise admits exactly a position and a scale at which the quotient of neither
-coordinate by the scale is past the last lattice coordinate (`CurrentTerrain.valueNoise_isOk`):
-positive infinity or a finite value of at least `2 ^ 63 - 1`. The seed enters no refusal. The
-accepted input is the last coordinate at the scale two, whose horizontal quotient is `2 ^ 62`.
-The refused input is the last coordinate at the scale one half, whose horizontal quotient is
-`2 ^ 64`. -/
 theorem value_noise_lattice : Regula.ExecutableContract Host.valueNoise (fun valueNoise =>
     Regula.Decides (·.isOk = true)
       (fun input : (Host.Position × Binary32) × UInt64 =>
@@ -853,26 +613,14 @@ theorem value_noise_lattice : Regula.ExecutableContract Host.valueNoise (fun val
     ⟨((last, ⟨0x40000000⟩), 0), by decide +kernel⟩
     ⟨((last, ⟨0x3f000000⟩), 0), by decide +kernel⟩⟩
 
-/-- The arguments of `Host.octaveLoop`, in order. -/
 structure OctaveLoop where
-  /-- The number of octaves still to add. -/
   count : Nat
-  /-- The position. -/
   position : Host.Position
-  /-- The seed. -/
   seed : UInt64
-  /-- The scale of the next octave. -/
   scale : Binary32
-  /-- The amplitude of the next octave. -/
   amplitude : Binary32
-  /-- The sum of the octaves added. -/
   sum : Binary32
 
-/-- The fold of the value noise over the octaves admits exactly a position that the value noise
-admits at each octave scale that it adds, the scale doubled once per octave
-(`CurrentTerrain.octaveLoop_isOk`). The seed, the amplitude and the sum enter no refusal. The
-witnesses are the four octaves of a field of the terrain at the inputs of
-`value_noise_lattice`. -/
 theorem octave_loop_lattice : Regula.ExecutableContract Host.octaveLoop (fun octaveLoop =>
     Regula.Decides (·.isOk = true)
       (fun input : OctaveLoop =>
@@ -888,9 +636,6 @@ theorem octave_loop_lattice : Regula.ExecutableContract Host.octaveLoop (fun oct
     ⟨⟨4, last, 0, ⟨0x40000000⟩, ⟨0x3f000000⟩, ⟨0⟩⟩, by decide +kernel⟩
     ⟨⟨4, last, 0, ⟨0x3f000000⟩, ⟨0x3f000000⟩, ⟨0⟩⟩, by decide +kernel⟩⟩
 
-/-- A field of the terrain admits exactly a position whose value noise has a lattice successor at
-each of the four octave scales of the base scale (`CurrentTerrain.fbm_isOk`). The seed enters no
-refusal. The witnesses are those of `terrain_lattice`. -/
 theorem fbm_lattice : Regula.ExecutableContract Host.fbm (fun fbm =>
     Regula.Decides (·.isOk = true)
       (fun input : (Host.Position × UInt64) × Binary32 =>
@@ -900,21 +645,11 @@ theorem fbm_lattice : Regula.ExecutableContract Host.fbm (fun fbm =>
     ⟨((last, 0), ⟨0x40000000⟩), by decide +kernel⟩
     ⟨((last, 0), ⟨0x3f000000⟩), by decide +kernel⟩⟩
 
-/-- The arguments of `Host.World.tileKind` and `Host.World.enterable`, in order. -/
 structure WorldTile where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The world. -/
   world : Host.World config
-  /-- The tile. -/
   position : Host.Position
 
-/-- The terrain generator admits exactly a position whose value noise has a lattice successor at
-each of the four octave scales of the base scale (`CurrentTerrain.terrain_isOk`): the quotient of
-neither coordinate by an octave scale is positive infinity or a finite value of at least
-`2 ^ 63 - 1`. The seed enters no refusal. The accepted input is the last coordinate at the scale
-two, whose horizontal quotients are `2 ^ 62` to `2 ^ 59`. The refused input is the last coordinate
-at the scale one half, whose first horizontal quotient is `2 ^ 64`. -/
 theorem terrain_lattice : Regula.ExecutableContract Host.terrain (fun terrain =>
     Regula.Decides (·.isOk = true)
       (fun input : (Host.Position × UInt64) × Binary32 =>
@@ -924,9 +659,6 @@ theorem terrain_lattice : Regula.ExecutableContract Host.terrain (fun terrain =>
     ⟨((last, 0), ⟨0x40000000⟩), by decide +kernel⟩
     ⟨((last, 0), ⟨0x3f000000⟩), by decide +kernel⟩⟩
 
-/-- The effective kind of a tile is refused exactly when the value noise refuses its position at
-the base scale of the world (`CurrentTerrain.tileKind_isOk`). The witnesses are the inputs of
-`terrain_lattice` in an empty world with the box of `wide`. -/
 theorem tile_kind_lattice : Regula.ExecutableContract @Host.World.tileKind (fun tileKind =>
     Regula.Decides (·.isOk = true)
       (fun input : WorldTile =>
@@ -936,9 +668,6 @@ theorem tile_kind_lattice : Regula.ExecutableContract @Host.World.tileKind (fun 
     ⟨⟨wideAt ⟨0x40000000⟩, Host.World.empty _, last⟩, by decide +kernel⟩
     ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, last⟩, by decide +kernel⟩⟩
 
-/-- An entry into a tile is refused exactly when the value noise refuses its position at the base
-scale of the world (`CurrentTerrain.enterable_isOk`). The witnesses are those of
-`tile_kind_lattice`. -/
 theorem world_enterable_lattice : Regula.ExecutableContract @Host.World.enterable
     (fun enterable =>
     Regula.Decides (·.isOk = true)
@@ -949,13 +678,6 @@ theorem world_enterable_lattice : Regula.ExecutableContract @Host.World.enterabl
     ⟨⟨wideAt ⟨0x40000000⟩, Host.World.empty _, last⟩, by decide +kernel⟩
     ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, last⟩, by decide +kernel⟩⟩
 
-/-- Whether the body may enter a tile is exactly the static passability of the tile's terrain
-with the body's boat, and it refuses exactly when the terrain refuses
-(`CurrentStep.enterable_static`).
-
-The statement is a requirement with no kind beside the kind `world_enterable_lattice`, which
-states the refused positions. It gives the verdict of an accepted entry, which that kind does
-not state. -/
 theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun enterable =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position),
       @enterable config world position =
@@ -963,12 +685,6 @@ theorem world_enterable : Regula.ExecutableContract @Host.World.enterable (fun e
           (fun base => CurrentStep.passable base world.body.inventory.boat)) :=
   ⟨fun _ => CurrentStep.enterable_static⟩
 
-/-- The world's completion flag is set exactly when a goal is installed and attained
-(`Host.World.goalSatisfied_iff`). The specification is `Host.World.Attained`, on the installed
-goal and the stored fields of the world. It names neither the completion predicate
-`Host.TaskObservation.satisfied` nor `Host.Goal.observe`, which the flag applies, and no reader
-of a position or of an inventory. The accepted input is the empty world of `wide` with the goal
-to survive no step, and the refused input is that world with no goal. -/
 theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fun satisfied =>
     Regula.Decides (· = true)
       (fun input : (config : Host.WorldConfig) × Host.World config => ∃ goal,
@@ -979,17 +695,6 @@ theorem goal_satisfied : Regula.ExecutableContract @Host.World.goalSatisfied (fu
     ⟨⟨wide, (Host.World.empty wide).setGoal (.survive 0)⟩, .survive 0, rfl, Nat.zero_le _⟩
     ⟨⟨wide, .empty wide⟩, fun ⟨_, installed, _⟩ => (nomatch installed)⟩⟩
 
-/-- What the readers of the terrain do with its result: enterability is the terrain result
-mapped through static passability with the body's boat, so a terrain refusal is the only
-refusal of an entry (`CurrentStep.enterable_static`), and no successful step moves the body
-onto a tile whose terrain is a mountain, or water without a boat (`CurrentStep.step_terrain`).
-
-The statement names `Host.World.enterable` and `Host.World.step`, which are defined through
-the terrain. It is a statement about those readers, and it is not independent of the terrain
-generator. It is a requirement with no kind beside the kind `terrain_lattice`, which states the
-refused positions.
-
-**Not claimed:** the kind of any tile. -/
 theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
     ∀ (config : Host.WorldConfig),
       (∀ (world : Host.World config) (position : Host.Position),
@@ -1005,14 +710,6 @@ theorem terrain_read : Regula.ExecutableContract Host.terrain (fun terrain =>
                   .ok .water → world.body.inventory.boat = true)) :=
   ⟨fun _ => ⟨CurrentStep.enterable_static, CurrentStep.step_terrain⟩⟩
 
-/-- The effective kind of a tile is refused exactly when the terrain of the tile is refused,
-with the same refusal.
-
-The statement is a requirement with no kind beside the kind `tile_kind_lattice`, which states the
-refused positions. It gives the refusal of a refused tile, which that kind does not state.
-
-**Not claimed:** the kind of an accepted tile. `CurrentStep.enterable_static` states what an
-entry reads from it. -/
 theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (position : Host.Position)
       (refusal : Host.WorldError),
@@ -1027,31 +724,13 @@ theorem tile_kind : Regula.ExecutableContract @Host.World.tileKind (fun tileKind
       repeat' split
       all_goals simp⟩
 
-/-! ## Refusals of the paid actions
-
-A paid action reads the terrain of at most one tile: the tile one step ahead of a move when that
-tile is in the box, and the tile that the body faces for a harvest
-(`CurrentActions.ActionAdmits`). Its effect is refused exactly when the terrain refuses that
-tile, and the paid action exactly when, in addition, the energy pays its cost
-(`CurrentActions.Affords`). The witnesses of the two kinds are a harvest in the empty world of
-`wideAt` at the noise scales of two and of one half, whose body faces the tile `faced`. A
-generator that read every scale as one would fail each kind: at the scale one it admits that
-tile. -/
-
-/-- The arguments of `Host.performAction` and `Host.payAndAct`, in order. -/
 structure WorldAction where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The world. -/
   world : Host.World config
-  /-- The action. -/
   action : Host.Action
 
-/-- The tile north of the center of the box of `wide`, which the body of an empty world of
-`wideAt` faces. -/
 def faced : Host.Position := ⟨⟨2 ^ 62 - 1, by decide⟩, ⟨2 ^ 62 - 2, by decide⟩⟩
 
-/-- A harvest in the empty world of `wideAt` reads the tile `faced`. -/
 private theorem harvest_faced (scale : Binary32) :
     CurrentActions.ActionAdmits (Host.World.empty (wideAt scale)) .harvest ↔
       CurrentTerrain.LatticeAdmits faced scale := by
@@ -1071,19 +750,11 @@ private theorem harvest_faced (scale : Binary32) :
     rw [same]
     exact admits
 
-/-- The energy of the body of the empty world of `wideAt` at the scale one half pays for a
-harvest: at the clock zero with a day of length one the phase is the fifth, and the cost four is
-below the full energy. -/
 private theorem harvest_paid :
     CurrentActions.Affords (Host.World.empty (wideAt ⟨0x3f000000⟩)) .harvest :=
   ⟨FeatureConstants.harvestCost * FeatureConstants.nightMultiplier,
     .inl ⟨rfl, by decide, rfl⟩, by decide⟩
 
-/-- A paid action's effect is refused exactly when the terrain refuses the tile that the action
-reads (`CurrentActions.performAction_isOk`): the tile one step ahead of a move when that tile is
-in the box, and the tile that the body faces for a harvest. The other actions read no tile. The
-accepted input is a harvest in the empty world of `wideAt` at the scale two, and the refused
-input is that harvest at the scale one half. -/
 theorem perform_action_lattice : Regula.ExecutableContract @Host.performAction (fun perform =>
     Regula.Decides (· = true)
       (fun input : WorldAction => CurrentActions.ActionAdmits input.world input.action)
@@ -1095,10 +766,6 @@ theorem perform_action_lattice : Regula.ExecutableContract @Host.performAction (
     ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, .harvest⟩,
       fun admits => absurd ((harvest_faced ⟨0x3f000000⟩).mp admits) (by decide +kernel)⟩⟩
 
-/-- A paid action is refused exactly when the energy pays its cost and the terrain refuses the
-tile that the action reads (`CurrentActions.payAndAct_isOk`). An action that the energy does not
-pay for rests the body and is accepted. The witnesses are those of `perform_action_lattice`,
-where the energy pays for the harvest. -/
 theorem pay_and_act_lattice : Regula.ExecutableContract @Host.payAndAct (fun pay =>
     Regula.Decides (· = true)
       (fun input : WorldAction =>
@@ -1112,13 +779,6 @@ theorem pay_and_act_lattice : Regula.ExecutableContract @Host.payAndAct (fun pay
     ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, .harvest⟩, fun admits =>
       absurd ((harvest_faced ⟨0x3f000000⟩).mp (admits harvest_paid)) (by decide +kernel)⟩⟩
 
-/-- A paid action that succeeds either found the energy short, rested and set the exhausted
-flag, or spent the cost of the action with the exhausted flag clear
-(`CurrentStep.payAndAct_outcome`). The statement is a requirement with no kind beside the kind
-`pay_and_act_lattice`, which states the refused actions.
-
-**Not claimed:** the effect of the action on the body. `CurrentStep.payAndAct_outcome` states
-it through the relation `CurrentStep.Performed`. -/
 theorem pay_and_act : Regula.ExecutableContract @Host.payAndAct (fun pay =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
       (active : Host.ActionChange config), @pay config world action = .ok active →
@@ -1134,10 +794,6 @@ theorem pay_and_act : Regula.ExecutableContract @Host.payAndAct (fun pay =>
       · exact ⟨night, .inl short⟩
       · exact ⟨night, .inr ⟨energy, spent, awake⟩⟩⟩
 
-/-- The hypotheses of the movement claim, apart from the success of the action: the action
-heads in the direction, the position is the tile next to the body in that direction, and the
-body may enter it. The tile and the move are stated by coordinate equations and constructors.
-Enterability is the executed test of the world, which is the subject of that hypothesis. -/
 def Moves {config : Host.WorldConfig} (world : Host.World config) (action : Host.Action)
     (direction : Host.Direction) (position : Host.BoxPosition config) : Prop :=
   Heads action direction ∧
@@ -1145,12 +801,6 @@ def Moves {config : Host.WorldConfig} (world : Host.World config) (action : Host
     position.position.y.val = world.body.position.position.y.val + direction.delta.2 ∧
     world.enterable position.position = .ok true
 
-/-- A movement action that succeeds, toward an in-box tile that the body may enter, puts the
-body on that tile facing the direction of the move (`CurrentCertificates.perform_move`). The
-hypotheses are the predicate `Moves`. The statement is a requirement with no kind beside the kind
-`perform_action_lattice`, which states the refused actions.
-
-**Not claimed:** that some input satisfies the hypotheses. -/
 theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perform =>
     ∀ (config : Host.WorldConfig) (world : Host.World config) (action : Host.Action)
       (direction : Host.Direction) (position : Host.BoxPosition config)
@@ -1161,20 +811,11 @@ theorem perform_action : Regula.ExecutableContract @Host.performAction (fun perf
     CurrentCertificates.perform_move world action direction position (heads_direction heads)
       (CurrentCertificates.translate_of_eq _ _ _ _ column row) enter active performed⟩
 
-/-! ## Runs of the world step -/
-
-/-- The arguments of `Host.World.advanceActions`, in order. -/
 structure AdvanceActions where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The world the run starts from. -/
   world : Host.World config
-  /-- The actions to replay. -/
   actions : List Host.Action
 
-/-- An action replay returns a world exactly when a run of the executed world step over those
-actions ends in that world (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`). It is a
-requirement with no kind beside the kind `advance_actions`: the world of an accepted replay. -/
 theorem advance_actions_value : Regula.ExecutableContract @Host.World.advanceActions
     (fun advance =>
       ∀ (config : Host.WorldConfig) (world final : Host.World config)
@@ -1185,8 +826,6 @@ theorem advance_actions_value : Regula.ExecutableContract @Host.World.advanceAct
     ⟨CurrentStep.actions_trace world final actions,
       fun ⟨_, run, same⟩ => same ▸ CurrentStep.trace_actions run⟩⟩
 
-/-- A successful step has a successful paid action (`Host.payAndAct`); an action that the
-energy does not pay for rests the body, and `Host.payAndAct` succeeds then too. -/
 private theorem step_paid {config : Host.WorldConfig} {world middle : Host.World config}
     {action : Host.Action} {events : Host.StepResult}
     (stepped : world.step action = .ok (middle, events)) :
@@ -1195,14 +834,6 @@ private theorem step_paid {config : Host.WorldConfig} {world middle : Host.World
   rw [paid]
   rfl
 
-/-- An action replay succeeds exactly when a run of the executed world step over its actions
-exists (`CurrentStep.trace_actions`, `CurrentStep.actions_trace`). The specification names the
-world step, which decides the propositions `Host.World.GoalSatisfied`, `Host.FoodDue` and
-`Host.Inventory.Owns` and compares actions, tile kinds and positions by their equality. The
-accepted input is the empty action list from the empty world of `wide`. The refused input is a
-harvest from the empty world of `wideAt` at the scale one half, whose paid action the terrain
-refuses (`pay_and_act_lattice`). `advance_actions_value` states the world that an accepted
-replay returns. -/
 theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (fun advance =>
     Regula.Decides (· = true)
       (fun input : AdvanceActions => ∃ (trace : List (Host.Action × Host.StepResult))
@@ -1236,19 +867,15 @@ theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (
           ((CurrentActions.payAndAct_isOk _ _).mp (step_paid stepped) harvest_paid))
           (by decide +kernel)⟩⟩
 
-/-- An attempt of `wide` at its first step, with the given step cap: the attempt
-`Acorn.Decisions.fresh`, which no module may import. -/
 def fresh (cap : UInt64) : Host.Attempt wide Unit (.survive 0) cap :=
   ⟨⟨(Host.World.empty wide).setGoal (.survive 0), (), {}, 0⟩, rfl, 0, .zero, .wait⟩
 
-/-- A success holds a value. -/
 private theorem ok_of_isOk {ε α : Type} {result : Except ε α} (accepted : result.isOk = true) :
     ∃ value, result = .ok value := by
   cases result with
   | error error => exact absurd accepted (by simp [Except.isOk, Except.toBool])
   | ok value => exact ⟨value, rfl⟩
 
-/-- A vector made by a fallible function succeeds where each of its entries succeeds. -/
 private theorem ofFnM_isOk {ε α : Type} {n : Nat} (f : Fin n → Except ε α)
     (each : ∀ index, (f index).isOk = true) : (Vector.ofFnM f).isOk = true := by
   have values : f = fun index => pure (Classical.choose (ok_of_isOk (each index))) :=
@@ -1256,9 +883,6 @@ private theorem ofFnM_isOk {ε α : Type} {n : Nat} (f : Fin n → Except ε α)
   rw [values, Vector.ofFnM_pure]
   rfl
 
-/-- The observation of a world succeeds where each tile of its window translates inside the
-signed range and the value noise admits the tile at the noise scale of the world
-(`CurrentTerrain.tileKind_isOk`). -/
 private theorem observe_isOk {config : Host.WorldConfig} (world : Host.World config)
     (window : ∀ row column : Fin Host.patchSide, ∃ tile,
       world.body.position.position.translate ((column.val : Int) - (Host.patchSide / 2 : Nat))
@@ -1277,17 +901,12 @@ private theorem observe_isOk {config : Host.WorldConfig} (world : Host.World con
   simp only [built, bind, Except.bind, pure, Except.pure]
   rfl
 
-/-- Each coordinate of the window of `fresh`, `2 ^ 62 - 6` to `2 ^ 62 + 4`, has a quotient by each
-octave scale of the noise scale one that is not past the last coordinate. The kernel evaluates
-the forty-four quotients. -/
 private theorem window_admits : ∀ offset : Fin Host.patchSide, ∀ octave : Fin 4,
     ¬CurrentTerrain.PastLast
       ((Host.coordinateFloatWord (Int64.ofInt (2 ^ 62 - 6 + offset.val))).div
         (CurrentTerrain.octaveScale ⟨0x3f800000⟩ octave.val)) := by
   decide +kernel
 
-/-- The observation of the world of `fresh` succeeds: each tile of the window translates inside
-the signed range, and the value noise admits it (`window_admits`). -/
 private theorem fresh_observes (cap : UInt64) : ((fresh cap).run.world.observe).isOk = true := by
   have center : ((Host.World.empty wide).body.position.x.val : Int) = 2 ^ 62 - 1 ∧
       ((Host.World.empty wide).body.position.y.val : Int) = 2 ^ 62 - 1 := by decide
@@ -1306,13 +925,9 @@ private theorem fresh_observes (cap : UInt64) : ((fresh cap).run.world.observe).
     rw [center.2]
     omega
 
-/-- The world's step on the action `wait` from the attempt `fresh` at the step cap one succeeds.
-The step reads no terrain: the action changes nothing, the world has no deer, and food is due only
-at the clock zero. The kernel evaluates it. -/
 private theorem fresh_waits : ((fresh 1).run.world.step .wait).isOk = true := by
   decide +kernel
 
-/-- Finishing an attempt succeeds where the world's observation of the attempt succeeds. -/
 private theorem finish_isOk {order : StepOrder} {config : Host.WorldConfig} {α β : Type}
     {goal : Host.Goal} {cap : UInt64} (callbacks : Host.AgentCallbacks order α β)
     (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap)
@@ -1323,7 +938,6 @@ private theorem finish_isOk {order : StepOrder} {config : Host.WorldConfig} {α 
   simp only [observed, bind, Except.bind, pure, Except.pure]
   rfl
 
-/-- The fold of an attempt at the fuel zero succeeds where finishing the attempt succeeds. -/
 private theorem complete_isOk {order : StepOrder} {config : Host.WorldConfig} {α β : Type}
     {goal : Host.Goal} {cap : UInt64} (callbacks : Host.AgentCallbacks order α β)
     (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap)
@@ -1345,24 +959,13 @@ theorem attempt_complete_accepts : Regula.ExecutableContract @Host.Attempt.compl
   ⟨fun callbacks context cap => complete_isOk callbacks context (fresh cap)
     (finish_isOk callbacks context (fresh cap) (fresh_observes cap))⟩
 
-/-- The arguments of `Host.Released.environment`, in order. -/
 structure ReleasedEnvironment where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The type of the value that the stage holds. -/
   agent : Type
-  /-- The goal of the attempt. -/
   goal : Host.Goal
-  /-- The step cap. -/
   cap : UInt64
-  /-- The world's answer to the released action. -/
   released : Host.Released config agent goal cap
 
-/-- The transition result of a release succeeds exactly when the world accepted the released
-action. The accepted input is the acceptance of the stage of `fresh` that waits, whose
-observation and step succeed (`fresh_observes`, `fresh_waits`), and the refused input is the
-refusal of that stage. `Acorn.Decisions.released_environment` states the value of the result, as
-a requirement with no kind. -/
 theorem released_environment_exact : Regula.ExecutableContract @Host.Released.environment
     (fun environment =>
       Regula.Decides (· = true)
@@ -1381,14 +984,6 @@ theorem released_environment_exact : Regula.ExecutableContract @Host.Released.en
           Except.toBool])
     ⟨⟨_, _, _, _, .accepted ⟨stage, world, result, stepped⟩⟩, _, rfl⟩
     ⟨⟨_, _, _, _, .refused .coordinateOverflow stage⟩, fun ⟨_, refused⟩ => nomatch refused⟩⟩
-
-/-! ## The comparator and the attempt runner
-
-The random comparator of an attempt corresponds with the agent's attempt step by step. A
-campaign from a cursor within its cycle budget, with fuel that covers the attempts left in its
-budget (`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends unfinished, and neither does
-the campaign over an admitted plan with at least one cycle. The theorems of
-`AcornVerif.CurrentRunner` state these. -/
 
 theorem baseline_corresponds : Regula.ExecutableContract @Host.BaselineAttempt.tick
     (fun tick =>
@@ -1437,7 +1032,6 @@ theorem random_baseline_finishes : Regula.ExecutableContract Host.runRandomBasel
     fun config seed spec plan admitted bounded =>
       CurrentRunner.baseline_finishes config seed spec plan admitted bounded⟩⟩
 
-/-- A bind succeeds where its first part succeeds and its rest succeeds on every value. -/
 private theorem bind_isOk {ε α β : Type} (first : Except ε α) (rest : α → Except ε β)
     (accepted : first.isOk = true) (each : ∀ value, (rest value).isOk = true) :
     (first >>= rest).isOk = true := by
@@ -1445,15 +1039,12 @@ private theorem bind_isOk {ε α β : Type} (first : Except ε α) (rest : α �
   rw [same]
   exact each value
 
-/-- A bind that succeeds ran its first part successfully. -/
 private theorem isOk_of_bind {ε α β : Type} {first : Except ε α} {rest : α → Except ε β}
     (accepted : (first >>= rest).isOk = true) : first.isOk = true := by
   cases first with
   | error refusal => exact accepted
   | ok value => rfl
 
-/-- A loop over a range in `Except` that succeeds, and whose every successful pass yields, ran a
-successful pass at each index below the bound (`CurrentSpawn.forIn_range_indexed`). -/
 private theorem forIn_range_passes {ε σ : Type} (count : Nat) (init : σ)
     (body : Nat → σ → Except ε (ForInStep σ))
     (yields : ∀ index state next, body index state = .ok next → ∃ after, next = .yield after)
@@ -1474,19 +1065,11 @@ private theorem forIn_range_passes {ε σ : Type} (count : Nat) (init : σ)
     rw [done] at yielded
     cases yielded
 
-/-- The value noise admits at a scale every tile of the `(2 r + 1) × (2 r + 1)` square within `r`
-of the coordinates `x` and `y`, each of which is in the signed range: for every row and column
-below `2 r + 1` there is a tile whose coordinates are `x` plus `column - r` and `y` plus
-`row - r`, and the value noise admits it. The tiles are stated by equations on the coordinates,
-with no checked translation. -/
 def SquareAdmits (x y : Int) (radius : Nat) (scale : Binary32) : Prop :=
   ∀ row column, row < 2 * radius + 1 → column < 2 * radius + 1 → ∃ tile : Host.Position,
     tile.x.val = x + ((column : Int) - radius) ∧ tile.y.val = y + ((row : Int) - radius) ∧
       CurrentTerrain.LatticeAdmits tile scale
 
-/-- A count of a kind near a position succeeds where the value noise admits its square: each
-tile translates inside the signed range (`CurrentCertificates.translate_of_eq`), and the world
-accepts its kind (`CurrentTerrain.tileKind_isOk`). -/
 private theorem countKindNear_isOk {config : Host.WorldConfig} (world : Host.World config)
     (position : Host.Position) (radius : Nat) (kind : Host.TileKind)
     (admits : SquareAdmits position.x.val position.y.val radius config.raw.baseScale) :
@@ -1503,10 +1086,6 @@ private theorem countKindNear_isOk {config : Host.WorldConfig} (world : Host.Wor
   simp only [translated, located, bind, Except.bind]
   split <;> rfl
 
-/-- A count of a kind near a position that succeeds read every tile of its square: the passes of
-its two loops always yield, so the pass at each row and column succeeded, which translated the
-tile inside the signed range (`CurrentCertificates.translate_some`) and found its kind
-(`CurrentTerrain.tileKind_isOk`). -/
 private theorem countKindNear_admits {config : Host.WorldConfig} (world : Host.World config)
     (position : Host.Position) (radius : Nat) (kind : Host.TileKind)
     (accepted : (Host.countKindNear world position radius kind).isOk = true) :
@@ -1535,8 +1114,6 @@ private theorem countKindNear_admits {config : Host.WorldConfig} (world : Host.W
       (CurrentTerrain.tileKind_isOk world tile).mp (isOk_of_bind columnPass)⟩
   · simp [bind, Except.bind, Except.isOk, Except.toBool] at columnPass
 
-/-- A coordinate that box admission accepts is inside the box, and its box position embeds as
-that coordinate. -/
 private theorem checked_some {config : Host.WorldConfig} {x y : Int}
     {position : Host.BoxPosition config}
     (admitted : Host.BoxPosition.checked config x y = some position) :
@@ -1552,10 +1129,6 @@ private theorem checked_some {config : Host.WorldConfig} {x y : Int}
     · cases admitted
   · cases admitted
 
-/-- The spawn rule succeeds exactly where the coordinate is outside the box, or the value noise
-admits the square of radius four around it: inside the box the rule reads both counts within
-four tiles (`countKindNear_isOk`, `countKindNear_admits`) and the kind of the coordinate, the
-center of that square, before it tests walkability. -/
 private theorem considerSpawn_iff {config : Host.WorldConfig} (world : Host.World config)
     (x y : Int) (best : Option (Host.SpawnCandidate config)) :
     (Host.considerSpawn world x y best).isOk = true ↔
@@ -1586,27 +1159,13 @@ private theorem considerSpawn_iff {config : Host.WorldConfig} (world : Host.Worl
         refine bind_isOk _ _ ((CurrentTerrain.tileKind_isOk _ _).mpr admitted) fun _ => ?_
         split <;> rfl
 
-/-- The arguments of `Host.countKindNear`, in order. -/
 structure KindSquare where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The world. -/
   world : Host.World config
-  /-- The center of the square. -/
   position : Host.Position
-  /-- The radius of the square. -/
   radius : Nat
-  /-- The kind that the count counts. -/
   kind : Host.TileKind
 
-/-- A count of a kind near a position is refused exactly when a tile of its square leaves the
-signed range or the value noise refuses the tile at the base scale of the world: the count has
-no early exit, so it reads every tile of its square (`countKindNear_isOk`,
-`countKindNear_admits`). The accepted input is the count of trees within radius zero of the body
-position of the empty world of `wide`, whose one tile is that position: its quotients by the four
-octave scales are below the last coordinate, and the kernel evaluates them and not the terrain.
-The refused input is that count at `last`, whose quotient by the first octave scale is past the
-last coordinate. -/
 theorem spawn_count : Regula.ExecutableContract @Host.countKindNear (fun count =>
     Regula.Decides (·.isOk = true)
       (fun input : KindSquare => SquareAdmits input.position.x.val input.position.y.val
@@ -1629,10 +1188,6 @@ theorem spawn_count : Regula.ExecutableContract @Host.countKindNear (fun count =
       rw [same] at admitted
       exact absurd admitted (by decide +kernel)⟩⟩
 
-/-- A successful count of a kind near a position is the number of tiles of that kind among the
-`(2 r + 1) × (2 r + 1)` tiles within `r` of the position (`CurrentSpawn.countKindNear_eq`). The
-statement is a requirement with no kind beside the kind `spawn_count`, which states the refused
-counts. -/
 theorem spawn_count_value : Regula.ExecutableContract @Host.countKindNear (fun count =>
     ∀ {config} (world : Host.World config) (position : Host.Position) (radius found : Nat)
       (kind : Host.TileKind), count world position radius kind = .ok found →
@@ -1640,24 +1195,13 @@ theorem spawn_count_value : Regula.ExecutableContract @Host.countKindNear (fun c
   ⟨fun world position radius found kind counted =>
     CurrentSpawn.countKindNear_eq world position radius found kind counted⟩
 
-/-- The arguments of `Host.considerSpawn`, in order. -/
 structure SpawnCoordinate where
-  /-- The world configuration. -/
   config : Host.WorldConfig
-  /-- The world. -/
   world : Host.World config
-  /-- The horizontal coordinate of the candidate. -/
   x : Int
-  /-- The vertical coordinate of the candidate. -/
   y : Int
-  /-- The best candidate so far. -/
   best : Option (Host.SpawnCandidate config)
 
-/-- The spawn rule is refused exactly when the coordinate is inside the box and a tile within
-four tiles of it leaves the signed range or the value noise refuses the tile at the base scale of
-the world (`considerSpawn_iff`). The box is stated by bounds on the coordinates. The accepted
-input is the coordinate `-1, 0` outside the box of `wide`. The refused input is the coordinate
-`2 ^ 63 - 2, 0` inside that box, whose square reaches past the last coordinate. -/
 theorem spawn_consider : Regula.ExecutableContract @Host.considerSpawn (fun consider =>
     Regula.Decides (· = true)
       (fun input : SpawnCoordinate =>
@@ -1678,10 +1222,6 @@ theorem spawn_consider : Regula.ExecutableContract @Host.considerSpawn (fun cons
         rw [tileColumn] at bound
         omega⟩⟩
 
-/-- Every successful application of the spawn rule is one of the outcomes that
-`CurrentSpawn.Considered` lists (`CurrentSpawn.considerSpawn_outcome`). The statement is a
-requirement with no kind beside the kind `spawn_consider`, which states the refused
-applications. -/
 theorem spawn_consider_value : Regula.ExecutableContract @Host.considerSpawn (fun consider =>
     ∀ {config} (world : Host.World config) (x y : Int)
       (best selected : Option (Host.SpawnCandidate config)) (finished : Bool),
@@ -1690,7 +1230,6 @@ theorem spawn_consider_value : Regula.ExecutableContract @Host.considerSpawn (fu
   ⟨fun world x y best selected finished considered =>
     CurrentSpawn.considerSpawn_outcome world x y best selected finished considered⟩
 
-/-- A world configuration whose box is one tile, with no deer and the noise scale one. -/
 def oneTile : Host.WorldConfig :=
   ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
 
@@ -1889,25 +1428,12 @@ theorem world_admitted_nonrefusal {raw : Host.RawWorldConfig} {config : Host.Wor
       (∀ actions : List Host.Action, (world.advanceActions actions).isOk = true) :=
   CurrentWorld.admitted_config_reachable_nonrefusal hadmit initial world hinit hreach
 
-/-! ## Learner admissions -/
-
-/-- The arguments of `NumericState.clearAt`, in order. -/
 structure ClearAt where
-  /-- The learner configuration. -/
   config : Acorn.Config
-  /-- The feature space. -/
   dimension : Dimension
-  /-- The learner state. -/
   state : NumericState config dimension
-  /-- The slot. -/
   index : FeatIdx dimension
 
-/-- The test of a cleared slot accepts exactly a slot whose nine transient words are positive
-zero (`CurrentLearnerCheck.clearAt_iff`). The specification is the vector of the nine words
-that `CurrentLearner.registers` reads from the stored fields, equal to nine zeros; the function
-compares each word with zero. The two inputs of the proof are the slot `first` of the fresh
-learner of `control` over `narrow`, which is accepted, and the same slot of `traced`, whose trace
-is one, which is refused. -/
 theorem learner_clear : Regula.ExecutableContract @NumericState.clearAt (fun clearAt =>
     Regula.Decides (· = true)
       (fun input : ClearAt =>
@@ -1917,47 +1443,19 @@ theorem learner_clear : Regula.ExecutableContract @NumericState.clearAt (fun cle
     ⟨⟨control, narrow, NumericState.initial _ _, first⟩, by decide⟩
     ⟨⟨control, narrow, traced, first⟩, by decide⟩⟩
 
-/-- The stored-word check of a learner read from an image accepts exactly a learner state that
-satisfies the schedule invariant of the learner's capacity theorem at its phase
-(`CurrentLearnerCheck.resumable_iff`): every slot that is not eligible holds nine positive-zero
-transient words, every pruning reference is a finite word whose value lies in `[0, 5]`, no
-eligible index repeats, and, when a standalone second loop is permitted, no eligible trace is
-zero.
-
-The statement keeps no kind. A two-way kind whose specification states the invariant with the
-readiness of an eligible trace as a nonzero signed key, in the place of the zero test, was
-proved, with the fresh learner of `control` over `narrow` as the accepted input and that learner
-with `first` eligible as the refused one, and the rule of `Acorn.Decisions` for tests that a
-specification does not share excludes it for `Binary32.isNaN` and `Binary32.less`. The
-specification reaches them only through the declaration of the learner state, whose step-size
-rails declare an invariant that names `Portable.ln`; the function runs them in the interval test of
-a pruning reference. The kind is remaining work of https://github.com/rbeauchamp/acorn/issues/105.
--/
 theorem learner_resumable : Regula.ExecutableContract @NumericState.resumable (fun resumable =>
     ∀ {config : Acorn.Config} {dimension : Dimension} (state : NumericState config dimension)
       (phase : Bool),
       resumable state phase = true ↔ CurrentLearner.ScheduleInv state phase) :=
   ⟨CurrentLearnerCheck.resumable_iff⟩
 
-/-- The arguments of `Features.Interest.potential`, in order. -/
 structure InterestPotential where
-  /-- The bank configuration. -/
   config : Features.Config
-  /-- The dimension of the feature space. -/
   dimension : Dimension
-  /-- The interest of a slot. -/
   interest : Interest config
-  /-- The active features. -/
   features : SwiftTd.ActiveSet dimension
-  /-- The declared potentials. -/
   declared : DeclaredPotentials
 
-/-- The potential of an interest accepts exactly a learned interest, with every source of
-declared potentials (`CurrentTemporal.learned_potential`), and a declared interest with a
-source of its own origin (`CurrentTemporal.declared_refusal` for a source of another origin).
-The specification states the interest by its constructors and the origin by an equation. The
-accepted input is a declared interest with a source of its own origin, and the refused input
-is a declared interest with a source of another origin. -/
 theorem interest_potential : Regula.ExecutableContract @Interest.potential (fun potential =>
     Regula.Decides (·.isSome = true)
       (fun input : InterestPotential => (∃ assignment, input.interest = .learned assignment) ∨
@@ -1986,10 +1484,6 @@ theorem interest_potential : Regula.ExecutableContract @Interest.potential (fun 
     ⟨⟨bank, narrow, .declared .spatialPotentials ⟨0, by decide⟩, .empty narrow,
       ⟨.cumulants, .replicate _ false⟩⟩, by rintro (⟨_, ⟨⟩⟩ | ⟨_, _, ⟨⟩, ⟨⟩⟩)⟩⟩
 
-/-- A declared interest refuses a source of declared potentials with another origin
-(`CurrentTemporal.declared_refusal`). This requirement with no kind states that class of
-refused inputs pointwise, about the arguments of the function; the two-way kind
-`interest_potential` also gives it. -/
 theorem interest_potential_declared : Regula.ExecutableContract @Interest.potential
     (fun potential =>
     ∀ {config : Features.Config} {dimension : Dimension} (origin : Departure)
@@ -1998,8 +1492,6 @@ theorem interest_potential_declared : Regula.ExecutableContract @Interest.potent
         potential (Interest.declared (config := config) origin tag) features declared = none) :=
   ⟨CurrentTemporal.declared_refusal⟩
 
-/-- Loading refuses every byte list under a profile that is not resumable: the admitted image's
-restore refuses there (`AgentConstruction.State.restore_refuses`). -/
 private theorem load_resumable (construction : AgentConstruction) (receiver : construction.State)
     (bytes : List UInt8) (accepted : (Checkpoint.load construction receiver bytes).isOk = true) :
     Resumable construction.profile := by
@@ -2016,22 +1508,11 @@ private theorem load_resumable (construction : AgentConstruction) (receiver : co
     rw [refused] at accepted
     exact absurd accepted Bool.false_ne_true
 
-/-- The arguments of `Checkpoint.load`, in order. -/
 structure Load where
-  /-- The construction. -/
   construction : AgentConstruction
-  /-- The receiving state. -/
   receiver : construction.State
-  /-- The bytes. -/
   bytes : List UInt8
 
-/-- Loading accepts bytes only under a resumable profile (`load_resumable`). The accepted input
-is the bytes that the initial state of the construction of `resumable` saves, which loading
-accepts (`CurrentCheckpoint.save_load`). The specification names the four discriminants of the
-profile and no function that loading calls. `checkpoint_load_accepts` states the state that
-loading returns for saved bytes.
-
-**Not claimed:** which other byte lists a resumable construction refuses. -/
 theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
     Regula.DecidesSoundly (· = true)
       (fun input : Load => Resumable input.construction.profile)
@@ -2042,15 +1523,6 @@ theorem checkpoint_load : Regula.ExecutableContract Checkpoint.load (fun load =>
         encode (snapshot (construction resumable) (AgentConstruction.initial _))⟩,
       (Regula.Dependent.isOk_eq_true_iff _ _).mpr ⟨_, CurrentCheckpoint.save_load _ _ _ rfl⟩⟩⟩⟩
 
-/-- Loading returns the state that a resumable construction saved, every field of its agent,
-for every receiver of that construction (`CurrentCheckpoint.save_load`). The sound kind
-`checkpoint_load` states that loading accepts bytes only under a resumable profile.
-
-The statement keeps no kind. The complete kind with these bytes as its specification quantifies
-over the states of the construction, whose type declares the invariants of the learners, and names
-the writer `Checkpoint.snapshot`, whose format holds the reader of each field beside its writer.
-Both reach tests that loading runs, so the rule of `Acorn.Decisions` for tests that a specification
-does not share excludes that kind. -/
 theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun load =>
     ∀ (construction : AgentConstruction) (source receiver : construction.State),
       construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
@@ -2060,15 +1532,12 @@ theorem checkpoint_load_accepts : Regula.ExecutableContract Checkpoint.load (fun
     CurrentCheckpoint.save_load construction receiver source
       ((FeatureProfile.checkpoint_iff construction.profile).mpr resumable)⟩
 
-/-- Keeping-receiver loading reports no error when `Checkpoint.load` succeeds. -/
 private theorem loadKeeping_ok_snd {c : AgentConstruction} {r s : c.State} {b : List UInt8}
     (loaded : Checkpoint.load c r b = .ok s) :
     (Checkpoint.loadKeeping c r b).2 = none := by
   unfold Checkpoint.loadKeeping
   rw [loaded]
 
-/-- Keeping-receiver loading reports an error whenever the construction's profile is not
-resumable (`load_resumable`). -/
 private theorem loadKeeping_not_resumable_snd {c : AgentConstruction} (r : c.State)
     (b : List UInt8) (unsupported : ¬Resumable c.profile) :
     (Checkpoint.loadKeeping c r b).2.isSome = true := by
@@ -2077,20 +1546,6 @@ private theorem loadKeeping_not_resumable_snd {c : AgentConstruction} (r : c.Sta
   | error _ => rfl
   | ok _ => exact absurd (load_resumable c r b (by rw [loading]; rfl)) unsupported
 
-/-- Loading that keeps its receiver returns the receiver unchanged with the error of a refused
-load (`Checkpoint.load_nonmutation`), and the loaded state with no error for an accepted one,
-for every construction, receiver and byte list. Its verdict is the verdict of
-`Checkpoint.load`, whose sound kind `checkpoint_load` and accepted bytes
-`checkpoint_load_accepts` stand above. Both verdicts occur. The bytes that the initial state of
-the construction of `resumable` saves load with no error (`CurrentCheckpoint.save_load`). The
-bytes that the initial state of the construction whose profile declares spatial subtasks saves
-are refused with an error, since that profile is not resumable and loading accepts bytes only
-under a resumable profile (`load_resumable`).
-
-The statement keeps no kind: the verdict is the second component of a pair whose state has a
-type that depends on the construction, an earlier argument, and the kinds read a result whose
-type depends on the input only through `Regula.Dependent.isSome` and
-`Regula.Dependent.isOk`, of an `Option` or an `Except`. -/
 theorem load_keeping : Regula.ExecutableContract Checkpoint.loadKeeping (fun keeping =>
     (∀ (construction : AgentConstruction) (receiver : construction.State) (bytes : List UInt8),
       (∀ error, Checkpoint.load construction receiver bytes = .error error →
@@ -2113,8 +1568,6 @@ theorem load_keeping : Regula.ExecutableContract Checkpoint.loadKeeping (fun kee
         (AgentConstruction.initial _)))
       (by decide)⟩⟩
 
-/-- Resuming the bytes that a supported construction saved returns the saved state with a new
-evaluator session (`CurrentCheckpoint.save_load`). -/
 private theorem resume_saved_state (construction : AgentConstruction)
     (receiver source : construction.State)
     (supported : construction.profile.checkpointSupported = true) :
@@ -2124,12 +1577,6 @@ private theorem resume_saved_state (construction : AgentConstruction)
   rw [CurrentCheckpoint.save_load construction receiver source supported]
   rfl
 
-/-- Resuming accepts bytes only under a resumable profile: it is loading followed by a new
-evaluator session, which refuses nothing, so it accepts exactly what loading accepts
-(`load_resumable`). The accepted input is that of `checkpoint_load`. `checkpoint_resume_accepts`
-states the state that resuming returns for saved bytes.
-
-**Not claimed:** which other byte lists a resumable construction refuses. -/
 theorem checkpoint_resume : Regula.ExecutableContract Checkpoint.resume (fun resume =>
     Regula.DecidesSoundly (· = true)
       (fun input : Load => Resumable input.construction.profile)
@@ -2145,11 +1592,6 @@ theorem checkpoint_resume : Regula.ExecutableContract Checkpoint.resume (fun res
         encode (snapshot (construction resumable) (AgentConstruction.initial _))⟩,
       (Regula.Dependent.isOk_eq_true_iff _ _).mpr ⟨_, resume_saved_state _ _ _ rfl⟩⟩⟩⟩
 
-/-- Resuming returns the state that a resumable construction saved with a new evaluator
-session, every learned field the saved agent's, for every receiver of that construction
-(`CurrentCheckpoint.save_load`). The sound kind `checkpoint_resume` states that resuming accepts
-bytes only under a resumable profile. The statement keeps no kind for the reason that
-`checkpoint_load_accepts` gives. -/
 theorem checkpoint_resume_accepts : Regula.ExecutableContract Checkpoint.resume (fun resume =>
     ∀ (construction : AgentConstruction) (source receiver : construction.State),
       construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
@@ -2160,10 +1602,6 @@ theorem checkpoint_resume_accepts : Regula.ExecutableContract Checkpoint.resume 
     resume_saved_state construction receiver source
       ((FeatureProfile.checkpoint_iff construction.profile).mpr resumable)⟩
 
-/-- Each event satisfies the contract of its edge: an act runs the agent's step and returns its
-decision, the bookkeeping events keep the learners, a clear returns the initial agent and a
-stop keeps the state (`CurrentAgent.edge_contract`). The operation refuses no event, so it is
-no decision and this statement is a requirement with no kind. -/
 theorem agent_input_edges : Regula.ExecutableContract @Agent.input (fun input =>
     ∀ {profile config criterion dimension planning}
       (before after : Agent Grid.interface profile config criterion dimension planning)
@@ -2172,10 +1610,6 @@ theorem agent_input_edges : Regula.ExecutableContract @Agent.input (fun input =>
   ⟨fun before after event stopped executed =>
     CurrentAgent.edge_contract before after event stopped executed⟩
 
-/-- The compiled fold from cold initialization follows a safe path from the initial agent:
-every intermediate agent keeps the invariant, and each edge satisfies its contract
-(`CurrentAgent.native_prefix`). The fold refuses no event, so this statement is a requirement
-with no kind. -/
 theorem execute_prefix : Regula.ExecutableContract AgentConstruction.execute (fun execute =>
     ∀ (admitted : DefaultConstruction)
       (events : List (AgentInput admitted.construction.config admitted.construction.criterion
@@ -2184,17 +1618,11 @@ theorem execute_prefix : Regula.ExecutableContract AgentConstruction.execute (fu
         (execute admitted events).1.agent (execute admitted events).2) :=
   ⟨CurrentAgent.native_prefix⟩
 
-/-- The arguments of `Agreement.admitSquared`, in order. -/
 structure SquaredAdmit where
-  /-- The receiving envelope. -/
   envelope : Nat
-  /-- The forecast word. -/
   forecast : Binary32
-  /-- The outcome word. -/
   outcome : Binary32
 
-/-- Squared-discrepancy admission accepts exactly when both words are finite and the squared
-discrepancy of their units is within the squared envelope. -/
 private theorem squared_iff (envelope : Nat) (forecast outcome : Binary32) :
     (Agreement.admitSquared envelope forecast outcome).isSome = true ↔
       forecast.Finite ∧ outcome.Finite ∧
@@ -2212,9 +1640,6 @@ private theorem squared_iff (envelope : Nat) (forecast outcome : Binary32) :
     exact ⟨fun present => (nomatch present),
       fun accepted => absurd ⟨accepted.1, accepted.2.1⟩ infinite⟩
 
-/-- The squared units of two finite words are within a squared envelope exactly when the
-exact discrepancy of the words is within the envelope at the scale of one unit
-(`CurrentAgreement.squaredUnits_numerical`). -/
 private theorem squared_within (forecast outcome : Binary32) (envelope : Nat)
     (forecastFinite : forecast.Finite) (outcomeFinite : outcome.Finite) :
     Agreement.squaredUnits forecast outcome ≤ envelope ^ 2 ↔
@@ -2227,13 +1652,6 @@ private theorem squared_within (forecast outcome : Binary32) (envelope : Nat)
     ← exact, mul_le_mul_iff_left₀ (pow_pos scale 2)]
   exact_mod_cast Iff.rfl
 
-/-- Squared-discrepancy admission accepts exactly two finite words whose exact discrepancy,
-as a rational number, is at most the envelope in units of `2 ^ (-149)`, the least positive
-binary32 magnitude. The specification names the rational value of a word, and no unit map and
-no squared units, which the admission computes: `squared_iff` and `squared_within` connect
-them. `squared_admit` in `Acorn.Decisions` states the two-way kind against the squared units,
-and `squared_admit_value` the admitted sample. The accepted input is two zeros under the
-envelope zero, and the refused input is one and zero under that envelope. -/
 theorem squared_admit_exact : Regula.ExecutableContract Agreement.admitSquared (fun admit =>
     Regula.Decides (· = true)
       (fun input : SquaredAdmit => input.forecast.Finite ∧ input.outcome.Finite ∧
@@ -2250,12 +1668,6 @@ theorem squared_admit_exact : Regula.ExecutableContract Agreement.admitSquared (
           (squared_within _ _ _ within.1 within.2.1).mpr within.2.2⟩⟩)
     ⟨⟨0, .zero, .zero⟩, by decide⟩ ⟨⟨0, ⟨0x3f800000⟩, .zero⟩, by decide⟩⟩
 
-/-- Precision derivation accepts the pending power of every sample that tracks its exact
-return and power within the settlement window under the ideal bound
-(`AgreementTelemetryPrecision.precision_available`), and it refuses a NaN power.
-
-**Not claimed:** soundness. The sound direction is not stated as a specification;
-`AgreementTelemetryPrecision.precision_fields` states the fields of an accepted precision. -/
 theorem precision_admit : Regula.ExecutableContract Agreement.precision (fun precision =>
     Regula.DecidesCompletely (·.isSome = true)
       (fun input : (Discount × Nat) × Binary32 =>
@@ -2273,32 +1685,11 @@ theorem precision_admit : Regula.ExecutableContract Agreement.precision (fun pre
          returned power room tracked ideal
      refused := ⟨((.g99, 0), ⟨0x7fc00000⟩), by decide⟩ }⟩
 
-/-- The stored words of a learner are the learner's state and phase: reading the state back
-from them (`managedState`) gives the learner's state (`CurrentImage.managedState_words`), and
-their last word is the learner's phase, for every configuration, dimension and learner. The
-learner format writes these words (`managedFormat`), so the checkpoint admissions and
-`Checkpoint.saveBytes` reach the function.
-
-The statement keeps no kind: the function refuses no learner, so it is no decision. -/
 theorem managed_words : Regula.ExecutableContract @managedWords (fun words =>
     ∀ {config : Acorn.Config} {dimension : Dimension} (learner : Managed config dimension),
       managedState (words learner) = learner.state ∧ (words learner).2.2.2.2.2 = learner.phase) :=
   ⟨fun learner => ⟨CurrentImage.managedState_words learner, rfl⟩⟩
 
-/-! ## Definitions that specifications share
-
-The specification of each contract named below applies a definition that its function also
-applies. Each such definition has a statement of its own here, against a reading that does not
-apply it: the rational value of a word, the exact real result rounded once, the place value of
-digits, offsets stated by the constructors of a direction, the decimal that the name of a
-discount declares, or the discounted return of a unit reward. None of them refuses an input, so
-each statement keeps no kind. -/
-
-/-- The squared discrepancy of two finite words, in the units of the least binary32 subnormal
-`2 ^ -149` squared, is the square of the difference of their rational values
-(`CurrentAgreement.squaredUnits_numerical`), for every pair of finite words. The specification
-of `squared_admit` in `Acorn.Decisions` applies it. The witnesses are two zero words, at
-discrepancy zero, and the least subnormal against zero, at one unit. -/
 theorem squared_units : Regula.ExecutableContract Agreement.squaredUnits (fun squared =>
     (∀ forecast outcome : Binary32, forecast.Finite → outcome.Finite →
       (squared forecast outcome : ℚ) * ((2 : ℚ) ^ (-149 : Int)) ^ 2 =
@@ -2306,14 +1697,6 @@ theorem squared_units : Regula.ExecutableContract Agreement.squaredUnits (fun sq
       squared .zero .zero = 0 ∧ squared ⟨1⟩ .zero = 1) :=
   ⟨⟨CurrentAgreement.squaredUnits_numerical, by decide, by decide⟩⟩
 
-/-- The cap of a total is finite, and it is the exact real product of the count's binary64
-value and the rational value of the quantity's bound rounded once to nearest-even in binary64
-(`AcornVerif.FloatLibBridge.binary64_mul_roundAt`, with `CurrentOrder.numerical_widen_exact`
-for the widened bound and `CurrentLifetime.cap_bounds` for finiteness), for every quantity and
-count. The count's value is Lean core's conversion `UInt64.toFloat`, which is the count itself
-below `2 ^ 53` (`CurrentOrder.numerical64_ofUInt64`). The specification of `sum_admit` applies it
-through the stored invariant of a total. The witnesses are the caps of the reward quantity, whose
-bound is one, at the counts zero and one. -/
 theorem maximum_sum : Regula.ExecutableContract maximumSum (fun cap =>
     (∀ (quantity : Quantity) (count : UInt64),
       (cap quantity count).Finite ∧
@@ -2332,22 +1715,11 @@ theorem maximum_sum : Regula.ExecutableContract maximumSum (fun cap =>
         (CurrentLifetimeArithmetic.count_model count).1 (Conversion.widen_finite _ bound.1) finite,
     by decide, by decide⟩⟩
 
-/-- A run of decimal digits spells the number that it writes by the place of each digit,
-`Decimal.numberOf`, which reads each digit from a table of the ten digits
-(`Decimal.spelled_numberOf`), for every run of decimal digits. The specifications of
-`microduck_state`, `microduck_depth` and `microduck_line` in `Acorn.Decisions` apply it through
-the relations `Host.Microduck.Counted` and `Host.Microduck.Signed`. The witness is the run `42`. -/
 theorem digits_spelled : Regula.ExecutableContract Host.Microduck.spelled (fun spell =>
     (∀ digits : List Char, (∀ c ∈ digits, Json.Numeral.Digit c) →
       spell digits = Decimal.numberOf digits) ∧ spell ['4', '2'] = 42) :=
   ⟨⟨Decimal.spelled_numberOf, rfl⟩⟩
 
-/-- The decimal of a formed numeral has the rational value that the numeral writes,
-`Decimal.written`: the digits before the point, plus the digits after it over ten to their
-count, times ten to the exponent, negated for a minus sign, each run read by the place of its
-digits (`Decimal.ofNumeral_value`), for every formed numeral. The specifications of the
-Microduck readers in `Acorn.Decisions` apply it through `Host.Microduck.Scale.Kept`. The witness
-is the decimal of `-1.5`: the digits fifteen, a minus sign and the exponent minus one. -/
 theorem decimal_of_numeral : Regula.ExecutableContract Host.Microduck.Decimal.ofNumeral
     (fun read =>
       (∀ numeral : Json.Numeral, numeral.Formed →
@@ -2355,15 +1727,8 @@ theorem decimal_of_numeral : Regula.ExecutableContract Host.Microduck.Decimal.of
         read ⟨true, ['1'], some ['5'], none⟩ = ⟨true, 15, -1⟩) :=
   ⟨⟨Decimal.ofNumeral_value, rfl⟩⟩
 
-/-- The scale of the whole numbers from minus ten to ten. -/
 def tens : Host.Microduck.Scale := ⟨0, -10, 10, by decide⟩
 
-/-- The conversion of a decimal to a scale is the integer nearest to its rational value times
-ten to the places of the scale, a tie away from zero, saturated to the bounds of the scale
-(`Decimal.fixed_nearest`), for every scale, decimal and nearest integer; at most one integer is
-nearest (`Decimal.Nearest.unique`). The specifications of the Microduck readers in
-`Acorn.Decisions` apply it through `Host.Microduck.Scale.Kept`. The witnesses are `-1.5`, which
-`tens` keeps as minus two, and zero, which it keeps as zero. -/
 theorem decimal_fixed : Regula.ExecutableContract @Host.Microduck.Decimal.fixed (fun fixed =>
     (∀ (scale : Host.Microduck.Scale) (decimal : Host.Microduck.Decimal) (nearest : Int),
       Decimal.Nearest (Decimal.value decimal * (10 : ℚ) ^ scale.places) nearest →
@@ -2371,10 +1736,6 @@ theorem decimal_fixed : Regula.ExecutableContract @Host.Microduck.Decimal.fixed 
       (fixed tens ⟨true, 15, -1⟩).val = -2 ∧ (fixed tens ⟨false, 0, 0⟩).val = 0) :=
   ⟨⟨Decimal.fixed_nearest, by decide +kernel, by decide +kernel⟩⟩
 
-/-- The position that a body faces in a direction has the coordinates of the body moved by the
-offset of the direction that `Offset` states by its constructors, for every configuration, body
-and direction; every direction has an offset. The specifications of `stance_certified` and
-`stance_check` reach it through the harvest of the world step. -/
 theorem facing_position : Regula.ExecutableContract @Host.BoxPosition.facingPosition
     (fun facing =>
       (∀ (config : Host.WorldConfig) (body : Host.BoxPosition config)
@@ -2392,22 +1753,17 @@ theorem facing_position : Regula.ExecutableContract @Host.BoxPosition.facingPosi
       · exact ⟨1, 0, .inr (.inr (.inl ⟨rfl, rfl, rfl⟩))⟩
       · exact ⟨-1, 0, .inr (.inr (.inr ⟨rfl, rfl, rfl⟩))⟩⟩⟩
 
-/-- The offset table gives exactly the offset that `Offset` states by the constructors of a
-direction, for every direction and pair of integers. The specifications of the blocked and
-stance checks reach it through the world step. The statement has no hypothesis. -/
 theorem direction_delta : Regula.ExecutableContract Host.Direction.delta (fun delta =>
     ∀ (direction : Host.Direction) (dx dy : Int), delta direction = (dx, dy) ↔
       Offset direction dx dy) :=
   ⟨fun direction dx dy => by
     cases direction <;> simp [Offset, Host.Direction.delta, Prod.ext_iff, eq_comm]⟩
 
-/-- The decimal discount that the name of each discount declares. -/
 def discountDecimal : Discount → ℚ
   | .g90 => 9 / 10
   | .g95 => 19 / 20
   | .g99 => 99 / 100
 
-/-- The rational value of each discount word (`CurrentConstants.discount_values`). -/
 private theorem gamma_word (discount : Discount) : CurrentArithmetic.numerical32 discount.gamma =
     match discount with
     | .g90 => ModelConstants.gammaG90
@@ -2416,7 +1772,6 @@ private theorem gamma_word (discount : Discount) : CurrentArithmetic.numerical32
   have values := congrArg Prod.fst (CurrentConstants.discount_values discount)
   cases discount <;> exact values
 
-/-- The rational value of each horizon word (`CurrentConstants.discount_values`). -/
 private theorem horizon_word (discount : Discount) :
     CurrentArithmetic.numerical32 discount.horizon =
       match discount with
@@ -2426,10 +1781,6 @@ private theorem horizon_word (discount : Discount) :
   have values := congrArg Prod.snd (CurrentConstants.discount_values discount)
   cases discount <;> exact values
 
-/-- Each discount word is finite, lies in `[1/2, 1)`, and is within `2 ^ -25` of the decimal
-that its name declares, for every discount. Neighbouring binary32 values in `[1/2, 1)` are
-`2 ^ -24` apart, so the word is the binary32 value nearest to that decimal. The specification of
-`precision_admit` applies it. The witness is the word of `g99`, `16609444 / 2 ^ 24`. -/
 theorem discount_gamma : Regula.ExecutableContract Discount.gamma (fun gamma =>
     (∀ discount : Discount, (gamma discount).Finite ∧
       1 / 2 ≤ CurrentArithmetic.numerical32 (gamma discount) ∧
@@ -2445,12 +1796,6 @@ theorem discount_gamma : Regula.ExecutableContract Discount.gamma (fun gamma =>
           ModelConstants.gammaG99, abs_le],
     by rw [gamma_word .g99]; rfl⟩⟩
 
-/-- Each horizon word is finite and bounds the discounted return of a unit reward,
-`1 / (1 - γ)` for the rational value `γ` of the discount word, from above by less than one
-relative step of binary32: the word times `1 - 2 ^ -23` is at most that return, for every
-discount. The specification of `precision_admit` applies it, and the domains of the weights and
-the predictions apply it (`value_rule_domain`, `prediction_range`). The witness is the word of
-`g99`, `13107213 / 2 ^ 17`. -/
 theorem discount_horizon : Regula.ExecutableContract Discount.horizon (fun horizon =>
     (∀ discount : Discount, (horizon discount).Finite ∧
       1 / (1 - CurrentArithmetic.numerical32 discount.gamma) ≤
@@ -2467,8 +1812,6 @@ theorem discount_horizon : Regula.ExecutableContract Discount.horizon (fun horiz
           ModelConstants.horizonG90, ModelConstants.horizonG95, ModelConstants.horizonG99],
     by rw [horizon_word .g99]; rfl⟩⟩
 
-/-- An interval with finite endpoints contains exactly the finite words whose rational value
-lies between the rational values of its endpoints (`CurrentOrder.numerical32_order`). -/
 private theorem contains_numerical (range : Interval32) (word : Binary32) :
     range.Contains word ↔ word.Finite ∧
       CurrentArithmetic.numerical32 range.lower ≤ CurrentArithmetic.numerical32 word ∧
@@ -2481,7 +1824,6 @@ private theorem contains_numerical (range : Interval32) (word : Binary32) :
     exact ⟨finite, (CurrentOrder.numerical32_order _ _ range.lowerFinite finite).mp low,
       (CurrentOrder.numerical32_order _ _ finite range.upperFinite).mp high⟩
 
-/-- The signed scale is odd. -/
 private theorem signedFieldUnits_neg (precision : Nat) (key : Int) :
     CurrentOrder.signedFieldUnits precision (-key) =
       -CurrentOrder.signedFieldUnits precision key := by
@@ -2497,7 +1839,6 @@ private theorem signedFieldUnits_neg (precision : Nat) (key : Int) :
     have magnitude : (-key).natAbs = key.toNat := by omega
     simp only [negated, notNegative, ↓reduceIte, magnitude]
 
-/-- The negated horizon of a discount has the negated rational value. -/
 private theorem horizon_negate (discount : Discount) :
     CurrentArithmetic.numerical32 discount.horizon.negate =
       -CurrentArithmetic.numerical32 discount.horizon := by
@@ -2509,8 +1850,6 @@ private theorem horizon_negate (discount : Discount) :
   push_cast
   ring
 
-/-- The weight domain of a discount contains exactly the finite words whose rational value is at
-most the horizon in magnitude. -/
 private theorem discount_domain (discount : Discount) (word : Binary32) :
     discount.domain.range.Contains word ↔
       word.Finite ∧ |CurrentArithmetic.numerical32 word| ≤
@@ -2521,11 +1860,6 @@ private theorem discount_domain (discount : Discount) (word : Binary32) :
       CurrentArithmetic.numerical32 word ≤ CurrentArithmetic.numerical32 discount.horizon ↔ _
   rw [horizon_negate discount, abs_le]
 
-/-- The weight domain of a rule contains exactly the finite words whose rational value is at most
-the horizon of its discount in magnitude, the horizon of `g99` for the differential rule, for
-every rule and word. The specifications of `weight_admit` and `candidate_of_weight` in
-`Acorn.Decisions` apply it. The witnesses are one, which the domain of `g90` contains, and
-sixteen, which it does not. -/
 theorem value_rule_domain : Regula.ExecutableContract ValueRule.domain (fun domain =>
     (∀ (discount : Discount) (word : Binary32),
       (domain (.discounted discount)).range.Contains word ↔
@@ -2538,10 +1872,6 @@ theorem value_rule_domain : Regula.ExecutableContract ValueRule.domain (fun doma
       ¬(domain (.discounted .g90)).range.Contains ⟨0x41800000⟩) :=
   ⟨⟨discount_domain, discount_domain .g99, by decide, by decide⟩⟩
 
-/-- The prediction range of a discount contains exactly the finite words whose rational value
-lies between zero and the horizon, for every discount and word. The specifications of the
-assignment, retention, bonus and kept-slot contracts in `Acorn.Decisions` apply it. The
-witnesses are one, which the range of `g90` contains, and minus one, which it does not. -/
 theorem prediction_range : Regula.ExecutableContract Discount.predictionRange (fun range =>
     (∀ (discount : Discount) (word : Binary32), (range discount).Contains word ↔
       word.Finite ∧ 0 ≤ CurrentArithmetic.numerical32 word ∧
@@ -2556,12 +1886,6 @@ theorem prediction_range : Regula.ExecutableContract Discount.predictionRange (f
       rw [zero],
     by decide, by decide⟩⟩
 
-/-- The bound of a reward is one, and the bound of a squared error under a discount is finite and
-is the exact real square of twice the rational value of the horizon rounded once to nearest-even
-in binary32 (`AcornVerif.FloatLibBridge.binary32_mul_roundAt`, with
-`AgreementReturn.envelope_twice` for the envelope), for every discount. The specification of
-`sum_admit` applies it through the stored invariant of a total, and the statement `maximum_sum`
-names it. The statement has no hypothesis. -/
 theorem quantity_limit : Regula.ExecutableContract Quantity.bound (fun bound =>
     CurrentArithmetic.numerical32 (bound .reward) = 1 ∧
       ∀ discount : Discount, (bound (.squaredError discount)).Finite ∧
@@ -2581,11 +1905,6 @@ theorem quantity_limit : Regula.ExecutableContract Quantity.bound (fun bound =>
       rw [twice.2] at exact
       exact exact⟩⟩
 
-/-- The envelope of a discount, in units of the least binary32 subnormal `2 ^ -149`, is twice
-the rational value of its horizon (`AgreementTelemetryPrecision.envelope_value` with
-`AgreementReturn.envelope_twice`), for every discount. The specification of `channel_ratio` in
-`Acorn.Decisions` applies it. The witness is the envelope of `g99`, `13107213 * 2 ^ 133`
-units. -/
 theorem envelope_units : Regula.ExecutableContract Agreement.envelopeUnits (fun units =>
     (∀ discount : Discount, (units discount : ℚ) * (2 : ℚ) ^ (-149 : Int) =
       2 * CurrentArithmetic.numerical32 discount.horizon) ∧
@@ -2597,32 +1916,6 @@ theorem envelope_units : Regula.ExecutableContract Agreement.envelopeUnits (fun 
       norm_num,
     by decide⟩⟩
 
-/-! ## Verdicts beside a state
-
-Each function below returns its verdict as one component of a pair, and a component of that pair
-has a type that depends on an earlier argument: the run that `Features.beginExploration` begins,
-which is its verdict component, depends on the action count, and the state beside each other
-verdict, the record, the statistics or the learner state, depends on the dimension, the discount
-or the configuration. The kinds read a result whose type depends on the input only through
-`Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`, so no kind
-here is about such a component, and each statement is a requirement with no kind. Each states
-the verdict for every input; `slot_settles` and `first_loop_prune` also state what the state
-keeps; and both verdicts occur at the inputs each names. -/
-
-/-- An exploratory run begins exactly when the 53-bit fraction of the generator's next word is
-below the exploration rate, compared as rational numbers (`TemporalSupport.branch_exact`), for
-every action count, rate and generator state. The next word is the output of xoshiro256**
-stated from the stored words with Lean core's operations on bit vectors: the second word times
-five, rotated seven places to the left, times nine (David Blackman and Sebastiano Vigna,
-xoshiro256** reference implementation, 2018, `next`:
-https://prng.di.unimi.it/xoshiro256starstar.c), and the fraction is its top 53 bits over
-`2 ^ 53`. The specification applies no definition of the generator; `Rng.rotateLeft_toBitVec`
-connects the rotation that the generator runs. The function compares two binary64 words. Both
-verdicts occur at the declared rate: a run begins from the generator state zero, whose
-fraction is zero, and none from the state whose second word is `2 ^ 55`, whose fraction is one
-quarter.
-
-**Not claimed:** the run that begins and the generator state after its draws. -/
 theorem exploration_begins : Regula.ExecutableContract beginExploration (fun begin =>
     (∀ (count : Word.Count) (rate : SwiftTd.ExploreRate) (rng : Rng.Xoshiro256),
       (begin count rate rng).1.isSome =
@@ -2643,8 +1936,6 @@ theorem exploration_begins : Regula.ExecutableContract beginExploration (fun beg
         simp [beginExploration, branch],
     by decide, by decide⟩⟩
 
-/-- A slot settles exactly when it holds a sample whose advanced age, one observation older and
-capped at `FeatureConstants.maxSettlement`, reaches the settlement horizon. -/
 private theorem advanceSlot_capped {discount : Discount} (state : DemonStats discount)
     (slot : Fin FeatureConstants.pendingSamples) (cumulant : Binary32) (clock : UInt64) :
     (state.advanceSlot slot cumulant clock).2.isSome = true ↔
@@ -2661,9 +1952,6 @@ private theorem advanceSlot_capped {discount : Discount} (state : DemonStats dis
     · simp [PendingPrediction.advance, due]
       omega
 
-/-- A slot settles exactly when it holds a sample whose age, one observation older, reaches
-the settlement horizon: the horizon is at most `FeatureConstants.maxSettlement`, so the cap
-changes no verdict. -/
 private theorem advanceSlot_settles {discount : Discount} (state : DemonStats discount)
     (slot : Fin FeatureConstants.pendingSamples) (cumulant : Binary32) (clock : UInt64) :
     (state.advanceSlot slot cumulant clock).2.isSome = true ↔
@@ -2674,17 +1962,6 @@ private theorem advanceSlot_settles {discount : Discount} (state : DemonStats di
   exact ⟨fun ⟨sample, held, due⟩ => ⟨sample, held, (Nat.le_min.mp due).1⟩,
     fun ⟨sample, held, due⟩ => ⟨sample, held, Nat.le_min.mpr ⟨due, bounded⟩⟩⟩
 
-/-- The settlement of one pending slot is reported exactly when the slot holds a sample whose
-age, one observation older, reaches the settlement horizon of the statistics; the visit keeps
-the horizon (`AgreementLifecycle.advanceSlot_horizon`) and every other slot
-(`AgreementLifecycle.advanceSlot_other`). This holds for every discount, statistics, slot,
-cumulant and clock. The function advances the sample, capping its age at
-`FeatureConstants.maxSettlement`, and compares the advanced age with the horizon. Both verdicts
-occur for the discount `Discount.g99`: the first slot settles when every slot holds
-`oldestSample`, and the first slot of the initial statistics, which is empty, does not.
-
-**Not claimed:** the settlement reported and what the slot holds afterwards, which
-`AgreementLifecycle.advanceSlot_selected` states. -/
 theorem slot_settles : Regula.ExecutableContract @DemonStats.advanceSlot (fun advanceSlot =>
     (∀ {discount} (state : DemonStats discount) (slot : Fin FeatureConstants.pendingSamples)
         (cumulant : Binary32) (clock : UInt64),
@@ -2707,8 +1984,6 @@ theorem slot_settles : Regula.ExecutableContract @DemonStats.advanceSlot (fun ad
         (Nat.lt_succ_iff.mp (DemonStats.initial Discount.g99).settleAfter.val.isLt)⟩,
     rfl⟩⟩
 
-/-- The verdict of a first-loop element is its comparison of the decayed trace with the
-reference. -/
 private theorem first_element_verdict {config : Acorn.Config} {dimension : Dimension}
     (state : NumericState config dimension) (idx : FeatIdx dimension)
     (delta vDelta decay : Binary32) :
@@ -2716,19 +1991,6 @@ private theorem first_element_verdict {config : Acorn.Config} {dimension : Dimen
       ((state.transient.z.get idx).value.mul decay).lessOrEqual
         ((state.transient.lastAlpha.get idx).value.mul config.epsilon) := rfl
 
-/-- A first-loop element prunes its index exactly when the trace it stores is at most the
-pruning reference it keeps, scaled by the configuration's epsilon
-(`CurrentLearner.first_element_prune`); the trace it stores is the trace decayed; it keeps the
-pruning references (`CurrentLearner.first_element_reference`) and the eligible list
-(`CurrentLearner.first_element_eligible`), and every other index's weight, log step size and
-registers (`CurrentLearner.first_element_frame`). This holds for every configuration,
-dimension, state, index and error words. At zero decay a managed learner prunes every index
-with a finite trace (`CurrentControl.stop_prunes`). Both verdicts occur at the index `first`
-of `control` over `narrow`: the fresh learner prunes it at zero decay, and `traced`, whose trace
-is one, keeps it at decay one.
-
-**Not claimed:** the values of the weight, the log step size and the registers that the
-element writes at its index, which `NumericState.firstLoopElement_eq` states. -/
 theorem first_loop_prune :
     Regula.ExecutableContract @NumericState.firstLoopElement (fun element =>
       (∀ {config dimension} (state : NumericState config dimension) (idx : FeatIdx dimension)

@@ -1,120 +1,56 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Intent.OneStream
-
-/-!
-# The blind record reading of contract 3
-
-This module holds the second, blind reading of contract 3's six sentences that OpenAI's
-gpt-6-astra made for a record over the subject's type, in a fresh session after the record
-`AcornVerif.Intent.OneStream.oneStream` was sealed at commit b144b41 and after an earlier session
-had answered with no record. It is no deliverable and no part of the owner's intent: it is a second
-model's reading of the owner's words. Its comparison with the record is in
-`AcornVerif.Intent.OneStreamBlindCompare`, and how each difference was settled is in the record's
-confirmation file, `lean/AcornVerif/Intent/OneStream.md`.
-
-The namespace `AcornVerif.Intent.OneStream.OwnerRecord` is the blind reader's own name, kept as
-returned. It declares exactly the declarations of the Lean file in the blind reader's reply, with the
-same names, statements, definition bodies and proofs. Its text differs from that file only in these
-ways:
-
-* The import of `types`, the file the session was given, is replaced by the import of
-  `AcornVerif.Intent.OneStream`, the module that declares `Learner`, `Update` and `Datum` and imports
-  the module that declares `System`.
-* The import of `LeanIntent.Record` is removed: the merge gate's boundary audit admits an import
-  of lean-intent in `AcornVerif.LeanIntentBridge` alone, and `AcornVerif.Intent.OneStream` reaches
-  lean-intent's record module through it.
-* This copyright header and this module docstring are added.
-* A docstring is added to each declaration the missing-docs linter flags: the four fields of
-  `Point`, `Reached`, `Taken`, `experience`, `stepUpdates`, `OnlyCurrentExperience`,
-  `ContainsNoReset`, the five properties `LearnsOnlyFromTheExperienceOfThisStep`,
-  `WorkHasAFixedLifetimeBound`, `NoInternalUpdateResetsMemory`, `TheRunCarriesTheAgentsNextMemory`
-  and `ResumptionPreservesTheStoppedMemory`, the eight fields of `FixedData`, `fixedData`,
-  `learnerShape`, `requirements` and the record `oneStreamIntent`.
-
-No linter flags the blind text otherwise, so no option is set before any of its declarations.
--/
 
 namespace AcornVerif.Intent.OneStream.OwnerRecord
 
 open LeanIntent
 
-/-- A boundary in one possible run. -/
 structure Point (w : Learner) where
-  /-- The outside inputs of the run, one per step. -/
   inputs : Nat → w.Input
-  /-- The number of steps taken before the boundary. -/
   time : Nat
-  /-- The world's state at the boundary. -/
   state : w.State
-  /-- The agent's memory at the boundary. -/
   memory : w.Memory
 
-/-- The run reaches the point's state and memory after its number of steps, under its inputs. -/
 def Reached {w : Learner} (p : Point w) : Prop :=
   w.toSystem.Reaches p.inputs p.time p.state p.memory
 
-/-- The run reaches the point and takes the next step from it. -/
 def Taken {w : Learner} (p : Point w) : Prop :=
   w.toSystem.Takes p.inputs p.time p.state p.memory
 
-/-- What the run gives the agent at the point. -/
 def experience {w : Learner} (p : Point w) : w.Obs × Rat :=
   w.given p.state p.memory (p.inputs p.time)
 
-/-- The internal updates the agent reports on the experience the run gives it at the point. -/
 def stepUpdates {w : Learner} (p : Point w) : List Update :=
   w.updates p.memory (experience p)
 
-/-- Every learning update in the list takes the experience its step was given. -/
 def OnlyCurrentExperience (us : List Update) : Prop :=
   ∀ datum : Datum,
     Update.learn datum ∈ us → datum = Datum.stream 0
 
-/-- The list holds no reset. -/
 def ContainsNoReset (us : List Update) : Prop :=
   Update.reset ∉ us
 
-/-- At every point at which the run takes a step, every learning update the agent reports takes the
-experience that step was given. -/
 def LearnsOnlyFromTheExperienceOfThisStep (w : Learner) : Prop :=
   ∀ p : Point w, Taken p →
     OnlyCurrentExperience (stepUpdates p)
 
-/-- One bound covers the work the agent reports at every point at which the run takes a step. -/
 def WorkHasAFixedLifetimeBound (w : Learner) : Prop :=
   ∃ bound : Nat, ∀ p : Point w, Taken p →
     w.work p.memory (experience p) ≤ bound
 
-/-- At every point at which the run takes a step, the agent's reported updates hold no reset. -/
 def NoInternalUpdateResetsMemory (w : Learner) : Prop :=
   ∀ p : Point w, Taken p →
     ContainsNoReset (stepUpdates p)
 
-/-- At every point at which the run takes a step, the run keeps the memory the agent's answer
-produced. -/
 def TheRunCarriesTheAgentsNextMemory (w : Learner) : Prop :=
   ∀ p : Point w, Taken p →
     let nextMemory := (w.act p.memory (experience p)).2
     w.kept p.state p.memory (p.inputs p.time) nextMemory =
       nextMemory
 
-/-- At every point the run reaches, stopped there or not, the memory the agent would resume with
-after a stop there is the memory it held there. -/
 def ResumptionPreservesTheStoppedMemory (w : Learner) : Prop :=
   ∀ p : Point w, Reached p →
     w.resume p.memory = p.memory
 
-/--
-A finite continuation computed directly from the supplied system functions.
-
-Each entry records the agent's chosen action, the action handed to the
-world, and the internal updates. A refusal to take a step ends this
-continuation. The horizon limits this observation, not the agent's life.
--/
 def continuation (w : Learner) :
     Nat → (Nat → w.Input) → w.State → w.Memory →
       List (w.Act × w.Act × List Update)
@@ -133,17 +69,12 @@ def continuation (w : Learner) :
       else
         []
 
-/--
-Compare resumption with uninterrupted execution from the same world state
-and with the same subsequent outside inputs.
--/
 def AfterwardsActsAndLearnsAsWithoutTheStop (w : Learner) : Prop :=
   ∀ p : Point w, Reached p →
     ∀ horizon : Nat, ∀ inputs : Nat → w.Input,
       continuation w horizon inputs p.state (w.resume p.memory) =
         continuation w horizon inputs p.state p.memory
 
-/-- Exact memory restoration suffices for every such continuation. -/
 theorem exact_memory_preserves_continuations {w : Learner}
     (h : ResumptionPreservesTheStoppedMemory w) :
     AfterwardsActsAndLearnsAsWithoutTheStop w :=
@@ -152,26 +83,16 @@ theorem exact_memory_preserves_continuations {w : Learner}
       (fun memory => continuation w horizon inputs p.state memory)
       (h p hp)
 
-/-- The non-function fields of the description. -/
 structure FixedData where
-  /-- The world's states. -/
   State : Type
-  /-- What the world shows. -/
   Obs : Type
-  /-- The actions. -/
   Act : Type
-  /-- The agent's memories. -/
   Memory : Type
-  /-- The run's outside inputs. -/
   Input : Type
-  /-- The world's start. -/
   start : State
-  /-- The agent's initial memory. -/
   initial : Memory
-  /-- The viewer's stop request. -/
   stopRequest : Input
 
-/-- The fields of a learner that are no functions. -/
 def fixedData (w : Learner) : FixedData :=
   {
     State := w.State
@@ -184,11 +105,6 @@ def fixedData (w : Learner) : FixedData :=
     stopRequest := w.stopRequest
   }
 
-/--
-Member requires input and output types fixed across all subjects.
-Select the correctly typed argument at the subject, and return the result
-tagged with that subject. This accommodates Learner's dependent carriers.
--/
 def functionMember
     (name : String)
     (Input Output : Learner → Type)
@@ -201,7 +117,6 @@ def functionMember
     get := fun w arguments => ⟨w, f w (arguments w)⟩
   }
 
-/-- The subject declared a description made of functions: its fixed data and each of its functions. -/
 def learnerShape : Shape Learner :=
   Shape.bundle fixedData
     (functionMember "World observation"
@@ -265,7 +180,6 @@ def learnerShape : Shape Learner :=
         (fun w memory => w.resume memory)
     ]
 
-/-- The six properties of the blind record. -/
 def requirements : List (Clause Learner) :=
   [
     {
@@ -294,7 +208,6 @@ def requirements : List (Clause Learner) :=
     }
   ]
 
-/-- The blind record of the invariants of learning from one stream. -/
 def oneStreamIntent : IntentRecord Learner :=
   {
     shape := learnerShape
