@@ -8371,8 +8371,18 @@ theorem Host_World_initial_registered : Regula.RegisteredDecision @Host.World.in
 
 theorem Host_World_observe_registered : Regula.RegisteredDecision @Host.World.observe := ⟨⟩
 
+theorem Host_World_observeTile_registered : Regula.RegisteredDecision @Host.World.observeTile := ⟨⟩
+
 theorem Host_World_step_registered : Regula.RegisteredDecision @Host.World.step := ⟨⟩
 
+theorem Host_wanderPopulation_registered : Regula.RegisteredDecision @Host.wanderPopulation := ⟨⟩
+
+theorem Host_foodTrials_registered : Regula.RegisteredDecision @Host.foodTrials := ⟨⟩
+
+theorem Host_spawnFood_registered : Regula.RegisteredDecision @Host.spawnFood := ⟨⟩
+
 theorem Host_selectSpawn_registered : Regula.RegisteredDecision @Host.selectSpawn := ⟨⟩
+
+theorem Host_initializeDeer_registered : Regula.RegisteredDecision @Host.initializeDeer := ⟨⟩
 
 end Acorn.Decisions

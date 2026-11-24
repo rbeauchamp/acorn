@@ -883,7 +883,7 @@ a value, with the value forgotten. A statement of the value of an accepted
 result stands beside such a kind as a requirement with no kind. A function keeps
 a requirement with no kind where no kind is true of it or where the rule for
 specifications below excludes the kind, and the ownership audit requires the
-contract by name. [Decision contracts](decision-contracts.md) gives
+contract by name. `docs/decision-contracts.md` gives
 the four reasons: a function that accepts every input or whose accepted inputs
 no theorem states; a specification that reads a part of the input, such as the
 state of a learner, whose type declares an invariant that names tests that the
@@ -921,10 +921,10 @@ those two, such as `Binary32.key` or `Host.terrain`. Review admits such a
 function where something other than the kind fixes it: a primitive operation of
 a number type that Lean's library defines, or a definition with a statement of
 its own against a reading that does not apply it, such as the slot map of the
-feature bank, stated as SplitMix64 on Lean core's bit vectors. [Decision contracts](decision-contracts.md) names those statements, the groups
+feature bank, stated as SplitMix64 on Lean core's bit vectors. `docs/decision-contracts.md` names those statements, the groups
 of shared definitions that have none yet, and each proposition with its theorem.
 
-No check of Acorn finds a decision function that is not registered. [Decision contracts](decision-contracts.md) lists the groups of definitions with
+No check of Acorn finds a decision function that is not registered. `docs/decision-contracts.md` lists the groups of definitions with
 a `Bool`, `Option`, `Except` or `Decidable` result that carry no contract, with
 the reason for each group. That list has no check of completeness: a new
 definition with such a result can arrive with no contract and no entry. No kind
@@ -944,7 +944,7 @@ its action list: it accepts exactly an action list of at least one and at most
 the cap actions whose run of the executed world step, from the world with the
 goal installed, ends in a world in which the goal is attained. The world step
 decides propositions in the place of its tests, so that specification shares no
-test with the checker. [Decision contracts](decision-contracts.md) lists the functions of `lean/AcornVerif/Decisions.lean` that keep no
+test with the checker. `docs/decision-contracts.md` lists the functions of `lean/AcornVerif/Decisions.lean` that keep no
 kind, with the reason for each and which of them are also remaining work of
 issue 105.
 

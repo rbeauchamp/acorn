@@ -2017,6 +2017,190 @@ theorem spawn_select_accepts : Regula.ExecutableContract @Host.selectSpawn (fun 
        refine ⟨⟨zeroTile, Host.World.empty zeroTile⟩, ?_⟩
        decide +kernel }⟩
 
+structure WorldObserveTile where
+  config : Host.WorldConfig
+  world : Host.World config
+  occupied : Host.Occupancy
+  row : Fin Host.patchSide
+  column : Fin Host.patchSide
+
+theorem observe_tile_accepts : Regula.ExecutableContract @Host.World.observeTile
+    (fun observeTile =>
+      Regula.DecidesCompletely (·.isOk = true)
+        (fun input : WorldObserveTile =>
+          0 < input.config.raw.side.val ∧ input.config.raw.side.val ≤ 2 ^ 63 - 5 ∧
+            0 < input.config.raw.dayLength.toNat ∧
+            ∀ lo hi : Host.Coordinate,
+              lo.val = (if input.config.raw.deerCap = 0 then -5 else -2 ^ 63) →
+              hi.val = (if input.config.raw.deerCap = 0 then
+                input.config.raw.side.val + 4 else 2 ^ 63 - 1) →
+              ∀ s0 s1 s2 s3 : Binary32,
+                s0 = input.config.raw.baseScale →
+                s1 = s0.mul ⟨0x40000000⟩ →
+                s2 = s1.mul ⟨0x40000000⟩ →
+                s3 = s2.mul ⟨0x40000000⟩ →
+                ∀ s ∈ [s0, s1, s2, s3],
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (fun input : WorldObserveTile =>
+          @observeTile input.config input.world input.occupied input.row input.column)) :=
+  ⟨{ complete := fun input hspec =>
+       CurrentWorld.admissible_observeTile_isOk
+         ((CurrentWorld.initial_isOk_iff input.config).mp
+           ((world_initial_isOk_spec input.config).mpr hspec))
+         input.world input.occupied input.row input.column
+     refused := by
+       let base := Host.World.empty wide
+       let edgePos : Host.BoxPosition wide := ⟨⟨2 ^ 63 - 2, by decide⟩, ⟨0, by decide⟩⟩
+       let edgeWorld : Host.World wide :=
+         { base with body := { base.body with position := edgePos } }
+       refine ⟨⟨wide, edgeWorld, ∅, ⟨5, by decide⟩, ⟨10, by decide⟩⟩, ?_⟩
+       have htr : edgeWorld.body.position.position.translate
+           (10 - (Host.patchSide : Int) / 2) (5 - (Host.patchSide : Int) / 2) = none := by
+         decide
+       simp [Host.World.observeTile, htr, Except.isOk, Except.toBool] }⟩
+
+theorem wander_population_accepts : Regula.ExecutableContract @Host.wanderPopulation
+    (fun wander =>
+      Regula.DecidesCompletely (· = true)
+        (fun input : (config : Host.WorldConfig) × Host.World config =>
+          0 < input.1.raw.side.val ∧ input.1.raw.side.val ≤ 2 ^ 63 - 5 ∧
+            0 < input.1.raw.dayLength.toNat ∧
+            ∀ lo hi : Host.Coordinate,
+              lo.val = (if input.1.raw.deerCap = 0 then -5 else -2 ^ 63) →
+              hi.val = (if input.1.raw.deerCap = 0 then
+                input.1.raw.side.val + 4 else 2 ^ 63 - 1) →
+              ∀ s0 s1 s2 s3 : Binary32,
+                s0 = input.1.raw.baseScale →
+                s1 = s0.mul ⟨0x40000000⟩ →
+                s2 = s1.mul ⟨0x40000000⟩ →
+                s3 = s2.mul ⟨0x40000000⟩ →
+                ∀ s ∈ [s0, s1, s2, s3],
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (Regula.Dependent.isOk fun input : (config : Host.WorldConfig) × Host.World config =>
+          @wander input.1 input.2)) :=
+  ⟨{ complete := fun input hspec =>
+       CurrentWorld.admissible_wanderPopulation_isOk
+         ((CurrentWorld.initial_isOk_iff input.1).mp
+           ((world_initial_isOk_spec input.1).mpr hspec))
+         input.2
+     refused := by
+       let deerCfg : Host.WorldConfig :=
+         ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 1, ⟨0x00000000⟩⟩, by decide, by decide⟩
+       let deerPos : Host.Position := ⟨⟨10, by decide⟩, ⟨10, by decide⟩⟩
+       let deerWorld : Host.World deerCfg :=
+         { Host.World.empty deerCfg with
+           deer := ⟨#[deerPos], by decide⟩
+           rng := Rng.Xoshiro256.zero }
+       refine ⟨⟨deerCfg, deerWorld⟩, ?_⟩
+       decide +kernel }⟩
+
+structure FoodTrialsInput where
+  config : Host.WorldConfig
+  world : Host.World config
+  count : Nat
+  rng : Rng.Xoshiro256
+
+theorem food_trials_accepts : Regula.ExecutableContract @Host.foodTrials
+    (fun trials =>
+      Regula.DecidesCompletely (· = true)
+        (fun input : FoodTrialsInput =>
+          0 < input.config.raw.side.val ∧ input.config.raw.side.val ≤ 2 ^ 63 - 5 ∧
+            0 < input.config.raw.dayLength.toNat ∧
+            ∀ lo hi : Host.Coordinate,
+              lo.val = (if input.config.raw.deerCap = 0 then -5 else -2 ^ 63) →
+              hi.val = (if input.config.raw.deerCap = 0 then
+                input.config.raw.side.val + 4 else 2 ^ 63 - 1) →
+              ∀ s0 s1 s2 s3 : Binary32,
+                s0 = input.config.raw.baseScale →
+                s1 = s0.mul ⟨0x40000000⟩ →
+                s2 = s1.mul ⟨0x40000000⟩ →
+                s3 = s2.mul ⟨0x40000000⟩ →
+                ∀ s ∈ [s0, s1, s2, s3],
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (Regula.Dependent.isOk fun input : FoodTrialsInput =>
+          @trials input.config input.world input.count input.rng)) :=
+  ⟨{ complete := fun input hspec =>
+       (Regula.Dependent.isOk_eq_true_iff _ input).mpr
+         (CurrentWorld.admissible_foodTrials_isOk
+           ((CurrentWorld.initial_isOk_iff input.config).mp
+             ((world_initial_isOk_spec input.config).mpr hspec))
+           input.world input.count input.rng)
+     refused := by
+       let twoZero : Host.WorldConfig :=
+         ⟨⟨0, ⟨2, by decide⟩, 1, 0, 1, 1, 1, ⟨0x00000000⟩⟩, by decide, by decide⟩
+       refine ⟨⟨twoZero, Host.World.empty twoZero, 8, Rng.Xoshiro256.seed 0⟩, ?_⟩
+       decide +kernel }⟩
+
+structure SpawnFoodInput where
+  config : Host.WorldConfig
+  world : Host.World config
+  rng : Rng.Xoshiro256
+
+theorem spawn_food_accepts : Regula.ExecutableContract @Host.spawnFood
+    (fun spawn =>
+      Regula.DecidesCompletely (· = true)
+        (fun input : SpawnFoodInput =>
+          0 < input.config.raw.side.val ∧ input.config.raw.side.val ≤ 2 ^ 63 - 5 ∧
+            0 < input.config.raw.dayLength.toNat ∧
+            ∀ lo hi : Host.Coordinate,
+              lo.val = (if input.config.raw.deerCap = 0 then -5 else -2 ^ 63) →
+              hi.val = (if input.config.raw.deerCap = 0 then
+                input.config.raw.side.val + 4 else 2 ^ 63 - 1) →
+              ∀ s0 s1 s2 s3 : Binary32,
+                s0 = input.config.raw.baseScale →
+                s1 = s0.mul ⟨0x40000000⟩ →
+                s2 = s1.mul ⟨0x40000000⟩ →
+                s3 = s2.mul ⟨0x40000000⟩ →
+                ∀ s ∈ [s0, s1, s2, s3],
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (Regula.Dependent.isOk fun input : SpawnFoodInput =>
+          @spawn input.config input.world input.rng)) :=
+  ⟨{ complete := fun input hspec =>
+       CurrentWorld.admissible_spawnFood_isOk
+         ((CurrentWorld.initial_isOk_iff input.config).mp
+           ((world_initial_isOk_spec input.config).mpr hspec))
+         input.world input.rng
+     refused := by
+       let twoZero : Host.WorldConfig :=
+         ⟨⟨0, ⟨2, by decide⟩, 1, 0, 1, 1, 1, ⟨0x00000000⟩⟩, by decide, by decide⟩
+       refine ⟨⟨twoZero, Host.World.empty twoZero, Rng.Xoshiro256.seed 0⟩, ?_⟩
+       decide +kernel }⟩
+
+theorem initialize_deer_accepts : Regula.ExecutableContract @Host.initializeDeer
+    (fun init =>
+      Regula.DecidesCompletely (· = true)
+        (fun input : (config : Host.WorldConfig) × Host.World config =>
+          0 < input.1.raw.side.val ∧ input.1.raw.side.val ≤ 2 ^ 63 - 5 ∧
+            0 < input.1.raw.dayLength.toNat ∧
+            ∀ lo hi : Host.Coordinate,
+              lo.val = (if input.1.raw.deerCap = 0 then -5 else -2 ^ 63) →
+              hi.val = (if input.1.raw.deerCap = 0 then
+                input.1.raw.side.val + 4 else 2 ^ 63 - 1) →
+              ∀ s0 s1 s2 s3 : Binary32,
+                s0 = input.1.raw.baseScale →
+                s1 = s0.mul ⟨0x40000000⟩ →
+                s2 = s1.mul ⟨0x40000000⟩ →
+                s3 = s2.mul ⟨0x40000000⟩ →
+                ∀ s ∈ [s0, s1, s2, s3],
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (Regula.Dependent.isOk fun input : (config : Host.WorldConfig) × Host.World config =>
+          @init input.1 input.2)) :=
+  ⟨{ complete := fun input hspec =>
+       CurrentWorld.admissible_initializeDeer_isOk
+         ((CurrentWorld.initial_isOk_iff input.1).mp
+           ((world_initial_isOk_spec input.1).mpr hspec))
+         input.2
+     refused := by
+       let twoZero : Host.WorldConfig :=
+         ⟨⟨0, ⟨2, by decide⟩, 1, 0, 1, 1, 1, ⟨0x00000000⟩⟩, by decide, by decide⟩
+       refine ⟨⟨twoZero, Host.World.empty twoZero⟩, ?_⟩
+       decide +kernel }⟩
+
 theorem world_admitted_nonrefusal {raw : Host.RawWorldConfig} {config : Host.WorldConfig}
     (hadmit : Host.WorldConfig.admit raw = .ok config) (initial world : Host.World config)
     (hinit : Host.World.initial config = .ok initial)

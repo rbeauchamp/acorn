@@ -77,12 +77,15 @@ that specifications share with their functions):
   refuses no input its type admits (`CurrentCheckpoint.unresumable_unloaded`,
   `AgentConstruction.State.restore_exact`). `Host.World.initial` carries a
   registered two-way kind (`world_initial_accepts`), while `Host.World.observe`,
-  `Host.World.step`, and `Host.selectSpawn` carry registered one-way complete
-  kinds over admissible configurations (`world_observe_accepts`,
-  `world_step_accepts`, `spawn_select_accepts`, with `world_observe`,
-  `world_step`, and `spawn_select` standing beside them for their
-  postconditions). The attempt, ANSI, and baseline host transitions that
-  delegate refusal to `Host.World.observe` or `Host.World.step`
+  `Host.World.observeTile`, `Host.World.step`, `Host.wanderPopulation`,
+  `Host.foodTrials`, `Host.spawnFood`, `Host.selectSpawn`, and
+  `Host.initializeDeer` carry registered one-way complete kinds over admissible
+  configurations (`world_observe_accepts`, `observe_tile_accepts`,
+  `world_step_accepts`, `wander_population_accepts`, `food_trials_accepts`,
+  `spawn_food_accepts`, `spawn_select_accepts`, `initialize_deer_accepts`, with
+  `world_observe`, `world_step`, and `spawn_select` standing beside their kinds
+  for their postconditions). The attempt, ANSI, and baseline host transitions
+  that delegate refusal to `Host.World.observe` or `Host.World.step`
   (`Host.OwnedStep.environment`, `Host.PreparedStep.environment`,
   `Host.PreparedStep.commit`, `Host.Attempt.sense`, `Host.Attempt.tick`,
   `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`,
@@ -117,22 +120,26 @@ In `AcornVerif.Decisions`, contracts whose proofs require the proof library are
 counted toward the registrations in `Acorn.Decisions`. Registered decisions with
 kinds proved in `AcornVerif.Decisions` include:
 
-- World initialization, observation, stepping, and spawn selection:
-  `Host.World.initial` (`world_initial_accepts`, two-way Regula Decides kind
-  over `Regula.Dependent.isOk`, registered in `Acorn.Decisions` by
+- World initialization, observation, stepping, passive updates, and spawn/deer
+  generation: `Host.World.initial` (`world_initial_accepts`, two-way Regula
+  Decides kind over `Regula.Dependent.isOk`, registered in `Acorn.Decisions` by
   `Host_World_initial_registered`, with `Acorn.Decisions.world_initial` stating
-  the accepted initial world's fields beside it); `Host.World.observe`
-  (`world_observe_accepts`, one-way Regula DecidesCompletely kind over
-  admissible configurations, registered by `Host_World_observe_registered`, with
-  `Acorn.Decisions.world_observe` stating the observed task field beside it);
-  `Host.World.step` (`world_step_accepts`, one-way Regula DecidesCompletely kind
-  over `Regula.Dependent.isOk` and `WorldAction` on admissible configurations,
-  registered by `Host_World_step_registered`, with `Acorn.Decisions.world_step`
-  stating clock advancement beside it); and `Host.selectSpawn`
-  (`spawn_select_accepts`, one-way Regula DecidesCompletely kind over
-  `Regula.Dependent.isOk` on admissible configurations, registered by
-  `Host_selectSpawn_registered`, with `AcornVerif.Decisions.spawn_select`
-  stating the spawn postcondition beside it).
+  the accepted initial world's fields beside it); and eight one-way Regula
+  DecidesCompletely kinds over admissible configurations: `Host.World.observe`
+  (`world_observe_accepts`, registered by `Host_World_observe_registered`, with
+  `Acorn.Decisions.world_observe` beside it), `Host.World.observeTile`
+  (`observe_tile_accepts`, registered by `Host_World_observeTile_registered`),
+  `Host.World.step` (`world_step_accepts`, over `Regula.Dependent.isOk` and
+  `WorldAction`, registered by `Host_World_step_registered`, with
+  `Acorn.Decisions.world_step` beside it), `Host.wanderPopulation`
+  (`wander_population_accepts`, registered by
+  `Host_wanderPopulation_registered`), `Host.foodTrials` (`food_trials_accepts`,
+  registered by `Host_foodTrials_registered`), `Host.spawnFood`
+  (`spawn_food_accepts`, registered by `Host_spawnFood_registered`),
+  `Host.selectSpawn` (`spawn_select_accepts`, registered by
+  `Host_selectSpawn_registered`, with `AcornVerif.Decisions.spawn_select` beside
+  it), and `Host.initializeDeer` (`initialize_deer_accepts`, registered by
+  `Host_initializeDeer_registered`).
 - Terrain generation and readers: `Host.valueNoise`, `Host.octaveLoop`,
   `Host.fbm`, `Host.terrain`, `Host.World.tileKind`, `Host.World.enterable`, and
   `Host.walkableTile` (two-way kinds, using `CurrentTerrain.PastLast` and
@@ -234,12 +241,24 @@ Boolean equality instance.
 
 Non-Boolean shared helpers stay a matter of review. Review admits primitive
 operations of Lean's number types (`Binary32.div`, `Binary32.mul`), readers with
-independent statements of their own (such as `coordinate_float`, `world_side`,
-`day_phase`, `snapshot_masses`, and the shared-definition contracts in
-`Acorn.Decisions` and `AcornVerif.Decisions`), and direct stored-field readers
+independent statements of their own, and direct stored-field readers
 (`Weight.value`, `Features.Lifecycle.progress`,
-`Host.Viewer.Lifecycle.phaseValue`). Shared readers without independent
-statements of their own (`Binary32.key`, `Binary32.magnitude`, `Binary32.negate`,
+`Host.Viewer.Lifecycle.phaseValue`). The independent statements in
+`Acorn.Decisions` are `coordinate_float` (`Host.coordinateFloat`) and the
+eighteen shared-definition statements (`rotate_left`, `unit_feature`,
+`reach_distance`, `numeral_chars`, `fnv_hash`, `u64_codec`, `header_codec`,
+`day_phase`, `snapshot_masses`, `craft_recipe`, `goal_kind_code`,
+`goal_item_code`, `interface_layout`, `rank_width`, `rank_dimension`,
+`world_side`, `box_position`, and `box_center`, where `box_center` stands beside
+`spawn_select` and `snapshot_masses` also covers the value of
+`PolicySnapshot.probabilitiesCosted`). The independent statements in
+`AcornVerif.Decisions` cover `Agreement.squaredUnits`, `Lifetime.maximumSum`,
+`Host.Microduck.spelled`, `Host.Microduck.Decimal.ofNumeral`,
+`Host.Microduck.Decimal.fixed`, `Host.BoxPosition.facingPosition`,
+`Host.Direction.delta`, `Discount.gamma`, `Discount.horizon`,
+`ValueRule.domain`, `Discount.predictionRange`, `Lifetime.Quantity.bound`, and
+`Agreement.envelopeUnits`. Shared readers without independent statements of
+their own (`Binary32.key`, `Binary32.magnitude`, `Binary32.negate`,
 `Binary64.key`, `Binary64.magnitude`, `Conversion.widen`, `Host.World.step`,
 `Host.World.setGoal`, `Host.terrain`, plus helpers applied by kindless
 statements) are remaining work of
@@ -247,9 +266,11 @@ statements) are remaining work of
 
 In particular, the two-way kinds of `Host.isPastLast`, `Host.scaleAdmitsOctave`,
 `Host.scaleAdmitsRange`, `Host.RawWorldConfig.admissible`,
-`Host.WorldConfig.admit`, and `Host.World.initial` and the one-way complete
-kinds of `Host.World.observe`, `Host.World.step`, and `Host.selectSpawn` share
-none of `Host.isPastLast`, `Host.scaleAdmitsOctave`, `Host.scaleAdmitsRange`,
+`Host.WorldConfig.admit`, and `Host.World.initial` and the eight one-way
+complete kinds of `Host.World.observe`, `Host.World.observeTile`,
+`Host.World.step`, `Host.wanderPopulation`, `Host.foodTrials`, `Host.spawnFood`,
+`Host.selectSpawn`, and `Host.initializeDeer` share none of `Host.isPastLast`,
+`Host.scaleAdmitsOctave`, `Host.scaleAdmitsRange`,
 `Host.RawWorldConfig.admissible`, `Host.octaveScale`,
 `Host.RawWorldConfig.admitLo`, or `Host.RawWorldConfig.admitHi`; their
 specifications state the exact numeric quotient condition directly via
@@ -273,7 +294,9 @@ contract and no entry here.
   `Acorn.Decisions` via Regula's RegisteredDecision; derived comparison
   instances and unreferenced `Decidable` helpers carry neither a registration
   nor a contract.
-- Definitions not named by any theorem of the maintained libraries: the
+- Definitions not named by any public theorem of the maintained libraries,
+  together with internal private helpers (whose private proof lemmas support
+  contracted entry points such as `Json.parse` and `Json.Numeral.scan`): the
   remaining parsers of `Host.Cli`, native drivers and `NativeApp`, private JSON
   helpers, viewer envelope and map decoders (`Host.Viewer.MapBytes.admit`,
   `Host.Viewer.decodeMapRuns`, `Json.decode`), and endurance summary helpers
