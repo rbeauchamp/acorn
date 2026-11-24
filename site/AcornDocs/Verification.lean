@@ -2066,8 +2066,8 @@ driver arguments), {decl}`Acorn.Digits.read` (viewer request lengths, ps RSS,
 {decl}`Acorn.Json.Value.natural`, and corpus-audit line numbers), and {decl}`Acorn.Digits.integer`
 (arbitrary signed integer digits mapping `-0` to `0` with no bit-width bound—for example,
 `9223372036854775808` succeeds—while `WorldDriver.coordinate` in `lean/Acorn/WorldDriver.lean`
-enforces signed 64-bit `world-native` terrain coordinate admission through
-{decl}`Acorn.Host.Coordinate.checked`) rather than calling Lean
+and `Host.Cli.requiredCoordinate` in `lean/Acorn/Host/Cli.lean` enforce signed 64-bit
+coordinate admission through {decl}`Acorn.Host.Coordinate.checked`) rather than calling Lean
 core's String.toNat?, because at Lean v4.36.0 (`Std/Data/String/ToNat.lean`, String.isNat\_iff and
 String.toNat?\_eq\_some\_ofDigitChars) String.toNat? accepts and strips `_` digit separators
 (`"4_2".toNat? = some 42`), whereas review (not an automated gate check) keeps String.toNat? out
