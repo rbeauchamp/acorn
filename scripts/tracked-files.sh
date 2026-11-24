@@ -974,7 +974,7 @@ shift
 
 case "$cmd" in
   admit-file)
-    (( for_regula == 0 && admit_manifest == 0 && emit_overrides == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+    [[ "$for_regula" == 0 && "$admit_manifest" == 0 && "$emit_overrides" == 0 && "$require_lean" == 0 && "$has_prefix" == 0 && -z "$workspace" ]] ||
       fail "unsupported option for admit-file"
     (( $# > 0 )) || fail "missing file path(s)"
     verify_repo_root "$root" "$require_clean"
@@ -983,32 +983,32 @@ case "$cmd" in
     done
     ;;
   list-tracked)
-    (( for_regula == 0 && admit_manifest == 0 && emit_overrides == 0 && has_prefix == 1 )) && [[ -z "$workspace" ]] ||
+    [[ "$for_regula" == 0 && "$admit_manifest" == 0 && "$emit_overrides" == 0 && "$has_prefix" == 1 && -z "$workspace" ]] ||
       fail "list-tracked requires --prefix and rejects --for-regula/--admit-manifest/--emit-overrides/--workspace"
     (( $# == 0 )) || fail "unexpected extra arguments"
     verify_git_dir "$root" "$expected_prefix" "$require_clean"
     validate_tracked_subtree "$root" "${expected_prefix:-repo}" "" "$require_lean" 1
     ;;
   admit-lake-dirs)
-    (( for_regula == 0 && admit_manifest == 0 && emit_overrides == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -n "$workspace" ]] ||
+    [[ "$for_regula" == 0 && "$admit_manifest" == 0 && "$emit_overrides" == 0 && "$require_lean" == 0 && "$has_prefix" == 0 && -n "$workspace" ]] ||
       fail "admit-lake-dirs requires --workspace and rejects unsupported options"
     (( $# == 0 )) || fail "unexpected extra arguments"
     admit_lake_dirs "$root" "$require_clean" "$workspace"
     ;;
   sync-config)
-    (( emit_overrides == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+    [[ "$emit_overrides" == 0 && "$require_lean" == 0 && "$has_prefix" == 0 && -z "$workspace" ]] ||
       fail "unsupported option for sync-config"
     (( $# == 0 )) || fail "unexpected extra arguments"
     sync_config "$root" "$require_clean" "$for_regula" "$admit_manifest"
     ;;
   admit-site)
-    (( for_regula == 0 && admit_manifest == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+    [[ "$for_regula" == 0 && "$admit_manifest" == 0 && "$require_lean" == 0 && "$has_prefix" == 0 && -z "$workspace" ]] ||
       fail "unsupported option for admit-site"
     (( $# == 0 )) || fail "unexpected extra arguments"
     admit_site "$root" "$require_clean" "$emit_overrides"
     ;;
   admit-no-comments)
-    (( for_regula == 0 && admit_manifest == 0 && emit_overrides == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+    [[ "$for_regula" == 0 && "$admit_manifest" == 0 && "$emit_overrides" == 0 && "$require_lean" == 0 && "$has_prefix" == 0 && -z "$workspace" ]] ||
       fail "unsupported option for admit-no-comments"
     (( $# == 0 )) || fail "unexpected extra arguments"
     admit_no_comments "$root" "$require_clean"
