@@ -320,7 +320,7 @@ def Supervisor.step (supervisor : Supervisor) : IO Unit :=
       supervisor.attribute
       if ← supervisor.ready then supervisor.handle .tick
     finally
-      supervisor.settleStop (.unconfirmed "stop did not persist before step ended")
+      supervisor.settleStop (.unconfirmed "stop confirmation did not complete before step ended")
 
 /-- One turn of a closing viewer: the close is handed once, then the process is watched, the
 identity its readers delivered is attributed, and a tick closes the viewer once no process

@@ -1465,8 +1465,11 @@ leaves a current-version stopped file, and the reason the next launch gives is t
 state says stopped. A Start that reaches the control endpoint before the publication is only
 queued; it is handled at a later turn of the actor if the start-up goes on, and is lost with the
 viewer if the start-up fails after the publication. If the publication fails, the viewer exits
-with that error before it prints the ready line, and the file, which is replaced only by a rename
-after a complete write, is still the original. A viewer that fails once its listener is bound
+with that error before it prints the ready line: a failure before the rename leaves the original
+file intact, whereas an indeterminate rename error (such as POSIX.1-2017 `rename` EIO or Linux
+NFS rename-despite-error) can leave either the original file or the newly renamed current-version
+stopped file on disk, so the next launch reads whichever entry is present and gives that entry's
+reason. A viewer that fails once its listener is bound
 ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
 turn on that path takes a command from the queue, so nothing is started from the intent the file
 records and a Start queued by then is not handled. Whenever the start state is stopped, the one
@@ -1549,7 +1552,7 @@ definite pre-execution refusals ({decl}`Acorn.Host.Viewer.ControlResult.refused`
 `unavailable`) versus unconfirmed Stop outcomes
 ({decl}`Acorn.Host.Viewer.ControlResult.unconfirmed`, serialized with `"unconfirmed":true`,
 including write errors that may still request child wind-up, the 10-second `awaitControl`
-timeout that ends only the HTTP wait without dequeuing the Stop, and shutdown interruptions)
+timeout that ends only the HTTP wait without cancelling the Stop, and shutdown interruptions)
 to HTTP `503` in `HttpServer.lean` and `Supervisor.lean`, together with exiting without
 starting a core on a parse or schema refusal from
 {decl}`Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean`, are likewise
@@ -1797,9 +1800,11 @@ or a device, is refused before it is opened, so the read never waits on an entry
 supply a finite document. The two looks and the open are separate calls, so this rests on the
 run directory's stable-path assumption like the rest of the reader. Every state the actor writes
 goes through {decl}`Acorn.Host.Viewer.RunDirectory.writeState` with the record of its own
-configuration's child. Publication uses an exclusively created temporary file and a rename after
-a complete write and flush. Filesystem stability and POSIX rename remain the run directory's
-trust boundary; no power-loss durability is claimed.
+configuration's child. Publication uses an exclusively created temporary file under the run
+directory's IO mutex and renames it onto `state.json` after a complete write and flush: failures
+before the rename never replace the target, whereas an indeterminate rename error can leave
+either the original or the newly renamed entry. Filesystem stability and POSIX rename remain the
+run directory's trust boundary; no power-loss durability is claimed.
 
 The actor. What the actor compares before it starts the configuration's child is
 {decl}`Acorn.Host.Viewer.ChildProgram`. The bootstrap builds the constructor from the launch

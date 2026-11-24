@@ -129,8 +129,6 @@ private def RunDirectory.reserveTemporary (directory : RunDirectory) (file : Run
       | .alreadyExists _ _ _ => directory.reserveTemporary file remaining
       | _ => throw error
 
-/-- All publication and archival through this owner share an IO mutex.
-Complete write and flush precede rename; failed temporaries never replace the target. -/
 def RunDirectory.publishBytes (directory : RunDirectory) (file : RunFile) (bytes : ByteArray) : IO Unit :=
   directory.operations.atomically do
     if let some archive := ← get then

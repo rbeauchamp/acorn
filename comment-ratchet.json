@@ -5992,7 +5992,7 @@
     "eea57c74081b95ad",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/Acorn/Host/Viewer/RunDirectory.lean", "comments": 29, "lines": 63, "fingerprints": [
+  {"file": "lean/Acorn/Host/Viewer/RunDirectory.lean", "comments": 28, "lines": 61, "fingerprints": [
     "041dbd113346601a",
     "0810dde461cc59fa",
     "1477930a95246b60",
@@ -6002,7 +6002,6 @@
     "33814f414db86b81",
     "380744f20f7e3720",
     "3be9ed257e87c235",
-    "618c694b192c334f",
     "71db34ba49b21e6a",
     "7ab808deccd73a3e",
     "807c9837e330a109",
@@ -6059,7 +6058,7 @@
     "f6b4d669becc3783",
     "f78a201145db0c2d"
   ]},
-  {"file": "lean/Acorn/Host/Viewer/Supervision.lean", "comments": 179, "lines": 247, "fingerprints": [
+  {"file": "lean/Acorn/Host/Viewer/Supervision.lean", "comments": 178, "lines": 246, "fingerprints": [
     "01dec822b1cccc57",
     "02f4d657275b7efd",
     "038d2adedcd77d18",
@@ -6186,7 +6185,6 @@
     "b2522b4965185bdf",
     "b33cc4d3565dcf54",
     "b51fff22d033c9eb",
-    "b6435d14b47bae41",
     "b78977cf646d3381",
     "b946ace55100ce2e",
     "bc1000fa31422205",

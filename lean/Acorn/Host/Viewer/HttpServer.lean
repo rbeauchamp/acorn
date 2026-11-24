@@ -95,7 +95,7 @@ private def refused : Async (Response Body.Any) :=
 private def controlTimeout : Std.Time.Millisecond.Offset := 10000
 
 private def stopDiagnostic (reason : String) : String :=
-  if reason.isEmpty then "stop could not be persisted" else reason
+  if reason.isEmpty then "stop persistence was not confirmed" else reason
 
 private def controlResponse : ControlResult → ContextAsync (Response Body.Any)
   | .accepted => response .accepted (.mk "application/json") "{\"ok\":true}".toUTF8
@@ -124,11 +124,11 @@ private def promiseSelector {α : Type} (task : Task (Option α)) : Selector (Op
 private def awaitControl (task : Task (Option ControlResult)) : ContextAsync ControlResult := do
   Selectable.one #[
     .case (promiseSelector task) fun outcome =>
-      pure (outcome.getD (.unconfirmed "supervisor stopped before persisting stop")),
+      pure (outcome.getD (.unconfirmed "supervisor stopped before confirming stop")),
     .case (← ContextAsync.doneSelector) fun _ =>
       pure (.unconfirmed "viewer shutdown interrupted stop request"),
     .case (← Selector.sleep controlTimeout) fun _ =>
-      pure (.unconfirmed "timed out waiting for stop persistence")
+      pure (.unconfirmed "timed out waiting for stop confirmation")
   ]
 
 private def HttpViewer.control (viewer : HttpViewer) (request : Request Body.Stream) :

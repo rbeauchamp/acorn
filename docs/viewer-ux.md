@@ -498,8 +498,9 @@ Rules that apply to every number, label and colour on the page.
   refused before execution (supervisor queue full, unavailable, or mailbox
   closing), and returns `503` (`{"ok":false,"unconfirmed":true,"reason":...}`)
   if persisting fails, the 10-second HTTP wait times out, or viewer shutdown
-  interrupts the wait. Timing out ends only the HTTP wait — the Stop remains
-  queued and can still persist later — and a persistence error on a live run can
+  interrupts the wait. Timing out ends only the HTTP wait and does not cancel
+  the Stop (it may still be queued, already executing in the actor, or already
+  published before waiter resolution), and a persistence error on a live run can
   still request child wind-up or leave a pending Clear replacement revised to
   stopped; a lost connection or abrupt crash can leave the browser with no HTTP
   response at all. In all non-`202` cases the page raises the matching fault
@@ -1032,7 +1033,11 @@ What each panel must show. How it draws it is the code's.
   endpoint before the publication is only queued; it is handled afterwards if
   the start-up goes on, and is lost with the viewer if the start-up fails
   after the publication. If the publication itself fails, the viewer exits
-  with that error before its ready line, and the file is still the original.
+  with that error before its ready line: a failure before the rename leaves the
+  original file intact, whereas an indeterminate rename error (such as
+  POSIX.1-2017 `rename` EIO or Linux NFS rename-despite-error) may leave either
+  the original file or the newly renamed stopped file on disk, in which case the
+  next launch reads whichever entry is present and gives that entry's reason.
   A viewer that fails once its listener is bound ends through its shutdown,
   whose turns step the supervisor to close it and can write the map; no turn
   on that path takes a command from the queue. An operator who starts the viewer directly on a run
@@ -1068,8 +1073,8 @@ What each panel must show. How it draws it is the code's.
   `503` without acknowledging if refused before execution (queue full,
   unavailable, or mailbox closing) or if persistence is unconfirmed (writing
   fails, viewer shutdown interrupts the wait, or the 10-second HTTP wait times
-  out, which leaves the queued Stop eligible to execute later; directory entries
-  are not fsynced, so power-loss durability is not claimed, and a lost
+  out, which ends only the HTTP wait without cancelling the Stop; directory
+  entries are not fsynced, so power-loss durability is not claimed, and a lost
   connection or abrupt crash can yield no HTTP response). The no-later-Start
   condition is ordered in supervisor processing order starting from that
   acknowledging resolution (not browser HTTP receipt time, so a concurrent Start

@@ -345,9 +345,9 @@ def stop (core : Core) : Core := core.moveTo (core.lifecycle.request .stop)
 waits to be published. -/
 def mapWritable (core : Core) : Bool := core.owner == .current && core.replacement.isNone
 
-/-- A command's intent could not be saved: the core still winds up, and nothing starts. -/
 def intentFailed (core : Core) (reason : String) (refuseStop : Bool := false) : Stepped :=
-  ⟨core.stop.report .failed s!"intent could not be saved; process wind-up requested: {reason}",
+  ⟨core.stop.report .failed
+    s!"intent write failed (persistence unconfirmed); process wind-up requested: {reason}",
     [], if refuseStop then [.refuseStop reason] else []⟩
 
 /-- An operator command from the bounded queue. A disabled Clear changes nothing. While a
@@ -679,7 +679,8 @@ def resolve (core : Core) (now : Nat) :
     let state : PersistedState := ⟨identity, intended, .cleared, false⟩
     ⟨{ core with replacement := some state, pending := some (.replacement state) }, [], []⟩
   | .replacement _ ackStop, .error reason =>
-    ⟨core.report .failed s!"old run archived; replacement state not published: {reason}", [],
+    ⟨core.report .failed
+      s!"old run archived; replacement state write failed (publication unconfirmed): {reason}", [],
       if ackStop then [.refuseStop reason] else []⟩
   | .replacement state ackStop, .ok () =>
     let stepped := core.replaced state
