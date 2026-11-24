@@ -827,8 +827,7 @@ def checkLakeArgs (wsDir : String) (expectedCfg : String) (lakeArgs : Array Stri
     else if arg == "--no-cache" then
       sawNoCache := true
       i := i + 1
-    else if #["--wfail", "--iofail", "-q", "--quiet", "-v", "--verbose",
-        "--old", "--rehash", "-R", "--reconfigure"].contains arg then
+    else if #["--wfail", "--iofail", "-q", "--quiet", "-v", "--verbose"].contains arg then
       i := i + 1
     else
       throw s!"disallowed Lake argument '{arg}' in {wsDir}.lakeArgs"

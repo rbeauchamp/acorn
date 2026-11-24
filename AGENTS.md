@@ -179,7 +179,7 @@ proposed head before a pull request opens, runs the same command and, outside
 (`.no-comments.json`, `comment-ratchet.json`, `lean/no-comments.pin`); GitHub
 runs the same checks on a pull request's head commit when it is opened or
 reopened and at every push to it (`.github/workflows/verify.yml`), bounded by
-calibrated job and step `timeout-minutes` limits with per-phase
+explicit job and step `timeout-minutes` limits with per-phase
 `$GITHUB_STEP_SUMMARY` timings and `::warning::` budget alerts. Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
