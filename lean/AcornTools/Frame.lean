@@ -354,7 +354,7 @@ def verify (file : System.FilePath) : IO Bool := do
 
 def pinFiles : IO (Array System.FilePath) := do
   let prefixPath := "AcornVerif/Targets/"
-  let tracked ← AcornTrackedFiles.listTracked "." (some "lean/")
+  let tracked ← AcornTrackedFiles.listTracked "." "lean/"
   let mut sawTarget := false
   let mut files : Array System.FilePath := #[]
   for rel in tracked do

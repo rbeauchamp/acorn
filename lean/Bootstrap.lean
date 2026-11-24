@@ -142,160 +142,196 @@ def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
 private def stripNewline (text : String) : String :=
   (text.dropEndWhile fun c => c == '\n' || c == '\r').toString
 
-private def symlinkMetadata? (path : System.FilePath) : IO (Option IO.FS.Metadata) :=
-  try some <$> path.symlinkMetadata catch error =>
-    if error matches .noFileOrDirectory .. then pure none else throw error
+private def isHexOid (value : String) : Bool :=
+  (value.length == 40 || value.length == 64) &&
+    value.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f'))
 
-private def isBlockedLakeFlag (arg : String) : Bool :=
-  arg == "--file" || arg.startsWith "--file=" ||
-    arg == "--dir" || arg.startsWith "--dir=" ||
-    (arg.startsWith "-" && !arg.startsWith "--" &&
-      (arg.contains 'f' || arg.contains 'd'))
+private def splitFirstChar (s : String) (sep : Char) : String × Option String :=
+  match s.splitOn (String.singleton sep) with
+  | [] => ("", none)
+  | [only] => (only, none)
+  | head :: rest => (head, some (String.intercalate (String.singleton sep) rest))
+
+private def longLakeOptsWithArg : Array String := #[
+  "--package", "--service", "--scope", "--repo", "--platform", "--toolchain", "--rev",
+  "--max-revs", "--log-level", "--fail-level", "--packages", "--dir", "--file",
+  "--linters", "--lint-only", "--checks", "--only", "--add-downstream",
+  "--add-public-downstream", "--config", "--from-export", "--challenge-from-export",
+  "--solution-from-export"
+]
+
+private def scanLakeOptions : Nat → List String → Bool → IO Unit
+  | 0, _, _ => throw (IO.userError "Lake option validation exceeded step bound")
+  | _ + 1, [], _ => pure ()
+  | fuel + 1, arg :: rest, stopAtPositional => do
+    if arg.isEmpty then
+      scanLakeOptions fuel rest stopAtPositional
+    else if arg.length > 1 && arg.startsWith "-" then
+      if arg == "--" then
+        return
+      else if arg.startsWith "--" then
+        let (lhs, eqVal?) := splitFirstChar arg '='
+        let afterEq := match eqVal? with | some v => v :: rest | none => rest
+        let (optName, spVal?) := splitFirstChar lhs ' '
+        let nextArgs := match spVal? with | some v => v :: afterEq | none => afterEq
+        if optName == "--file" || optName == "--dir" || optName == "--packages" then
+          throw (IO.userError s!"disallowed Lake override option in bootstrap invocation: {optName}")
+        let remaining := if longLakeOptsWithArg.contains optName then nextArgs.drop 1 else nextArgs
+        scanLakeOptions fuel remaining stopAtPositional
+      else
+        let chars := arg.toList
+        match chars[1]? with
+        | none => pure ()
+        | some c =>
+          let nextArgs :=
+            if chars.length == 2 then rest
+            else match chars[2]? with
+              | some '=' => (arg.drop 3).toString :: rest
+              | some ' ' => (arg.drop 2).trimAsciiStart.toString :: rest
+              | _ => (arg.drop 2).toString :: rest
+          if c == 'f' || c == 'd' then
+            throw (IO.userError s!"disallowed Lake override option in bootstrap invocation: -{c}")
+          let remaining := if c == 'K' || c == 'o' then nextArgs.drop 1 else nextArgs
+          scanLakeOptions fuel remaining stopAtPositional
+    else if stopAtPositional then
+      return
+    else
+      scanLakeOptions fuel rest stopAtPositional
 
 private def validateCallerArgs (args : List String) : IO Unit := do
   if args == ["provision-status"] ||
       args == ["script", "run", "acornTargets"] ||
       args == ["script", "run", "intentLibraries"] then
     return
+  let fuel (xs : List String) : Nat :=
+    3 * (xs.foldl (fun acc s => acc + s.length + 1) 1) + 1
   match args with
   | "build" :: rest | "query" :: rest =>
-    for arg in rest do
-      if isBlockedLakeFlag arg then
-        throw (IO.userError s!"disallowed Lake override option in bootstrap invocation: {arg}")
-  | "exe" :: target :: _ =>
-    if target.isEmpty || target.startsWith "-" then
-      throw (IO.userError s!"invalid executable target: {target}")
-  | ["env"] => pure ()
-  | "env" :: cmd :: _ =>
-    if cmd.isEmpty || cmd.startsWith "-" then
-      throw (IO.userError s!"invalid env command: {cmd}")
+    scanLakeOptions (fuel rest) rest false
+  | "exe" :: rest | "env" :: rest =>
+    scanLakeOptions (fuel rest) rest true
   | _ =>
     throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
 
-private def checkPkgContainment (pkgDir : System.FilePath) (pkgName shadowName : String) :
-    IO Unit := do
-  let some pkgMeta ← symlinkMetadata? pkgDir
-    | throw (IO.userError s!"missing package directory: {pkgName}")
-  unless pkgMeta.type == .dir do
-    throw (IO.userError s!"non-directory package path: {pkgName}")
-  if (← symlinkMetadata? (pkgDir / shadowName)).isSome then
-    throw (IO.userError s!"unexpected Lake config shadow: {pkgName}/{shadowName}")
-  let lakeDir := pkgDir / ".lake"
-  let some lakeMeta ← symlinkMetadata? lakeDir | return
-  unless lakeMeta.type == .dir do
-    throw (IO.userError s!"non-directory Lake directory: {pkgName}/.lake")
-  if (← symlinkMetadata? (lakeDir / "package-overrides.json")).isSome then
-    throw (IO.userError s!"unbound {pkgName}/.lake/package-overrides.json; remove the ambient override")
-  for fileName in ["acorn-path-packages.json", "acorn-tracked-modules.z"] do
-    if let some fileMeta ← symlinkMetadata? (lakeDir / fileName) then
-      unless fileMeta.type == .file do
-        throw (IO.userError s!"non-regular Lake cache file: {pkgName}/.lake/{fileName}")
-  if let some configMeta ← symlinkMetadata? (lakeDir / "config") then
-    unless configMeta.type == .dir do
-      throw (IO.userError s!"non-directory Lake config cache: {pkgName}/.lake/config")
+private def requiresCleanHead (args : List String) : Bool :=
+  match args with
+  | "exe" :: rest => rest != ["acorn-gates", "site", "write"]
+  | _ => false
 
-private def verifyTrackedConfigFile (rel : String) : IO Unit := do
-  regularFile rel
-  let out ← IO.Process.output {
-    cmd := "git",
-    args := #["--literal-pathspecs", "-C", ".", "-c", "core.quotePath=false", "ls-files",
-      "--stage", "-z", "--", rel],
-    stdin := .null }
-  unless out.exitCode == 0 do
-    throw (IO.userError s!"git ls-files failed for {rel}: {out.stderr}")
-  let records := (out.stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
-  let [record] := records | throw (IO.userError s!"path is not tracked: {rel}")
-  let [metaPart, path] := record.splitOn "\t"
-    | throw (IO.userError s!"malformed git ls-files record: {record}")
-  let [mode, _, stage] := metaPart.splitOn " "
-    | throw (IO.userError s!"malformed git ls-files metadata: {metaPart}")
-  unless (mode == "100644" || mode == "100755") && stage == "0" && path == rel do
-    throw (IO.userError s!"path is not a tracked regular file: {rel}")
-
-private def removeRegularIfExists (path : System.FilePath) : IO Unit := do
-  if let some m ← symlinkMetadata? path then
-    unless m.type == .file do
-      throw (IO.userError s!"non-regular cached config entry: {path}")
-    try IO.FS.removeFile path catch error =>
-      if error matches .noFileOrDirectory .. then pure () else throw error
-
-private def isAcornConfigTrace (tracePath : System.FilePath) : IO Bool := do
-  let some m ← symlinkMetadata? tracePath | return true
-  unless m.type == .file do
-    throw (IO.userError s!"non-regular cached trace entry: {tracePath}")
-  let parsed? := (Json.parse (← IO.FS.readFile tracePath)).toOption
-  match parsed? >>= fun json => (json.getObjValAs? String "name").toOption with
-  | some "[anonymous]" => return true
-  | some "acorn" => return true
-  | none => return true
-  | some _ => return false
-
-private def clearLakeConfigCache (lakeDir : System.FilePath) : IO Unit := do
-  let configDir := lakeDir / "config"
-  let some m ← symlinkMetadata? configDir | return
-  unless m.type == .dir do
-    throw (IO.userError s!"non-directory Lake config cache: {configDir}")
-  for entry in ← configDir.readDir do
-    unless !entry.fileName.isEmpty && entry.fileName.toList.all (·.isDigit) do continue
-    let some em ← symlinkMetadata? entry.path | continue
-    unless em.type == .dir do
-      throw (IO.userError s!"non-directory Lake config entry: {entry.path}")
-    let tracePath := entry.path / "lakefile.olean.trace"
-    if ← isAcornConfigTrace tracePath then
-      removeRegularIfExists (entry.path / "lakefile.olean")
-      removeRegularIfExists tracePath
-
-private def syncTrackedConfigTrace : IO Unit := do
+private def admitTrackedHelper (requireClean : Bool) : IO System.FilePath := do
   let topOut ← IO.Process.output {
-    cmd := "git", args := #["-C", ".", "rev-parse", "--show-toplevel"], stdin := .null }
+    cmd := "git", args := #["--no-optional-locks", "-C", ".", "rev-parse", "--show-toplevel"],
+    stdin := .null }
   unless topOut.exitCode == 0 do
     throw (IO.userError s!"git rev-parse --show-toplevel failed: {topOut.stderr}")
   let prefixOut ← IO.Process.output {
-    cmd := "git", args := #["-C", ".", "rev-parse", "--show-prefix"], stdin := .null }
+    cmd := "git", args := #["--no-optional-locks", "-C", ".", "rev-parse", "--show-prefix"],
+    stdin := .null }
   unless prefixOut.exitCode == 0 do
     throw (IO.userError s!"git rev-parse --show-prefix failed: {prefixOut.stderr}")
   unless stripNewline prefixOut.stdout == "lean/" do
-    throw (IO.userError s!"unexpected git prefix in lean directory")
-  let expectedDir := System.FilePath.mk (stripNewline topOut.stdout) / "lean"
-  unless (← IO.FS.realPath expectedDir) == (← IO.FS.realPath ".") do
+    throw (IO.userError "unexpected git prefix in lean directory")
+  let repoRoot := System.FilePath.mk (stripNewline topOut.stdout)
+  unless (← IO.FS.realPath (repoRoot / "lean")) == (← IO.FS.realPath ".") do
     throw (IO.userError "git root mismatch in lean directory")
-  checkPkgContainment "." "lean" "lakefile.toml"
-  checkPkgContainment "../site" "site" "lakefile.lean"
-  verifyTrackedConfigFile "lean-toolchain"
-  verifyTrackedConfigFile "lakefile.lean"
-  verifyTrackedConfigFile "lake-manifest.json"
-  let out ← IO.Process.output {
+  let scriptsMeta ← (repoRoot / "scripts").symlinkMetadata
+  unless scriptsMeta.type == .dir do
+    throw (IO.userError "scripts is not a real directory")
+  let helper := repoRoot / "scripts/tracked-files.sh"
+  let helperMeta ← helper.symlinkMetadata
+  unless helperMeta.type == .file do
+    throw (IO.userError "scripts/tracked-files.sh is not a regular file")
+  let stageOut ← IO.Process.output {
     cmd := "git",
-    args := #["-C", ".", "-c", "core.quotePath=false", "ls-files", "--stage", "-z",
-      "--", "*.lean"],
+    args := #["--no-optional-locks", "--literal-pathspecs", "-C", repoRoot.toString,
+      "-c", "core.quotePath=false", "ls-files", "--stage", "-z", "--", "scripts/tracked-files.sh"],
     stdin := .null }
+  unless stageOut.exitCode == 0 do
+    throw (IO.userError s!"git ls-files failed for scripts/tracked-files.sh: {stageOut.stderr}")
+  let records := (stageOut.stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
+  let [record] := records | throw (IO.userError "scripts/tracked-files.sh is not tracked")
+  let [metaPart, path] := record.splitOn "\t"
+    | throw (IO.userError s!"malformed git ls-files record: {record}")
+  let [mode, oid, stage] := metaPart.splitOn " "
+    | throw (IO.userError s!"malformed git ls-files metadata: {metaPart}")
+  unless (mode == "100644" || mode == "100755") && stage == "0" &&
+      path == "scripts/tracked-files.sh" && isHexOid oid do
+    throw (IO.userError "scripts/tracked-files.sh is not a stage-0 tracked regular file")
+  if requireClean then
+    let headOut ← IO.Process.output {
+      cmd := "git", args := #["--no-optional-locks", "-C", repoRoot.toString,
+        "rev-parse", "--verify", "-q", "HEAD"], stdin := .null }
+    unless headOut.exitCode == 0 do
+      throw (IO.userError "HEAD commit is unavailable")
+    let cachedOut ← IO.Process.output {
+      cmd := "git", args := #["--no-optional-locks", "-C", repoRoot.toString,
+        "diff-index", "--cached", "--quiet", "--ignore-submodules=none", "HEAD", "--",
+        "scripts/tracked-files.sh"], stdin := .null }
+    unless cachedOut.exitCode == 0 do
+      throw (IO.userError "scripts/tracked-files.sh has staged changes differing from HEAD")
+    let wtOut ← IO.Process.output {
+      cmd := "git", args := #["--no-optional-locks", "-C", repoRoot.toString,
+        "-c", "core.symlinks=true", "-c", "core.fsmonitor=false",
+        "diff", "--no-ext-diff", "--no-textconv", "--quiet", "--ignore-submodules=none",
+        "HEAD", "--", "scripts/tracked-files.sh"], stdin := .null }
+    unless wtOut.exitCode == 0 do
+      throw (IO.userError "scripts/tracked-files.sh has working-copy changes differing from HEAD")
+    let flagOut ← IO.Process.output {
+      cmd := "git", args := #["--no-optional-locks", "--literal-pathspecs", "-C", repoRoot.toString,
+        "-c", "core.quotePath=false", "ls-files", "-v", "-z", "--", "scripts/tracked-files.sh"],
+      stdin := .null }
+    let vrecords := (flagOut.stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
+    unless flagOut.exitCode == 0 && vrecords == ["H scripts/tracked-files.sh"] do
+      throw (IO.userError "scripts/tracked-files.sh has non-clean Git index flags")
+  return repoRoot
+
+private def syncTrackedConfigTrace (requireClean : Bool) : IO Unit := do
+  let repoRoot ← admitTrackedHelper requireClean
+  let helper := repoRoot / "scripts/tracked-files.sh"
+  let helperArgs := if requireClean then
+    #["sync-config", "--clean", repoRoot.toString]
+  else
+    #["sync-config", repoRoot.toString]
+  let out ← IO.Process.output { cmd := helper.toString, args := helperArgs, stdin := .null }
   unless out.exitCode == 0 do
-    throw (IO.userError s!"git ls-files *.lean failed: {out.stderr}")
-  if out.stdout.isEmpty then
-    throw (IO.userError "git ls-files *.lean returned no tracked modules")
-  let desired := out.stdout.toUTF8
-  let stampPath : System.FilePath := ".lake/acorn-tracked-modules.z"
-  let current? ← try some <$> IO.FS.readBinFile stampPath catch error =>
-    if error matches .noFileOrDirectory .. then pure none else throw error
-  unless current? == some desired do
-    clearLakeConfigCache ".lake"
-    clearLakeConfigCache "../site/.lake"
-    IO.FS.createDirAll ".lake"
-    let tmp : System.FilePath := s!"{stampPath}.{← IO.Process.getPID}.tmp"
-    if (← symlinkMetadata? tmp).isSome then
-      throw (IO.userError s!"existing temporary stamp path: {tmp}")
-    try
-      IO.FS.writeBinFile tmp desired
-      IO.FS.rename tmp stampPath
-    catch error =>
-      try IO.FS.removeFile tmp catch _ => pure ()
-      throw error
+    throw (IO.userError (out.stderr ++ out.stdout).trimAscii.toString)
+
+private def byteHex (b : UInt8) : String :=
+  let digits := "0123456789abcdef".toList
+  let hi := digits[(b >>> 4).toNat]?.getD '0'
+  let lo := digits[(b &&& 0x0f).toNat]?.getD '0'
+  String.ofList [hi, lo]
+
+private def randomHex8 : IO String := do
+  let bytes ← IO.getRandomBytes 8
+  let mut out := ""
+  for b in bytes.data do
+    out := out ++ byteHex b
+  return out
+
+private def writeFileAtomicExclusive (path : System.FilePath) (text : String) : IO Unit := do
+  let pid ← IO.Process.getPID
+  for _ in [:16] do
+    let suffix ← randomHex8
+    let tmp : System.FilePath := s!"{path}.{pid}.{suffix}.tmp"
+    let handle? ← try some <$> IO.FS.Handle.mk tmp .writeNew catch error =>
+      if error matches .alreadyExists .. then pure none else throw error
+    if let some h := handle? then
+      try
+        h.putStr text
+        h.flush
+        IO.FS.rename tmp path
+      catch error =>
+        try IO.FS.removeFile tmp catch _ => pure ()
+        throw error
+      return
+  throw (IO.userError s!"unable to allocate exclusive temporary file for {path}")
 
 /-- Invoke Lake only after local dependency admission. -/
 def run (args : List String) : IO UInt32 := do
   silentElaboration
   validateCallerArgs args
-  syncTrackedConfigTrace
+  syncTrackedConfigTrace (requiresCleanHead args)
   let (contents, available) ← overrides
   let path : System.FilePath := ".lake/acorn-path-packages.json"
   -- Lake validates its configuration trace against source and toolchain changes;
@@ -306,15 +342,7 @@ def run (args : List String) : IO UInt32 := do
     let text := contents.compress ++ "\n"
     let current ← try some <$> IO.FS.readFile path catch _ => pure none
     unless current == some text do
-      let tmp : System.FilePath := s!"{path}.{← IO.Process.getPID}.tmp"
-      if (← symlinkMetadata? tmp).isSome then
-        throw (IO.userError s!"existing temporary override path: {tmp}")
-      try
-        IO.FS.writeFile tmp text
-        IO.FS.rename tmp path
-      catch error =>
-        try IO.FS.removeFile tmp catch _ => pure ()
-        throw error
+      writeFileAtomicExclusive path text
   let ready ← if available then dependencyImportsBuilt path else pure false
   if args == ["provision-status"] then return if ready then 0 else 2
   unless ready do

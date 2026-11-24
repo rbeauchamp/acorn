@@ -19,12 +19,47 @@
 # (docs/verification.md#regula-audit).
 set -euo pipefail
 repo_root=$(cd "$(dirname "$0")/.." && pwd -P)
-[[ ! -L "$repo_root/scripts" && -d "$repo_root/scripts" && ! -L "$repo_root/scripts/tracked-files.sh" && -f "$repo_root/scripts/tracked-files.sh" ]] || {
-  echo "regula: missing non-symlink scripts/tracked-files.sh" >&2
+admit_tracked_helper() {
+  local root="$1" require_clean="$2" top prefix real_root real_top
+  local rec='' line meta path mode oid stage extra count=0 vrec='' vcount=0
+  local helper='scripts/tracked-files.sh'
+  [[ -n "$root" && ! -L "$root" && -d "$root" && ! -L "$root/scripts" && -d "$root/scripts" &&
+    ! -L "$root/$helper" && -f "$root/$helper" ]] || return 1
+  top=$(git --no-optional-locks -C "$root" rev-parse --show-toplevel) || return 1
+  prefix=$(git --no-optional-locks -C "$root" rev-parse --show-prefix) || return 1
+  [[ -n "$top" && -z "$prefix" ]] || return 1
+  real_root=$(cd "$root" && pwd -P) || return 1
+  real_top=$(cd "$top" && pwd -P) || return 1
+  [[ "$real_root" == "$real_top" ]] || return 1
+  while IFS= read -r -d '' line; do
+    rec="$line"
+    count=$((count + 1))
+  done < <(git --no-optional-locks --literal-pathspecs -C "$root" -c core.quotePath=false ls-files --stage -z -- "$helper")
+  (( count == 1 )) || return 1
+  meta="${rec%%$'\t'*}"
+  path="${rec#*$'\t'}"
+  IFS=' ' read -r mode oid stage extra <<< "$meta"
+  [[ "$meta" != "$rec" && -z "${extra:-}" && "$path" == "$helper" &&
+    "$stage" == "0" && ( "$mode" == "100644" || "$mode" == "100755" ) &&
+    "$oid" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || return 1
+  if [[ "$require_clean" == 1 ]]; then
+    git --no-optional-locks -C "$root" rev-parse --verify -q HEAD >/dev/null || return 1
+    git --no-optional-locks -C "$root" diff-index --cached --quiet --ignore-submodules=none HEAD -- "$helper" || return 1
+    git --no-optional-locks -C "$root" -c core.symlinks=true -c core.fsmonitor=false diff --no-ext-diff --no-textconv --quiet --ignore-submodules=none HEAD -- "$helper" || return 1
+    while IFS= read -r -d '' line; do
+      vrec="$line"
+      vcount=$((vcount + 1))
+    done < <(git --no-optional-locks --literal-pathspecs -C "$root" -c core.quotePath=false ls-files -v -z -- "$helper")
+    [[ "$vcount" == 1 && "$vrec" == "H $helper" ]] || return 1
+  fi
+}
+
+admit_tracked_helper "$repo_root" 1 || {
+  echo "regula: scripts/tracked-files.sh failed pre-execution Git admission" >&2
   exit 1
 }
-"$repo_root/scripts/tracked-files.sh" admit-file "$repo_root" scripts/tracked-files.sh scripts/regula.sh
-"$repo_root/scripts/tracked-files.sh" sync-config "$repo_root"
+"$repo_root/scripts/tracked-files.sh" admit-file --clean "$repo_root" scripts/tracked-files.sh scripts/regula.sh
+"$repo_root/scripts/tracked-files.sh" sync-config --clean --for-regula "$repo_root"
 cd "$repo_root/lean"
 # With REGULA_FULL set, `lake lint` runs Regula's full gate on the directory it names, which is
 # not the published route of the proof verdict.

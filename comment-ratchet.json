@@ -9179,12 +9179,11 @@
     "f6b4d669becc3783",
     "fe7573297de2791c"
   ]},
-  {"file": "lean/AcornTools/OwnershipSource.lean", "comments": 8, "lines": 19, "fingerprints": [
+  {"file": "lean/AcornTools/OwnershipSource.lean", "comments": 7, "lines": 18, "fingerprints": [
     "189dc155ef05c417",
     "1ebe3de5c52c54e3",
     "3a0693e284a6c23e",
     "4a8291a41390b4b4",
-    "7b2dd65a5c9ae8fe",
     "8cbdbcfd00ac9777",
     "93724ff27411d21f",
     "f6b4d669becc3783"

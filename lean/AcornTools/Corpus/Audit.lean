@@ -147,7 +147,7 @@ def priorArtTexts (reviewText design frontier : String) : IO Unit := do
 retains document checks and cannot substitute for the complete suite. -/
 unsafe def check (documentsOnly : Bool := false)
     (env? : Option Lean.Environment := none) : IO Unit := do
-  let tracked ← AcornTrackedFiles.listTracked "." (some "")
+  let tracked ← AcornTrackedFiles.listTracked "." ""
   let paths ← corpusFilesFrom tracked
   unless documentsOnly do
     for path in paths do language path

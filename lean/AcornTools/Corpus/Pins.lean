@@ -68,8 +68,8 @@ def checkTexts (documents : Array (String × String)) (verification readiness : 
 
 /-- The maintained documentation binds every current audit arm to its pin. -/
 def check (documents : Array (String × String)) : IO Unit := do
-  AcornTrackedFiles.ensureTrackedRegular "." (some "") "docs/verification.md"
-  AcornTrackedFiles.ensureTrackedRegular "." (some "") "docs/frontier.md"
+  AcornTrackedFiles.ensureTrackedRegular "." "" "docs/verification.md"
+  AcornTrackedFiles.ensureTrackedRegular "." "" "docs/frontier.md"
   checkTexts documents (← IO.FS.readFile "docs/verification.md")
     (← IO.FS.readFile "docs/frontier.md")
 

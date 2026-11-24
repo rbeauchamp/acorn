@@ -261,7 +261,7 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
     if let .tags tags := rule then
       for tag in tags do names := names.insert tag
   names := names.insert "main"
-  AcornTrackedFiles.ensureTrackedRegular "." (some "") "viewer/static/index.html"
+  AcornTrackedFiles.ensureTrackedRegular "." "" "viewer/static/index.html"
   let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
   let words := (String.ofList (browser.toList.map (fun c =>
     if c.isAlphanum || c == '_' || c == '$' then c else ' '))).splitOn " " |>.filter (!·.isEmpty)
@@ -285,11 +285,12 @@ Only maintained module owners contribute names; imported libraries do not make
 an otherwise missing project declaration appear present. -/
 unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
   let package : System.FilePath := "lean"
+  AcornTrackedFiles.ensureTrackedRegular "." "" "scripts/lean.sh"
   let setup ← IO.Process.output {
     cmd := "./scripts/lean.sh", args := #["env", "lean", "--print-prefix"] }
   unless setup.exitCode == 0 do throw (IO.userError setup.stderr)
   let sysroot : System.FilePath := setup.stdout.trimAscii.toString
-  AcornTrackedFiles.ensureTrackedRegular "." (some "") "lean/lake-manifest.json"
+  AcornTrackedFiles.ensureTrackedRegular "." "" "lean/lake-manifest.json"
   let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile (package / "lake-manifest.json")))
   let dependencies ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages")
   let mut paths := [package / ".lake/build/lib/lean"]

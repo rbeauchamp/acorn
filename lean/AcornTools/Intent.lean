@@ -6,6 +6,7 @@ Authors: acorn contributors
 import LeanIntent.Confirmation.Read
 import LeanIntent.Implementation.Read
 import AcornVerif.Intent.Awaiting
+import AcornTools.TrackedFiles
 
 /-! # `intent-check` executable
 
@@ -138,6 +139,7 @@ def inEnvironment {α : Type} (env : Environment) (x : MetaM α) : IO (α × Nat
 initializers must run for the imported environment's extensions to load, as for every reader of a
 compiled environment. -/
 unsafe def run : IO Bool := do
+  AcornTrackedFiles.verifyGitRoot ".." "" true
   let (libraries, modules) ← projectModules
   initSearchPath (← findSysroot)
   enableInitializersExecution

@@ -66,10 +66,12 @@ runs it only where the person it works for has agreed to that, and it
 provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
 available. The bootstrap status that decides this admits the Lean package's
-configuration and `.lake` containment, writes only the launcher's own
-override file and tracked-module stamp (clearing only Acorn's cached
-configuration traces when tracked Lean modules change) without building any
-Lean or C target, and asks Lake whether the FloatLib modules the proof
+configuration, tracked sources and `.lake` containment (including package
+configuration cache directories and files), writes only the launcher's own
+override file and tracked-module stamp atomically through exclusive temporary
+files (clearing only Acorn's confirmed cached configuration traces when tracked
+Lean modules change) without building any Lean or C target, and asks Lake
+whether the FloatLib modules the proof
 bridge imports, the lean-intent modules that the intent bridge and the gate's
 lean-intent checker `lean/AcornTools/Intent.lean` import, the native objects of the
 lean-intent modules that checker links, and the Regula modules the decision
@@ -185,14 +187,17 @@ native target is built and checked against Lake's evaluated targets and compiled
 entry owners; each executable root must be a maintained module. Ownership
 admission refuses a facet-qualified build key in the root package's Lake
 configuration. The [Lake configuration](../lean/lakefile.lean) documents the
-restriction and its pinned-Lake rationale. Before any Lake command,
-`Bootstrap.lean` must elaborate with no message, reject `-f`/`--file`/`-d`/`--dir`
-overrides on `build` and `query`, and run Lake explicitly
-against the tracked configuration (`-f lakefile.lean`, and `-f lakefile.toml`
-for the documentation site) with `--wfail`, so any warning, including a
-header-time warning such as a deprecated import, fails the build (while `scripts/regula.sh` preserves Regula's default `lake build --wfail` and
+restriction and its pinned-Lake rationale. Before any Lake command, `Bootstrap.lean` must elaborate with no message,
+reject `-f`/`--file`/`-d`/`--dir`/`--packages` overrides on build and query
+(and as leading Lake options on exe and env, while preserving `-K`
+configuration settings and executable or command arguments), and run Lake
+explicitly against the tracked configuration (`-f lakefile.lean`, and
+`-f lakefile.toml` for the documentation site) with `--wfail`, so any warning,
+including a header-time warning such as a deprecated import, fails the build
+(while `scripts/regula.sh` preserves Regula's default `lake build --wfail` and
 `lake lint` invocation after verifying `lean/lakefile.lean` and refusing any
-`lakefile.toml` shadow inside `lean/`). Source/compiled admission checks imports, capability
+`lakefile.toml` shadow inside `lean/`). Source/compiled admission checks
+imports, capability
 owners, artifact origins and native routes. The Regula audit, not ordinary
 verification, checks the axioms that each declaration of the claimed libraries
 depends on. The theorem inventory counts the theorem declarations and refuses a
@@ -445,32 +450,49 @@ The build tools enumerate Git-tracked files through `git ls-files --stage -z`
 directory to be regular, ignoring untracked working-copy files and run
 directories while failing closed on an empty or non-Git tree, unmerged stages,
 or any tracked symbolic link or non-regular entry, and check explicit
-inventories of the tool modules and of the native entries. Before any shell or
-Lake consumer reads them, `scripts/tracked-files.sh` and `lean/Bootstrap.lean`
-admit manifests (`lean/lake-manifest.json`, `site/lake-manifest.json`),
-toolchains (`lean/lean-toolchain`, `site/lean-toolchain`), Lake
-configurations (`lean/lakefile.lean`, `site/lakefile.toml`), `lean/Bootstrap.lean`,
-the verified shell scripts, `lean/no-comments.pin`, `.no-comments.json`, and
-`comment-ratchet.json`, and enforce non-symlink `.lake` and `.lake/config`
-workspace containment (refusing unbound `package-overrides.json` and shadow
-`lakefile.toml` under `lean/` or `lakefile.lean` under `site/`) on both cache-stamp hits
-and misses. Repository-relative document path references, browser assets, Lake
-manifests and native inputs likewise require tracked regular entries (with
-`lean/.lake` and `lean/.lake/packages` admitted only as directory references in
-documentation). When tracked Lean files change, `scripts/tracked-files.sh` and
-the bootstrap clear only Acorn's own cached `lakefile.olean` traces before
-invoking Lake (`-f lakefile.lean` through `Bootstrap.lean`, `-f lakefile.toml`
-under `site/`, and default workspace resolution after shadow-config refusal for
-`scripts/regula.sh`) so closed library globs cannot read a stale configuration
-cache, while `scripts/verify.sh` invokes `SHELLCHECK_OPTS='' shellcheck --norc`
-so ambient configuration cannot alter script checks. Note that admission checks
-Git's stage-0 index (`git ls-files --stage -z`, alongside `git diff --check`
-and `no-comments`'s internal index enumeration), so untracked working-copy
-entries cannot affect admission while hosted CI and validation runs check clean
-checkouts of the exact commit. Runtime `--research-profile` selects
-agent mechanisms; it does not change verification. Resource, route and compiler
-flag admission, browser byte generation, corpus and declaration checks always
-run. Missing or untracked referenced files fail admission.
+inventories of the tool modules and of the native entries. Each shell launcher
+(`scripts/gate.sh`, `scripts/verify.sh`, `scripts/lean.sh`, `scripts/regula.sh`)
+and `lean/Bootstrap.lean` admits `scripts/tracked-files.sh` directly against
+Git before executing it, and `scripts/gate.sh` admits its child scripts before
+launching them. Before any shell or Lake consumer reads them,
+`scripts/tracked-files.sh` admits manifests (`lean/lake-manifest.json`,
+`site/lake-manifest.json`), toolchains (`lean/lean-toolchain`,
+`site/lean-toolchain`), Lake configurations (`lean/lakefile.lean`,
+`site/lakefile.toml`), `lean/Bootstrap.lean`, the verified shell scripts,
+`lean/no-comments.pin`, `.no-comments.json`, and `comment-ratchet.json`. On
+both cache-stamp hits and misses, it validates every tracked source under
+`lean/` (and under `site/` for site commands) on disk as a current non-symlink
+regular file beneath non-symlink directories, and enforces real workspace-owned
+non-symlink containment across `.lake`, `.lake/config`, every package
+configuration cache directory, and `lakefile.olean`, trace and
+`lakefile.olean.lock` destinations (refusing ambient `package-overrides.json`
+in any active workspace, and refusing an untracked `lakefile.toml` inside
+`lean/` on the `scripts/regula.sh` route that uses Lake's default resolution).
+Repository-relative document path references, browser assets, Lake manifests
+and native inputs likewise require tracked regular entries (with `lean/.lake`
+and `lean/.lake/packages` admitted only as directory references in
+documentation). When tracked Lean files change, `scripts/tracked-files.sh`
+deletes only cached `lakefile.olean` and trace files whose parsed trace
+confirms Acorn ownership (leaving missing, malformed and other packages' traces
+untouched) and writes its stamp and override files atomically through exclusive
+temporary files before invoking Lake (`-f lakefile.lean` through
+`Bootstrap.lean`, `-f lakefile.toml` under `site/`, and default workspace
+resolution after shadow-config refusal for `scripts/regula.sh`), while
+`scripts/verify.sh` invokes `SHELLCHECK_OPTS='' shellcheck --norc` so ambient
+configuration cannot alter script checks. Verdict-producing commands
+(`./scripts/gate.sh`, `./scripts/verify.sh`, `./scripts/regula.sh`,
+`./scripts/lean.sh exe` outside `./scripts/verify.sh site write`, and the
+compiled audit tools) additionally require Git's index and working-copy tracked
+files to match the checked-out HEAD commit with no staged additions, removals
+or edits, no unstaged tracked changes, and no assume-unchanged or skip-worktree
+index flags (binding both membership and content to HEAD while keeping
+`git diff --check` and `no-comments`'s internal index lookup intact); direct
+development builds and `./scripts/verify.sh site write` still enforce stage-0
+regular-file tracked admission while permitting uncommitted edits to tracked
+files. Runtime `--research-profile` selects agent mechanisms; it does not
+change verification. Resource, route and compiler flag admission, browser byte
+generation, corpus and declaration checks always run. Missing or untracked
+referenced files fail admission.
 
 Numerical proofs use the executing Lean definitions. Native admission checks
 their compiler IR, primitive calls, resource contracts and compiler flags.
@@ -478,8 +500,12 @@ Primitive IEEE interpretation remains a native assumption.
 
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
-validates, and every gate check reads only Git-tracked regular files so
-untracked working-copy entries do not affect the verdict. GitHub runs the same
+validates, and every gate check reads only Git-tracked regular files matching
+HEAD so untracked working-copy entries do not enter checks or change the
+verdict, apart from the deliberate refusals of ambient `package-overrides.json`
+in an active workspace, non-regular or symlinked entries under `.lake`, and an
+untracked `lakefile.toml` inside `lean/` during `scripts/regula.sh`. GitHub
+runs the same
 script at each event that gives a pull request its head, within the limits
 described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
@@ -1094,11 +1120,14 @@ module on the way, and requires that the entry reaches each definition that
 compiled code.
 
 *Module inventory: the tools refuse more.* The Lake configuration sets
-`roots := #[]` on its libraries and constructs explicit per-module globs solely
-from Git-tracked regular `.lean` files below `lean/`. A new tracked source
+`roots := #[]` on its libraries, constructs explicit per-module globs solely
+from Git-tracked regular `.lean` files below `lean/`, and admits every declared
+executable's root module against that same tracked regular-file inventory
+during configuration elaboration and target discovery. A new tracked source
 below Acorn, AcornVerif or NativeApp is therefore a module of that library, the
-claim covers it, and Acorn's boundary predicates class it by its name; untracked
-files on disk are neither assigned nor buildable. The tools keep no written
+claim covers it, and Acorn's boundary predicates class it by its name;
+untracked files on disk are neither assigned to libraries nor buildable as
+library modules or executable roots. The tools keep no written
 list of those application modules. A new tracked source below
 `lean/AcornTools` is a module of a tool library outside the claim: ownership
 admission enumerates tracked regular `.lean` files from Git and requires each
@@ -1245,18 +1274,23 @@ Lake fetches nothing, and refuses to run until Lake reports pinned Verso built.
 The renderer runs in Lean's interpreter: a linked executable would compile the
 native code of every proof module a document imports. If the site check stops
 fitting the verification deadline, it becomes a separate check of the merge
-gate with its own bound; the deadline is not raised. At the shared
-site entry of `lean/AcornTools/Gate.lean` (covering both `./scripts/verify.sh site` and full
-verification) and before site provisioning, `site/lakefile.toml` sets
-`roots = []` with explicit module lists for AcornSite and AcornDocs,
-verification admits `site/lakefile.toml`, `site/lake-manifest.json`,
-`site/lean-toolchain`, `site/Main.lean`, `docs/verification.md`, and `.lake`
-containment, clears stale Acorn config traces, invokes Lake with
-`-f lakefile.toml`, admits the site's Git-tracked source inventory against
-`AcornOwnership.siteModules`, and requires `site/lake-manifest.json` to keep the
-exact Acorn path entry (`../lean`) and lock every dependency of
-`lean/lake-manifest.json` to the same revision, because both packages share one
-set of dependency checkouts.
+gate with its own bound; the deadline is not raised. At the shared site entry of `lean/AcornTools/Gate.lean` (covering
+`./scripts/verify.sh site`, `./scripts/verify.sh site write` and full
+verification) and before site provisioning in `scripts/gate.sh`,
+`scripts/tracked-files.sh` parses `site/lakefile.toml` and both lock manifests
+through Lake itself, requires `roots = []` and closed single-module globs whose
+effective module set together with `site/Main.lean` equals the Git-tracked
+regular `.lean` files under `site/` (and `AcornOwnership.siteModules`), admits
+`site/lakefile.toml`, `site/lake-manifest.json`, `site/lean-toolchain`,
+`site/Main.lean`, `docs/verification.md`, and `.lake` containment (without
+refusing unrelated `lakefile.lean` files under `site/`, since every site
+invocation passes `-f lakefile.toml`), synchronizes `lean/` tracked-module
+configuration traces, enforces unique decoded package names and checkout
+directories, requires the exact Acorn path requirement and manifest entry
+(`../lean` without copy), and requires every shared Git dependency of
+`lean/lake-manifest.json` to match in URL, revision, subdirectory (none),
+configuration file and manifest file, because both packages share one set of
+dependency checkouts.
 
 The site package is documentation tooling outside the Regula claim.
 [Verso](https://github.com/leanprover/verso), pinned in `site/lakefile.toml`, and

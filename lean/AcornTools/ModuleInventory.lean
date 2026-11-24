@@ -16,8 +16,8 @@ def toolingModules : Array Name := #[`AcornTools, `Bootstrap, `AcornTools.Bounda
   `AcornTools.Corpus.Audit, `AcornTools.Corpus.Main, `AcornTools.Boundary.Departures, `AcornTools.Corpus.Browser, `AcornTools.Corpus.Documents, `AcornTools.Corpus.Pins, `AcornTools.Native.Audit, `AcornTools.Native.Resources, `AcornTools.Native.Routes, `AcornTools.OwnershipSource, `AcornTools.Theorems, `AcornTools.TheoremCount, `AcornTools.AxiomPins, `AcornTools.Ownership, `AcornTools.OwnershipAudit, `AcornTools.Gate, `AcornTools.Intent, `AcornTools.Frame]
 
 def modulesUnder (root : System.FilePath) (skipped : Array String)
-    (expectedPrefix : Option String := none) : IO (Array Name) := do
-  let paths ← AcornTrackedFiles.listTracked root expectedPrefix
+    (expectedPrefix : String) (requireClean : Bool := true) : IO (Array Name) := do
+  let paths ← AcornTrackedFiles.listTracked root expectedPrefix requireClean
   let mut modules : Array Name := #[]
   for path in paths do
     let parts := path.splitOn "/"
@@ -34,7 +34,7 @@ def modulesUnder (root : System.FilePath) (skipped : Array String)
 
 def allModules (package : System.FilePath := ".") : IO (Array Name) :=
   modulesUnder package #[".lake", "lake-packages", ".git", ".DS_Store", "lakefile.lean"]
-    (some "lean/")
+    "lean/"
 
 /-- The libraries whose modules Lake's globs assign: `Acorn`, `AcornVerif`, `NativeApp` and
 `AcornDocument`, the default targets whose modules the Regula audit claims, and `Entry`,
@@ -43,8 +43,9 @@ entry in a written list. -/
 def libraryModule (name : Name) : Bool :=
   #[`Acorn, `AcornVerif, `NativeApp, `AcornDocument, `Entry].any (·.isPrefixOf name)
 
-def siteModules : IO (Array Name) :=
-  modulesUnder (System.FilePath.mk ".." / "site") #[".lake", "_out", ".DS_Store"] (some "site/")
+def siteModules (requireClean : Bool := true) : IO (Array Name) :=
+  modulesUnder (System.FilePath.mk ".." / "site") #[".lake", "_out", ".DS_Store"] "site/"
+    requireClean
 
 /-- Application and proof counts exclude the explicitly reviewed gate tooling. -/
 def projectModules : IO (Array Name) := do
