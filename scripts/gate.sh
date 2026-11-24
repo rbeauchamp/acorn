@@ -16,7 +16,48 @@ export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PAT
 
 step() { printf 'gate: %s at %s (%d s)\n' "$1" "$(date -u +%H:%M:%SZ)" "$SECONDS"; }
 
+admit_tracked_helper() {
+  local root="$1" require_clean="$2" top prefix real_root real_top
+  local rec='' line meta path mode oid stage extra count=0 vrec='' vcount=0
+  local helper='scripts/tracked-files.sh'
+  [[ -n "$root" && ! -L "$root" && -d "$root" && ! -L "$root/scripts" && -d "$root/scripts" &&
+    ! -L "$root/$helper" && -f "$root/$helper" ]] || return 1
+  top=$(git --no-optional-locks -C "$root" rev-parse --show-toplevel) || return 1
+  prefix=$(git --no-optional-locks -C "$root" rev-parse --show-prefix) || return 1
+  [[ -n "$top" && -z "$prefix" ]] || return 1
+  real_root=$(cd "$root" && pwd -P) || return 1
+  real_top=$(cd "$top" && pwd -P) || return 1
+  [[ "$real_root" == "$real_top" ]] || return 1
+  while IFS= read -r -d '' line; do
+    rec="$line"
+    count=$((count + 1))
+  done < <(git --no-optional-locks --literal-pathspecs -C "$root" -c core.quotePath=false ls-files --stage -z -- "$helper")
+  (( count == 1 )) || return 1
+  meta="${rec%%$'\t'*}"
+  path="${rec#*$'\t'}"
+  IFS=' ' read -r mode oid stage extra <<< "$meta"
+  [[ "$meta" != "$rec" && -z "${extra:-}" && "$path" == "$helper" &&
+    "$stage" == "0" && ( "$mode" == "100644" || "$mode" == "100755" ) &&
+    "$oid" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || return 1
+  if [[ "$require_clean" == 1 ]]; then
+    git --no-optional-locks -C "$root" rev-parse --verify -q HEAD >/dev/null || return 1
+    git --no-optional-locks -C "$root" diff-index --cached --quiet --ignore-submodules=none HEAD -- "$helper" || return 1
+    git --no-optional-locks -C "$root" -c core.symlinks=true -c core.fsmonitor=false diff --no-ext-diff --no-textconv --quiet --ignore-submodules=none HEAD -- "$helper" || return 1
+    while IFS= read -r -d '' line; do
+      vrec="$line"
+      vcount=$((vcount + 1))
+    done < <(git --no-optional-locks --literal-pathspecs -C "$root" -c core.quotePath=false ls-files -v -z -- "$helper")
+    [[ "$vcount" == 1 && "$vrec" == "H $helper" ]] || return 1
+  fi
+}
+
 nc_pin='lean/no-comments.pin'
+admit_tracked_helper . 1 || {
+  echo "gate: scripts/tracked-files.sh failed pre-execution Git admission" >&2
+  exit 1
+}
+./scripts/tracked-files.sh admit-file --clean . \
+  scripts/tracked-files.sh scripts/gate.sh scripts/lean.sh scripts/verify.sh scripts/regula.sh "$nc_pin"
 if [[ -L lean || ! -d lean || ! -f "$nc_pin" || -L "$nc_pin" ]]; then
   echo "gate: missing or non-regular pin file: $nc_pin" >&2
   exit 1
@@ -143,32 +184,34 @@ step 'provisioning the pinned dependencies'
   if [[ "$descriptor_limit" != unlimited ]] && (( descriptor_limit < 4096 )); then
     ulimit -Sn 4096
   fi
+  ./scripts/tracked-files.sh sync-config --clean --admit-manifest .
   dependency_git
   cd lean
   # Lake decides whether Mathlib and Regula's lint driver need provisioning: with
   # --no-build it exits 3 unless every artifact and trace of these targets is current.
   current=0
-  lake build --no-build Mathlib regula/lint || current=$?
+  lake -f lakefile.lean build --no-build Mathlib regula/lint || current=$?
   case "$current" in
     0) ;;
     3)
       # The upstream cache can omit modules; Lake compiles only those it lacks.
-      lake exe cache get
-      lake build Mathlib regula/lint ;;
+      lake -f lakefile.lean exe cache get
+      lake -f lakefile.lean build Mathlib regula/lint ;;
     *) exit "$current" ;;
   esac
   # FloatLib, lean-intent and Regula publish no build cache. This builds the modules the proof
   # bridge imports, the lean-intent modules the intent bridge and intent-check import with the
   # native objects intent-check links, and the Regula modules the decision registries and
   # AcornTools.Theorems import with their native objects.
-  lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
+  lake -f lakefile.lean build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
 )
 ./scripts/lean.sh provision-status
+./scripts/tracked-files.sh admit-site --clean .
 (
   dependency_git
   cd site
   # Verso's modules and the shared library its documents load.
-  lake build verso/VersoManual verso/VersoManual:shared
+  lake -f lakefile.toml build verso/VersoManual verso/VersoManual:shared
 )
 check_nc_cache_dirs allow-missing
 if [[ ! -L "$nc_bin" && -e "$nc_bin" && ! -f "$nc_bin" ]]; then
@@ -292,11 +335,15 @@ elif ! verify_sha256 "$nc_sha256" "$nc_bin"; then
   commented=1
   step 'no-comments check refused (integrity check failed)'
 else
-  nc_args=(check)
-  if [[ -n "${ACORN_BASE_REF:-}" ]]; then
-    nc_args+=(--base-ref "$ACORN_BASE_REF")
+  if ! ./scripts/tracked-files.sh admit-no-comments --clean .; then
+    commented=1
+  else
+    nc_args=(check)
+    if [[ -n "${ACORN_BASE_REF:-}" ]]; then
+      nc_args+=(--base-ref "$ACORN_BASE_REF")
+    fi
+    ( dependency_git; "$nc_bin" "${nc_args[@]}" ) || commented=$?
   fi
-  ( dependency_git; "$nc_bin" "${nc_args[@]}" ) || commented=$?
   step "no-comments check exited $commented"
 fi
 [[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 ]] || exit 1

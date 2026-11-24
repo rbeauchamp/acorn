@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import AcornTools.Boundary.Audit
 import AcornTools.Ownership
+import AcornTools.TrackedFiles
 import Regula.Load
 
 /-!
@@ -111,6 +112,7 @@ def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
 modules are imported separately because their top-level `main` names overlap.
 Each owning module is counted once, regardless of how many roots import it. -/
 unsafe def inventory : IO Counts := do
+  AcornTrackedFiles.admitLeanToolchain
   initSearchPath (← findSysroot)
   enableInitializersExecution
   let modules ← AcornModuleInventory.projectModules

@@ -6,6 +6,7 @@ Authors: acorn contributors
 import AcornTools.ModuleInventory
 import AcornTools.Native.Routes
 import AcornTools.Native.Resources
+import AcornTools.TrackedFiles
 
 /-! # Compiled native boundary admission
 
@@ -24,7 +25,7 @@ def require (condition : Bool) (message : String) : IO Unit :=
 
 /-- Read only regular compiler-owned artifacts. -/
 def read (path : System.FilePath) : IO String := do
-  require ((← path.symlinkMetadata).type == .file) s!"non-regular artifact {path}"
+  AcornTrackedFiles.ensureRegular "." path.toString
   IO.FS.readFile path
 
 /-- Locate one generated definition, excluding its forward declaration: an exported function,
@@ -117,21 +118,29 @@ def compileFlags (text : String) : IO Unit := do
       commands := commands + 1
   require (commands == 1) s!"expected one compilation command, found {commands}"
 
+private def irCPath (owner : Name) : System.FilePath :=
+  System.FilePath.mk (".lake/build/ir/" ++ owner.toString.replace "." "/" ++ ".c")
+
+private def routeModule (owner : String) : Name :=
+  (("Acorn/" ++ owner).splitOn "/").foldl Name.str .anonymous
+
 /-- Current native module discovery includes every newly added nested source. -/
 unsafe def audit : IO Unit := do
   let modules ← AcornModuleInventory.projectModules
-  for owner in modules do
-    if AcornModuleInventory.nativeModule owner then
-      let path : System.FilePath := ".lake/build/ir" / (owner.toString.replace "." "/" ++ ".c")
-      primitives owner (← read path)
-      compileFlags (← read (path.toString ++ ".o.export.trace"))
+  let nativeModules := modules.filter AcornModuleInventory.nativeModule
+  for owner in nativeModules do
+    let path := irCPath owner
+    primitives owner (← read path)
+    compileFlags (← read (path.toString ++ ".o.export.trace"))
   for (owner, symbol, calls) in AcornNativeRoutes.routes do
-    let path : System.FilePath := s!".lake/build/ir/Acorn/{owner}.c"
-    orderedCalls (← read path) symbol calls
+    let mod := routeModule owner
+    require (nativeModules.contains mod) s!"route owner {mod} is not an admitted native module"
+    orderedCalls (← read (irCPath mod)) symbol calls
   for (owner, symbol, closures) in AcornNativeRoutes.closures do
-    let path := System.FilePath.mk (".lake/build/ir/Acorn/" ++ owner ++ ".c")
-    orderedClosures (← read path) symbol closures
-  AcornNativeResourceAudit.audit
+    let mod := routeModule owner
+    require (nativeModules.contains mod) s!"closure owner {mod} is not an admitted native module"
+    orderedClosures (← read (irCPath mod)) symbol closures
+  AcornNativeResourceAudit.audit nativeModules
   IO.println s!"native boundary: {AcornNativeRoutes.routes.size} reviewed call routes; flags and primitives admitted"
 
 end AcornNativeAudit

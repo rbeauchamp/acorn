@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import AcornTools.ModuleInventory
 import AcornTools.OwnershipSource
+import AcornTools.TrackedFiles
 
 /-! # Ordinary Lean verification
 
@@ -47,11 +48,13 @@ def together (checks : List (IO Unit)) : IO Unit := do
     throw (IO.userError (String.intercalate "\n" failures.reverse))
 
 /-- Every build goes through the same local-dependency admission. -/
-def lake (args : Array String) : IO Unit :=
-  run "lean" (#["-DwarningAsError=true", "-DautoImplicit=false", "--run", "Bootstrap.lean"] ++ args)
+def lake (args : Array String) : IO Unit := do
+  let process ← AcornTrackedFiles.bootstrapProcess args
+  run process.cmd process.args
 
 /-- Verify a generated resource as complete bytes, never as a sampled semantic claim. -/
 def browserKernel : IO Unit := do
+  AcornTrackedFiles.ensureTrackedRegular ".." "" "viewer/static/browser-kernel.js"
   let child ← IO.Process.spawn {
     cmd := ".lake/build/bin/browser-kernel",
     stdin := .null, stdout := .piped, stderr := .inherit }
@@ -78,29 +81,24 @@ nothing here. A missing checkout is refused. A package's checkout is the directo
 materializes it in, `Name.toString (escape := false)` of its locked name read by
 `String.toName` (`PackageEntry.dirName`, Lake of Lean v4.36.0), so the escaped name
 `«lean-intent»` has the directory `lean-intent`. -/
-def siteOverrides : IO String := do
-  let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile "../site/lake-manifest.json"))
-  let mut entries : Array Lean.Json := #[]
-  for entry in ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages") do
-    unless (← IO.ofExcept (entry.getObjValAs? String "type")) == "git" do continue
-    let name ← IO.ofExcept (entry.getObjValAs? String "name")
-    let directory := name.toName.toString (escape := false)
-    let config ← IO.ofExcept (entry.getObjValAs? String "configFile")
-    for component in [directory, config] do
-      unless !component.isEmpty && component != "." && component != ".." &&
-          component.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') do
-        throw (IO.userError s!"unsupported documentation package component: {component}")
-    let dir := s!"../lean/.lake/packages/{directory}"
-    unless ← (System.FilePath.mk ".lake/packages" / directory / config).pathExists do
-      throw (siteUnprovisioned name)
-    entries := entries.push (Lean.Json.mkObj [
-      ("name", name), ("scope", ← IO.ofExcept (entry.getObjVal? "scope")),
-      ("inherited", ← IO.ofExcept (entry.getObjVal? "inherited")), ("configFile", config),
-      ("manifestFile", ← IO.ofExcept (entry.getObjVal? "manifestFile")),
-      ("type", "path"), ("dir", dir)])
+def siteOverrides (requireClean : Bool := true) : IO String := do
+  let admitArgs := if requireClean then
+    #["admit-site", "--clean", "--emit-overrides", ".."]
+  else
+    #["admit-site", "--emit-overrides", ".."]
+  let text ← AcornTrackedFiles.runTrackedHelperStdout ".." admitArgs requireClean
+  if text.isEmpty then
+    throw (IO.userError "empty documentation dependency overrides")
+  let dirArgs := if requireClean then
+    #["admit-lake-dirs", "--clean", "--workspace", "site", ".."]
+  else
+    #["admit-lake-dirs", "--workspace", "site", ".."]
   IO.FS.createDirAll "../site/.lake"
-  IO.FS.writeFile "../site/.lake/acorn-path-packages.json"
-    ((Lean.Json.mkObj [("version", "1.2.0"), ("packages", Lean.toJson entries)]).compress ++ "\n")
+  AcornTrackedFiles.runTrackedHelper ".." dirArgs requireClean
+  let overridePath : System.FilePath := "../site/.lake/acorn-path-packages.json"
+  let current ← try some <$> IO.FS.readFile overridePath catch _ => pure none
+  unless current == some text do
+    AcornTrackedFiles.writeFileAtomicExclusive overridePath text
   return ".lake/acorn-path-packages.json"
 
 /-- Build the documents, which elaborates every reference they make to a Lean owner, then
@@ -112,7 +110,10 @@ interpreted; a linked executable would compile the native code of every proof mo
 document imports. `whole` prints each step's output in one piece, for a check that runs
 beside others. -/
 def site (write : Bool) (whole : Bool := false) : IO Unit := do
-  let flags := #["--no-cache", "--wfail", s!"--packages={← siteOverrides}"]
+  let requireClean := !write
+  AcornOwnershipAudit.siteModuleInventory requireClean
+  let flags := #["-f", "lakefile.toml", "--no-cache", "--wfail",
+    s!"--packages={← siteOverrides requireClean}"]
   let env := #[("LAKE_ARTIFACT_CACHE", some "false")]
   let ready ← IO.Process.output {
     cmd := "lake", args := flags ++ #["build", "--no-build", "verso/VersoManual"],
@@ -130,6 +131,7 @@ the build requests each one that `keep` accepts, with its native object where it
 and every declared executable. The two source admissions run at once with Lake's target
 inventory, since none depends on another. -/
 def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
+  AcornTrackedFiles.runTrackedHelper ".." #["sync-config", "--clean", ".."] true
   lake #["build", "lean-boundary-audit"]
   let modules ← AcornOwnershipAudit.sources
   let waiting ← IO.mkRef #[]

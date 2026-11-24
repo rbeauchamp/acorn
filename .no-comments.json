@@ -2,11 +2,11 @@
   "workspaces": [
     {
       "dir": "lean",
-      "lakeArgs": ["--offline", "--no-cache"]
+      "lakeArgs": ["-f", "lakefile.lean", "--offline", "--no-cache"]
     },
     {
       "dir": "site",
-      "lakeArgs": ["--offline", "--no-cache"]
+      "lakeArgs": ["-f", "lakefile.toml", "--offline", "--no-cache"]
     }
   ],
   "exclude": [
