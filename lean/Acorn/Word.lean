@@ -1,41 +1,23 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Init
-
-/-!
-# Executable word operations
-
-Four UInt64 limb products implement the complete high product. The general
-128-bit interface is retained as a specification, with a universal bridge.
-Proofs account for both carries and every discarded word modulus without
-enumerating inputs. Native UInt primitives and compiler/runtime are trusted.
--/
 
 namespace Acorn.Word
 
-/-- Multiplication by a word with a right inverse loses no input information. -/
 theorem multiplier_injective (multiplier inverse : UInt64)
     (unit : multiplier * inverse = 1) (left right : UInt64)
     (h : left * multiplier = right * multiplier) : left = right := by
   have hc := congrArg (fun word => word * inverse) h
   simpa only [UInt64.mul_assoc, unit, UInt64.mul_one] using hc
 
-/-- Xor with a fixed word is injective over all machine encodings. -/
 theorem xor_word_injective (left right mask : UInt64)
     (h : left ^^^ mask = right ^^^ mask) : left = right := by
   apply UInt64.toBitVec_inj.mp
   have hb := congrArg UInt64.toBitVec h
   exact (BitVec.xor_left_inj mask.toBitVec).mp hb
 
-/-- High word of the full unsigned 128-bit product, with explicit widening. -/
 def multiplyHighSpec (left right : UInt64) : UInt64 :=
   UInt64.ofBitVec
     (((left.toBitVec.setWidth 128 * right.toBitVec.setWidth 128) >>> 64).setWidth 64)
 
-/-- The product of two words fits in the declared widened domain. -/
 theorem product_fits (left right : UInt64) : left.toNat * right.toNat < 2 ^ 128 := by
   have hl := left.toNat_lt
   have hr := right.toNat_lt
@@ -45,12 +27,10 @@ theorem product_fits (left right : UInt64) : left.toNat * right.toNat < 2 ^ 128 
     _ < 2 ^ 64 * 2 ^ 64 := Nat.mul_lt_mul_of_pos_right hl (by decide)
     _ = 2 ^ 128 := by decide
 
-/-- The full-product high quotient itself fits in one word. -/
 theorem high_fits (left right : UInt64) : left.toNat * right.toNat / 2 ^ 64 < 2 ^ 64 := by
   apply (Nat.div_lt_iff_lt_mul (by decide : 0 < (2 : Nat) ^ 64)).2
   exact product_fits left right
 
-/-- Exact connection from the executing widened-word definition to its quotient. -/
 theorem multiplyHighSpec_exact (left right : UInt64) :
     (multiplyHighSpec left right).toNat = left.toNat * right.toNat / 2 ^ 64 := by
   have hl : left.toNat < 2 ^ 128 := Nat.lt_trans left.toNat_lt (by decide)
@@ -60,24 +40,18 @@ theorem multiplyHighSpec_exact (left right : UInt64) :
     Nat.mod_eq_of_lt hl, Nat.mod_eq_of_lt hr, Nat.mod_eq_of_lt (product_fits left right),
     Nat.shiftRight_eq_div_pow, Nat.mod_eq_of_lt (high_fits left right)]
 
-/-- The low 32-bit limb occupies a full word without general arithmetic. -/
 def lowLimb (word : UInt64) : UInt64 := word &&& 0xffffffff
 
-/-- The high 32-bit limb is a fixed native shift. -/
 def highLimb (word : UInt64) : UInt64 := word >>> 32
 
-/-- Masking is the exact low-limb remainder. -/
 theorem lowLimb_exact (word : UInt64) : (lowLimb word).toNat = word.toNat % 2^32 := by
   change word.toNat &&& (2^32 - 1) = _
   exact Nat.and_two_pow_sub_one_eq_mod _ _
 
-/-- Shifting is the exact high-limb quotient. -/
 theorem highLimb_exact (word : UInt64) : (highLimb word).toNat = word.toNat / 2^32 := by
   rw [highLimb, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
   rfl
 
-/-- Four bounded limb products and their low-column carry recover the high word.
-Every multiplication and addition is performed in UInt64. -/
 def multiplyHigh (left right : UInt64) : UInt64 :=
   let p00 := lowLimb left * lowLimb right
   let p01 := lowLimb left * highLimb right
@@ -86,7 +60,6 @@ def multiplyHigh (left right : UInt64) : UInt64 :=
   let carry := highLimb p00 + lowLimb p01 + lowLimb p10
   p11 + highLimb p01 + highLimb p10 + highLimb carry
 
-/-- The four-column decomposition is an arithmetic identity, including both carries. -/
 theorem limb_high_identity (a0 a1 b0 b1 : Nat) :
     ((a0 + 2^32*a1)*(b0 + 2^32*b1)) / 2^64 =
       a1*b1 + (a0*b1)/2^32 + (a1*b0)/2^32 +
@@ -106,12 +79,10 @@ theorem limb_high_identity (a0 a1 b0 b1 : Nat) :
   have cr := Nat.mod_lt ((a0*b0)/2^32 + (a0*b1)%2^32 + (a1*b0)%2^32) (show 0 < 2^32 by decide)
   omega
 
-/-- A limb product fits in a word with enough headroom for the low-column carry. -/
 theorem limb_product_bound (a b : Nat) (ha : a < 2^32) (hb : b < 2^32) :
     a*b ≤ 18446744065119617025 := by
   exact Nat.mul_le_mul (show a ≤ 4294967295 by omega) (show b ≤ 4294967295 by omega)
 
-/-- The executing word algorithm equals the complete product's high quotient. -/
 theorem multiplyHigh_exact (left right : UInt64) :
     (multiplyHigh left right).toNat = left.toNat * right.toNat / 2^64 := by
   let a0 := left.toNat % 2^32
@@ -152,24 +123,18 @@ theorem multiplyHigh_exact (left right : UInt64) :
   simp only [multiplyHigh, UInt64.toNat_add, highLimb_exact, lowLimb_exact, p00, p01, p10, p11]
   omega
 
-/-- The word recipe retains the general widened-product interface exactly. -/
 theorem multiplyHigh_eq_spec (left right : UInt64) :
     multiplyHigh left right = multiplyHighSpec left right := by
   apply UInt64.toNat.inj
   rw [multiplyHigh_exact, multiplyHighSpec_exact]
 
-/-- A nonzero machine count; every constructor carries the same positive bound. -/
 structure Count where
-  /-- The actual receiving word. -/
   word : UInt64
-  /-- Range selection has an inhabitant only for a positive count. -/
   positive : 0 < word.toNat
 
-/-- The existing total count conversion maps zero to one. -/
 def Count.ofWord (word : UInt64) : Count :=
   if h : 0 < word.toNat then ⟨word, h⟩ else ⟨1, by decide⟩
 
-/-- Multiply-high is below every admitted receiving count, for every source word. -/
 theorem multiplyHigh_below (input : UInt64) (count : Count) :
     (multiplyHigh input count.word).toNat < count.word.toNat := by
   rw [multiplyHigh_exact]
@@ -177,16 +142,13 @@ theorem multiplyHigh_below (input : UInt64) (count : Count) :
   have h := Nat.mul_lt_mul_of_pos_right input.toNat_lt count.positive
   simpa only [Nat.mul_comm] using h
 
-/-- Return a machine word carrying the actual range-selection proof. -/
 def below (input : UInt64) (count : Count) :
     { word : UInt64 // word.toNat < count.word.toNat } :=
   ⟨multiplyHigh input count.word, multiplyHigh_below input count⟩
 
-/-- Checked advancement refuses before overflowing the fixed-width clock. -/
 def advanceClock (clock amount : UInt64) : Option UInt64 :=
   if clock.toNat + amount.toNat < 2 ^ 64 then some (clock + amount) else none
 
-/-- An accepted clock advance retains its full natural sum; it never wraps. -/
 theorem clock_advance_exact (clock amount next : UInt64)
     (h : advanceClock clock amount = some next) :
     next.toNat = clock.toNat + amount.toNat := by
@@ -197,12 +159,10 @@ theorem clock_advance_exact (clock amount next : UInt64)
     simp only [UInt64.toNat_add, Nat.mod_eq_of_lt fits]
   · contradiction
 
-/-- Clock refusal is exactly exhaustion of the available word range. -/
 theorem clock_advance_refuses (clock amount : UInt64) :
     advanceClock clock amount = none ↔ 2 ^ 64 ≤ clock.toNat + amount.toNat := by
   simp [advanceClock]
 
-/-- Positive left xor shifts are injective by induction from the low bit. -/
 theorem xor_shiftLeft_injective {width shift : Nat} (positive : 0 < shift)
     (left right : BitVec width) (h : left ^^^ (left <<< shift) = right ^^^ (right <<< shift)) :
     left = right := by
@@ -218,7 +178,6 @@ theorem xor_shiftLeft_injective {width shift : Nat} (positive : 0 < shift)
         simpa [smaller] using hi
   exact BitVec.eq_of_getLsbD_eq (fun i _ => bits i)
 
-/-- Rotation merely reindexes the finite bit positions. -/
 theorem rotate_injective {width rotation : Nat} (hr : rotation < width)
     (left right : BitVec width) (h : left.rotateLeft rotation = right.rotateLeft rotation) :
     left = right := by
@@ -232,7 +191,6 @@ theorem rotate_injective {width rotation : Nat} (hr : rotation < width)
     simpa [BitVec.getLsbD_rotateLeft, Nat.mod_eq_of_lt hr,
       show i + rotation - width < rotation by omega,
       show width - rotation + (i + rotation - width) = i by omega] using hb
-/-- Positive right xor shifts are injective by induction from the high bit. -/
 theorem xor_shiftRight_injective {width shift : Nat} (positive : 0 < shift)
     (left right : BitVec width) (h : left ^^^ (left >>> shift) = right ^^^ (right >>> shift)) :
     left = right := by

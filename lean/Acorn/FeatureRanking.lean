@@ -1,80 +1,40 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.FeatureConstants
 import Acorn.Features
 import Acorn.Provenance
 
-/-!
-# Learned assignment identity and score-block ranking
-
-Sutton, Machado, Holland, Szepesvari, Timbers, Tanner and White,
-*Reward-Respecting Subtasks for Model-Based Reinforcement Learning*,
-Artificial Intelligence 324 (2023), 104001, section 2, equation (4), p. 8,
-https://arxiv.org/pdf/2202.03466v4.
-Acorn's PAR-12 adaptation ranks units whose signed Demon-0 weight is positive,
-with one minimum-unit representative per exact score block. The weight word of
-a selected unit becomes its attainment bonus, standing in for the source's bonus
-weight, "one of its largest values". While the unit stays ranked, each refresh
-raises its held bonus to the current weight when that is larger and never lowers
-it: the streaming form of the largest value seen so far. Objective identity is
-the unit alone, so refresh never discards the knowledge of a retained unit. A slot
-indicator can be activated by any hash alias; it is not unit activation.
-
-After a ranking the slots hold exactly the units of the ranked candidates
-(`rankAssignments_covers`, `rankAssignments_ranked`), as many slots hold a unit as there
-are ranked candidates (`rankAssignments_count`), and every slot holds one when there is a
-candidate for each (`rankAssignments_full`). These follow from a count of kept slots
-against the ranked candidates some slot holds, for any number of slots.
--/
 namespace Acorn.Features
 
-/-- A held attainment bonus: a positive Demon-0 weight word, held from its unit's
-selection and raised only at refresh. A nonpositive weight predicts no additional
-reward to attain. -/
 structure Bonus where
-  /-- Held weight word within the Demon-0 prediction range. -/
   weight : Prediction .g99
-  /-- The signed word is strictly positive. -/
   positive : 0 < weight.value.key
 
-/-- The exact held bonus word. -/
 def Bonus.value (bonus : Bonus) : Binary32 := bonus.weight.value
 
-/-- Every held bonus is finite and strictly positive. -/
 theorem Bonus.finite_positive (bonus : Bonus) : bonus.value.Finite ∧ 0 < bonus.value.key :=
   ⟨bonus.weight.legal.1, bonus.positive⟩
 
-/-- A prediction word is a bonus exactly when it is positive. -/
 def Bonus.ofWeight (weight : Prediction .g99) : Option Bonus :=
   letI := Binary32.positiveDecidable weight.value
   if positive : 0 < weight.value.key then some ⟨weight, positive⟩ else none
 
-/-- The larger of two held bonuses; positive finite words order by their unsigned bits. -/
 def Bonus.max (held current : Bonus) : Bonus :=
   if held.value.bits.toNat < current.value.bits.toNat then current else held
 
-/-- A raised bonus is at least both inputs, so a held bonus never decreases. -/
 theorem Bonus.le_max (held current : Bonus) :
     held.value.bits.toNat ≤ (held.max current).value.bits.toNat ∧
       current.value.bits.toNat ≤ (held.max current).value.bits.toNat := by
   unfold Bonus.max
   split <;> omega
 
-/-- Durable bonus admission is identity or refusal, including refusal of either zero. -/
 def Bonus.admit (raw : Binary32) : Option Bonus :=
   (Prediction.admit .g99 raw).bind Bonus.ofWeight
 
-/-- Every held bonus round-trips through its exact word. -/
 theorem Bonus.admit_self (bonus : Bonus) : Bonus.admit bonus.value = some bonus := by
   have admitted : Prediction.admit .g99 bonus.value = some bonus.weight :=
     Bounded32.admit_self bonus.weight
   have positive : Bonus.ofWeight bonus.weight = some bonus := dite_eq_left bonus.positive
   rw [Bonus.admit, admitted, Option.bind_some, positive]
 
-/-- An admitted bonus holds the word that admission reads. -/
 theorem Bonus.admit_value {raw : Binary32} {bonus : Bonus}
     (admitted : Bonus.admit raw = some bonus) : bonus.value = raw := by
   unfold Bonus.admit at admitted
@@ -92,44 +52,33 @@ theorem Bonus.admit_value {raw : Binary32} {bonus : Bonus}
     · rw [show Bonus.ofWeight held = none from dite_eq_right positive] at admitted
       contradiction
 
-/-- Assignment identity binds a bank unit; its held bonus is payload, not identity.
-The feature slot is derived from the receiving seed and dimension, never an
-independent field. -/
 inductive Assignment (config : Config) where
-  /-- Neutral fallback before differentiated candidates exist. -/
   | neutral
-  /-- Selected unit with the positive bonus held since its selection, raised only at refresh. -/
   | selected (unit : Fin config.units.count) (bonus : Bonus)
 
 instance (config : Config) : Provenance (Assignment config) := ⟨none⟩
 
-/-- Objective identity: the selected unit, or none for the neutral fallback. -/
 def Assignment.identity {config : Config} : Assignment config → Option (Fin config.units.count)
   | .neutral => none
   | .selected unit _ => some unit
 
-/-- Identity comparison reads the selected unit only, never the bonus word. -/
 def Assignment.same {config : Config} : Assignment config → Assignment config → Bool
   | .neutral, .neutral => true
   | .selected unit _, .selected other _ => unit == other
   | _, _ => false
 
-/-- Identity comparison is equality of selected units. -/
 theorem Assignment.same_iff {config : Config} (left right : Assignment config) :
     left.same right = true ↔ left.identity = right.identity := by
   cases left <;> cases right <;> simp [Assignment.same, Assignment.identity]
 
-/-- Every assignment has its own identity. -/
 theorem Assignment.same_refl {config : Config} (assignment : Assignment config) :
     assignment.same assignment = true := (Assignment.same_iff _ _).mpr rfl
 
-/-- Optional feature lookup cannot disagree with the selected unit. -/
 def Assignment.feature (dimension : Dimension) {config : Config} : Assignment config →
     Option (FeatIdx dimension)
   | .neutral => none
   | .selected unit _ => some (unitFeature dimension config unit)
 
-/-- The potential with its work: the feature slot, then its membership test of the frame. -/
 def Assignment.potentialCosted {dimension : Dimension} {config : Config}
     (assignment : Assignment config) (active : SwiftTd.ActiveSet dimension) : Costed Bool :=
   Costed.charge .assignmentPotential
@@ -137,13 +86,10 @@ def Assignment.potentialCosted {dimension : Dimension} {config : Config}
     | none => Costed.pure false
     | some feature => Costed.mem feature active.indices dimension.wordBound)
 
-/-- The Boolean hashed-slot potential, preserving collision semantics. -/
 def Assignment.potential {dimension : Dimension} {config : Config}
     (assignment : Assignment config) (active : SwiftTd.ActiveSet dimension) : Bool :=
   (assignment.potentialCosted active).val
 
-/-- The potential is set exactly when the assignment has a feature slot and the frame holds
-it. -/
 theorem Assignment.potential_def {dimension : Dimension} {config : Config}
     (assignment : Assignment config) (active : SwiftTd.ActiveSet dimension) :
     assignment.potential active =
@@ -153,39 +99,27 @@ theorem Assignment.potential_def {dimension : Dimension} {config : Config}
   unfold Assignment.potential Assignment.potentialCosted
   cases assignment.feature dimension <;> rfl
 
-/-- The exact held bonus word; neutral uses positive zero. -/
 def Assignment.bonus {config : Config} : Assignment config → Binary32
   | .neutral => .zero
   | .selected _ bonus => bonus.value
 
-/-- Adapted from equation (4), which substitutes the bonus weight for the feature's
-weight: with an indicator feature, the attained stopping value adds the held bonus
-to the estimate, and an unattained feature leaves the estimate unchanged. -/
 def Assignment.stoppingValue {config : Config} (assignment : Assignment config)
     (estimate : Binary32) (attained : Bool) : Binary32 :=
   if attained then estimate.add assignment.bonus else estimate
 
-/-- Four durable words of one assignment. -/
 structure AssignmentWords where
-  /-- Neutral or selected tag. -/
   tag : UInt32
-  /-- Bank unit. -/
   unit : UInt32
-  /-- Receiving feature slot. -/
   feature : UInt32
-  /-- Held bonus bits. -/
   bonus : UInt32
   deriving DecidableEq
 
-/-- Exact word image, including canonical neutral sentinels. -/
 def Assignment.wordsUsing {dimension : Dimension} {config : Config}
     (slot : Fin config.units.count → FeatIdx dimension) : Assignment config → AssignmentWords
   | .neutral => ⟨0, 0, 0, 0⟩
   | .selected unit bonus =>
     ⟨1, unit.val.toUInt32, (slot unit).val.toUInt32, bonus.value.bits⟩
 
-/-- Identity-or-refusal restoration. Present weights are deliberately not read:
-the bonus belongs to its selection and refreshes, not the restore time. -/
 def Assignment.admitUsing (dimension : Dimension) (config : Config)
     (slot : Fin config.units.count → FeatIdx dimension) (raw : AssignmentWords) :
     Option (Assignment config) :=
@@ -200,8 +134,6 @@ def Assignment.admitUsing (dimension : Dimension) (config : Config)
     else none
   else none
 
-/-- Every bank-relative objective round-trips through its actual durable words.
-The held bonus word is retained without reranking. -/
 theorem Assignment.wordsUsing_roundtrip (dimension : Dimension) {config : Config}
     (slot : Fin config.units.count → FeatIdx dimension) (assignment : Assignment config) :
     Assignment.admitUsing dimension config slot (Assignment.wordsUsing slot assignment) = some assignment := by
@@ -227,8 +159,6 @@ theorem Assignment.wordsUsing_roundtrip (dimension : Dimension) {config : Config
     exact congrArg (fun result : Option Bonus => result.map (Assignment.selected unit))
       (Bonus.admit_self bonus)
 
-/-- An admitted word image is the word image of the assignment that admission returns under
-the same slot function. -/
 theorem Assignment.admitUsing_words (dimension : Dimension) {config : Config}
     (slot : Fin config.units.count → FeatIdx dimension) (raw : AssignmentWords)
     (assignment : Assignment config)
@@ -274,28 +204,23 @@ theorem Assignment.admitUsing_words (dimension : Dimension) {config : Config}
       · contradiction
     · contradiction
 
-/-- Canonical assignment words derive their slot from the receiving bank. -/
 def Assignment.words (dimension : Dimension) {config : Config} : Assignment config → AssignmentWords :=
   Assignment.wordsUsing (unitFeature dimension config)
 
-/-- Canonical admission binds raw identities to the actual bank slot function. -/
 def Assignment.admit (dimension : Dimension) (config : Config) : AssignmentWords → Option (Assignment config) :=
   Assignment.admitUsing dimension config (unitFeature dimension config)
 
-/-- The executing bank codec preserves every legal stored objective exactly. -/
 theorem Assignment.words_roundtrip (dimension : Dimension) {config : Config}
     (assignment : Assignment config) :
     Assignment.admit dimension config (assignment.words dimension) = some assignment :=
   Assignment.wordsUsing_roundtrip dimension (unitFeature dimension config) assignment
 
-/-- An admitted word image is the word image of the assignment that admission returns. -/
 theorem Assignment.admit_words (dimension : Dimension) {config : Config} (raw : AssignmentWords)
     (assignment : Assignment config)
     (admitted : Assignment.admit dimension config raw = some assignment) :
     raw = assignment.words dimension :=
   Assignment.admitUsing_words dimension (unitFeature dimension config) raw assignment admitted
 
-/-- A positive legal Demon-0 weight is a legal prediction word without projection. -/
 theorem weight_bonus_legal (weight : Weight (.discounted .g99)) (positive : 0 < weight.value.key) :
     Discount.g99.predictionRange.Contains weight.value := by
   have legal := weight_legal weight
@@ -306,14 +231,10 @@ theorem weight_bonus_legal (weight : Weight (.discounted .g99)) (positive : 0 < 
     weight.value.key ≤ (Discount.g99.horizon.magnitude : Int)
   exact ⟨legal.1, Int.le_of_lt positive, legal.2.2⟩
 
-/-- A positive score candidate with a receiver-bound unit identity. -/
 structure Candidate (config : Config) where
-  /-- Bank unit. -/
   unit : Fin config.units.count
-  /-- Exact positive weight word, held as the bonus if this unit is selected. -/
   score : Bonus
 
-/-- The current weight enters ranking exactly when its signed word is positive. -/
 def candidateOfWeight {dimension : Dimension} (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) (unit : Fin config.units.count) :
     Option (Candidate config) :=
@@ -323,22 +244,18 @@ def candidateOfWeight {dimension : Dimension} (config : Config)
     some ⟨unit, ⟨⟨weight.value, weight_bonus_legal weight positive⟩, positive⟩⟩
   else none
 
-/-- Exact positive score-block key. Positive finite float order is unsigned bit order. -/
 def Candidate.key {config : Config} (candidate : Candidate config) : Nat :=
   candidate.score.value.bits.toNat
 
-/-- Better score wins; within a score block the smaller unit wins. -/
 def Candidate.Dominates {config : Config} (left right : Candidate config) : Prop :=
   right.key ≤ left.key ∧ (right.key = left.key → left.unit.val ≤ right.unit.val)
 
 instance {config : Config} (left right : Candidate config) : Decidable (left.Dominates right) :=
   inferInstanceAs (Decidable (_ ∧ _))
 
-/-- Reflexive total ranking relation. -/
 theorem Candidate.dominates_refl {config : Config} (candidate : Candidate config) :
     candidate.Dominates candidate := ⟨Nat.le_refl _, fun _ => Nat.le_refl _⟩
 
-/-- Ranking dominance composes without any floating arithmetic. -/
 theorem Candidate.dominates_trans {config : Config} (a b c : Candidate config)
     (ab : a.Dominates b) (bc : b.Dominates c) : a.Dominates c := by
   unfold Candidate.Dominates at *
@@ -348,11 +265,9 @@ theorem Candidate.dominates_trans {config : Config} (a b c : Candidate config)
   have sameBC : c.key = b.key := by omega
   exact Nat.le_trans (ab.2 sameAB) (bc.2 sameBC)
 
-/-- Exactly one of the compared candidates is returned. -/
 def Candidate.pick {config : Config} (left right : Candidate config) : Candidate config :=
   if left.Dominates right then left else right
 
-/-- The selected candidate dominates both inputs. -/
 theorem Candidate.pick_dominates {config : Config} (left right : Candidate config) :
     (left.pick right).Dominates left ∧ (left.pick right).Dominates right := by
   unfold Candidate.pick
@@ -370,12 +285,10 @@ theorem Candidate.pick_dominates {config : Config} (left right : Candidate confi
         · exact False.elim (h ⟨by omega, fun equality => False.elim (same equality)⟩)
       exact ⟨by omega, fun equality => by omega⟩
 
-/-- One full scan finds the best remaining score-block representative. -/
 def best {config : Config} : List (Candidate config) → Option (Candidate config)
   | [] => none
   | head :: tail => some (tail.foldl Candidate.pick head)
 
-/-- Every scan winner is one of its inputs. -/
 theorem fold_pick_mem {config : Config} (items : List (Candidate config)) (start : Candidate config) :
     items.foldl Candidate.pick start ∈ start :: items := by
   induction items generalizing start with
@@ -390,7 +303,6 @@ theorem fold_pick_mem {config : Config} (items : List (Candidate config)) (start
     · simp only [List.foldl_cons]
       exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ member)
 
-/-- Folded winners retain dominance of every already dominated candidate. -/
 theorem fold_pick_dominates {config : Config} (items : List (Candidate config))
     (start target : Candidate config) (before : start.Dominates target) :
     (items.foldl Candidate.pick start).Dominates target := by
@@ -399,7 +311,6 @@ theorem fold_pick_dominates {config : Config} (items : List (Candidate config))
   | cons head tail ih =>
     exact ih (start.pick head) (Candidate.dominates_trans _ _ _ (Candidate.pick_dominates start head).1 before)
 
-/-- Complete maximum and canonical representative characterization of the executed scan. -/
 theorem best_spec {config : Config} (items : List (Candidate config)) (winner : Candidate config)
     (found : best items = some winner) : winner ∈ items ∧
       ∀ candidate ∈ items, winner.Dominates candidate := by
@@ -425,19 +336,15 @@ theorem best_spec {config : Config} (items : List (Candidate config)) (winner : 
           exact fold_pick_dominates tail _ _ (Candidate.pick_dominates head next).2
         · exact ih (head.pick next) (List.mem_cons_of_mem _ member)
 
-/-- Remove the entire chosen block, including every unit/slot collision in it. -/
 def withoutBlock {config : Config} (items : List (Candidate config)) (chosen : Candidate config) :
     List (Candidate config) := items.filter (fun candidate => candidate.key != chosen.key)
 
-/-- At most `count` complete score blocks, ordered by repeated maximum selection.
-There are at most `count` scans, rather than sorting the entire bank. -/
 def ranked {config : Config} : Nat → List (Candidate config) → List (Candidate config)
   | 0, _ => []
   | count + 1, items => match best items with
     | none => []
     | some chosen => chosen :: ranked count (withoutBlock items chosen)
 
-/-- Ranking never manufactures a candidate absent from the receiving weights. -/
 theorem ranked_subset {config : Config} (count : Nat) (items : List (Candidate config))
     (candidate : Candidate config) (member : candidate ∈ ranked count items) : candidate ∈ items := by
   induction count generalizing items with
@@ -452,7 +359,6 @@ theorem ranked_subset {config : Config} (count : Nat) (items : List (Candidate c
         exact (best_spec items chosen found).1
       · exact (List.mem_filter.mp (ih _ member)).1
 
-/-- The work/result bound is independent of score ties and bank contents. -/
 theorem ranked_length {config : Config} (count : Nat) (items : List (Candidate config)) :
     (ranked count items).length ≤ count := by
   induction count generalizing items with
@@ -463,7 +369,6 @@ theorem ranked_length {config : Config} (count : Nat) (items : List (Candidate c
     · simp
     · simpa using Nat.succ_le_succ (ih _)
 
-/-- Selected score blocks strictly decrease; ties cannot occupy another slot. -/
 theorem ranked_strict {config : Config} (count : Nat) (items : List (Candidate config)) :
     (ranked count items).Pairwise (fun left right => right.key < left.key) := by
   induction count generalizing items with
@@ -483,19 +388,16 @@ theorem ranked_strict {config : Config} (count : Nat) (items : List (Candidate c
       have bound := dominates.1
       omega
 
-/-- The current top score blocks, each represented by its minimum unit. -/
 def rankedCandidates (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) : List (Candidate config) :=
   ranked Acorn.FeatureConstants.skillCount
     ((List.finRange config.units.count).filterMap (candidateOfWeight config weights))
 
-/-- No two slots of an objective table name the same unit. -/
 def Assignment.Distinct {config : Config}
     (table : Vector (Assignment config) Acorn.FeatureConstants.skillCount) : Prop :=
   ∀ left right : Fin Acorn.FeatureConstants.skillCount, ∀ unit : Fin config.units.count,
     table[left.val].identity = some unit → table[right.val].identity = some unit → left = right
 
-/-- A table naming a unit only where a distinct table names it is distinct. -/
 theorem Assignment.Distinct.mono {config : Config}
     {table other : Vector (Assignment config) Acorn.FeatureConstants.skillCount}
     (distinct : Assignment.Distinct table)
@@ -505,7 +407,6 @@ theorem Assignment.Distinct.mono {config : Config}
   fun left right unit leftNamed rightNamed =>
     distinct left right unit (named left unit leftNamed) (named right unit rightNamed)
 
-/-- Executable distinctness check over every ordered slot pair. -/
 def Assignment.distinct {config : Config}
     (table : Vector (Assignment config) Acorn.FeatureConstants.skillCount) : Bool :=
   (List.finRange Acorn.FeatureConstants.skillCount).all fun left =>
@@ -513,7 +414,6 @@ def Assignment.distinct {config : Config}
       left == right || !(table[left.val].identity.isSome &&
         table[left.val].identity == table[right.val].identity)
 
-/-- The executable check decides exactly the distinctness proposition. -/
 theorem Assignment.distinct_iff {config : Config}
     (table : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
     Assignment.distinct table = true ↔ Assignment.Distinct table := by
@@ -535,21 +435,17 @@ theorem Assignment.distinct_iff {config : Config}
           simp [distinct left right unit leftNamed rightNamed]
         · simp [same]
 
-/-- Whether an objective is the given unit. -/
 def Assignment.holds {config : Config} (unit : Fin config.units.count) :
     Assignment config → Bool
   | .neutral => false
   | .selected held _ => held == unit
 
-/-- A held objective whose unit is still ranked keeps that unit and raises its
-held bonus to the current score when the score is larger. -/
 def Assignment.retain {config : Config} (chosen : List (Candidate config)) :
     Assignment config → Option (Assignment config)
   | .neutral => none
   | .selected unit bonus => (chosen.find? (·.unit == unit)).map fun candidate =>
       .selected unit (bonus.max candidate.score)
 
-/-- A slot keeps its retained objective unless an earlier slot holds the same unit. -/
 def kept {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount) :
@@ -558,7 +454,6 @@ def kept {config : Config}
       decide (other.val < slot.val) && held[other.val].same held[slot.val]) then none
   else held[slot.val].retain chosen
 
-/-- Ranked candidates whose unit no slot holds, in rank order. -/
 def entrants {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) : List (Candidate config) :=
@@ -566,16 +461,12 @@ def entrants {config : Config}
     (List.finRange Acorn.FeatureConstants.skillCount).all fun slot =>
       !held[slot.val].holds candidate.unit
 
-/-- Unkept slots before this one; each takes an earlier entrant. -/
 def openBefore {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount) : Nat :=
   ((List.finRange Acorn.FeatureConstants.skillCount).filter fun other =>
     decide (other.val < slot.val) && (kept held chosen other).isNone).length
 
-/-- Slot-stable ranking. The first slot holding a still-ranked unit keeps that unit
-with its held bonus raised to the current score; every other slot takes the next
-entrant in slot order, or neutral. -/
 def rankAssignments (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
@@ -589,8 +480,6 @@ def rankAssignments (dimension : Dimension) (config : Config)
       | none => .neutral
       | some candidate => .selected candidate.unit candidate.score
 
-/-- The first slot holding a still-ranked unit keeps that unit, and its held bonus
-never decreases. -/
 theorem rankAssignments_retained (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
@@ -625,8 +514,6 @@ theorem rankAssignments_retained (dimension : Dimension) (config : Config)
   refine ⟨bonus.max found.score, ?_, (Bonus.le_max bonus found.score).1⟩
   simp only [rankAssignments, Vector.getElem_ofFn, keeps]
 
-/-- A ranked candidate's score block is its unit's current weight word, so one unit
-has one key. -/
 theorem rankedCandidates_key (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) (candidate : Candidate config)
     (member : candidate ∈ rankedCandidates dimension config weights) :
@@ -639,7 +526,6 @@ theorem rankedCandidates_key (dimension : Dimension) (config : Config)
     rfl
   · contradiction
 
-/-- A kept objective is its slot's held unit, and no earlier slot holds that unit. -/
 theorem kept_spec {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -663,7 +549,6 @@ theorem kept_spec {config : Config}
         (List.mem_finRange other)
       simpa [before] using earlier
 
-/-- An unkept slot takes a later entrant than every earlier unkept slot. -/
 theorem openBefore_lt {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (left right : Fin Acorn.FeatureConstants.skillCount)
@@ -686,7 +571,6 @@ theorem openBefore_lt {config : Config}
   exact ⟨left, List.mem_filter.mpr ⟨List.mem_finRange left, by simp [before, order, unkept]⟩,
     by simp [before]⟩
 
-/-- Each named refreshed slot is either kept from its held unit or an entrant. -/
 theorem rankAssignments_source (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
@@ -713,7 +597,6 @@ theorem rankAssignments_source (dimension : Dimension) (config : Config)
       simp only [arriving, Assignment.identity, Option.some.injEq] at named
       exact ⟨candidate, rfl, named⟩
 
-/-- A later refreshed slot never repeats the unit of an earlier one. -/
 theorem rankAssignments_ordered (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
@@ -758,8 +641,6 @@ theorem rankAssignments_ordered (dimension : Dimension) (config : Config)
     rw [leftKey, rightKey, leftSame, rightSame] at strict
     exact Nat.lt_irrefl _ strict
 
-/-- Refreshed slots hold pairwise distinct units for every weight array and every held
-vector, including one that repeats a unit. -/
 theorem rankAssignments_distinct (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
@@ -772,8 +653,6 @@ theorem rankAssignments_distinct (dimension : Dimension) (config : Config)
   · exact (rankAssignments_ordered dimension config weights held right left order unit
       rightNamed leftNamed).elim
 
-/-- In a strictly increasing list, the entries below the entry at a position are exactly
-the entries before that position. -/
 theorem sorted_below {count : Nat} (slots : List (Fin count))
     (sorted : slots.Pairwise (· < ·)) (index : Nat) (bound : index < slots.length) :
     (slots.filter fun other => decide (other.val < slots[index].val)).length = index := by
@@ -800,7 +679,6 @@ theorem sorted_below {count : Nat} (slots : List (Fin count))
       rw [List.filter_cons_of_pos (by simpa using below), List.length_cons,
         ih sorted.2 index inside]
 
-/-- A list splits by a test and its complement into parts whose lengths sum to its own. -/
 theorem filter_partition {α : Type} (keep drop : α → Bool) (items : List α)
     (complement : ∀ item ∈ items, drop item = !keep item) :
     (items.filter keep).length + (items.filter drop).length = items.length := by
@@ -811,8 +689,6 @@ theorem filter_partition {α : Type} (keep drop : α → Bool) (items : List α)
     have here := complement head List.mem_cons_self
     cases test : keep head <;> simp [test, here] <;> omega
 
-/-- A list whose entries have pairwise distinct images, all inside another list, is no
-longer than that list. -/
 theorem injective_length {α β : Type} [DecidableEq β] (image : α → β) (items : List α)
     (targets : List β)
     (distinct : items.Pairwise fun left right => image left ≠ image right)
@@ -831,13 +707,11 @@ theorem injective_length {α β : Type} [DecidableEq β] (image : α → β) (it
     simp only [List.length_cons]
     omega
 
-/-- An objective holds a unit exactly when that unit is its identity. -/
 theorem Assignment.holds_iff {config : Config} (unit : Fin config.units.count)
     (assignment : Assignment config) :
     assignment.holds unit = true ↔ assignment.identity = some unit := by
   cases assignment <;> simp [Assignment.holds, Assignment.identity]
 
-/-- The entrant test rejects a unit exactly when some slot holds it. -/
 theorem held_iff {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (unit : Fin config.units.count) :
@@ -851,7 +725,6 @@ theorem held_iff {config : Config}
   · rintro ⟨slot, named⟩
     exact ⟨slot, List.mem_finRange slot, by simp [(Assignment.holds_iff unit _).mpr named]⟩
 
-/-- A held unit has a first slot holding it. -/
 theorem first_holder {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (unit : Fin config.units.count) (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -876,8 +749,6 @@ theorem first_holder {config : Config}
       exact ih other (by omega) named
     · exact ⟨slot, holds, fun other before named => earlier ⟨other, before, named⟩⟩
 
-/-- A kept objective is its slot's held unit, found among the ranked candidates, with
-the held bonus raised to that candidate's score. -/
 theorem kept_ranked {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -895,7 +766,6 @@ theorem kept_ranked {config : Config}
       exact ⟨unit, bonus, candidate, rfl, List.mem_of_find?_eq_some found,
         by simpa using List.find?_some found, named.symm⟩
 
-/-- The first slot holding a ranked unit keeps it. -/
 theorem kept_first {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -920,8 +790,6 @@ theorem kept_first {config : Config}
     rw [earlier]
     simp only [Bool.false_eq_true, ↓reduceIte, current, Assignment.retain, Option.isSome_map, found]
 
-/-- The unkept slot at a position of the unkept slots, in slot order, has that many
-unkept slots before it. -/
 theorem open_slot {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (index : Nat)
@@ -936,7 +804,6 @@ theorem open_slot {config : Config}
   rw [List.filter_filter] at position
   exact ⟨_, by simpa using (List.mem_filter.mp (List.getElem_mem bound)).2, position⟩
 
-/-- An unkept slot has fewer unkept slots before it than there are unkept slots. -/
 theorem openBefore_bound {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -952,7 +819,6 @@ theorem openBefore_bound {config : Config}
   rw [nested, List.length_filter_lt_length_iff_exists]
   exact ⟨slot, List.mem_filter.mpr ⟨List.mem_finRange slot, by simp [unkept]⟩, by simp⟩
 
-/-- The unkept and the kept slots are all the slots. -/
 theorem slots_partition {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) :
@@ -967,7 +833,6 @@ theorem slots_partition {config : Config}
   rw [List.length_finRange] at split
   exact split
 
-/-- The entrants and the ranked candidates some slot holds are all the ranked candidates. -/
 theorem entrants_partition {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) :
@@ -976,8 +841,6 @@ theorem entrants_partition {config : Config}
         !held[slot.val].holds candidate.unit).length = chosen.length :=
   filter_partition _ _ chosen fun _ _ => rfl
 
-/-- Kept slots keep pairwise distinct ranked units that some slot holds, so there are at
-most as many of them as ranked candidates some slot holds. -/
 theorem kept_le_held {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config)) :
@@ -1014,8 +877,6 @@ theorem kept_le_held {config : Config}
         rfl)
   simpa using bound
 
-/-- With pairwise distinct ranked units, each ranked candidate some slot holds is kept by
-the first slot holding it, so there are at most as many of them as kept slots. -/
 theorem held_le_kept {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config))
@@ -1040,7 +901,6 @@ theorem held_le_kept {config : Config}
       kept_first held chosen first candidate member holds before⟩, holds⟩
   simpa using bound
 
-/-- There is an unkept slot for every entrant when the ranking is no longer than the table. -/
 theorem entrants_le_open {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config))
@@ -1052,8 +912,6 @@ theorem entrants_le_open {config : Config}
   have keeps := kept_le_held held chosen
   omega
 
-/-- There is an entrant for every unkept slot when the ranking fills the table with
-distinct units. -/
 theorem open_le_entrants {config : Config}
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (chosen : List (Candidate config))
@@ -1066,8 +924,6 @@ theorem open_le_entrants {config : Config}
   have holds := held_le_kept held chosen distinct
   omega
 
-/-- Ranked candidates name pairwise distinct units: their keys strictly decrease, and a
-candidate's key is the weight word at its own unit's slot. -/
 theorem rankedCandidates_units (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension) :
     (rankedCandidates dimension config weights).Pairwise fun left right =>
@@ -1079,7 +935,6 @@ theorem rankedCandidates_units (dimension : Dimension) (config : Config)
     rankedCandidates_key dimension config weights right rightMember, same] at lower
   exact Nat.lt_irrefl _ lower
 
-/-- Every entrant is installed: the unkept slot at its position takes it. -/
 theorem rankAssignments_entrant (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount) (index : Nat)
@@ -1095,7 +950,6 @@ theorem rankAssignments_entrant (dimension : Dimension) (config : Config)
   exact ⟨slot, by simp only [rankAssignments, Vector.getElem_ofFn, unkept, position,
     List.getElem?_eq_getElem bound]⟩
 
-/-- Every ranked candidate's unit is some slot's unit after the ranking. -/
 theorem rankAssignments_covers (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
@@ -1122,7 +976,6 @@ theorem rankAssignments_covers (dimension : Dimension) (config : Config)
         candidate.unit bonus current (List.mem_map.mpr ⟨candidate, member, rfl⟩) before
       exact ⟨first, by rw [target]; rfl⟩
 
-/-- Every unit a slot holds after the ranking is a ranked candidate's. -/
 theorem rankAssignments_ranked (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
@@ -1138,7 +991,6 @@ theorem rankAssignments_ranked (dimension : Dimension) (config : Config)
   · exact List.mem_map.mpr
       ⟨candidate, (List.mem_filter.mp (List.mem_of_getElem? found)).1, same⟩
 
-/-- When the ranking has a candidate for every slot, every slot holds a unit. -/
 theorem rankAssignments_full (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
@@ -1162,7 +1014,6 @@ theorem rankAssignments_full (dimension : Dimension) (config : Config)
         (rankedCandidates dimension config weights) slot]'inside).score,
       by simp only [rankAssignments, Vector.getElem_ofFn, keeps, List.getElem?_eq_getElem inside]⟩
 
-/-- The slots holding a unit after the ranking are as many as the ranked candidates. -/
 theorem rankAssignments_count (dimension : Dimension) (config : Config)
     (weights : WeightArray (.discounted .g99) dimension)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount) :
