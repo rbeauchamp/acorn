@@ -492,8 +492,8 @@ script checks. The checks take their file lists from Git's stage-0 tracked
 regular-file index without materializing a separate HEAD checkout or hashing
 every tracked file independently against HEAD; verdict-producing commands
 (`./scripts/gate.sh`, `./scripts/verify.sh` outside `site write` and
-`diagnostics`, `./scripts/regula.sh`, and the compiled audit executables
-`acorn-gates` outside `site write` and `diagnostics`, `lean-boundary-audit`,
+diagnostics, `./scripts/regula.sh`, and the compiled audit executables
+`acorn-gates` outside `site write` and diagnostics, `lean-boundary-audit`,
 `native-audit`, `ownership-audit`, `corpus-audit`, `theorem-count`,
 `intent-check`, and `frame-check` outside `frame-check print`) additionally
 check via Git that the index and working tree report no staged or unstaged
