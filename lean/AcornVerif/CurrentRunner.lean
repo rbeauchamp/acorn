@@ -1,27 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Ansi
 import Acorn.Host.Baseline
 
-/-!
-# Current attempt and supervision invariants
-
-The same prepared-action and commit definitions are called by the native
-runner. Callbacks supply the full agent; no learned transition is modeled or
-invented here. IO event order is linked through the native call gate and source
-review, while these universal claims own the pure admission and progression.
-The last section states the random-policy comparator's action law, its
-correspondence with the agent's attempt and its completion.
--/
 namespace AcornVerif.CurrentRunner
 open Acorn Acorn.Host
 
 variable {order : StepOrder}
 
-/-- Every successful commit consumes exactly one of the prepared remaining steps. -/
 theorem commit_steps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
@@ -32,7 +16,6 @@ theorem commit_steps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
   · cases Except.ok.inj h
     rfl
 
-/-- The world phase of a prepared commit advances exactly one physical clock tick. -/
 theorem commit_clock {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
@@ -44,13 +27,11 @@ theorem commit_clock {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
     cases Except.ok.inj h
     exact World.step_clock _ _ _ _ hs
 
-/-- Every admitted attempt state preserves its receiving task and finite step budget. -/
 theorem attempt_bounds {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64}
     (attempt : Attempt config α goal cap) :
     attempt.run.world.goal = some goal ∧ attempt.steps.val ≤ cap.toNat :=
   ⟨attempt.installed, by have := attempt.steps.isLt; omega⟩
 
-/-- A non-stopping boundary never produces the stopped outcome. -/
 theorem boundary_running {size : Nat} {plan : CampaignPlan size} (cursor : CampaignCursor plan)
     (achieved : Bool) : atAttemptBoundary cursor achieved false ≠ .stopped := by
   unfold atAttemptBoundary atAttemptBoundary.nextGoal
@@ -65,33 +46,17 @@ theorem boundary_running {size : Nat} {plan : CampaignPlan size} (cursor : Campa
     · intro h; cases h
     · split <;> intro h <;> cases h
 
-/-- A refused image cannot yield a writable destination, even at a stop boundary. -/
 theorem checkpoint_refusal (path : System.FilePath) (interval : UInt32) :
     WritableCheckpoint.admit path interval .refused = none := rfl
 
-/-- Empty unbounded input has no campaign plan, for every curriculum size. -/
 theorem empty_unbounded_refused (size : Nat) (steps attempts : UInt64) :
     CampaignPlan.admit size ⟨steps, attempts, 0, 0⟩ =
       .error (if 0 < steps.toNat then .emptyUnbounded else .stepCapZero) := by
   by_cases h : 0 < steps.toNat <;> simp [CampaignPlan.admit, h]
 
-/-! ## Random-policy comparator
-
-The comparator of `Acorn.Host.Baseline` against the agent's attempt and campaign
-definitions. `Corresponds` relates an agent attempt to a comparator attempt;
-the theorems that follow show that the relation holds at goal installation, is
-kept by every step on which both arms take the same action, ends both attempts
-together and gives both the same outcome row. The agent's side is the reference
-transition `Attempt.tick`, to which `DecisionInput.selectOwned_eq` and
-`SelectedStep.owned_commit` link the native loop.
--/
-
-/-- Every action code survives the world's code conversion. -/
 theorem fromIndex_index : ∀ code, code < 9 → (Action.fromIndex code).index.val = code := by
   decide
 
-/-- The comparator's action code is the high word of nine times the stream's
-output word w: ⌊9w / 2⁶⁴⌋. -/
 theorem baseline_action_code (rng : Rng.Xoshiro256) :
     (baselineAction rng).1.index.val = rng.next.1.toNat * 9 / 2 ^ 64 := by
   have bound : (rng.nextBelow baselineActionCount).1.val.toNat < 9 :=
@@ -101,17 +66,12 @@ theorem baseline_action_code (rng : Rng.Xoshiro256) :
   rw [fromIndex_index _ bound, quotient]
   rfl
 
-/-- A comparator draw consumes exactly one output of the stream, whatever the action. -/
 theorem baseline_action_stream (rng : Rng.Xoshiro256) : (baselineAction rng).2 = rng.next.2 := rfl
 
-/-- The number of output words that select wait or eat; every other action has
-one more (`action_word_count`). -/
 def actionWords : Nat := 2049638230412172401
 
-/-- The 2⁶⁴ output words are nine blocks of `actionWords` and seven more. -/
 theorem word_space : 2 ^ 64 = 9 * actionWords + 7 := by decide
 
-/-- The output words that select one action code are exactly one interval. -/
 theorem action_word_interval (word code : Nat) (bound : code < 9) :
     word * 9 / 2 ^ 64 = code ↔
       code * actionWords + (7 * code + 8) / 9 ≤ word ∧
@@ -121,33 +81,22 @@ theorem action_word_interval (word code : Nat) (bound : code < 9) :
   unfold actionWords
   rcases cases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> omega
 
-/-- The interval of an action code holds `actionWords` words for wait (code 4)
-and eat (code 8) and one more for each of the other seven actions, so under a
-uniform output word every action has probability within 2⁻⁶⁴ of 1/9. -/
 theorem action_word_count : ∀ code, code < 9 →
     ((code + 1) * actionWords + (7 * code + 15) / 9) - (code * actionWords + (7 * code + 8) / 9) =
       if code = 4 ∨ code = 8 then actionWords else actionWords + 1 := by
   decide
 
-/-- The comparator attempt that carries the world side of an agent attempt. -/
 structure Corresponds {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64}
     (attempt : Attempt config α goal cap) (state : BaselineAttempt config cap) : Prop where
-  /-- The same physical world, installed goal included. -/
   world : state.world = attempt.run.world
-  /-- The same number of steps taken. -/
   steps : state.steps = attempt.steps
-  /-- The comparator's completion flag is the agent's reason to end early: the
-  carried flag, once this attempt has taken a step. -/
   done : state.result.done = (attempt.steps.val != 0 && attempt.run.carried.events.done)
 
-/-- Goal installation puts both arms in corresponding states from one world,
-whatever result the agent's stream carries in. -/
 theorem start_corresponds {config : WorldConfig} {α : Type} (run : RunState config α)
     (rng : Rng.Xoshiro256) (goal : Goal) (cap : UInt64) :
     Corresponds (Attempt.start run goal cap) (BaselineAttempt.start run.world rng goal cap) :=
   ⟨rfl, rfl, rfl⟩
 
-/-- A sensed decision belongs to an unfinished attempt and returns that attempt. -/
 theorem sense_some {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64}
     (attempt : Attempt config α goal cap) (input : DecisionInput config α goal cap)
     (h : attempt.sense = .ok (some input)) : attempt.finished = false ∧ input.before = attempt := by
@@ -163,7 +112,6 @@ theorem sense_some {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt6
         exact ⟨rfl, by rw [← h]⟩
     · simp [pure, Except.pure] at h
 
-/-- An attempt that senses nothing is finished. -/
 theorem sense_none {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64}
     (attempt : Attempt config α goal cap) (h : attempt.sense = .ok none) :
     attempt.finished = true := by
@@ -181,8 +129,6 @@ theorem sense_none {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt6
       have equal : attempt.steps.val = cap.toNat := by omega
       simp [Attempt.finished, equal] at finished
 
-/-- A successful commit ran the world's transition on the prepared action, kept
-its result as the carried result and counted one step. -/
 theorem commit_world {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (prepared : PreparedStep config α β goal cap) (callbacks : AgentCallbacks order α β)
     (next : Attempt config α goal cap) (h : prepared.commit callbacks = .ok next) :
@@ -195,8 +141,6 @@ theorem commit_world {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
     cases Except.ok.inj h
     exact ⟨stepped, rfl⟩
 
-/-- An agent tick that acted belonged to an unfinished attempt below its cap, ran
-the world's transition on the frame's action and counted one step. -/
 theorem tick_acted {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (frame : StepFrame β)
@@ -222,7 +166,6 @@ theorem tick_acted {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UI
         obtain ⟨stepped, count⟩ := commit_world _ callbacks after committed
         exact ⟨unfinished, input.remaining, stepped, count⟩
 
-/-- An agent tick that took no action left a finished attempt unchanged. -/
 theorem tick_idle {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap)
@@ -243,10 +186,6 @@ theorem tick_idle {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UIn
       | error error => simp [committed] at h
       | ok after => simp [committed] at h
 
-/-- Step correspondence. When the agent's tick acts and the comparator draws the
-same action from a corresponding state, the comparator's tick takes that step
-too and the states correspond again, for every agent callback. The comparator's
-stream advances by exactly that draw. -/
 theorem tick_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (frame : StepFrame β)
@@ -272,8 +211,6 @@ theorem tick_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {ca
     omega
   · simp [count]
 
-/-- Stop correspondence. When the agent's tick takes no action, the comparator's
-tick from a corresponding state takes none either. -/
 theorem idle_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt next : Attempt config α goal cap) (state : BaselineAttempt config cap)
@@ -292,9 +229,6 @@ theorem idle_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {ca
       omega
     simp [full]
 
-/-- Outcome correspondence. After at least one step, the agent's outcome row and
-the comparator's row from a corresponding state report the same steps,
-completion flag and position, and both arms carry the same world onward. -/
 theorem outcome_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (context : GoalContext)
     (attempt : Attempt config α goal cap) (state : BaselineAttempt config cap)
@@ -315,9 +249,6 @@ theorem outcome_corresponds {config : WorldConfig} {α β : Type} {goal : Goal} 
     · simp [BaselineAttempt.outcome, related.done, taken]
     · simp [BaselineAttempt.outcome, related.world]
 
-/-- With one attempt per goal, the cursor that follows any one boundary does not depend on the
-outcome. That both arms therefore visit the same goals in the same order over a whole campaign is
-argued from this and the loops that repeat the boundary; no theorem states that schedule. -/
 theorem boundary_single_attempt {size : Nat} {plan : CampaignPlan size}
     (single : plan.attempts.toNat = 1) (cursor : CampaignCursor plan) (first second : Bool) :
     atAttemptBoundary cursor first false = atAttemptBoundary cursor second false := by
@@ -325,12 +256,9 @@ theorem boundary_single_attempt {size : Nat} {plan : CampaignPlan size}
   unfold atAttemptBoundary
   simp only [Bool.false_eq_true, ↓reduceIte, last, ↓reduceDIte, ite_self]
 
-/-- Attempts that precede a cursor when every attempt fails: its position in the
-schedule of cycles, goals and attempts. -/
 def cursorRank {size : Nat} {plan : CampaignPlan size} (cursor : CampaignCursor plan) : Nat :=
   (cursor.cycle.toNat * plan.goals.val + cursor.goal.val) * plan.attempts.toNat + cursor.attempt.val
 
-/-- A cursor inside a bounded campaign's cycles lies inside its attempt budget. -/
 theorem cursorRank_lt {size : Nat} {plan : CampaignPlan size} (cursor : CampaignCursor plan)
     (live : cursor.cycle.toNat < plan.cycles.toNat) : cursorRank cursor < plan.attemptBudget := by
   unfold cursorRank CampaignPlan.attemptBudget
@@ -344,22 +272,18 @@ theorem cursorRank_lt {size : Nat} {plan : CampaignPlan size} (cursor : Campaign
   rw [Nat.add_mul, Nat.one_mul] at attempts
   omega
 
-/-- The first attempt of the next goal slot follows every attempt of this one. -/
 theorem slot_advance (slot next attempts attempt : Nat) (successor : next = slot + 1)
     (within : attempt < attempts) : slot * attempts + attempt < next * attempts + 0 := by
   subst successor
   rw [Nat.add_mul, Nat.one_mul]
   omega
 
-/-- The saturating increment is exact below the word boundary. -/
 theorem increment_exact (value : UInt64) (room : value.toNat + 1 < 2 ^ 64) :
     (saturatingIncrement64 value).toNat = value.toNat + 1 := by
   change min (value.toNat + 1) (2 ^ 64 - 1) % (2 ^ 64) = value.toNat + 1
   rw [Nat.min_eq_left (by omega)]
   exact Nat.mod_eq_of_lt room
 
-/-- A goal that is achieved or out of attempts ends the campaign or moves to a
-later cursor inside the campaign's cycles. -/
 theorem goal_advances {size : Nat} {plan : CampaignPlan size} (cursor : CampaignCursor plan)
     (live : cursor.cycle.toNat < plan.cycles.toNat) :
     atAttemptBoundary cursor true false = .complete ∨
@@ -393,8 +317,6 @@ theorem goal_advances {size : Nat} {plan : CampaignPlan size} (cursor : Campaign
         rw [Nat.add_mul, Nat.one_mul]
         omega
 
-/-- Every boundary without a stop request ends the campaign or moves to a later
-cursor inside the campaign's cycles. -/
 theorem boundary_advances {size : Nat} {plan : CampaignPlan size} (cursor : CampaignCursor plan)
     (live : cursor.cycle.toNat < plan.cycles.toNat) (achieved : Bool) :
     atAttemptBoundary cursor achieved false = .complete ∨
@@ -416,9 +338,6 @@ theorem boundary_advances {size : Nat} {plan : CampaignPlan size} (cursor : Camp
       rw [exhausted]
       exact goal_advances cursor live
 
-/-- The comparator's campaign never runs out of fuel inside a bounded campaign's
-cycles: with the remaining attempt budget as fuel it ends at the completing
-boundary or at a world refusal. -/
 theorem baseline_campaign_finishes {config : WorldConfig} (curriculum : Curriculum)
     (plan : CampaignPlan curriculum.size) :
     ∀ (fuel : Nat) (cursor : CampaignCursor plan) (world : World config) (rng : Rng.Xoshiro256)
@@ -443,8 +362,6 @@ theorem baseline_campaign_finishes {config : WorldConfig} (curriculum : Curricul
       · simp only [continues]
         exact ih next _ _ _ inside (by omega)
 
-/-- A bounded campaign always has a complete comparator record or an explicit
-world refusal: the comparator never reports it unfinished. -/
 theorem baseline_finishes (config : WorldConfig) (seed : UInt64) (spec : CampaignSpec)
     (plan : CampaignPlan (standardCurriculum config seed).size)
     (admitted : CampaignPlan.admit (standardCurriculum config seed).size spec = .ok plan)
@@ -463,41 +380,15 @@ theorem baseline_finishes (config : WorldConfig) (seed : UInt64) (spec : Campaig
       omega
     · simp [CampaignPlan.initial, populated]
 
-/-- Two callback records, at any two indices, with the same whole step and the same host
-functions. A copy of a record under another index is one case. -/
 structure SameParts {other : StepOrder} {α β : Type} (first : AgentCallbacks order α β)
     (second : AgentCallbacks other α β) : Prop where
-  /-- The whole step, the first part and then the second, is the same function. -/
   whole : ∀ agent observation carried,
     first.act agent observation carried = second.act agent observation carried
-  /-- The environment bookkeeping is the same function. -/
   environment : first.recordEnvironment = second.recordEnvironment
-  /-- The attempt bookkeeping is the same function. -/
   attempt : first.recordAttempt = second.recordAttempt
-  /-- The observer snapshot is the same function. -/
   capture : first.capture = second.capture
-  /-- The terminal observations are the same function. -/
   metrics : first.metrics = second.metrics
 
-/-- **The pure fold reads the whole step and the host functions, and not the index.**
-For every two callback records with the same whole step and the same host functions, at
-any two indices, and every context, fuel and attempt, the fold `Attempt.complete` is the
-same value.
-
-What follows from it, with the two loop theorems. A value that either native loop returns
-agrees with this fold in its run state, its outcome and its refusal
-(`runAttemptSteps_complete`, `runReleasedSteps_complete`, through `AttemptAgrees`). So a
-record that is copied under another index, and run by the loop of that index, returns
-the run state, the outcome and the refusal that the record itself returns from its own
-loop. The statement is about the world of this protocol, which takes one transition for
-each action and waits for it.
-
-What is outside it. The loops also return resource counters, which hold a measured
-duration around clock reads that the two loops place differently, and they deliver frames
-to an observer. `AttemptAgrees` does not compare the counters, and no statement here is
-about the observer's effects or about the time of the world's transition. That a copied
-record changes that time, the reported durations and the order of the frame delivery is
-read from the two loop definitions; it is argued and not machine-checked. -/
 theorem complete_parts {other : StepOrder} {config : WorldConfig} {α β : Type} {goal : Goal}
     {cap : UInt64} (first : AgentCallbacks order α β) (second : AgentCallbacks other α β)
     (same : SameParts first second) (context : GoalContext) (fuel : Nat)
