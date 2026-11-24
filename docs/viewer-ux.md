@@ -488,7 +488,7 @@ Rules that apply to every number, label and colour on the page.
   from the served page, so a page left open from a previous start holds a stale
   one and is refused; bodies are capped and rejections say little about which
   check failed. HTTP `/control` JSON error responses use fixed public strings
-  and never expose raw OS `IO.Error` messages or local run-directory/archive
+  and never expose raw operating-system error messages or local run-directory/archive
   paths; detailed native diagnostics remain in the supervisor's failure
   diagnostic path and standard error. For a browser Stop (`{"cmd":"stop"}`),
   `POST /control` holds its HTTP response until the supervisor actor completes

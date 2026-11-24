@@ -1667,7 +1667,7 @@ timeout that ends only the HTTP wait without cancelling the Stop) to HTTP `503` 
 `HttpServer.lean` and `Supervisor.lean` — where `Supervisor.performInActor` maps
 {decl}`Acorn.Host.Viewer.Follow.refuseStop` to a fixed public
 {decl}`Acorn.Host.Viewer.ControlResult.unconfirmed` string so HTTP `/control` JSON responses
-never expose raw OS `IO.Error` messages or local run-directory/archive paths (detailed native
+never expose raw operating-system error messages or local run-directory/archive paths (detailed native
 diagnostics remain in `Supervision.lean`'s `core.report .failed` diagnostic path and stderr) —
 is likewise read from the code. On viewer shutdown interrupting an admitted Stop, the supervisor
 resolves the waiter as {decl}`Acorn.Host.Viewer.ControlResult.unconfirmed` so HTTP returns `503`
