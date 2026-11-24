@@ -208,23 +208,23 @@ is retired.
 
 ### PAR-1 · SwiftTD
 
-[Source](https://rlj.cs.umass.edu/2024/papers/RLJ_RLC_2024_111.pdf). Execution owner: `Acorn.SwiftTd`.
+[Source](https://rlj.cs.umass.edu/2024/papers/RLJ_RLC_2024_111.pdf): Javed, Sharifnassab & Sutton (2024), *SwiftTD: A Fast and Robust Algorithm for Temporal Difference Learning*, Reinforcement Learning Journal, vol. 2, pp. 840–863 / RLC 2024 — Algorithm 1 p. 9 (RLJ vol. 2 p. 848), equation (7) p. 845, equation (32) p. 18, and §6 p. 849. Execution owner: `Acorn.SwiftTd`.
 
 Adaptive sparse TD with per-feature step sizes. Projection, trace pruning and meta-register re-anchoring are declared adaptations. The contracts below describe their finite-word state and update semantics.
 
-**Adaptation and rationale.** Binary unique ActiveSet inputs specialize the paper’s feature factors to one on the active set; sparse eligible-set iteration avoids full sweeps. The scaled trace increment is bounded by the overshoot budget, not the sum of raw step sizes. Projection admits stored weights; pruning and re-anchoring control finite-state storage but alter the unconstrained recurrence.
+**Adaptation and rationale.** Binary unique ActiveSet inputs specialize the paper’s feature factors to one on the active set; sparse eligible-set iteration avoids full sweeps. The scaled trace increment is bounded by the overshoot budget, not the sum of raw step sizes. Projection admits stored weights; pruning and re-anchoring control finite-state storage but alter the unconstrained recurrence, and eligible-set pruning clears the meta-gradient registers (`p`, `zBar`, `h`, `hOld`, `hTemp`, `deltaWeight`, `zDelta`, `lastAlpha`) alongside `z` so dormant features retain no selective-credit state while per-index traces and meta-gradients stay unbounded raw words by design. `NumericState.firstLoopElement` reads stored `alpha` while keeping `h` lagged for equation (32) (`NumericState.firstLoopElement_eq`), and `NumericState.learnSecondLoopGo` relies on `ActiveSet.nodup` alongside `NumericState.secondLoopElementAt_alpha`.
 
-**Contract and composition.** AcornVerif.MetaGradient states the hand-transcribed recurrence and discrepancy identities; external transcription fidelity remains assumed. AcornVerif.CurrentLearner and AcornVerif.CurrentLearnerArithmetic link state/update contracts to the executed owner.
+**Contract and composition.** AcornVerif.MetaGradient states the hand-transcribed recurrence and discrepancy identities; external transcription fidelity remains assumed. AcornVerif.CurrentLearner and AcornVerif.CurrentLearnerArithmetic link state/update contracts to the executed owner, with `SwiftTd.Admitted` (`SwiftTd.Learner`) serving as an erased Prop provenance witness alongside `SwiftTd.nextReady` and `SwiftTd.Permitted` for composed resource safety.
 
 **Refutation attempt.** The recorded independent review challenged overshoot, sparse cost, register timing, transcription and bounds. It established that the budget concerns scaled trace increments, that the paper also uses sparse loops, and that re-anchoring withdraws the weight increment. It rejected attributing gamma-derived value bounds to log step sizes. These distinctions limit the claim here.
 
 ### PAR-2 · Swift-Sarsa
 
-[Source](https://arxiv.org/abs/2507.19539). Execution owner: `Acorn.Sarsa`.
+[Source](https://arxiv.org/abs/2507.19539): Javed & Sutton, *Swift-Sarsa: Fast and Robust Linear Control*, arXiv:2507.19539v1 (2025), equation (4) (printed p. 1) and Algorithm 1 (printed p. 4). Execution owner: `Acorn.Sarsa`.
 
 On-policy per-action learners with semi-Markov credit. The declared Sarsa substitution does not implement every control variant; corrected meta-gradient and duration credit must retain their executed owners.
 
-**Adaptation and rationale.** One persistent value-difference register and per-action learners specialize the step-size machinery to on-policy control. Semi-Markov duration catch-up is needed at meta decisions; primitive credit uses executed actions each learning step. The eligibility set, not only the active feature set, owns update cost.
+**Adaptation and rationale.** One persistent value-difference register and per-action learners specialize the step-size machinery to on-policy control. Semi-Markov duration catch-up uses Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence 112 (1999), equations (8)–(9), p. 190, at meta decisions, while `Controller.stopStep` applies Sutton, Machado et al., *Reward-respecting subtasks for model-based reinforcement learning*, Artificial Intelligence 324 (2023), 104001, §3 `UpdateWeights&Traces` at `β = 1` with zero trace decay and structural trace release; primitive credit uses executed actions each learning step. The eligibility set, not only the active feature set, owns update cost.
 
 **Contract and composition.** AcornVerif.CurrentControl and AcornVerif.CurrentTemporal connect to execution. AcornVerif.CurrentPower.pow_one_word supplies the one-step power reduction. Tie handling treats values within the admitted numerical band as tied. The corrected meta-register recurrence is a stated departure from the printed listing.
 
@@ -232,11 +232,11 @@ On-policy per-action learners with semi-Markov credit. The declared Sarsa substi
 
 ### PAR-3 · Horde
 
-[Source](http://www.incompleteideas.net/papers/horde-aamas-11.pdf): Sutton, Modayil et al., *Horde*, AAMAS (2011), pp. 761–768, p. 764. Execution owner: `Acorn.Demon`.
+[Source](http://www.incompleteideas.net/papers/horde-aamas-11.pdf): Sutton, Modayil et al., *Horde: A Scalable Real-Time Architecture for Learning Knowledge from Unsupervised Sensorimotor Interaction*, AAMAS (2011), pp. 761–768, p. 764. Execution owner: `Acorn.Demon`.
 
 Parallel GVF prediction enters representation. Cumulants and horizons are declared D5; recursive changing features and policies limit transfer of fixed-policy analysis.
 
-**Adaptation and rationale.** Parallel bounded GVFs specialize the broader Horde architecture; predictions feed other features to support an online representation. Fixed horizons/targets are D5: in `lean/Acorn/Handcrafted/Cumulants.lean`, `Acorn.Handcrafted.Cumulant`, `Acorn.Handcrafted.Cumulant.eval`, `Acorn.Handcrafted.cumulantOrder`, and `Acorn.Handcrafted.demonLayout` implement the eleven current host signals as this PAR-3 specialization (Sutton, Modayil et al., AAMAS 2011, p. 764), retaining their canonical order, raw sensory-byte semantics, and per-signal horizons with the reward member observing the host-declared goal reward, rather than learned question discovery or general off-policy prediction. The questions about the behaviour learn on-policy; Acorn asks no off-policy question (PAR-18, retired). Changing predictions, policies and adaptive steps violate fixed-feature/stationary assumptions.
+**Adaptation and rationale.** Parallel bounded GVFs specialize the broader Horde architecture; `Demon.step` evaluates each signal once and returns the pre-update projected prediction (`DemonOutput.prediction`) as the next encoding's feedback to support an online representation. Fixed horizons/targets are D5: in `lean/Acorn/Handcrafted/Cumulants.lean`, `Acorn.Handcrafted.Cumulant`, `Acorn.Handcrafted.Cumulant.eval`, `Acorn.Handcrafted.cumulantOrder`, and `Acorn.Handcrafted.demonLayout` implement the eleven current host signals as this PAR-3 specialization (Sutton, Modayil et al., AAMAS 2011, p. 764), retaining their canonical order, raw sensory-byte semantics, and per-signal horizons with the reward member observing the host-declared goal reward, rather than learned question discovery or general off-policy prediction. The questions about the behaviour learn on-policy; Acorn asks no off-policy question (PAR-18, retired). Changing predictions, policies and adaptive steps violate fixed-feature/stationary assumptions.
 
 **Contract and composition.** AcornVerif.CurrentPrediction and Acorn.Handcrafted.PredictionControl own bounded predictions and their use. Bucket admission constrains the output range; reachability is a separate property. The policy, representation and step sizes evolve during the run.
 
@@ -244,11 +244,11 @@ Parallel GVF prediction enters representation. Cumulants and horizons are declar
 
 ### PAR-4 · Generate and test
 
-[Source](http://www.incompleteideas.net/papers/MS-AAAIws-2013.pdf). Execution owner: `Acorn.Features`.
+[Source](http://www.incompleteideas.net/papers/MS-AAAIws-2013.pdf) ([mirror](https://armahmood.github.io/files/MS-RepSearch-AAAI-WS-2013.pdf), PDF p. 3). Execution owner: `Acorn.Features`.
 
 Random projection generation over a hand-authored channel layout. Generation and the tester (PAR-11) are distinct mechanisms; only imprint units are replaced.
 
-**Adaptation and rationale.** The fixed-size bank generates random projections to keep storage bounded and construction reproducible. Each unit samples 32 inputs with replacement from the 11 × 11 tile-kind patch followed by the ten task-word positions (D1), hash-binarizes them and thresholds the signed sum at zero, so one unit can conjoin task and layout, which the linear learners cannot otherwise express. Context positions carry the task words in channel order, so a position's meaning depends on the task type in the first positions; a unit separates task types when it also samples those. A replacement draws the generator's next 32 samples (Mahmood & Sutton, p. 3). This is the generator half; PAR-11 owns the tester. Candidate features still have learned output weights, so their fixed input projections do not make utility estimation impossible.
+**Adaptation and rationale.** The fixed-size bank generates random projections to keep storage bounded and construction reproducible. Each unit samples 32 inputs with replacement from the 11 × 11 tile-kind patch followed by the ten task-word positions (D1) using disjoint bit fields in `Features.Sample.ofWord` (upper 32 bits for source index, low bit `&&& 1` for sign), hash-binarizes them and thresholds the signed sum at zero—omitting the paper's imprinting threshold—so one unit can conjoin task and layout, which the linear learners cannot otherwise express. Context positions carry the task words in channel order, so a position's meaning depends on the task type in the first positions; a unit separates task types when it also samples those. A replacement draws the generator's next 32 samples (Mahmood & Sutton, p. 3). This is the generator half; PAR-11 owns the tester. Candidate features still have learned output weights, so their fixed input projections do not make utility estimation impossible.
 
 **Contract and composition.** Acorn.Features, Acorn.FeatureHistory and Acorn.FeatureLifecycle admit dimensions, unique active indices and replacement identity. Every unit's projection is determined by its recorded generator origin (`Bank.build_replace`), so the bank is rebuilt from `O(units)` stored words for any number of replacements. `taskWords_fit` proves every task relation fits the generator's context, so no task word is dropped.
 
@@ -256,11 +256,11 @@ Random projection generation over a hand-authored channel layout. Generation and
 
 ### PAR-5 · Reward-respecting subtasks
 
-[Source](https://arxiv.org/abs/2202.03466). Execution owner: `Acorn.Options`.
+[Source](https://arxiv.org/abs/2202.03466): Sutton, Machado et al., *Reward-Respecting Subtasks for Model-Based Reinforcement Learning*, Artificial Intelligence 324 (2023), 104001, arXiv:2202.03466v4, equations (4)–(5). Execution owner: `Acorn.Options`.
 
 Skills receive host reward with held stopping bonuses. Ranked hashed slots select candidate subtasks from positive learned Demon-0 weights.
 
-**Adaptation and rationale.** Host reward remains in each skill’s cumulant. Where ranking finds a candidate, an attained feature adds its held bonus to the stopping value: the unit’s positive Demon-0 weight, held from selection and raised at each refresh to the current weight when larger, stands in for the source’s bonus weight, “one of its largest values” (section 2, equation (4), p. 8). The source replaces the feature’s current weight inside the main value estimate; Acorn adds the held weight to the meta-controller estimate. This supports reward-respecting subtasks without a manually selected subgoal list. The hashed-slot weight is a proxy, and the neutral fallback differs from the paper’s nonzero prescribed stopping value.
+**Adaptation and rationale.** Host reward remains in each skill’s cumulant. Where ranking finds a candidate, an attained feature adds its held bonus to the stopping value: the unit’s positive Demon-0 weight, held from selection and raised at each refresh to the current weight when larger, stands in for the source’s bonus weight, “one of its largest values” (section 2, equation (4), p. 8), alongside equation (5)'s undiscounted terminal stopping target. The source replaces the feature’s current weight inside the main value estimate; Acorn adds the held weight to the meta-controller estimate. This supports reward-respecting subtasks without a manually selected subgoal list. The hashed-slot weight is a proxy, and the neutral fallback differs from the paper’s nonzero prescribed stopping value. In `Acorn.Options`, Lean values are persistent rather than linear resources, so exactly-once closing is a property of the dispatch transition rather than a type-level ban on duplicating a value, while raw reward and estimate words stay raw.
 
 **Note, OaK's 2026 statement.** In his Dertouzos Distinguished Lecture at MIT CSAIL on May 13, 2026, cited from a [third-party upload](https://www.youtube.com/watch?v=GfmE2NPSN50&t=2306s) whose times these are, Sutton states the subproblem in average-reward form. The slide "How OaK creates a subproblem from a feature i, κ" (on screen at 38:27) asks for an option (π, γ) that, in each state s, maximizes E[κφᵢ(S_T) + v̂(S_T) + Σ_{k=t+1}^{T} (R_k − r̂_π) | S_t = s], labelling r̂_π the "estimate of the average reward for the current policy" and v̂(S_T) the "approximate differential value of termination state on the main problem"; spoken, "you're comparing the reward you get to the average reward" (at 40:59, caption text from the upload's automatic captions). Under Acorn's default discounted criterion, each skill's controller learns from discounted host reward with no average subtracted. The AI Journal paper stays this entry's specification; the average-reward form bears on reward centering (issue 13) and on differential control (PAR-15).
 
@@ -270,7 +270,7 @@ Skills receive host reward with held stopping bonuses. Ranked hashed slots selec
 
 ### PAR-6 · Potential-based shaping
 
-[Source](https://ai.stanford.edu/~ang/papers/shaping-icml99.pdf). Execution owner: `Acorn.Options`.
+[Source](https://ai.stanford.edu/~ang/papers/shaping-icml99.pdf): Ng, Harada & Russell, *Policy invariance under reward transformations: Theory and application to reward shaping*, ICML (1999), Theorem 1 equation (2), Corollary 2, and Remark 1 (PDF pp. 4–5). Execution owner: `Acorn.Options`.
 
 Finite-return coordinate identities preserve the stated terminal and bootstrap terms. Shared-stopping identities do not establish host-policy invariance with changing critics or an arbitrary stopping objective.
 
@@ -282,7 +282,7 @@ Finite-return coordinate identities preserve the stated terminal and bootstrap t
 
 ### PAR-7 · Options and interruption
 
-[Source](http://www.incompleteideas.net/papers/SPS-aij.pdf): Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence 112 (1999), equations (8)–(9), p. 190. Execution owner: `Acorn.Temporal`.
+[Source](http://www.incompleteideas.net/papers/SPS-aij.pdf): Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence 112 (1999), equations (8)–(9), p. 190, and Theorem 2, p. 197 (for the strict interruption comparison's form, without implying policy improvement over estimated values). Execution owner: `Acorn.Temporal`.
 
 Typed option lifecycle and semi-Markov updates retain actual accumulated reward and duration. Shared units and strict advantage govern interruption by value; a persistent run that an option's own draw begins also interrupts it and closes its meta span there (PAR-8).
 
@@ -310,7 +310,7 @@ The persistent draw applies to the behaviour, as the source's Algorithm 1 (p. 14
 
 ### PAR-9 · Intra-option value learning
 
-[Source](http://www.incompleteideas.net/papers/SPS-aij.pdf): Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence 112 (1999), §6, pp. 204–205 (with equations (8)–(9), p. 190 supplying the SMDP form composed in `Acorn.Handcrafted.TemporalControl` alongside PAR-7 and PAR-15's shared pre-observation gain). Execution owner: `Acorn.Handcrafted.TemporalControl`.
+[Source](http://www.incompleteideas.net/papers/SPS-aij.pdf): Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence 112 (1999), §6, pp. 204–205 (with equations (8)–(9), p. 190 supplying the SMDP form composed in `Acorn.Handcrafted.TemporalControl` alongside PAR-7 and PAR-15's shared pre-observation gain, and Sutton & Barto, *Reinforcement Learning: An Introduction*, 2nd ed., MIT Press (2018), §10.3 Exercise 10.8 supplying the reward-residual gain variant in `Acorn.Control`). Execution owner: `Acorn.Handcrafted.TemporalControl`.
 
 Primitive action learners receive the executed stream, including option steps. This is an on-policy Sarsa specialization with actual terminal/span semantics; it is not the full off-policy intra-option algorithm.
 
@@ -449,7 +449,7 @@ FloatLib proves real-valued statements about Lean core's logical floating-point 
 
 **Contract and composition.** AcornVerif.FloatLibBridge is the only importer; the boundary audit refuses a FloatLib import anywhere else, and refuses any import of it by an executing module. `binary64_div_half_unit_error` bounds the executing binary64 division by half the grid spacing under the hypotheses of `binary64_div_finite_error`, one quarter of that theorem's radius. `nearestEven_eq_roundQuotientEven` identifies Acorn's integer nearest-even quotient with FloatLib's. For each decimal constant in Acorn.Constants a theorem such as `band030_nearest` states that the word is the decimal rounded once to nearest-even binary32. Every theorem of the bridge depends only on propext, Quot.sound and Classical.choice. The nearest-even operation theorems (`binary32_add_roundAt`, `binary32_mul_roundAt`, `binary32_div_roundAt`, and their binary64 counterparts) concern finite operands and finite results (FloatLib's roundAt rounds on an unbounded-exponent grid, and exceptional words have no real value), while for world admission `coordinateFloat_div_pastLast_interval` quantifies over arbitrary `Binary32` scale words (including exceptional words) across any coordinate interval with `lo < 0 < hi`, `lo ≤ c ≤ hi`, and both endpoint quotients having `isPastLast = false`, handling them directly through Lean core's `Float32` model, and `octaveScale_ofNat_not_pastLast` covers finite standard scales encoded from natural numbers `8 ≤ sNat ≤ 2^28` across all four octaves (`octave < 4`); native primitive and compiler correspondence stay outside them.
 
-**Residual uncertainty.** The ideal-function error of the local exponential and logarithm remains unproved; the bridge supplies the per-operation statements that proof needs. FloatLib is young and has one committer, so the dependency is pinned to a commit and confined to one module.
+**Residual uncertainty.** The ideal-function error of the local exponential and logarithm (`Portable.exp` and `Portable.ln`) remains unproved; the bridge supplies the per-operation statements that proof needs, while `Portable.exp` preserves input NaN words (`Portable.exp_nan_word`) and `Portable.ln` maps NaN and negative inputs to positive quiet NaN `0x7fc00000` with no cross-platform payload equivalence asserted. FloatLib is young and has one committer, so the dependency is pinned to a commit and confined to one module.
 
 **Refutation attempt.** Before adoption the library at commit 7fc753899afed9562018fe09f336403b179eedbd was built whole on the toolchain then pinned and audited with Regula v0.3.1, claimed at standard-logical with checked execution. The attack looked for holes, project axioms, compiler-trusting proofs, unproved runtime replacements and theorem hypotheses that Acorn's definitions do not meet. All 28,623 declarations use only propext, Quot.sound and Classical.choice, with no hole and no compiler-trusting proof. The audit found that its compiled functions fail checked execution through Mathlib's compiled recursors, which is why no executing module may import it. Reading the three operation theorems against Acorn's wrappers found the undischarged exponent hypothesis and the nonzero-quotient premise; the first is supplied by existing lemmas and the second is removed by the zero-quotient theorem above. This record is the adopting investigation's own; an independent review of this entry is still owed.
 

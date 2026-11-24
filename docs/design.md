@@ -56,7 +56,7 @@ symbol array the feature generator samples; which prediction signals the world
 supplies and at which horizons; how many primitive actions it accepts; and how many
 words one observation carries at most. Everything the agent stores is sized by these.
 The interface also declares the first channel of the agent's prediction feedback
-words, and the world's [timing](#the-time-a-world-declares).
+words (`Interface.reserved` checks wrapping `UInt64` distance `(channel - feedback).toNat < layout.length` over `layout = .g99 :: signals`), and the world's [timing](#the-time-a-world-declares); `Interface.timing` indexes the agent's types, so worlds differing in timing produce distinct agent types.
 
 Each step the world delivers one **percept**: a **frame** and the reward of the
 preceding transition. A frame has three parts, one for each kind of learner input:
@@ -336,24 +336,25 @@ yet establishes, each part of that obligation:
   charges were compared with the compiled call multisets of one build by a one-time
   inventory, an observation that no gate repeats.
 
-**What is counted.** Work is an accounting in a cost model, whose intended reading is
-a count of the operations of the compiled definitions: each visit of a loop costs `visit`, and each **site**, a stretch of
-code whose work is a constant of the compiled code, costs its own constant
-([sites](../lean/Acorn/Cost.lean)). The bound holds for every assignment of costs to
+**What is counted.** Work is an accounting in a cost model (`Acorn.Costs`), whose intended reading is
+a count of the operations of the compiled definitions: each visit of a loop costs `Site.visit`, and each **site** (`Acorn.Site` in [`Cost`](../lean/Acorn/Cost.lean), a closed 92-constructor enumeration), a stretch of
+code whose work is a constant of the compiled code, costs its own constant. The bound holds for every assignment of costs to
 sites. The intended reading of what each charge counts is its **segment** of the
-operations the compiled code runs during one call of a part of the step, here the first part,
-or of a costed definition, defined once in the
-[cost semantics](../lean/Acorn/Cost.lean), which also gives why every segment of the first
-part, and every segment of a costed definition's own call read over that call's operations,
-is bounded by a constant of the code in the operations counted. Allocation, reference
+operations the compiled code runs during one call of a bounded part (the first part from step entry until `Agent.choose` returns, including building `Chosen`, and the second part from `Chosen.learn` entry until it returns) or of a costed definition's own call, defined once here (owned in code by [`Cost`](../lean/Acorn/Cost.lean)):
+
+- the **trace** is the flat sequence of word operations the compiled code runs during one call of a bounded part or costed definition, with any callee operation placed at its own trace position;
+- the **charge points** are `Costed.op` at the value it charges, `Costed.charge` before the computation it wraps, each loop combinator or scan's `Site.visit` before every element's step (or callback) and pass-end `Site.visit` after its last element, `Costed.prepend`'s `Site.read` after building the vector and before the pass over it, and a costed recursion's charges before each descent and on return when the level works after returning;
+- each operation belongs to the segment of the first charge point at or after it (and operations after the last charge point belong to that last one), partitioning the trace by position alone so a site's segment can include unnamed operations or named operations can land in an earlier stacked charge's segment.
+
+Under this reading, `words site` gives the largest word-operation count of any segment at a charge point of a site. `SiteBounds words κ` (`AcornVerif.Resource.Twin.SiteBounds`) states only `words site ≤ κ site` for every site—a relation between two cost models rather than a proved bound on executed work—and tying `words` to actual code segments belongs to [obligation 7](mission-contract.md#open-obligations). A `Site.visit` segment of the SwiftTD loops (`NumericState.learnFirstLoopGoCosted`, `NumericState.learnSecondLoopGoCosted`, `NumericState.planWeightsGoCosted`) can include a whole element (and, in the first loop, a prune), and the first visits of the second and planning loops can include the operations named by `Site.secondOpen` and `Site.planOpen`. Every segment of the first part and of each costed definition's own call is constant-bounded in the operations counted: any loop whose trip count depends on configuration or state runs inside a combinator or a costed recursion (charging on descent and on return when working after return, as `Library.fillVacant` counts its return pass), leaving inside a segment only five constant-bounded loops—the 3 options and their slots, the 4 meta actions, the 32 projection samples including the return of `Library.sum` (1 pass), the at most 15 doublings of `rankExponentFrom`, and the at most 33 steps of `Portable.pow`. Allocation, reference
 counting, the copy of a shared array when it is written
 ([#84](https://github.com/rbeauchamp/acorn/issues/84)), the copy of an array into a larger
 buffer when a push outgrows its capacity, whose length depends on the state, the one-time
 initialization of a closed term, which the compiled code builds once for the process
-and then reads, cache behaviour and time are not counted.
+and then reads, cache behaviour and time are not counted, and no unit is a second, a byte, or a processor instruction.
 
 **How the count follows the executed code.** The learner's executed definitions are
-the values of their costed definitions ([cost semantics](../lean/Acorn/Cost.lean)):
+the values of their costed definitions ([`Cost`](../lean/Acorn/Cost.lean)):
 `NumericState.step` is the value of `NumericState.stepCosted`, and so are the
 prediction, both loops, a trajectory's start, a terminal step, a planning step, a
 release, a retirement, the ordered sums and the fresh transient record. So are the
@@ -428,8 +429,13 @@ checked against these costed definitions (`AcornVerif.Resource.Twin.metaRate_cos
 `AcornVerif.Resource.Twin.skillSource_costed`,
 `AcornVerif.Resource.Twin.valueFunction_costed`). The generated C of the definitions without
 work and of these is equal up to renaming, apart from the order of one constant's load in
-the stopping estimate and of the parallel moves into a join point in three callers, an
-observation of one build recorded in the [cost semantics](../lean/Acorn/Cost.lean). A
+the stopping estimate (where `TemporalControl.stoppingEstimateCosted` without a drawn meta
+decision loads the meta-action count after calling `metaRate`, whereas the uncosted code
+loaded it before) and of the parallel moves into a join point in three callers
+(`TemporalControl.choosePrimitive`, `TemporalControl.serve`, `TemporalControl.stepOption`),
+plus `Acorn.Handcrafted.TemporalProfile` no longer emitting the unused compiled
+`Interest.potential` match splitter previously generated by unfolding the uncosted
+definition, an observation of one build recorded here (owned in [`Cost`](../lean/Acorn/Cost.lean)). A
 controller's initial
 value and reset (`Controller.initial`, `Controller.resetAction`) are not costed yet and
 have twins
@@ -495,28 +501,49 @@ numbers below 2^32 and the equality of vectors raw binary32 words, so each compa
 of one word. The costed type has only
 the instances that do-blocks need, so no derived map applies a callback outside the
 count.
-The uncosted entry points are
-values, listed exactly in the [cost semantics](../lean/Acorn/Cost.lean): the values of
-`Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and
-element of `Costed.replicate`, the collections and initial accumulators of the loops, the
-condition of `Costed.ite` and of `Costed.dite` and its decision, the element and the vector of
-`Costed.prepend`, the element and the list of `Costed.mem`, the two vectors of
-`Costed.vectorEq`, and the terms a costed definition evaluates in its own body.
-Each must be computed without a costed definition and with no loop except those the cost semantics
-lists as left inside a segment, whose trip counts are bounded by constants of the code
-(the at most 33 steps of `Portable.pow` among them); every other loop must run in a
-combinator or a costed definition, and each path of a recursion must pass a charge. The
-combinators cannot enforce this: `Costed.pure` accepts any value, the learner's step
-among them, at no work. The
-discipline is checked by reading, and no check enforces it.
+The uncosted entry points are values, listed in the [cost semantics](../lean/Acorn/Cost.lean): the values of `Costed.pure` and `Costed.op`, the sites of `Costed.op` and `Costed.charge`, the count and element of `Costed.replicate`, the collections and initial accumulators of the loops, the condition of `Costed.ite` and of `Costed.dite` and its decision, the element and the vector of `Costed.prepend`, the element and the list of `Costed.mem`, the two vectors of `Costed.vectorEq`, and the terms a costed definition evaluates in its own body. Each must be computed without a costed definition and with no loop except those the cost semantics leaves inside a segment, whose trip counts are bounded by constants of the code (at most 3 options or ranked slots, 4 meta actions, 32 projection samples plus the sample-sum pass, at most 15 ranked-width doublings, and at most 33 steps of `Portable.pow`); every other loop must run in a combinator or a costed definition, and each path of a recursion must pass a charge. The combinators cannot enforce this: `Costed.pure` accepts any value, the learner's step among them, at no work. The discipline is checked by reading, and no check enforces it.
 
-Each loop is charged the passes of its runtime implementation, with one visit for each
-pass's end. One table states the passes of every library loop that costed code and the
-twins run, each row citing the definition and the compiler replacement that runs
-(`Acorn.Library`, `Library.passes`), and every loop's control is a function of its row
-(`Library.control`), so changing a row changes every charge and bound that uses it:
-the library's map of a list, for instance, runs as a loop and a reversal, two passes, and
-turning a list into an array takes two, a length and a copy.
+Each loop is charged the passes of its runtime implementation, with one visit for each pass's end (`Library.control`). One 27-row table in `Acorn.Library` (`Library.passes`) states the passes of every library loop that costed code and the twins run, each row recording the compiled implementation (a csimp theorem, compiler attribute, or structural recursion) so changing a row updates every bound that uses it:
+
+| Row | Passes | Compiled implementation & loop structure |
+| --- | ---: | --- |
+| `Library.foldl` | 1 | List.foldl: one structural loop |
+| `Library.foldlArray` | 1 | Array.foldl via Array.foldlMUnsafe: one loop |
+| `Library.map` | 2 | List.map via List.mapTR (List.map_eq_mapTR): loop then List.reverse |
+| `Library.replicate` | 1 | Vector.replicate / Array.replicate via runtime lean_mk_array: one loop |
+| `Library.findIdx` | 1 | Array.findIdx? via Array.findIdx?.loop: one loop |
+| `Library.vectorMap` | 1 | Vector.map / Array.map via Array.mapM (Array.mapMUnsafe): one loop |
+| `Library.ofFn` | 1 | Vector.ofFn / Array.ofFn via Array.ofFn.go: one loop |
+| `Library.mapFinIdx` | 1 | Vector.mapFinIdx / Array.mapFinIdx via Array.mapFinIdxMUnsafe: one loop |
+| `Library.filter` | 2 | List.filter via List.filterTR (List.filter_eq_filterTR): loop then List.reverse |
+| `Library.filterMap` | 2 | List.filterMap via List.filterMapTR (List.filterMap_eq_filterMapTR): loop then Array.toList over kept items |
+| `Library.flatMap` | 2 | List.flatMap via List.flatMapTR (List.flatMap_eq_flatMapTR): outer loop then Array.toList of results (`Library.flatMapResult` counts each inner result) |
+| `Library.flatMapResult` | 2 | Elements of one List.flatMapTR result: Array.appendList (List.foldl) pushes each, then Array.toList reads each |
+| `Library.length` | 1 | List.length via List.lengthTR (List.length_eq_lengthTR): one loop |
+| `Library.contains` | 1 | List.contains / List.elem: one loop |
+| `Library.range` | 1 | List.range via List.range.loop: one loop |
+| `Library.finRange` | 1 | List.finRange / List.ofFn via Fin.foldr: one loop |
+| `Library.toArray` | 2 | List.toArray via List.toArrayImpl: List.length then List.toArrayAux |
+| `Library.toList` | 1 | Array.toList / Vector.toList via Array.toListImpl (Array.foldr): one loop |
+| `Library.reverse` | 1 | List.reverse / List.reverseAux: one loop |
+| `Library.vectorEq` | 1 | Vector equality (array equality) via Array.instDecidableEqImpl (Array.instDecidableEq_csimp / Array.isEqv): one loop |
+| `Library.append` | 2 | List append via List.appendTR (List.append_eq_appendTR): List.reverse of first list then List.reverseAux |
+| `Library.vectorAppend` | 1 | Vector append (Array.append) via Array.foldl (Array.foldlMUnsafe) over the second array: one loop |
+| `Library.drop` | 1 | List.drop (Init.Data.List.Basic, which no csimp replaces): structural recursion over dropped elements |
+| `Library.dropLast` | 3 | List.dropLast via List.dropLastTR (List.dropLast_eq_dropLastTR): List.toArray (2), Array.pop, then Array.toList (1) |
+| `Library.zipIdx` | 3 | List.zipIdx via List.zipIdxTR (List.zipIdx_eq_zipIdxTR): List.toArray (2), then Array.foldr (1) |
+| `Library.sum` | 1 | Integer List.sum (List.foldr) specializing at Lean.Omega.IntList.sum (Init.Omega.IntList): structural recursion rather than List.foldrTR |
+| `Library.fillVacant` | 2 | Acorn's vacant-slot fill recursion over held positions: descent pass then return pass placing each slot before the rest |
+
+The 92 constructors of `Acorn.Site` partition every charged constant stretch in the step:
+
+- **Generic loop & memory primitives (3):** `Site.visit` (loop control: test, advance, branch), `Site.sumTerm` (one ordered sum addition and term read), `Site.read` (stored element read into a constructed list/vector or initial fold accumulator).
+- **SwiftTD & normalized-step learner core (19):** `Site.firstOpen` (first loop entry: take worklist, empty eligible list), `Site.firstElement` (one first-loop index read and prune test), `Site.prune` (clear nine registers and swap-remove entry), `Site.firstClose` (store pruned worklist as eligible list), `Site.secondOpen` (second loop entry: overshoot test, scale, complement), `Site.secondElement` (one second-loop element), `Site.stepClose` (TD error and store of prediction and accumulator), `Site.zeroTransient` (fresh transient record excluding zero vectors), `Site.beginClose` (store new trajectory's anchor prediction and accumulator), `Site.terminalClose` (terminal TD error and step result), `Site.planOpen` (planning step error, finiteness test, scale), `Site.planElement` (one planning weight write), `Site.clearRegisters` (nine registers cleared for one index), `Site.releaseClose` (empty eligible list after release), `Site.retire` (clear retired registers, zero weight, re-anchor step size), `Site.normalizedOpen` (normalized step-size sum emptiness, endpoints, result), `Site.normalizedTerm` (one normalized log step size), `Site.rateTerm` (one learner contribution to derived exploration rate), `Site.rateClose` (exploration rate projection with fresh-feature fallback or annealed rate).
+- **Managed learners, shared-error controllers & policy sampling (21):** `Site.managedEntry` (managed learner record and next phase after entry), `Site.creditRestart` (row credit pending-restart test), `Site.learnerError` (caller-formed error or target across terminal credit, stopped/closed span, tree backup, ranked row, or deviation), `Site.creditClose` (shared-error store of rows, taken row, lags), `Site.valuesOpen` (shared-error on-policy error), `Site.controllerClose` (controller store after row updates), `Site.planClose` (planned row store and planning error), `Site.compare` (two-value comparison and selection), `Site.candidate` (action value test against tie threshold), `Site.tieThreshold` (maximum less tie window), `Site.reservoirDraw` (one bounded draw and reservoir pick), `Site.probability` (one action's nominal mass), `Site.probabilitiesOpen` (policy exploration mass, greedy mass, tie threshold), `Site.uniform` (one uniform action draw), `Site.drawClose` (policy branch draw and decision store), `Site.explorationBegin` (persistent draw's branch, duration, action draws, decision store), `Site.policyOpen` (duration discount powers for frozen decision, duration credit, or closed span), `Site.snapshot` (frozen policy snapshot store), `Site.expectedTerm` (policy mean term, widened addition, tie test), `Site.expectedClose` (policy mean weighted sum, narrowing, saturation), `Site.feedbackWord` (one prediction bucket/horizon/channel feedback word).
+- **Encoding & active-feature maintenance (7):** `Site.sampleTerm` (one sample term of generated unit projection), `Site.activation` (generated unit output from projection), `Site.hashFeature` (one sensor/unit/model-age word hashed to feature slot), `Site.imprint` (generated unit output test and feature slot), `Site.uniqueAdd` (raw feature admission into unique encoding), `Site.insert` (membership test and append of absent active-set index), `Site.write` (one vector element write).
+- **Ranking, objective table & option models (16):** `Site.position` (ranked position lookup for feature slot), `Site.productTerm` (ranked weight read times expected value), `Site.project` (prediction admitted as expected feature value), `Site.outcomeValue` (one meta action's value of predicted outcome), `Site.prediction` (option model prediction record), `Site.deviation` (one meta action's discounted outcome deviation and residual), `Site.modelClose` (option model record after learner updates), `Site.assignmentPotential` (assignment feature slot before membership test), `Site.declaredPotential` (declared potential read from frame), `Site.lookAhead` (planning look-ahead backed-up target and result), `Site.backupClose` (backup prediction cache and planning error store), `Site.initialState` (fresh learner rails and record excluding vectors), `Site.rankCandidate` (one unit's Demon-0 weight check and feature slot for ranking), `Site.rankWidth` (ranked width search of at most 15 doublings), `Site.install` (slot objective install, cache, and closing owner), `Site.assignmentTable` (slot-stable objective table over 3 slots and at most 3 ranked candidates).
+- **Demon bank (2):** `Site.demonOutput` (demon learner record and projected prediction prepended to bank, plus absolute error), `Site.demonClose` (demon bank output record of learners, predictions, errors, cumulants).
+- **Temporal selection, skill lifecycle & top-level step (24):** `Site.decide` (option termination tests: goal, duration, stopping comparison), `Site.beginOption` (started invocation activation and continuation records), `Site.optionStep` (step/credit learning test, shaped cumulant, activation advance, skill record), `Site.terminateOption` (terminal cumulant and stopping value), `Site.stopFollowing` (stopped trajectory stopping error and skill record), `Site.settleFollowing` (settled trajectory shaped cumulant and skill record), `Site.startFollowing` (followed trajectory restart test, link, skill record), `Site.followStep` (followed frame restart test, age advance, link, skill record), `Site.unlinkSlot` (slot executing test and unlinked skill record, or sourceless slot unlinking), `Site.followTable` (followed table learn test and executing slot with state record), `Site.planBoundary` (planning boundary work count, search-control advance, result), `Site.prepare` (rate schedule advance and credit gap discounted reward), `Site.serve` (served step run, interruption, decision record), `Site.choosePrimitive` (primitive draw occupancy and decision record), `Site.refreshFree` (free dispatch records around refresh), `Site.planFree` (free boundary planning state and write-back), `Site.drawMeta` (meta draw generator write), `Site.closeOption` (ending option slot and event record), `Site.learnMeta` (owed meta span and write-back), `Site.dispatchMeta` (meta action mapped to option, value function, records), `Site.stepOption` (stepped option occupancy and decision record), `Site.atBoundary` (free boundary closing record and event), `Site.select` (selection branch tests and phase write), `Site.choose` (agent clock advance and chosen value record).
 
 The other definitions of the first part are not costed yet. Each has a twin that
 carries its work beside its value ([twins](../lean/AcornVerif/Resource/Work.lean)):
@@ -1696,7 +1723,7 @@ labels are those of the record of one observed run; no theorem relates them to w
 daemon sends. `Line.read` reads a whole parsed line by declared criteria, with one
 constructor of its result for each case and one theorem for each constructor. The
 criteria are taken from the JSON-RPC 2.0 specification and are not the whole of it: a
-line that meets them need not be valid by that specification, since the parameters of
+line that meets them need not be valid by that specification (JSON-RPC Working Group, *JSON-RPC 2.0 Specification*, 2010, updated 2013, sections 4, 4.1, 5, and 5.1), since the parameters of
 a notification can be any value and no further member is refused. A notification has
 the version `2.0`, a string method and no identifier:
 it is a state frame or a depth frame when its parameters write the frame, an unread
@@ -1865,7 +1892,7 @@ rows has the status 255, which the simulator sends for nothing in range, or a va
 return of at least 400 mm. The trunk is upright when the gravity word of the frame
 for the upward component, on position 33, is below the level of -0.95, which is 318
 (`entries_gravity`). In thousandths that is an upward component below -967
-(`upright_iff`): a level is a step of 0.1 counted from the least value of the scale,
+(`upright_iff`; a step of 200 with declared level `-950` thousandths gives the same `-967` cutoff at level `159`): a level is a step of 0.1 counted from the least value of the scale,
 so the levels do not separate -0.95 from -0.967, and a reading whose upward component
 is from -967 to -951 thousandths is not upright. The depth frame is fresh exactly
 when the age word of the frame is below its cap (`fresh_level`). So both tests are
@@ -2194,30 +2221,29 @@ before restore. Changing the criterion does not convert an existing checkpoint.
 
 ### Checkpoints
 
-A checkpoint file of format 21 holds the exact image of the agent: every field of its
+A checkpoint file of format 21 (magic bytes `OAKCKPT\x01`, `FeatureConstants.checkpointMagic`, with shared constants such as `FeatureConstants.taskContextWords := 10`, `FeatureConstants.settleRemainingBits := 0x3c23d70a`, and `Constants.gainTrackingHorizon := 20000`) holds the exact image of the agent: every field of its
 temporal state (`AgentImage` stores `TemporalControl` together with its `AgentImage.aligned`
 and `AgentImage.episodes` invariants, omitting the planning selection because
 `PlanningSelection` is a type index rather than a stored value, while byte parsing and
-transactional filesystem delivery belong to the persistence owner). That is the representation with its generator and tester state, every
-learner with its weights, log step sizes and transient registers, the option models,
+transactional filesystem delivery belong to the persistence owner). That is the representation with its generator (`Xoshiro256.shuffle` / `shuffleLoop`, consuming `remaining - 1` `nextBelow` draws—zero for length 0 or 1—and proved permutation-preserving in `shuffleLoop_permutation` without asserting exact-uniform shuffling, with `Word.Count.ofWord` mapping `0` to `1`) and tester state, every
+learner with its weights, log step sizes and transient registers (`TransientState.eligible` holds valid indices without type-level uniqueness or length bounds—both are proved from transitions in `AcornVerif.CurrentLearner`—and `FeatIdx.fromHash` proves bounds from dimension.positive alone while `powerOfTwo` governs coverage; `NumericState.stateChecksum` folds `(weight.bits, beta.bits)`, omitting derived `alpha`, using `Rng.fnvOffset`, multiplier `0x00000100000001b3`, and 13-bit left rotation), the option models (`OptionModelOps` passes raw host reward and reads current `ValueFunction` at terminal, `ModelAge` / `modelInput` hashes `0x6f7074696d65` for `.differential` only at `optionMaxDuration = 128` without implying injectivity—aliases keep the first-occurrence slot—Markov sufficiency, or convergence),
 each option's trajectory, the process-local references (the
-dispatch occupancy, the cached predictions and model values, the planning words, the
-deferred span, the action generator, the last decision and the recent feature sets),
-primitive credit, the gain, the rate schedule and every lifetime observation. A field
+dispatch occupancy including `CommittedRun`'s `origin.isSome → 0 < run.remaining.val` invariant and `Closing.oldOwner` keeping the first detached owner across repeated slot replacements per `FreeDispatch.install_retains_owner`, the cached predictions and model values, the planning words, the
+deferred span, the action generator, the last decision including `PolicyDecision.stored` read solely by checkpoint decoding and `PolicySnapshot.best` / `PolicySnapshot.expected` / `PolicySnapshot.mass` handling IEEE comparisons and `NaN` via raw fallback, `Binary64` widening with `[lower, upper]` rounding saturation, and `0`-mass admission, and the recent feature sets),
+primitive credit, the gain, the rate schedule and every lifetime observation (`Lifetime.historyBin` uses 64 logarithmic buckets, `Lifetime.cycleBin` keeps 8 exact cycles followed by logarithmic buckets, `Lifetime.settlementHorizon` finds the 1% residual horizon capped at `maxSettlement = 600`, `DemonStats.start` marks slot exhaustion across the 26 `pending` slots as `.invalid`, `Stats.recordDemons` censors and fails on clock exhaustion `Agreement.countLimit = 2^64 - 1` or clock discontinuity `clock ≠ last + 1`, and `Stats.initial` starts with clock `some 0` whereas `Durable.restore` starts with `none`). A field
 that is a function of stored fields is computed again when the image is read: the
 step-size rails of each learner, the step size of each log step size, the projection
 bank, the position table of a ranked slot set and the settlement horizon of a prediction
 record. A learner's transient registers
 are stored at its eligible slots only, since every other slot of an admitted learner
-holds positive zero.
+holds positive zero; `Interval32`, `Symmetric32`, and `Bounded32` (`lean/Acorn/Admission.lean`) carry their ordered finite bounds as type indices, with `Interval32.saturate` checking low-before-high (`NaN` maps to range.lower), `Symmetric32` / `Binary32.project` checking high-before-low (`NaN` maps to `.zero`), `±0` bits preserved identically, and `Bounded32.admit` acting as identity-or-refusal without clamping (stated over machine order rather than ideal-real error bounds). `Agreement` (`lean/Acorn/Agreement.lean`) decodes operands exactly in minimum positive subnormals (`unitExponent = 149`, `2^-149`), enforces sticky faults (`Channel.fault_no_score`), renders exact endpoints `"100.00"`/`"0.00"` vs `">99.99"`/`"<0.01"` under `displayScale = 1000000`, propagates any missing (`none`) channel across the equal-question MSE aggregate (`aggregateAll_missing`), and tracks non-statistical deterministic allowances (`Ratio.upperUnits`, `returnRoundingUnits`, `powerRoundingUnits`). `Cumulants` (`lean/Acorn/SignalValues.lean`) indexes frame signals by `List Discount` so each signal matches its consuming demon horizon.
 
 Loading admits a file in two stages. The header must match the receiving construction:
 format generation, criterion, capacity and learner count, seed, tilings and bank size, the
-resumable profile and the step order (`Checkpoint.admitHeader_iff`). The body is then read
-as an image of the construction: every stored word in its own domain, every learner
+resumable profile and the step order (`Checkpoint.admitHeader_iff`; generation 19 is refused because it shared generation 20's layout while placing feature weights at XOR-hash slots instead of non-XOR `hash2` / `hash3`). The body is then read as an image of the construction: every stored word in its own domain, every learner
 through the check of its invariant (`NumericState.resumable`, which decides the schedule
 invariant of its capacity theorem: `CurrentLearnerCheck.resumable_iff`), and the agent's
-two invariants. Nothing is projected or repaired. Loading the bytes that a save of a state
+two invariants (`Checkpoint.Format.decodeNaturalInto` refuses a highest base-128 digit of zero after any lower digits, and `Checkpoint.Format.decodeInto` completeness holds for `Lawful` formats while `Checkpoint.Format.decodeInto_written` characterizes canonical formats). Nothing is projected or repaired. Loading the bytes that a save of a state
 writes returns that state, for every state of every construction of the resumable profile
 and every receiver (`CurrentCheckpoint.load_saved`, from `CurrentImage.imageFormat_exact`
 and `Checkpoint.roundtrip`); the byte layer is part of the proof, and native file IO, the
@@ -2457,12 +2483,7 @@ these boundaries do not restart its learned weights.
 
 These are core flags, not viewer flags. See
 [the CLI definition](../lean/Acorn/Host/Cli.lean) for the full accepted domain.
-A number on any Acorn command line, a core flag or an argument of a native driver
-alike, is the digits `0` to `9` with an optional leading `+`; a minus sign, a digit
-separator such as `_` and white space are refused
-([the digit reader](../lean/Acorn/Digits.lean)). The one signed exception is the pair
-of terrain coordinates of `world-native terrain X Y SEED SCALE_BITS`, which take an
-optional leading `-` or `+` and range from -2^63 to 2^63 - 1.
+Numbers in text use `Acorn.Digits` (`lean/Acorn/Digits.lean`): `Digits.natural` parses unsigned CLI flags and native-driver arguments (an optional leading `+` followed by digits `0` to `9`; native drivers such as `control-native`, `feature-native`, `swifttd-native`, and `temporal-native` additionally refuse values `≥ 2^64` instead of wrapping); `Digits.read` parses digits alone for viewer request content lengths, ps RSS values, `Json.Value.natural`, and corpus-audit line numbers; and `Digits.integer` parses signed 64-bit `world-native terrain X Y SEED SCALE_BITS` coordinates (`-0` maps to `0`). Each allows leading zeros while refusing whitespace, digit separators such as `_`, and multiple signs ([the digit reader](../lean/Acorn/Digits.lean); Microduck JSON numbers instead use `Acorn.Json`'s RFC 8259 §6 scanner, where leading zeros are refused). `PlanningSelection.parse` (`lean/Acorn/Planning.lean`) likewise accepts only `"none"` and `"expectation"` and refuses every other string with `none` without substitution.
 
 After building with the launcher, a short terminal example, which in work on a
 change needs the owner's authorization
@@ -2626,5 +2647,5 @@ registration; no check keeps that list complete.
 
 Core calls select an explicit research profile. The [prior-art register](prior-art-review.md#current-default-qualification)
 records qualification decisions. Each proof states its hypotheses, including
-conditions on policies, value projection and models. See
+conditions on policies, value projection and models. Notable non-obvious decision contract boundaries registered in `Acorn.Decisions` (`lean/Acorn/Decisions.lean`) include: `Decisions.control_command_written` assumes `sendCmd` in `viewer/static/index.html` sends `JSON.stringify({ cmd })` without spaces as a fetch UTF-8 string body (ECMA-262, 15th ed., 2024, §25.5.2; WHATWG Fetch Standard §5.2); `Decisions.token_matches` establishes functional equality only and makes no compiler or hardware timing claim; `Decisions.schema_covers` is sound-only because `Host.Viewer.schemaCovers` walks tables in schema order and refuses fitting tables listed in another order; `Decisions.column_fits` is complete-only over `browserColumns` × `browserSchema` (accepting unshipped columns); `Decisions.conversion_indexed` checks `.absentIndices` against the first matching `BrowserRule.each (.nullable (.range upper))` (`upper ≤ 2^31`); `Decisions.unit_feature` passes tag `0x1D` twice to `Rng.hash3` (`config.seed ^^^ 0x1D` and `0x1D`) without cancelling because `Rng.mix64` mixes the first word (including adding `0x9e3779b97f4a7c15`) before XORing the second, and masking `capacity - 1` equals `% dimension.capacity` since capacity is a power of two `≤ 2^32`; `Decisions.day_phase` partitions each day with eighth `max 1 (dayLength / 8)`, keeping overflow slots past each half's third eighth in phases `3` and `7` (for example, a 20-step day maps slots `0..9` to `0,0,1,1,2,2,3,3,3,3` and `10..19` to `4,4,5,5,6,6,7,7,7,7`); and `Decisions.snapshot_masses` specifies tie-window `0x358637bd` (`1e-6`) with `PolicySnapshot.best` folding `Binary32.Less` from action `0`. See
 [learned-only binding](learned-only-binding.md) and [verification](verification.md).

@@ -67,6 +67,22 @@ guidance. Inspect the generated behavior for the workload being optimized.
   metadata is needed. Sharing is legitimate when required by semantics; inspect
   generated reuse/copy paths before attributing a cost to source syntax.
   [Reference counting](https://lean-lang.org/doc/reference/latest/Run-Time-Code/Reference-Counting/).
+  In `lean/Acorn/FeatureConsumers.lean`, `Acorn.Features.takeOut` is marked
+  `@[noinline]` so reading element `index` and writing the stand-in slot
+  `(index.val + 1) % size` both precede caller use of the taken element;
+  `Acorn.Features.detachedUpdate` and `Acorn.Features.detachedUpdateCosted`
+  (used by `Acorn.Sarsa` updates `Controller.creditStep`, `Controller.stopStep`,
+  and `Controller.terminal`, with value equality proved in
+  `Acorn.Features.detachedUpdate_eq`) reuse the element's storage in place only
+  under three unchecked runtime conditions: the vector is uniquely referenced by
+  that call (`RC = 1`), the element appears in no other slot and has no other
+  reference, and `size > 1`. Likewise, `Acorn.Features.Skill.stepTemporal`
+  destructures the policy step's result before crediting the model under the
+  same unproved runtime-exclusivity expectation, and `@[noinline]` on
+  `Acorn.SwiftTdDriver.execute`, `Acorn.ControlDriver.execute`,
+  `Acorn.FeatureDriver.execute`, and `Acorn.TemporalDriver.diagnosticAssignment`
+  prevents the compiler from hoisting initial learner/consumer storage into
+  shared process-global terms.
 - **Arithmetic:** favor native machine scalars through hot calculations when
   their correspondence with the admitted representation is established. Avoid
   repeated word/float conversions where a shared, proved implementation can
@@ -74,6 +90,32 @@ guidance. Inspect the generated behavior for the workload being optimized.
   Native arithmetic does not authorize reassociation, fast math, altered NaN
   semantics or replacing a specified numerical recipe with another function.
   [Floating-point numbers](https://lean-lang.org/doc/reference/latest/Basic-Types/Floating-Point-Numbers/).
+  In `lean/Acorn/Encoding.lean`, raw `Binary32` and `Binary64` values stay as
+  raw machine words without passing through Lean core's Float32.ofBits or
+  `Float.ofBits` (whose logical models canonicalize NaNs), `Binary32.key` assigns
+  both `±0` encodings key `0`, and `Binary32.Finite` and `Binary64.Finite`
+  `Decidable` instances apply *UInt32.decLt* and *UInt64.decLt* directly rather
+  than *inferInstanceAs* (which Lean v4.36.0 unfolds into `Nat` comparisons).
+  In `lean/Acorn/Arithmetic.lean` and `lean/Acorn/Conversion.lean`, native
+  hardware operations may choose NaN sign and payload unlike Lean's
+  canonicalizing float model, no FMA or custom native override is used,
+  `Conversion.ofInt` exposes `UInt64` magnitude wrapping outside the admitted
+  signed 32-bit domain (while `Conversion.ofI64Word` avoids intermediate
+  arbitrary-precision `Int` allocation), widening/narrowing aligns IEEE-754
+  fields with exact bias/shift offsets (`874` subnormal bias, `896` normal
+  exponent offset, `897` smallest normal biased exponent, `925`/`926` subnormal
+  shifts, `1075` binary64 integer bias, and `1150` normal overflow bound), and
+  `Rounding.nearestEven` / `Rounding.wordShift64` isolate nearest-even integer
+  quotient rounding. In `lean/Acorn/Portable.lean`, `Portable.exp` keeps Int32
+  range reduction via `Portable.expReduceWord` / `Portable.expScaleWord`
+  (`Portable.exp_eq_spec`) to avoid `Int`, modulo, `Option`, and pair
+  allocations while preserving input NaN words (`Portable.exp_nan_word`),
+  `Portable.ln` maps NaN and negative inputs to positive quiet NaN
+  `0x7fc00000`, and `Portable.powLoop` / `Portable.powLoopWord` multiply the
+  accumulator before squaring (`Portable.powLoop_zero` returns without reading
+  the base). `Word.multiplyHigh` (`lean/Acorn/Word.lean`) computes the unsigned
+  128-bit high word from four 32-bit `UInt64` limb products (`Word.multiplyHigh_eq_spec`
+  against `Word.multiplyHighSpec`).
 - **Storage:** inspect element layout and boxing in large containers. A scalar's
   compact representation does not imply a generic array has that layout;
   boxing may use a tagged immediate rather than a separate allocation. Choose
@@ -81,6 +123,14 @@ guidance. Inspect the generated behavior for the workload being optimized.
   correspondence. Packed storage is a candidate with proof and measurement
   costs, not an automatic recommendation to redesign every array.
   [Boxing](https://lean-lang.org/doc/reference/latest/Run-Time-Code/Boxing/).
+  In `lean/Acorn/State.lean`, `ValueRule.domain90`, `ValueRule.domain95`,
+  `ValueRule.domain99`, and `ValueRule.domainDifferential` pre-evaluate interval
+  bounds once so `Weight.project` avoids recomputing horizons on every write,
+  `LogStepSize.alphaAfter` reuses a memoized step size before falling back to
+  `Portable.exp`, `NumericState.stepSize` is marked `@[inline]`, and
+  `StepSizeRails.ofConfig` kernel-reduces over the three roles (`maxRecDepth 8192`).
+  In `lean/Acorn/RankedFeatures.lean`, `RankedFeatures.position` reads the array
+  size of `slots` directly instead of re-evaluating `Acorn.Features.rankWidth`.
 - **Work and observation:** preserve required order while avoiding unnecessary
   intermediate collections, repeated invariant work and diagnostics with no
   consumer. Neither immutable code nor lists are inherently defects. Reuse
