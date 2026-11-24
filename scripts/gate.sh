@@ -146,6 +146,9 @@ fg_child_pid=''
 fg_reap_open=0
 sup_ctrl_open=0
 summary_written=0
+summary_table_written=0
+warnings_emitted=0
+timings_logged=0
 bg_supervisor_launched=0
 
 # Per-check hard process-group SIGKILL deadlines (matching verify.sh's 360-second
@@ -202,8 +205,8 @@ framed=1
 commented=1
 
 format_duration() {
-  local secs="$1"
-  printf '%dm %02ds (%d s)' $((secs / 60)) $((secs % 60)) "$secs"
+  local _out="$1" _secs="$2"
+  printf -v "$_out" '%dm %02ds (%d s)' $((_secs / 60)) $((_secs % 60)) "$_secs"
 }
 
 detect_nc_jobs() {
@@ -225,96 +228,102 @@ detect_nc_jobs() {
   printf '%d\n' "$jobs"
 }
 
-emit_budget_warning() {
-  local phase="$1" actual="$2" budget="$3"
+append_budget_warning() {
+  local _out="$1" _phase="$2" _actual="$3" _budget="$4" _fa='' _fb='' _line=''
+  format_duration _fa "$_actual"
+  format_duration _fb "$_budget"
   if [[ "${GITHUB_ACTIONS:-}" == 'true' ]]; then
-    printf '::warning title=Verify / gate budget::%s took %s (target <= %s).\n' \
-      "$phase" "$(format_duration "$actual")" "$(format_duration "$budget")"
+    printf -v _line '::warning title=Verify / gate budget::%s took %s (target <= %s).\n' \
+      "$_phase" "$_fa" "$_fb"
   else
-    printf 'gate: budget warning: %s took %s (target <= %s)\n' \
-      "$phase" "$(format_duration "$actual")" "$(format_duration "$budget")"
+    printf -v _line 'gate: budget warning: %s took %s (target <= %s)\n' \
+      "$_phase" "$_fa" "$_fb"
   fi
+  printf -v "$_out" '%s%s' "${!_out}" "$_line"
 }
 
 status_label() {
-  local state="$1" over="$2"
-  if [[ "$state" == '0' ]]; then
-    if [[ "$over" == '1' ]]; then
-      printf 'ok (over budget)'
+  local _out="$1" _state="$2" _over="$3"
+  if [[ "$_state" == '0' ]]; then
+    if [[ "$_over" == '1' ]]; then
+      printf -v "$_out" '%s' 'ok (over budget)'
     else
-      printf 'ok'
+      printf -v "$_out" '%s' 'ok'
     fi
-  elif [[ "$state" == '137' ]]; then
-    printf 'killed (SIGKILL / timeout, exit 137)'
-  elif [[ "$state" =~ ^[0-9]+$ ]]; then
-    if [[ "$over" == '1' ]]; then
-      printf 'failed (exit %s, over budget)' "$state"
+  elif [[ "$_state" == '137' ]]; then
+    printf -v "$_out" '%s' 'killed (SIGKILL / timeout, exit 137)'
+  elif [[ "$_state" =~ ^[0-9]+$ ]]; then
+    if [[ "$_over" == '1' ]]; then
+      printf -v "$_out" 'failed (exit %s, over budget)' "$_state"
     else
-      printf 'failed (exit %s)' "$state"
+      printf -v "$_out" 'failed (exit %s)' "$_state"
     fi
-  elif [[ "$over" == '1' ]]; then
-    printf '%s (over budget)' "$state"
+  elif [[ "$_over" == '1' ]]; then
+    printf -v "$_out" '%s (over budget)' "$_state"
   else
-    printf '%s' "$state"
+    printf -v "$_out" '%s' "$_state"
   fi
 }
 
 summary_phase_state() {
-  local state="$1" early_abort="$2"
-  if [[ "$early_abort" == 1 && "$state" == 'running' ]]; then
-    printf 'interrupted / unfinished'
+  local _out="$1" _state="$2" _early_abort="$3"
+  if [[ "$_early_abort" == 1 && "$_state" == 'running' ]]; then
+    printf -v "$_out" '%s' 'interrupted / unfinished'
   else
-    printf '%s' "$state"
+    printf -v "$_out" '%s' "$_state"
   fi
 }
 
 phase_elapsed_secs() {
-  local state="$1" dur="$2" start="$3" now="$4"
-  if [[ "$dur" =~ ^[0-9]+$ ]]; then
-    printf '%s' "$dur"
-  elif [[ "$state" == 'interrupted / unfinished' && "$start" =~ ^[0-9]+$ ]] && (( now >= start )); then
-    printf '%s' $((now - start))
+  local _out="$1" _state="$2" _dur="$3" _start="$4" _now="$5"
+  if [[ "$_dur" =~ ^[0-9]+$ ]]; then
+    printf -v "$_out" '%s' "$_dur"
+  elif [[ "$_state" == 'interrupted / unfinished' && "$_start" =~ ^[0-9]+$ ]] && (( _now >= _start )); then
+    printf -v "$_out" '%s' $((_now - _start))
+  else
+    printf -v "$_out" '%s' ''
   fi
 }
 
 summary_phase_dur() {
-  local state="$1" dur="$2" start="$3" now="$4" elapsed=''
-  case "$state" in
+  local _out="$1" _state="$2" _dur="$3" _start="$4" _now="$5" _elapsed='' _fd=''
+  case "$_state" in
     'not reached'|'skipped'|'skipped ('*|'refused ('*)
-      printf '%s' '-' ;;
+      printf -v "$_out" '%s' '-' ;;
     'interrupted / unfinished')
-      elapsed=$(phase_elapsed_secs "$state" "$dur" "$start" "$now")
-      if [[ -n "$elapsed" ]]; then
-        printf '%s (interrupted)' "$(format_duration "$elapsed")"
+      phase_elapsed_secs _elapsed "$_state" "$_dur" "$_start" "$_now"
+      if [[ -n "$_elapsed" ]]; then
+        format_duration _fd "$_elapsed"
+        printf -v "$_out" '%s (interrupted)' "$_fd"
       else
-        printf '%s' 'unavailable (interrupted)'
+        printf -v "$_out" '%s' 'unavailable (interrupted)'
       fi ;;
     *)
-      if [[ "$dur" =~ ^[0-9]+$ ]]; then
-        format_duration "$dur"
+      if [[ "$_dur" =~ ^[0-9]+$ ]]; then
+        format_duration "$_out" "$_dur"
       else
-        printf '%s' 'unavailable'
+        printf -v "$_out" '%s' 'unavailable'
       fi ;;
   esac
 }
 
 summary_phase_secs() {
-  local state="$1" dur="$2" start="$3" now="$4" elapsed=''
-  case "$state" in
+  local _out="$1" _state="$2" _dur="$3" _start="$4" _now="$5" _elapsed=''
+  case "$_state" in
     'not reached'|'skipped'|'skipped ('*|'refused ('*)
-      printf '%s' '-' ;;
+      printf -v "$_out" '%s' '-' ;;
     'interrupted / unfinished')
-      elapsed=$(phase_elapsed_secs "$state" "$dur" "$start" "$now")
-      if [[ -n "$elapsed" ]]; then
-        printf 'interrupted:%s' "$elapsed"
+      phase_elapsed_secs _elapsed "$_state" "$_dur" "$_start" "$_now"
+      if [[ -n "$_elapsed" ]]; then
+        printf -v "$_out" 'interrupted:%s' "$_elapsed"
       else
-        printf '%s' 'unavailable'
+        printf -v "$_out" '%s' 'unavailable'
       fi ;;
     *)
-      if [[ "$dur" =~ ^[0-9]+$ ]]; then
-        printf '%s' "$dur"
+      if [[ "$_dur" =~ ^[0-9]+$ ]]; then
+        printf -v "$_out" '%s' "$_dur"
       else
-        printf '%s' 'unavailable'
+        printf -v "$_out" '%s' 'unavailable'
       fi ;;
   esac
 }
@@ -444,37 +453,38 @@ emit_gate_summary() {
   local early_abort="${1:-0}"
   local now="$SECONDS"
   local gate_total_dur="$now"
-  local workflow_elapsed_dur='' now_epoch
+  local workflow_elapsed_dur='' now_epoch=''
   local s1_over=0 s2_over=0 regula_over=0 nc_over=0 gate_over=0 job_over=0 prov_over=0
   local e_s1='' e_s2='' verify_elapsed='' e_reg='' e_nc=''
-  local s_prov s_s1 s_s2 s_nca s_reg s_int s_frm s_nc s_post nc_label
-  local summary_body='' row='' summary_fail=0
+  local s_prov='' s_s1='' s_s2='' s_nca='' s_reg='' s_int='' s_frm='' s_nc='' s_post='' nc_label=''
+  local t_prov='' t_s1='' t_s2='' t_nca='' t_reg='' t_int='' t_frm='' t_nc='' t_post=''
+  local f_dur='' f_bud='' f_lim='' f_st=''
+  local summary_body='' warnings_body='' timings_line='' row='' summary_suitable=0 summary_fail=0
 
-  summary_written=1
   if [[ "$early_abort" == 1 ]]; then
     sync_bg_phase_state 1
   fi
   if [[ "${ACORN_JOB_START_EPOCH:-}" =~ ^[0-9]+$ ]]; then
-    now_epoch=$(date +%s)
-    if (( now_epoch >= ACORN_JOB_START_EPOCH )); then
+    now_epoch=$(date +%s 2>/dev/null || true)
+    if [[ "$now_epoch" =~ ^[0-9]+$ ]] && (( now_epoch >= ACORN_JOB_START_EPOCH )); then
       workflow_elapsed_dur=$((now_epoch - ACORN_JOB_START_EPOCH))
     fi
   fi
 
-  s_prov=$(summary_phase_state "$provision_state" "$early_abort")
-  s_s1=$(summary_phase_state "$stage1_state" "$early_abort")
-  s_s2=$(summary_phase_state "$stage2_state" "$early_abort")
-  s_nca=$(summary_phase_state "$nc_admit_state" "$early_abort")
-  s_reg=$(summary_phase_state "$regula_state" "$early_abort")
-  s_int=$(summary_phase_state "$intent_state" "$early_abort")
-  s_frm=$(summary_phase_state "$frame_state" "$early_abort")
-  s_nc=$(summary_phase_state "$nc_state" "$early_abort")
-  s_post=$(summary_phase_state "$post_wall_state" "$early_abort")
+  summary_phase_state s_prov "$provision_state" "$early_abort"
+  summary_phase_state s_s1 "$stage1_state" "$early_abort"
+  summary_phase_state s_s2 "$stage2_state" "$early_abort"
+  summary_phase_state s_nca "$nc_admit_state" "$early_abort"
+  summary_phase_state s_reg "$regula_state" "$early_abort"
+  summary_phase_state s_int "$intent_state" "$early_abort"
+  summary_phase_state s_frm "$frame_state" "$early_abort"
+  summary_phase_state s_nc "$nc_state" "$early_abort"
+  summary_phase_state s_post "$post_wall_state" "$early_abort"
 
-  e_s1=$(phase_elapsed_secs "$s_s1" "$stage1_dur" "$stage1_start" "$now")
-  e_s2=$(phase_elapsed_secs "$s_s2" "$stage2_dur" "$stage2_start" "$now")
-  e_reg=$(phase_elapsed_secs "$s_reg" "$regula_dur" "$regula_start" "$now")
-  e_nc=$(phase_elapsed_secs "$s_nc" "$nc_exec_dur" "$nc_start" "$now")
+  phase_elapsed_secs e_s1 "$s_s1" "$stage1_dur" "$stage1_start" "$now"
+  phase_elapsed_secs e_s2 "$s_s2" "$stage2_dur" "$stage2_start" "$now"
+  phase_elapsed_secs e_reg "$s_reg" "$regula_dur" "$regula_start" "$now"
+  phase_elapsed_secs e_nc "$s_nc" "$nc_exec_dur" "$nc_start" "$now"
 
   if [[ -n "$e_s1" ]]; then
     verify_elapsed=$((e_s1 + ${e_s2:-0}))
@@ -484,24 +494,24 @@ emit_gate_summary() {
       else
         s2_over=1
       fi
-      emit_budget_warning 'Verification stages 1+2' "$verify_elapsed" "$verify_budget_s"
+      append_budget_warning warnings_body 'Verification stages 1+2' "$verify_elapsed" "$verify_budget_s"
     fi
   fi
   if [[ -n "$e_reg" ]] && (( e_reg > regula_budget_s )); then
     regula_over=1
-    emit_budget_warning 'Regula audit' "$e_reg" "$regula_budget_s"
+    append_budget_warning warnings_body 'Regula audit' "$e_reg" "$regula_budget_s"
   fi
   if [[ -n "$e_nc" ]] && (( e_nc > nc_budget_s )); then
     nc_over=1
-    emit_budget_warning 'no-comments check' "$e_nc" "$nc_budget_s"
+    append_budget_warning warnings_body 'no-comments check' "$e_nc" "$nc_budget_s"
   fi
   if (( gate_total_dur > gate_budget_s )); then
     gate_over=1
-    emit_budget_warning 'Merge gate (scripts/gate.sh)' "$gate_total_dur" "$gate_budget_s"
+    append_budget_warning warnings_body 'Merge gate (scripts/gate.sh)' "$gate_total_dur" "$gate_budget_s"
   fi
   if [[ -n "$workflow_elapsed_dur" ]] && (( workflow_elapsed_dur > job_budget_s )); then
     job_over=1
-    emit_budget_warning 'Workflow elapsed (commit check through gate)' "$workflow_elapsed_dur" "$job_budget_s"
+    append_budget_warning warnings_body 'Workflow elapsed (commit check through gate)' "$workflow_elapsed_dur" "$job_budget_s"
   fi
 
   compute_gate_verdict "$early_abort"
@@ -512,100 +522,120 @@ emit_gate_summary() {
     nc_label='no-comments check'
   fi
 
-  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-    if [[ -L "$GITHUB_STEP_SUMMARY" || ( -e "$GITHUB_STEP_SUMMARY" && ! -f "$GITHUB_STEP_SUMMARY" ) ]]; then
-      echo "gate: refusing to write phase summary to unsuitable destination: $GITHUB_STEP_SUMMARY" >&2
-      summary_fail=1
-    else
+  if [[ "$summary_table_written" == 0 && -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    if [[ ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
+      summary_suitable=1
       summary_body=$'## Verify / gate phase timings\n\n| Phase | Duration | Target budget | Hard limit | Status |\n|---|---:|---:|---:|---|\n'
       if [[ "${ACORN_PROVISION_SECONDS:-}" =~ ^[0-9]+$ ]]; then
         if (( ACORN_PROVISION_SECONDS > provision_budget_s )); then
           prov_over=1
         fi
-        printf -v row '| Provision pinned dependencies | %s | <= %s | 12m | %s |\n' \
-          "$(format_duration "$ACORN_PROVISION_SECONDS")" \
-          "$(format_duration "$provision_budget_s")" \
-          "$(status_label 0 "$prov_over")"
+        format_duration f_dur "$ACORN_PROVISION_SECONDS"
+        format_duration f_bud "$provision_budget_s"
+        status_label f_st 0 "$prov_over"
+        printf -v row '| Provision pinned dependencies | %s | <= %s | 12m | %s |\n' "$f_dur" "$f_bud" "$f_st"
         summary_body+="$row"
       fi
-      printf -v row '| Gate dependency re-check | %s | - | - | %s |\n' \
-        "$(summary_phase_dur "$s_prov" "$provision_dur" "$provision_start" "$now")" \
-        "$(status_label "$s_prov" 0)"
+      summary_phase_dur f_dur "$s_prov" "$provision_dur" "$provision_start" "$now"
+      status_label f_st "$s_prov" 0
+      printf -v row '| Gate dependency re-check | %s | - | - | %s |\n' "$f_dur" "$f_st"
       summary_body+="$row"
-      printf -v row '| Verification stage 1 (build-executing) | %s | - | %s | %s |\n' \
-        "$(summary_phase_dur "$s_s1" "$stage1_dur" "$stage1_start" "$now")" \
-        "$(format_duration 360)" \
-        "$(status_label "$s_s1" "$s1_over")"
+      summary_phase_dur f_dur "$s_s1" "$stage1_dur" "$stage1_start" "$now"
+      format_duration f_lim 360
+      status_label f_st "$s_s1" "$s1_over"
+      printf -v row '| Verification stage 1 (build-executing) | %s | - | %s | %s |\n' "$f_dur" "$f_lim" "$f_st"
       summary_body+="$row"
-      printf -v row '| Verification stage 2 (verify.sh) | %s | <= %s (stages 1+2) | %s | %s |\n' \
-        "$(summary_phase_dur "$s_s2" "$stage2_dur" "$stage2_start" "$now")" \
-        "$(format_duration "$verify_budget_s")" \
-        "$(format_duration 360)" \
-        "$(status_label "$s_s2" "$s2_over")"
+      summary_phase_dur f_dur "$s_s2" "$stage2_dur" "$stage2_start" "$now"
+      format_duration f_bud "$verify_budget_s"
+      status_label f_st "$s_s2" "$s2_over"
+      printf -v row '| Verification stage 2 (verify.sh) | %s | <= %s (stages 1+2) | %s | %s |\n' "$f_dur" "$f_bud" "$f_lim" "$f_st"
       summary_body+="$row"
-      printf -v row '| no-comments admission (admit-no-comments) | %s | - | %s | %s |\n' \
-        "$(summary_phase_dur "$s_nca" "$nc_admit_dur" "$nc_admit_start" "$now")" \
-        "$(format_duration "$nc_admit_timeout_s")" \
-        "$(status_label "$s_nca" 0)"
+      summary_phase_dur f_dur "$s_nca" "$nc_admit_dur" "$nc_admit_start" "$now"
+      format_duration f_lim "$nc_admit_timeout_s"
+      status_label f_st "$s_nca" 0
+      printf -v row '| no-comments admission (admit-no-comments) | %s | - | %s | %s |\n' "$f_dur" "$f_lim" "$f_st"
       summary_body+="$row"
-      printf -v row '| Regula audit (scripts/regula.sh) | %s | <= %s | %s | %s |\n' \
-        "$(summary_phase_dur "$s_reg" "$regula_dur" "$regula_start" "$now")" \
-        "$(format_duration "$regula_budget_s")" \
-        "$(format_duration "$regula_timeout_s")" \
-        "$(status_label "$s_reg" "$regula_over")"
+      summary_phase_dur f_dur "$s_reg" "$regula_dur" "$regula_start" "$now"
+      format_duration f_bud "$regula_budget_s"
+      format_duration f_lim "$regula_timeout_s"
+      status_label f_st "$s_reg" "$regula_over"
+      printf -v row '| Regula audit (scripts/regula.sh) | %s | <= %s | %s | %s |\n' "$f_dur" "$f_bud" "$f_lim" "$f_st"
       summary_body+="$row"
-      printf -v row '| lean-intent checks (intent-check) | %s | - | %s | %s |\n' \
-        "$(summary_phase_dur "$s_int" "$intent_dur" "$intent_start" "$now")" \
-        "$(format_duration "$intent_timeout_s")" \
-        "$(status_label "$s_int" 0)"
+      summary_phase_dur f_dur "$s_int" "$intent_dur" "$intent_start" "$now"
+      format_duration f_lim "$intent_timeout_s"
+      status_label f_st "$s_int" 0
+      printf -v row '| lean-intent checks (intent-check) | %s | - | %s | %s |\n' "$f_dur" "$f_lim" "$f_st"
       summary_body+="$row"
-      printf -v row '| Frame check (frame-check) | %s | - | %s | %s |\n' \
-        "$(summary_phase_dur "$s_frm" "$frame_dur" "$frame_start" "$now")" \
-        "$(format_duration "$frame_timeout_s")" \
-        "$(status_label "$s_frm" 0)"
+      summary_phase_dur f_dur "$s_frm" "$frame_dur" "$frame_start" "$now"
+      format_duration f_lim "$frame_timeout_s"
+      status_label f_st "$s_frm" 0
+      printf -v row '| Frame check (frame-check) | %s | - | %s | %s |\n' "$f_dur" "$f_lim" "$f_st"
       summary_body+="$row"
-      printf -v row '| %s | %s | <= %s | %s | %s |\n' \
-        "$nc_label" \
-        "$(summary_phase_dur "$s_nc" "$nc_exec_dur" "$nc_start" "$now")" \
-        "$(format_duration "$nc_budget_s")" \
-        "$(format_duration "$nc_timeout_s")" \
-        "$(status_label "$s_nc" "$nc_over")"
+      summary_phase_dur f_dur "$s_nc" "$nc_exec_dur" "$nc_start" "$now"
+      format_duration f_bud "$nc_budget_s"
+      format_duration f_lim "$nc_timeout_s"
+      status_label f_st "$s_nc" "$nc_over"
+      printf -v row '| %s | %s | <= %s | %s | %s |\n' "$nc_label" "$f_dur" "$f_bud" "$f_lim" "$f_st"
       summary_body+="$row"
-      printf -v row '| Post-verification wall (%s) | %s | - | - | - |\n' \
-        "$post_mode" \
-        "$(summary_phase_dur "$s_post" "$post_wall_dur" "$post_start" "$now")"
+      summary_phase_dur f_dur "$s_post" "$post_wall_dur" "$post_start" "$now"
+      printf -v row '| Post-verification wall (%s) | %s | - | - | - |\n' "$post_mode" "$f_dur"
       summary_body+="$row"
-      printf -v row '| **Merge gate total (scripts/gate.sh)** | **%s** | **<= %s** | **13m** | **%s** |\n' \
-        "$(format_duration "$gate_total_dur")" \
-        "$(format_duration "$gate_budget_s")" \
-        "$(status_label "$gate_verdict_state" "$gate_over")"
+      format_duration f_dur "$gate_total_dur"
+      format_duration f_bud "$gate_budget_s"
+      status_label f_st "$gate_verdict_state" "$gate_over"
+      printf -v row '| **Merge gate total (scripts/gate.sh)** | **%s** | **<= %s** | **13m** | **%s** |\n' "$f_dur" "$f_bud" "$f_st"
       summary_body+="$row"
       if [[ -n "$workflow_elapsed_dur" ]]; then
-        printf -v row '| **Workflow elapsed (commit check through gate)** | **%s** | **<= %s** | **20m (job)** | **%s** |\n' \
-          "$(format_duration "$workflow_elapsed_dur")" \
-          "$(format_duration "$job_budget_s")" \
-          "$(status_label "$gate_verdict_state" "$job_over")"
+        format_duration f_dur "$workflow_elapsed_dur"
+        format_duration f_bud "$job_budget_s"
+        status_label f_st "$gate_verdict_state" "$job_over"
+        printf -v row '| **Workflow elapsed (commit check through gate)** | **%s** | **<= %s** | **20m (job)** | **%s** |\n' "$f_dur" "$f_bud" "$f_st"
         summary_body+="$row"
       fi
       summary_body+=$'\n'
-      if ! printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY"; then
-        echo "gate: failed to write phase summary to $GITHUB_STEP_SUMMARY" >&2
-        summary_fail=1
-      fi
     fi
   fi
 
-  printf 'gate: phase timings (s): provision=%s stage1=%s stage2=%s nc-admit=%s regula=%s intent=%s frame=%s no-comments=%s post-wall=%s (%s, nc-jobs=%s) total=%d\n' \
-    "$(summary_phase_secs "$s_prov" "$provision_dur" "$provision_start" "$now")" \
-    "$(summary_phase_secs "$s_s1" "$stage1_dur" "$stage1_start" "$now")" \
-    "$(summary_phase_secs "$s_s2" "$stage2_dur" "$stage2_start" "$now")" \
-    "$(summary_phase_secs "$s_nca" "$nc_admit_dur" "$nc_admit_start" "$now")" \
-    "$(summary_phase_secs "$s_reg" "$regula_dur" "$regula_start" "$now")" \
-    "$(summary_phase_secs "$s_int" "$intent_dur" "$intent_start" "$now")" \
-    "$(summary_phase_secs "$s_frm" "$frame_dur" "$frame_start" "$now")" \
-    "$(summary_phase_secs "$s_nc" "$nc_exec_dur" "$nc_start" "$now")" \
-    "$(summary_phase_secs "$s_post" "$post_wall_dur" "$post_start" "$now")" \
-    "$post_mode" "${nc_jobs:-none}" "$gate_total_dur"
+  if [[ "$timings_logged" == 0 ]]; then
+    summary_phase_secs t_prov "$s_prov" "$provision_dur" "$provision_start" "$now"
+    summary_phase_secs t_s1 "$s_s1" "$stage1_dur" "$stage1_start" "$now"
+    summary_phase_secs t_s2 "$s_s2" "$stage2_dur" "$stage2_start" "$now"
+    summary_phase_secs t_nca "$s_nca" "$nc_admit_dur" "$nc_admit_start" "$now"
+    summary_phase_secs t_reg "$s_reg" "$regula_dur" "$regula_start" "$now"
+    summary_phase_secs t_int "$s_int" "$intent_dur" "$intent_start" "$now"
+    summary_phase_secs t_frm "$s_frm" "$frame_dur" "$frame_start" "$now"
+    summary_phase_secs t_nc "$s_nc" "$nc_exec_dur" "$nc_start" "$now"
+    summary_phase_secs t_post "$s_post" "$post_wall_dur" "$post_start" "$now"
+    printf -v timings_line 'gate: phase timings (s): provision=%s stage1=%s stage2=%s nc-admit=%s regula=%s intent=%s frame=%s no-comments=%s post-wall=%s (%s, nc-jobs=%s) total=%d\n' \
+      "$t_prov" "$t_s1" "$t_s2" "$t_nca" "$t_reg" "$t_int" "$t_frm" "$t_nc" "$t_post" \
+      "$post_mode" "${nc_jobs:-none}" "$gate_total_dur"
+  fi
+
+  if [[ "$summary_table_written" == 0 && -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    if [[ "$summary_suitable" == 0 || -L "$GITHUB_STEP_SUMMARY" || ( -e "$GITHUB_STEP_SUMMARY" && ! -f "$GITHUB_STEP_SUMMARY" ) ]]; then
+      echo "gate: refusing to write phase summary to unsuitable destination: $GITHUB_STEP_SUMMARY" >&2
+      summary_fail=1
+    elif printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY"; then
+      summary_table_written=1
+    else
+      echo "gate: failed to write phase summary to $GITHUB_STEP_SUMMARY" >&2
+      summary_fail=1
+    fi
+  fi
+
+  if [[ "$warnings_emitted" == 0 ]]; then
+    if [[ -n "$warnings_body" ]]; then
+      printf '%s' "$warnings_body"
+    fi
+    warnings_emitted=1
+  fi
+
+  if [[ "$timings_logged" == 0 ]]; then
+    printf '%s' "$timings_line"
+    timings_logged=1
+  fi
+
+  summary_written=1
 
   if [[ "$summary_fail" != 0 && "$early_abort" == 0 ]]; then
     gate_passed=0

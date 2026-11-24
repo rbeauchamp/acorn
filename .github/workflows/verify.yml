@@ -137,7 +137,11 @@ jobs:
           prov_dir=$(mktemp -d)
           prov_pid=''
           prov_ctrl_open=0
-          reported=0
+          prov_output_written=0
+          prov_warning_emitted=0
+          prov_summary_written=0
+          prov_report_done=0
+          prov_report_rc=0
           job_is_running() {
             local target_pid="$1" jobs_file="$2" line
             local re='^\[([0-9]+)\][+-]?[[:space:]]+([0-9]+)[[:space:]]+Running'
@@ -159,6 +163,7 @@ jobs:
             fi
           }
           cleanup_provision() {
+            local exit_rc=$?
             trap '' INT TERM
             local pid="$prov_pid"
             prov_pid=''
@@ -166,31 +171,44 @@ jobs:
             if [[ -n "$pid" ]]; then
               wait "$pid" 2>/dev/null || true
             fi
+            if [[ "$exit_rc" != 0 && "$prov_report_done" == 0 ]]; then
+              report_provision "$exit_rc" "failed (exit $exit_rc)" || true
+            fi
             if [[ -n "$prov_dir" ]]; then
               rm -rf "$prov_dir"
               prov_dir=''
             fi
           }
           report_provision() {
-            local rc="$1" label="$2" elapsed summary_body=''
-            [[ "$reported" == 0 ]] || return 0
-            reported=1
+            local rc="$1" label="$2" elapsed handoff_rc=0 summary_body=''
+            prov_report_rc="$rc"
             elapsed=$(( $(date +%s) - start_epoch ))
-            if [[ "$rc" == 0 ]]; then
-              echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
-            else
-              echo "seconds=$elapsed" >> "$GITHUB_OUTPUT" || true
+            if [[ "$prov_output_written" == 0 ]]; then
+              handoff_rc=0
+              echo "seconds=$elapsed" >> "${GITHUB_OUTPUT:-}" || handoff_rc=$?
+              if [[ "$handoff_rc" == 0 ]]; then
+                prov_output_written=1
+              elif [[ "$rc" == 0 ]]; then
+                rc="$handoff_rc"
+                prov_report_rc="$handoff_rc"
+                label="failed (output handoff, exit $handoff_rc)"
+              fi
             fi
-            if (( elapsed > 480 )); then
-              printf '::warning title=Verify / gate budget::Provision took %dm %02ds (%d s) (target <= 8m 00s (480 s)).\n' \
-                $((elapsed / 60)) $((elapsed % 60)) "$elapsed"
+            if [[ "$prov_warning_emitted" == 0 ]] && (( elapsed > 480 )); then
+              if printf '::warning title=Verify / gate budget::Provision took %dm %02ds (%d s) (target <= 8m 00s (480 s)).\n' \
+                $((elapsed / 60)) $((elapsed % 60)) "$elapsed"; then
+                prov_warning_emitted=1
+              fi
             fi
-            if [[ "$rc" != 0 && -n "${GITHUB_STEP_SUMMARY:-}" && ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
+            if [[ "$rc" != 0 && "$prov_summary_written" == 0 && -n "${GITHUB_STEP_SUMMARY:-}" && ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
               printf -v summary_body \
                 '## Verify / gate phase timings\n\n| Phase | Duration | Target budget | Hard limit | Status |\n|---|---:|---:|---:|---|\n| Provision pinned dependencies | %dm %02ds (%d s) | <= 8m 00s (480 s) | 12m | %s |\n| Merge gate (scripts/gate.sh) | - | <= 10m 00s (600 s) | 13m | not run (provisioning failed) |\n\n' \
                 $((elapsed / 60)) $((elapsed % 60)) "$elapsed" "$label"
-              printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY" || true
+              if printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY"; then
+                prov_summary_written=1
+              fi
             fi
+            prov_report_done=1
           }
           cancel_provision() {
             trap '' INT TERM
@@ -211,7 +229,7 @@ jobs:
             if [[ -n "$pid" ]]; then
               wait "$pid" 2>/dev/null || true
             fi
-            report_provision "$sig_rc" "interrupted / cancelled (exit $sig_rc)"
+            report_provision "$sig_rc" "interrupted / cancelled (exit $sig_rc)" || true
             exit "$sig_rc"
           }
           trap cleanup_provision EXIT
@@ -259,7 +277,7 @@ jobs:
           prov_pid=''
           reap_provision
           report_provision "$status" "failed (exit $status)"
-          exit "$status"
+          exit "$prov_report_rc"
       # The merge gate itself, by the same script with no argument. Its own provisioning
       # finds the dependencies current. It then runs verification as two timed
       # stages, each under verify.sh's own 360-second deadline: the cold build fills all four
