@@ -6017,14 +6017,6 @@ theorem action_direction : Regula.ExecutableContract Host.Action.direction
 /-- Registers `Host.Action.direction` as a decision function. -/
 theorem Host_Action_direction_registered : Regula.RegisteredDecision @Host.Action.direction := ⟨⟩
 
-/-- A successful world step advances the clock by one (`Host.World.step_clock`).
-
-The statement keeps no kind. It is a property of the world that an accepted step returns, and
-the erasure of a kind forgets that value. No theorem states which steps succeed, so no
-specification of the accepted inputs is stated.
-
-**Not claimed:** which steps succeed, or the successor state. The theorems of
-`AcornVerif.CurrentStep` state the successor. -/
 theorem world_step : Regula.ExecutableContract @Host.World.step (fun step =>
     ∀ (config : Host.WorldConfig) (world next : Host.World config) (action : Host.Action)
       (events : Host.StepResult), @step config world action = .ok (next, events) →
@@ -8147,20 +8139,6 @@ theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary 
     ⟨Grid.interface, _, bank, .discounted, narrow, foreignFree, planningBoundary .none,
       .empty narrow, quiet, none, .zero, Option.isNone_iff_eq_none.mp (by decide +kernel)⟩⟩⟩
 
-/-! ## Host transitions
-
-The transitions of an attempt and of the world refuse where the world refuses an observation or
-a step, the ANSI tick also where its step counter overflows, and initialization refuses where
-the spawn search or the placement of the deer refuses. No theorem states which observations or
-steps succeed, or that the spawn search returns a spawn for every seed, so each keeps a
-requirement with no kind; a specification that names `Host.World.observe` also reaches the
-ownership test `Host.Inventory.owns`, which the transitions of an attempt run.
-`AcornVerif.Decisions` states an accepted input of the
-observation, of finishing and of the fold, each at the attempt `fresh`, and of initialization, at
-a configuration of one tile, and `ansi_tick_accepts` here states one of the ANSI tick.
-`Host.Released.environment` has its two-way kind in `AcornVerif.Decisions`, and its statement
-here is the value of its result beside that kind. -/
-
 /-- The transition result of a release is the environment of an accepted release, and the
 refusal of a refused one, with the stage it kept dropped.
 
@@ -8184,15 +8162,6 @@ theorem released_environment : Regula.ExecutableContract @Host.Released.environm
       exact ⟨fun other => by simp [Host.Released.environment],
         fun other => by simp [Host.Released.environment]⟩⟩
 
-/-- The environment of a stage is the world's step on its action: an accepted transition holds
-the stage, and the world and the events of that step, and a refusal is the step's refusal.
-
-The statement keeps no kind. The stage is accepted exactly when the world's step accepts its action,
-and no theorem states which steps succeed (`world_step`). A specification of the accepted stages
-would read the stage, whose type carries the proof that its observation succeeded, which reaches the
-ownership test `Host.Inventory.owns` that the function runs through the crafting of the step. The
-rule of the section "Tests that a specification does not share" reads the declaration of such a part
-of the input, so it would exclude a kind over it. -/
 theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environment
     (fun environment =>
       ∀ {config α goal cap} (selected : Host.OwnedStep config α goal cap),
@@ -8208,10 +8177,6 @@ theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environmen
     · rename_i world result stepped
       exact ⟨stepped.symm, fun _ accepted => by cases accepted; rfl⟩⟩
 
-/-- The environment of a prepared step is the world's step on its action: an accepted transition
-holds the prepared step, and the world and the events of that step, and a refusal is the step's
-refusal. The statement keeps no kind, for the first reason that `owned_environment` states: no
-theorem states which steps succeed. -/
 theorem prepared_environment : Regula.ExecutableContract @Host.PreparedStep.environment
     (fun environment =>
       ∀ {config α β goal cap} (prepared : Host.PreparedStep config α β goal cap),
@@ -8274,15 +8239,6 @@ private theorem sense_exact {config : Host.WorldConfig} {α : Type} {goal : Host
       · cases accepted
         rfl
 
-/-- Sensing returns no input exactly when the attempt has stopped, refuses exactly when it has
-not stopped and the world refuses its observation, with that refusal, and otherwise returns an
-input of the same attempt.
-
-The statement keeps no kind. An attempt that has stopped is accepted without an observation;
-one that has not stopped is accepted exactly when the world's observation succeeds, and no
-theorem states which observations succeed. A specification of the accepted attempts would name
-`Host.World.observe`, which runs the ownership test `Host.Inventory.owns` that sensing runs, so
-the rule of the section "Tests that a specification does not share" would exclude a kind with it. -/
 theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense =>
     ∀ {config α goal cap} (attempt : Host.Attempt config α goal cap),
       (sense attempt = .ok none ↔ Stopped attempt) ∧
@@ -8291,14 +8247,6 @@ theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense
         ∀ input, sense attempt = .ok (some input) → input.before = attempt) :=
   ⟨fun attempt => sense_exact attempt⟩
 
-/-- A stopped attempt executes no action through its tick: the tick returns the attempt
-unchanged and no frame (`Host.Attempt.tick_finished`).
-
-The statement keeps no kind. A tick refuses where sensing refuses or the world refuses the
-action the agent chose, and no theorem states which steps succeed.
-
-**Not claimed:** which ticks succeed, or what a tick returns from an attempt that has not
-stopped. -/
 theorem attempt_tick : Regula.ExecutableContract @Host.Attempt.tick (fun tick =>
     ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
       (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap),
@@ -8307,16 +8255,6 @@ theorem attempt_tick : Regula.ExecutableContract @Host.Attempt.tick (fun tick =>
     Host.Attempt.tick_finished callbacks context attempt
       (by simpa [Host.Attempt.finished, Stopped] using stopped)⟩
 
-/-- A finished attempt continues as its own run with the attempt recorded, and the outcome's
-position and the terminal frame's position are that run's body position
-(`Host.Attempt.finish_position`).
-
-The statement keeps no kind. Finishing refuses exactly where the world refuses the final
-observation, and no theorem states which observations succeed.
-`AcornVerif.Decisions.attempt_finish_accepts` states an accepted input: the attempt `fresh`,
-with any callbacks and context.
-
-**Not claimed:** which attempts finish without a refusal. -/
 theorem attempt_finish : Regula.ExecutableContract @Host.Attempt.finish (fun finish =>
     ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
       (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap)
@@ -8329,13 +8267,6 @@ theorem attempt_finish : Regula.ExecutableContract @Host.Attempt.finish (fun fin
   ⟨fun callbacks context attempt run outcome frame finished =>
     Host.Attempt.finish_position callbacks context attempt run outcome frame finished⟩
 
-/-- Closing an attempt returns what finishing it returns, and a refusal of finishing as a
-refusal that holds no stage. A value that the native bookkeeping `Host.finishAttempt` returns
-normally agrees with it (`Host.finishAttempt_returned`, `Host.AttemptAgrees`): the same refusal,
-or the same run state and outcome. The native value holds the runner's resources in the place of
-the terminal frame, which the agreement does not compare.
-
-The statement keeps no kind, for the reason that `attempt_finish` states. -/
 theorem attempt_close : Regula.ExecutableContract @Host.Attempt.close (fun close =>
     ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
       (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap),
@@ -8369,18 +8300,6 @@ theorem attempt_close : Regula.ExecutableContract @Host.Attempt.close (fun close
       · intro refusal
         exact ⟨fun same => (nomatch same), fun ⟨_, same⟩ => (nomatch same)⟩⟩
 
-/-- When the fold of an attempt ends in a refused action, it holds the stage of one whole step
-on an attempt that the fold reached in fewer passes than its fuel, from which the world refused
-that action (`Host.Attempt.complete_learned`). A value that the attempt runner `Host.runAttempt`
-returns normally agrees with this fold at the fuel `cap.toNat`, the attempt's own step cap
-(`Host.runAttempt_complete`): the same refusal, or the same run state and outcome.
-
-The statement keeps no kind. The fold refuses where the world refuses an observation or an
-action, and no theorem states which observations or steps succeed.
-`AcornVerif.Decisions.attempt_complete_accepts` states an accepted input: the attempt `fresh`
-at the fuel zero, with any callbacks and context.
-
-**Not claimed:** which folds end in a refusal, or the value of a fold that does not. -/
 theorem attempt_complete : Regula.ExecutableContract @Host.Attempt.complete (fun complete =>
     ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
       (context : Host.GoalContext) (fuel : Nat) (attempt : Host.Attempt config α goal cap)
@@ -8413,15 +8332,6 @@ at the clock zero. The kernel evaluates it. -/
 private theorem fresh_waits : ((fresh 1).run.world.step .wait).isOk = true := by
   decide +kernel
 
-/-- A successful tick of the ANSI loop keeps the observation it consumed until an explicit
-refresh (`Host.AnsiState.tick_observation`).
-
-The statement keeps no kind. A tick refuses where the world refuses the agent's action or the
-step counter overflows, and no theorem states which steps succeed. `ansi_tick_accepts` states an
-accepted input: the world of the attempt `fresh` with a step counter of zero, and the callbacks
-`waiting`.
-
-**Not claimed:** which ticks succeed, or the world and the frame a tick returns. -/
 theorem ansi_tick : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
     ∀ {config α β} (state next : Host.AnsiState config α)
       (callbacks : Host.AgentCallbacks .learnThenAct α β) (index : Nat)
@@ -8460,13 +8370,6 @@ theorem world_observe : Regula.ExecutableContract @Host.World.observe (fun obser
   ⟨fun world observation observed => Host.World.observe_task world observation observed⟩
 
 
-/-- Committing a prepared step refuses exactly when the world's step on its action refuses, with
-that refusal; an accepted commit holds the world and the result of that step, and one more step
-of the attempt.
-
-The statement keeps no kind, for the first reason that `owned_environment` states: the commit is
-accepted exactly when the world's step accepts its action, and no theorem states which steps
-succeed. -/
 theorem prepared_commit : Regula.ExecutableContract @Host.PreparedStep.commit (fun commit =>
     ∀ {order config α β goal cap} (prepared : Host.PreparedStep config α β goal cap)
       (callbacks : Host.AgentCallbacks order α β),
@@ -8547,13 +8450,6 @@ private theorem baselineTick_exact {config : Host.WorldConfig} {cap : UInt64}
       · cases accepted
         exact ⟨stepped, rfl, rfl⟩
 
-/-- A tick of the comparator returns its state unchanged once the goal is satisfied or the cap
-is reached; otherwise it refuses exactly when the world's step on the action drawn from its
-stream refuses, with that refusal, and an accepted tick holds the world and the result of that
-step, the advanced stream and one more step.
-
-The statement keeps no kind. A tick is accepted where the world's step accepts the drawn action,
-and no theorem states which steps succeed. -/
 theorem baseline_tick : Regula.ExecutableContract @Host.BaselineAttempt.tick (fun tick =>
     ∀ {config cap} (state : Host.BaselineAttempt config cap),
       (state.result.done = true ∨ cap.toNat ≤ state.steps.val → tick state = .ok state) ∧

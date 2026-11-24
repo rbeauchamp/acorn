@@ -1631,17 +1631,6 @@ theorem baseline_corresponds : Regula.ExecutableContract @Host.BaselineAttempt.t
       fun frame acted drawn => CurrentRunner.tick_corresponds callbacks context attempt next frame
         state related acted drawn⟩⟩
 
-/-- A comparator campaign with no fuel ends unfinished, and a comparator campaign from a cursor
-within its cycle budget (its cycle is below the plan's cycle count), with fuel that covers the
-attempts left in its budget (`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends
-unfinished (`CurrentRunner.baseline_campaign_finishes`).
-
-The statement keeps no kind. A constant function fails it: with no fuel the result is the
-refusal `unfinished`, and with fuel that covers the budget the result is not. A campaign that
-does not end unfinished can still refuse where the world refuses a step, and no theorem states
-which steps succeed.
-
-**Not claimed:** which campaigns return a record, or the record. -/
 theorem campaign_finishes : Regula.ExecutableContract @Host.runBaselineCampaign (fun run =>
     (∀ {config} (curriculum : Host.Curriculum) (plan : Host.CampaignPlan curriculum.size)
       (cursor : Host.CampaignCursor plan) (world : Host.World config) (rng : Rng.Xoshiro256)
@@ -1658,17 +1647,6 @@ theorem campaign_finishes : Regula.ExecutableContract @Host.runBaselineCampaign 
       CurrentRunner.baseline_campaign_finishes curriculum plan fuel cursor world rng outcomes
         before covered⟩⟩
 
-/-- The comparator's campaign refuses at campaign admission a specification with no steps
-(`stepCapZero`) and a specification with steps, no goals and no cycles (`emptyUnbounded`,
-`CurrentRunner.empty_unbounded_refused`), and over an admitted plan with at least one cycle it
-never ends unfinished (`CurrentRunner.baseline_finishes`).
-
-The statement keeps no kind. A constant function fails it: the two refusals of admission
-differ. The campaign over an admitted plan can still refuse where world generation or a world
-step refuses, and no theorem states which configurations initialize or which steps succeed
-(`Acorn.Decisions.world_initial`).
-
-**Not claimed:** which campaigns return a record, or the record. -/
 theorem random_baseline_finishes : Regula.ExecutableContract Host.runRandomBaseline (fun run =>
     (∀ (config : Host.WorldConfig) (seed attempts goals cycles : UInt64),
       run config seed ⟨0, attempts, goals, cycles⟩ = .error (.campaign .stepCapZero)) ∧
@@ -2067,15 +2045,6 @@ private theorem deer_oneTile : (Host.initializeDeer (Host.World.empty oneTile)).
   refine bind_isOk _ _ (forIn_range_isOk _ _ _ fun index _ bound => ?_) fun _ => rfl
   exact absurd bound (Nat.not_lt_zero index)
 
-/-- A spawn that the search returns is a walkable tile whose trees plus stone within four tiles
-are at least two; or no tile of the box is rich, and the spawn is a walkable tile whose score no
-scored candidate of the box exceeds, or the center of the box when no tile is walkable
-(`CurrentSpawn.selectSpawn_post`). The search accepts the empty world of `oneTile`
-(`select_oneTile`).
-
-The statement keeps no kind. The search stops at the first rich candidate of its spiral, so
-which tiles it reads depends on the kinds and walkability of the tiles before, and no theorem
-states which worlds it accepts. -/
 theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =>
     (∀ {config} (world : Host.World config) (spawn : Host.BoxPosition config),
       select world = .ok spawn →
