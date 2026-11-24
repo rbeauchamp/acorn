@@ -17,11 +17,7 @@ open Lean
 def require (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError s!"ownership: {message}")
 
-/-- The documentation site in `site/` is a separate Lake workspace with the same closed
-source inventory. It keeps its dependency checkouts in this package's `.lake/packages`, so
-it must lock every dependency of this package to the same URL and revision: with a different
-lock, building one workspace would move the other's checkout. -/
-def siteSources (requireClean : Bool := true) : IO Unit := do
+def siteModuleInventory (requireClean : Bool := true) : IO Unit := do
   let actual ← AcornModuleInventory.siteModules requireClean
   require (AcornOwnership.siteModules.toList.eraseDups.length == AcornOwnership.siteModules.size)
     "duplicate registered site module"
@@ -29,6 +25,13 @@ def siteSources (requireClean : Bool := true) : IO Unit := do
     require (AcornOwnership.siteModules.contains name) s!"unowned site module {name}"
   for name in AcornOwnership.siteModules do
     require (actual.contains name) s!"stale site module owner {name}"
+
+/-- The documentation site in `site/` is a separate Lake workspace with the same closed
+source inventory. It keeps its dependency checkouts in this package's `.lake/packages`, so
+it must lock every dependency of this package to the same URL and revision: with a different
+lock, building one workspace would move the other's checkout. -/
+def siteSources (requireClean : Bool := true) : IO Unit := do
+  siteModuleInventory requireClean
   let args := if requireClean then #["admit-site", "--clean", ".."] else #["admit-site", ".."]
   AcornTrackedFiles.runTrackedHelper ".." args requireClean
 

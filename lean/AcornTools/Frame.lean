@@ -278,8 +278,8 @@ compiled files since; that the tree does not change while this program runs; and
 search path, which the bootstrap's `lake exe` sets with the workspace's own library directories
 first, finds the modules that `module` imports where Lake answered for them, since only the
 file of `module` itself is compared. -/
-def current (module : Name) : IO Unit := do
-  unless (← AcornModuleInventory.allModules).contains module do
+def current (module : Name) (requireClean : Bool := true) : IO Unit := do
+  unless (← AcornModuleInventory.allModules (requireClean := requireClean)).contains module do
     throw (IO.userError s!"module {module}: not read, since the tree holds no source file of \
       exactly this name among the package's Lean sources")
   let some text := requestText module
@@ -313,14 +313,14 @@ def current (module : Name) : IO Unit := do
 
 /-- The environment of a compiled module, read only once `current` has admitted the module.
 Every environment this program reads comes from here. -/
-def imported (module : Name) : IO Environment := do
-  current module
+def imported (module : Name) (requireClean : Bool := true) : IO Environment := do
+  current module requireClean
   importModules #[{ module }] {}
 
 /-- The frame of a pin's target, in the environment of its module. A module that `current`
 refuses and an unknown target are refused. -/
-def computed (pin : Pin) : IO (Std.HashMap Name String) := do
-  let env ← imported pin.home
+def computed (pin : Pin) (requireClean : Bool := true) : IO (Std.HashMap Name String) := do
+  let env ← imported pin.home requireClean
   unless (env.find? pin.target).isSome do
     throw (IO.userError s!"{pin.home} declares no {pin.target}")
   return frame env (pin.free.foldl (·.insert ·) {}) (pin.stop.foldl (·.insert ·) {}) pin.target
@@ -407,7 +407,7 @@ def run (args : List String) : IO UInt32 := do
         return 2
       let pin : Pin :=
         ⟨target.toName, declaring.toName, namesAfter "free" rest, namesAfter "stop" rest, #[]⟩
-      let now ← computed pin
+      let now ← computed pin (requireClean := false)
       let filled : Pin := ⟨pin.target, pin.home, pin.free, pin.stop, now.toArray⟩
       IO.print filled.text
       return 0

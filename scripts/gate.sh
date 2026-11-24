@@ -184,7 +184,7 @@ step 'provisioning the pinned dependencies'
   if [[ "$descriptor_limit" != unlimited ]] && (( descriptor_limit < 4096 )); then
     ulimit -Sn 4096
   fi
-  ./scripts/tracked-files.sh sync-config --clean .
+  ./scripts/tracked-files.sh sync-config --clean --admit-manifest .
   dependency_git
   cd lean
   # Lake decides whether Mathlib and Regula's lint driver need provisioning: with
@@ -335,8 +335,7 @@ elif ! verify_sha256 "$nc_sha256" "$nc_bin"; then
   commented=1
   step 'no-comments check refused (integrity check failed)'
 else
-  if ! ./scripts/tracked-files.sh admit-file --clean . .no-comments.json comment-ratchet.json "$nc_pin" ||
-      ! ./scripts/tracked-files.sh admit-lake-dirs --clean --workspace both .; then
+  if ! ./scripts/tracked-files.sh admit-no-comments --clean .; then
     commented=1
   else
     nc_args=(check)

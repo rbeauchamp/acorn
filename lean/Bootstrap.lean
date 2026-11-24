@@ -60,27 +60,32 @@ def overrides : IO (Json × Bool) := do
   regularFile "lake-manifest.json"
   let lock ← checked (Json.parse (← IO.FS.readFile "lake-manifest.json"))
   unless (← checked (lock.getObjValAs? String "version")) == "1.3.0" &&
+      (← checked (lock.getObjValAs? String "name")) == "acorn" &&
       (← checked (lock.getObjValAs? String "packagesDir")) == ".lake/packages" &&
       (← checked (lock.getObjValAs? String "lakeDir")) == ".lake" do
     throw (IO.userError "unsupported Lake lock layout; provision separately")
   let packages ← checked (lock.getObjValAs? (Array Json) "packages")
   unless !packages.isEmpty do throw (IO.userError "empty locked dependency inventory")
+  let mut seenNames : Array Name := #[]
   let mut names : Array String := #[]
   let mut entries : Array Json := #[]
   let mut available := true
   for entry in packages do
     let name ← checked (entry.getObjValAs? String "name")
+    let decoded := name.toName
     let directory ← packageDir name
-    unless !names.contains directory && (← checked (entry.getObjValAs? String "type")) == "git" do
+    unless !seenNames.contains decoded && !names.contains directory &&
+        (← checked (entry.getObjValAs? String "type")) == "git" do
       throw (IO.userError "duplicate or unsupported locked dependency")
+    seenNames := seenNames.push decoded
     names := names.push directory
     let config ← component (← checked (entry.getObjValAs? String "configFile"))
     let manifest ← component (← checked (entry.getObjValAs? String "manifestFile"))
     let scope ← checked (entry.getObjValAs? String "scope")
     let inherited ← checked (entry.getObjValAs? Bool "inherited")
     let url ← checked (entry.getObjValAs? String "url")
-    unless url.startsWith "https://" && !url.any Char.isWhitespace do
-      throw (IO.userError s!"unsupported locked URL for {name}")
+    unless !url.isEmpty do
+      throw (IO.userError s!"empty locked URL for {name}")
     let revision ← checked (entry.getObjValAs? String "rev")
     unless revision.length == 40 && revision.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) do
       throw (IO.userError s!"invalid locked revision for {name}")
@@ -91,6 +96,11 @@ def overrides : IO (Json × Bool) := do
     -- provisioning cannot hide a later schema or filesystem refusal.
     let configAvailable ← regularFileAvailable (dir / config)
     let manifestAvailable ← regularFileAvailable (dir / manifest)
+    let gitMeta? ← try some <$> (System.FilePath.mk dir / ".git").symlinkMetadata catch error =>
+      if error matches .noFileOrDirectory .. then pure none else throw error
+    if let some gm := gitMeta? then
+      unless gm.type == .dir || gm.type == .file do
+        throw (IO.userError s!"non-regular provisioned path: {dir}/.git")
     available := available && configAvailable && manifestAvailable
     entries := entries.push (Json.mkObj [
       ("name", toJson name), ("scope", toJson scope), ("inherited", toJson inherited),
@@ -216,9 +226,46 @@ private def validateCallerArgs (args : List String) : IO Unit := do
   | _ =>
     throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
 
+private def findExeTarget : List String → Option (String × List String)
+  | [] => none
+  | "--" :: name :: tail => some (name, tail)
+  | "--" :: [] => none
+  | arg :: rest =>
+    if arg.length > 1 && arg.startsWith "-" then
+      if arg.startsWith "--" then
+        let (lhs, eqVal?) := splitFirstChar arg '='
+        let (optName, spVal?) := splitFirstChar lhs ' '
+        if eqVal?.isNone && spVal?.isNone && longLakeOptsWithArg.contains optName then
+          match rest with
+          | [] => none
+          | _ :: after => findExeTarget after
+        else
+          findExeTarget rest
+      else
+        let chars := arg.toList
+        let c := chars[1]?.getD ' '
+        if chars.length == 2 && (c == 'K' || c == 'o') then
+          match rest with
+          | [] => none
+          | _ :: after => findExeTarget after
+        else
+          findExeTarget rest
+    else
+      some (arg, rest)
+
 private def requiresCleanHead (args : List String) : Bool :=
   match args with
-  | "exe" :: rest => rest != ["acorn-gates", "site", "write"]
+  | "exe" :: rest =>
+    match findExeTarget rest with
+    | some ("acorn-gates", ["site", "write"]) => false
+    | some ("acorn-gates", ["diagnostics"]) => false
+    | some ("acorn-gates", _) => true
+    | some ("frame-check", "print" :: _) => false
+    | some ("frame-check", _) => true
+    | some ("lean-boundary-audit", _) | some ("native-audit", _)
+    | some ("ownership-audit", _) | some ("corpus-audit", _)
+    | some ("theorem-count", _) | some ("intent-check", _) => true
+    | _ => false
   | _ => false
 
 private def admitTrackedHelper (requireClean : Bool) : IO System.FilePath := do

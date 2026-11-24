@@ -32,9 +32,9 @@ def modulesUnder (root : System.FilePath) (skipped : Array String)
     throw (IO.userError s!"no tracked Lean modules under {root}")
   pure (modules.qsort fun a b => a.toString < b.toString)
 
-def allModules (package : System.FilePath := ".") : IO (Array Name) :=
+def allModules (package : System.FilePath := ".") (requireClean : Bool := true) : IO (Array Name) :=
   modulesUnder package #[".lake", "lake-packages", ".git", ".DS_Store", "lakefile.lean"]
-    "lean/"
+    "lean/" requireClean
 
 /-- The libraries whose modules Lake's globs assign: `Acorn`, `AcornVerif`, `NativeApp` and
 `AcornDocument`, the default targets whose modules the Regula audit claims, and `Entry`,

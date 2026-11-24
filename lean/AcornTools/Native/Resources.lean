@@ -6,6 +6,7 @@ Authors: acorn contributors
 import Lean
 import AcornVerif.Resource.WordKernel
 import AcornTools.Boundary.Audit
+import AcornTools.TrackedFiles
 
 /-!
 # Admission of actual numerical compiler IR
@@ -325,46 +326,49 @@ def roots : Array (Name × Nat) :=
     (`Acorn.Interval32.instDecidableContains, 113), (`Acorn.Interval32.saturate, 114), (`Acorn.Conversion.toI64, 64),
     (`Acorn.Host.coordinateCast, 143), (`Acorn.Features.durationRemaining, 132)]
 
+private def irCPath (owner : Name) : String :=
+  ".lake/build/ir/" ++ owner.toString.replace "." "/" ++ ".c"
+
 /-- Read actual compiler-owned once declarations. The closed-term cache is
 not persistent across imports, so the standalone audit uses emitted C and the
 pinned compiler's symbol mangling. Scalar types are checked again against IR. -/
-def readOnceSymbols : Nat → System.FilePath → IO (List String)
-  | 0, _ => throw (IO.userError "compiler directory depth exceeded")
-  | fuel + 1, directory => do
-    let mut result := []
-    for entry in ← directory.readDir do
-      let kind := (← entry.path.symlinkMetadata).type
-      if kind == .dir then result := result ++ (← readOnceSymbols fuel entry.path)
-      else if entry.path.extension == some "c" then
-        unless kind == .file do throw (IO.userError s!"non-regular compiler source: {entry.path}")
-        let lines := (← IO.FS.readFile entry.path).splitOn "\n"
+def readOnceSymbols (env : Environment) (admitted : Array Name) : IO (List String) := do
+  let mut result := []
+  for owner in admitted do
+    if (`Acorn).isPrefixOf owner && (env.getModuleIdx? owner).isSome then
+      let rel := irCPath owner
+      AcornTrackedFiles.ensureRegular "." rel
+      let lines := (← IO.FS.readFile rel).splitOn "\n"
         -- A declaration `static {ty} {symbol};` holds no line break, so the source holds it
         -- exactly when one of the lines that hold `static {ty} ` does. Each symbol is then
         -- sought in those lines alone, not in the whole source once per type.
-        let declarations := ["uint8_t", "uint32_t", "uint64_t", "float", "double", "lean_object*"].map
-          fun ty => (ty, lines.filter (·.contains s!"static {ty} "))
-        for line in lines do
-          let declarationStart := "static lean_once_cell_t "
-          let suffix := "_once = LEAN_ONCE_CELL_INITIALIZER;"
-          if line.startsWith declarationStart && line.endsWith suffix then
-            let symbol := ((line.drop declarationStart.length).toString.dropEnd suffix.length).toString
-            unless declarations.any (fun (ty, held) =>
-                held.any (·.contains s!"static {ty} {symbol};")) do
-              continue
-            result := symbol :: result
-    return result
+      let declarations := ["uint8_t", "uint32_t", "uint64_t", "float", "double", "lean_object*"].map
+        fun ty => (ty, lines.filter (·.contains s!"static {ty} "))
+      for line in lines do
+        let declarationStart := "static lean_once_cell_t "
+        let suffix := "_once = LEAN_ONCE_CELL_INITIALIZER;"
+        if line.startsWith declarationStart && line.endsWith suffix then
+          let symbol := ((line.drop declarationStart.length).toString.dropEnd suffix.length).toString
+          unless declarations.any (fun (ty, held) =>
+              held.any (·.contains s!"static {ty} {symbol};")) do
+            continue
+          result := symbol :: result
+  return result
 
 
 /-- Compiler-emitted eager numerical initializers are startup roots. Match
 both the assigned symbol and the actual initializer call, then require its IR. -/
-def eagerInitializers (env : Environment) : IO (List Name × List String) := do
+def eagerInitializers (env : Environment) (admitted : Array Name) : IO (List Name × List String) := do
   let mut names := []
   let mut symbols := []
   for owner in ["Encoding", "Admission", "Arithmetic", "Rounding", "Conversion", "Portable",
       "Word", "Host/Terrain", "Exploration"] do
-    let path : System.FilePath := s!".lake/build/ir/Acorn/{owner}.c"
-    unless (← path.symlinkMetadata).type == .file do throw (IO.userError s!"invalid artifact {path}")
-    let source ← IO.FS.readFile path
+    let mod := (("Acorn/" ++ owner).splitOn "/").foldl Name.str .anonymous
+    unless admitted.contains mod && (env.getModuleIdx? mod).isSome do
+      throw (IO.userError s!"unadmitted initializer module {mod}")
+    let rel := irCPath mod
+    AcornTrackedFiles.ensureRegular "." rel
+    let source ← IO.FS.readFile rel
     for line in source.splitOn "\n" do
       let parts := line.splitOn " = _init_"
       if parts.length == 2 then
@@ -382,14 +386,14 @@ def eagerInitializers (env : Environment) : IO (List Name × List String) := do
 
 /-- Load current compiler declarations and reject any root leaving the admitted
 fragment. Lake freshness and module-origin gates run in the enclosing suite. -/
-unsafe def audit : IO Unit := do
+unsafe def audit (admitted : Array Name) : IO Unit := do
   let sysroot ← findSysroot
   initSearchPath sysroot
   let library ← getLibDir sysroot
   -- IR and symbol queries read imported metadata; no project initializer runs.
   AcornBoundaryAudit.withScopedImportModules library #[{ module := `Acorn }] {} fun env => do
-    let (eagerNames, globalSymbols) ← eagerInitializers env
-    let onceSymbols ← readOnceSymbols 16 ".lake/build/ir/Acorn"
+    let (eagerNames, globalSymbols) ← eagerInitializers env admitted
+    let onceSymbols ← readOnceSymbols env admitted
     let loop ← match extractHalving env onceSymbols globalSymbols `Acorn.Portable.powLoopWord with
       | .ok tree => pure tree
       | .error reason => throw (IO.userError s!"native resource: {reason}")

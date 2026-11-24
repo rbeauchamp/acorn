@@ -33,8 +33,9 @@ runs it only where the person it works for has agreed to that, and it
 provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
 available. The bootstrap status that decides this admits the Lean package's
-configuration, tracked sources and `.lake` containment (including package
-configuration cache directories and files), writes only the launcher's own
+configuration, tracked sources and `.lake` containment (including
+`lean/.lake/packages` and Lake's numeric package configuration cache directories
+and files), writes only the launcher's own
 override file and tracked-module stamp atomically through exclusive temporary
 files (clearing only Acorn's confirmed cached configuration traces when tracked
 Lean modules change) without building any Lean or C target, and asks Lake
@@ -519,37 +520,51 @@ launching them. Before any shell or Lake consumer reads them,
 `lean/no-comments.pin`, `.no-comments.json`, and `comment-ratchet.json`. On
 both cache-stamp hits and misses, it validates every tracked source under
 `lean/` (and under `site/` for site commands) on disk as a current non-symlink
-regular file beneath non-symlink directories, and enforces real workspace-owned
-non-symlink containment across `.lake`, `.lake/config`, every package
-configuration cache directory, and `lakefile.olean`, trace and
-`lakefile.olean.lock` destinations (refusing ambient `package-overrides.json`
-in any active workspace, and refusing an untracked `lakefile.toml` inside
-`lean/` on the `scripts/regula.sh` route that uses Lake's default resolution).
+regular file beneath non-symlink directories, enforces real workspace-owned
+non-symlink containment across `.lake`, `lean/.lake/packages` (and each
+manifest-named dependency checkout directory, its git metadata, configuration
+file and manifest file when present), `.lake/config`, Lake's numeric package
+configuration cache directories, and `lakefile.olean`, trace and
+`lakefile.olean.lock` destinations (ignoring unrelated untracked entries such as
+`.DS_Store`, refusing ambient `package-overrides.json` in any active workspace,
+and refusing an untracked `lakefile.toml` inside `lean/` on the
+`scripts/regula.sh` route that uses Lake's default resolution), and decodes
+`lean/lake-manifest.json` through Lake's manifest loader before the first Lake
+workspace load in `scripts/gate.sh` and `scripts/regula.sh`.
 Repository-relative document path references, browser assets, Lake manifests
 and native inputs likewise require tracked regular entries (with `lean/.lake`
 and `lean/.lake/packages` admitted only as directory references in
-documentation). When tracked Lean files change, `scripts/tracked-files.sh`
-deletes only cached `lakefile.olean` and trace files whose parsed trace
-confirms Acorn ownership (leaving missing, malformed and other packages' traces
-untouched) and writes its stamp and override files atomically through exclusive
-temporary files before invoking Lake (`-f lakefile.lean` through
-`Bootstrap.lean`, `-f lakefile.toml` under `site/`, and default workspace
-resolution after shadow-config refusal for `scripts/regula.sh`), while
-`scripts/verify.sh` invokes `SHELLCHECK_OPTS='' shellcheck --norc` so ambient
-configuration cannot alter script checks. Verdict-producing commands
-(`./scripts/gate.sh`, `./scripts/verify.sh`, `./scripts/regula.sh`,
-`./scripts/lean.sh exe` outside `./scripts/verify.sh site write`, and the
-compiled audit tools) additionally require Git's index and working-copy tracked
-files to match the checked-out HEAD commit with no staged additions, removals
-or edits, no unstaged tracked changes, and no assume-unchanged or skip-worktree
-index flags (binding both membership and content to HEAD while keeping
-`git diff --check` and `no-comments`'s internal index lookup intact); direct
-development builds and `./scripts/verify.sh site write` still enforce stage-0
-regular-file tracked admission while permitting uncommitted edits to tracked
-files. Runtime `--research-profile` selects agent mechanisms; it does not
-change verification. Resource, route and compiler flag admission, browser byte
-generation, corpus and declaration checks always run. Missing or untracked
-referenced files fail admission.
+documentation), and `native-audit` derives its `.c` and compile-trace artifact
+paths directly from the current admitted native module inventory rather than
+walking compiler output directories. When tracked Lean files change,
+`scripts/tracked-files.sh` deletes only cached `lakefile.olean` and trace files
+whose parsed trace confirms Acorn ownership (leaving missing, malformed and
+other packages' traces untouched) and writes its stamp and override files
+atomically through exclusive temporary files before invoking Lake
+(`-f lakefile.lean` through `Bootstrap.lean`, `-f lakefile.toml` under `site/`,
+and default workspace resolution after shadow-config refusal for
+`scripts/regula.sh`), while `scripts/verify.sh` invokes
+`SHELLCHECK_OPTS='' shellcheck --norc` so ambient configuration cannot alter
+script checks. The checks take their file lists from Git's stage-0 tracked
+regular-file index without materializing a separate HEAD checkout or hashing
+every tracked file independently against HEAD; verdict-producing commands
+(`./scripts/gate.sh`, `./scripts/verify.sh` outside `site write` and
+`diagnostics`, `./scripts/regula.sh`, and the compiled audit executables
+`acorn-gates` outside `site write` and `diagnostics`, `lean-boundary-audit`,
+`native-audit`, `ownership-audit`, `corpus-audit`, `theorem-count`,
+`intent-check`, and `frame-check` outside `frame-check print`) additionally
+check via Git that the index and working tree report no staged or unstaged
+changes against HEAD and no assume-unchanged or skip-worktree index flags
+(hosted CI and validation runs already execute on fresh checkouts of the exact
+commit), while keeping `git diff --check` and `no-comments`'s internal index
+lookup intact. Direct development builds, non-verdict executables (such as
+`world-certificates`), `frame-check print`, `./scripts/verify.sh diagnostics`
+and `./scripts/verify.sh site write` enforce stage-0 regular-file tracked
+admission while permitting uncommitted edits to tracked files. Runtime
+`--research-profile` selects agent mechanisms; it does not change verification.
+Resource, route and compiler flag admission, browser byte generation, corpus and
+declaration checks always run. Missing or untracked referenced files fail
+admission.
 
 Numerical proofs use the executing Lean definitions. Native admission checks
 their compiler IR, primitive calls, resource contracts and compiler flags.
@@ -557,12 +572,12 @@ Primitive IEEE interpretation remains a native assumption.
 
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
-validates, and every gate check reads only Git-tracked regular files matching
-HEAD so untracked working-copy entries do not enter checks or change the
+validates, and every gate check enumerates only Git-tracked stage-0 regular
+files so untracked working-copy entries do not enter checks or change the
 verdict, apart from the deliberate refusals of ambient `package-overrides.json`
-in an active workspace, non-regular or symlinked entries under `.lake`, and an
-untracked `lakefile.toml` inside `lean/` during `scripts/regula.sh`. GitHub
-runs the same
+in an active workspace, non-regular or symlinked entries in checked `.lake`
+destinations, and an untracked `lakefile.toml` inside `lean/` during
+`scripts/regula.sh`. GitHub runs the same
 script at each event that gives a pull request its head, within the limits
 described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
@@ -601,8 +616,10 @@ files across `lean/` (including `lean/lakefile.lean`) and `site/` code
 (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
 `site/AcornDocs.lean` and `site/AcornDocs/` Verso prose), using explicit
 `-f lakefile.lean` and `-f lakefile.toml` workspace configuration flags in
-`.no-comments.json` after verifying `.no-comments.json`, `comment-ratchet.json`,
-and `lean/no-comments.pin` are tracked regular files,
+`.no-comments.json` after validating `.no-comments.json`'s configured ratchet
+path, workspace directories, Lake flags, empty tool/workspace-exclude prefixes
+and Verso-scoped exclude prefixes alongside `lean/no-comments.pin` and both
+workspaces against tracked regular files,
 against `comment-ratchet.json` for exact head sync, plus unconditional
 monotonic non-growth against the merge-base ratchet alongside rejecting newly
 excluded files that still hold comments at the merge base (tracked files with
@@ -1323,10 +1340,11 @@ gate with its own bound; the deadline is not raised. At the shared site entry of
 `./scripts/verify.sh site`, `./scripts/verify.sh site write` and full
 verification) and before site provisioning in `scripts/gate.sh`,
 `scripts/tracked-files.sh` parses `site/lakefile.toml` and both lock manifests
-through Lake itself, requires `roots = []` and closed single-module globs whose
-effective module set together with `site/Main.lean` equals the Git-tracked
-regular `.lean` files under `site/` (and `AcornOwnership.siteModules`), admits
-`site/lakefile.toml`, `site/lake-manifest.json`, `site/lean-toolchain`,
+through Lake itself (deriving the site's path-override manifest directly from
+Lake's decoded manifest entries), requires `roots = []` and closed single-module
+globs whose effective module set together with `site/Main.lean` equals the
+Git-tracked regular `.lean` files under `site/` (and `AcornOwnership.siteModules`),
+admits `site/lakefile.toml`, `site/lake-manifest.json`, `site/lean-toolchain`,
 `site/Main.lean`, `docs/verification.md`, and `.lake` containment (without
 refusing unrelated `lakefile.lean` files under `site/`, since every site
 invocation passes `-f lakefile.toml`), synchronizes `lean/` tracked-module

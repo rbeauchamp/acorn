@@ -63,7 +63,8 @@ acorn_verify_checks() {
     exit 127
   fi
   cd "$(dirname "$1")/.."
-  if [[ "$#" == 4 && "$3" == "site" && "$4" == "write" ]]; then
+  if [[ ( "$#" == 4 && "$3" == "site" && "$4" == "write" ) ||
+        ( "$#" == 3 && "$3" == "diagnostics" ) ]]; then
     admit_clean=0
   fi
   admit_tracked_helper . "$admit_clean" || {

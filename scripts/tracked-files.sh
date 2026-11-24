@@ -121,9 +121,43 @@ admit_one_file() {
   validate_stage_meta "$meta" "repo" "$rel"
 }
 
+admit_tracked_dir_prefix() {
+  local root="$1" rel="$2" tmp line meta path rest="$2" part cur='' count=0 lean_count=0
+  check_rel_path "$rel"
+  while [[ "$rest" == */* ]]; do
+    part="${rest%%/*}"
+    rest="${rest#*/}"
+    [[ -n "$part" && "$part" != "." && "$part" != ".." ]] ||
+      fail "unsupported path component in repo/$rel"
+    cur="${cur:+$cur/}$part"
+    [[ ! -L "$root/$cur" && -d "$root/$cur" ]] ||
+      fail "non-directory ancestor in repo: $cur"
+  done
+  [[ -n "$rest" && "$rest" != "." && "$rest" != ".." ]] ||
+    fail "unsupported path component in repo/$rel"
+  [[ ! -L "$root/$rel" && -d "$root/$rel" ]] ||
+    fail "non-directory tracked prefix in repo: $rel"
+  tmp=$(mktemp "${TMPDIR:-/tmp}/acorn-lsfiles-dir.XXXXXX")
+  cleanup_paths+=("$tmp")
+  git --no-optional-locks --literal-pathspecs -C "$root" -c core.quotePath=false ls-files --stage -z -- "$rel" > "$tmp" ||
+    fail "git ls-files failed for $rel"
+  while IFS= read -r -d '' line; do
+    count=$((count + 1))
+    meta="${line%%$'\t'*}"
+    path="${line#*$'\t'}"
+    [[ "$meta" != "$line" && "$path" == "$rel/"* ]] || fail "malformed git ls-files record for $rel"
+    validate_stage_meta "$meta" "repo" "$path"
+    if [[ "$path" == *.lean ]]; then
+      lean_count=$((lean_count + 1))
+    fi
+  done < "$tmp"
+  rm -f "$tmp"
+  (( count > 0 && lean_count > 0 )) || fail "tracked directory prefix has no tracked Lean files: $rel"
+}
+
 admit_pkg_lake_containment() {
-  local root="$1" pkg="$2" refuse_overrides="$3"
-  local real_root pkg_dir real_pkg lake_dir real_lake config_dir real_config sub real_sub sub_name entry f
+  local root="$1" pkg="$2" refuse_overrides="$3" check_packages="${4:-1}"
+  local real_root pkg_dir real_pkg lake_dir real_lake pkgs_dir real_pkgs config_dir real_config sub real_sub sub_name f
   real_root=$(cd "$root" && pwd -P) || fail "failed to resolve repository root: $root"
   pkg_dir="$root/$pkg"
   [[ ! -L "$pkg_dir" && -d "$pkg_dir" ]] || fail "$pkg is not a real directory"
@@ -145,6 +179,17 @@ admit_pkg_lake_containment() {
         fail "non-regular cache file: $f"
       fi
     done
+    if [[ "$check_packages" == 1 ]]; then
+      pkgs_dir="$lake_dir/packages"
+      if [[ -L "$pkgs_dir" ]]; then
+        fail "refusing symlinked packages directory: $pkg/.lake/packages"
+      fi
+      if [[ -e "$pkgs_dir" ]]; then
+        [[ -d "$pkgs_dir" ]] || fail "refusing non-directory packages path: $pkg/.lake/packages"
+        real_pkgs=$(cd "$pkgs_dir" && pwd -P) || fail "failed to resolve $pkg/.lake/packages"
+        [[ "$real_pkgs" == "$real_lake/packages" ]] || fail "$pkg/.lake/packages resolves outside workspace: $real_pkgs"
+      fi
+    fi
     config_dir="$lake_dir/config"
     if [[ -L "$config_dir" ]]; then
       fail "refusing symlinked Lake config cache: $pkg/.lake/config"
@@ -154,13 +199,14 @@ admit_pkg_lake_containment() {
       real_config=$(cd "$config_dir" && pwd -P) || fail "failed to resolve $pkg/.lake/config"
       [[ "$real_config" == "$real_lake/config" ]] || fail "$pkg/.lake/config resolves outside workspace: $real_config"
       (
-        shopt -s dotglob nullglob
+        shopt -s nullglob
         for sub in "$config_dir"/*; do
+          sub_name="${sub##*/}"
+          [[ "$sub_name" =~ ^[0-9]+$ ]] || continue
           [[ ! -L "$sub" && -d "$sub" ]] || {
-            echo "tracked-files: non-directory entry in $pkg/.lake/config: $sub" >&2
+            echo "tracked-files: non-directory package cache entry in $pkg/.lake/config: $sub" >&2
             exit 1
           }
-          sub_name="${sub##*/}"
           real_sub=$(cd "$sub" && pwd -P) || exit 1
           [[ "$real_sub" == "$real_config/$sub_name" ]] || {
             echo "tracked-files: Lake config entry resolves outside workspace: $sub" >&2
@@ -169,12 +215,6 @@ admit_pkg_lake_containment() {
           for f in "$sub/lakefile.olean" "$sub/lakefile.olean.trace" "$sub/lakefile.olean.lock"; do
             if [[ -L "$f" ]] || { [[ -e "$f" ]] && [[ ! -f "$f" ]]; }; then
               echo "tracked-files: non-regular Lake config cache destination: $f" >&2
-              exit 1
-            fi
-          done
-          for entry in "$sub"/*; do
-            if [[ -L "$entry" || ! -f "$entry" ]]; then
-              echo "tracked-files: non-regular entry in Lake config cache directory: $entry" >&2
               exit 1
             fi
           done
@@ -257,7 +297,7 @@ clean_acorn_config_cache() {
     [[ -f "$trace" && ! -L "$trace" ]] || continue
     candidates+=("$idx" "$trace")
   done < <(
-    shopt -s dotglob nullglob
+    shopt -s nullglob
     for sub in "$config_dir"/*; do
       printf '%s\0' "$sub"
     done
@@ -310,19 +350,19 @@ EOF
 }
 
 sync_config() {
-  local root="$1" require_clean="$2" for_regula="$3" real_root tracked_tmp stamp
+  local root="$1" require_clean="$2" for_regula="$3" admit_manifest="${4:-0}" real_root tracked_tmp stamp
   verify_repo_root "$root" "$require_clean"
   real_root=$(cd "$root" && pwd -P) || fail "failed to resolve repository root: $root"
   admit_one_file "$real_root" lean/lakefile.lean
   admit_one_file "$real_root" lean/lake-manifest.json
   admit_one_file "$real_root" lean/lean-toolchain
-  admit_pkg_lake_containment "$real_root" lean 1
+  admit_pkg_lake_containment "$real_root" lean 1 1
   if [[ "$for_regula" == 1 ]]; then
     [[ ! -e "$real_root/lean/lakefile.toml" && ! -L "$real_root/lean/lakefile.toml" ]] ||
       fail "unexpected lean/lakefile.toml shadowing lean/lakefile.lean"
   fi
   mkdir -p "$real_root/lean/.lake"
-  admit_pkg_lake_containment "$real_root" lean 1
+  admit_pkg_lake_containment "$real_root" lean 1 1
   stamp="$real_root/lean/.lake/acorn-tracked-modules.z"
   tracked_tmp=$(mktemp "$real_root/lean/.lake/acorn-tracked-modules.z.XXXXXX")
   cleanup_paths+=("$tracked_tmp")
@@ -330,26 +370,27 @@ sync_config() {
   if [[ ! -f "$stamp" ]] || ! cmp -s "$tracked_tmp" "$stamp"; then
     clean_acorn_config_cache "$real_root" lean
     if [[ -e "$real_root/site/.lake" || -L "$real_root/site/.lake" ]]; then
-      admit_pkg_lake_containment "$real_root" site 0
+      admit_pkg_lake_containment "$real_root" site 0 0
       clean_acorn_config_cache "$real_root" site
     fi
     mv -f "$tracked_tmp" "$stamp"
   else
     rm -f "$tracked_tmp"
   fi
+  if [[ "$admit_manifest" == 1 ]]; then
+    admit_manifests_and_site "$real_root" lean
+  fi
 }
 
-admit_site_config_and_manifests() {
-  local root="$1" site_stage="$2" work prefix lib status=0
-  work=$(mktemp -d "${TMPDIR:-/tmp}/acorn-site-admit.XXXXXX")
+admit_manifests_and_site() {
+  local root="$1" mode="$2" site_stage="${3:-}" overrides_out="${4:-}" work prefix lib status=0 run_dir
+  work=$(mktemp -d "${TMPDIR:-/tmp}/acorn-manifest-admit.XXXXXX")
   cleanup_paths+=("$work")
   work=$(cd "$work" && pwd -P)
-  cat > "$work/admit_site.lean" <<'EOF'
+  cat > "$work/admit_manifest.lean" <<'EOF'
 import Lake.CLI.Main
 import Lake.Load.Toml
 import Lake.Load.Manifest
-import Lean.Data.Json.Parser
-import Lean.Data.Json.FromToJson.Basic
 
 open Lean Lake
 
@@ -360,14 +401,9 @@ def safeComponent (value : String) : Bool :=
 def isHex40 (value : String) : Bool :=
   value.length == 40 && value.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f'))
 
-def checkRawManifestHeader (path : System.FilePath) (expectedName : String)
-    (expectedPkgsDir : String) : IO Unit := do
-  let json ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
-  unless (json.getObjValAs? String "version").toOption == some "1.3.0" &&
-      (json.getObjValAs? String "name").toOption == some expectedName &&
-      (json.getObjValAs? String "packagesDir").toOption == some expectedPkgsDir &&
-      (json.getObjValAs? String "lakeDir").toOption == some ".lake" do
-    throw (IO.userError s!"unsupported manifest header layout: {path}")
+def symlinkMetadata? (path : System.FilePath) : IO (Option IO.FS.Metadata) :=
+  try some <$> path.symlinkMetadata catch error =>
+    if error matches .noFileOrDirectory .. then pure none else throw error
 
 def checkManifestEntries (manifest : Manifest) (allowAcornPath : Bool) :
     IO (Std.HashMap Name PackageEntry) := do
@@ -392,8 +428,8 @@ def checkManifestEntries (manifest : Manifest) (allowAcornPath : Bool) :
       throw (IO.userError s!"unsafe configFile or manifestFile for {entry.name}")
     match entry.src with
     | .git url rev _ subDir? =>
-      unless url.startsWith "https://" && !url.any Char.isWhitespace do
-        throw (IO.userError s!"unsupported git URL for {entry.name}")
+      unless !url.isEmpty do
+        throw (IO.userError s!"empty git URL for {entry.name}")
       unless isHex40 rev do
         throw (IO.userError s!"invalid git revision for {entry.name}")
       unless subDir?.isNone do
@@ -409,20 +445,70 @@ def checkManifestEntries (manifest : Manifest) (allowAcornPath : Bool) :
     throw (IO.userError "site/lake-manifest.json missing acorn path entry")
   return byName
 
-def checkSite (leanManifestPath siteManifestPath trackedLeanStagePath : System.FilePath) : IO Unit := do
-  checkRawManifestHeader leanManifestPath "acorn" ".lake/packages"
-  checkRawManifestHeader siteManifestPath "acorn_site" "../lean/.lake/packages"
+def checkDepCheckouts (lakeDir pkgsRoot : System.FilePath) (manifest : Manifest)
+    (requireProvisioned : Bool) : IO Unit := do
+  match ← symlinkMetadata? pkgsRoot with
+  | none =>
+    if requireProvisioned then
+      throw (IO.userError s!"missing pinned documentation dependencies ({pkgsRoot}); see docs/verification.md#platform-setup")
+    return
+  | some m =>
+    unless m.type == .dir do
+      throw (IO.userError s!"non-directory packages path: {pkgsRoot}")
+    let realLake ← IO.FS.realPath lakeDir
+    let realPkgs ← IO.FS.realPath pkgsRoot
+    unless realPkgs == realLake / "packages" do
+      throw (IO.userError s!"packages directory resolves outside workspace: {pkgsRoot}")
+    for entry in manifest.packages do
+      match entry.src with
+      | .path .. => pure ()
+      | .git .. =>
+        let dirName := entry.dirName
+        let depDir := pkgsRoot / dirName
+        match ← symlinkMetadata? depDir with
+        | none =>
+          if requireProvisioned then
+            throw (IO.userError s!"missing pinned documentation dependencies ({entry.name}); see docs/verification.md#platform-setup")
+        | some dm =>
+          unless dm.type == .dir do
+            throw (IO.userError s!"non-directory package checkout: {depDir}")
+          let realDep ← IO.FS.realPath depDir
+          unless realDep == realPkgs / dirName do
+            throw (IO.userError s!"package checkout resolves outside workspace: {depDir}")
+          if let some gm ← symlinkMetadata? (depDir / ".git") then
+            unless gm.type == .dir || gm.type == .file do
+              throw (IO.userError s!"non-regular .git in package checkout: {depDir}")
+          let cfgPath := depDir / entry.configFile
+          match ← symlinkMetadata? cfgPath with
+          | none =>
+            if requireProvisioned then
+              throw (IO.userError s!"missing pinned documentation dependencies ({entry.name}); see docs/verification.md#platform-setup")
+          | some cm =>
+            unless cm.type == .file do
+              throw (IO.userError s!"non-regular package configFile: {cfgPath}")
+          if let some mf := entry.manifestFile? then
+            if let some mm ← symlinkMetadata? (depDir / mf) then
+              unless mm.type == .file do
+                throw (IO.userError s!"non-regular package manifestFile: {depDir / mf}")
+
+def checkLeanManifest (leanManifestPath lakeDir pkgsRoot : System.FilePath) : IO (Std.HashMap Name PackageEntry) := do
   let leanManifest ← Manifest.load leanManifestPath
-  let siteManifest ← Manifest.load siteManifestPath
   unless leanManifest.name == `acorn &&
       leanManifest.packagesDir? == some ".lake/packages" &&
       leanManifest.lakeDir == ".lake" do
     throw (IO.userError "unsupported parsed lean/lake-manifest.json header")
+  let leanPkgs ← checkManifestEntries leanManifest false
+  checkDepCheckouts lakeDir pkgsRoot leanManifest false
+  return leanPkgs
+
+def checkSite (leanManifestPath siteManifestPath leanLakeDir pkgsRoot trackedStagePath : System.FilePath)
+    (overridesOut? : Option System.FilePath) : IO Unit := do
+  let leanPkgs ← checkLeanManifest leanManifestPath leanLakeDir pkgsRoot
+  let siteManifest ← Manifest.load siteManifestPath
   unless siteManifest.name == `acorn_site &&
       siteManifest.packagesDir? == some "../lean/.lake/packages" &&
       siteManifest.lakeDir == ".lake" do
     throw (IO.userError "unsupported parsed site/lake-manifest.json header")
-  let leanPkgs ← checkManifestEntries leanManifest false
   let sitePkgs ← checkManifestEntries siteManifest true
   for (name, leanEntry) in leanPkgs.toList do
     let some siteEntry := sitePkgs[name]?
@@ -436,6 +522,7 @@ def checkSite (leanManifestPath siteManifestPath trackedLeanStagePath : System.F
         throw (IO.userError s!"site/lake-manifest.json lock mismatch for {name}")
     | _, _ =>
       throw (IO.userError s!"site/lake-manifest.json source kind mismatch for {name}")
+  checkDepCheckouts leanLakeDir pkgsRoot siteManifest overridesOut?.isSome
 
   let (elanInstall?, leanInstall?, lakeInstall?) ← findInstall?
   let opts : LakeOptions := { elanInstall?, leanInstall?, lakeInstall?, configFile := "lakefile.toml" }
@@ -511,7 +598,7 @@ def checkSite (leanManifestPath siteManifestPath trackedLeanStagePath : System.F
     throw (IO.userError "site/lakefile.toml missing AcornSite or AcornDocs library")
 
   let expectedModules := configuredModules.insert `Main
-  let stageData ← IO.FS.readFile trackedLeanStagePath
+  let stageData ← IO.FS.readFile trackedStagePath
   let records := (stageData.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
   let mut trackedModules : Std.HashSet Name := {}
   for rec in records do
@@ -532,17 +619,44 @@ def checkSite (leanManifestPath siteManifestPath trackedLeanStagePath : System.F
     unless expectedModules.contains mod do
       throw (IO.userError s!"tracked site module is not configured in site/lakefile.toml: {mod}")
 
+  if let some outPath := overridesOut? then
+    let mut overrideEntries : Array PackageEntry := #[]
+    for entry in siteManifest.packages do
+      match entry.src with
+      | .git .. =>
+        overrideEntries := overrideEntries.push
+          { entry with src := .path s!"../lean/.lake/packages/{entry.dirName}" false }
+      | .path .. => pure ()
+    if overrideEntries.isEmpty then
+      throw (IO.userError "incomplete documentation manifest package inventory")
+    let payload := Json.mkObj [
+      ("version", toJson Manifest.version),
+      ("packages", toJson overrideEntries)
+    ]
+    IO.FS.writeFile outPath (payload.compress ++ "\n")
+
 def main (args : List String) : IO UInt32 := do
-  let [leanPath, sitePath, stagePath] := args | return 2
   try
-    checkSite leanPath sitePath stagePath
+    match args with
+    | ["lean", leanManifestPath, lakeDir, pkgsRoot] =>
+      discard (checkLeanManifest leanManifestPath lakeDir pkgsRoot)
+    | ["site", leanManifestPath, siteManifestPath, leanLakeDir, pkgsRoot, stagePath] =>
+      checkSite leanManifestPath siteManifestPath leanLakeDir pkgsRoot stagePath none
+    | ["site-overrides", leanManifestPath, siteManifestPath, leanLakeDir, pkgsRoot, stagePath, outPath] =>
+      checkSite leanManifestPath siteManifestPath leanLakeDir pkgsRoot stagePath (some outPath)
+    | _ => return 2
     return 0
   catch error =>
     IO.eprintln s!"tracked-files: {error}"
     return 1
 EOF
+  if [[ "$mode" == lean ]]; then
+    run_dir="$root/lean"
+  else
+    run_dir="$root/site"
+  fi
   (
-    cd "$root/site"
+    cd "$run_dir"
     prefix=$(lean --print-prefix)
     lib="$prefix/lib/lean/libLake_shared.dylib"
     [[ -e "$lib" ]] || lib="$prefix/lib/lean/libLake_shared.so"
@@ -550,17 +664,26 @@ EOF
       echo "tracked-files: missing Lake shared library in Lean sysroot" >&2
       exit 1
     }
-    lean -DwarningAsError=true -DautoImplicit=false --load-dynlib="$lib" --run "$work/admit_site.lean" ../lean/lake-manifest.json lake-manifest.json "$site_stage"
+    if [[ "$mode" == lean ]]; then
+      lean -DwarningAsError=true -DautoImplicit=false --load-dynlib="$lib" --run "$work/admit_manifest.lean" \
+        lean lake-manifest.json .lake .lake/packages
+    elif [[ "$mode" == site ]]; then
+      lean -DwarningAsError=true -DautoImplicit=false --load-dynlib="$lib" --run "$work/admit_manifest.lean" \
+        site ../lean/lake-manifest.json lake-manifest.json ../lean/.lake ../lean/.lake/packages "$site_stage"
+    else
+      lean -DwarningAsError=true -DautoImplicit=false --load-dynlib="$lib" --run "$work/admit_manifest.lean" \
+        site-overrides ../lean/lake-manifest.json lake-manifest.json ../lean/.lake ../lean/.lake/packages "$site_stage" "$overrides_out"
+    fi
   ) || status=$?
   rm -rf "$work"
   return "$status"
 }
 
 admit_site() {
-  local root="$1" require_clean="$2" real_root site_stage abs_stage status=0
-  sync_config "$root" "$require_clean" 0
+  local root="$1" require_clean="$2" emit_overrides="${3:-0}" real_root site_stage abs_stage overrides_tmp abs_out='' mode='site' status=0
+  sync_config "$root" "$require_clean" 0 0
   real_root=$(cd "$root" && pwd -P) || fail "failed to resolve repository root: $root"
-  admit_pkg_lake_containment "$real_root" site 1
+  admit_pkg_lake_containment "$real_root" site 1 1
   for rel in site/lakefile.toml site/lake-manifest.json site/lean-toolchain site/Main.lean docs/verification.md; do
     admit_one_file "$real_root" "$rel"
   done
@@ -568,17 +691,259 @@ admit_site() {
   cleanup_paths+=("$site_stage")
   abs_stage="$(cd "$(dirname "$site_stage")" && pwd -P)/$(basename "$site_stage")"
   validate_tracked_subtree "$real_root/site" "site" "$abs_stage" 1 0
-  admit_site_config_and_manifests "$real_root" "$abs_stage" || status=$?
+  if [[ "$emit_overrides" == 1 ]]; then
+    mode='site-overrides'
+    overrides_tmp=$(mktemp "${TMPDIR:-/tmp}/acorn-site-overrides.XXXXXX")
+    cleanup_paths+=("$overrides_tmp")
+    abs_out="$(cd "$(dirname "$overrides_tmp")" && pwd -P)/$(basename "$overrides_tmp")"
+  fi
+  admit_manifests_and_site "$real_root" "$mode" "$abs_stage" "$abs_out" || status=$?
   rm -f "$abs_stage"
+  if [[ "$status" == 0 && "$emit_overrides" == 1 ]]; then
+    cat "$abs_out"
+  fi
+  if [[ -n "$abs_out" ]]; then
+    rm -f "$abs_out"
+  fi
   return "$status"
 }
 
+admit_no_comments() {
+  local root="$1" require_clean="$2" real_root work out_file status=0 ratchet_count=0 line kind value dir
+  verify_repo_root "$root" "$require_clean"
+  real_root=$(cd "$root" && pwd -P) || fail "failed to resolve repository root: $root"
+  admit_one_file "$real_root" .no-comments.json
+  admit_one_file "$real_root" lean/no-comments.pin
+  admit_site "$real_root" "$require_clean" 0
+  work=$(mktemp -d "${TMPDIR:-/tmp}/acorn-nc-admit.XXXXXX")
+  cleanup_paths+=("$work")
+  work=$(cd "$work" && pwd -P)
+  out_file="$work/nc-paths.txt"
+  cat > "$work/check_nc.lean" <<'EOF'
+import Lean.Data.Json
+
+open Lean
+
+def hasControlOrSlashIssue (s : String) : Bool :=
+  s.any fun c => c == '\n' || c == '\r' || c == '\t' || c == '\x00' || c == '\\'
+
+def stripLeadingDotSlashChars : List Char → List Char
+  | '.' :: '/' :: rest => stripLeadingDotSlashChars rest
+  | cs => cs
+
+def stripLeadingDotSlash (s : String) : String :=
+  String.ofList (stripLeadingDotSlashChars s.toList)
+
+def stripTrailingSlashRev : List Char → List Char
+  | '/' :: rest@(_ :: _) => stripTrailingSlashRev rest
+  | cs => cs
+
+def stripTrailingSlashes (s : String) : String :=
+  String.ofList (stripTrailingSlashRev s.toList.reverse).reverse
+
+def validateSegments (context raw : String) (segs : List String) : Except String Unit := do
+  for seg in segs do
+    if seg == "" || seg == "." || seg == ".." then
+      throw s!"{context} '{raw}' contains invalid path segment '{seg}'"
+
+def normalizeRelDir (context raw : String) : Except String String := do
+  if raw == "" then throw s!"{context} must not be empty"
+  if hasControlOrSlashIssue raw || raw.startsWith "/" then
+    throw s!"{context} '{raw}' must be a clean repo-relative directory path"
+  let cleaned := stripTrailingSlashes (stripLeadingDotSlash raw)
+  if cleaned == "." || cleaned == "" then return "."
+  validateSegments context raw (cleaned.splitOn "/")
+  return cleaned
+
+def normalizeRelFile (context raw : String) : Except String String := do
+  if raw == "" then throw s!"{context} must not be empty"
+  if hasControlOrSlashIssue raw || raw.startsWith "/" || raw.endsWith "/" then
+    throw s!"{context} '{raw}' must be a clean relative file path"
+  let cleaned := stripLeadingDotSlash raw
+  if cleaned == "" || cleaned == "." then throw s!"{context} '{raw}' must name a file"
+  validateSegments context raw (cleaned.splitOn "/")
+  return cleaned
+
+def normalizePrefix (context raw : String) : Except String String := do
+  if raw == "" then throw s!"{context} must not be empty"
+  if hasControlOrSlashIssue raw || raw.startsWith "/" then
+    throw s!"{context} '{raw}' must be a clean relative prefix"
+  let cleaned := stripLeadingDotSlash raw
+  if cleaned == "" || cleaned == "." || cleaned == "./" then
+    throw s!"{context} '{raw}' must not match the entire root"
+  let trailingSlash := cleaned.endsWith "/"
+  let body := if trailingSlash then (cleaned.dropEnd 1).toString else cleaned
+  if body == "" then throw s!"{context} '{raw}' must not be empty"
+  validateSegments context raw (body.splitOn "/")
+  return if trailingSlash then body ++ "/" else body
+
+def checkAllowedKeys (context : String) (obj : Std.TreeMap.Raw String Json compare)
+    (allowed : Array String) : Except String Unit := do
+  for (k, _) in obj.toList do
+    unless allowed.contains k do
+      throw s!"unknown key '{k}' in {context}"
+
+def getRequiredField (context : String) (obj : Std.TreeMap.Raw String Json compare)
+    (key : String) : Except String Json :=
+  match obj.get? key with
+  | some v => .ok v
+  | none => .error s!"missing required field '{key}' in {context}"
+
+def parseStringArray (context : String) (j : Json) : Except String (Array String) := do
+  let arr ← j.getArr?
+  arr.mapM fun item => do
+    let s ← item.getStr?
+    if hasControlOrSlashIssue s then
+      throw s!"invalid control character in {context} entry"
+    return s
+
+def checkLakeArgs (wsDir : String) (expectedCfg : String) (lakeArgs : Array String) :
+    Except String Unit := do
+  let mut i : Nat := 0
+  let mut sawCfg := false
+  let mut sawOffline := false
+  let mut sawNoCache := false
+  while h : i < lakeArgs.size do
+    let arg := lakeArgs[i]
+    if arg == "-f" || arg == "--file" then
+      let nextIdx := i + 1
+      if hNext : nextIdx < lakeArgs.size then
+        let cfgVal := lakeArgs[nextIdx]
+        if sawCfg || cfgVal != expectedCfg then
+          throw s!"{wsDir}.lakeArgs must pin only '{expectedCfg}', got '{cfgVal}'"
+        sawCfg := true
+        i := nextIdx + 1
+      else
+        throw s!"missing value after '{arg}' in {wsDir}.lakeArgs"
+    else if arg.startsWith "--file=" then
+      let cfgVal := (arg.drop 7).toString
+      if sawCfg || cfgVal != expectedCfg then
+        throw s!"{wsDir}.lakeArgs must pin only '{expectedCfg}', got '{cfgVal}'"
+      sawCfg := true
+      i := i + 1
+    else if arg == "--offline" then
+      sawOffline := true
+      i := i + 1
+    else if arg == "--no-cache" then
+      sawNoCache := true
+      i := i + 1
+    else if #["--wfail", "--iofail", "-q", "--quiet", "-v", "--verbose",
+        "--old", "--rehash", "-R", "--reconfigure"].contains arg then
+      i := i + 1
+    else
+      throw s!"disallowed Lake argument '{arg}' in {wsDir}.lakeArgs"
+  unless sawCfg && sawOffline && sawNoCache do
+    throw s!"{wsDir}.lakeArgs must specify -f {expectedCfg}, --offline, and --no-cache"
+
+def validateConfig (text : String) : Except String (String × Array String) := do
+  let json ← Json.parse text
+  let obj ← json.getObj?
+  checkAllowedKeys "config" obj #["workspaces", "exclude", "ratchet"]
+  let wsArr ← (← getRequiredField "config" obj "workspaces").getArr?
+  let mut seenLean := false
+  let mut seenSite := false
+  for h : idx in [:wsArr.size] do
+    let ctx := s!"workspaces[{idx}]"
+    let wsObj ← wsArr[idx].getObj?
+    checkAllowedKeys ctx wsObj #["dir", "srcDir", "lakeArgs", "toolPrefixes", "excludePrefixes"]
+    let dir ← normalizeRelDir s!"{ctx}.dir" (← (← getRequiredField ctx wsObj "dir").getStr?)
+    let srcDir ← match wsObj.get? "srcDir" with
+      | some v => normalizeRelDir s!"{ctx}.srcDir" (← v.getStr?)
+      | none => pure "."
+    unless srcDir == "." do
+      throw s!"{ctx}.srcDir must be '.', got '{srcDir}'"
+    if let some v := wsObj.get? "toolPrefixes" then
+      let arr ← parseStringArray s!"{ctx}.toolPrefixes" v
+      unless arr.isEmpty do
+        throw s!"{ctx}.toolPrefixes must be empty"
+    if let some v := wsObj.get? "excludePrefixes" then
+      let arr ← parseStringArray s!"{ctx}.excludePrefixes" v
+      unless arr.isEmpty do
+        throw s!"{ctx}.excludePrefixes must be empty"
+    let lakeArgs ← match wsObj.get? "lakeArgs" with
+      | some v => parseStringArray s!"{ctx}.lakeArgs" v
+      | none => pure #[]
+    if dir == "lean" then
+      if seenLean then throw "duplicate workspace 'lean'"
+      seenLean := true
+      checkLakeArgs "lean" "lakefile.lean" lakeArgs
+    else if dir == "site" then
+      if seenSite then throw "duplicate workspace 'site'"
+      seenSite := true
+      checkLakeArgs "site" "lakefile.toml" lakeArgs
+    else
+      throw s!"unadmitted workspace dir '{dir}' in .no-comments.json"
+  unless seenLean && seenSite do
+    throw ".no-comments.json must configure both 'lean' and 'site' workspaces"
+  let mut excludes : Array String := #[]
+  if let some v := obj.get? "exclude" then
+    let arr ← v.getArr?
+    for h : idx in [:arr.size] do
+      let ctx := s!"exclude[{idx}]"
+      let eObj ← arr[idx].getObj?
+      checkAllowedKeys ctx eObj #["prefix", "reason"]
+      let pfx ← normalizePrefix s!"{ctx}.prefix" (← (← getRequiredField ctx eObj "prefix").getStr?)
+      let reason := (← (← getRequiredField ctx eObj "reason").getStr?).trimAscii.toString
+      if reason.isEmpty then throw s!"{ctx}.reason must not be empty"
+      unless pfx == "site/AcornDocs.lean" || pfx == "site/AcornDocs/" ||
+          pfx.startsWith "site/AcornDocs/" do
+        throw s!"unadmitted exclude prefix '{pfx}' outside Verso documentation scope"
+      excludes := excludes.push pfx
+  let ratchet ← normalizeRelFile "config.ratchet"
+    (← (← getRequiredField "config" obj "ratchet").getStr?)
+  return (ratchet, excludes)
+
+def main (args : List String) : IO UInt32 := do
+  let [cfgPath, outPath] := args | return 2
+  try
+    let text ← IO.FS.readFile cfgPath
+    let (ratchet, excludes) ← IO.ofExcept (validateConfig text)
+    let mut lines := s!"RATCHET\t{ratchet}\n"
+    for pfx in excludes do
+      lines := lines ++ s!"EXCLUDE\t{pfx}\n"
+    IO.FS.writeFile outPath lines
+    return 0
+  catch error =>
+    IO.eprintln s!"tracked-files: {error}"
+    return 1
+EOF
+  (cd "$real_root/lean" && lean -DwarningAsError=true -DautoImplicit=false --run "$work/check_nc.lean" "$real_root/.no-comments.json" "$out_file") || status=$?
+  if [[ "$status" != 0 ]]; then
+    rm -rf "$work"
+    return "$status"
+  fi
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    kind="${line%%$'\t'*}"
+    value="${line#*$'\t'}"
+    case "$kind" in
+      RATCHET)
+        ratchet_count=$((ratchet_count + 1))
+        admit_one_file "$real_root" "$value" ;;
+      EXCLUDE)
+        if [[ "$value" == */ ]]; then
+          dir="${value%/}"
+          admit_tracked_dir_prefix "$real_root" "$dir"
+        else
+          admit_one_file "$real_root" "$value"
+        fi ;;
+      *)
+        rm -rf "$work"
+        fail "malformed no-comments validation output: $line" ;;
+    esac
+  done < "$out_file"
+  rm -rf "$work"
+  (( ratchet_count == 1 )) || fail "missing ratchet path from .no-comments.json"
+}
+
 cmd="${1:-}"
-[[ -n "$cmd" ]] || fail "usage: tracked-files.sh (admit-file|list-tracked|admit-lake-dirs|sync-config|admit-site) [options] <root> [paths...]"
+[[ -n "$cmd" ]] || fail "usage: tracked-files.sh (admit-file|list-tracked|admit-lake-dirs|sync-config|admit-site|admit-no-comments) [options] <root> [paths...]"
 shift
 
 require_clean=0
 for_regula=0
+admit_manifest=0
+emit_overrides=0
 require_lean=0
 has_prefix=0
 expected_prefix=''
@@ -587,6 +952,8 @@ while (( $# > 0 )); do
   case "$1" in
     --clean) require_clean=1; shift ;;
     --for-regula) for_regula=1; shift ;;
+    --admit-manifest) admit_manifest=1; shift ;;
+    --emit-overrides) emit_overrides=1; shift ;;
     --require-lean) require_lean=1; shift ;;
     --prefix)
       (( $# >= 2 )) || fail "--prefix requires an argument"
@@ -607,7 +974,7 @@ shift
 
 case "$cmd" in
   admit-file)
-    (( for_regula == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+    (( for_regula == 0 && admit_manifest == 0 && emit_overrides == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
       fail "unsupported option for admit-file"
     (( $# > 0 )) || fail "missing file path(s)"
     verify_repo_root "$root" "$require_clean"
@@ -616,29 +983,35 @@ case "$cmd" in
     done
     ;;
   list-tracked)
-    (( for_regula == 0 && has_prefix == 1 )) && [[ -z "$workspace" ]] ||
-      fail "list-tracked requires --prefix and rejects --for-regula/--workspace"
+    (( for_regula == 0 && admit_manifest == 0 && emit_overrides == 0 && has_prefix == 1 )) && [[ -z "$workspace" ]] ||
+      fail "list-tracked requires --prefix and rejects --for-regula/--admit-manifest/--emit-overrides/--workspace"
     (( $# == 0 )) || fail "unexpected extra arguments"
     verify_git_dir "$root" "$expected_prefix" "$require_clean"
     validate_tracked_subtree "$root" "${expected_prefix:-repo}" "" "$require_lean" 1
     ;;
   admit-lake-dirs)
-    (( for_regula == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -n "$workspace" ]] ||
-      fail "admit-lake-dirs requires --workspace and rejects --for-regula/--prefix/--require-lean"
+    (( for_regula == 0 && admit_manifest == 0 && emit_overrides == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -n "$workspace" ]] ||
+      fail "admit-lake-dirs requires --workspace and rejects unsupported options"
     (( $# == 0 )) || fail "unexpected extra arguments"
     admit_lake_dirs "$root" "$require_clean" "$workspace"
     ;;
   sync-config)
-    (( require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+    (( emit_overrides == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
       fail "unsupported option for sync-config"
     (( $# == 0 )) || fail "unexpected extra arguments"
-    sync_config "$root" "$require_clean" "$for_regula"
+    sync_config "$root" "$require_clean" "$for_regula" "$admit_manifest"
     ;;
   admit-site)
-    (( for_regula == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+    (( for_regula == 0 && admit_manifest == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
       fail "unsupported option for admit-site"
     (( $# == 0 )) || fail "unexpected extra arguments"
-    admit_site "$root" "$require_clean"
+    admit_site "$root" "$require_clean" "$emit_overrides"
+    ;;
+  admit-no-comments)
+    (( for_regula == 0 && admit_manifest == 0 && emit_overrides == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+      fail "unsupported option for admit-no-comments"
+    (( $# == 0 )) || fail "unexpected extra arguments"
+    admit_no_comments "$root" "$require_clean"
     ;;
   *)
     fail "unknown subcommand: $cmd"

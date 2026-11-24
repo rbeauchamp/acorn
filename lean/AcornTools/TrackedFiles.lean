@@ -158,13 +158,18 @@ def ensureTrackedRegular (dir : System.FilePath) (expectedPrefix : String)
     throw (IO.userError s!"path is not a tracked regular file: {rel}")
   ensureRegular dir rel
 
-def runTrackedHelper (repoRoot : System.FilePath) (args : Array String)
-    (requireClean : Bool := true) : IO Unit := do
+def runTrackedHelperStdout (repoRoot : System.FilePath) (args : Array String)
+    (requireClean : Bool := true) : IO String := do
   ensureTrackedRegular repoRoot "" "scripts/tracked-files.sh" requireClean
   let helper := repoRoot / "scripts/tracked-files.sh"
   let out ← IO.Process.output { cmd := helper.toString, args, stdin := .null }
   unless out.exitCode == 0 do
     throw (IO.userError (out.stderr ++ out.stdout).trimAscii.toString)
+  return out.stdout
+
+def runTrackedHelper (repoRoot : System.FilePath) (args : Array String)
+    (requireClean : Bool := true) : IO Unit :=
+  discard (runTrackedHelperStdout repoRoot args requireClean)
 
 private def byteHex (b : UInt8) : String :=
   let digits := "0123456789abcdef".toList

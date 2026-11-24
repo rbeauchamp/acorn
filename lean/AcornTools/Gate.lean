@@ -73,19 +73,6 @@ def audits : IO Unit :=
 def siteUnprovisioned (missing : String) : IO.Error := IO.userError
   s!"missing pinned documentation dependencies ({missing}); see docs/verification.md#platform-setup"
 
-private def regularProvisionedFile (path : System.FilePath) : IO Bool := do
-  let mut current : System.FilePath := "."
-  let parts := path.components.toArray
-  for h : i in [:parts.size] do
-    current := current / parts[i]
-    let expected := if i + 1 == parts.size then IO.FS.FileType.file else .dir
-    let metadata ← try some <$> current.symlinkMetadata catch error =>
-      if error matches .noFileOrDirectory .. then pure none else throw error
-    let some metadata := metadata | return false
-    unless metadata.type == expected do
-      throw (IO.userError s!"non-regular provisioned documentation path: {current}")
-  return true
-
 /-- The documentation site in `site/` is a second Lake workspace over this package's
 dependency checkouts and pinned Verso. Each locked Git dependency is mapped to its
 provisioned checkout, as the bootstrap does for this workspace, so Lake fetches
@@ -94,74 +81,20 @@ materializes it in, `Name.toString (escape := false)` of its locked name read by
 `String.toName` (`PackageEntry.dirName`, Lake of Lean v4.36.0), so the escaped name
 `«lean-intent»` has the directory `lean-intent`. -/
 def siteOverrides (requireClean : Bool := true) : IO String := do
-  AcornTrackedFiles.ensureTrackedRegular ".." "" "site/lake-manifest.json" requireClean
-  let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile "../site/lake-manifest.json"))
-  unless (← IO.ofExcept (lock.getObjValAs? String "version")) == "1.3.0" &&
-      (← IO.ofExcept (lock.getObjValAs? String "name")) == "acorn_site" &&
-      (← IO.ofExcept (lock.getObjValAs? String "packagesDir")) == "../lean/.lake/packages" &&
-      (← IO.ofExcept (lock.getObjValAs? String "lakeDir")) == ".lake" do
-    throw (IO.userError "unsupported documentation manifest header layout")
-  let mut entries : Array Lean.Json := #[]
-  let mut seenNames : Array Lean.Name := #[]
-  let mut seenDirs : Array String := #[]
-  let mut sawAcorn := false
-  for entry in ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages") do
-    let ty ← IO.ofExcept (entry.getObjValAs? String "type")
-    let name ← IO.ofExcept (entry.getObjValAs? String "name")
-    let decoded := name.toName
-    let directory := decoded.toString (escape := false)
-    if seenNames.contains decoded || seenDirs.contains directory then
-      throw (IO.userError s!"duplicate documentation package entry: {name}")
-    seenNames := seenNames.push decoded
-    seenDirs := seenDirs.push directory
-    let config ← IO.ofExcept (entry.getObjValAs? String "configFile")
-    let manifest ← IO.ofExcept (entry.getObjValAs? String "manifestFile")
-    let scope ← IO.ofExcept (entry.getObjValAs? String "scope")
-    let inherited ← IO.ofExcept (entry.getObjValAs? Bool "inherited")
-    for component in [directory, config, manifest] do
-      unless !component.isEmpty && component != "." && component != ".." &&
-          component.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') do
-        throw (IO.userError s!"unsupported documentation package component: {component}")
-    if ty == "path" then
-      let pathDir ← IO.ofExcept (entry.getObjValAs? String "dir")
-      let copy ← IO.ofExcept (entry.getObjValAs? Bool "copy")
-      unless decoded == `acorn && !sawAcorn && pathDir == "../lean" && !copy &&
-          config == "lakefile.lean" && manifest == "lake-manifest.json" &&
-          scope == "" && !inherited do
-        throw (IO.userError s!"unsupported documentation path package entry: {name}")
-      sawAcorn := true
-      continue
-    unless ty == "git" do
-      throw (IO.userError s!"unsupported documentation package entry type: {ty}")
-    let url ← IO.ofExcept (entry.getObjValAs? String "url")
-    unless url.startsWith "https://" && !url.any Char.isWhitespace do
-      throw (IO.userError s!"unsupported documentation package URL: {name}")
-    let rev ← IO.ofExcept (entry.getObjValAs? String "rev")
-    unless rev.length == 40 && rev.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) do
-      throw (IO.userError s!"invalid documentation package revision: {name}")
-    unless (← IO.ofExcept (entry.getObjVal? "subDir")) == Lean.Json.null do
-      throw (IO.userError s!"unsupported documentation package subDir: {name}")
-    let dir := s!"../lean/.lake/packages/{directory}"
-    let pkgBase : System.FilePath := System.FilePath.mk ".lake/packages" / directory
-    unless ← regularProvisionedFile (pkgBase / config) do
-      throw (siteUnprovisioned name)
-    let _ ← regularProvisionedFile (pkgBase / manifest)
-    entries := entries.push (Lean.Json.mkObj [
-      ("name", name), ("scope", scope),
-      ("inherited", inherited), ("configFile", config),
-      ("manifestFile", manifest),
-      ("type", "path"), ("dir", dir)])
-  unless sawAcorn && !entries.isEmpty do
-    throw (IO.userError "incomplete documentation manifest package inventory")
+  let admitArgs := if requireClean then
+    #["admit-site", "--clean", "--emit-overrides", ".."]
+  else
+    #["admit-site", "--emit-overrides", ".."]
+  let text ← AcornTrackedFiles.runTrackedHelperStdout ".." admitArgs requireClean
+  if text.isEmpty then
+    throw (IO.userError "empty documentation dependency overrides")
   let dirArgs := if requireClean then
     #["admit-lake-dirs", "--clean", "--workspace", "site", ".."]
   else
     #["admit-lake-dirs", "--workspace", "site", ".."]
-  AcornTrackedFiles.runTrackedHelper ".." dirArgs requireClean
   IO.FS.createDirAll "../site/.lake"
   AcornTrackedFiles.runTrackedHelper ".." dirArgs requireClean
   let overridePath : System.FilePath := "../site/.lake/acorn-path-packages.json"
-  let text := (Lean.Json.mkObj [("version", "1.2.0"), ("packages", Lean.toJson entries)]).compress ++ "\n"
   let current ← try some <$> IO.FS.readFile overridePath catch _ => pure none
   unless current == some text do
     AcornTrackedFiles.writeFileAtomicExclusive overridePath text
@@ -177,7 +110,7 @@ document imports. `whole` prints each step's output in one piece, for a check th
 beside others. -/
 def site (write : Bool) (whole : Bool := false) : IO Unit := do
   let requireClean := !write
-  AcornOwnershipAudit.siteSources requireClean
+  AcornOwnershipAudit.siteModuleInventory requireClean
   let flags := #["-f", "lakefile.toml", "--no-cache", "--wfail",
     s!"--packages={← siteOverrides requireClean}"]
   let env := #[("LAKE_ARTIFACT_CACHE", some "false")]

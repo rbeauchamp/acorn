@@ -40,9 +40,62 @@ admit_tracked_helper() {
   fi
 }
 
+requires_clean_exe() {
+  [[ "$#" -ge 2 && "$1" == "exe" ]] || return 1
+  shift
+  local arg opt target=''
+  while (( $# > 0 )); do
+    arg="$1"
+    shift
+    if [[ "$arg" == "--" ]]; then
+      (( $# > 0 )) || return 1
+      target="$1"
+      shift
+      break
+    elif [[ "${#arg}" -gt 1 && "$arg" == -* ]]; then
+      if [[ "$arg" == --* ]]; then
+        if [[ "$arg" != *=* && "$arg" != *" "* ]]; then
+          case "$arg" in
+            --package|--service|--scope|--repo|--platform|--toolchain|--rev|\
+            --max-revs|--log-level|--fail-level|--linters|--lint-only|--checks|\
+            --only|--add-downstream|--add-public-downstream|--config|\
+            --from-export|--challenge-from-export|--solution-from-export|\
+            --file|--dir|--packages)
+              (( $# > 0 )) && shift ;;
+          esac
+        fi
+      else
+        opt="${arg:1:1}"
+        if [[ "${#arg}" == 2 && ( "$opt" == "K" || "$opt" == "o" || "$opt" == "f" || "$opt" == "d" ) ]]; then
+          (( $# > 0 )) && shift
+        fi
+      fi
+    else
+      target="$arg"
+      break
+    fi
+  done
+  case "$target" in
+    acorn-gates)
+      if [[ ( "$#" == 2 && "$1" == "site" && "$2" == "write" ) ||
+            ( "$#" == 1 && "$1" == "diagnostics" ) ]]; then
+        return 1
+      fi
+      return 0 ;;
+    frame-check)
+      if [[ "$#" -ge 1 && "$1" == "print" ]]; then
+        return 1
+      fi
+      return 0 ;;
+    lean-boundary-audit|native-audit|ownership-audit|corpus-audit|theorem-count|intent-check)
+      return 0 ;;
+    *)
+      return 1 ;;
+  esac
+}
+
 admit_clean=0
-if [[ "$#" -ge 1 && "$1" == "exe" ]] &&
-    ! [[ "$#" == 4 && "$2" == "acorn-gates" && "$3" == "site" && "$4" == "write" ]]; then
+if requires_clean_exe "$@"; then
   admit_clean=1
 fi
 admit_tracked_helper "$repo_root" "$admit_clean" || {

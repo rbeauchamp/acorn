@@ -59,7 +59,7 @@ admit_tracked_helper "$repo_root" 1 || {
   exit 1
 }
 "$repo_root/scripts/tracked-files.sh" admit-file --clean "$repo_root" scripts/tracked-files.sh scripts/regula.sh
-"$repo_root/scripts/tracked-files.sh" sync-config --clean --for-regula "$repo_root"
+"$repo_root/scripts/tracked-files.sh" sync-config --clean --for-regula --admit-manifest "$repo_root"
 cd "$repo_root/lean"
 # With REGULA_FULL set, `lake lint` runs Regula's full gate on the directory it names, which is
 # not the published route of the proof verdict.
