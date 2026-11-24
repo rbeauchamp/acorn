@@ -703,7 +703,21 @@ the target's text. A pin file beside it, a regular file ending in `.frame` in
 names a submission may change, the names kept and not followed, and, for every
 other declaration of the project that the target reaches through types and
 definitions, the SHA-256 digest of its printed kind, universe parameters, type and
-value. The check enumerates Git-tracked regular files under
+value. The checker implements SHA-256 directly over UTF-8 bytes
+(AcornFrameCheck.roundConstants, AcornFrameCheck.initialHash,
+AcornFrameCheck.padded, AcornFrameCheck.compress, and AcornFrameCheck.sha256)
+following NIST's
+[FIPS 180-4](https://csrc.nist.gov/files/pubs/fips/180-4/final/docs/fips180-4.pdf)
+(Secure Hash Standard, August 2015, §4.1.2, §4.2.2, §5.1.1, §5.3.3, and §6.2).
+Before AcornFrameCheck.run reads any pin file, AcornFrameCheck.vectorsHold
+checks three published digests: the empty message (zero bytes, NIST CAVP
+[SHA-256 byte-oriented test vectors](https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure-hashing),
+SHA256ShortMsg.rsp, Len = 0), "abc", which pads to one 64-byte block, and a
+56-byte message, which pads to two 64-byte blocks (both from NIST's published
+[SHA-256 examples](https://csrc.nist.gov/csrc/media/projects/cryptographic-standards-and-guidelines/documents/examples/sha256.pdf),
+one-block and two-block message samples); passing those three digests is a
+startup self-check rather than a proof of FIPS 180-4 equivalence. The check
+enumerates Git-tracked regular files under
 `lean/AcornVerif/Targets/` (refusing an empty targets set), admits only regular
 files ending in `.lean` and regular files ending in `.frame`, and accepts a
 non-empty tracked targets directory with zero `.frame` files; any other tracked
