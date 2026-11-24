@@ -9,50 +9,6 @@ import FloatLib.Floats.Formats.BinaryInterchange.Arithmetic.LeanModel
 import FloatLib.Floats.Formats.BinaryInterchange.Format.Catalog
 import FloatLib.Floats.Formats.Flocq.Theory.Analysis.Ulp
 
-/-!
-# Bridge from Acorn's machine words to FloatLib's real-valued rounding
-
-Acorn's binary32 and binary64 arithmetic is Lean core's `Float32` and `Float`
-applied to raw words, and `AcornVerif.CurrentArithmetic` reads those words
-through the pinned Lean 4.36.0 model `Float.Model.UnpackedFloat`. FloatLib
-(R. J. George, W. Adkisson and A. Anandkumar, *FloatLib*, 2026,
-https://github.com/lean-dojo/FloatLib, commit `d24844f`) proves real-valued
-statements about that same model. This module is the only importer of
-FloatLib. It connects the executing Acorn definitions to FloatLib's by proof,
-so FloatLib's theorems apply to them; no executable definition changes.
-
-The representation map views the same bits as FloatLib's `Model`. Both sides
-unpack them with Lean core's decoder, so the map agrees with `decoded64` and
-`decoded32` by definition. The operation theorems instantiate
-`toReal_ofModel_add_finite_eq_roundAt`, `toReal_ofModel_mul_finite_eq_roundAt`
-and `toReal_ofModel_div_finite_eq_roundAt` from
-`FloatLib/Floats/Formats/BinaryInterchange/Arithmetic/LeanModel.lean`. The
-multiplication theorem assumes an exponent inequality for Lean core's
-`roundWithAccuracy`; `model_product_exponent_ready` supplies it for
-canonically unpacked operands. The division theorem assumes an IEEE format,
-nonzero finite operands and a finite result, and nothing else. It covers the
-zero provisional quotient that Lean core's division core returns, with a
-nonzero remainder, when the exact quotient lies below the exponent it selects,
-as in the least positive subnormal divided by 1.5. So the division statements
-here carry no magnitude hypothesis.
-
-The first consumers follow. The half-unit division bound and the relative
-rounding bound use the half-ulp theorem `error_bound_ulp` of FloatLib's Flocq
-layer (`FloatLib/Floats/Formats/Flocq/Theory/Rounding/Core.lean`). The decimal
-constants use `nearest32`, which proves directly from Flocq's nearest-even
-definition (`nearestEven_eq_floor_of_frac_lt_half` and
-`nearestEven_eq_ceil_of_frac_gt_half`) that each positive normal word whose
-value lies strictly within half an ulp of a fraction in its binade equals
-`roundAt FloatFormat.binary32` of that fraction. Keeping the bridge within
-FloatLib's LeanModel and Flocq layers avoids importing FloatLib's executable
-multi-limb backend modules.
-
-Each statement concerns finite operands and a finite result: `roundAt` rounds
-on a grid with no upper exponent bound, and exceptional words have no real
-value. Native primitive and compiler correspondence remain the arithmetic
-layer's declared trust boundary.
--/
-
 open Acorn
 open Float.Model (Format UnpackedFloat)
 open Float.Model.UnpackedFloat

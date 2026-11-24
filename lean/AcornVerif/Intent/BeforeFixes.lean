@@ -87,15 +87,19 @@ theorem dayPhaseBefore_unfulfilled {config : WorldConfig} (base : World config)
 
 /-- A configuration whose day lasts 20 ticks exists: `WorldConfig.admit` accepts it, so the
 refusal above is about a world Acorn can build. -/
-theorem twentyTickDay_admitted (raw : RawWorldConfig) (hside : 0 < raw.side.val)
-    (hmax : raw.side.val ≤ RawWorldConfig.maxSide) (hday : raw.dayLength = 20)
-    (hscale : scaleAdmitsRange raw.admitLo raw.admitHi raw.baseScale = true) :
-    ∃ config, WorldConfig.admit raw = .ok config ∧
+theorem twentyTickDay_admitted :
+    ∃ raw config, WorldConfig.admit raw = .ok config ∧
       config.raw.dayLength.toNat = 20 := by
-  have hd : 0 < raw.dayLength.toNat := by rw [hday]; decide
-  refine ⟨⟨raw, hside, hd⟩, ?_, by rw [hday]; decide⟩
+  let raw : RawWorldConfig :=
+    { seed := 0, side := ⟨1, by decide⟩, dayLength := 20, regrow := 0,
+      foodInterval := 0, foodCap := 0, deerCap := 0, baseScale := ⟨0x3f800000⟩ }
+  have hside : 0 < raw.side.val := by decide
+  have hmax : raw.side.val ≤ RawWorldConfig.maxSide := by decide
+  have hd : 0 < raw.dayLength.toNat := by decide
+  have hsc : scaleAdmitsRange raw.admitLo raw.admitHi raw.baseScale = true := by decide
+  refine ⟨raw, ⟨raw, hside, hd⟩, ?_, rfl⟩
   unfold WorldConfig.admit
-  simp [hside, hmax, hd, hscale]
+  simp [hside, hmax, hd, hsc]
 
 /-- `Acorn.Rng.hash2` as it was before #161. -/
 def hash2Before (x y seed : UInt64) : UInt64 :=

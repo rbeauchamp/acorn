@@ -1,0 +1,294 @@
+# Decision contracts
+
+This document owns the selection rule, kindless-contract inventory, shared-test
+rule, and unregistered-definition inventory for the decision registries in
+[Acorn.Decisions](../lean/Acorn/Decisions.lean) and
+[AcornVerif.Decisions](../lean/AcornVerif/Decisions.lean).
+
+## Registered decisions of the executing library
+
+A decision is a function whose result accepts or refuses its input: an admission,
+a parser or a validity test. Each contract is a Regula executable contract about
+the executing definition itself, with the kind its proof establishes:
+Regula's two-way kind (Decides) states that the function accepts exactly the inputs that satisfy
+the written specification, with one accepted and one refused input as witnesses.
+A declaration of Regula's RegisteredDecision type in `Acorn.Decisions` registers
+the function, and the ownership audit requires a contract with a kind in
+`Acorn.Decisions` or `AcornVerif.Decisions` for each registered function whose
+result is not `Decidable`, so removing the contract while the function stays
+registered fails the audit. No rule of Regula reads a contract or a registration.
+
+### Selection rule
+
+A decision is registered when a theorem beside its definition, or in the proof
+library, proves a property of its accepted or refused results, or when the inputs
+it accepts follow by unfolding its definition in `Acorn.Decisions`. The property
+is the set of accepted or refused inputs where a theorem states one, and
+otherwise what an accepted or a refused result is. A contract states only what
+its theorem proves: a decision with one proved direction carries that direction
+alone. Five groups are covered:
+
+- Decisions of independent arguments carry a kind and a registration. A function
+  of several arguments is decided on their product through uncurrying or
+  a tuple wrapper.
+- A decision procedure whose result type is `Decidable` carries both directions
+  in its type, so it is registered with no contract.
+- A decision with an argument or result type that depends on an earlier argument,
+  such as `Bounded32.admit`, and a decision that takes its element type as an
+  argument, such as `Host.Viewer.Buffer.offer`, carry a kind and a registration
+  in the forms that Regula gives for them. The kind is stated about the function
+  applied to the two fields of a pair, or to every field of a structure of its
+  arguments, in order. Where the result type depends on the input, the kind is
+  about `Regula.Dependent.isSome` or `Regula.Dependent.isOk` of that function:
+  whether the result holds a value, with the value forgotten.
+- A function with a kind can carry a second statement beside it for what its kind
+  does not state: the value of an accepted result (for example `cli_value_found`,
+  `world_initial`, and statements ending in a value suffix; `payload_admit_value`
+  and `candidate_load_value` in `AcornVerif.Decisions` stand in the same way
+  beside kindless requirements), the exact verdict on a part of the inputs
+  (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`), a set of
+  accepted inputs beside a sound kind (`schema_covers_empty`,
+  `predicate_eval_programs`), a set of refused inputs beside a one-way kind
+  (`stance_certified_refused`, `stance_check_refused`, `blocked_check_refused`),
+  or which of several accepted results an input has (`microduck_outcome_judged`,
+  `microduck_line_read`). That statement is a requirement with no kind, and the
+  ownership audit requires it by name in `AcornOwnership.anchors`.
+- A function keeps a requirement with no kind where no kind is true of it, or
+  where the shared-test rule below excludes the kind. The function carries no
+  registration, and the ownership audit requires the contract by name in
+  `AcornOwnership.anchors`, with a statement that still refers to the executing
+  definition.
+
+### Statements that keep no kind
+
+In `Acorn.Decisions`, kindless contracts fall into four reasons (beside
+non-decisions such as `Host.coordinateFloat` and `Agent.runPrefix`, which refuse
+no input and carry `coordinate_float` and `agent_run_prefix`, and definitions
+that specifications share with their functions):
+
+- **No kind is true of the function, or no complete two-way characterization of
+  all arbitrary inputs is stated.** `StepSizeRails.admit` accepts every
+  configuration, whereas a complete or two-way kind requires a refused input.
+  `Host.World.observe` and `Host.World.step` now have proved non-refusal
+  theorems over every admissible configuration (`world_observe_accepts`,
+  `world_step_accepts`, `admitted_world_nonrefusal`), while inadmissible
+  `WorldConfig` values constructed outside `WorldConfig.admit` and `World.initial`
+  can still observe or step (such as `wide` at its box center); their contracts
+  over arbitrary `WorldConfig` values therefore remain kindless requirements
+  (`world_observe`, `world_step`, `world_observe_accepts`, `world_step_accepts`),
+  and transitions that delegate refusal to `Host.World.observe` or
+  `Host.World.step` (`Host.OwnedStep.environment`,
+  `Host.PreparedStep.environment`, `Host.PreparedStep.commit`,
+  `Host.Attempt.sense`, `Host.Attempt.tick`, `Host.Attempt.finish`,
+  `Host.Attempt.close`, `Host.Attempt.complete`, `Host.AnsiState.tick` which also
+  refuses on step-counter overflow, and `Host.BaselineAttempt.tick`) likewise
+  keep kindless requirements; a specification naming `Host.World.observe` also
+  reaches `Host.Inventory.owns`. `AgentConstruction.State.restore` refuses no
+  input its type admits (`CurrentCheckpoint.unresumable_unloaded`,
+  `AgentConstruction.State.restore_exact`).
+- **The specification reads a part of the input whose type declares an invariant
+  that names tests that the function runs.** Under the shared-test rule below,
+  reading a structure whose declared invariant reaches `Binary32.isNaN`,
+  `Binary32.less`, `Binary32.negative`, or `NumericState.resumable` excludes the
+  kind: `Features.Lifecycle.lessUseful`, `Features.Lifecycle.candidate`,
+  `Features.Lifecycle.prefer`, `Host.Microduck.Idle.sense`,
+  `Host.Microduck.Awaiting.release`, `TemporalControl.serve`,
+  `TemporalControl.serveDraw`, `TemporalControl.dispatchMeta`,
+  `TemporalControl.atBoundary`, `TemporalControl.selectWithOperations`,
+  `TemporalControl.select`, `TemporalControl.step`,
+  `TemporalControl.drawBoundary`, and `TemporalControl.drawFirst`. Kinds for
+  these functions are remaining work of
+  [#105](https://github.com/rbeauchamp/acorn/issues/105).
+- **The verdict is the guard of the function and applies a definition with no
+  independent proposition.** `Host.Viewer.Admission.receive` and
+  `Host.Viewer.HealthAdmission.receive` depend on `Host.Viewer.Capture.follows`
+  and `Host.Viewer.Capture.after`, and return a pair whose state depends on the
+  identity (whereas `Regula.Dependent.isSome` and `Regula.Dependent.isOk` apply
+  only to optional or error results).
+- **The result has a dependent type that is neither optional nor an error.**
+  `Costed.findIdx?` returns its index paired with the equation naming it.
+
+In `AcornVerif.Decisions`, contracts whose proofs require the proof library are
+counted toward the registrations in `Acorn.Decisions`. Registered decisions with
+kinds proved in `AcornVerif.Decisions` include:
+
+- World initialization `Host.World.initial` (`world_initial_accepts`, two-way
+  Regula Decides kind over `Regula.Dependent.isOk`, registered in `Acorn.Decisions`
+  by `Host_World_initial_registered`, with `Acorn.Decisions.world_initial`
+  stating the accepted initial world's fields beside that kind).
+- Terrain generation and readers: `Host.valueNoise`, `Host.octaveLoop`,
+  `Host.fbm`, `Host.terrain`, `Host.World.tileKind`, `Host.World.enterable`, and
+  `Host.walkableTile` (two-way kinds, using `CurrentTerrain.PastLast` and
+  `CurrentTerrain.LatticeAdmits`).
+- Paid actions: `Host.performAction` and `Host.payAndAct` (two-way kinds, with
+  `perform_action` and `pay_and_act` stating accepted energy and movement
+  effects).
+- Spawn helpers: `Host.countKindNear` and `Host.considerSpawn` (two-way kinds
+  `spawn_count` and `spawn_consider`, with `spawn_count_value` and
+  `spawn_consider_value` beside them).
+- Certificate checkers and action replay: `Host.replayCertified`,
+  `Host.ReplayCertificate.check`, and `Host.World.advanceActions` (two-way
+  kinds), and `Host.regionBlocked`, `Host.BlockedCertificate.check`,
+  `Host.stanceCertified`, and `Host.StanceCertificate.check` (sound kinds, with
+  refusal statements beside them).
+- Checkpoint and learner checks: `Checkpoint.load` and `Checkpoint.resume`
+  (sound kinds, with `checkpoint_load_accepts` and `checkpoint_resume_accepts`
+  beside them), `Host.Released.environment` (`released_environment_exact`,
+  two-way kind), and `NumericState.clearAt` (`learner_clear`, two-way kind).
+
+In `Acorn.Decisions`, world admission and its Boolean decision helpers carry
+two-way Regula Decides contracts with independent numeric specifications
+(sharing no Acorn Boolean test): `Host.isPastLast` (`is_past_last`),
+`Host.scaleAdmitsOctave` (`scale_admits_octave`), `Host.scaleAdmitsRange`
+(`scale_admits_range`), `Host.RawWorldConfig.admissible`
+(`raw_world_config_admissible`), `Host.WorldConfig.admit` (`world_config_admit`),
+and `Host.WorldConfig.standard` (`world_config_standard`).
+
+Kindless requirements in `AcornVerif.Decisions` fall into six reasons (each
+required by name in `AcornOwnership.anchors`, alongside non-decisions
+`Agent.input`, `AgentConstruction.execute`, `Checkpoint.managedWords`, and
+definitions shared by specifications):
+
+- **Round-trip payload specifications that reach reader tests:**
+  `Checkpoint.admitPayload` and `Checkpoint.loadCandidate` (`payload_admit`,
+  `candidate_load`, with `payload_admit_value` and `candidate_load_value` beside
+  them; kinds are remaining work of
+  [#105](https://github.com/rbeauchamp/acorn/issues/105)).
+- **Admitted-domain or witness acceptance statements beside kindless host
+  transitions:** `Host.World.observe` (`world_observe_accepts`, covering both
+  every admissible configuration and the `fresh` attempt), `Host.World.step`
+  (`world_step_accepts`, covering every action on every world of an admissible
+  configuration), `Host.Attempt.finish` (`attempt_finish_accepts`), and
+  `Host.Attempt.complete` (`attempt_complete_accepts`).
+- **Comparator correspondence and campaign termination bounds:**
+  `Host.BaselineAttempt.tick` (`baseline_corresponds`),
+  `Host.runBaselineCampaign` (`campaign_finishes`), and `Host.runRandomBaseline`
+  (`random_baseline_finishes`). On admissible configurations world
+  initialization and world steps never refuse (`initial_isOk_iff`,
+  `admissible_step_isOk`), while these statements quantify over arbitrary
+  `WorldConfig` values and bound unfinished termination on admitted plans.
+- **Spawn search postcondition and witness (`Host.selectSpawn`,
+  `spawn_select`):** `CurrentWorld.admissible_selectSpawn_isOk` proves
+  `Host.selectSpawn` succeeds on every world of an admissible configuration;
+  over arbitrary `WorldConfig` values, `Host.selectSpawn` stops at the first
+  rich spiral candidate so which inadmissible worlds succeed depends on earlier
+  tiles, leaving `spawn_select` as a kindless postcondition plus witness.
+- **Input invariant reaching tests:** `NumericState.resumable`
+  (`learner_resumable`; remaining work of
+  [#105](https://github.com/rbeauchamp/acorn/issues/105)).
+- **Dependent pair results whose verdict component is not an optional or error
+  result:** `Features.beginExploration` (`exploration_begins`),
+  `Lifetime.DemonStats.advanceSlot` (`slot_settles`),
+  `NumericState.firstLoopElement` (`first_loop_prune`), and
+  `Checkpoint.loadKeeping` (`load_keeping`).
+
+## Tests that a specification does not share
+
+A kind compares a function with its specification as the two are defined now.
+Where both sides call one test, a defect of that test changes both together and
+the proof of the kind can stay valid. Therefore the specification of a contract
+with a kind reaches no test that the function or the acceptance predicate also
+reaches, read at any depth through the declarations it names and the declared
+types of the parts of the input it reads. Review applies this rule; no check of
+Regula or Acorn executes it.
+
+A test is a function returning a Boolean or a definition returning a Boolean
+equality instance outside Lean's own library. Structure field projections are
+not tests: they read stored data (for example, `inventory_craft` may read
+`Host.Inventory.axe` and `Host.Inventory.boat`).
+
+Propositions that replace tests in specifications, each with its equivalence
+theorem:
+
+- `Binary32.Negative` (`Binary32.negative_iff`)
+- `Binary32.IsNaN` and `Binary64.IsNaN` (`Binary32.isNaN_iff`,
+  `Binary64.isNaN_iff`)
+- `Binary32.Less` and `Binary64.Less` (`Binary32.less_iff`, `Binary64.less_iff`)
+- `Binary32.LessOrEqual` (`Binary32.lessOrEqual_iff`)
+- `Host.TileKind.Walkable` (`Host.TileKind.walkable_iff`)
+- `Host.Inventory.Owns` (`Host.Inventory.owns_iff`)
+- `FeatureProfile.Resumable` (`FeatureProfile.checkpoint_iff`)
+- `Host.InBox` (`Host.inBox_iff`)
+- `Host.World.GoalSatisfied` and `Host.World.Attained`
+  (`Host.World.goalSatisfied_iff`)
+- `Host.FoodDue` (`Host.foodDue_iff`)
+
+Functions reached by specifications decide those propositions rather than
+calling the tests directly: `Binary32.key`, `Binary32.saturate`,
+`Agreement.units`, `Checkpoint.imagePayload`, `Host.wanderDeer`,
+`Lifetime.sumUpdate`, `Conversion.toI64Word`, `Host.floor32`, `Host.castWord`,
+`Host.classifyTerrain`, `Host.World.enterable`, `PolicySnapshot.best`,
+`PolicySnapshot.candidates`, `PolicySnapshot.probabilities`,
+`Host.Inventory.craft`, `Host.spawnFood`, and `Host.World.step`. World
+vocabulary types (`Host.Direction`, `Host.Action`, `Host.TileKind`,
+`Host.Position`, `Host.BoxPosition`) derive decidable equality with no custom
+Boolean equality instance.
+
+Non-Boolean shared helpers stay a matter of review. Review admits primitive
+operations of Lean's number types (`Binary32.div`, `Binary32.mul`), readers with
+independent statements of their own (such as `coordinate_float`, `world_side`,
+`day_phase`, `snapshot_masses`, and the shared-definition contracts in
+`Acorn.Decisions` and `AcornVerif.Decisions`), and direct stored-field readers
+(`Weight.value`, `Features.Lifecycle.progress`,
+`Host.Viewer.Lifecycle.phaseValue`). Shared readers without independent
+statements of their own (`Binary32.key`, `Binary32.magnitude`, `Binary32.negate`,
+`Binary64.key`, `Binary64.magnitude`, `Conversion.widen`, `Host.World.step`,
+`Host.World.setGoal`, `Host.terrain`, plus helpers applied by kindless
+statements) are remaining work of
+[#67](https://github.com/rbeauchamp/acorn/issues/67).
+
+In particular, the two-way kinds of `Host.isPastLast`, `Host.scaleAdmitsOctave`,
+`Host.scaleAdmitsRange`, `Host.RawWorldConfig.admissible`,
+`Host.WorldConfig.admit`, and `Host.World.initial` share none of
+`Host.isPastLast`, `Host.scaleAdmitsOctave`, `Host.scaleAdmitsRange`,
+`Host.RawWorldConfig.admissible`, `Host.octaveScale`, `Host.RawWorldConfig.admitLo`,
+or `Host.RawWorldConfig.admitHi`; their specifications state the exact numeric
+quotient condition directly via `Host.coordinateFloat` (`coordinate_float`),
+`Binary32.div`, `Binary32.mul`, `Binary32.Finite`, `Binary32.Negative`, and
+`Conversion.magnitudeUnits32` (or `CurrentTerrain.PastLast`).
+
+## What is not registered
+
+This inventory is not checked for completeness by any tool: a new definition
+returning a Boolean, optional, error, or decidable result can arrive with no
+contract and no entry here.
+
+- Structure field projections, default field values, and derived comparison
+  instances.
+- Functions whose result is `Decidable` carry both directions in their type.
+- Definitions not named by any theorem of the maintained libraries: the
+  remaining parsers of `Host.Cli`, native drivers and `NativeApp`, private JSON
+  helpers, viewer envelope and map decoders (`Host.Viewer.MapBytes.admit`,
+  `Host.Viewer.decodeMapRuns`, `Json.decode`), endurance summary helpers
+  (`Host.Endurance.Rates.summary`, `Host.Endurance.ErrorStats.summary`,
+  `Host.Endurance.Reduction.energySummary`), and `Host.CertificateSearch`
+  helpers whose external callers have contracts.
+- Definitions whose bodies directly delegate to a contracted or decidable
+  definition (`Prediction.admit`, `LogStepSize.admit`, `Lifetime.SumCount.admit`,
+  `Host.CertificateDriver.execute`).
+- Viewer supervisor transitions and classifiers whose properties are proved by
+  the supervisor's own anchored theorems (`Host.Viewer.Lifecycle.reserve`,
+  `Host.Viewer.Lifecycle.beginArchive`, `Host.Viewer.Lifecycle.archived`,
+  `Host.Viewer.Lifecycle.archiveIntent`, `Host.Viewer.Lifecycle.exhausted`,
+  `Host.Viewer.Lifecycle.retryReady`, `Host.Viewer.PersistedState.launch`,
+  `Host.Viewer.Pending.writes`, `Host.Viewer.Pending.clears`,
+  `Host.Viewer.Pending.serves`; kinds are remaining work).
+- Definitions in the proof library `AcornVerif`, which has no executable.
+- Named definitions that decide nothing (`Host.Microduck.Phase.armed`,
+  `Host.Microduck.Phase.last`, `Host.Microduck.Reading.age`,
+  `Handcrafted.TemporalControl.takeoverValue`,
+  `Handcrafted.DefaultConstruction.runPrefix`,
+  `Handcrafted.TemporalControl.interrupt`,
+  `Handcrafted.TemporalControl.refreshFree`, `Host.Viewer.goalTelemetry`) or
+  whose verdict equals a contracted definition (`Host.Microduck.Idle.tick`,
+  `Host.Microduck.Awaiting.tick`, `Host.Microduck.Stage.attend`).
+- Effects in `IO` (covered through pure cores such as `Checkpoint.resume` and
+  `Checkpoint.saveBytes` where present; OS/lock/filesystem effects rely on the
+  verification guide's concurrency and OS assumptions), `Bootstrap`, and
+  reviewed tooling under `lean/AcornTools`.
+
+No kind says that a specification is the intended one, that every caller acts on
+the verdict, or which value an accepting result carries. Exactness of the
+accepted value is stated by the theorems beside each definition. No executable
+and no other module imports `Acorn.Decisions`, so no native entry point links
+its witness values or registration declarations.

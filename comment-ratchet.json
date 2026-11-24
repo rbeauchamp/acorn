@@ -582,7 +582,7 @@
     "fdbcaafdf7833996",
     "fecb739fc96742ad"
   ]},
-  {"file": "lean/Acorn/Decisions.lean", "comments": 873, "lines": 2454, "fingerprints": [
+  {"file": "lean/Acorn/Decisions.lean", "comments": 872, "lines": 2061, "fingerprints": [
     "0027143ca071b22f",
     "009d2a4de9ca7984",
     "0107cad7feb24b81",
@@ -1228,7 +1228,6 @@
     "b782197465f6b8a2",
     "b7eec9c5c4ace1fa",
     "b8aebe9df31b73dc",
-    "b8ef1f92650895db",
     "b9062e7ca0c25d14",
     "b9477c27b744ce66",
     "b95a61f7947b2db6",
@@ -5035,7 +5034,7 @@
     "870ea553926cb1b8",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/Acorn/Host/Terrain.lean", "comments": 46, "lines": 66, "fingerprints": [
+  {"file": "lean/Acorn/Host/Terrain.lean", "comments": 45, "lines": 65, "fingerprints": [
     "0575df2eec608017",
     "0c2b1a1562cc2992",
     "1430b2c523d09b8d",
@@ -5056,7 +5055,6 @@
     "76bf8d674dd4b07e",
     "7ba1bd84388ce5f4",
     "81cb0aed5a6aa890",
-    "89a7c9b0b243252e",
     "8e947bdbfebc6075",
     "9031f4b1908505af",
     "9f620c9877b1eb8d",
@@ -6406,7 +6404,7 @@
     "edbbdb08b1f6723b",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/Acorn/Host/WorldDynamics.lean", "comments": 32, "lines": 45, "fingerprints": [
+  {"file": "lean/Acorn/Host/WorldDynamics.lean", "comments": 31, "lines": 44, "fingerprints": [
     "0412a82ebfc9518b",
     "061af1b0e42c9128",
     "102a830574cffb0e",
@@ -6433,7 +6431,6 @@
     "abf8b8f8b69c740a",
     "b4e7d3c179d3ab87",
     "b9f900827a975336",
-    "c0bab1fe4f0d39a6",
     "c673754267ba3770",
     "d722de9c32fed0c2",
     "e80b1672778740cc",
@@ -12800,7 +12797,7 @@
     "fb55d4c3ebec87df",
     "ff1776b7d77cbcfa"
   ]},
-  {"file": "lean/AcornVerif/Decisions.lean", "comments": 246, "lines": 983, "fingerprints": [
+  {"file": "lean/AcornVerif/Decisions.lean", "comments": 243, "lines": 769, "fingerprints": [
     "0027d4e7a765f143",
     "013bf857d1b00fbe",
     "02e579bc1b855d5b",
@@ -12822,7 +12819,6 @@
     "1cceaedc2e99d9dd",
     "1df265a006eb6f3b",
     "1ed55402d44c05cc",
-    "20c369a5cdc3d876",
     "21afcf5e04b08056",
     "21ef55faca79883c",
     "2282ecfcaa43b5eb",
@@ -12834,7 +12830,6 @@
     "2bc562d9a91db21e",
     "2befb1e71a6ac4be",
     "2c67caa1ce0bcab3",
-    "2fd966a205c875a5",
     "30880e581ab1643f",
     "327208bb15e3d853",
     "33bb8214a09cf2eb",
@@ -12993,7 +12988,6 @@
     "c182c7e75cc52100",
     "c30653da0971f26c",
     "c33d7f5a8c66c971",
-    "c401fa244b1afbb2",
     "c683ba717cf4907d",
     "c8ae07a63cf6a98f",
     "c8b20a8550949583",
@@ -13178,7 +13172,7 @@
     "e2f35356e468871a",
     "f6b4d669becc3783"
   ]},
-  {"file": "lean/AcornVerif/FloatLibBridge.lean", "comments": 80, "lines": 179, "fingerprints": [
+  {"file": "lean/AcornVerif/FloatLibBridge.lean", "comments": 79, "lines": 136, "fingerprints": [
     "0a03895e66ad2e5b",
     "0a92db1acb4eef73",
     "168eb43af93f444f",
@@ -13243,7 +13237,6 @@
     "bd6e621c05d7b492",
     "c1c4e480062034c2",
     "c421052ad4d565ff",
-    "c53209801dc23f1b",
     "cc9157b95139af5f",
     "cfcbb9b507599210",
     "d377a80afd6b6b15",

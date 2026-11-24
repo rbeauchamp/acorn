@@ -25,187 +25,6 @@ import AcornVerif.Endurance
 import AcornVerif.FloatLibBridge
 import AcornVerif.TemporalSupport
 
-/-!
-# Decision contracts proved in the proof library
-
-`Acorn.Decisions` states the contracts of the executing library that follow from Lean core
-alone, and it registers the decisions of that library, those whose kinds are stated here
-included. A contract here states a direction whose proof needs this library. The
-legality of every stored lifetime total rests on the real-valued bounds of
-`CurrentLifetime.stored_sum_legal`. What an accepted certificate establishes is a statement
-about runs of the executed world step, proved in `CurrentCertificates`.
-
-No certificate checker is complete about its goal: a refused certificate establishes nothing
-about whether the goal can be reached. The blocked checker and the stance checker carry the
-sound kind, with an accepted certificate as the witness, and so do the constructors of their
-certificates. The replay checker and the constructor of its certificate carry the two-way kind
-about the action list: they accept exactly an action list of at least one and at most the cap
-actions whose run of the executed world step, from the world with the goal installed, ends in a
-world in which the goal is attained (`Replays`). The walkable test is not a certificate checker,
-and it carries the two-way kind.
-
-A function of this module with an argument or result type that depends on an earlier argument
-states its kind in the forms that `Acorn.Decisions` describes: about the function applied to
-every field of a structure of its arguments, and about `Regula.Dependent.isSome` or
-`Regula.Dependent.isOk` of it where the result type depends on the input. A statement of what a
-kind does not state stands beside it as a requirement with no kind: the value of an accepted
-result, under the name of the kind with `_value`, or a set of refused inputs beside a one-way
-kind, under the name of the kind with `_refused`. `payload_admit_value` and
-`candidate_load_value` stand in the same way beside the requirements `payload_admit` and
-`candidate_load`, which also keep no kind, `checkpoint_load_accepts` beside the sound kind
-`checkpoint_load` states the saved bytes that loading accepts and the state that it returns, and
-`checkpoint_resume_accepts` beside the sound kind `checkpoint_resume` states the state that
-resuming them returns.
-`interest_potential_declared` states pointwise a class of refused inputs that the two-way kind
-`interest_potential` also gives.
-`world_enterable`, `tile_kind` and `terrain_read` keep their names beside the kinds of the
-terrain: the verdict of an accepted entry, the refusal of a refused tile, and what the readers
-of the terrain do with its result. `pay_and_act` and `perform_action` keep their names beside
-the kinds of the paid actions: what an accepted paid action does with the energy, and where an
-accepted move puts the body. `execute_prefix` states the safe path that the compiled fold
-follows.
-
-The round trips of the composed checkpoint admissions, the goal completion predicate, checked
-translation and precision derivation are stated here because their theorems are in this
-library, and so are the kinds of the count and of the rule of the spawn search, the result of
-the search, an accepted input of world generation, the correspondence of the comparator with
-the agent's attempt, the bounds of the comparator's campaigns and the stored-word checks of a
-learner. The accepted inputs of the observation, of finishing and of the fold, and the two-way
-kind of `Host.Released.environment`, are stated here because the observation of their inputs
-succeeds by the terrain admission of `CurrentTerrain`. Each contract states only what its
-theorem proves.
-
-## Statements that keep no kind
-
-A requirement with no kind is checked only as a theorem about the executing definition. Such a
-statement can fix one direction only, and it need not show that both outcomes occur for its
-function. Each docstring says what its statement gives and what it does not claim.
-
-Sixteen functions of this module have a contract and no kind. The reasons are six. Sixteen
-more are no decisions, and their statements say what they are: `Agent.input`,
-`AgentConstruction.execute` and `Checkpoint.managedWords` refuse no input, and thirteen
-definitions that specifications share with their functions have the statements of the section
-"Definitions that specifications share".
-
-* The specification is a round trip of the written form: `Checkpoint.admitPayload` and
-  `Checkpoint.loadCandidate` accept exactly the payloads, and their encodings, of the agent images
-  of a resumable construction. The specification quantifies over agent images, and the type of an
-  image declares the invariants of its learners, which name the stored-word check
-  `NumericState.resumable` and the other tests that the admissions run. It names the writer
-  `Checkpoint.imagePayload` too, whose format holds the reader of each field beside its writer and
-  so reaches the reader's tests, so the rule of `Acorn.Decisions` for tests that a specification
-  does not share excludes the kind. Which images there are depends on them, so the two sides share
-  them in substance and not only by the reading: a kind needs a statement of the written payloads
-  that does not depend on those tests. Kinds for these two functions are remaining work of
-  https://github.com/rbeauchamp/acorn/issues/105, and they need a statement of the written payloads
-  that does not depend on the tests the admissions run.
-* The statement gives an accepted input of a host transition whose statement in
-  `Acorn.Decisions` keeps no kind: `Host.World.observe`, `Host.Attempt.finish`,
-  `Host.Attempt.complete` and `Host.World.initial`. No theorem states which observations or
-  steps succeed or which configurations initialize. A specification of the accepted inputs of
-  the first three would name `Host.World.observe`, which runs the ownership test
-  `Host.Inventory.owns` that they run.
-* The statement relates the comparator to the agent's attempt, or bounds where a campaign ends
-  unfinished: `Host.BaselineAttempt.tick`, `Host.runBaselineCampaign` and
-  `Host.runRandomBaseline`. Their acceptance is the world step's or world generation's, and no
-  theorem states which steps succeed or which configurations initialize. The comparator's
-  campaign also refuses as unfinished when its fuel runs out, and the random baseline also
-  refuses at campaign admission and on an unbounded plan.
-* The statement is about the result of the spawn search of world generation, `Host.selectSpawn`,
-  and carries an accepted input. The search stops at the first rich candidate of its spiral, so
-  which tiles it reads depends on the kinds and walkability of the tiles before, and no theorem
-  states which worlds it accepts.
-* The specification reads a part of the input whose type declares an invariant that names tests
-  that the function runs: the stored-word check of a learner, `NumericState.resumable`. Its kind
-  was proved, and the rule of `Acorn.Decisions` for tests that a specification does not share
-  excludes it for `Binary32.isNaN` and `Binary32.less`, which the specification reaches only
-  through the declaration of the learner state and the function runs in the interval test of a
-  pruning reference. The kind is remaining work of
-  https://github.com/rbeauchamp/acorn/issues/105.
-* The verdict is one component of a pair, and a component of that pair has a type that depends
-  on an earlier argument: whether `Features.beginExploration` begins a run, where the run that
-  begins, the verdict component, depends on the action count; whether
-  `Lifetime.DemonStats.advanceSlot` settles a slot and whether `NumericState.firstLoopElement`
-  prunes an index, beside a state that depends on the dimension, the discount or the
-  configuration; and whether
-  `Checkpoint.loadKeeping`, loading that keeps its receiver, refuses the bytes, beside a state
-  that depends on the construction. The kinds read a result whose type depends on the input only
-  through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`, of an `Option` or an `Except`.
-  Each statement states the verdict for every input and names an input of each verdict.
-
-## Tests that a specification does not share
-
-No specification of a contract with a kind here reaches a test that its function runs:
-`Acorn.Decisions` states that rule, which review applies, and lists the propositions that take
-the place of the tests. The specification of `exp_saturation` names the strict order
-`Binary32.Less`, and `Host.World.Attained` names the ownership `Host.Inventory.Owns`. The
-specifications of the requirements `payload_admit` and `candidate_load`, which keep no kind,
-likewise name the resumable profile `FeatureProfile.Resumable` in the place of the test that the
-admissions run. The specifications of `replay_certified`, `replay_check` and `advance_actions`
-name runs of the world step, which decides `Host.World.GoalSatisfied`, `Host.FoodDue` and
-`Host.Inventory.Owns` in the place of its tests and compares actions, tile kinds and positions by
-their decidable equality.
-
-A specification also names no reader that its function calls where the data has constructors
-or stored fields to state it by. `Host.World.Attained` states a goal on the box indices, the
-inventory fields and the clock of the world, with no observation, no count reader and no
-embedding of a box position. `Harvests` states the tiles of a stance by equations on indices
-and coordinates and the move by `Offset` and `Heads`, with no offset table, no facing position
-and no checked translation. `SquareAdmits` states the tiles of a square by equations on the
-coordinates, with no checked translation, and the kind of the spawn rule states the box by
-bounds on the coordinates, with no box admission. `squared_admit_exact` states the discrepancy of
-two words by their rational values, with no unit map. `Host.World.observe_satisfied_iff`
-connects the observation with `Host.World.Attained`, and a private lemma beside each of the
-others connects the reader with the statement.
-
-The kind of `sum_admit` names the writer `sumWords` of the form that it reads, which the
-admission does not call.
-
-The kinds of the terrain name the binary32 quotient of a coordinate by an octave scale, which the
-generator computes: `Host.coordinateFloat`, `Binary32.div` and `Binary32.mul` are shared with it,
-and none of them is a test. Each is fixed apart from these kinds. `Binary32.div` and
-`Binary32.mul` are Lean core's `Float32` division and multiplication on the words, and
-`AcornVerif.FloatLibBridge.binary32_div_roundAt` and
-`AcornVerif.FloatLibBridge.binary32_mul_roundAt` state them, on finite operands with a finite
-result, as the exact real quotient and product rounded once to nearest-even. `Host.coordinateFloat`
-has the statement `Acorn.Decisions.coordinate_float`, which reads the coordinate as a
-mathematical integer and converts its magnitude with the library's conversion. The kinds of its two
-readers also share `Host.WorldConfig.side`, which the type of their world argument reads and
-`Acorn.Decisions.world_side` states as the stored side coordinate. The floor, the saturating cast
-and the checked successor of the lattice coordinate are not shared:
-`CurrentTerrain.PastLast` bounds the exact value of the quotient in their place.
-
-The kinds of the paid actions share the same quotient through `CurrentTerrain.LatticeAdmits` and
-the side of the box `Host.WorldConfig.side`, and the kind of `Host.payAndAct` also shares the
-phase of the day `Host.World.dayPhase`, which the cost of an action reads and
-`Acorn.Decisions.day_phase` states by bounds on the slot of the clock; none of them is a test.
-`CurrentActions.ActionAdmits` states the tile that an action reads by equations on the
-coordinates and the box indices and by the constructors of the action and the direction, and
-`CurrentActions.Cost` states the cost by the constructors of the action and the constants of
-`FeatureConstants`. They name no direction table, offset table, checked translation, box
-admission, facing position or cost function. The paid action compares the action with a
-harvest by `==`, which is Lean's `instBEqOfDecidableEq` over the derived decidable equality; the
-specification states that comparison as an equality.
-
-The kinds of the count and of the rule of the spawn search share the same quotient through
-`CurrentTerrain.LatticeAdmits`, and `Host.WorldConfig.side`, which the type of their world
-argument reads and which bounds the coordinates of the rule's box; none of them is a test. They
-name neither the comparison of tile kinds that the count runs, Lean's `instBEqOfDecidableEq` over
-the derived decidable equality, nor the walkability test `Host.TileKind.walkable` that the rule
-runs, which refuse nothing.
-
-The rule does not apply to a statement with no kind, and statements with no kind here do reach
-tests that their functions run. This module keeps no list of them, and the examples that follow
-are not one: `task_observed` names `Host.Inventory.owns` in its craft clause.
-
-The ownership audit counts the decision contracts of this module toward the registrations of the
-executing library. Each function with a kind here is registered in `Acorn.Decisions`, the one module
-that registers decisions, and the ownership audit requires the kind there. It requires each
-statement with no kind by name, with a statement that still refers to the executing definition, and
-so the second kind of `Agreement.admitSquared`, whose registration a kind in `Acorn.Decisions`
-already meets.
--/
-
 namespace AcornVerif.Decisions
 open Acorn Acorn.Checkpoint Acorn.Features Acorn.Handcrafted Acorn.Lifetime
 open Acorn.Handcrafted.FeatureProfile (Resumable)
@@ -1607,15 +1426,6 @@ budget (`plan.attemptBudget ≤ fuel + cursorRank cursor`), never ends unfinishe
 the campaign over an admitted plan with at least one cycle. The theorems of
 `AcornVerif.CurrentRunner` state these. -/
 
-/-- A tick of the comparator from a state that corresponds with an agent's attempt follows the
-agent's tick: where the agent's tick takes no step the comparator's returns its state, and where
-it takes a step whose action the comparator's stream draws, the comparator's tick is accepted
-with a state that corresponds with the agent's next attempt and the advanced stream
-(`CurrentRunner.idle_corresponds`, `CurrentRunner.tick_corresponds`).
-
-The statement keeps no kind. It relates the comparator to the agent's tick through
-`CurrentRunner.Corresponds`, a relation of this library, and the acceptance of a tick is the
-world step's, which no theorem states (`Acorn.Decisions.baseline_tick`). -/
 theorem baseline_corresponds : Regula.ExecutableContract @Host.BaselineAttempt.tick
     (fun tick =>
       ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
@@ -1662,32 +1472,6 @@ theorem random_baseline_finishes : Regula.ExecutableContract Host.runRandomBasel
         ↓reduceIte],
     fun config seed spec plan admitted bounded =>
       CurrentRunner.baseline_finishes config seed spec plan admitted bounded⟩⟩
-
-/-! ## The spawn search of world generation
-
-A count of a kind near a position has no early exit: it translates every tile of its square and
-reads the kind of each. It is refused exactly when a tile of the square leaves the signed range or
-the value noise refuses it (`SquareAdmits`). The spawn rule skips a coordinate outside the box,
-and inside the box it reads both counts within four tiles and the kind of the coordinate, which
-lies in their square, before it tests walkability. It is refused exactly when the coordinate is
-inside the box and the value noise does not admit its square of radius four. The count and the
-rule carry the two-way kind. The theorems of `AcornVerif.CurrentSpawn` state what a successful
-count, a successful application of the rule and a successful spawn search return; the statements
-of the count and of the rule stand beside their kinds under the names of the kinds with
-`_value`. The search keeps a requirement with no kind with an accepted input, and
-`world_initial_accepts` gives an accepted input of world generation.
-
-The search and world generation accept the configuration `oneTile`: a box of one tile, no deer
-and the noise scale one. The spiral of its box has one candidate, the center of the box, and the
-value noise admits the square of radius four around it (`center_square`): each of its eighty-one
-tiles is in the signed range, and the quotients of its coordinates, `-4` to `4`, by the four
-octave scales of the noise scale are not past the last coordinate. The kernel evaluates those
-quotients, of nine coordinates by four scales, and not the terrain. A loop over a range in
-`Except` succeeds where every pass succeeds (`forIn_range_isOk`), which carries the success of
-each pass through the loops of the count and of the search. A loop that succeeds and whose
-every successful pass yields ran a successful pass at each index (`forIn_range_passes`), which
-carries the success of the count back to each tile of its square. The placement of the deer
-runs no pass at the deer cap zero. -/
 
 /-- A bind succeeds where its first part succeeds and its rest succeeds on every value. -/
 private theorem bind_isOk {ε α β : Type} (first : Except ε α) (rest : α → Except ε β)
@@ -2058,16 +1842,119 @@ theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =
   ⟨⟨fun world spawn selected => CurrentSpawn.selectSpawn_post world spawn selected,
     ⟨oneTile, Host.World.empty oneTile, select_oneTile⟩⟩⟩
 
+private theorem world_initial_isOk_spec (config : Host.WorldConfig) :
+    (Host.World.initial config).isOk = true ↔
+      0 < config.raw.side.val ∧ config.raw.side.val ≤ 2 ^ 63 - 5 ∧
+        0 < config.raw.dayLength.toNat ∧
+        ∀ lo hi : Host.Coordinate,
+          lo.val = (if config.raw.deerCap = 0 then -5 else -2 ^ 63) →
+          hi.val = (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1) →
+          ∀ s0 s1 s2 s3 : Binary32,
+            s0 = config.raw.baseScale →
+            s1 = s0.mul ⟨0x40000000⟩ →
+            s2 = s1.mul ⟨0x40000000⟩ →
+            s3 = s2.mul ⟨0x40000000⟩ →
+            ∀ s ∈ [s0, s1, s2, s3],
+              ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+              ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s) := by
+  rw [CurrentWorld.initial_isOk_iff, Host.RawWorldConfig.admissible_iff]
+  have hmax : Host.RawWorldConfig.maxSide = 2 ^ 63 - 5 := rfl
+  have hlo_val : config.raw.admitLo.val = if config.raw.deerCap = 0 then -5 else -2 ^ 63 := by
+    simpa [UInt64.eq_iff_toBitVec_eq] using Host.RawWorldConfig.admitLo_val config.raw
+  constructor
+  · intro ⟨hpos, hmx, hday, hsc⟩
+    have hmx' : config.raw.side.val ≤ 2 ^ 63 - 5 := by rw [← hmax]; exact hmx
+    refine ⟨hpos, hmx', hday, ?_⟩
+    intro lo hi hlo hhi s0 s1 s2 s3 hs0 hs1 hs2 hs3 s hmem
+    have hhi_val : config.raw.admitHi.val =
+        if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1 := by
+      simpa [UInt64.eq_iff_toBitVec_eq] using
+        Host.RawWorldConfig.admitHi_val config.raw hpos hmx
+    have hlo_eq : lo = config.raw.admitLo := Subtype.ext (hlo.trans hlo_val.symm)
+    have hhi_eq : hi = config.raw.admitHi := Subtype.ext (hhi.trans hhi_val.symm)
+    rw [hlo_eq, hhi_eq]
+    rw [Host.scaleAdmitsRange_iff] at hsc
+    have hnot : ∀ octave, octave < 4 →
+        ¬ CurrentTerrain.PastLast
+            ((Host.coordinateFloat config.raw.admitLo).div
+              (Host.octaveScale config.raw.baseScale octave)) ∧
+        ¬ CurrentTerrain.PastLast
+            ((Host.coordinateFloat config.raw.admitHi).div
+              (Host.octaveScale config.raw.baseScale octave)) := by
+      intro octave hlt
+      obtain ⟨hl, hr⟩ := hsc octave hlt
+      exact ⟨fun hp => by (rw [(CurrentWorld.isPastLast_iff_pastLast _).mpr hp] at hl; cases hl),
+        fun hp => by (rw [(CurrentWorld.isPastLast_iff_pastLast _).mpr hp] at hr; cases hr)⟩
+    have h0 := hnot 0 (by decide)
+    have h1 := hnot 1 (by decide)
+    have h2 := hnot 2 (by decide)
+    have h3 := hnot 3 (by decide)
+    simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
+    rcases hmem with rfl | rfl | rfl | rfl
+    · simpa [hs0, Host.octaveScale] using h0
+    · simpa [hs1, hs0, Host.octaveScale] using h1
+    · simpa [hs2, hs1, hs0, Host.octaveScale] using h2
+    · simpa [hs3, hs2, hs1, hs0, Host.octaveScale] using h3
+  · intro ⟨hpos, hmx, hday, hforall⟩
+    have hmx' : config.raw.side.val ≤ Host.RawWorldConfig.maxSide := by rw [hmax]; exact hmx
+    refine ⟨hpos, hmx', hday, ?_⟩
+    rw [Host.scaleAdmitsRange_iff]
+    have hhi_val : config.raw.admitHi.val =
+        if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1 := by
+      simpa [UInt64.eq_iff_toBitVec_eq] using
+        Host.RawWorldConfig.admitHi_val config.raw hpos hmx'
+    have hspec := hforall config.raw.admitLo config.raw.admitHi hlo_val hhi_val
+      (Host.octaveScale config.raw.baseScale 0)
+      (Host.octaveScale config.raw.baseScale 1)
+      (Host.octaveScale config.raw.baseScale 2)
+      (Host.octaveScale config.raw.baseScale 3)
+      rfl rfl rfl rfl
+    intro octave hlt
+    have hmem : Host.octaveScale config.raw.baseScale octave ∈
+        [Host.octaveScale config.raw.baseScale 0, Host.octaveScale config.raw.baseScale 1,
+          Host.octaveScale config.raw.baseScale 2, Host.octaveScale config.raw.baseScale 3] := by
+      match octave, hlt with
+      | 0, _ => simp
+      | 1, _ => simp
+      | 2, _ => simp
+      | 3, _ => simp
+    obtain ⟨hl, hr⟩ := hspec _ hmem
+    constructor
+    · cases h : Host.isPastLast ((Host.coordinateFloat config.raw.admitLo).div
+          (Host.octaveScale config.raw.baseScale octave))
+      · rfl
+      · exact absurd ((CurrentWorld.isPastLast_iff_pastLast _).mp h) hl
+    · cases h : Host.isPastLast ((Host.coordinateFloat config.raw.admitHi).div
+          (Host.octaveScale config.raw.baseScale octave))
+      · rfl
+      · exact absurd ((CurrentWorld.isPastLast_iff_pastLast _).mp h) hr
+
 theorem world_initial_accepts : Regula.ExecutableContract Host.World.initial (fun initial =>
-    (initial oneTile).isOk = true ∧
-      ∀ config : Host.WorldConfig, (initial config).isOk = true ↔
-        config.raw.admissible = true) :=
-  ⟨⟨by
-      have hadm : oneTile.raw.admissible = true := by decide
-      unfold Host.World.initial
-      simp only [hadm, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-      exact bind_isOk _ _ select_oneTile fun _ => bind_isOk _ _ deer_oneTile fun _ => rfl,
-    CurrentWorld.initial_isOk_iff⟩⟩
+    Regula.Decides (· = true)
+      (fun config : Host.WorldConfig =>
+        0 < config.raw.side.val ∧ config.raw.side.val ≤ 2 ^ 63 - 5 ∧
+          0 < config.raw.dayLength.toNat ∧
+          ∀ lo hi : Host.Coordinate,
+            lo.val = (if config.raw.deerCap = 0 then -5 else -2 ^ 63) →
+            hi.val = (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1) →
+            ∀ s0 s1 s2 s3 : Binary32,
+              s0 = config.raw.baseScale →
+              s1 = s0.mul ⟨0x40000000⟩ →
+              s2 = s1.mul ⟨0x40000000⟩ →
+              s3 = s2.mul ⟨0x40000000⟩ →
+              ∀ s ∈ [s0, s1, s2, s3],
+                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+      (Regula.Dependent.isOk initial)) :=
+  ⟨decides
+    (fun config => world_initial_isOk_spec config)
+    ⟨oneTile,
+      (world_initial_isOk_spec oneTile).mp
+        ((CurrentWorld.initial_isOk_iff oneTile).mpr (by decide))⟩
+    ⟨wide,
+      fun h => absurd
+        ((CurrentWorld.initial_isOk_iff wide).mp ((world_initial_isOk_spec wide).mpr h))
+        (by decide)⟩⟩
 
 theorem world_step_accepts : Regula.ExecutableContract @Host.World.step (fun step =>
     ∀ {config : Host.WorldConfig}, config.raw.admissible = true →

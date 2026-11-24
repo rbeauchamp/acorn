@@ -81,10 +81,10 @@ def TileKind.harvestYield : TileKind → Option Item
   | .tree => some .wood | .stone => some .stone | .ore => some .gold
   | .water | .sand | .grass | .forest | .mountain => none
 
-/-- A failed signed lattice increment or entity translation is explicit. -/
 inductive WorldError where
   /-- A signed coordinate operation has no representable result. -/
   | coordinateOverflow
+  | inadmissibleConfig
   deriving DecidableEq
 
 /-- Assemble raw fields using exact bounded integer arithmetic.

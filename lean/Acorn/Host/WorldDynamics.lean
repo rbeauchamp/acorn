@@ -15,7 +15,6 @@ wander in signed-coordinate space rather than being clamped to the body box.
 -/
 namespace Acorn.Host
 
-/-- Ordered wandering of one deer consumes a direction draw only on movement. -/
 def wanderDeer {config : WorldConfig} (world : World config) (position : Position)
     (rng : Rng.Xoshiro256) : Except WorldError (Position × Rng.Xoshiro256) := do
   let (draw, rng) := rng.next

@@ -21,6 +21,7 @@ open Host
 /-- Explicit diagnostic names for the closed current world-refusal domain. -/
 def worldError : WorldError → String
   | .coordinateOverflow => "signed coordinate arithmetic overflow"
+  | .inadmissibleConfig => "world configuration fails admission bounds"
 
 /-- Current standard/custom configuration refusal names. -/
 def configError : WorldConfigError → String

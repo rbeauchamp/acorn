@@ -119,7 +119,7 @@ def initializeDeer {config : WorldConfig} (world : World config) :
 
 /-- Complete initialization through the actual spawn and population constructors. -/
 def World.initial (config : WorldConfig) : Except WorldError (World config) := do
-  if !config.raw.admissible then .error .coordinateOverflow
+  if !config.raw.admissible then .error .inadmissibleConfig
   let world := World.empty config
   let position ← selectSpawn world
   let (deer, rng) ← initializeDeer world
