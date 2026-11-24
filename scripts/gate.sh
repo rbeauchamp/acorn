@@ -139,11 +139,12 @@ ensure_nc_cache_dirs() {
   check_nc_cache_dirs require-present
 }
 
-nc_tmp=''
+gate_scratch=''
 post_logs=''
 post_checks_pid=''
 fg_child_pid=''
 summary_written=0
+bg_supervisor_launched=0
 
 # Per-check hard process-group SIGKILL deadlines (matching verify.sh's 360-second
 # no-grace-period discipline) and early-warning target budgets in seconds.
@@ -249,10 +250,95 @@ summary_phase_state() {
 
 summary_phase_dur() {
   local state="$1" dur="$2"
-  if [[ "$state" == 'not reached' || "$state" == 'skipped' || "$state" == 'interrupted / unfinished' ]]; then
-    printf '%s' '-'
-  else
-    format_duration "$dur"
+  case "$state" in
+    'not reached'|'skipped'|'skipped ('*|'interrupted / unfinished'|'status unavailable'|'refused ('*)
+      printf '%s' '-' ;;
+    *)
+      format_duration "$dur" ;;
+  esac
+}
+
+# Inspect actual start/completion marker files written by the background subshell so
+# completed checks stay observed even on early cancellation or later supervisor failure,
+# and unstarted checks report `not reached` rather than `interrupted`.
+# shellcheck disable=SC2317,SC2329
+sync_bg_phase_state() {
+  local early_abort="$1"
+  local raw='' dur_raw=''
+  [[ "$bg_supervisor_launched" == 1 && -n "$post_logs" ]] || return 0
+
+  if [[ -f "$post_logs/intent.status" ]]; then
+    raw=$(cat "$post_logs/intent.status" 2>/dev/null || true)
+    if [[ "$raw" =~ ^[0-9]+$ ]]; then
+      intended="$raw"
+      intent_state="$raw"
+    elif [[ "$early_abort" == 1 ]]; then
+      intent_state='interrupted / unfinished'
+    else
+      intent_state='status unavailable'
+    fi
+  elif [[ -f "$post_logs/intent.started" ]]; then
+    if [[ "$early_abort" == 1 ]]; then
+      intent_state='interrupted / unfinished'
+    else
+      intent_state='status unavailable'
+    fi
+  fi
+  if [[ -f "$post_logs/intent.dur" ]]; then
+    dur_raw=$(cat "$post_logs/intent.dur" 2>/dev/null || true)
+    if [[ "$dur_raw" =~ ^[0-9]+$ ]]; then
+      intent_dur="$dur_raw"
+    fi
+  fi
+
+  if [[ -f "$post_logs/frame.status" ]]; then
+    raw=$(cat "$post_logs/frame.status" 2>/dev/null || true)
+    if [[ "$raw" =~ ^[0-9]+$ ]]; then
+      framed="$raw"
+      frame_state="$raw"
+    elif [[ "$early_abort" == 1 ]]; then
+      frame_state='interrupted / unfinished'
+    else
+      frame_state='status unavailable'
+    fi
+  elif [[ -f "$post_logs/frame.started" ]]; then
+    if [[ "$early_abort" == 1 ]]; then
+      frame_state='interrupted / unfinished'
+    else
+      frame_state='status unavailable'
+    fi
+  fi
+  if [[ -f "$post_logs/frame.dur" ]]; then
+    dur_raw=$(cat "$post_logs/frame.dur" 2>/dev/null || true)
+    if [[ "$dur_raw" =~ ^[0-9]+$ ]]; then
+      frame_dur="$dur_raw"
+    fi
+  fi
+
+  if [[ -z "$nc_refusal" ]]; then
+    if [[ -f "$post_logs/no-comments.status" ]]; then
+      raw=$(cat "$post_logs/no-comments.status" 2>/dev/null || true)
+      if [[ "$raw" =~ ^[0-9]+$ ]]; then
+        commented="$raw"
+        nc_state="$raw"
+      elif [[ "$early_abort" == 1 ]]; then
+        nc_state='interrupted / unfinished'
+      else
+        nc_state='status unavailable'
+      fi
+    elif [[ -f "$post_logs/no-comments.started" ]]; then
+      if [[ "$early_abort" == 1 ]]; then
+        nc_state='interrupted / unfinished'
+      else
+        nc_state='status unavailable'
+      fi
+    fi
+    if [[ -f "$post_logs/no-comments.dur" ]]; then
+      dur_raw=$(cat "$post_logs/no-comments.dur" 2>/dev/null || true)
+      if [[ "$dur_raw" =~ ^[0-9]+$ ]]; then
+        nc_exec_dur="$dur_raw"
+      fi
+    fi
   fi
 }
 
@@ -268,8 +354,11 @@ emit_gate_summary() {
   local s_prov s_s1 s_s2 s_nca s_reg s_int s_frm s_nc gate_state nc_label
 
   summary_written=1
-  if [[ "$early_abort" == 1 && -n "$post_start" ]]; then
-    effective_post_wall=$((SECONDS - post_start))
+  if [[ "$early_abort" == 1 ]]; then
+    sync_bg_phase_state 1
+    if [[ -n "$post_start" ]]; then
+      effective_post_wall=$((SECONDS - post_start))
+    fi
   fi
   if [[ "${ACORN_JOB_START_EPOCH:-}" =~ ^[0-9]+$ ]]; then
     now_epoch=$(date +%s)
@@ -323,6 +412,7 @@ emit_gate_summary() {
   fi
 
   if [[ -n "${GITHUB_STEP_SUMMARY:-}" && ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
+    local write_rc=0
     {
       printf '## Verify / gate phase timings\n\n'
       printf '| Phase | Duration | Target budget | Hard limit | Status |\n'
@@ -385,7 +475,13 @@ emit_gate_summary() {
           "$(status_label "$gate_state" "$job_over")"
       fi
       printf '\n'
-    } >> "$GITHUB_STEP_SUMMARY" || true
+    } >> "$GITHUB_STEP_SUMMARY" || write_rc=$?
+    if [[ "$write_rc" != 0 ]]; then
+      echo "gate: failed to write phase summary to $GITHUB_STEP_SUMMARY" >&2
+      if [[ "$early_abort" == 0 ]]; then
+        return 1
+      fi
+    fi
   fi
 
   printf 'gate: phase timings (s): provision=%d stage1=%d stage2=%d nc-admit=%d regula=%d intent=%d frame=%d no-comments=%d post-wall=%d (%s, nc-jobs=%s) total=%d\n' \
@@ -425,38 +521,40 @@ cleanup_post_checks() {
     fi
   fi
   if [[ "$provision_only" == 0 && "$summary_written" == 0 ]]; then
-    emit_gate_summary 1
+    emit_gate_summary 1 || true
   fi
-  if [[ -n "$post_logs" ]]; then
-    rm -rf "$post_logs"
+  if [[ -n "$gate_scratch" ]]; then
+    rm -rf "$gate_scratch"
+    gate_scratch=''
     post_logs=''
-  fi
-  if [[ -n "$nc_tmp" ]]; then
-    rm -rf "$nc_tmp"
-    nc_tmp=''
   fi
 }
 trap cleanup_post_checks EXIT
 trap 'cleanup_post_checks; exit 130' INT
 trap 'cleanup_post_checks; exit 143' TERM
 
+gate_scratch=$(mktemp -d)
+post_logs="$gate_scratch/logs"
+mkdir -p "$post_logs" "$gate_scratch/prov-tmp" "$gate_scratch/admit-tmp" \
+  "$gate_scratch/regula-tmp" "$gate_scratch/intent-tmp" \
+  "$gate_scratch/frame-tmp" "$gate_scratch/nc-tmp"
+
 # Run a foreground command in its own process group with an interruptible wait so
-# INT/TERM traps reach and reap the active child group immediately.
+# INT/TERM traps reach and reap the active child group; always reap any surviving
+# group members before clearing fg_child_pid (e.g. if an external SIGKILL kills timeout).
 run_fg_group() {
   local rc=0
   set -m
-  "$@" &
+  (
+    set +m
+    "$@"
+  ) &
   fg_child_pid=$!
   set +m
   wait "$fg_child_pid" || rc=$?
+  kill -KILL -- -"$fg_child_pid" 2>/dev/null || true
   fg_child_pid=''
   return "$rc"
-}
-
-run_fg_bounded() {
-  local limit_s="$1"
-  shift
-  run_fg_group "$timeout_command" --signal=KILL "${limit_s}s" "$@"
 }
 
 run_fg_dep_bounded() {
@@ -465,15 +563,18 @@ run_fg_dep_bounded() {
   local rc=0
   set -m
   (
+    set +m
     dependency_git
     if [[ -n "$custom_tmpdir" ]]; then
-      export TMPDIR="$custom_tmpdir"
+      exec env TMPDIR="$custom_tmpdir" "$timeout_command" --signal=KILL "${limit_s}s" "$@"
+    else
+      exec "$timeout_command" --signal=KILL "${limit_s}s" "$@"
     fi
-    exec "$timeout_command" --signal=KILL "${limit_s}s" "$@"
   ) &
   fg_child_pid=$!
   set +m
   wait "$fg_child_pid" || rc=$?
+  kill -KILL -- -"$fg_child_pid" 2>/dev/null || true
   fg_child_pid=''
   return "$rc"
 }
@@ -489,12 +590,12 @@ dependency_git() {
   export GIT_CONFIG_COUNT=$((n + 1)) "GIT_CONFIG_KEY_$n=core.symlinks" "GIT_CONFIG_VALUE_$n=false"
 }
 
-provision_start="$SECONDS"
-step 'provisioning the pinned dependencies'
-(
+provision_lean_workspace() {
   # Parallel cache extraction can exhaust macOS's inherited 256-descriptor limit.
   # Give provisioning a process-local floor before Lake can fetch dependencies;
   # preserve higher limits and the hard limit. This is a budget, not a peak bound.
+  export TMPDIR="$gate_scratch/prov-tmp"
+  local descriptor_limit current=0
   descriptor_limit=$(ulimit -Sn)
   if [[ "$descriptor_limit" != unlimited ]] && (( descriptor_limit < 4096 )); then
     ulimit -Sn 4096
@@ -504,7 +605,6 @@ step 'provisioning the pinned dependencies'
   cd lean
   # Lake decides whether Mathlib and Regula's lint driver need provisioning: with
   # --no-build it exits 3 unless every artifact and trace of these targets is current.
-  current=0
   lake -f lakefile.lean build --no-build Mathlib regula/lint || current=$?
   case "$current" in
     0) ;;
@@ -519,15 +619,22 @@ step 'provisioning the pinned dependencies'
   # native objects intent-check links, and the Regula modules the decision registries and
   # AcornTools.Theorems import with their native objects.
   lake -f lakefile.lean build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
-)
-./scripts/lean.sh provision-status
-./scripts/tracked-files.sh admit-site --clean .
-(
+}
+
+provision_site_workspace() {
+  export TMPDIR="$gate_scratch/prov-tmp"
   dependency_git
   cd site
   # Verso's modules and the shared library its documents load.
   lake -f lakefile.toml build verso/VersoManual verso/VersoManual:shared
-)
+}
+
+provision_start="$SECONDS"
+step 'provisioning the pinned dependencies'
+run_fg_group provision_lean_workspace
+run_fg_group env TMPDIR="$gate_scratch/prov-tmp" ./scripts/lean.sh provision-status
+run_fg_group env TMPDIR="$gate_scratch/prov-tmp" ./scripts/tracked-files.sh admit-site --clean .
+run_fg_group provision_site_workspace
 check_nc_cache_dirs allow-missing
 if [[ ! -L "$nc_bin" && -e "$nc_bin" && ! -f "$nc_bin" ]]; then
   echo "gate: refusing unexpected non-regular cache entry: $nc_bin" >&2
@@ -542,12 +649,13 @@ else
   elif [[ -f "$nc_bin" ]]; then
     echo "gate: cached $nc_bin failed SHA-256 verification; re-downloading" >&2
   fi
-  nc_tmp=$(mktemp -d)
-  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+  nc_dl_dir="$gate_scratch/nc-download"
+  mkdir -p "$nc_dl_dir"
+  run_fg_group curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
     --connect-timeout 10 --max-time 180 --retry 2 --retry-delay 2 --retry-max-time 300 \
-    --output "$nc_tmp/no-comments" \
+    --output "$nc_dl_dir/no-comments" \
     "https://github.com/rbeauchamp/lean-no-comments/releases/download/${nc_version}/no-comments-${nc_target}"
-  if ! verify_sha256 "$nc_sha256" "$nc_tmp/no-comments"; then
+  if ! verify_sha256 "$nc_sha256" "$nc_dl_dir/no-comments"; then
     echo "gate: downloaded no-comments-${nc_target} failed SHA-256 verification" >&2
     exit 1
   fi
@@ -556,10 +664,9 @@ else
     echo "gate: refusing unexpected non-regular cache entry: $nc_bin" >&2
     exit 1
   fi
-  chmod 755 "$nc_tmp/no-comments"
-  mv -f "$nc_tmp/no-comments" "$nc_bin"
-  rmdir "$nc_tmp"
-  nc_tmp=''
+  chmod 755 "$nc_dl_dir/no-comments"
+  mv -f "$nc_dl_dir/no-comments" "$nc_bin"
+  rmdir "$nc_dl_dir"
 fi
 provision_dur=$((SECONDS - provision_start))
 provision_state='0'
@@ -595,14 +702,15 @@ fi
 # un-admitted sources. The Regula audit and the intent and frame checks run even when an earlier
 # step fails. When ordinary verification passed, compiled build outputs, Lake configuration
 # caches, lean/.lake/acorn-path-packages.json and lean/.lake/acorn-tracked-modules.z are already
-# current (scripts/tracked-files.sh sync-config writes only disjoint exclusive temporary files
-# removed on stamp hit, scripts/tracked-files.sh refuses Lake reconfiguring flags in
-# .no-comments.json, and no-comments stages worker scripts in TMPDIR), so after admitting
-# no-comments upfront, the Regula audit runs in the foreground (with an isolated TMPDIR inside
-# post_logs) while lean-intent, frame-check and (when admitted) no-comments run one after another
-# in a background subshell, capping no-comments workers to leave one core for Regula's
-# single-threaded kernel replay and limit concurrent worker memory use; when verification failed,
-# Regula, lean-intent and frame-check run one after another.
+# current (scripts/tracked-files.sh sync-config writes its comparison file in TMPDIR and creates
+# no files under lean/.lake/ on a stamp hit, scripts/tracked-files.sh refuses Lake reconfiguring
+# flags in .no-comments.json, and gate.sh isolates every bounded phase's TMPDIR under a
+# parent-owned scratch directory removed on exit or cancellation), so after admitting
+# no-comments upfront, the Regula audit runs in the foreground while lean-intent, frame-check
+# and (when admitted) no-comments run one after another in a background subshell, capping
+# no-comments workers to leave one core for Regula's single-threaded kernel replay and limit
+# concurrent worker parallelism; when verification failed, Regula, lean-intent and frame-check
+# run one after another.
 
 verified=0
 stage1_state='running'
@@ -626,9 +734,6 @@ else
   verified="$stage1_rc"
 fi
 
-post_logs=$(mktemp -d)
-mkdir -p "$post_logs/regula-tmp"
-
 audited=0
 intended=0
 framed=0
@@ -642,22 +747,23 @@ post_start="$SECONDS"
 
 if [[ "$verified" == 0 ]]; then
   post_mode='overlapped'
-  nc_admit_state='running'
-  nc_admit_start="$SECONDS"
   if ! check_nc_cache_dirs require-present; then
     nc_refusal='integrity'
-    nc_admit_state='refused (integrity)'
+    nc_admit_state='skipped (integrity failed)'
     nc_state='refused (integrity)'
     commented=1
   elif ! verify_sha256 "$nc_sha256" "$nc_bin"; then
     echo "gate: offline SHA-256 verification failed for $nc_bin" >&2
     nc_refusal='integrity'
-    nc_admit_state='refused (integrity)'
+    nc_admit_state='skipped (integrity failed)'
     nc_state='refused (integrity)'
     commented=1
   else
+    nc_admit_state='running'
+    nc_admit_start="$SECONDS"
     nc_admit_rc=0
-    run_fg_bounded "$nc_admit_timeout_s" ./scripts/tracked-files.sh admit-no-comments --clean . || nc_admit_rc=$?
+    run_fg_dep_bounded "$nc_admit_timeout_s" "$gate_scratch/admit-tmp" ./scripts/tracked-files.sh admit-no-comments --clean . || nc_admit_rc=$?
+    nc_admit_dur=$((SECONDS - nc_admit_start))
     nc_admit_state="$nc_admit_rc"
     if [[ "$nc_admit_rc" != 0 ]]; then
       nc_refusal='admit'
@@ -667,7 +773,6 @@ if [[ "$verified" == 0 ]]; then
       nc_admitted=1
     fi
   fi
-  nc_admit_dur=$((SECONDS - nc_admit_start))
 
   nc_args=(check --jobs "$nc_jobs")
   if [[ -n "${ACORN_BASE_REF:-}" ]]; then
@@ -680,14 +785,11 @@ if [[ "$verified" == 0 ]]; then
     step "verification exited $verified; Regula audit beside lean-intent and frame checks"
   fi
   regula_state='running'
-  intent_state='running'
-  frame_state='running'
-  if [[ "$nc_admitted" == 1 ]]; then
-    nc_state='running'
-  fi
+  bg_supervisor_launched=1
 
   set -m
   (
+    set +m
     bg_child_pid=''
     # Invoked by the background subshell's EXIT/INT/TERM traps.
     # shellcheck disable=SC2317,SC2329
@@ -705,25 +807,35 @@ if [[ "$verified" == 0 ]]; then
     trap 'cleanup_bg_child; exit 143' TERM
 
     run_bg_bounded() {
-      local limit_s="$1" log_file="$2" status_file="$3" dur_file="$4"
-      shift 4
+      local limit_s="$1" custom_tmpdir="$2" prefix="$3"
+      shift 3
       local t0="$SECONDS" rc=0
-      ( dependency_git; exec "$timeout_command" --signal=KILL "${limit_s}s" "$@" ) > "$log_file" 2>&1 < /dev/null &
+      : > "${prefix}.started"
+      set -m
+      (
+        set +m
+        dependency_git
+        exec env TMPDIR="$custom_tmpdir" "$timeout_command" --signal=KILL "${limit_s}s" "$@"
+      ) > "${prefix}.log" 2>&1 < /dev/null &
       bg_child_pid=$!
+      set +m
       printf '%d\n' "$bg_child_pid" > "$post_logs/bg-child.pid"
       wait "$bg_child_pid" || rc=$?
+      kill -KILL -- -"$bg_child_pid" 2>/dev/null || true
       bg_child_pid=''
       rm -f "$post_logs/bg-child.pid"
-      printf '%d\n' "$rc" > "$status_file"
-      printf '%d\n' $((SECONDS - t0)) > "$dur_file"
+      printf '%d\n' "$rc" > "${prefix}.status.tmp"
+      mv -f "${prefix}.status.tmp" "${prefix}.status"
+      printf '%d\n' $((SECONDS - t0)) > "${prefix}.dur.tmp"
+      mv -f "${prefix}.dur.tmp" "${prefix}.dur"
     }
 
-    run_bg_bounded "$intent_timeout_s" "$post_logs/intent.log" "$post_logs/intent.status" "$post_logs/intent.dur" \
+    run_bg_bounded "$intent_timeout_s" "$gate_scratch/intent-tmp" "$post_logs/intent" \
       ./scripts/lean.sh exe intent-check
-    run_bg_bounded "$frame_timeout_s" "$post_logs/frame.log" "$post_logs/frame.status" "$post_logs/frame.dur" \
+    run_bg_bounded "$frame_timeout_s" "$gate_scratch/frame-tmp" "$post_logs/frame" \
       ./scripts/lean.sh exe frame-check
     if [[ "$nc_admitted" == 1 ]]; then
-      run_bg_bounded "$nc_timeout_s" "$post_logs/no-comments.log" "$post_logs/no-comments.status" "$post_logs/no-comments.dur" \
+      run_bg_bounded "$nc_timeout_s" "$gate_scratch/nc-tmp" "$post_logs/no-comments" \
         "$nc_bin" "${nc_args[@]}"
     fi
   ) < /dev/null &
@@ -732,7 +844,7 @@ if [[ "$verified" == 0 ]]; then
 
   regula_start="$SECONDS"
   audited=0
-  run_fg_dep_bounded "$regula_timeout_s" "$post_logs/regula-tmp" ./scripts/regula.sh || audited=$?
+  run_fg_dep_bounded "$regula_timeout_s" "$gate_scratch/regula-tmp" ./scripts/regula.sh || audited=$?
   regula_dur=$((SECONDS - regula_start))
   regula_state="$audited"
 
@@ -740,50 +852,31 @@ if [[ "$verified" == 0 ]]; then
   wait "$post_checks_pid" || post_checks_status=$?
   post_checks_pid=''
 
+  intended=1
+  framed=1
+  commented=1
+  sync_bg_phase_state 0
+
   step "Regula audit exited $audited; lean-intent checks"
   if [[ -f "$post_logs/intent.log" ]]; then
     cat "$post_logs/intent.log"
   fi
-  intent_raw=''
-  if [[ "$post_checks_status" == 0 && -f "$post_logs/intent.status" ]]; then
-    intent_raw=$(cat "$post_logs/intent.status")
-  fi
-  if [[ -f "$post_logs/intent.dur" ]]; then
-    intent_dur_raw=$(cat "$post_logs/intent.dur")
-    if [[ "$intent_dur_raw" =~ ^[0-9]+$ ]]; then
-      intent_dur="$intent_dur_raw"
-    fi
-  fi
-  if [[ "$intent_raw" =~ ^[0-9]+$ ]]; then
-    intended="$intent_raw"
-    intent_state="$intended"
+  if [[ "$intent_state" =~ ^[0-9]+$ ]]; then
     step "lean-intent checks exited $intended; frame check"
+  elif [[ "$intent_state" == 'not reached' ]]; then
+    step "lean-intent checks not reached (background supervisor exited $post_checks_status); frame check"
   else
-    intended=1
-    intent_state='status unavailable'
     step "lean-intent checks status unavailable (background supervisor exited $post_checks_status); frame check"
   fi
 
   if [[ -f "$post_logs/frame.log" ]]; then
     cat "$post_logs/frame.log"
   fi
-  frame_raw=''
-  if [[ "$post_checks_status" == 0 && -f "$post_logs/frame.status" ]]; then
-    frame_raw=$(cat "$post_logs/frame.status")
-  fi
-  if [[ -f "$post_logs/frame.dur" ]]; then
-    frame_dur_raw=$(cat "$post_logs/frame.dur")
-    if [[ "$frame_dur_raw" =~ ^[0-9]+$ ]]; then
-      frame_dur="$frame_dur_raw"
-    fi
-  fi
-  if [[ "$frame_raw" =~ ^[0-9]+$ ]]; then
-    framed="$frame_raw"
-    frame_state="$framed"
+  if [[ "$frame_state" =~ ^[0-9]+$ ]]; then
     step "frame check exited $framed; no-comments check"
+  elif [[ "$frame_state" == 'not reached' ]]; then
+    step "frame check not reached (background supervisor exited $post_checks_status); no-comments check"
   else
-    framed=1
-    frame_state='status unavailable'
     step "frame check status unavailable (background supervisor exited $post_checks_status); no-comments check"
   fi
 
@@ -797,23 +890,11 @@ if [[ "$verified" == 0 ]]; then
     if [[ -f "$post_logs/no-comments.log" ]]; then
       cat "$post_logs/no-comments.log"
     fi
-    nc_raw=''
-    if [[ "$post_checks_status" == 0 && -f "$post_logs/no-comments.status" ]]; then
-      nc_raw=$(cat "$post_logs/no-comments.status")
-    fi
-    if [[ -f "$post_logs/no-comments.dur" ]]; then
-      nc_dur_raw=$(cat "$post_logs/no-comments.dur")
-      if [[ "$nc_dur_raw" =~ ^[0-9]+$ ]]; then
-        nc_exec_dur="$nc_dur_raw"
-      fi
-    fi
-    if [[ "$nc_raw" =~ ^[0-9]+$ ]]; then
-      commented="$nc_raw"
-      nc_state="$commented"
+    if [[ "$nc_state" =~ ^[0-9]+$ ]]; then
       step "no-comments check exited $commented"
+    elif [[ "$nc_state" == 'not reached' ]]; then
+      step "no-comments check not reached (background supervisor exited $post_checks_status)"
     else
-      commented=1
-      nc_state='status unavailable'
       step "no-comments check status unavailable (background supervisor exited $post_checks_status)"
     fi
   fi
@@ -823,7 +904,7 @@ else
   regula_state='running'
   regula_start="$SECONDS"
   audited=0
-  run_fg_dep_bounded "$regula_timeout_s" "$post_logs/regula-tmp" ./scripts/regula.sh || audited=$?
+  run_fg_dep_bounded "$regula_timeout_s" "$gate_scratch/regula-tmp" ./scripts/regula.sh || audited=$?
   regula_dur=$((SECONDS - regula_start))
   regula_state="$audited"
 
@@ -831,7 +912,7 @@ else
   intent_state='running'
   intent_start="$SECONDS"
   intended=0
-  run_fg_dep_bounded "$intent_timeout_s" '' ./scripts/lean.sh exe intent-check || intended=$?
+  run_fg_dep_bounded "$intent_timeout_s" "$gate_scratch/intent-tmp" ./scripts/lean.sh exe intent-check || intended=$?
   intent_dur=$((SECONDS - intent_start))
   intent_state="$intended"
 
@@ -839,7 +920,7 @@ else
   frame_state='running'
   frame_start="$SECONDS"
   framed=0
-  run_fg_dep_bounded "$frame_timeout_s" '' ./scripts/lean.sh exe frame-check || framed=$?
+  run_fg_dep_bounded "$frame_timeout_s" "$gate_scratch/frame-tmp" ./scripts/lean.sh exe frame-check || framed=$?
   frame_dur=$((SECONDS - frame_start))
   frame_state="$framed"
 

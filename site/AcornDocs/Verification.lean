@@ -553,27 +553,32 @@ execution deadline), passing only when both runs, the audit and all four
 post-checks pass. Every post-verification deadline uses GNU coreutils timeout
 with process-group SIGKILL and no grace period, matching `scripts/verify.sh`
 (exit status `137` on deadline SIGKILL or external SIGKILL fails the check and
-the gate), and `scripts/gate.sh` isolates Regula's temporary report directory
-and tracks active foreground and background child process groups so SIGINT/SIGTERM
-cancellation reaches and reaps them cleanly.
+the gate). `scripts/gate.sh` isolates every bounded phase's temporary directory
+under a parent-owned scratch directory removed on exit or cancellation, runs
+provisioning and checks in dedicated process groups with interruptible waits so
+SIGINT/SIGTERM cancellation signals and reaps active child groups (subject to
+POSIX Bash's normal launch-to-PID-recording boundary), and reaps any surviving
+group members after each wait returns.
 When ordinary verification passed, `scripts/gate.sh` first verifies
 `no-comments` cache containment, offline SHA-256 against `lean/no-comments.pin`
 (for `darwin-arm64` and `linux-x86_64`) and bounded tracked-file admission
-(`admit-no-comments`, 60-second deadline) of `.no-comments.json` and its
-configured ratchet path, workspace directories, Lake flags (refusing
-reconfiguring/rehashing flags such as `-R`, `--reconfigure`, `--rehash` and
-`--old`), empty tool/workspace-exclude prefixes and Verso-scoped exclude
-prefixes alongside `lean/no-comments.pin` and both workspaces. It then runs the
-Regula audit in the foreground while lean-intent's two checks, the frame check
-and (when admitted) the `no-comments` check run one after another in a
-background subshell. Because ordinary verification has already built every
-module and executable and synchronized Lake's configuration cache, the
-generated override file and the tracked-module stamp inside `lean/.lake/`,
-those compiled and cached build artifacts stay unmodified across the overlapped
-phase: `sync-config` writes only disjoint exclusive temporary files inside
-`lean/.lake/` that it removes on stamp hit, `.no-comments.json` admission
-forbids Lake reconfiguring flags, and `no-comments` stages its worker helper
-scripts in temporary storage outside the checkout. In that overlapped phase
+(`admit-no-comments`, timed and bounded separately under its 60-second deadline)
+of `.no-comments.json` and its configured ratchet path, workspace directories,
+Lake flags (refusing reconfiguring/rehashing flags such as `-R`,
+`--reconfigure`, `--rehash` and `--old`), empty tool/workspace-exclude prefixes
+and Verso-scoped exclude prefixes alongside `lean/no-comments.pin` and both
+workspaces. It then runs the Regula audit in the foreground while lean-intent's
+two checks, the frame check and (when admitted) the `no-comments` check run one
+after another in a background subshell. Because ordinary verification has
+already built every module and executable and synchronized Lake's configuration
+cache, the generated override file and the tracked-module stamp inside
+`lean/.lake/`, those compiled and cached build artifacts stay unmodified across
+the overlapped phase: `sync-config` writes its comparison file inside temporary
+storage and creates no files under `lean/.lake/` on a stamp hit (writing an
+exclusive staging file beside the stamp only on a stamp miss),
+`.no-comments.json` admission forbids Lake reconfiguring flags, and each
+bounded phase writes temporary/staging files inside its isolated parent-owned
+scratch directory. In that overlapped phase
 `no-comments` runs with `--jobs` set to one less than the host CPU count,
 clamped between `1` and `6` (3 workers on a four-processor runner and 6 on
 larger hosts), leaving a core for Regula's single-threaded kernel replay and
@@ -595,10 +600,14 @@ rejecting newly excluded files that still hold comments at the merge base
 (tracked files with zero comments carry no ratchet entry). The pinned
 `lean-no-comments` v0.3.1 release batches Lake workspace setup and reuses a
 persistent worker process across files sharing an identical import header and
-environment (spawning fresh processes across distinct headers); this relies on
-the upstream tool's trust boundary that elaborated commands and imported
-plugins or initializers do not depend on per-file isolation of process-global
-mutable state within a matching-header batch.
+environment (spawning fresh processes across distinct headers); while exact
+inventory agreement with v0.2.0 is verified on the repository tree and governed
+executing/proof modules are barred from defining unsafe or native-plugin
+initializers by `lean-boundary-audit`, process reuse across matching-header
+files (including tooling modules, site code and imported libraries) rests on
+the upstream tool's documented trust assumption that elaborated commands and
+imported plugins or initializers do not depend on per-file isolation of
+process-global mutable state within a batch.
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake
@@ -736,17 +745,22 @@ limit, where the pipeline's Test step has none; each of verification's two stage
 keeps its 360-second deadline, and `scripts/gate.sh` individually bounds
 `no-comments` admission (60 seconds), the Regula audit (360 seconds),
 lean-intent checks (180 seconds), frame check (120 seconds) and `no-comments`
-execution (300 seconds). On every run (including early provisioning failure,
-early gate failure or step cancellation while the runner can still publish
-step outputs), the workflow and `scripts/gate.sh` print a per-phase timing
-summary line, write a per-phase duration table (provisioning, dependency
-re-check, verification stages 1 and 2, `no-comments` admission, Regula,
-lean-intent, frame, `no-comments` execution, post-verification wall time,
-merge-gate total and workflow elapsed time from commit identification through
-gate completion, excluding runner setup and post-job checkout cleanup, with
-unreached or unfinished phases marked explicitly) to `$GITHUB_STEP_SUMMARY` when
-set to a non-symlink regular file path, and emit GitHub Actions `::warning::`
-budget annotations when a phase or total exceeds its early-warning target
+execution (300 seconds). On every run that reaches the provisioning or merge-gate step (including
+provisioning failure/cancellation and gate failure/cancellation after
+`scripts/gate.sh`'s pre-execution admission and trap setup, while the runner
+can still publish step outputs; failures in earlier workflow steps such as
+commit check, checkout, package admission or elan provisioning, or pre-trap
+startup admission, exit without writing a phase table), the workflow and
+`scripts/gate.sh` print a per-phase timing summary line, write a per-phase
+duration table (provisioning, dependency re-check, verification stages 1 and 2,
+`no-comments` admission, Regula, lean-intent, frame, `no-comments` execution,
+post-verification wall time, merge-gate total and workflow elapsed time from
+commit identification through gate completion, excluding runner setup and
+post-job checkout cleanup, recording actual phase starts and completions and
+marking unreached or interrupted phases explicitly) to `$GITHUB_STEP_SUMMARY`
+when set to a non-symlink regular file path (failing a normal gate run if
+writing that summary fails), and emit GitHub Actions `::warning::` budget
+annotations when a phase or total exceeds its early-warning target
 (provisioning over 8 minutes, verification stages 1 and 2 combined over 6
 minutes, Regula over 4 minutes, `no-comments` execution over 3 minutes, merge
 gate over 10 minutes, or workflow elapsed time over 15 minutes) so slowdowns

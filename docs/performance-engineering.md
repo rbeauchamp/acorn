@@ -153,13 +153,15 @@ sequentially in a background subshell beside the Regula audit, sizing
 Regula's single-threaded kernel replay and limit concurrent worker parallelism
 (note this caps worker count rather than enforcing a hard combined-memory
 bound). The pinned `lean-no-comments` v0.3.1 release reuses persistent worker
-processes across files sharing an identical import header under its documented
-upstream trust boundary (assuming no per-file isolation of process-global
-mutable state within a matching-header batch). Enforce explicit hard ceilings
-on every check, step and job in `scripts/gate.sh` and
+processes across files sharing an identical import header; exact inventory
+parity with v0.2.0 is checked on the repository tree, while cross-file
+independence from process-global mutable state within a batch remains an
+explicit upstream trust assumption documented in
+[verification](verification.md#build-and-source-inventory). Enforce explicit
+hard ceilings on every check, step and job in `scripts/gate.sh` and
 `.github/workflows/verify.yml`, and emit `$GITHUB_STEP_SUMMARY` phase timings
 plus `::warning::` budget alerts so CI duration regressions surface immediately
-without skipping, narrowing or weakening checked properties.
+without skipping, narrowing or weakening the checked properties.
 
 Apply the [proof-first policy](../AGENTS.md#correct-by-construction) to correctness
 and resource claims. Pure analysis definitions state contracts over explicit
