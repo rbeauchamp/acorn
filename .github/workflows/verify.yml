@@ -142,6 +142,7 @@ jobs:
           prov_summary_written=0
           prov_report_done=0
           prov_report_rc=0
+          # shellcheck disable=SC2317,SC2329
           job_is_running() {
             local target_pid="$1" jobs_file="$2" line
             local re='^\[([0-9]+)\][+-]?[[:space:]]+([0-9]+)[[:space:]]+Running'
@@ -162,6 +163,7 @@ jobs:
               exec 3<&-
             fi
           }
+          # shellcheck disable=SC2317,SC2329
           cleanup_provision() {
             local exit_rc=$?
             trap '' INT TERM
@@ -184,14 +186,16 @@ jobs:
             prov_report_rc="$rc"
             elapsed=$(( $(date +%s) - start_epoch ))
             if [[ "$prov_output_written" == 0 ]]; then
-              handoff_rc=0
-              echo "seconds=$elapsed" >> "${GITHUB_OUTPUT:-}" || handoff_rc=$?
-              if [[ "$handoff_rc" == 0 ]]; then
+              if echo "seconds=$elapsed" >> "${GITHUB_OUTPUT:-}"; then
                 prov_output_written=1
-              elif [[ "$rc" == 0 ]]; then
-                rc="$handoff_rc"
-                prov_report_rc="$handoff_rc"
-                label="failed (output handoff, exit $handoff_rc)"
+              else
+                # shellcheck disable=SC2320
+                handoff_rc=$?
+                if [[ "$rc" == 0 ]]; then
+                  rc="$handoff_rc"
+                  prov_report_rc="$handoff_rc"
+                  label="failed (output handoff, exit $handoff_rc)"
+                fi
               fi
             fi
             if [[ "$prov_warning_emitted" == 0 ]] && (( elapsed > 480 )); then
@@ -210,6 +214,7 @@ jobs:
             fi
             prov_report_done=1
           }
+          # shellcheck disable=SC2317,SC2329
           cancel_provision() {
             trap '' INT TERM
             local sig_rc="$1" pid="$prov_pid"
