@@ -2731,17 +2731,19 @@ function drawStreamHealth() {
   }
   const skew = refused[Reject.schema].frames + refused[Reject.cardinality].frames;
   if (skew) {
-    // The page's schema number and shape constants are compiled into the
-    // viewer binary, so a disagreement means the two halves were built from
-    // different trees. Only these two reasons can say so.
+    // The page's schema number, fixed protocol constants and shape constants
+    // are compiled into the viewer binary, so a disagreement can indicate the
+    // two halves were built from different trees. Only these two reasons offer
+    // the rebuild remedy.
     const keys = refused[Reject.schema].keys.concat(refused[Reject.cardinality].keys);
-    notes.push(`⚠ stream shape mismatch — rebuild the viewer against this core`);
+    notes.push(`⚠ stream shape mismatch — rebuild the core and viewer from one tree`);
     why.push(`${frames(skew)} refused at ${keyList(keys)}: this page expects schema ${SCHEMA}, ` +
              `${N_DEM} demons, ${N_CTL} actions, ${N_META} meta actions ` +
              `and a ${N_TILE}-tile window. The page is embedded in the viewer ` +
-             `binary, so rebuild both from the same source package:\n` +
-             `  cargo build --release\n` +
-             `  cargo build --release --manifest-path viewer/Cargo.toml`);
+             `binary, so rebuild both from the same source tree:\n` +
+             `  ./scripts/lean.sh build acorn-core acorn-viewer\n` +
+             `If pinned dependencies also need provisioning (without starting a run):\n` +
+             `  ./scripts/start.sh --prepare-only`);
   }
   const bad = refused[Reject.malformed];
   if (bad.frames) {

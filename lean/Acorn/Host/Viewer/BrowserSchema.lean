@@ -433,11 +433,7 @@ def browserGoalTextJavascript : String :=
 /-- Why the page refuses a whole frame: a closed set, each member with one page counter
 and one remedy in the stream-health readout. -/
 inductive BrowserRefusal where
-  /-- `schema_version` is not the one this page reads: the page and the core were built
-  from different trees. -/
   | schema
-  /-- A fixed count or an array length disagrees with the schema: the same build skew,
-  seen in a shape. -/
   | cardinality
   /-- A required key is absent: a source defect that rebuilding does not fix. -/
   | missingField
