@@ -8144,13 +8144,6 @@ theorem ansi_tick : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
   ⟨fun state next callbacks index frame ticked =>
     Host.AnsiState.tick_observation state next callbacks index frame ticked⟩
 
-/-- The ANSI tick accepts the world of `fresh` with a step counter of zero and the callbacks
-`waiting`, for every observation it holds and every goal index: the world's step on `wait`
-succeeds (`fresh_waits`), and the counter advances to one. `ansi_tick` states what an accepted
-tick keeps and keeps no kind for the reason given there; this statement is a requirement with no
-kind beside it, and a function that refuses every input fails it.
-
-**Not claimed:** which other ticks succeed. -/
 theorem ansi_tick_accepts : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
     ∀ (observation : Host.Observation) (index : Nat),
       (tick (⟨(fresh 1).run.world, (), {}, observation, 0⟩ : Host.AnsiState wide Unit) waiting
@@ -8375,5 +8368,11 @@ theorem Host_octaveLoop_registered : Regula.RegisteredDecision @Host.octaveLoop 
 theorem Host_fbm_registered : Regula.RegisteredDecision @Host.fbm := ⟨⟩
 
 theorem Host_World_initial_registered : Regula.RegisteredDecision @Host.World.initial := ⟨⟩
+
+theorem Host_World_observe_registered : Regula.RegisteredDecision @Host.World.observe := ⟨⟩
+
+theorem Host_World_step_registered : Regula.RegisteredDecision @Host.World.step := ⟨⟩
+
+theorem Host_selectSpawn_registered : Regula.RegisteredDecision @Host.selectSpawn := ⟨⟩
 
 end Acorn.Decisions

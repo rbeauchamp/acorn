@@ -582,13 +582,12 @@
     "fdbcaafdf7833996",
     "fecb739fc96742ad"
   ]},
-  {"file": "lean/Acorn/Decisions.lean", "comments": 872, "lines": 2061, "fingerprints": [
+  {"file": "lean/Acorn/Decisions.lean", "comments": 871, "lines": 2054, "fingerprints": [
     "0027143ca071b22f",
     "009d2a4de9ca7984",
     "0107cad7feb24b81",
     "015ce2c0b41875c6",
     "019a0c1614f9b37b",
-    "01e381074098bd74",
     "01fb6875cc0e8a22",
     "02dd1b7f5f2a5c92",
     "03203b9bae9e05eb",
@@ -12797,7 +12796,7 @@
     "fb55d4c3ebec87df",
     "ff1776b7d77cbcfa"
   ]},
-  {"file": "lean/AcornVerif/Decisions.lean", "comments": 243, "lines": 769, "fingerprints": [
+  {"file": "lean/AcornVerif/Decisions.lean", "comments": 240, "lines": 740, "fingerprints": [
     "0027d4e7a765f143",
     "013bf857d1b00fbe",
     "02e579bc1b855d5b",
@@ -12808,7 +12807,6 @@
     "09cd857bb0d37395",
     "0f880cc6032d06e0",
     "10615d9e16959e08",
-    "120c71bf1e363c1f",
     "16ab81425ff52252",
     "170c3486d15c75a6",
     "17d01d9761b7f639",
@@ -12821,7 +12819,6 @@
     "1ed55402d44c05cc",
     "21afcf5e04b08056",
     "21ef55faca79883c",
-    "2282ecfcaa43b5eb",
     "23a967a08475c98f",
     "2675e0b25820e235",
     "2840eb6ef6a1cc2d",
@@ -12878,7 +12875,6 @@
     "53af55aa44335c3f",
     "5675713eae55cedc",
     "569453f934ce6fc6",
-    "5b9aaca161fb8cab",
     "5b9b6bb765735386",
     "5d615b502df66ada",
     "5f541838ec7190c5",

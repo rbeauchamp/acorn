@@ -9,9 +9,13 @@ rule, and unregistered-definition inventory for the decision registries in
 
 A decision is a function whose result accepts or refuses its input: an admission,
 a parser or a validity test. Each contract is a Regula executable contract about
-the executing definition itself, with the kind its proof establishes:
-Regula's two-way kind (Decides) states that the function accepts exactly the inputs that satisfy
-the written specification, with one accepted and one refused input as witnesses.
+the executing definition itself, with the kind its proof establishes: Regula's
+two-way kind (Decides) states that the function accepts exactly the inputs that
+satisfy the written specification, with one accepted and one refused input as
+witnesses; its one-way sound kind (DecidesSoundly) states that every accepted
+input satisfies the specification, with an accepted witness; and its one-way
+complete kind (DecidesCompletely) states that every input satisfying the
+specification is accepted, with a refused witness.
 A declaration of Regula's RegisteredDecision type in `Acorn.Decisions` registers
 the function, and the ownership audit requires a contract with a kind in
 `Acorn.Decisions` or `AcornVerif.Decisions` for each registered function whose
@@ -42,8 +46,9 @@ alone. Five groups are covered:
   about `Regula.Dependent.isSome` or `Regula.Dependent.isOk` of that function:
   whether the result holds a value, with the value forgotten.
 - A function with a kind can carry a second statement beside it for what its kind
-  does not state: the value of an accepted result (for example `cli_value_found`,
-  `world_initial`, and statements ending in a value suffix; `payload_admit_value`
+  does not state: the value or postcondition of an accepted result (for example
+  `cli_value_found`, `world_initial`, `world_observe`, `world_step`,
+  `spawn_select`, and statements ending in a value suffix; `payload_admit_value`
   and `candidate_load_value` in `AcornVerif.Decisions` stand in the same way
   beside kindless requirements), the exact verdict on a part of the inputs
   (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`), a set of
@@ -66,26 +71,26 @@ non-decisions such as `Host.coordinateFloat` and `Agent.runPrefix`, which refuse
 no input and carry `coordinate_float` and `agent_run_prefix`, and definitions
 that specifications share with their functions):
 
-- **No kind is true of the function, or no complete two-way characterization of
-  all arbitrary inputs is stated.** `StepSizeRails.admit` accepts every
-  configuration, whereas a complete or two-way kind requires a refused input.
-  `Host.World.observe` and `Host.World.step` now have proved non-refusal
-  theorems over every admissible configuration (`world_observe_accepts`,
-  `world_step_accepts`, `admitted_world_nonrefusal`), while inadmissible
-  `WorldConfig` values constructed outside `WorldConfig.admit` and `World.initial`
-  can still observe or step (such as `wide` at its box center); their contracts
-  over arbitrary `WorldConfig` values therefore remain kindless requirements
-  (`world_observe`, `world_step`, `world_observe_accepts`, `world_step_accepts`),
-  and transitions that delegate refusal to `Host.World.observe` or
-  `Host.World.step` (`Host.OwnedStep.environment`,
-  `Host.PreparedStep.environment`, `Host.PreparedStep.commit`,
-  `Host.Attempt.sense`, `Host.Attempt.tick`, `Host.Attempt.finish`,
-  `Host.Attempt.close`, `Host.Attempt.complete`, `Host.AnsiState.tick` which also
-  refuses on step-counter overflow, and `Host.BaselineAttempt.tick`) likewise
-  keep kindless requirements; a specification naming `Host.World.observe` also
-  reaches `Host.Inventory.owns`. `AgentConstruction.State.restore` refuses no
-  input its type admits (`CurrentCheckpoint.unresumable_unloaded`,
-  `AgentConstruction.State.restore_exact`).
+- **No kind is true of the function, or no theorem states one.**
+  `StepSizeRails.admit` accepts every configuration, whereas a complete or
+  two-way kind requires a refused input. `AgentConstruction.State.restore`
+  refuses no input its type admits (`CurrentCheckpoint.unresumable_unloaded`,
+  `AgentConstruction.State.restore_exact`). `Host.World.initial` carries a
+  registered two-way kind (`world_initial_accepts`), while `Host.World.observe`,
+  `Host.World.step`, and `Host.selectSpawn` carry registered one-way complete
+  kinds over admissible configurations (`world_observe_accepts`,
+  `world_step_accepts`, `spawn_select_accepts`, with `world_observe`,
+  `world_step`, and `spawn_select` standing beside them for their
+  postconditions). The attempt, ANSI, and baseline host transitions that
+  delegate refusal to `Host.World.observe` or `Host.World.step`
+  (`Host.OwnedStep.environment`, `Host.PreparedStep.environment`,
+  `Host.PreparedStep.commit`, `Host.Attempt.sense`, `Host.Attempt.tick`,
+  `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`,
+  `Host.AnsiState.tick` which also refuses on step-counter overflow, and
+  `Host.BaselineAttempt.tick`) currently state postconditions, delegation
+  equalities, or single-witness acceptances with no decision-kind theorem in
+  `Acorn.Decisions` or `AcornVerif.Decisions`; a specification naming
+  `Host.World.observe` also reaches `Host.Inventory.owns`.
 - **The specification reads a part of the input whose type declares an invariant
   that names tests that the function runs.** Under the shared-test rule below,
   reading a structure whose declared invariant reaches `Binary32.isNaN`,
@@ -112,10 +117,22 @@ In `AcornVerif.Decisions`, contracts whose proofs require the proof library are
 counted toward the registrations in `Acorn.Decisions`. Registered decisions with
 kinds proved in `AcornVerif.Decisions` include:
 
-- World initialization `Host.World.initial` (`world_initial_accepts`, two-way
-  Regula Decides kind over `Regula.Dependent.isOk`, registered in `Acorn.Decisions`
-  by `Host_World_initial_registered`, with `Acorn.Decisions.world_initial`
-  stating the accepted initial world's fields beside that kind).
+- World initialization, observation, stepping, and spawn selection:
+  `Host.World.initial` (`world_initial_accepts`, two-way Regula Decides kind
+  over `Regula.Dependent.isOk`, registered in `Acorn.Decisions` by
+  `Host_World_initial_registered`, with `Acorn.Decisions.world_initial` stating
+  the accepted initial world's fields beside it); `Host.World.observe`
+  (`world_observe_accepts`, one-way Regula DecidesCompletely kind over
+  admissible configurations, registered by `Host_World_observe_registered`, with
+  `Acorn.Decisions.world_observe` stating the observed task field beside it);
+  `Host.World.step` (`world_step_accepts`, one-way Regula DecidesCompletely kind
+  over `Regula.Dependent.isOk` and `WorldAction` on admissible configurations,
+  registered by `Host_World_step_registered`, with `Acorn.Decisions.world_step`
+  stating clock advancement beside it); and `Host.selectSpawn`
+  (`spawn_select_accepts`, one-way Regula DecidesCompletely kind over
+  `Regula.Dependent.isOk` on admissible configurations, registered by
+  `Host_selectSpawn_registered`, with `AcornVerif.Decisions.spawn_select`
+  stating the spawn postcondition beside it).
 - Terrain generation and readers: `Host.valueNoise`, `Host.octaveLoop`,
   `Host.fbm`, `Host.terrain`, `Host.World.tileKind`, `Host.World.enterable`, and
   `Host.walkableTile` (two-way kinds, using `CurrentTerrain.PastLast` and
@@ -144,7 +161,7 @@ two-way Regula Decides contracts with independent numeric specifications
 (`raw_world_config_admissible`), `Host.WorldConfig.admit` (`world_config_admit`),
 and `Host.WorldConfig.standard` (`world_config_standard`).
 
-Kindless requirements in `AcornVerif.Decisions` fall into six reasons (each
+Kindless requirements in `AcornVerif.Decisions` fall into five reasons (each
 required by name in `AcornOwnership.anchors`, alongside non-decisions
 `Agent.input`, `AgentConstruction.execute`, `Checkpoint.managedWords`, and
 definitions shared by specifications):
@@ -154,12 +171,9 @@ definitions shared by specifications):
   `candidate_load`, with `payload_admit_value` and `candidate_load_value` beside
   them; kinds are remaining work of
   [#105](https://github.com/rbeauchamp/acorn/issues/105)).
-- **Admitted-domain or witness acceptance statements beside kindless host
-  transitions:** `Host.World.observe` (`world_observe_accepts`, covering both
-  every admissible configuration and the `fresh` attempt), `Host.World.step`
-  (`world_step_accepts`, covering every action on every world of an admissible
-  configuration), `Host.Attempt.finish` (`attempt_finish_accepts`), and
-  `Host.Attempt.complete` (`attempt_complete_accepts`).
+- **Witness acceptance statements beside kindless attempt transitions:**
+  `Host.Attempt.finish` (`attempt_finish_accepts`) and `Host.Attempt.complete`
+  (`attempt_complete_accepts`).
 - **Comparator correspondence and campaign termination bounds:**
   `Host.BaselineAttempt.tick` (`baseline_corresponds`),
   `Host.runBaselineCampaign` (`campaign_finishes`), and `Host.runRandomBaseline`
@@ -167,12 +181,6 @@ definitions shared by specifications):
   initialization and world steps never refuse (`initial_isOk_iff`,
   `admissible_step_isOk`), while these statements quantify over arbitrary
   `WorldConfig` values and bound unfinished termination on admitted plans.
-- **Spawn search postcondition and witness (`Host.selectSpawn`,
-  `spawn_select`):** `CurrentWorld.admissible_selectSpawn_isOk` proves
-  `Host.selectSpawn` succeeds on every world of an admissible configuration;
-  over arbitrary `WorldConfig` values, `Host.selectSpawn` stops at the first
-  rich spiral candidate so which inadmissible worlds succeed depends on earlier
-  tiles, leaving `spawn_select` as a kindless postcondition plus witness.
 - **Input invariant reaching tests:** `NumericState.resumable`
   (`learner_resumable`; remaining work of
   [#105](https://github.com/rbeauchamp/acorn/issues/105)).
@@ -239,33 +247,51 @@ statements) are remaining work of
 
 In particular, the two-way kinds of `Host.isPastLast`, `Host.scaleAdmitsOctave`,
 `Host.scaleAdmitsRange`, `Host.RawWorldConfig.admissible`,
-`Host.WorldConfig.admit`, and `Host.World.initial` share none of
-`Host.isPastLast`, `Host.scaleAdmitsOctave`, `Host.scaleAdmitsRange`,
-`Host.RawWorldConfig.admissible`, `Host.octaveScale`, `Host.RawWorldConfig.admitLo`,
-or `Host.RawWorldConfig.admitHi`; their specifications state the exact numeric
-quotient condition directly via `Host.coordinateFloat` (`coordinate_float`),
-`Binary32.div`, `Binary32.mul`, `Binary32.Finite`, `Binary32.Negative`, and
-`Conversion.magnitudeUnits32` (or `CurrentTerrain.PastLast`).
+`Host.WorldConfig.admit`, and `Host.World.initial` and the one-way complete
+kinds of `Host.World.observe`, `Host.World.step`, and `Host.selectSpawn` share
+none of `Host.isPastLast`, `Host.scaleAdmitsOctave`, `Host.scaleAdmitsRange`,
+`Host.RawWorldConfig.admissible`, `Host.octaveScale`,
+`Host.RawWorldConfig.admitLo`, or `Host.RawWorldConfig.admitHi`; their
+specifications state the exact numeric quotient condition directly via
+`Host.coordinateFloat` (`coordinate_float`), `Binary32.div`, `Binary32.mul`,
+`Binary32.Finite`, `Binary32.Negative`, and `Conversion.magnitudeUnits32` (or
+`CurrentTerrain.PastLast`).
 
-## What is not registered
+## What carries no separate contract
 
 This inventory is not checked for completeness by any tool: a new definition
 returning a Boolean, optional, error, or decidable result can arrive with no
 contract and no entry here.
 
-- Structure field projections, default field values, and derived comparison
-  instances.
-- Functions whose result is `Decidable` carry both directions in their type.
+- Structure field projections, non-function default field values, and derived
+  comparison instances (stored data or compiler-generated equality/ordering).
+- Functions whose result type is `Decidable` carry both directions of their
+  decision in their type and therefore carry no separate executable contract.
+  Decision procedures with proved properties (such as
+  `Binary32.positiveDecidable`, `Binary32.instDecidableFinite`, and
+  `Host.instDecidableFoodDue`) are still explicitly registered in
+  `Acorn.Decisions` via Regula's RegisteredDecision; derived comparison
+  instances and unreferenced `Decidable` helpers carry neither a registration
+  nor a contract.
 - Definitions not named by any theorem of the maintained libraries: the
   remaining parsers of `Host.Cli`, native drivers and `NativeApp`, private JSON
   helpers, viewer envelope and map decoders (`Host.Viewer.MapBytes.admit`,
-  `Host.Viewer.decodeMapRuns`, `Json.decode`), endurance summary helpers
+  `Host.Viewer.decodeMapRuns`, `Json.decode`), and endurance summary helpers
   (`Host.Endurance.Rates.summary`, `Host.Endurance.ErrorStats.summary`,
-  `Host.Endurance.Reduction.energySummary`), and `Host.CertificateSearch`
-  helpers whose external callers have contracts.
-- Definitions whose bodies directly delegate to a contracted or decidable
+  `Host.Endurance.Reduction.energySummary`).
+- Definitions whose bodies directly delegate to a contracted or `Decidable`
   definition (`Prediction.admit`, `LogStepSize.admit`, `Lifetime.SumCount.admit`,
-  `Host.CertificateDriver.execute`).
+  and viewer line emitters that apply `Host.Viewer.wireText` and
+  `Host.Viewer.sseLine`).
+- Unverified certificate search and its CLI driver: `Host.CertificateSearch`
+  helpers propose candidate paths and regions with no contract of their own;
+  `Host.CertificateDriver.execute` admits a standard world via
+  `Host.WorldConfig.standard` and `Host.World.initial`, checks that curriculum
+  entries 3 and 7 are reach goals, calls `Host.CertificateSearch.explore`,
+  validates every proposal through the contracted checkers
+  `Host.ReplayCertificate.check`, `Host.BlockedCertificate.check`, and
+  `Host.StanceCertificate.check`, and constructs a
+  `Host.CertificateDriver.Report`.
 - Viewer supervisor transitions and classifiers whose properties are proved by
   the supervisor's own anchored theorems (`Host.Viewer.Lifecycle.reserve`,
   `Host.Viewer.Lifecycle.beginArchive`, `Host.Viewer.Lifecycle.archived`,

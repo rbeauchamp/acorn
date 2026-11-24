@@ -939,7 +939,7 @@ a requirement with no kind where no kind is true of it or where the rule for
 specifications below excludes the kind, and the ownership audit requires the
 contract by name. [Decision contracts](decision-contracts.md) gives
 the four reasons: a function that accepts every input or whose accepted inputs
-no complete characterization over arbitrary inputs states; a specification that reads a part of the input, such as the
+no theorem states; a specification that reads a part of the input, such as the
 state of a learner, whose type declares an invariant that names tests that the
 function runs; a verdict that is the guard of the function, where the guard
 applies a definition that no proposition states apart from it, such as an order

@@ -1236,23 +1236,6 @@ theorem advance_actions : Regula.ExecutableContract @Host.World.advanceActions (
           ((CurrentActions.payAndAct_isOk _ _).mp (step_paid stepped) harvest_paid))
           (by decide +kernel)⟩⟩
 
-/-! ## Accepted inputs of the host transitions
-
-`Acorn.Decisions` states the host transitions of an attempt and of the world with no kind. Its
-statements of the observation and of finishing are about an accepted result alone, and its
-statement of the fold is about a refusal that holds a stage. A function that refuses every input,
-with no stage for the fold, satisfies each of the three. The statements below give each of the
-three an accepted input, and state the two-way kind of `Host.Released.environment`, whose
-accepted input holds a stage with an observation that succeeded.
-
-Each input is made from the attempt `fresh`, whose body is at the center of the box of `wide`,
-`2 ^ 62 - 1` on both axes, at the noise scale one. Its observation succeeds by the terrain
-admission of `CurrentTerrain` (`fresh_observes`): each tile of the window translates inside the
-signed range, and the quotients of its coordinates by the four octave scales are `2 ^ 62` to
-`2 ^ 59`, below the last coordinate, so the value noise admits the tile. The kernel evaluates
-those quotients, of eleven coordinates by four scales, and not the observation. It evaluates the
-world's step on the action `wait` from that attempt (`fresh_waits`), which reads no terrain. -/
-
 /-- An attempt of `wide` at its first step, with the given step cap: the attempt
 `Acorn.Decisions.fresh`, which no module may import. -/
 def fresh (cap : UInt64) : Host.Attempt wide Unit (.survive 0) cap :=
@@ -1350,30 +1333,11 @@ private theorem complete_isOk {order : StepOrder} {config : Host.WorldConfig} {�
   simp only [Host.Attempt.complete, Host.Attempt.close, finished]
   rfl
 
-theorem world_observe_accepts : Regula.ExecutableContract @Host.World.observe (fun observe =>
-    (∀ cap : UInt64, (observe (fresh cap).run.world).isOk = true) ∧
-      ∀ {config : Host.WorldConfig}, config.raw.admissible = true →
-        ∀ world : Host.World config, (observe world).isOk = true) :=
-  ⟨⟨fresh_observes, fun hadm world => CurrentWorld.admissible_observe_isOk hadm world⟩⟩
-
-/-- Finishing accepts the attempt `fresh`, for every step cap, callbacks and context: its final
-observation is that of `fresh_observes`. `Acorn.Decisions.attempt_finish` states what an accepted
-finish returns and keeps no kind for the reason given there; this statement is a requirement
-with no kind beside it, and a function that refuses every attempt fails it.
-
-**Not claimed:** which other attempts finish without a refusal. -/
 theorem attempt_finish_accepts : Regula.ExecutableContract @Host.Attempt.finish (fun finish =>
     ∀ {order β} (callbacks : Host.AgentCallbacks order Unit β) (context : Host.GoalContext)
       (cap : UInt64), (finish callbacks context (fresh cap)).isOk = true) :=
   ⟨fun callbacks context cap => finish_isOk callbacks context (fresh cap) (fresh_observes cap)⟩
 
-/-- The fold accepts the attempt `fresh` at the fuel zero, for every step cap, callbacks and
-context: at the fuel zero it finishes the attempt, which `attempt_finish_accepts` accepts.
-`Acorn.Decisions.attempt_complete` states what a fold that ends in a refused action holds and
-keeps no kind for the reason given there; this statement is a requirement with no kind beside
-it, and a function that refuses every input fails it.
-
-**Not claimed:** which other folds end without a refusal. -/
 theorem attempt_complete_accepts : Regula.ExecutableContract @Host.Attempt.complete
     (fun complete =>
       ∀ {order β} (callbacks : Host.AgentCallbacks order Unit β) (context : Host.GoalContext)
@@ -1956,10 +1920,102 @@ theorem world_initial_accepts : Regula.ExecutableContract Host.World.initial (fu
         ((CurrentWorld.initial_isOk_iff wide).mp ((world_initial_isOk_spec wide).mpr h))
         (by decide)⟩⟩
 
+theorem world_observe_accepts : Regula.ExecutableContract @Host.World.observe (fun observe =>
+    Regula.DecidesCompletely (·.isOk = true)
+      (fun input : (config : Host.WorldConfig) × Host.World config =>
+        0 < input.1.raw.side.val ∧ input.1.raw.side.val ≤ 2 ^ 63 - 5 ∧
+          0 < input.1.raw.dayLength.toNat ∧
+          ∀ lo hi : Host.Coordinate,
+            lo.val = (if input.1.raw.deerCap = 0 then -5 else -2 ^ 63) →
+            hi.val = (if input.1.raw.deerCap = 0 then
+              input.1.raw.side.val + 4 else 2 ^ 63 - 1) →
+            ∀ s0 s1 s2 s3 : Binary32,
+              s0 = input.1.raw.baseScale →
+              s1 = s0.mul ⟨0x40000000⟩ →
+              s2 = s1.mul ⟨0x40000000⟩ →
+              s3 = s2.mul ⟨0x40000000⟩ →
+              ∀ s ∈ [s0, s1, s2, s3],
+                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+      (fun input : (config : Host.WorldConfig) × Host.World config =>
+        @observe input.1 input.2)) :=
+  ⟨{ complete := fun input hspec =>
+       CurrentWorld.admissible_observe_isOk
+         ((CurrentWorld.initial_isOk_iff input.1).mp
+           ((world_initial_isOk_spec input.1).mpr hspec))
+         input.2
+     refused := by
+       let base := Host.World.empty wide
+       let edgePos : Host.BoxPosition wide := ⟨⟨2 ^ 63 - 2, by decide⟩, ⟨0, by decide⟩⟩
+       let edgeWorld : Host.World wide :=
+         { base with body := { base.body with position := edgePos } }
+       refine ⟨⟨wide, edgeWorld⟩, ?_⟩
+       have href : (edgeWorld.observe).isOk = false :=
+         CurrentWorld.observe_refuses_exceeds_maxSide (by decide) edgeWorld (by decide)
+       rw [href]
+       exact Bool.false_ne_true }⟩
+
 theorem world_step_accepts : Regula.ExecutableContract @Host.World.step (fun step =>
-    ∀ {config : Host.WorldConfig}, config.raw.admissible = true →
-      ∀ (world : Host.World config) (action : Host.Action), (step world action).isOk = true) :=
-  ⟨fun hadm world action => CurrentWorld.admissible_step_isOk hadm world action⟩
+    Regula.DecidesCompletely (· = true)
+      (fun input : WorldAction =>
+        0 < input.config.raw.side.val ∧ input.config.raw.side.val ≤ 2 ^ 63 - 5 ∧
+          0 < input.config.raw.dayLength.toNat ∧
+          ∀ lo hi : Host.Coordinate,
+            lo.val = (if input.config.raw.deerCap = 0 then -5 else -2 ^ 63) →
+            hi.val = (if input.config.raw.deerCap = 0 then
+              input.config.raw.side.val + 4 else 2 ^ 63 - 1) →
+            ∀ s0 s1 s2 s3 : Binary32,
+              s0 = input.config.raw.baseScale →
+              s1 = s0.mul ⟨0x40000000⟩ →
+              s2 = s1.mul ⟨0x40000000⟩ →
+              s3 = s2.mul ⟨0x40000000⟩ →
+              ∀ s ∈ [s0, s1, s2, s3],
+                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+      (Regula.Dependent.isOk fun input : WorldAction =>
+        @step input.config input.world input.action)) :=
+  ⟨{ complete := fun input hspec =>
+       CurrentWorld.admissible_step_isOk
+         ((CurrentWorld.initial_isOk_iff input.config).mp
+           ((world_initial_isOk_spec input.config).mpr hspec))
+         input.world input.action
+     refused :=
+       ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, .harvest⟩, fun accepted => by
+         obtain ⟨⟨next, events⟩, stepped⟩ := (Regula.Dependent.isOk_eq_true_iff _ _).mp accepted
+         exact absurd ((harvest_faced ⟨0x3f000000⟩).mp
+           ((CurrentActions.payAndAct_isOk _ _).mp (step_paid stepped) harvest_paid))
+           (by decide +kernel)⟩ }⟩
+
+theorem spawn_select_accepts : Regula.ExecutableContract @Host.selectSpawn (fun select =>
+    Regula.DecidesCompletely (· = true)
+      (fun input : (config : Host.WorldConfig) × Host.World config =>
+        0 < input.1.raw.side.val ∧ input.1.raw.side.val ≤ 2 ^ 63 - 5 ∧
+          0 < input.1.raw.dayLength.toNat ∧
+          ∀ lo hi : Host.Coordinate,
+            lo.val = (if input.1.raw.deerCap = 0 then -5 else -2 ^ 63) →
+            hi.val = (if input.1.raw.deerCap = 0 then
+              input.1.raw.side.val + 4 else 2 ^ 63 - 1) →
+            ∀ s0 s1 s2 s3 : Binary32,
+              s0 = input.1.raw.baseScale →
+              s1 = s0.mul ⟨0x40000000⟩ →
+              s2 = s1.mul ⟨0x40000000⟩ →
+              s3 = s2.mul ⟨0x40000000⟩ →
+              ∀ s ∈ [s0, s1, s2, s3],
+                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
+                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+      (Regula.Dependent.isOk fun input : (config : Host.WorldConfig) × Host.World config =>
+        @select input.1 input.2)) :=
+  ⟨{ complete := fun input hspec =>
+       CurrentWorld.admissible_selectSpawn_isOk
+         ((CurrentWorld.initial_isOk_iff input.1).mp
+           ((world_initial_isOk_spec input.1).mpr hspec))
+         input.2
+     refused := by
+       let zeroTile : Host.WorldConfig :=
+         ⟨{ oneTile.raw with baseScale := ⟨0x00000000⟩ },
+           oneTile.positiveSide, oneTile.positiveDay⟩
+       refine ⟨⟨zeroTile, Host.World.empty zeroTile⟩, ?_⟩
+       decide +kernel }⟩
 
 theorem world_admitted_nonrefusal {raw : Host.RawWorldConfig} {config : Host.WorldConfig}
     (hadmit : Host.WorldConfig.admit raw = .ok config) (initial world : Host.World config)
