@@ -1,52 +1,30 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Task
 import Std.Data.TreeMap.Lemmas
 
-/-!
-# Current bounded world storage
-
-The harvest index is sparse and has a finite key type derived from the body
-box plus its one-tile harvest margin. Deer retain signed coordinates outside
-the box. Population lengths are bounded at construction and every write;
-world time deliberately uses the source's wrapping UInt64 rule.
--/
 namespace Acorn.Host
 
-/-- A mutable population cannot outgrow its receiving capacity. -/
 structure Population (α : Type) (capacity : Nat) where
-  /-- Ordered current entries; no history is retained. -/
   entries : Array α
-  /-- Every mutation carries its capacity invariant. -/
   bounded : entries.size ≤ capacity
 
-/-- Empty legal population. -/
 def Population.empty {α : Type} (capacity : Nat) : Population α capacity := ⟨#[], by simp⟩
 
-/-- Capacity-admitted insertion; callers can distinguish fullness before drawing. -/
 def Population.push {α : Type} {capacity : Nat} (population : Population α capacity) (entry : α) :
     Population α capacity :=
   if h : population.entries.size < capacity then
     ⟨population.entries.push entry, by simp; omega⟩
   else population
 
-/-- Index-bearing replacement keeps the exact population length. -/
 def Population.set {α : Type} {capacity : Nat} (population : Population α capacity)
     (index : Fin population.entries.size) (entry : α) : Population α capacity :=
   ⟨population.entries.set index.val entry index.isLt, by simpa using population.bounded⟩
 
-/-- Removal preserves relative order and cannot increase storage. -/
 def Population.filter {α : Type} {capacity : Nat} (population : Population α capacity)
     (keep : α → Bool) : Population α capacity :=
   ⟨population.entries.filter keep, Nat.le_trans Array.size_filter_le population.bounded⟩
 
-/-- Every tree that can be harvested has one key in this finite extended box. -/
 abbrev HarvestKey (config : WorldConfig) := Fin ((config.side + 2) * (config.side + 2))
 
-/-- Row-major sparse-harvest admission, including the facing tile outside the box. -/
 def harvestKey (config : WorldConfig) (position : Position) : Option (HarvestKey config) :=
   if hx : -1 ≤ position.x.val ∧ position.x.val ≤ config.side then
     if hy : -1 ≤ position.y.val ∧ position.y.val ≤ config.side then
@@ -63,7 +41,6 @@ def harvestKey (config : WorldConfig) (position : Position) : Option (HarvestKey
     else none
   else none
 
-/-- Every successful key retains its column, row and signed-domain admission. -/
 theorem harvestKey_decode (config : WorldConfig) (position : Position) (key : HarvestKey config)
     (h : harvestKey config position = some key) :
     key.val % (config.side + 2) = (position.x.val + 1).toNat ∧
@@ -85,7 +62,6 @@ theorem harvestKey_decode (config : WorldConfig) (position : Position) (key : Ha
     · contradiction
   · contradiction
 
-/-- A sparse timestamp can never alias a different admitted coordinate. -/
 theorem harvestKey_injective (config : WorldConfig) (first second : Position) (key : HarvestKey config)
     (hfirst : harvestKey config first = some key) (hsecond : harvestKey config second = some key) :
     first = second := by
@@ -97,7 +73,6 @@ theorem harvestKey_injective (config : WorldConfig) (first second : Position) (k
   cases second
   simp_all
 
-/-- A facing neighbor of an in-box body fits signed coordinates without a dynamic refusal. -/
 def BoxPosition.facingPosition {config : WorldConfig} (body : BoxPosition config)
     (direction : Direction) : Position :=
   let dx := direction.delta.1
@@ -111,7 +86,6 @@ def BoxPosition.facingPosition {config : WorldConfig} (body : BoxPosition config
     ⟨(body.y.val : Int) + dy, by
       cases direction <;> dsimp [dx, dy, Direction.delta, WorldConfig.side] at * <;> omega⟩⟩
 
-/-- Every facing target, including an outside-box target, has a harvest key. -/
 theorem BoxPosition.facingKey_exists {config : WorldConfig} (body : BoxPosition config)
     (direction : Direction) : ∃ key, harvestKey config (body.facingPosition direction) = some key := by
   have hx := body.x.isLt
@@ -124,71 +98,46 @@ theorem BoxPosition.facingKey_exists {config : WorldConfig} (body : BoxPosition 
     cases direction <;> simp [facingPosition, Direction.delta] <;> omega
   simp [harvestKey, hxb, hyb]
 
-/-- The proved facing admission yields the key used at the tree write boundary. -/
 def BoxPosition.facingKey {config : WorldConfig} (body : BoxPosition config)
     (direction : Direction) : HarvestKey config :=
   match h : harvestKey config (body.facingPosition direction) with
   | some key => key
   | none => False.elim (by obtain ⟨key, hk⟩ := body.facingKey_exists direction; simp [h] at hk)
 
-/-- The body always belongs to its immutable receiving box. -/
 structure Body (config : WorldConfig) where
-  /-- Current in-box position. -/
   position : BoxPosition config
-  /-- Last successful movement direction. -/
   facing : Direction
-  /-- Proof-bearing energy balance. -/
   energy : Energy
-  /-- Saturating unsigned inventory and possession flags. -/
   inventory : Inventory
 
-/-- Current world state; it contains no action-selection or supervision capability. -/
 structure World (config : WorldConfig) where
-  /-- Wrapping physical-world clock. -/
   time : UInt64
-  /-- Current body state. -/
   body : Body config
-  /-- Installed goal; its cue is derived from the same value. -/
   goal : Option Goal
-  /-- Wrapping clock value at goal installation. -/
   goalStart : UInt64
-  /-- At most one timestamp per legal harvest site. -/
   harvested : Std.TreeMap (HarvestKey config) UInt64
-  /-- Ordered deer population; wandering does not require in-box coordinates. -/
   deer : Population Position config.raw.deerCap.toNat
-  /-- Ordered in-box food population, retaining duplicate sites. -/
   food : Population (BoxPosition config) config.raw.foodCap.toNat
-  /-- One deterministic environment RNG stream. -/
   rng : Rng.Xoshiro256
 
-/-- Goal installation preserves physical state and resets only the goal origin. -/
 def World.setGoal {config : WorldConfig} (world : World config) (goal : Goal) : World config :=
   { world with goal := some goal, goalStart := world.time }
 
-/-- Goal relation uses saturating age even after the physical clock wraps. -/
 def World.taskObservation {config : WorldConfig} (world : World config) : TaskObservation :=
   match world.goal with
   | none => .none
   | some goal => goal.observe world.body.position.position world.body.inventory
       (world.time.toNat - world.goalStart.toNat).toUInt64
 
-/-- The world and observer share exactly one completion predicate. -/
 def World.goalSatisfied {config : WorldConfig} (world : World config) : Bool :=
   world.taskObservation.satisfied
 
-/-- The inventory holds a count of an item: the stored field of that item is at least the
-count. Stated by the constructor of the item, with no count reader. -/
 def Inventory.Holds (inventory : Inventory) (item : Item) (count : UInt32) : Prop :=
   (item = .wood ∧ count.toNat ≤ inventory.wood.toNat) ∨
     (item = .stone ∧ count.toNat ≤ inventory.stone.toNat) ∨
     (item = .food ∧ count.toNat ≤ inventory.food.toNat) ∨
     (item = .gold ∧ count.toNat ≤ inventory.gold.toNat)
 
-/-- A goal is attained in a world, on the stored fields of the world: the two box indices of
-the body are within three tiles of the target of a reach goal or of a concealed target, the
-inventory holds the count of a collect goal or owns the tool of a craft goal, and the clock is
-at least the duration of a survive goal after the clock of the installation. The radius is the
-literal three, and the elapsed time is a difference of natural numbers. -/
 def World.Attained {config : WorldConfig} (world : World config) (goal : Goal) : Prop :=
   match goal with
   | .reach target =>
@@ -201,11 +150,9 @@ def World.Attained {config : WorldConfig} (world : World config) (goal : Goal) :
     (target.x.val - (world.body.position.x.val : Int)).natAbs ≤ 3 ∧
       (target.y.val - (world.body.position.y.val : Int)).natAbs ≤ 3
 
-/-- A goal is installed in the world and attained there. -/
 def World.GoalSatisfied {config : WorldConfig} (world : World config) : Prop :=
   ∃ goal, world.goal = some goal ∧ world.Attained goal
 
-/-- A natural number below the word size has the word zero exactly when it is zero. -/
 private theorem toUInt32_eq_zero_iff (count : Nat) (bound : count < 2 ^ 32) :
     count.toUInt32 = 0 ↔ count = 0 := by
   constructor
@@ -217,7 +164,6 @@ private theorem toUInt32_eq_zero_iff (count : Nat) (bound : count < 2 ^ 32) :
     rw [zero]
     rfl
 
-/-- A natural number below the word size has the word zero exactly when it is zero. -/
 private theorem toUInt64_eq_zero_iff (count : Nat) (bound : count < 2 ^ 64) :
     count.toUInt64 = 0 ↔ count = 0 := by
   constructor
@@ -229,9 +175,6 @@ private theorem toUInt64_eq_zero_iff (count : Nat) (bound : count < 2 ^ 64) :
     rw [zero]
     rfl
 
-/-- The completion predicate accepts the observation of a goal in a world exactly when the goal
-is attained there. The observation embeds the box indices as coordinates, reads the count and
-the ownership through their readers, and converts the elapsed time to a word. -/
 theorem World.observe_satisfied_iff {config : WorldConfig} (world : World config) (goal : Goal) :
     (goal.observe world.body.position.position world.body.inventory
       (world.time.toNat - world.goalStart.toNat).toUInt64).satisfied = true ↔
@@ -263,7 +206,6 @@ theorem World.observe_satisfied_iff {config : WorldConfig} (world : World config
       ReachRelation.between, Attained, beq_iff_eq, BoxPosition.position,
       FeatureConstants.reachRadius, Nat.sub_eq_zero_iff_le, Nat.max_le]
 
-/-- The completion flag is set exactly when a goal is installed and attained. -/
 theorem World.goalSatisfied_iff {config : WorldConfig} (world : World config) :
     world.goalSatisfied = true ↔ world.GoalSatisfied := by
   unfold World.goalSatisfied World.taskObservation GoalSatisfied
@@ -276,23 +218,13 @@ theorem World.goalSatisfied_iff {config : WorldConfig} (world : World config) :
         cases same
         exact attained⟩
 
-/-- The completion flag decides `GoalSatisfied`. -/
 instance {config : WorldConfig} (world : World config) : Decidable world.GoalSatisfied :=
   decidable_of_iff _ world.goalSatisfied_iff
 
-/-- The decision of `GoalSatisfied` is the completion flag. -/
 theorem World.decide_goalSatisfied {config : WorldConfig} (world : World config) :
     decide world.GoalSatisfied = world.goalSatisfied := by
   rw [Bool.eq_iff_iff, decide_eq_true_iff, world.goalSatisfied_iff]
 
-/-- The first half of the day has the phases zero to three and the second half the phases four
-to seven. A slot of the clock in the first half has the number of eighths of the day that it has
-passed, and a slot in the second half four more than the eighths it has passed since the half.
-An eighth is at least one step, and the last phase of each half keeps the slots past its third
-eighth, so a day of at least eight steps whose length is not a multiple of eight adds its
-remainder to the phases three and seven. Night, the phases from four on, is exactly the second half
-(`World.dayPhase_night_iff`). A day of at least eight steps reaches all four phases of each half
-(`World.dayPhase_reaches`); a shorter day has fewer than four slots in its first half. -/
 def World.dayPhase {config : WorldConfig} (world : World config) : Fin FeatureConstants.dayPhases :=
   let slot := world.time.toNat % config.raw.dayLength.toNat
   let half := config.raw.dayLength.toNat / 2
@@ -303,9 +235,6 @@ def World.dayPhase {config : WorldConfig} (world : World config) : Fin FeatureCo
   else ⟨FeatureConstants.dayPhases / 2 + min ((slot - half) / eighth) last,
     Nat.lt_of_le_of_lt (Nat.add_le_add_left (Nat.min_le_right _ _) _) (by decide)⟩
 
-/-- The phase is night, from four on, exactly in the second half of the day, for every admitted
-day length: the first half has only the phases zero to three and the second half only the phases
-four to seven. -/
 theorem World.dayPhase_night_iff {config : WorldConfig} (world : World config) :
     4 ≤ world.dayPhase.val ↔
       config.raw.dayLength.toNat / 2 ≤ world.time.toNat % config.raw.dayLength.toNat := by
@@ -318,8 +247,6 @@ theorem World.dayPhase_night_iff {config : WorldConfig} (world : World config) :
       fun second => absurd first (Nat.not_lt_of_le second)⟩
   next second => exact ⟨fun _ => Nat.le_of_not_lt second, fun _ => Nat.le_add_right _ _⟩
 
-/-- A day of at least eight steps reaches every phase, so with `World.dayPhase_night_iff` each half
-has exactly its four phases. A shorter day has fewer than four slots in its first half. -/
 theorem World.dayPhase_reaches {config : WorldConfig} (world : World config)
     (long : 8 ≤ config.raw.dayLength.toNat) (phase : Fin FeatureConstants.dayPhases) :
     ∃ time : UInt64, ({ world with time } : World config).dayPhase = phase := by
@@ -356,8 +283,6 @@ theorem World.dayPhase_reaches {config : WorldConfig} (world : World config)
       Nat.mul_div_cancel _ positive]
     omega
 
-/-- A day whose length is a multiple of eight has eight equal phases: the phase is the number of
-eighths of the day that the slot of the clock has passed. -/
 theorem World.dayPhase_of_dvd {config : WorldConfig} (world : World config)
     (eighths : 8 ∣ config.raw.dayLength.toNat) :
     world.dayPhase.val =
@@ -383,7 +308,6 @@ theorem World.dayPhase_of_dvd {config : WorldConfig} (world : World config)
     rw [show 4 * length = length * 4 by omega, Nat.sub_mul_div]
     omega
 
-/-- The standard day of 2048 steps has eight phases of 256 steps. -/
 theorem World.dayPhase_standard {seed : UInt64} {side : Coordinate} {config : WorldConfig}
     (built : WorldConfig.standard seed side = .ok config) (world : World config) :
     world.dayPhase.val = world.time.toNat % 2048 / 256 := by
@@ -397,7 +321,6 @@ theorem World.dayPhase_standard {seed : UInt64} {side : Coordinate} {config : Wo
         rfl
   rw [world.dayPhase_of_dvd (length ▸ by decide), length]
 
-/-- Effective terrain reads the sparse timestamp of exactly the requested site. -/
 def World.tileKind {config : WorldConfig} (world : World config) (position : Position) :
     Except WorldError TileKind := do
   let base ← terrain position config.raw.seed config.raw.baseScale
@@ -407,13 +330,11 @@ def World.tileKind {config : WorldConfig} (world : World config) (position : Pos
         if world.time.toNat - time.toNat < config.raw.regrow.toNat then return .forest
   return base
 
-/-- Boat permission affects body movement only; other kinds use their closed table. -/
 def World.enterable {config : WorldConfig} (world : World config) (position : Position) :
     Except WorldError Bool := do
   let kind ← world.tileKind position
   return match kind with | .water => world.body.inventory.boat | other => decide other.Walkable
 
-/-- Food pickup removes every duplicate at the body position, preserving survivor order. -/
 def World.pickupFood {config : WorldConfig} (world : World config) : World config × UInt32 :=
   let remaining := world.food.filter (fun entry => entry != world.body.position)
   let picked := (world.food.entries.size - remaining.entries.size).toUInt32
@@ -421,7 +342,6 @@ def World.pickupFood {config : WorldConfig} (world : World config) : World confi
     food := remaining
     body := { world.body with inventory := world.body.inventory.add .food picked } }, picked)
 
-/-- New world storage before bounded spawn selection and placement. -/
 def World.empty (config : WorldConfig) : World config :=
   { time := 0
     body := ⟨BoxPosition.center config, .north, Energy.new FeatureConstants.energyMax, ⟨0, 0, 0, 0, false, false⟩⟩

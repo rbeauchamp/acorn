@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.Supervision
 import Acorn.Host.Viewer.SupervisedProcess
 import Acorn.Host.Viewer.MapCodec
@@ -15,25 +10,16 @@ inductive ChildProgram where
   | fixed
   | ranked (atStart : Option ProgramReading) (read : IO (Option ProgramReading))
 
-/-- Native bootstrap supplies fixed executable configuration and a fresh seed source.
-Only launch identity and the owned checkpoint path vary between processes. -/
 structure SupervisorConfig where
-  /-- Actual executable, resolved before supervision. -/
   executable : System.FilePath
-  /-- Pure argument construction from the admitted launch and run-owned path. -/
   arguments : CoreLaunch → System.FilePath → Array String
   child : Option (List String)
   program : ChildProgram
-  /-- A configuration that cannot preserve whole-run ownership disables Clear. -/
   clearDisabled : Option String
-  /-- Actual native source of new terrain seeds, called only for Clear. -/
   freshSeed : IO UInt64
 
-/-- Bounded lifecycle mailbox; there is one actor consumer. -/
 def commandCapacity : Nat := 4
 
-/-- HTTP command admission: a Clear that the configuration disables is refused, a full queue
-refuses any command, and any other command is queued. -/
 def admitCommand (clearDisabled : Option String) (queue : Buffer Command commandCapacity)
     (command : Command) : ControlResult × Buffer Command commandCapacity :=
   if command == .clear && clearDisabled.isSome then (.clearUnavailable, queue)
@@ -41,7 +27,6 @@ def admitCommand (clearDisabled : Option String) (queue : Buffer Command command
     | none => (.busy, queue)
     | some queue => (.accepted, queue)
 
-/-- **A disabled Clear never enters the queue.** -/
 theorem admitCommand_clearDisabled (reason : String) (queue : Buffer Command commandCapacity) :
     admitCommand (some reason) queue .clear = (.clearUnavailable, queue) := rfl
 
@@ -60,7 +45,6 @@ private structure Actor (clearDisabled : Option String) where
   directory : RunDirectory
   activeStop : Option StopWaiter
 
-/-- Native supervisor owns its command queue and serializes complete actor turns. -/
 structure Supervisor where
   private mk ::
   private config : SupervisorConfig
@@ -169,13 +153,8 @@ private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
     try return (Except.ok (), ← RunDirectory.open directory.rootPath)
     catch error => return (Except.error error.toString, directory)
 
-/-- The longest chain of calls one event makes: Clear's seed, archival, replacement directory
-and replacement state, or a map write, a launch, a spawn and a wind-up. A longer chain goes on
-at the next turn, before any event is read. -/
 def callChainBound : Nat := 8
 
-/-- Perform the effects of the stored state's step, then each call it waits for, storing each
-outcome's state before performing that outcome's effects. -/
 private def Supervisor.drive (supervisor : Supervisor) (effects : List Effect) :
     Std.AtomicT (Actor supervisor.config.clearDisabled) IO Unit := do
   let mut effects := effects
@@ -247,7 +226,6 @@ def Supervisor.new (config : SupervisorConfig) (directory : RunDirectory)
   for effect in effects do supervisor.perform directory effect
   return supervisor
 
-/-- HTTP may retain only the three closed lifecycle commands, with no process handle. -/
 def Supervisor.submit (supervisor : Supervisor) (command : Command) : BaseIO ControlResult :=
   match command with
   | .stop => return .refused "stop requires durable control dispatch"
@@ -276,7 +254,6 @@ def Supervisor.submitControl (supervisor : Supervisor) (command : Command) :
       set { mailbox with commands }
       return .immediate result
 
-/-- One consistent registration snapshot supplies control, map and subsequent replay. -/
 def supervisorInitial (snapshot : ReplaySnapshot) : BaseIO InitialFrames := do
   let map := snapshot.world.bind fun ⟨_, memory⟩ => memory.frame.toOption
   return ⟨snapshot.control, map⟩
@@ -307,12 +284,9 @@ private def Supervisor.closeMailbox (supervisor : Supervisor) (reason : String) 
   for waiter in waiters do
     waiter.resolve (.unconfirmed reason)
 
-/-- HTTP and process output use this actor's exact same broadcaster. -/
 def Supervisor.http (supervisor : Supervisor) (assets : ViewerAssets) : IO HttpViewer :=
   HttpViewer.new supervisor.broadcast assets supervisorInitial supervisor.submitControl
 
-/-- One actor turn. It never waits for pipe EOF. Native state and map IO can block this actor
-but cannot block HTTP queue admission or the core's output pipe readers. -/
 def Supervisor.step (supervisor : Supervisor) : IO Unit :=
   supervisor.actor.atomically do
     try
@@ -329,9 +303,6 @@ def Supervisor.step (supervisor : Supervisor) : IO Unit :=
     finally
       supervisor.settleStop (.unconfirmed "stop confirmation did not complete before step ended")
 
-/-- One turn of a closing viewer: the close is handed once, then the process is watched, the
-identity its readers delivered is attributed, and a tick closes the viewer once no process
-remains. The result is whether the viewer closed with a failure, once it has closed. -/
 private def Supervisor.closeTurn (supervisor : Supervisor) : IO (Option Bool) :=
   supervisor.actor.atomically do
     try
@@ -348,11 +319,6 @@ private def Supervisor.closeTurn (supervisor : Supervisor) : IO (Option Bool) :=
     finally
       supervisor.closeMailbox "viewer is closing"
 
-/-- Graceful viewer shutdown winds the core up and keeps the process slot until reap and pipe
-drain. The original durable run intent is preserved for the next viewer start. Host signal
-delivery and eventual pipe closure remain native liveness assumptions. A native error in a turn
-is reported and the next turn goes on from the stored state, so it cannot skip wind-up;
-terminal failures are reported after it. -/
 def Supervisor.shutdown (supervisor : Supervisor) : IO Unit := do
   let failed ← IO.mkRef false
   try

@@ -1,37 +1,18 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.NativeContext
 import Acorn.Host.AgentAdmission
 import Acorn.Host.Checkpoint.IO
 import Acorn.Host.Cli
 
-/-!
-# Native observed campaign composition
-
-The admitted CLI campaign uses the current full agent and receiver-bound
-checkpoint hooks. Telemetry reads the same campaign plan as execution. The
-caller owns build provenance, output destinations and the stop reader's native
-lifetime; this composition receives only the monotone stop capability.
-Post-campaign baselines and nonstreaming commands remain separate dispatches.
--/
 namespace Acorn.Host.Viewer
 open Features Handcrafted
 
-/-- The streaming criterion default is the current discounted reference within
-the explicitly requested research profile; it is not a profile promotion. -/
 def nativeSelection (options : Cli.Streaming) : AgentSelection :=
   ⟨options.common.profile, options.criterion.getD .discounted⟩
 
-/-- The ordinary campaign carries the admitted planning selection into the full agent
-type and the admitted step order into the construction. -/
 def nativeConstruction (options : Cli.Streaming) : AgentConstruction :=
   AgentConstruction.standard options.common.world.raw.seed (nativeSelection options)
     options.common.planning options.order
 
-/-- User-facing task names are exhaustive projections of the actual host goal. -/
 def curriculumGoalName : Goal → String
   | .survive steps => s!"Survive {steps} steps"
   | .collect item count => s!"Collect {(GoalItem.labels (some (.inl item))).1} ×{count}"
@@ -39,8 +20,6 @@ def curriculumGoalName : Goal → String
   | .reach position => s!"Reach ({position.x.val}, {position.y.val})"
   | .find position => s!"Find ({position.x.val}, {position.y.val})"
 
-/-- Telemetry campaign counts are projections of the execution owner's admitted
-plan, including clipping and zero-attempt normalization. -/
 def nativeParameters (options : Cli.Streaming) (build : TelemetryBuild)
     (plan : CampaignPlan (standardCurriculum options.common.world options.common.world.raw.seed).size) : ContextParameters where
   build := build
@@ -65,10 +44,6 @@ def nativeParameters (options : Cli.Streaming) (build : TelemetryBuild)
   stepCap := plan.stepCap
   cycleCap := plan.cycles
 
-/-- Execute one observed campaign with the actual construction and persistence
-owners. Outcome IO failures are contained by the runner just like frame IO.
-The sink is unused when telemetry is disabled; no frame is manufactured for it.
-The caller invokes any separately requested baseline after this result. -/
 def runNativeCampaign (options : Cli.Streaming) (build : TelemetryBuild)
     (syncProgram : System.FilePath) (sink : IO.FS.Stream)
     (outcome : GoalOutcome → IO Unit) (stop : StopFlag)
@@ -122,21 +97,16 @@ def runNativeCampaign (options : Cli.Streaming) (build : TelemetryBuild)
           resources ← notifyObserver (baseObserver.onAttemptEnd final metrics) resources
       return .ok { result with run := { result.run with agent := agent }, resources := resources }
 
-/-- The emitted effective step cap is definitionally the admitted execution cap. -/
 theorem nativeParameters_stepCap (options : Cli.Streaming) (build : TelemetryBuild)
     (plan : CampaignPlan (standardCurriculum options.common.world options.common.world.raw.seed).size) :
     (nativeParameters options build plan).stepCap = plan.stepCap := rfl
 
-/-- Every admitted planning selection reaches the same full-agent construction unchanged. -/
 theorem nativeConstruction_planning (options : Cli.Streaming) :
     (nativeConstruction options).planning = options.common.planning := rfl
 
-/-- The admitted step order reaches the construction unchanged; the construction's
-order selects the agent's functions and the loop, and the checkpoint records it. -/
 theorem nativeConstruction_order (options : Cli.Streaming) :
     (nativeConstruction options).order = options.order := rfl
 
-/-- The criterion explicitly requested at admission reaches agent construction. -/
 theorem nativeConstruction_criterion (options : Cli.Streaming) :
     (nativeConstruction options).criterion = options.criterion.getD .discounted := rfl
 
