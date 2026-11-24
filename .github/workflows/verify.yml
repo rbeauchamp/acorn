@@ -134,52 +134,122 @@ jobs:
         timeout-minutes: 12
         run: |
           start_epoch=$(date +%s)
+          prov_dir=$(mktemp -d)
           prov_pid=''
+          prov_ctrl_open=0
           reported=0
+          job_is_running() {
+            local target_pid="$1" jobs_file="$2" line
+            local re='^\[([0-9]+)\][+-]?[[:space:]]+([0-9]+)[[:space:]]+Running'
+            [[ -n "$target_pid" && -n "$jobs_file" ]] || return 1
+            jobs -rl > "$jobs_file" 2>/dev/null || return 1
+            while IFS= read -r line; do
+              if [[ "$line" =~ $re && "${BASH_REMATCH[2]}" == "$target_pid" ]]; then
+                return 0
+              fi
+            done < "$jobs_file"
+            return 1
+          }
+          cleanup_provision() {
+            local pid="$prov_pid"
+            prov_pid=''
+            if [[ "$prov_ctrl_open" == 1 ]]; then
+              exec 4>&- 5<&-
+              prov_ctrl_open=0
+            fi
+            if [[ -n "$pid" ]]; then
+              wait "$pid" 2>/dev/null || true
+            fi
+            if [[ -n "$prov_dir" ]]; then
+              rm -rf "$prov_dir"
+              prov_dir=''
+            fi
+          }
           report_provision() {
-            local rc="$1" label="$2" elapsed
+            local rc="$1" label="$2" elapsed summary_body=''
             [[ "$reported" == 0 ]] || return 0
             reported=1
             elapsed=$(( $(date +%s) - start_epoch ))
             if [[ "$rc" == 0 ]]; then
               echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
-              echo "status=$rc" >> "$GITHUB_OUTPUT"
             else
               echo "seconds=$elapsed" >> "$GITHUB_OUTPUT" || true
-              echo "status=$rc" >> "$GITHUB_OUTPUT" || true
             fi
             if (( elapsed > 480 )); then
               printf '::warning title=Verify / gate budget::Provision took %dm %02ds (%d s) (target <= 8m 00s (480 s)).\n' \
                 $((elapsed / 60)) $((elapsed % 60)) "$elapsed"
             fi
             if [[ "$rc" != 0 && -n "${GITHUB_STEP_SUMMARY:-}" && ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
-              {
-                printf '## Verify / gate phase timings\n\n'
-                printf '| Phase | Duration | Target budget | Hard limit | Status |\n'
-                printf '|---|---:|---:|---:|---|\n'
-                printf '| Provision pinned dependencies | %dm %02ds (%d s) | <= 8m 00s (480 s) | 12m | %s |\n' \
-                  $((elapsed / 60)) $((elapsed % 60)) "$elapsed" "$label"
-                printf '| Merge gate (scripts/gate.sh) | - | <= 10m 00s (600 s) | 13m | not run (provisioning failed) |\n\n'
-              } >> "$GITHUB_STEP_SUMMARY" || true
+              printf -v summary_body \
+                '## Verify / gate phase timings\n\n| Phase | Duration | Target budget | Hard limit | Status |\n|---|---:|---:|---:|---|\n| Provision pinned dependencies | %dm %02ds (%d s) | <= 8m 00s (480 s) | 12m | %s |\n| Merge gate (scripts/gate.sh) | - | <= 10m 00s (600 s) | 13m | not run (provisioning failed) |\n\n' \
+                $((elapsed / 60)) $((elapsed % 60)) "$elapsed" "$label"
+              printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY" || true
             fi
           }
           cancel_provision() {
-            local sig_rc="$1"
-            if [[ -n "$prov_pid" ]]; then
-              kill -TERM "$prov_pid" 2>/dev/null || true
-              wait "$prov_pid" 2>/dev/null || true
-              prov_pid=''
+            local sig_rc="$1" pid="$prov_pid"
+            prov_pid=''
+            if [[ "$prov_ctrl_open" == 1 ]]; then
+              if [[ -n "$pid" && -n "$prov_dir" ]] && job_is_running "$pid" "$prov_dir/jobs.tmp"; then
+                printf 'term\n' >&4 2>/dev/null || true
+                for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+                  if ! job_is_running "$pid" "$prov_dir/jobs.tmp"; then
+                    break
+                  fi
+                  sleep 0.1 4>&-
+                done
+              fi
+              exec 4>&- 5<&-
+              prov_ctrl_open=0
+            fi
+            if [[ -n "$pid" ]]; then
+              wait "$pid" 2>/dev/null || true
             fi
             report_provision "$sig_rc" "interrupted / cancelled (exit $sig_rc)"
             exit "$sig_rc"
           }
+          trap cleanup_provision EXIT
           trap 'cancel_provision 130' INT
           trap 'cancel_provision 143' TERM
+          prov_ctrl="$prov_dir/ctrl"
+          mkfifo "$prov_ctrl"
+          prov_ctrl_open=1
+          exec 4<>"$prov_ctrl"
+          exec 5<"$prov_ctrl"
+          rm -f "$prov_ctrl"
           status=0
-          ./scripts/gate.sh provision &
+          set -m
+          (
+            set +m
+            exec 4>&-
+            sh -c 'echo $PPID' > "$prov_dir/pgid"
+            IFS= read -r my_pgid < "$prov_dir/pgid"
+            rm -f "$prov_dir/pgid"
+            (
+              exec </dev/null >/dev/null 2>&1
+              trap '' TERM
+              while IFS= read -r cmd <&5; do
+                case "$cmd" in
+                  term)
+                    if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+                      kill -TERM -- -"$my_pgid" 2>/dev/null || true
+                    fi ;;
+                esac
+              done
+              if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+                kill -KILL -- -"$my_pgid" 2>/dev/null || true
+              fi
+            ) &
+            exec 5<&-
+            exec ./scripts/gate.sh provision
+          ) &
           prov_pid=$!
-          wait "$prov_pid" || status=$?
+          set +m
+          exec 5<&-
+          wait "$prov_pid" 2>/dev/null || status=$?
           prov_pid=''
+          exec 4>&-
+          prov_ctrl_open=0
           report_provision "$status" "failed (exit $status)"
           exit "$status"
       # The merge gate itself, by the same script with no argument. Its own provisioning

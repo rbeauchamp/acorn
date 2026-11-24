@@ -143,6 +143,8 @@ gate_scratch=''
 post_logs=''
 post_checks_pid=''
 fg_child_pid=''
+fg_reap_open=0
+sup_ctrl_open=0
 summary_written=0
 bg_supervisor_launched=0
 
@@ -160,28 +162,39 @@ nc_budget_s=180
 gate_budget_s=600
 job_budget_s=900
 
-provision_dur=0
-provision_state='running'
-stage1_dur=0
+provision_dur=''
+provision_start=''
+provision_state='not reached'
+stage1_dur=''
+stage1_start=''
 stage1_state='not reached'
-stage2_dur=0
+stage2_dur=''
+stage2_start=''
 stage2_state='not reached'
-nc_admit_dur=0
+nc_admit_dur=''
+nc_admit_start=''
 nc_admit_state='not reached'
-regula_dur=0
+regula_dur=''
+regula_start=''
 regula_state='not reached'
 intent_dur=''
+intent_start=''
 intent_state='not reached'
 frame_dur=''
+frame_start=''
 frame_state='not reached'
 nc_exec_dur=''
+nc_start=''
 nc_state='not reached'
-post_wall_dur=0
+post_wall_dur=''
+post_wall_state='not reached'
 post_start=''
 post_mode='serial'
 post_checks_status=0
 nc_jobs=''
 nc_refusal=''
+gate_passed=0
+gate_verdict_state='1'
 verified=1
 audited=1
 intended=1
@@ -234,7 +247,13 @@ status_label() {
   elif [[ "$state" == '137' ]]; then
     printf 'killed (SIGKILL / timeout, exit 137)'
   elif [[ "$state" =~ ^[0-9]+$ ]]; then
-    printf 'failed (exit %s)' "$state"
+    if [[ "$over" == '1' ]]; then
+      printf 'failed (exit %s, over budget)' "$state"
+    else
+      printf 'failed (exit %s)' "$state"
+    fi
+  elif [[ "$over" == '1' ]]; then
+    printf '%s (over budget)' "$state"
   else
     printf '%s' "$state"
   fi
@@ -249,11 +268,27 @@ summary_phase_state() {
   fi
 }
 
+phase_elapsed_secs() {
+  local state="$1" dur="$2" start="$3" now="$4"
+  if [[ "$dur" =~ ^[0-9]+$ ]]; then
+    printf '%s' "$dur"
+  elif [[ "$state" == 'interrupted / unfinished' && "$start" =~ ^[0-9]+$ ]] && (( now >= start )); then
+    printf '%s' $((now - start))
+  fi
+}
+
 summary_phase_dur() {
-  local state="$1" dur="$2"
+  local state="$1" dur="$2" start="$3" now="$4" elapsed=''
   case "$state" in
-    'not reached'|'skipped'|'skipped ('*|'interrupted / unfinished'|'status unavailable'|'refused ('*)
+    'not reached'|'skipped'|'skipped ('*|'refused ('*)
       printf '%s' '-' ;;
+    'interrupted / unfinished')
+      elapsed=$(phase_elapsed_secs "$state" "$dur" "$start" "$now")
+      if [[ -n "$elapsed" ]]; then
+        printf '%s (interrupted)' "$(format_duration "$elapsed")"
+      else
+        printf '%s' 'unavailable (interrupted)'
+      fi ;;
     *)
       if [[ "$dur" =~ ^[0-9]+$ ]]; then
         format_duration "$dur"
@@ -264,10 +299,17 @@ summary_phase_dur() {
 }
 
 summary_phase_secs() {
-  local state="$1" dur="$2"
+  local state="$1" dur="$2" start="$3" now="$4" elapsed=''
   case "$state" in
-    'not reached'|'skipped'|'skipped ('*|'interrupted / unfinished'|'status unavailable'|'refused ('*)
+    'not reached'|'skipped'|'skipped ('*|'refused ('*)
       printf '%s' '-' ;;
+    'interrupted / unfinished')
+      elapsed=$(phase_elapsed_secs "$state" "$dur" "$start" "$now")
+      if [[ -n "$elapsed" ]]; then
+        printf 'interrupted:%s' "$elapsed"
+      else
+        printf '%s' 'unavailable'
+      fi ;;
     *)
       if [[ "$dur" =~ ^[0-9]+$ ]]; then
         printf '%s' "$dur"
@@ -277,15 +319,38 @@ summary_phase_secs() {
   esac
 }
 
+compute_gate_verdict() {
+  local early_abort="${1:-0}"
+  gate_passed=0
+  if [[ "$early_abort" == 1 ]]; then
+    gate_verdict_state='interrupted / failed early'
+  elif [[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 ]]; then
+    if [[ "$post_checks_status" == 0 ]]; then
+      gate_passed=1
+      gate_verdict_state='0'
+    else
+      gate_verdict_state="failed (background supervisor exit $post_checks_status)"
+    fi
+  else
+    gate_verdict_state='1'
+  fi
+}
+
 # Inspect actual start/completion marker files written by the background subshell so
 # completed checks stay observed even on early cancellation or later supervisor failure,
 # and unstarted checks report `not reached` rather than `interrupted`.
 # shellcheck disable=SC2317,SC2329
 sync_bg_phase_state() {
   local early_abort="$1"
-  local raw='' dur_raw=''
+  local raw='' dur_raw='' start_raw=''
   [[ "$bg_supervisor_launched" == 1 && -n "$post_logs" ]] || return 0
 
+  if [[ -f "$post_logs/intent.started" ]]; then
+    start_raw=$(cat "$post_logs/intent.started" 2>/dev/null || true)
+    if [[ "$start_raw" =~ ^[0-9]+$ ]]; then
+      intent_start="$start_raw"
+    fi
+  fi
   if [[ -f "$post_logs/intent.status" ]]; then
     raw=$(cat "$post_logs/intent.status" 2>/dev/null || true)
     if [[ "$raw" =~ ^[0-9]+$ ]]; then
@@ -310,6 +375,12 @@ sync_bg_phase_state() {
     fi
   fi
 
+  if [[ -f "$post_logs/frame.started" ]]; then
+    start_raw=$(cat "$post_logs/frame.started" 2>/dev/null || true)
+    if [[ "$start_raw" =~ ^[0-9]+$ ]]; then
+      frame_start="$start_raw"
+    fi
+  fi
   if [[ -f "$post_logs/frame.status" ]]; then
     raw=$(cat "$post_logs/frame.status" 2>/dev/null || true)
     if [[ "$raw" =~ ^[0-9]+$ ]]; then
@@ -335,6 +406,12 @@ sync_bg_phase_state() {
   fi
 
   if [[ -z "$nc_refusal" ]]; then
+    if [[ -f "$post_logs/no-comments.started" ]]; then
+      start_raw=$(cat "$post_logs/no-comments.started" 2>/dev/null || true)
+      if [[ "$start_raw" =~ ^[0-9]+$ ]]; then
+        nc_start="$start_raw"
+      fi
+    fi
     if [[ -f "$post_logs/no-comments.status" ]]; then
       raw=$(cat "$post_logs/no-comments.status" 2>/dev/null || true)
       if [[ "$raw" =~ ^[0-9]+$ ]]; then
@@ -365,46 +442,23 @@ sync_bg_phase_state() {
 # shellcheck disable=SC2317,SC2329
 emit_gate_summary() {
   local early_abort="${1:-0}"
-  local gate_total_dur="$SECONDS"
-  local verify_dur=$((stage1_dur + stage2_dur))
-  local effective_post_wall="$post_wall_dur"
+  local now="$SECONDS"
+  local gate_total_dur="$now"
   local workflow_elapsed_dur='' now_epoch
-  local verify_over=0 regula_over=0 nc_over=0 gate_over=0 job_over=0 prov_over=0
-  local s_prov s_s1 s_s2 s_nca s_reg s_int s_frm s_nc gate_state nc_label
+  local s1_over=0 s2_over=0 regula_over=0 nc_over=0 gate_over=0 job_over=0 prov_over=0
+  local e_s1='' e_s2='' verify_elapsed='' e_reg='' e_nc=''
+  local s_prov s_s1 s_s2 s_nca s_reg s_int s_frm s_nc s_post nc_label
+  local summary_body='' row='' summary_fail=0
 
   summary_written=1
   if [[ "$early_abort" == 1 ]]; then
     sync_bg_phase_state 1
-    if [[ -n "$post_start" ]]; then
-      effective_post_wall=$((SECONDS - post_start))
-    fi
   fi
   if [[ "${ACORN_JOB_START_EPOCH:-}" =~ ^[0-9]+$ ]]; then
     now_epoch=$(date +%s)
     if (( now_epoch >= ACORN_JOB_START_EPOCH )); then
       workflow_elapsed_dur=$((now_epoch - ACORN_JOB_START_EPOCH))
     fi
-  fi
-
-  if [[ "$stage1_state" =~ ^[0-9]+$ ]] && (( verify_dur > verify_budget_s )); then
-    verify_over=1
-    emit_budget_warning 'Verification stages 1+2' "$verify_dur" "$verify_budget_s"
-  fi
-  if [[ "$regula_state" =~ ^[0-9]+$ ]] && (( regula_dur > regula_budget_s )); then
-    regula_over=1
-    emit_budget_warning 'Regula audit' "$regula_dur" "$regula_budget_s"
-  fi
-  if [[ "$nc_state" =~ ^[0-9]+$ && "$nc_exec_dur" =~ ^[0-9]+$ ]] && (( nc_exec_dur > nc_budget_s )); then
-    nc_over=1
-    emit_budget_warning 'no-comments check' "$nc_exec_dur" "$nc_budget_s"
-  fi
-  if (( gate_total_dur > gate_budget_s )); then
-    gate_over=1
-    emit_budget_warning 'Merge gate (scripts/gate.sh)' "$gate_total_dur" "$gate_budget_s"
-  fi
-  if [[ -n "$workflow_elapsed_dur" ]] && (( workflow_elapsed_dur > job_budget_s )); then
-    job_over=1
-    emit_budget_warning 'Workflow elapsed (commit check through gate)' "$workflow_elapsed_dur" "$job_budget_s"
   fi
 
   s_prov=$(summary_phase_state "$provision_state" "$early_abort")
@@ -415,102 +469,193 @@ emit_gate_summary() {
   s_int=$(summary_phase_state "$intent_state" "$early_abort")
   s_frm=$(summary_phase_state "$frame_state" "$early_abort")
   s_nc=$(summary_phase_state "$nc_state" "$early_abort")
+  s_post=$(summary_phase_state "$post_wall_state" "$early_abort")
 
-  if [[ "$early_abort" == 1 ]]; then
-    gate_state='interrupted / failed early'
-  elif [[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 && "$post_checks_status" == 0 ]]; then
-    gate_state='0'
-  elif [[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 && "$post_checks_status" != 0 ]]; then
-    gate_state="failed (background supervisor exit $post_checks_status)"
-  else
-    gate_state='1'
+  e_s1=$(phase_elapsed_secs "$s_s1" "$stage1_dur" "$stage1_start" "$now")
+  e_s2=$(phase_elapsed_secs "$s_s2" "$stage2_dur" "$stage2_start" "$now")
+  e_reg=$(phase_elapsed_secs "$s_reg" "$regula_dur" "$regula_start" "$now")
+  e_nc=$(phase_elapsed_secs "$s_nc" "$nc_exec_dur" "$nc_start" "$now")
+
+  if [[ -n "$e_s1" ]]; then
+    verify_elapsed=$((e_s1 + ${e_s2:-0}))
+    if (( verify_elapsed > verify_budget_s )); then
+      if [[ "$s_s2" == 'not reached' || "$s_s2" == 'skipped' ]]; then
+        s1_over=1
+      else
+        s2_over=1
+      fi
+      emit_budget_warning 'Verification stages 1+2' "$verify_elapsed" "$verify_budget_s"
+    fi
+  fi
+  if [[ -n "$e_reg" ]] && (( e_reg > regula_budget_s )); then
+    regula_over=1
+    emit_budget_warning 'Regula audit' "$e_reg" "$regula_budget_s"
+  fi
+  if [[ -n "$e_nc" ]] && (( e_nc > nc_budget_s )); then
+    nc_over=1
+    emit_budget_warning 'no-comments check' "$e_nc" "$nc_budget_s"
+  fi
+  if (( gate_total_dur > gate_budget_s )); then
+    gate_over=1
+    emit_budget_warning 'Merge gate (scripts/gate.sh)' "$gate_total_dur" "$gate_budget_s"
+  fi
+  if [[ -n "$workflow_elapsed_dur" ]] && (( workflow_elapsed_dur > job_budget_s )); then
+    job_over=1
+    emit_budget_warning 'Workflow elapsed (commit check through gate)' "$workflow_elapsed_dur" "$job_budget_s"
   fi
 
-  if [[ -n "$nc_jobs" && "$s_nc" =~ ^[0-9]+$ ]]; then
+  compute_gate_verdict "$early_abort"
+
+  if [[ -n "$nc_jobs" && ( "$s_nc" =~ ^[0-9]+$ || "$s_nc" == 'interrupted / unfinished' ) ]]; then
     nc_label="no-comments check (--jobs $nc_jobs)"
   else
     nc_label='no-comments check'
   fi
 
-  if [[ -n "${GITHUB_STEP_SUMMARY:-}" && ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
-    local write_rc=0
-    {
-      printf '## Verify / gate phase timings\n\n'
-      printf '| Phase | Duration | Target budget | Hard limit | Status |\n'
-      printf '|---|---:|---:|---:|---|\n'
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    if [[ -L "$GITHUB_STEP_SUMMARY" || ( -e "$GITHUB_STEP_SUMMARY" && ! -f "$GITHUB_STEP_SUMMARY" ) ]]; then
+      echo "gate: refusing to write phase summary to unsuitable destination: $GITHUB_STEP_SUMMARY" >&2
+      summary_fail=1
+    else
+      summary_body=$'## Verify / gate phase timings\n\n| Phase | Duration | Target budget | Hard limit | Status |\n|---|---:|---:|---:|---|\n'
       if [[ "${ACORN_PROVISION_SECONDS:-}" =~ ^[0-9]+$ ]]; then
         if (( ACORN_PROVISION_SECONDS > provision_budget_s )); then
           prov_over=1
         fi
-        printf '| Provision pinned dependencies | %s | <= %s | 12m | %s |\n' \
+        printf -v row '| Provision pinned dependencies | %s | <= %s | 12m | %s |\n' \
           "$(format_duration "$ACORN_PROVISION_SECONDS")" \
           "$(format_duration "$provision_budget_s")" \
           "$(status_label 0 "$prov_over")"
+        summary_body+="$row"
       fi
-      printf '| Gate dependency re-check | %s | - | - | %s |\n' \
-        "$(summary_phase_dur "$s_prov" "$provision_dur")" \
+      printf -v row '| Gate dependency re-check | %s | - | - | %s |\n' \
+        "$(summary_phase_dur "$s_prov" "$provision_dur" "$provision_start" "$now")" \
         "$(status_label "$s_prov" 0)"
-      printf '| Verification stage 1 (build-executing) | %s | - | %s | %s |\n' \
-        "$(summary_phase_dur "$s_s1" "$stage1_dur")" \
+      summary_body+="$row"
+      printf -v row '| Verification stage 1 (build-executing) | %s | - | %s | %s |\n' \
+        "$(summary_phase_dur "$s_s1" "$stage1_dur" "$stage1_start" "$now")" \
         "$(format_duration 360)" \
-        "$(status_label "$s_s1" 0)"
-      printf '| Verification stage 2 (verify.sh) | %s | <= %s (stages 1+2) | %s | %s |\n' \
-        "$(summary_phase_dur "$s_s2" "$stage2_dur")" \
+        "$(status_label "$s_s1" "$s1_over")"
+      summary_body+="$row"
+      printf -v row '| Verification stage 2 (verify.sh) | %s | <= %s (stages 1+2) | %s | %s |\n' \
+        "$(summary_phase_dur "$s_s2" "$stage2_dur" "$stage2_start" "$now")" \
         "$(format_duration "$verify_budget_s")" \
         "$(format_duration 360)" \
-        "$(status_label "$s_s2" "$verify_over")"
-      printf '| no-comments admission (admit-no-comments) | %s | - | %s | %s |\n' \
-        "$(summary_phase_dur "$s_nca" "$nc_admit_dur")" \
+        "$(status_label "$s_s2" "$s2_over")"
+      summary_body+="$row"
+      printf -v row '| no-comments admission (admit-no-comments) | %s | - | %s | %s |\n' \
+        "$(summary_phase_dur "$s_nca" "$nc_admit_dur" "$nc_admit_start" "$now")" \
         "$(format_duration "$nc_admit_timeout_s")" \
         "$(status_label "$s_nca" 0)"
-      printf '| Regula audit (scripts/regula.sh) | %s | <= %s | %s | %s |\n' \
-        "$(summary_phase_dur "$s_reg" "$regula_dur")" \
+      summary_body+="$row"
+      printf -v row '| Regula audit (scripts/regula.sh) | %s | <= %s | %s | %s |\n' \
+        "$(summary_phase_dur "$s_reg" "$regula_dur" "$regula_start" "$now")" \
         "$(format_duration "$regula_budget_s")" \
         "$(format_duration "$regula_timeout_s")" \
         "$(status_label "$s_reg" "$regula_over")"
-      printf '| lean-intent checks (intent-check) | %s | - | %s | %s |\n' \
-        "$(summary_phase_dur "$s_int" "$intent_dur")" \
+      summary_body+="$row"
+      printf -v row '| lean-intent checks (intent-check) | %s | - | %s | %s |\n' \
+        "$(summary_phase_dur "$s_int" "$intent_dur" "$intent_start" "$now")" \
         "$(format_duration "$intent_timeout_s")" \
         "$(status_label "$s_int" 0)"
-      printf '| Frame check (frame-check) | %s | - | %s | %s |\n' \
-        "$(summary_phase_dur "$s_frm" "$frame_dur")" \
+      summary_body+="$row"
+      printf -v row '| Frame check (frame-check) | %s | - | %s | %s |\n' \
+        "$(summary_phase_dur "$s_frm" "$frame_dur" "$frame_start" "$now")" \
         "$(format_duration "$frame_timeout_s")" \
         "$(status_label "$s_frm" 0)"
-      printf '| %s | %s | <= %s | %s | %s |\n' \
+      summary_body+="$row"
+      printf -v row '| %s | %s | <= %s | %s | %s |\n' \
         "$nc_label" \
-        "$(summary_phase_dur "$s_nc" "$nc_exec_dur")" \
+        "$(summary_phase_dur "$s_nc" "$nc_exec_dur" "$nc_start" "$now")" \
         "$(format_duration "$nc_budget_s")" \
         "$(format_duration "$nc_timeout_s")" \
         "$(status_label "$s_nc" "$nc_over")"
-      printf '| Post-verification wall (%s) | %s | - | - | - |\n' \
+      summary_body+="$row"
+      printf -v row '| Post-verification wall (%s) | %s | - | - | - |\n' \
         "$post_mode" \
-        "$(format_duration "$effective_post_wall")"
-      printf '| **Merge gate total (scripts/gate.sh)** | **%s** | **<= %s** | **13m** | **%s** |\n' \
+        "$(summary_phase_dur "$s_post" "$post_wall_dur" "$post_start" "$now")"
+      summary_body+="$row"
+      printf -v row '| **Merge gate total (scripts/gate.sh)** | **%s** | **<= %s** | **13m** | **%s** |\n' \
         "$(format_duration "$gate_total_dur")" \
         "$(format_duration "$gate_budget_s")" \
-        "$(status_label "$gate_state" "$gate_over")"
+        "$(status_label "$gate_verdict_state" "$gate_over")"
+      summary_body+="$row"
       if [[ -n "$workflow_elapsed_dur" ]]; then
-        printf '| **Workflow elapsed (commit check through gate)** | **%s** | **<= %s** | **20m (job)** | **%s** |\n' \
+        printf -v row '| **Workflow elapsed (commit check through gate)** | **%s** | **<= %s** | **20m (job)** | **%s** |\n' \
           "$(format_duration "$workflow_elapsed_dur")" \
           "$(format_duration "$job_budget_s")" \
-          "$(status_label "$gate_state" "$job_over")"
+          "$(status_label "$gate_verdict_state" "$job_over")"
+        summary_body+="$row"
       fi
-      printf '\n'
-    } >> "$GITHUB_STEP_SUMMARY" || write_rc=$?
-    if [[ "$write_rc" != 0 ]]; then
-      echo "gate: failed to write phase summary to $GITHUB_STEP_SUMMARY" >&2
-      if [[ "$early_abort" == 0 ]]; then
-        return 1
+      summary_body+=$'\n'
+      if ! printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY"; then
+        echo "gate: failed to write phase summary to $GITHUB_STEP_SUMMARY" >&2
+        summary_fail=1
       fi
     fi
   fi
 
-  printf 'gate: phase timings (s): provision=%d stage1=%d stage2=%d nc-admit=%d regula=%d intent=%s frame=%s no-comments=%s post-wall=%d (%s, nc-jobs=%s) total=%d\n' \
-    "$provision_dur" "$stage1_dur" "$stage2_dur" "$nc_admit_dur" "$regula_dur" \
-    "$(summary_phase_secs "$s_int" "$intent_dur")" \
-    "$(summary_phase_secs "$s_frm" "$frame_dur")" \
-    "$(summary_phase_secs "$s_nc" "$nc_exec_dur")" \
-    "$effective_post_wall" "$post_mode" "${nc_jobs:-none}" "$gate_total_dur"
+  printf 'gate: phase timings (s): provision=%s stage1=%s stage2=%s nc-admit=%s regula=%s intent=%s frame=%s no-comments=%s post-wall=%s (%s, nc-jobs=%s) total=%d\n' \
+    "$(summary_phase_secs "$s_prov" "$provision_dur" "$provision_start" "$now")" \
+    "$(summary_phase_secs "$s_s1" "$stage1_dur" "$stage1_start" "$now")" \
+    "$(summary_phase_secs "$s_s2" "$stage2_dur" "$stage2_start" "$now")" \
+    "$(summary_phase_secs "$s_nca" "$nc_admit_dur" "$nc_admit_start" "$now")" \
+    "$(summary_phase_secs "$s_reg" "$regula_dur" "$regula_start" "$now")" \
+    "$(summary_phase_secs "$s_int" "$intent_dur" "$intent_start" "$now")" \
+    "$(summary_phase_secs "$s_frm" "$frame_dur" "$frame_start" "$now")" \
+    "$(summary_phase_secs "$s_nc" "$nc_exec_dur" "$nc_start" "$now")" \
+    "$(summary_phase_secs "$s_post" "$post_wall_dur" "$post_start" "$now")" \
+    "$post_mode" "${nc_jobs:-none}" "$gate_total_dur"
+
+  if [[ "$summary_fail" != 0 && "$early_abort" == 0 ]]; then
+    return 1
+  fi
+}
+
+# shellcheck disable=SC2317,SC2329
+job_is_running() {
+  local target_pid="$1" jobs_file="$2" line
+  local re='^\[([0-9]+)\][+-]?[[:space:]]+([0-9]+)[[:space:]]+Running'
+  [[ -n "$target_pid" && -n "$jobs_file" ]] || return 1
+  jobs -rl > "$jobs_file" 2>/dev/null || return 1
+  while IFS= read -r line; do
+    if [[ "$line" =~ $re && "${BASH_REMATCH[2]}" == "$target_pid" ]]; then
+      return 0
+    fi
+  done < "$jobs_file"
+  return 1
+}
+
+spawn_pgid_reap_anchor() {
+  local pgid_file="$1" read_fd="$2" mode="${3:-kill-only}" my_pgid='' cmd=''
+  sh -c 'echo $PPID' > "$pgid_file"
+  IFS= read -r my_pgid < "$pgid_file"
+  rm -f "$pgid_file"
+  if [[ "$mode" == 'term-then-kill' ]]; then
+    (
+      exec </dev/null >/dev/null 2>&1
+      trap '' TERM
+      while IFS= read -r cmd <&"$read_fd"; do
+        case "$cmd" in
+          term)
+            if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+              kill -TERM -- -"$my_pgid" 2>/dev/null || true
+            fi ;;
+        esac
+      done
+      if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+        kill -KILL -- -"$my_pgid" 2>/dev/null || true
+      fi
+    ) &
+  else
+    (
+      exec </dev/null >/dev/null 2>&1
+      IFS= read -r _ <&"$read_fd" || true
+      if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+        kill -KILL -- -"$my_pgid" 2>/dev/null || true
+      fi
+    ) &
+  fi
 }
 
 # Invoked by the EXIT/INT/TERM traps; older ShellCheck does not trace trap callbacks.
@@ -518,32 +663,30 @@ emit_gate_summary() {
 cleanup_post_checks() {
   local fg_pid="$fg_child_pid"
   local pid="$post_checks_pid"
-  local bg_child=''
   fg_child_pid=''
   post_checks_pid=''
+  if [[ "$fg_reap_open" == 1 ]]; then
+    exec 8>&- 9<&-
+    fg_reap_open=0
+  fi
   if [[ -n "$fg_pid" ]]; then
-    kill -KILL -- -"$fg_pid" 2>/dev/null || true
-    kill -KILL "$fg_pid" 2>/dev/null || true
     wait "$fg_pid" 2>/dev/null || true
   fi
-  if [[ -n "$pid" ]]; then
-    kill -TERM -- -"$pid" 2>/dev/null || true
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-      if ! kill -0 "$pid" 2>/dev/null; then
-        break
-      fi
-      sleep 0.1
-    done
-    kill -KILL -- -"$pid" 2>/dev/null || true
-    kill -KILL "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
-  fi
-  if [[ -n "$post_logs" && -f "$post_logs/bg-child.pid" ]]; then
-    bg_child=$(cat "$post_logs/bg-child.pid" 2>/dev/null || true)
-    if [[ "$bg_child" =~ ^[0-9]+$ ]]; then
-      kill -KILL -- -"$bg_child" 2>/dev/null || true
-      kill -KILL "$bg_child" 2>/dev/null || true
+  if [[ "$sup_ctrl_open" == 1 ]]; then
+    if [[ -n "$pid" && -n "$gate_scratch" ]] && job_is_running "$pid" "$gate_scratch/jobs.tmp"; then
+      printf 'term\n' >&4 2>/dev/null || true
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        if ! job_is_running "$pid" "$gate_scratch/jobs.tmp"; then
+          break
+        fi
+        sleep 0.1 4>&-
+      done
     fi
+    exec 4>&- 5<&-
+    sup_ctrl_open=0
+  fi
+  if [[ -n "$pid" ]]; then
+    wait "$pid" 2>/dev/null || true
   fi
   if [[ "$provision_only" == 0 && "$summary_written" == 0 ]]; then
     emit_gate_summary 1 || true
@@ -569,17 +712,28 @@ mkdir -p "$post_logs" "$gate_scratch/prov-tmp" "$gate_scratch/stage1-tmp" \
 # INT/TERM traps reach and reap the active child group; always reap any surviving
 # group members before clearing fg_child_pid.
 run_fg_group() {
-  local rc=0
+  local rc=0 fifo="$gate_scratch/fg.reap"
+  rm -f "$fifo"
+  mkfifo "$fifo"
+  fg_reap_open=1
+  exec 8<>"$fifo"
+  exec 9<"$fifo"
+  rm -f "$fifo"
   set -m
   (
     set +m
+    exec 4>&- 8>&-
+    spawn_pgid_reap_anchor "$gate_scratch/fg.pgid" 9
+    exec 9<&-
     "$@"
   ) &
   fg_child_pid=$!
   set +m
-  wait "$fg_child_pid" || rc=$?
-  kill -KILL -- -"$fg_child_pid" 2>/dev/null || true
+  exec 9<&-
+  wait "$fg_child_pid" 2>/dev/null || rc=$?
   fg_child_pid=''
+  exec 8>&-
+  fg_reap_open=0
   return "$rc"
 }
 
@@ -589,39 +743,65 @@ run_fg_group() {
 run_fg_exec() {
   local custom_tmpdir="$1"
   shift
-  local rc=0
+  [[ -n "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
+    echo 'gate: isolated TMPDIR missing for external phase' >&2
+    return 1
+  }
+  local rc=0 fifo="$gate_scratch/fg.reap"
+  rm -f "$fifo"
+  mkfifo "$fifo"
+  fg_reap_open=1
+  exec 8<>"$fifo"
+  exec 9<"$fifo"
+  rm -f "$fifo"
   set -m
   (
     set +m
+    exec 4>&- 8>&-
+    spawn_pgid_reap_anchor "$gate_scratch/fg.pgid" 9
+    exec 9<&-
     exec env TMPDIR="$custom_tmpdir" "$@"
   ) &
   fg_child_pid=$!
   set +m
-  wait "$fg_child_pid" || rc=$?
-  kill -KILL -- -"$fg_child_pid" 2>/dev/null || true
+  exec 9<&-
+  wait "$fg_child_pid" 2>/dev/null || rc=$?
   fg_child_pid=''
+  exec 8>&-
+  fg_reap_open=0
   return "$rc"
 }
 
 run_fg_dep_bounded() {
   local limit_s="$1" custom_tmpdir="$2"
   shift 2
-  local rc=0
+  [[ -n "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
+    echo 'gate: isolated TMPDIR missing for bounded phase' >&2
+    return 1
+  }
+  local rc=0 fifo="$gate_scratch/fg.reap"
+  rm -f "$fifo"
+  mkfifo "$fifo"
+  fg_reap_open=1
+  exec 8<>"$fifo"
+  exec 9<"$fifo"
+  rm -f "$fifo"
   set -m
   (
     set +m
+    exec 4>&- 8>&-
+    spawn_pgid_reap_anchor "$gate_scratch/fg.pgid" 9
+    exec 9<&-
     dependency_git
-    if [[ -n "$custom_tmpdir" ]]; then
-      exec env TMPDIR="$custom_tmpdir" "$timeout_command" --signal=KILL "${limit_s}s" "$@"
-    else
-      exec "$timeout_command" --signal=KILL "${limit_s}s" "$@"
-    fi
+    exec env TMPDIR="$custom_tmpdir" "$timeout_command" --signal=KILL "${limit_s}s" "$@"
   ) &
   fg_child_pid=$!
   set +m
-  wait "$fg_child_pid" || rc=$?
-  kill -KILL -- -"$fg_child_pid" 2>/dev/null || true
+  exec 9<&-
+  wait "$fg_child_pid" 2>/dev/null || rc=$?
   fg_child_pid=''
+  exec 8>&-
+  fg_reap_open=0
   return "$rc"
 }
 
@@ -675,6 +855,7 @@ provision_site_workspace() {
   lake -f lakefile.toml build verso/VersoManual verso/VersoManual:shared
 }
 
+provision_state='running'
 provision_start="$SECONDS"
 step 'provisioning the pinned dependencies'
 run_fg_group provision_lean_workspace
@@ -697,7 +878,7 @@ else
   fi
   nc_dl_dir="$gate_scratch/nc-download"
   mkdir -p "$nc_dl_dir"
-  run_fg_exec "$gate_scratch/prov-tmp" curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+  run_fg_exec "$nc_dl_dir" curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
     --connect-timeout 10 --max-time 180 --retry 2 --retry-delay 2 --retry-max-time 300 \
     --output "$nc_dl_dir/no-comments" \
     "https://github.com/rbeauchamp/lean-no-comments/releases/download/${nc_version}/no-comments-${nc_target}"
@@ -712,7 +893,7 @@ else
   fi
   chmod 755 "$nc_dl_dir/no-comments"
   mv -f "$nc_dl_dir/no-comments" "$nc_bin"
-  rmdir "$nc_dl_dir"
+  rm -rf "$nc_dl_dir"
 fi
 provision_dur=$((SECONDS - provision_start))
 provision_state='0'
@@ -789,6 +970,7 @@ nc_refusal=''
 nc_admitted=0
 nc_admit_rc=0
 post_mode='serial'
+post_wall_state='running'
 post_start="$SECONDS"
 
 if [[ "$verified" == 0 ]]; then
@@ -830,23 +1012,35 @@ if [[ "$verified" == 0 ]]; then
   else
     step "verification exited $verified; Regula audit beside lean-intent and frame checks"
   fi
-  regula_state='running'
   bg_supervisor_launched=1
+  sup_ctrl="$gate_scratch/sup.ctrl"
+  rm -f "$sup_ctrl"
+  mkfifo "$sup_ctrl"
+  sup_ctrl_open=1
+  exec 4<>"$sup_ctrl"
+  exec 5<"$sup_ctrl"
+  rm -f "$sup_ctrl"
 
   set -m
   (
     set +m
+    exec 4>&-
+    spawn_pgid_reap_anchor "$gate_scratch/sup.pgid" 5 term-then-kill
+    exec 5<&-
     bg_child_pid=''
+    bg_reap_open=0
     # Invoked by the background subshell's EXIT/INT/TERM traps.
     # shellcheck disable=SC2317,SC2329
     cleanup_bg_child() {
-      if [[ -n "$bg_child_pid" ]]; then
-        kill -KILL -- -"$bg_child_pid" 2>/dev/null || true
-        kill -KILL "$bg_child_pid" 2>/dev/null || true
-        wait "$bg_child_pid" 2>/dev/null || true
-        bg_child_pid=''
+      local pid="$bg_child_pid"
+      bg_child_pid=''
+      if [[ "$bg_reap_open" == 1 ]]; then
+        exec 6>&- 7<&-
+        bg_reap_open=0
       fi
-      rm -f "$post_logs/bg-child.pid"
+      if [[ -n "$pid" ]]; then
+        wait "$pid" 2>/dev/null || true
+      fi
     }
     trap cleanup_bg_child EXIT
     trap 'cleanup_bg_child; exit 130' INT
@@ -855,21 +1049,35 @@ if [[ "$verified" == 0 ]]; then
     run_bg_bounded() {
       local limit_s="$1" custom_tmpdir="$2" prefix="$3"
       shift 3
-      local t0="$SECONDS" rc=0
-      : > "${prefix}.started"
+      [[ -n "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
+        echo "gate: isolated TMPDIR missing for background phase: $prefix" >&2
+        return 1
+      }
+      local t0="$SECONDS" rc=0 fifo="$gate_scratch/bg.reap"
+      printf '%d\n' "$t0" > "${prefix}.started.tmp"
+      mv -f "${prefix}.started.tmp" "${prefix}.started"
+      rm -f "$fifo"
+      mkfifo "$fifo"
+      bg_reap_open=1
+      exec 6<>"$fifo"
+      exec 7<"$fifo"
+      rm -f "$fifo"
       set -m
       (
         set +m
+        exec 6>&-
+        spawn_pgid_reap_anchor "$gate_scratch/bg.pgid" 7
+        exec 7<&-
         dependency_git
         exec env TMPDIR="$custom_tmpdir" "$timeout_command" --signal=KILL "${limit_s}s" "$@"
       ) > "${prefix}.log" 2>&1 < /dev/null &
       bg_child_pid=$!
       set +m
-      printf '%d\n' "$bg_child_pid" > "$post_logs/bg-child.pid"
-      wait "$bg_child_pid" || rc=$?
-      kill -KILL -- -"$bg_child_pid" 2>/dev/null || true
+      exec 7<&-
+      wait "$bg_child_pid" 2>/dev/null || rc=$?
       bg_child_pid=''
-      rm -f "$post_logs/bg-child.pid"
+      exec 6>&-
+      bg_reap_open=0
       printf '%d\n' $((SECONDS - t0)) > "${prefix}.dur.tmp"
       mv -f "${prefix}.dur.tmp" "${prefix}.dur"
       printf '%d\n' "$rc" > "${prefix}.status.tmp"
@@ -887,7 +1095,9 @@ if [[ "$verified" == 0 ]]; then
   ) < /dev/null &
   post_checks_pid=$!
   set +m
+  exec 5<&-
 
+  regula_state='running'
   regula_start="$SECONDS"
   audited=0
   run_fg_dep_bounded "$regula_timeout_s" "$gate_scratch/regula-tmp" ./scripts/regula.sh || audited=$?
@@ -895,8 +1105,10 @@ if [[ "$verified" == 0 ]]; then
   regula_state="$audited"
 
   post_checks_status=0
-  wait "$post_checks_pid" || post_checks_status=$?
+  wait "$post_checks_pid" 2>/dev/null || post_checks_status=$?
   post_checks_pid=''
+  exec 4>&-
+  sup_ctrl_open=0
 
   intended=1
   framed=1
@@ -978,10 +1190,11 @@ else
   step 'no-comments check refused (verification failed)'
 fi
 post_wall_dur=$((SECONDS - post_start))
+post_wall_state='0'
 
-emit_gate_summary 0
 if [[ "$post_checks_status" != 0 ]]; then
   echo "gate: background post-check supervisor exited $post_checks_status" >&2
 fi
-[[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 && "$post_checks_status" == 0 ]] || exit 1
+emit_gate_summary 0
+[[ "$gate_passed" == 1 ]] || exit 1
 step 'every merge check passed'
