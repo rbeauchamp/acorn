@@ -78,6 +78,9 @@ def overrides : IO (Json × Bool) := do
     let manifest ← component (← checked (entry.getObjValAs? String "manifestFile"))
     let scope ← checked (entry.getObjValAs? String "scope")
     let inherited ← checked (entry.getObjValAs? Bool "inherited")
+    let url ← checked (entry.getObjValAs? String "url")
+    unless url.startsWith "https://" && !url.any Char.isWhitespace do
+      throw (IO.userError s!"unsupported locked URL for {name}")
     let revision ← checked (entry.getObjValAs? String "rev")
     unless revision.length == 40 && revision.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) do
       throw (IO.userError s!"invalid locked revision for {name}")

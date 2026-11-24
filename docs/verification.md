@@ -508,8 +508,8 @@ directory to be regular, ignoring untracked working-copy files and run
 directories while failing closed on an empty or non-Git tree, unmerged stages,
 or any tracked symbolic link or non-regular entry, and check explicit
 inventories of the tool modules and of the native entries. Each shell launcher
-(`scripts/gate.sh`, `scripts/verify.sh`, `scripts/lean.sh`, `scripts/regula.sh`)
-and `lean/Bootstrap.lean` admits `scripts/tracked-files.sh` directly against
+(`scripts/gate.sh`, `scripts/verify.sh`, `scripts/lean.sh`, `scripts/regula.sh`),
+`lean/Bootstrap.lean` and `lean/lakefile.lean` admit `scripts/tracked-files.sh` directly against
 Git before executing it, and `scripts/gate.sh` admits its child scripts before
 launching them. Before any shell or Lake consumer reads them,
 `scripts/tracked-files.sh` admits manifests (`lean/lake-manifest.json`,

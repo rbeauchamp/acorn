@@ -96,9 +96,15 @@ materializes it in, `Name.toString (escape := false)` of its locked name read by
 def siteOverrides (requireClean : Bool := true) : IO String := do
   AcornTrackedFiles.ensureTrackedRegular ".." "" "site/lake-manifest.json" requireClean
   let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile "../site/lake-manifest.json"))
+  unless (← IO.ofExcept (lock.getObjValAs? String "version")) == "1.3.0" &&
+      (← IO.ofExcept (lock.getObjValAs? String "name")) == "acorn_site" &&
+      (← IO.ofExcept (lock.getObjValAs? String "packagesDir")) == "../lean/.lake/packages" &&
+      (← IO.ofExcept (lock.getObjValAs? String "lakeDir")) == ".lake" do
+    throw (IO.userError "unsupported documentation manifest header layout")
   let mut entries : Array Lean.Json := #[]
   let mut seenNames : Array Lean.Name := #[]
   let mut seenDirs : Array String := #[]
+  let mut sawAcorn := false
   for entry in ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages") do
     let ty ← IO.ofExcept (entry.getObjValAs? String "type")
     let name ← IO.ofExcept (entry.getObjValAs? String "name")
@@ -108,36 +114,57 @@ def siteOverrides (requireClean : Bool := true) : IO String := do
       throw (IO.userError s!"duplicate documentation package entry: {name}")
     seenNames := seenNames.push decoded
     seenDirs := seenDirs.push directory
-    unless ty == "git" do continue
     let config ← IO.ofExcept (entry.getObjValAs? String "configFile")
     let manifest ← IO.ofExcept (entry.getObjValAs? String "manifestFile")
+    let scope ← IO.ofExcept (entry.getObjValAs? String "scope")
+    let inherited ← IO.ofExcept (entry.getObjValAs? Bool "inherited")
+    for component in [directory, config, manifest] do
+      unless !component.isEmpty && component != "." && component != ".." &&
+          component.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') do
+        throw (IO.userError s!"unsupported documentation package component: {component}")
+    if ty == "path" then
+      let pathDir ← IO.ofExcept (entry.getObjValAs? String "dir")
+      let copy ← IO.ofExcept (entry.getObjValAs? Bool "copy")
+      unless decoded == `acorn && !sawAcorn && pathDir == "../lean" && !copy &&
+          config == "lakefile.lean" && manifest == "lake-manifest.json" &&
+          scope == "" && !inherited do
+        throw (IO.userError s!"unsupported documentation path package entry: {name}")
+      sawAcorn := true
+      continue
+    unless ty == "git" do
+      throw (IO.userError s!"unsupported documentation package entry type: {ty}")
+    let url ← IO.ofExcept (entry.getObjValAs? String "url")
+    unless url.startsWith "https://" && !url.any Char.isWhitespace do
+      throw (IO.userError s!"unsupported documentation package URL: {name}")
     let rev ← IO.ofExcept (entry.getObjValAs? String "rev")
     unless rev.length == 40 && rev.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) do
       throw (IO.userError s!"invalid documentation package revision: {name}")
     unless (← IO.ofExcept (entry.getObjVal? "subDir")) == Lean.Json.null do
       throw (IO.userError s!"unsupported documentation package subDir: {name}")
-    for component in [directory, config, manifest] do
-      unless !component.isEmpty && component != "." && component != ".." &&
-          component.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') do
-        throw (IO.userError s!"unsupported documentation package component: {component}")
     let dir := s!"../lean/.lake/packages/{directory}"
     let pkgBase : System.FilePath := System.FilePath.mk ".lake/packages" / directory
     unless ← regularProvisionedFile (pkgBase / config) do
       throw (siteUnprovisioned name)
     let _ ← regularProvisionedFile (pkgBase / manifest)
     entries := entries.push (Lean.Json.mkObj [
-      ("name", name), ("scope", ← IO.ofExcept (entry.getObjVal? "scope")),
-      ("inherited", ← IO.ofExcept (entry.getObjVal? "inherited")), ("configFile", config),
+      ("name", name), ("scope", scope),
+      ("inherited", inherited), ("configFile", config),
       ("manifestFile", manifest),
       ("type", "path"), ("dir", dir)])
-  IO.FS.createDirAll "../site/.lake"
+  unless sawAcorn && !entries.isEmpty do
+    throw (IO.userError "incomplete documentation manifest package inventory")
   let dirArgs := if requireClean then
     #["admit-lake-dirs", "--clean", "--workspace", "site", ".."]
   else
     #["admit-lake-dirs", "--workspace", "site", ".."]
   AcornTrackedFiles.runTrackedHelper ".." dirArgs requireClean
-  AcornTrackedFiles.writeFileAtomicExclusive "../site/.lake/acorn-path-packages.json"
-    ((Lean.Json.mkObj [("version", "1.2.0"), ("packages", Lean.toJson entries)]).compress ++ "\n")
+  IO.FS.createDirAll "../site/.lake"
+  AcornTrackedFiles.runTrackedHelper ".." dirArgs requireClean
+  let overridePath : System.FilePath := "../site/.lake/acorn-path-packages.json"
+  let text := (Lean.Json.mkObj [("version", "1.2.0"), ("packages", Lean.toJson entries)]).compress ++ "\n"
+  let current ← try some <$> IO.FS.readFile overridePath catch _ => pure none
+  unless current == some text do
+    AcornTrackedFiles.writeFileAtomicExclusive overridePath text
   return ".lake/acorn-path-packages.json"
 
 /-- Build the documents, which elaborates every reference they make to a Lean owner, then

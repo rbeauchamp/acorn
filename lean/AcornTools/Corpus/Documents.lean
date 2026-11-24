@@ -294,10 +294,15 @@ unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
   let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile (package / "lake-manifest.json")))
   let dependencies ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages")
   let mut paths := [package / ".lake/build/lib/lean"]
+  let mut seenDeps : Std.HashSet String := {}
   for dependency in dependencies do
     -- Lake's checkout directory of the locked name (`PackageEntry.dirName`).
     let name := (← IO.ofExcept (dependency.getObjValAs? String "name")).toName.toString
       (escape := false)
+    if name.isEmpty || name == "." || name == ".." || seenDeps.contains name ||
+        !name.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') then
+      throw (IO.userError s!"duplicate or unsupported locked dependency directory: {name}")
+    seenDeps := seenDeps.insert name
     paths := paths ++ [package / ".lake/packages" / name / ".lake/build/lib/lean"]
   searchPathRef.set (paths ++ [← getLibDir sysroot])
   enableInitializersExecution

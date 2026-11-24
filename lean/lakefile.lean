@@ -3,7 +3,6 @@ Copyright (c) 2026 acorn contributors.
 Released under the MIT license as described in the repository LICENSE.
 -/
 import Lake
-import Std.Data.HashSet.Basic
 open Lake DSL
 
 private def stripNewline (text : String) : String :=
@@ -13,106 +12,75 @@ private def isHexOid (value : String) : Bool :=
   (value.length == 40 || value.length == 64) &&
     value.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f'))
 
-private def checkTrackedComponents (rel : String) : IO (List String) := do
-  if rel.isEmpty || rel.startsWith "/" || rel.endsWith "/" ||
-      rel.contains '\n' || rel.contains '\r' || rel.contains (Char.ofNat 0) then
-    throw (IO.userError s!"unsupported tracked path: {rel}")
-  let parts := rel.splitOn "/"
-  for part in parts do
-    if part.isEmpty || part == "." || part == ".." then
-      throw (IO.userError s!"unsupported path component in {rel}")
-  return parts
-
-private def ensureTrackedAncestors (root : System.FilePath)
-    (seenDirs : IO.Ref (Std.HashSet String)) (parts : List String) : IO Unit := do
-  let mut curRel := ""
-  for part in parts.dropLast do
-    curRel := if curRel.isEmpty then part else curRel ++ "/" ++ part
-    if !(← seenDirs.get).contains curRel then
-      let entryMeta ← (root / curRel).symlinkMetadata
-      unless entryMeta.type == .dir do
-        throw (IO.userError s!"non-directory ancestor {curRel}")
-      seenDirs.modify (·.insert curRel)
-
-private def verifyGitDirectory (root : System.FilePath) (expectedPrefix : String) : IO Unit := do
-  let rootMeta ← root.symlinkMetadata
-  unless rootMeta.type == .dir do
-    throw (IO.userError s!"expected directory for Git root: {root}")
+private def admitTrackedHelper (dir : System.FilePath) (expectedPrefix : String) :
+    IO System.FilePath := do
+  let dirMeta ← dir.symlinkMetadata
+  unless dirMeta.type == .dir do
+    throw (IO.userError s!"expected directory for Git root: {dir}")
   let topOut ← IO.Process.output {
-    cmd := "git", args := #["--no-optional-locks", "-C", root.toString, "rev-parse", "--show-toplevel"],
+    cmd := "git", args := #["--no-optional-locks", "-C", dir.toString, "rev-parse", "--show-toplevel"],
     stdin := .null }
   unless topOut.exitCode == 0 do
-    throw (IO.userError s!"git rev-parse --show-toplevel failed in {root}: {topOut.stderr}")
+    throw (IO.userError s!"git rev-parse --show-toplevel failed in {dir}: {topOut.stderr}")
   let prefixOut ← IO.Process.output {
-    cmd := "git", args := #["--no-optional-locks", "-C", root.toString, "rev-parse", "--show-prefix"],
+    cmd := "git", args := #["--no-optional-locks", "-C", dir.toString, "rev-parse", "--show-prefix"],
     stdin := .null }
   unless prefixOut.exitCode == 0 do
-    throw (IO.userError s!"git rev-parse --show-prefix failed in {root}: {prefixOut.stderr}")
+    throw (IO.userError s!"git rev-parse --show-prefix failed in {dir}: {prefixOut.stderr}")
   let topStr := stripNewline topOut.stdout
   let prefixStr := stripNewline prefixOut.stdout
   unless prefixStr == expectedPrefix do
-    throw (IO.userError s!"unexpected git prefix {prefixStr} in {root}, expected {expectedPrefix}")
-  let expectedRoot := if prefixStr.isEmpty then System.FilePath.mk topStr
-    else System.FilePath.mk topStr / (prefixStr.dropEndWhile (· == '/')).toString
-  unless (← IO.FS.realPath expectedRoot) == (← IO.FS.realPath root) do
-    throw (IO.userError s!"git root mismatch for {root}")
+    throw (IO.userError s!"unexpected git prefix {prefixStr} in {dir}, expected {expectedPrefix}")
+  let repoRoot := System.FilePath.mk topStr
+  let expectedDir := if prefixStr.isEmpty then repoRoot
+    else repoRoot / (prefixStr.dropEndWhile (· == '/')).toString
+  unless (← IO.FS.realPath expectedDir) == (← IO.FS.realPath dir) do
+    throw (IO.userError s!"git root mismatch for {dir}")
+  let scriptsMeta ← (repoRoot / "scripts").symlinkMetadata
+  unless scriptsMeta.type == .dir do
+    throw (IO.userError "scripts is not a real directory")
+  let helper := repoRoot / "scripts/tracked-files.sh"
+  let helperMeta ← helper.symlinkMetadata
+  unless helperMeta.type == .file do
+    throw (IO.userError "scripts/tracked-files.sh is not a regular file")
+  let stageOut ← IO.Process.output {
+    cmd := "git",
+    args := #["--no-optional-locks", "--literal-pathspecs", "-C", repoRoot.toString,
+      "-c", "core.quotePath=false", "ls-files", "--stage", "-z", "--", "scripts/tracked-files.sh"],
+    stdin := .null }
+  unless stageOut.exitCode == 0 do
+    throw (IO.userError s!"git ls-files failed for scripts/tracked-files.sh: {stageOut.stderr}")
+  let records := (stageOut.stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
+  let [record] := records | throw (IO.userError "scripts/tracked-files.sh is not tracked")
+  let [metaPart, path] := record.splitOn "\t"
+    | throw (IO.userError s!"malformed git ls-files record: {record}")
+  let [mode, oid, stage] := metaPart.splitOn " "
+    | throw (IO.userError s!"malformed git ls-files metadata: {metaPart}")
+  unless (mode == "100644" || mode == "100755") && stage == "0" &&
+      path == "scripts/tracked-files.sh" && isHexOid oid do
+    throw (IO.userError "scripts/tracked-files.sh is not a stage-0 tracked regular file")
+  return repoRoot
 
-private def parseStageRecords (stdout : String) : IO (Array String) := do
-  let records := (stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
-  if records.isEmpty then
-    throw (IO.userError "git ls-files returned no tracked entries")
-  let mut paths := #[]
-  for record in records do
-    let [metaPart, path] := record.splitOn "\t"
-      | throw (IO.userError s!"malformed git ls-files record: {record}")
-    let [mode, oid, stage] := metaPart.splitOn " "
-      | throw (IO.userError s!"malformed git ls-files metadata: {metaPart}")
-    unless (mode == "100644" || mode == "100755") && stage == "0" && isHexOid oid do
-      throw (IO.userError s!"unsupported tracked entry mode or stage for {path}")
-    discard (checkTrackedComponents path)
-    paths := paths.push path
-  return paths.qsort (· < ·)
+private def runTrackedHelper (repoRoot : System.FilePath) (args : Array String) : IO String := do
+  let helper := repoRoot / "scripts/tracked-files.sh"
+  let out ← IO.Process.output { cmd := helper.toString, args, stdin := .null }
+  unless out.exitCode == 0 do
+    throw (IO.userError (out.stderr ++ out.stdout).trimAscii.toString)
+  return out.stdout
 
 private def trackedEntriesIn (root : System.FilePath) (expectedPrefix : String) : IO (Array String) := do
-  verifyGitDirectory root expectedPrefix
-  let out ← IO.Process.output {
-    cmd := "git",
-    args := #["--no-optional-locks", "-C", root.toString, "-c", "core.quotePath=false",
-      "ls-files", "--stage", "-z"],
-    stdin := .null }
-  unless out.exitCode == 0 do
-    throw (IO.userError s!"git ls-files failed in {root}: {out.stderr}")
-  let paths ← parseStageRecords out.stdout
-  let seenDirs ← IO.mkRef ({} : Std.HashSet String)
-  for path in paths do
-    let parts := path.splitOn "/"
-    ensureTrackedAncestors root seenDirs parts
-    let entryMeta ← (root / path).symlinkMetadata
-    unless entryMeta.type == .file do
-      throw (IO.userError s!"non-regular tracked entry {path}")
-  return paths
+  let repoRoot ← admitTrackedHelper root expectedPrefix
+  let stdout ← runTrackedHelper repoRoot
+    #["list-tracked", "--prefix", expectedPrefix, "--require-lean", root.toString]
+  let paths := ((stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)).toArray
+  if paths.isEmpty then
+    throw (IO.userError s!"tracked-files returned no tracked entries in {root}")
+  return paths.qsort (· < ·)
 
 private def ensureTrackedRegularIn (root : System.FilePath) (expectedPrefix : String)
     (rel : String) : IO Unit := do
-  let parts ← checkTrackedComponents rel
-  if rel.startsWith ":" || rel.startsWith "-" then
-    throw (IO.userError s!"unsupported tracked path prefix: {rel}")
-  verifyGitDirectory root expectedPrefix
-  let out ← IO.Process.output {
-    cmd := "git",
-    args := #["--no-optional-locks", "--literal-pathspecs", "-C", root.toString,
-      "-c", "core.quotePath=false", "ls-files", "--stage", "-z", "--", rel],
-    stdin := .null }
-  unless out.exitCode == 0 do
-    throw (IO.userError s!"git ls-files failed for {rel} in {root}: {out.stderr}")
-  let paths ← parseStageRecords out.stdout
-  unless paths == #[rel] do
-    throw (IO.userError s!"path is not a tracked regular file: {rel}")
-  let seenDirs ← IO.mkRef ({} : Std.HashSet String)
-  ensureTrackedAncestors root seenDirs parts
-  let entryMeta ← (root / rel).symlinkMetadata
-  unless entryMeta.type == .file do
-    throw (IO.userError s!"non-regular tracked entry {rel}")
+  let repoRoot ← admitTrackedHelper root expectedPrefix
+  discard (runTrackedHelper repoRoot #["admit-file", repoRoot.toString, expectedPrefix ++ rel])
 
 private def moduleRelPath (root : Lean.Name) : String :=
   String.intercalate "/" (root.components.map (·.toString (escape := false))) ++ ".lean"
