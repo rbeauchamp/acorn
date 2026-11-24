@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Lean
 import AcornDocument
 import Acorn.Digits
@@ -11,12 +6,6 @@ import Acorn.Host.Viewer.BrowserSchema
 import AcornTools.Corpus.Browser
 import AcornTools.TrackedFiles
 
-/-! # Compiled declaration and document path admission
-
-Code spans identify maintained declarations or complete path claims. Compiler-owned
-names replace lexical declaration inference; IO and Lean environment loading are
-the reviewed tooling boundary.
--/
 namespace AcornDocument
 open Lean
 
@@ -120,7 +109,6 @@ private def fileExtensions : List String := [
   ".map",
   ".tmp"]
 
-/-- Visible inline code spans; fenced examples are not live document claims. -/
 def spans (text : String) : List String := Id.run do
   let mut fenced := false
   let mut result := []
@@ -239,8 +227,6 @@ private def symbol (span : String) : Option String := do
   guard (!(name.splitOn ".").any (fun part => part.toList.head?.any Char.isDigit))
   return name
 
-/-- Derive document symbols from the admitted compiler environment. Every selected
-non-entry owner must be present; unrelated imports cannot supply owned names. -/
 def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet String) := do
   let owners := selection.filter fun owner =>
     !AcornOwnership.executables.any (fun entry => entry.2 == owner)
@@ -280,9 +266,6 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
               names := names.insert (String.intercalate "." (suffix.take count))
   return names
 
-/-- Load compiler declarations once, excluding executable `main` collisions.
-Only maintained module owners contribute names; imported libraries do not make
-an otherwise missing project declaration appear present. -/
 unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
   let package : System.FilePath := "lean"
   AcornTrackedFiles.ensureTrackedRegular "." "" "scripts/lean.sh"
@@ -296,7 +279,6 @@ unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
   let mut paths := [package / ".lake/build/lib/lean"]
   let mut seenDeps : Std.HashSet String := {}
   for dependency in dependencies do
-    -- Lake's checkout directory of the locked name (`PackageEntry.dirName`).
     let name := (← IO.ofExcept (dependency.getObjValAs? String "name")).toName.toString
       (escape := false)
     if name.isEmpty || name == "." || name == ".." || seenDeps.contains name ||
@@ -319,8 +301,6 @@ private def resolves (names : Std.HashSet String) (name : String) : Bool :=
     (name.endsWith "_*" && names.toArray.any (fun candidate =>
       candidate.startsWith (name.dropEnd 1).toString))
 
-/-- Every applicable path and declaration claim is checked, reporting all stale
-references together; archive paths and external study citations are refused. -/
 unsafe def check (documents : Array (String × String)) (selection : Array Name)
     (tracked : Array String) (env? : Option Environment := none) : IO Unit := do
   let index := trackedIndex tracked

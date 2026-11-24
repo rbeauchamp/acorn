@@ -1,36 +1,18 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornTools.ModuleInventory
 import AcornTools.Native.Routes
 import AcornTools.Native.Resources
 import AcornTools.TrackedFiles
 
-/-! # Compiled native boundary admission
-
-Lake establishes source freshness before this tool inspects generated C and
-compile traces. Ordered textual calls detect replacement or routing drift;
-they do not prove compiler correctness, control flow, argument correspondence
-or universal IEEE behavior. The executed Lean definitions own those contracts
-that are proved. Native primitives, the compiler and platform remain trusted.
--/
 namespace AcornNativeAudit
 open Lean
 
-/-- Compiler-output admission errors identify the actual owner. -/
 def require (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError s!"native boundary: {message}")
 
-/-- Read only regular compiler-owned artifacts. -/
 def read (path : System.FilePath) : IO String := do
   AcornTrackedFiles.ensureRegular "." path.toString
   IO.FS.readFile path
 
-/-- Locate one generated definition, excluding its forward declaration: an exported function,
-or, for a symbol named `_init_…`, the static function that computes a constant the compiler
-hoists out of a function body once. -/
 def functionBody (source symbol : String) : Option String := do
   let marker := if symbol.startsWith "_init_" then "static " else "LEAN_EXPORT "
   let start ← (source.splitOn "\n").find? fun line =>
@@ -46,7 +28,6 @@ def functionBody (source symbol : String) : Option String := do
     body := body.push c
   none
 
-/-- Each required call is found strictly after its predecessor in the definition. -/
 def orderedCalls (source symbol : String) (calls : Array String) : IO Unit := do
   let some body := functionBody source symbol
     | throw (IO.userError s!"missing compiled definition {symbol}")
@@ -56,7 +37,6 @@ def orderedCalls (source symbol : String) (calls : Array String) : IO Unit := do
     require (parts.length > 1) s!"{symbol} lacks ordered call {call}"
     remaining := String.intercalate (call ++ "(") parts.tail
 
-/-- Deferred calls retain their exact ordered compiler code pointers. -/
 def orderedClosures (source symbol : String) (closures : Array String) : IO Unit := do
   let some body := functionBody source symbol
     | throw (IO.userError s!"missing compiled definition {symbol}")
@@ -67,7 +47,6 @@ def orderedClosures (source symbol : String) (closures : Array String) : IO Unit
     require (parts.length > 1) s!"{symbol} lacks ordered closure {closure}"
     remaining := String.intercalate token parts.tail
 
-/-- Only reviewed primitive operations cross the floating-point native boundary. -/
 def primitiveAllowed (owner : Name) (token : String) : Bool :=
   #["lean_float_of_bits", "lean_float_to_bits", "lean_float_add", "lean_float_sub",
     "lean_float_mul", "lean_float_div", "lean_float_once", "lean_float32_of_bits",
@@ -81,14 +60,12 @@ def primitiveAllowed (owner : Name) (token : String) : Bool :=
     #["lean_float_of_nat", "lean_float_isnan", "lean_float_isinf", "lean_float_decLt",
       "lean_float_negate", "lean_float_beq"].contains token)
 
-/-- A newly introduced primitive is refused in every discovered native module. -/
 def primitives (owner : Name) (source : String) : IO Unit := do
   let tokens := source.splitToList fun c => !c.isAlphanum && c != '_'
   for token in tokens do
     if token.startsWith "lean_float" || (token.splitOn "_to_float").length > 1 then
       require (primitiveAllowed owner token) s!"{owner}: unreviewed native primitive {token}"
 
-/-- The pinned compiler argument domain excludes response files and floating overrides. -/
 def allowedArgument (argument : String) : Bool :=
   !argument.toList.any (fun c => c == '\'' || c == '"' || c == '\\') &&
   (argument.startsWith "/" || #["-c", "-o", "-I", "-isystem", "--sysroot",
@@ -97,9 +74,6 @@ def allowedArgument (argument : String) : Bool :=
     "-Wno-unused-command-line-argument", "-nostdinc", "-O3", "-DNDEBUG",
     "-DLEAN_EXPORTING"].contains argument)
 
-/-- Check the actual recorded compilation, not only the Lake declaration.
-The pinned compiler supplies position-independent addressing on Linux;
-this option does not authorize floating-point reassociation. -/
 def compileFlags (text : String) : IO Unit := do
   let trace ← IO.ofExcept (Json.parse text)
   let log ← IO.ofExcept (trace.getObjValAs? (Array Json) "log")
@@ -124,7 +98,6 @@ private def irCPath (owner : Name) : System.FilePath :=
 private def routeModule (owner : String) : Name :=
   (("Acorn/" ++ owner).splitOn "/").foldl Name.str .anonymous
 
-/-- Current native module discovery includes every newly added nested source. -/
 unsafe def audit : IO Unit := do
   let modules ← AcornModuleInventory.projectModules
   let nativeModules := modules.filter AcornModuleInventory.nativeModule
@@ -145,7 +118,6 @@ unsafe def audit : IO Unit := do
 
 end AcornNativeAudit
 
-/-- Report native build-routing failures explicitly. -/
 unsafe def main (args : List String) : IO UInt32 := do
   unless args.isEmpty do
     IO.eprintln "usage: native-audit"

@@ -1,17 +1,6 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import NativeApp.MutationAudit
 import AcornTools.TrackedFiles
 
-/-! # Published mutation-pin consistency
-
-The current pin leaf and actual audit command admission own every live printed
-expectation. A digest difference detects a change in the audit stream; matching
-digests do not establish correctness or transition equivalence.
--/
 namespace AcornPinAudit
 
 private def hexWords (text : String) : List String :=
@@ -39,7 +28,6 @@ private def commands (line : String) : Except String (List (NativeApp.AuditArm �
     | .error _ => throw "printed audit command is not admitted"
   return result
 
-/-- Check published command/pin/checksum pairs and the current register row. -/
 def checkTexts (documents : Array (String × String)) (verification readiness : String) : IO Unit := do
   let pinned := NativeApp.hexWord NativeApp.AuditArm.declared.receipt.digest
   require (after verification "**Pinned digest: `" == [pinned]) "verification pinned digest differs"
@@ -66,7 +54,6 @@ def checkTexts (documents : Array (String × String)) (verification readiness : 
           s!"{path}:{index+1}: audit lacks its paired checksum within eight lines"
   require (expectations > 0) "no concrete audit expectation with checksum is published"
 
-/-- The maintained documentation binds every current audit arm to its pin. -/
 def check (documents : Array (String × String)) : IO Unit := do
   AcornTrackedFiles.ensureTrackedRegular "." "" "docs/verification.md"
   AcornTrackedFiles.ensureTrackedRegular "." "" "docs/frontier.md"

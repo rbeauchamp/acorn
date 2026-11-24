@@ -1,20 +1,7 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import NativeApp.Assets
 import Acorn.Host.Viewer.Options
 import Acorn.Host.Forever
 
-/-!
-# Native viewer bootstrap
-
-The bootstrap admits configuration and durable state, binds loopback HTTP, then
-drives the serial supervisor. Browser request handlers cannot access a process
-handle. Native entropy, files, process execution and transport remain explicit
-OS/runtime boundaries.
--/
 namespace NativeApp
 open Acorn.Host Acorn.Host.Viewer
 
@@ -85,7 +72,6 @@ private def pollBrowser (opener : IO.Ref (Option (String × BrowserChild))) : IO
   let some (url, child) ← opener.get | return
   try
     if let some status ← child.tryWait then
-      -- tryWait consumes the status; this child must never be waited on again.
       opener.set none
       unless status == 0 do
         IO.eprintln s!"Browser could not open automatically. Open {url} in your browser."
@@ -94,7 +80,6 @@ private def pollBrowser (opener : IO.Ref (Option (String × BrowserChild))) : IO
     try IO.eprintln s!"Browser launch status unavailable. Open {url} in your browser."
     catch _ => pure ()
 
-/-- No core can launch before durable admission and successful HTTP binding. -/
 def runViewer (arguments : List String) : IO UInt32 := do
   let options ← match ViewerOptions.decode arguments with
     | .ok options => pure options
@@ -109,7 +94,6 @@ def runViewer (arguments : List String) : IO UInt32 := do
   let stop ← StopFlag.new
   stop.withCommands options.controlStdin do
     let viewer ← supervisor.http viewerAssets
-    -- Before binding succeeds no command can launch a core.
     let server ← (viewer.serve options.port).wait
     let shutdown ← IO.asTask server.waitShutdown.wait (prio := .dedicated)
     let opener ← IO.mkRef none
@@ -141,25 +125,20 @@ def runViewer (arguments : List String) : IO UInt32 := do
           | .error error => throw error
         supervisor.step
         IO.sleep 50
-      -- The loop has no `break`, so it ends only by returning or throwing.
       throw (IO.userError "viewer loop ended without a result")
     finally
       try supervisor.shutdown
       finally
         try
-          -- Keep HTTP alive during wind-up, then release its sole shutdown waiter.
           server.shutdown.wait
           match shutdown.get with
           | .ok () => pure ()
           | .error error => throw error
         finally
-          -- A desktop opener never holds a worker or blocks viewer exit. Poll
-          -- once more; a still-running detached opener survives process exit.
           pollBrowser opener
 
 end NativeApp
 
-/-- Startup failure is visible and cannot silently launch a replacement run. -/
 def _root_.NativeApp.Viewer.main (arguments : List String) : IO UInt32 := do
   try NativeApp.runViewer arguments
   catch error =>

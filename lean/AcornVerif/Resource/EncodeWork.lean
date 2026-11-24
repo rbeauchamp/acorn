@@ -1,29 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Handcrafted.Agent
 import AcornVerif.Resource.LearnerWork
-
-/-!
-# Work of the encoding of a frame
-
-The bounds of the costed definitions of the words the coder reads (`Agent.wordsCosted`) and of the
-encoding of a frame (`Agent.frameCosted`), whose values are the executed `Agent.words` and
-`Agent.frame`. The clock advance is charged under the `choose` site in
-`AcornVerif.Resource.StepWork`. The words are the world's frame words and one feedback word for
-each stored prediction. Each generated unit sums 32 samples of the frame's patch. The sensor words
-are hashed once for each tiling, the active units are appended, and the list is made unique with
-one membership flag for each feature slot. The flags are written in full for every frame, so the
-encoding's work includes the capacity of the feature space whatever the frame
-(`Features.UniqueBuilder.emptyCosted`).
-
-Each definition here is the executed function with the bound proved of its costed definition as
-its work, and its `_costed` theorem checks that the costed definition is within it. The compiled
-`feedbackWords` builds each word before its recursive call and conses it on the return, so its
-costed definition charges the word before the descent and a visit on the return.
--/
 
 namespace AcornVerif.Resource.Twin
 
@@ -31,8 +7,6 @@ open Acorn Acorn.Features Acorn.Handcrafted
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
-
-/-! ## The words the coder reads -/
 
 theorem cacheWordsCosted_within (κ : Costs) {discounts : List Discount}
     (cache : PredictionCache discounts) :
@@ -64,7 +38,6 @@ theorem feedbackWordsCosted_within (κ : Costs) (base : UInt64) (discounts : Lis
       simp only [pass, List.length_cons, Nat.succ_mul]
       omega
 
-/-- Bound of the words at `frameWords` frame words and `questions` stored predictions. -/
 abbrev wordsBound (κ : Costs) (frameWords questions : Nat) : Nat :=
   pass (κ .visit) questions (κ .read) + pass (κ .visit) questions (κ .feedbackWord) +
     Library.append.control (κ .visit) frameWords
@@ -83,7 +56,6 @@ theorem wordsCosted_within (κ : Costs)
   simp only [wordsBound]
   omega
 
-/-- The words the coder reads, with the bound of their costed definition. -/
 def words (κ : Costs) (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) : Costed (List SensorWord) :=
   ⟨state.words observation, wordsBound κ interface.words interface.layout.length⟩
@@ -103,9 +75,6 @@ theorem words_costed (κ : Costs)
     (state.wordsCosted observation).Within κ (words κ state observation).work :=
   wordsCosted_within κ state observation
 
-/-! ## The generated units -/
-
-/-- Bound of one unit's projection over its 32 samples. -/
 abbrev projectionBound (κ : Costs) : Nat :=
   Library.toList.control (κ .visit) 32 + Library.zipIdx.control (κ .visit) 32 +
     (Library.map.work (κ .visit) 32 (κ .sampleTerm)) +
@@ -127,7 +96,6 @@ theorem projectionValueCosted_within {shape : PatchShape} (κ : Costs) (bank : B
       Vector.length_toList, List.length_zipIdx, List.length_map, projectionBound]
     omega
 
-/-- A unit's projection, with the bound of its costed definition. -/
 def projectionValue {shape : PatchShape} (κ : Costs) (bank : Bank shape config)
     (patch : Patch shape) (unit : Fin config.units.count) : Costed Int :=
   ⟨Features.projectionValue bank patch unit, projectionBound κ⟩
@@ -154,7 +122,6 @@ theorem activationsCosted_within {shape : PatchShape} (κ : Costs) (bank : Bank 
     Acorn.Costed.bind_within (projectionValueCosted_within κ bank patch unit)
       (Acorn.Costed.op_within _ _ κ)
 
-/-- The units' outputs, with the bound of their costed definition. -/
 def activations {shape : PatchShape} (κ : Costs) (bank : Bank shape config)
     (patch : Patch shape) : Costed (Vector Bool config.units.count) :=
   ⟨bank.activations patch,
@@ -174,9 +141,6 @@ theorem activations_costed {shape : PatchShape} (κ : Costs) (bank : Bank shape 
     (bank.activationsCosted patch).Within κ (activations κ bank patch).work :=
   activationsCosted_within κ bank patch
 
-/-! ## The encoding -/
-
-/-- Bound of the tiled features of `size` words. -/
 abbrev tiledBound (κ : Costs) (tilings size : Nat) : Nat :=
   Library.range.control (κ .visit) tilings +
     Library.flatMap.work (κ .visit) tilings
@@ -194,7 +158,6 @@ theorem tiledFeaturesCosted_within (κ : Costs) (dimension : Dimension) (config 
     (fun _ _ => by simp [Acorn.Costed.map_val])).mono ?_
   simp [Acorn.Costed.range_val]
 
-/-- The tiled features, with the bound of their costed definition. -/
 def tiledFeatures (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (words : List SensorWord) : Costed (List (FeatIdx dimension)) :=
   ⟨Features.tiledFeatures dimension config words,
@@ -227,7 +190,6 @@ theorem imprintFeaturesCosted_within (κ : Costs) (dimension : Dimension)
   refine (Acorn.Costed.filterMap_within fun _ _ => Acorn.Costed.op_within _ _ κ).mono ?_
   simp [Acorn.Costed.finRange_val]
 
-/-- The imprinted features, with the bound of their costed definition. -/
 def imprintFeatures (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (active : Vector Bool config.units.count) : Costed (List (FeatIdx dimension)) :=
   ⟨Features.imprintFeatures dimension config active,
@@ -252,7 +214,6 @@ theorem imprintFeatures_costed (κ : Costs) (dimension : Dimension) (config : Fe
       (imprintFeatures κ dimension config active).work :=
   imprintFeaturesCosted_within κ dimension config active
 
-/-- Bound of a unique encoding of `size` raw features. -/
 abbrev uniqueBound (κ : Costs) (capacity size : Nat) : Nat :=
   Library.replicate.control (κ .visit) capacity + Library.foldl.work (κ .visit) size (κ .uniqueAdd) +
     Library.reverse.control (κ .visit) size
@@ -285,7 +246,6 @@ theorem uniqueCosted_within (κ : Costs) (indices : List (FeatIdx dimension)) :
   simp only [uniqueBound]
   omega
 
-/-- The unique encoding, with the bound of its costed definition. -/
 def unique (κ : Costs) (indices : List (FeatIdx dimension)) :
     Costed (SwiftTd.ActiveSet dimension) :=
   ⟨Features.unique indices, uniqueBound κ dimension.capacity indices.length⟩
@@ -301,7 +261,6 @@ theorem unique_costed (κ : Costs) (indices : List (FeatIdx dimension)) :
     (uniqueCosted indices).Within κ (unique κ indices).work :=
   uniqueCosted_within κ indices
 
-/-- Bound of an encoding at a capacity, a tiling count, `size` words and `units` units. -/
 abbrev encodeBound (κ : Costs) (capacity tilings size units : Nat) : Nat :=
   tiledBound κ tilings size +
     (Library.finRange.control (κ .visit) units +
@@ -341,7 +300,6 @@ theorem encodeWithCosted_within (κ : Costs) (dimension : Dimension) (config : F
   simp only [encodeBound, uniqueBound]
   omega
 
-/-- The encoding, with the bound of its costed definition. -/
 def encodeWith (κ : Costs) (dimension : Dimension) (config : Features.Config)
     (words : List SensorWord) (active : Vector Bool config.units.count) :
     Costed (SwiftTd.ActiveSet dimension) :=
@@ -365,7 +323,6 @@ theorem encodeWith_costed (κ : Costs) (dimension : Dimension) (config : Feature
       (encodeWith κ dimension config words active).work :=
   encodeWithCosted_within κ dimension config words active
 
-/-- An encoding's bound grows with the number of words. -/
 theorem encodeBound_mono (κ : Costs) (capacity tilings units : Nat) {size limit : Nat}
     (fits : size ≤ limit) :
     encodeBound κ capacity tilings size units ≤ encodeBound κ capacity tilings limit units := by
@@ -381,7 +338,6 @@ theorem encodeBound_mono (κ : Costs) (capacity tilings units : Nat) {size limit
   simp only [encodeBound, tiledBound, uniqueBound]
   omega
 
-/-- Bound of a frame's encoding for an interface, a capacity and a feature configuration. -/
 abbrev frameBound (κ : Costs) (interface : Interface) (capacity : Nat)
     (config : Features.Config) : Nat :=
   wordsBound κ interface.words interface.layout.length +
@@ -415,7 +371,6 @@ theorem frameCosted_within (κ : Costs)
   simp only [frameBound]
   omega
 
-/-- The encoding of a frame, with the bound of its costed definition. -/
 def frame (κ : Costs) (state : Agent interface profile config criterion dimension planning)
     (observation : Frame interface) :
     Costed (EncodingFrame dimension state.control.runtime.lifecycle.representation.bank

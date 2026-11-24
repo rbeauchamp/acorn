@@ -143,8 +143,11 @@ first four with Bootstrap; Entry holds the executables' roots. Every retained
 native target is built and checked against Lake's evaluated targets and compiled
 entry owners; each executable root must be a maintained module. Ownership
 admission refuses a facet-qualified build key in the root package's Lake
-configuration. The [Lake configuration](../lean/lakefile.lean) documents the
-restriction and its pinned-Lake rationale. Before any Lake command, `Bootstrap.lean` must elaborate with no message,
+configuration. In Lake of Lean v4.36.0 (Lake/Build/Target/Fetch.lean, lines 54 to 67;
+leanprover/lean4#15435), PartialBuildKey.fetchInCoreAux fetches a facet-qualified key
+from an asynchronous bindM continuation, which races other fetches on the unsynchronized
+build store so a second job can run on the same output file; a facetless key is resolved
+through its package and fetched synchronously, so it is the form admitted. Before any Lake command, `Bootstrap.lean` must elaborate with no message,
 reject `-f`/`--file`/`-d`/`--dir`/`--packages` overrides on build and query
 (and as leading Lake options on exe and env, while preserving `-K`
 configuration settings and executable or command arguments), and run Lake
@@ -568,11 +571,110 @@ admission while permitting uncommitted edits to tracked files. Runtime
 `--research-profile` selects agent mechanisms; it does not change verification.
 Resource, route and compiler flag admission, browser byte generation, corpus and
 declaration checks always run. Missing or untracked referenced files fail
-admission.
+admission. In `lean/Bootstrap.lean`, `AcornBootstrap.overrides` inspects every
+locked manifest dependency entry even when an earlier dependency is absent, so
+missing provisioning cannot hide a later schema or filesystem refusal; both
+`AcornBootstrap.packageDir` and `lean/AcornTools/Gate.lean` resolve each locked
+dependency directory as Lake of Lean v4.36.0 does (reading the name with
+String.toName and mapping it via Name.toString with escape disabled, matching
+PackageEntry.dirName), so escaped manifest names such as `«lean-intent»` resolve
+to `lean-intent`. `AcornDocument.external` (`lean/AcornDocument.lean`) admits
+external prose names strictly by exact equality with
+`AcornDocument.externalSymbols` (after normalizing `::` to `.`), so listing a
+namespace or type admits no other member of its namespace (every qualified
+external name must be listed in full), and the module imports only Lean's
+prelude so the Regula proof claim covers it and `AcornDocument.external_listed`.
+In `lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.code` conservatively
+strips JavaScript comments, strings, and regex literals and fails closed on
+unterminated constructs; its specification table check requires a unique line
+containing the Appendix A title with exact heading
+`## Appendix A · Constants this document quotes`, then scans from that heading
+to the end of `docs/viewer-ux.md` (without stopping at a later heading),
+requiring the generated constants table to appear consecutively once and
+rejecting any other line containing `|` after that heading.
 
 Numerical proofs use the executing Lean definitions. Native admission checks
-their compiler IR, primitive calls, resource contracts and compiler flags.
-Primitive IEEE interpretation remains a native assumption.
+their compiler IR, primitive calls, resource contracts and compiler flags. In `lean/AcornTools/Native/Audit.lean`, definition scanning matches `static` rather
+than `"LEAN_EXPORT"` for compiler-hoisted `_init_…` constant initializers, and compile
+flag admission permits `-fPIC` supplied on Linux because it does not authorize
+floating-point reassociation. `AcornVerif.Resource.WordKernel`
+(`lean/AcornVerif/Resource/WordKernel.lean`) is a control and resource
+abstraction of admitted compiler IR rather than a second implementation of
+numerical functions: `lean/AcornTools/Native/Resources.lean` extracts formal
+`WordTree` values from typed compiler IR (Lean.IR.FnBody) for finite scalar
+operations and the checked u32 halving recurrence (`Acorn.Portable.powLoopWord`,
+33 body visits via `AcornNativeResourceAudit.checkHalving` and
+`AcornNativeResourceAudit.extractHalving`), plus startup and first-use once-cell
+and eager-initializer closures (at most 68 distinct cached initializers and unit
+startup/first-use credit at most 575). Weighted costs retain primitive and callee
+identities (`CostModel`); the unit interpretation is only a structural regression
+budget (no unit denotes seconds, bytes, energy, or a hardware instruction, and
+`WordTree.costExec_le_cost` does not assert that an assignment describes a
+physical machine without a justified external platform model). Ordinary roots
+exclude heap operations except explicit bounded integer egress, startup admits
+reviewed constructors (`InitExec`, deduplicated by compiler identity
+`InitCell.name`), unknown calls and cycles are rejected with the separately
+checked halving loop (`HalvingExec`), and extraction, compiler lowering, and
+reviewed native primitives remain trusted boundaries. Because Lean's closed-term
+cache is not persistent across imports, `AcornNativeResourceAudit.readOnceSymbols`
+reads emitted C under `.lake/build/ir/` using the pinned compiler's symbol
+mangling (matching a `static lean_once_cell_t` initializer line with a
+corresponding `static` scalar or object declaration) and re-checks scalar types
+against IR; the `4096` extraction fuel bounds the extractor only and never serves
+as a claimed program execution bound. Primitive IEEE interpretation remains a native assumption.
+
+Native build provenance embeds source, toolchain, and audit identifiers into
+`NativeApp` (`lean/NativeApp/Build.lean`), which is a build/OS bootstrap
+boundary outside the core algorithm library `Acorn`. In `lean/lakefile.lean`,
+the `NativeApp` library and the `acorn-core` and `acorn-viewer` executables
+declare Lake's nativeProvenance target (alongside checkpointSync) in
+extraDepTargets, so provenanceJob runs before `NativeApp` compiles and
+contributes its trace to `NativeApp.Build`. provenanceJob admits
+`lean/Acorn/Host/AuditPins.lean` and `viewer/static/index.html` as Git-tracked
+regular files, collects tracked regular entries under `lean/` via nativeSources
+(every `.lean` and `.c` file, including `lean/Acorn/Host/AuditPins.lean` and
+`lean/os/checkpoint-sync.c`, plus `lean/lean-toolchain` and
+`lean/lake-manifest.json`), appends `viewer/static/index.html`, resolves real
+paths, and sorts them. nativeDigests (shared by singleton hashing in
+nativeDigest) rejects paths containing newlines, hashes the list in one
+`openssl dgst -sha256 -r` invocation, and requires one lowercase
+64-hex-character SHA-256 digest per input in order with the matching path.
+provenanceJob requires every resolved real path to lie beneath the repository
+root, writes the sorted repository-relative inventory (`acorn-lean-source-v2`)
+to `.lake/build/native-source-inventory.txt`, and hashes it to produce the
+64-hex-character source digest. It also queries `lean --version`,
+`leanc --version`, and `cc --version` (refusing any non-zero exit), writes those
+outputs together with the shared strict floating-point flags nativeFloatFlags
+(`-ffp-contract=off`, `-fno-fast-math`), the `checkpoint-sync` C compiler flags
+checkpointFlags, and the `source=` digest line (`acorn-lean-build-v1`) to
+`.lake/build/native-build-identity.txt`, and hashes that file to produce the
+64-hex-character build digest. Finally, it reads
+`lean/Acorn/Host/AuditPins.lean` (the single owner of
+`Acorn.Host.AuditPins.declaredDigest`), requires a unique
+`def declaredDigest : UInt64 := 0x` literal with 16 lowercase hexadecimal digits
+followed by a newline, and writes the source, build, and audit lines to
+`.lake/build/native-provenance.txt`, keying Lake's dependency trace on the
+binary contents of all collected sources together with the compiler/flag
+settings and sorted source paths. `lean/NativeApp/Build.lean` embeds those three
+files at compile time through `include_str`: the private provenance triple,
+`NativeApp.sourceInventory` (the source framing for explicitly requested
+scientific execution), and `NativeApp.buildRecord` (the compiler settings
+recorded beside the source identity). `NativeApp.decodeBuildIdentity` admits the
+embedded provenance into `Acorn.Host.Viewer.TelemetryBuild` only when it
+consists of exactly three newline-terminated lowercase hexadecimal strings of
+lengths 64, 64, and 16; `NativeApp.buildIdentity` supplies that decoded record
+to shared telemetry and execution, and `NativeApp.runCore`'s streaming campaign
+path (`lean/NativeApp/Core.lean`) and `NativeApp.executeMutationAudit`
+(`lean/NativeApp/MutationAudit.lean`) refuse to run when
+`NativeApp.buildIdentity` fails admission. Compiler, native toolchain, OpenSSL
+hashing, and Lake build orchestration (including trace freshness and that the
+build files read by `include_str` correspond to the compiled binary) remain
+trusted boundaries: Lean code does not verify that a supplied or embedded build
+digest identifies the executing binary
+(`lean/Acorn/Host/Viewer/CoreTelemetry.lean`). These digests establish raw byte
+identity and mutation detection only; they never supply cryptographic
+authenticity, tamper resistance against an untrusted build environment, or a
+correctness theorem.
 
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
@@ -698,7 +800,11 @@ confirms a record before its implementation exists, and it remains until the
 listed deliverables migrate to lean-intent's awaiting-implementation
 declaration (rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
 package, and that the constant an implementation names is what an executable runs,
-are trusted.
+are trusted. Each check runs under a `2,000,000` heartbeat budget in Lean's unit
+of a thousand (ten times Lean's `200,000` per-declaration default) because
+confirmation renders each record and every definition its answers' predicates
+reach; the runner is `unsafe` solely so Lean executes module initializers to load
+environment extensions when importing compiled modules.
 
 The frame check runs from `lean/AcornTools/Frame.lean`. A target's file freezes
 the target's text. A pin file beside it, a regular file ending in `.frame` in
@@ -706,7 +812,21 @@ the target's text. A pin file beside it, a regular file ending in `.frame` in
 names a submission may change, the names kept and not followed, and, for every
 other declaration of the project that the target reaches through types and
 definitions, the SHA-256 digest of its printed kind, universe parameters, type and
-value. The check enumerates Git-tracked regular files under
+value. The checker implements SHA-256 directly over UTF-8 bytes
+(AcornFrameCheck.roundConstants, AcornFrameCheck.initialHash,
+AcornFrameCheck.padded, AcornFrameCheck.compress, and AcornFrameCheck.sha256)
+following NIST's
+[FIPS 180-4](https://doi.org/10.6028/NIST.FIPS.180-4)
+(Secure Hash Standard, August 2015, §4.1.2, §4.2.2, §5.1.1, §5.3.3, and §6.2).
+Before AcornFrameCheck.run reads any pin file, AcornFrameCheck.vectorsHold
+checks three published digests: the empty message (zero bytes, NIST CAVP
+[SHA-256 byte-oriented test vectors](https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure-hashing),
+SHA256ShortMsg.rsp, Len = 0), "abc", which pads to one 64-byte block, and a
+56-byte message, which pads to two 64-byte blocks (both from NIST's published
+[SHA-256 examples](https://csrc.nist.gov/csrc/media/projects/cryptographic-standards-and-guidelines/documents/examples/sha256.pdf),
+one-block and two-block message samples); passing those three digests is a
+startup self-check rather than a proof of FIPS 180-4 equivalence. The check
+enumerates Git-tracked regular files under
 `lean/AcornVerif/Targets/` (refusing an empty targets set), admits only regular
 files ending in `.lean` and regular files ending in `.frame`, and accepts a
 non-empty tracked targets directory with zero `.frame` files; any other tracked
@@ -737,7 +857,12 @@ before it reads a module. So a compiled file that an earlier build left
 behind is not read in
 place of the tree's source, as far as Lake's record of what is current is
 right: that record, and that nothing but Lake has written the compiled files
-since, are trusted. The check relies besides, as every check of the gate does,
+since, are trusted. Because AcornFrameCheck.current compares real paths for the
+named root module alone before AcornFrameCheck.imported loads its dependency
+closure (a boundary shared by verification and `frame-check print`), Lean's
+search path, which the bootstrap's `lake exe` sets with the workspace's own
+library directories first, is also trusted to resolve the pinned module's
+imports to the compiled artifacts Lake checked. The check relies besides, as every check of the gate does,
 on the stability of the file system while it runs, which the
 [compiler and execution boundary](#compiler-and-execution-boundary) lists among
 the trusted boundaries. The check then computes
@@ -957,10 +1082,22 @@ latest commit (GitHub's documentation, Troubleshooting required status checks).
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners
-and reuse loaded dependency regions. Each IR reference must belong to that
+and reuse loaded dependency regions (`lean/AcornTools/OwnershipAudit.lean` keeps
+importModulesCore shared dependency regions alive with leakEnv set until the
+bounded audit process exits so sibling environments do not free shared regions).
+Each IR reference must belong to that
 entry's actual compiled import closure; data loaded for another entry cannot
 satisfy this check. Shared regions live only for the audit process, and no prior
-acceptance result is cached. Source, boundary, native-route and browser checks
+acceptance result is cached. In `lean/AcornTools/Boundary/Audit.lean`,
+`AcornBoundaryAudit.flushOLeanCache` evicts compacted-region Name keys from Lean
+v4.36.0's oleanRootCacheRef (Lean/Util/Path.lean, lines 134 to 147) before
+withImportModules unmaps `.olean` regions by calling findOLean on the static
+literal Init under two distinct search paths and then restoring searchPathRef;
+`AcornBoundaryAudit.command` runs compiled admission before source admission
+because source admission keeps its parser environment mapped until exit and an
+already-mapped module cannot be mapped again (later environments would read and
+relocate it in full), and every import resets initializer execution so
+initializers run only for the trusted parser environment. Source, boundary, native-route and browser checks
 remain required. Standalone ownership, theorem and corpus commands remain
 available for focused diagnostics.
 
@@ -969,16 +1106,28 @@ with Lake's target inventory before the project build, and compiled boundary,
 native, browser-kernel and ownership admission after it. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
 before a failure is reported. The site check runs after these admissions, also
-when one of them fails, because building the documents can rebuild this
-package's modules into the build directory that the admissions read. The build
-requests modules first and executables after them. An executable whose Lake
-configuration names a target it needs is held back with its root module: both
-are requested after every other module and executable, because Lake waits for
-that target before it reads the next request, so every other job is scheduled
-first.
-Each compiler process of the build uses at most two threads, where the default
-is one for each processor; this limits how far the processes Lake runs at once
-compete for the same processors.
+when one of them fails, because `site/lakefile.toml` requires `../lean` by path
+and building the documents can rebuild this package's modules into the build
+directory under `lean/.lake` that the admissions read. The build
+requests library modules first, ordinary executables next, and executables whose
+Lake configuration names a target in needs together with their root modules last:
+Lake resolves the build graph on one thread in request order and waits for needs
+before reading the next request (Module.recFetchPreSetup, Lake of Lean v4.36.0),
+and a root-module request resolves to its executable (Package.findTargetModule?),
+so every other job is scheduled first.
+In `lean/lakefile.lean`, passing `-j2` through weakLeanArgs bounds each compiler
+process to two threads, where the default is one for each processor, as a weak
+trace-neutral flag that changes no module elaboration; debug.skipKernelTC stays
+at its default (false), so the build kernel-checks every proof term alongside
+Regula's `lake lint` replay; `AcornVerif` sets allowNonModules to true solely to
+suppress Lake's requiresModuleSystem warning from Mathlib because `AcornVerif`
+imports non-module `Acorn` files (refused inside module files), changing no
+elaboration; and the generator-only `world-certificates` executable excludes
+agent composition, the campaign runner and the random-policy comparator from its
+import closure (`AcornBoundaryAudit.generatorOnly`,
+`AcornBoundaryAudit.generatorExcluded`), though its closure holds the attempt
+protocol and campaign admission through the curriculum and no audit enforces that
+the tool starts no attempt.
 
 ## Regula audit
 
@@ -1248,8 +1397,10 @@ that carries a replacement attribute or an extern attribute, whatever reaches it
 and whatever is proved about it, except a verified compiler-generated
 constructor-index replacement that Lean v4.36.0 emits for every safe, non-Prop,
 non-builtin inductive type whose constructor count is not one
-(`AcornTheoremCount.isCompilerCtorIdx`, matching Regula v0.13.1's structural
-check on the pair and its toolchain constructor-tag helper). The Regula audit
+(`AcornTheoremCount.isCompilerCtorIdx`, matching Lean v4.36.0's
+Lean/Meta/Constructions/CtorIdx.lean, lines 40 to 141, and Regula v0.13.1's
+structural check Regula.Load.ctorIdxFormOf and Regula.Closed.Tables.ctorIdxPair
+on the pair and its toolchain constructor-tag helper). The Regula audit
 reads replacement and extern attributes only to qualify RG1006's exempted forms
 (recursion helpers and constructor-index pairs) and has no general rule refusing
 them on safe declarations: a pass says nothing about what a compiled program
@@ -1294,13 +1445,15 @@ executable names that the build order and this document read.
 **Decision registrations.** The ownership audit requires a contract with a kind for
 each registered decision function whose result is not `Decidable`, as stated
 above, and counts only a contract about the whole function whose condition
-applies its kind to that function. Its subject is the function applied to
-nothing but the arguments its type takes implicitly, so a contract about one
-application does not count. Its condition is the kind with every argument but
-the last, which the contract supplies with the function, or a function of the
-contract's subject whose body is the kind with a last argument that mentions the
-bound variable; any other form, such as a condition that ignores its argument
-and decides the identity function, does not count. Regula reads no
+applies its kind to that function (`lean/AcornTools/OwnershipAudit.lean`). Its
+subject (wholeFunction) must be a constant instantiated solely with the arguments
+its type takes implicitly, rejecting explicit applications such as `f x₀`. Its
+condition (appliesKind) accepts only two closed forms for Regula.Decides,
+Regula.DecidesSoundly and Regula.DecidesCompletely: `K accepts spec` lacking the
+final explicit argument (which the contract supplies with the implementation), or
+`fun g => K accepts spec t` whose final explicit argument mentions the bound
+variable; any other form, such as `fun _ => K accepts spec id`, which ignores its
+argument and decides the identity function, does not count. Regula reads no
 registration.
 
 Regula has no rule for the import layers of the learned-only boundary, the
@@ -1408,7 +1561,10 @@ and requires `docs/verification.md` to equal the Markdown rendering of this
 document; `./scripts/verify.sh site write` writes that file. The Markdown file is
 kept so that existing links and readers on GitHub are served, and so that the
 document and pin checks of verification, which read Markdown, still cover this
-guide. The rendered pages stay in the working copy; nothing is published.
+guide. Rendering in `site/AcornSite/Markdown.lean` is total and fails closed by
+refusing unrendered Verso constructs (unordered, ordered and definition lists,
+block quotations, mathematics, footnotes, images and unrecognized extensions) by
+name rather than dropping or approximating them. The rendered pages stay in the working copy; nothing is published.
 
 The step maps each locked dependency of the site to its provisioned checkout, so
 Lake fetches nothing, and refuses to run until Lake reports pinned Verso built.
@@ -1455,7 +1611,11 @@ The expected digest has one form, `0x` and exactly sixteen lowercase hexadecimal
 it is a hash identifier, not a number, so it is not read as a command-line number and
 digit-only text such as `10` is refused.
 Paired checksum `68e84d568d55f8ad`. The deployed arm runs the ranked profile
-with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
+with the declared D6 exploration rate. `NativeApp.AuditArm.executeCampaign` runs
+the `annealed` incumbent arm with `NativeApp.AuditArm.construction`'s
+spatial-subtask profile via `AgentConstruction.runCampaign` without telemetry or
+checkpoint authority, while the declared and differential arms traverse the
+ordinary public native campaign. The optional ./scripts/verify.sh diagnostics
 command runs all three fixed arms under the same deadline. All three pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
 off-policy option learning (PAR-17) and option expectation models with planning under
@@ -2100,3 +2260,12 @@ leaves the state file as it is until its listener is bound is
 with is shown stopped, and nothing when it is not, is `Acorn.Host.Viewer.startAccount`,
 so a person who finds the run stopped is told why and what starts it. The relay of standard
 input under `--control-stdin` is `/bin/cat` (`Acorn.Host.StopFlag.withCommands`).
+In `lean/NativeApp/Viewer.lean`, pollBrowser clears the child handle once tryWait
+consumes the exit status so the child is never waited on again; desktop browser
+opening (openBrowser, spawned in a new session with setsid enabled) never holds a
+worker or blocks viewer exit and is polled once more at shutdown so a
+still-running detached opener survives process exit; the main `NativeApp.runViewer`
+loop over `Acorn.Host.forever` has no break and exits only by returning or
+throwing; and in its cleanup block, supervisor shutdown runs while HTTP remains
+alive during wind-up before the server shutdown wait releases the server's sole
+shutdown waiter.

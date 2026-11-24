@@ -65,6 +65,8 @@ If GitHub's interface cannot be reached, read the open list in the [board's data
 
 A mission with targets is frozen. Its statements are files of the repository, which no edit of the issue changes, and only the owner merges a change to them. [The registry](../lean/AcornVerif/Targets/Registry.lean) lists the targets under each mission's issue number, so a mission has targets exactly when its number is there.
 
+In `lean/AcornVerif/Targets/Registry.lean`, `AcornVerif.Targets.statementOf` returns the registered statement for a listed target name and False for any unregistered name. Its proofs establish that no two targets share a name (`registry_distinct`), that `statementOf` returns each registered target's statement (`statementOf_name`), and that a proof of `statementOf` or a `Landing` proves a registered target's statement (`statementOf_registered`, `Landing.proves`). They do not establish: (1) that a pair's name and its statement in `registry` name the same declaration beyond the doubled-backquote pair syntax and owner review under [CODEOWNERS](../.github/CODEOWNERS); (2) that `registry` includes every Prop definition in `lean/AcornVerif/Targets/` (one left out is elaborated by the build and is no target); (3) that a mission's issue number matches GitHub's record; (4) that imported definitions outside `lean/AcornVerif/Targets/` keep a target's meaning unchanged (a target fixes its own text, and changing a definition it names changes what it says); or (5) that a target states what its prose mission means (review reads each statement).
+
 A mission with no target is frozen when it has all of these:
 
 - a second label naming its kind, one of `mission:proof`, `mission:contract`, `mission:world` and `mission:prior-art`. An issue with only the mission label is a proposal that nobody has accepted yet;
@@ -93,7 +95,7 @@ def parse_complete : Prop :=
   ∀ text v, Grammar.Text text.toList v → Json.parse text = .ok v
 ```
 
-A target's name is the name of its file's module followed by the name of the theorem that is to prove it, so the name tells you the file: `AcornVerif.Targets.StateEntry.arm_letter` is in `lean/AcornVerif/Targets/StateEntry.lean`. The definitions a contract introduces are in the same file. Many targets are written with arrows, `(positive : 0 ≤ range) → …`, where a theorem lists its hypotheses before the colon; the two say the same.
+A target's name is the name of its file's module followed by the name of the theorem that is to prove it, so the name tells you the file: `AcornVerif.Targets.StateEntry.arm_letter` is in `lean/AcornVerif/Targets/StateEntry.lean`. The definitions a contract introduces are in the same file. Many targets write leading arrows, `(name : type) → …` (such as `(positive : 0 ≤ range) → …`), rather than `∀` because Lean's unused-variable linter rejects a named hypothesis under `∀` that the statement does not mention; the two say the same as listing hypotheses before a theorem's colon.
 
 If a statement is false, say so on the issue, with the counterexample, rather than changing it.
 

@@ -1,113 +1,53 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornTools.ModuleInventory
 import AcornTools.Ownership
 import AcornTools.Boundary.Departures
 import AcornTools.TrackedFiles
 
-/-!
-# Admission of the current Lean execution boundary
-
-Source is parsed with the pinned compiler's trusted parser environment before
-project extensions are loaded. Current sources cannot define parser/elaborator
-extensions or spell a native replacement. Compiled metadata then checks actual module
-ownership, including private/generated declarations and transitive imports.
-The Regula audit of the claimed libraries, not this tool, checks compiled declarations
-for project axioms, proof holes, compiler-trusting proofs and `unsafe` or `partial`
-definitions; the theorem inventory refuses a compiled native replacement other than a
-verified compiler-generated `T.ctorIdx` / `T.ctorIdx._impl` pair.
-
-This verification tool and the pinned Lean/Init toolchain are trusted. The gate
-does not prove compiler correctness or the truth of a provenance declaration.
--/
 namespace AcornBoundaryAudit
 open Lean
 
-/-- Explicit composition roots may join learned and declared code. -/
 def compositionRoots : Array Name := #[`Acorn, `Acorn.SwiftTdDriver, `Acorn.FeatureDriver, `Acorn.WorldDriver, `Acorn.ControlDriver, `Acorn.TemporalDriver, `Acorn.AgentDriver]
 
-/-- The registration leaf of the executing library states contracts about executing
-definitions. No module imports it, so no entry point links what it declares. It has its own
-import and command admission below. -/
 def registry (name : Name) : Bool := name == AcornModuleInventory.decisionRegistry
 
-/-- The executables' roots: each declares the top-level `main` of one executable. -/
 def entry (name : Name) : Bool := (`Entry).isPrefixOf name
 
-/-- Executing application sources, their shared constant leaf and the executables' roots. -/
 def governed (name : Name) : Bool := ((`Acorn).isPrefixOf name ||
   (`NativeApp).isPrefixOf name || entry name) && !registry name
 
-/-- Mathematical proofs have separate import admission. -/
 def proofOwner (name : Name) : Bool := (`AcornVerif).isPrefixOf name
 
-/-- Native entry/resource owners and the executables' roots are checked as host code, never
-learned algorithms. -/
 def nativeBootstrap (name : Name) : Bool := (`NativeApp).isPrefixOf name || entry name
 
-/-- Host and declared modules are quarantined by their owning module, not namespaces. -/
 def quarantined (name : Name) : Bool :=
   (`Acorn.Host).isPrefixOf name || (`Acorn.Handcrafted).isPrefixOf name
 
-/-- Every other current module is learned, including any newly added nested module. -/
 def learned (name : Name) : Bool :=
   (`Acorn).isPrefixOf name && !quarantined name && !compositionRoots.contains name
 
-/-- Declared modules bound to the grid world: its channel layout, its signals and its
-interface instance. -/
 def gridOwners : Array Name := #[`Acorn.Handcrafted.Observation, `Acorn.Handcrafted.Cumulants,
   `Acorn.Handcrafted.GridWorld]
 
-/-- The declared module bound to the Microduck world: its interface instance with its
-adapter. -/
 def microduckOwners : Array Name := #[`Acorn.Handcrafted.Microduck]
 
-/-- Declared modules bound to one world. -/
 def worldOwners : Array Name := gridOwners ++ microduckOwners
 
-/-- Every other declared module imports no world: the composed agent, its profiles and its
-world-independent declarations. A newly added declared module is world-independent until
-it is listed as an owner of a world. -/
 def worldIndependent (name : Name) : Bool :=
   (`Acorn.Handcrafted).isPrefixOf name && !worldOwners.contains name
 
-/-- The proof module that states Regula contracts whose proofs need the proof library. It
-alone among the proof modules imports Regula's contract type. -/
 def proofContracts : Name := `AcornVerif.Decisions
 
-/-- The single proof module that imports the pinned FloatLib dependency. Other proof
-modules reach FloatLib's theorems through it; no executing module can. -/
 def floatLibBridge : Name := `AcornVerif.FloatLibBridge
 
-/-- The single proof module that imports the pinned lean-intent dependency. The intent records
-reach lean-intent's declarations through it; no executing module can. -/
 def leanIntentBridge : Name := `AcornVerif.LeanIntentBridge
 
-/-- Owners of the generator-only certificate tool. -/
 def generatorOnly (name : Name) : Bool :=
   #[`Acorn.Host.Certificate, `Acorn.Host.CertificateSearch, `Acorn.Host.CertificateDriver].contains name
 
-/-- What a generator-only owner may not import, directly or transitively: the agent
-composition, the campaign runner and the random-policy comparator. The certificate tool
-therefore cannot construct or run any of them. -/
 def generatorExcluded (imported : Name) : Bool :=
   (`Acorn.Handcrafted).isPrefixOf imported ||
     #[`Acorn.Host.Runner, `Acorn.Host.Baseline].contains imported
 
-/-- Only host/composition owners may use the pinned standard containers and IO support.
-A world-independent declared module reaches learned modules and its own kind only, so
-the composed agent cannot name a type of a host or of a world, directly or through an
-import.
-Proof imports name their actual dependencies; Mathlib and FloatLib umbrella imports
-needlessly load an entire library or tactic collection into each compiler process.
-FloatLib modules are admitted for the bridge alone, lean-intent modules for the intent bridge
-alone, and Regula's contract type for the proof module that states contracts. The decision registry imports
-executing modules and Regula's two registration interfaces, the contract type and the
-registration type. No module imports the registry, so neither enters an executable's or a
-proof's import closure. -/
 def importAllowed (owner imported : Name) : Bool :=
   if (`Init).isPrefixOf imported then true
   else if registry imported then false
@@ -130,22 +70,17 @@ def importAllowed (owner imported : Name) : Bool :=
   else if worldIndependent owner then learned imported || worldIndependent imported
   else true
 
-/-- Errors include both the source owner and rejected capability. -/
 def reject {α : Type} (owner : Name) (reason : String) : IO α :=
   throw (IO.userError s!"Lean boundary {owner}: {reason}")
 
-/-- A small reviewed attribute domain has no native replacement or metaprogram registration. -/
 def allowedAttributes : Array Name := #[`simp, `inline, `noinline, `reducible, `irreducible]
 
-/-- These options change proof resource limits, never kernel checking or parser admission. -/
 def allowedOptions : Array Name := #[`maxRecDepth, `maxHeartbeats, `exponentiation.threshold]
 
-/-- Only these admitted host boundaries may create or inspect native subprocesses. -/
 def processOwners : Array Name := #[`Acorn.Host.Checkpoint.IO, `Acorn.Host.Control,
   `Acorn.Host.Viewer.RunDirectory, `Acorn.Host.Viewer.ProcessOwner,
   `Acorn.Host.Viewer.NativeResources, `Acorn.Host.Microduck.Transport, `NativeApp.Viewer]
 
-/-- Native effects cannot be smuggled into learned modules through Init aliases. -/
 def capabilityAllowed (owner dependency : Name) : Bool :=
   if owner == `Acorn.Host.Viewer.ProcessOwner &&
       (`IO.Process.Child.kill).isPrefixOf dependency then false
@@ -163,13 +98,10 @@ def capabilityAllowed (owner dependency : Name) : Bool :=
     !(#[`IO, `BaseIO, `EIO].any (·.isPrefixOf dependency))
   else true
 
-/-- Reserved syntax capabilities are rejected even when nested in proof terms. -/
 def forbiddenWords : Array String := #["unsafe", "partial", "meta", "axiom", "sorry", "admit",
   "native_decide", "run_tac", "run_elab", "by_elab", "extern", "implemented_by", "csimp",
   "simproc", "builtin_simproc", "elab", "macro", "initialize", "builtin_initialize", "_unsafe_rec"]
 
-/-- Inspect parsed syntax rather than comment/literal-stripped source text.
-Traversal is over the compiler-produced finite syntax tree. -/
 partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
   let kind := nodeSyntax.getKind
   if kind == ``Parser.Command.docComment || kind == ``Parser.Command.moduleDoc ||
@@ -192,7 +124,6 @@ partial def inspectSyntax (owner : Name) (nodeSyntax : Syntax) : IO Unit := do
     for child in children do inspectSyntax owner child
   | .missing => reject owner "missing syntax node"
 
-/-- Admit only ordinary declarations and scopes from the trusted command parser. -/
 partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
   let kind := command.getKind
   if kind == ``Parser.Command.in then
@@ -221,15 +152,12 @@ partial def inspectCommand (owner : Name) (command : Syntax) : IO Unit := do
     inspectSyntax owner command
   else reject owner s!"unreviewed command {kind}"
 
-/-- Artifact ownership uses canonical paths, so namespace spelling and symlinks
-cannot substitute another package for the pinned toolchain or current build. -/
 def checkOrigin (root : System.FilePath) (name : Name) : IO Unit := do
   let root ← IO.FS.realPath root
   let expected := root / (name.toString.replace "." "/" ++ ".olean")
   let actual ← IO.FS.realPath (← findOLean name)
   unless actual == expected do reject name s!"artifact origin {actual}, expected {expected}"
 
-/-- Parse one source without elaborating it or loading any project extension. -/
 def inspectSource (parserEnv : Environment) (library : System.FilePath)
     (owners : Array Name) (owner : Name) : IO Unit := do
   let path : System.FilePath := owner.toString.replace "." "/" ++ ".lean"
@@ -263,12 +191,9 @@ def inspectSource (parserEnv : Environment) (library : System.FilePath)
     state := next
     messages := log
 
-/-- Source admission covers every discovered current module, including unimported files. -/
 def sources (owners : Array Name) (proofs : Bool := false) : IO Unit := do
   let originalPath ← searchPathRef.get
   let library ← getLibDir (← findSysroot)
-  -- Grammar owners are explicit: unsupported new syntax fails admission until
-  -- its pinned parser owner is reviewed, without importing project sources.
   let parserModules := if proofs then #[`Mathlib.Tactic.FieldSimp,
     `Mathlib.Tactic.FinCases, `Mathlib.Tactic.Linarith, `Mathlib.Tactic.LinearCombination,
     `Mathlib.Tactic.NormNum, `Mathlib.Tactic.Positivity, `Mathlib.Tactic.Ring,
@@ -282,7 +207,6 @@ def sources (owners : Array Name) (proofs : Bool := false) : IO Unit := do
         else ".lake/packages/mathlib/.lake/build/lib/lean"
       checkOrigin root parserModule
   else
-    -- The runtime parser's entire closure resolves only in the sysroot.
     searchPathRef.set [library]
     checkOrigin library `Lean
   let parserEnv ← importModules (parserModules.map fun name => { module := name }) {}
@@ -291,7 +215,6 @@ def sources (owners : Array Name) (proofs : Bool := false) : IO Unit := do
   let admitted ← AcornModuleInventory.projectModules
   for owner in owners do inspectSource parserEnv library admitted owner
 
-/-- Compiler metadata must assign every imported declaration an actual owning module. -/
 def declarationOwner (env : Environment) (name : Name) : IO Name := do
   let some index := env.getModuleIdxFor? name
     | throw (IO.userError s!"Lean boundary: declaration {name} has no owning module")
@@ -299,10 +222,6 @@ def declarationOwner (env : Environment) (name : Name) : IO Name := do
     | throw (IO.userError s!"Lean boundary: declaration {name} has an invalid owning module")
   return imported.module
 
-/-- Read the complete serialized import graph from a metadata-only environment.
-Every artifact must resolve to an admitted source or canonical Init/Std module.
-The graph remains inside the environment's lifetime; no second copy of the
-compiled module regions is loaded or retained. -/
 def artifactImports (env : Environment) (owners : Array Name)
     (library : System.FilePath) : IO (NameMap (Array Name)) := do
   unless env.header.modules.size == env.header.moduleData.size do
@@ -318,7 +237,6 @@ def artifactImports (env : Environment) (owners : Array Name)
     imports := imports.insert name (data.imports.map (·.module))
   return imports
 
-/-- Traverse each owner's actual artifact imports, independently of shared environment loading. -/
 def checkImports (imports : NameMap (Array Name)) (owner : Name) : IO Unit := do
   let mut pending := #[owner]
   let mut seen : NameSet := {}
@@ -332,9 +250,6 @@ def checkImports (imports : NameMap (Array Name)) (owner : Name) : IO Unit := do
     let some dependencies := imports.find? name | reject owner s!"missing import metadata {name}"
     pending := pending ++ dependencies
 
-/-- Dispatch each declaration to its compiler-recorded owner in one environment
-traversal. Every selected owner receives the same declaration predicates: the capability
-owner and the import layer of each constant a declaration references. -/
 def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := do
   let selected := owners.foldl (fun selected owner => selected.insert owner) ({} : NameSet)
   for (name, info) in env.constants do
@@ -347,13 +262,6 @@ def inspectDeclarations (env : Environment) (owners : Array Name) : IO Unit := d
       unless dependencyOwner == owner || importAllowed owner dependencyOwner do
         reject owner s!"{name} references {dependency} owned by {dependencyOwner}"
 
-/-- Evict compacted-region `Name` keys from Lean v4.36.0's `oleanRootCacheRef`
-(`Lean/Util/Path.lean:134-147`) before `withImportModules` unmaps those regions.
-`findOLean` caches `(mod.getRoot, root)` against the current search path, and `importModulesCore`
-passes `Name` values allocated inside `.olean` compacted regions. Calling `findOLean` on the
-static literal `` `Init `` under two distinct search paths replaces the cache while every
-region is still mapped regardless of its prior search path, then restores the original search
-path. -/
 def flushOLeanCache (library : System.FilePath) : IO Unit := do
   let original ← searchPathRef.get
   try
@@ -364,8 +272,6 @@ def flushOLeanCache (library : System.FilePath) : IO Unit := do
   finally
     searchPathRef.set original
 
-/-- Import modules for the duration of `action`, flushing `oleanRootCacheRef` before
-`withImportModules` unmaps the imported `.olean` compacted regions. -/
 unsafe def withScopedImportModules {α : Type} (library : System.FilePath)
     (imports : Array Import) (opts : Options) (action : Environment → IO α) : IO α :=
   withImportModules imports opts fun env => do
@@ -374,11 +280,6 @@ unsafe def withScopedImportModules {α : Type} (library : System.FilePath)
     finally
       flushOLeanCache library
 
-/-- Check compiled declarations and their real referenced owners. The gate admits the
-sources before the build, and `command` admits them again after this check.
-The checks read declarations and module metadata alone, so no project extension
-is initialized. Scoped imports release each environment after all its checks; only
-names selected from the original source inventory escape the shared callback. -/
 unsafe def compiled (owners : Array Name) : IO Unit := do
   let library ← getLibDir (← findSysroot)
   let inspect (env : Environment) (selected : Array Name) : IO Unit := do
@@ -388,8 +289,6 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
         reject owner "compiled module did not enter the environment"
       checkImports imports owner
     inspectDeclarations env selected
-  -- Executable roots each own `main` and are loaded alone. Every other owner is loaded
-  -- once, in one environment: a declaration's checks read only its owner's import closure.
   let shared := owners.filter fun owner => !AcornOwnership.executables.any (·.2 == owner)
   let included ← withScopedImportModules library (shared.map fun owner => { module := owner }) {}
     fun common => do
@@ -402,9 +301,6 @@ unsafe def compiled (owners : Array Name) : IO Unit := do
     withScopedImportModules library #[{ module := owner }] {} fun env =>
       inspect env #[owner]
 
-/-- Run source admission before build, or source plus compiled admission afterward.
-Initializer execution is restricted to the trusted parser; compiled admission
-reads project metadata without initializing project extensions. This tool is part of the reviewed verification trust boundary. -/
 unsafe def command (args : List String) : IO UInt32 := do
   unless [["source"], ["compiled"], ["proof-source"]].contains args do
     IO.eprintln "usage: lean-boundary-audit (source|compiled|proof-source)"
@@ -412,14 +308,9 @@ unsafe def command (args : List String) : IO UInt32 := do
   AcornTrackedFiles.admitLeanToolchain
   Lean.initSearchPath (← Lean.findSysroot)
   let proofs := args == ["proof-source"]
-  -- The decision registry states contracts, so it is admitted with the proof sources.
   let owners := (← AcornModuleInventory.projectModules).filter
     (if proofs then fun name => proofOwner name || registry name else governed)
-  -- Compiled admission goes first. Source admission keeps its parser environment mapped
-  -- until exit, and a module that is already mapped cannot be mapped again: it is read
-  -- and relocated in full by every later environment that imports it.
   if args == ["compiled"] then AcornBoundaryAudit.compiled owners
-  -- Every import turns initializer execution off again, so it is enabled for the parser alone.
   Lean.enableInitializersExecution
   AcornBoundaryAudit.sources owners proofs
   IO.println s!"lean-boundary-audit: {owners.size} modules admitted ({args.headD ""})"

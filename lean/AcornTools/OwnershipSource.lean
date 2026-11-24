@@ -1,19 +1,12 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Lean.Data.Json.Parser
 import Lean.Data.Json.FromToJson.Basic
 import AcornTools.ModuleInventory
 import AcornTools.Ownership
 import AcornTools.TrackedFiles
 
-/-! # Ownership admission before application compilation -/
 namespace AcornOwnershipAudit
 open Lean
 
-/-- AcornTools.Ownership refusals are fatal and identify the missing contract. -/
 def require (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError s!"ownership: {message}")
 
@@ -26,18 +19,11 @@ def siteModuleInventory (requireClean : Bool := true) : IO Unit := do
   for name in AcornOwnership.siteModules do
     require (actual.contains name) s!"stale site module owner {name}"
 
-/-- The documentation site in `site/` is a separate Lake workspace with the same closed
-source inventory. It keeps its dependency checkouts in this package's `.lake/packages`, so
-it must lock every dependency of this package to the same URL and revision: with a different
-lock, building one workspace would move the other's checkout. -/
 def siteSources (requireClean : Bool := true) : IO Unit := do
   siteModuleInventory requireClean
   let args := if requireClean then #["admit-site", "--clean", ".."] else #["admit-site", ".."]
   AcornTrackedFiles.runTrackedHelper ".." args requireClean
 
-/-- Every discovered source is a module of a library whose modules Lake's globs assign
-(`AcornModuleInventory.libraryModule`) or a listed tool module, and a stale tool entry is
-refused. -/
 def sources : IO (Array Name) := do
   siteSources
   let actual ← AcornModuleInventory.allModules
@@ -51,9 +37,6 @@ def sources : IO (Array Name) := do
     require (actual.contains name) s!"stale module owner {name}"
   return actual
 
-/-- Read Lake's evaluated executable configuration through the offline bootstrap. The
-second component names the executables whose configuration lists a target in `needs`.
-`modules` are the discovered sources, which hold every executable root. -/
 def inventory (modules : Array Name) : IO (Array (String × Name) × Array String) := do
   let output ← IO.Process.output (← AcornTrackedFiles.bootstrapProcess
     #["script", "run", "acornTargets"])
@@ -74,7 +57,6 @@ def inventory (modules : Array Name) : IO (Array (String × Name) × Array Strin
     require (modules.contains entry.2) s!"unmaintained executable root {entry}"
   return (actual, waiting)
 
-/-- Lake's evaluated executables, admitted against the registered inventory. -/
 def targets (modules : Array Name) : IO (Array (String × Name)) :=
   return (← inventory modules).1
 

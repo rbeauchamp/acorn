@@ -95,7 +95,20 @@ A step has two parts ([definitions](../lean/Acorn/Handcrafted/StepParts.lean)).
 `Agent.choose` advances the clock, encodes the percept's frame and selects; its
 result holds the decision. `Chosen.learn` completes the step from that result:
 off-policy learning of the options that are not executing, primitive credit, the
-prediction demons and the tester. A **step order**
+prediction demons and the tester. In `PredictionControl`
+(`lean/Acorn/Handcrafted/PredictionControl.lean`), prediction feedback is read
+before updating the demons, host gain is observed after all consumers use its
+previous value, and attempt boundaries alone do not clear this state.
+`Agent.retire` (`lean/Acorn/Handcrafted/Agent.lean`) runs no tester in frozen
+profiles, and in learning profiles runs it only after all frame consumers on the
+frame's own unit outputs. Saturating episode counters (`EpisodeTrace`,
+`TemporalControl.Episodes` in `lean/Acorn/Handcrafted/AgentEpisodes.lean`) track
+activation creation and consumption (continuation, free dispatch, and same-slot
+end/start replacement) without storing experience or proof history at runtime:
+terminal credit (`TemporalControl.closeOption`) records no episode, the common
+`TemporalControl.finish` boundary records it once, and an option is recorded as
+executing on the frame it drew even when its draw began an exploratory run taking
+control at the next frame (`TemporalControl.option_episodes`). A **step order**
 ([`StepOrder`](../lean/Acorn/Timing.lean)) is part of an agent's construction and
 selects one of three steps.
 
@@ -423,8 +436,13 @@ have twins
 (`AcornVerif.Resource.Twin.controllerInitial`, `AcornVerif.Resource.Twin.resetAction`).
 The encoding of a frame is also the value of its costed
 definition (`Agent.frame`), and so are the words
-the coder reads (`Agent.words`, from the stored predictions' words and their feedback
-words), each generated unit's projection and output (`Bank.activations`), the tiled and
+the coder reads (`Agent.words`, where `Agent.wordsCosted` reads the stored predictions'
+words from the cache, computes their feedback words with `feedbackWordsCosted`, and
+prepends the frame's words with `Costed.append`—accounted separately in
+`AcornVerif.Resource.Twin.wordsBound` and `AcornVerif.Resource.Twin.wordsCosted_within`—and
+where compiled `feedbackWords` builds each feedback word before its recursive call and
+conses it on the return, so `feedbackWordsCosted` charges the word before the descent and
+a visit on the return, plus a visit at the end), each generated unit's projection and output (`Bank.activations`), the tiled and
 imprinted features and their concatenation, the first-occurrence filtering with its
 builder's empty value and finish (`unique`), and the frame of the current bank
 (`FeatureRuntime.encodeCurrent`, `EncodingFrame.compute`). So are an option model's input
@@ -660,12 +678,17 @@ Operation in real time needs three more parts. The first and the third are built
   was saved (`CurrentCheckpoint.load_saved`).
 
 The agent adds its own prediction feedback words, one per prediction question, on
-consecutive channels from the one the interface declares. A frame cannot carry a
-word on one of those channels: the frame type holds a proof that none of its words
-does, so each world's adapter proves it where it builds a frame. No word of a world
-then shares a channel with a feedback word (`Agent.words_disjoint`). This separates
+consecutive channels from the one the interface declares (`Interface.reserved`),
+and a frame cannot carry a word on one of those channels (`Frame.clear`): the
+frame type holds a proof that none of its words does, so each world's adapter
+proves it where it builds a frame. No word of a world then shares a channel with
+a feedback word (`feedbackWords_reserved`, `Agent.words_disjoint`). This separates
 channels, not features: two words on different channels can still hash to one
-feature slot, as any two hashed words can. The slot hash mixes a tiling's salt before a
+feature slot, as any two hashed words can. `predictionBucket` computes each
+feedback word's value by division, saturation, multiplication, floor, and
+byte-cast; standard native float operations including floor and cast retain their
+explicit runtime trust boundary, while the bucket index upper bound
+(`predictionBuckets`) does not assume float accuracy. The slot hash mixes a tiling's salt before a
 word's channel enters, so two words with one value have one hash exactly when their
 channels differ by the XOR of their mixed salts (`Rng.hash3_eq_iff`): the condition goes
 through the mixer at the seed, not through the XOR of salt and channel alone. The
@@ -1301,8 +1324,8 @@ and `--target-y`, the target's coordinates. It takes `--seed` and `--side` for t
 refuses `--step-order`, `--planning` and both checkpoint options.
 Its start is `Host.VisitStart.install` of the world `World.initial` admits, with the same
 empty result a campaign starts from. It refuses a target whose goal box holds the body
-(`Host.targetHoldsBody`, which `targetHoldsBody_iff` shows is that condition), since such a
-target is no member of the class. Its budget is `Host.visitDecisions`. It reads no stop
+(`Host.targetHoldsBody`, which `targetHoldsBody_iff` shows is that condition) before constructing an
+agent, since such a target is no member of the class. Its budget is `Host.visitDecisions`. It reads no stop
 request. It prints each visit's row in the fields of the demo's outcome rows, with the visit's
 index as the attempt, and, when the loop returns, the run's report as one flag per visit.
 
@@ -2172,7 +2195,10 @@ before restore. Changing the criterion does not convert an existing checkpoint.
 ### Checkpoints
 
 A checkpoint file of format 21 holds the exact image of the agent: every field of its
-temporal state. That is the representation with its generator and tester state, every
+temporal state (`AgentImage` stores `TemporalControl` together with its `AgentImage.aligned`
+and `AgentImage.episodes` invariants, omitting the planning selection because
+`PlanningSelection` is a type index rather than a stored value, while byte parsing and
+transactional filesystem delivery belong to the persistence owner). That is the representation with its generator and tester state, every
 learner with its weights, log step sizes and transient registers, the option models,
 each option's trajectory, the process-local references (the
 dispatch occupancy, the cached predictions and model values, the planning words, the
@@ -2207,8 +2233,12 @@ that was saved.
 
 A host begins a new session of the predictive-agreement evaluator after it loads a file:
 `Checkpoint.loadFile`, the one host path from a file to a running agent, returns the verdict of
-`Checkpoint.resume`, which is `load` followed by `AgentConstruction.State.beginSession`. The
-evaluator measures the forecasts of one process, as the [viewer](viewer-ux.md) labels it, and a
+`Checkpoint.resume`, which is `load` followed by `AgentConstruction.State.beginSession`
+(`Agent.beginSession` starts a new session of the predictive-agreement evaluator at the
+agent's clock: durable observations stay while the evaluator's pending futures and session
+statistics start empty as at a cold start, and no learner, reference or decision reads the
+evaluator, leaving the learned state unchanged, `CurrentAccounting.act_accounting` and
+`actOrdered_learners`). The evaluator measures the forecasts of one process, as the [viewer](viewer-ux.md) labels it, and a
 session that ended at a process's exit records no forecast; a resumed state records forecasts
 again, including one saved after that exit (`CurrentCheckpoint.resume_records`). Every learned
 field is the saved agent's (`CurrentCheckpoint.resume_saved`). The writer refuses an image
@@ -2450,7 +2480,11 @@ Timeout means the attempt used its step budget before achieving the goal.
 ### Outcome CSV
 
 `--csv PATH` writes one row for each attempt the agent completes, as the attempt
-ends. A line that starts with `#` is a comment; a reader of the rows skips it.
+ends. `NativeApp.openCsv` (`lean/NativeApp/Report.lean`) resolves canonical parent
+and filename identity (`destinationIdentity`) to prevent checkpoint aliasing even
+before a checkpoint exists, and opens the output exclusively (`.writeNew`),
+rejecting existing files, symlinks and hard-link aliases without truncating them;
+parent-directory stability and concurrent external renames remain OS assumptions. A line that starts with `#` is a comment; a reader of the rows skips it.
 
 ```text
 index,attempt,tier,steps,achieved,reward,demon_error,epsilon,mean_alpha,x,y
@@ -2524,7 +2558,8 @@ recorded, and that the recorded position is that state's body position.
 `foldOutcome_position` and `addOutcomeSteps_position` prove that the audit
 digest and the step total do not read the position. The comparator is a pure
 function of the world configuration, the seed and the campaign arguments, and
-it runs after the agent's campaign has returned
+it runs on a separate copy of the initial world after the agent's campaign has
+returned so its comment rows precede the CSV footer
 ([attempt protocol](../lean/Acorn/Host/Attempt.lean),
 [metrics](../lean/Acorn/Host/Metrics.lean),
 [comparator](../lean/Acorn/Host/Baseline.lean)).
@@ -2591,5 +2626,5 @@ registration; no check keeps that list complete.
 
 Core calls select an explicit research profile. The [prior-art register](prior-art-review.md#current-default-qualification)
 records qualification decisions. Each proof states its hypotheses, including
-conditions on policies, value projection and models. See the source comments,
+conditions on policies, value projection and models. See
 [learned-only binding](learned-only-binding.md) and [verification](verification.md).

@@ -1,25 +1,10 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornTools.OwnershipSource
 import AcornTools.Theorems
 import AcornTools.Corpus.Audit
 
-/-! # Compiler-linked ownership admission
-
-Source discovery, Lake's evaluated executable configuration, and compiled
-declaration ownership must agree. The maintained modules are the discovered
-sources. Required proof anchors name statements about the actual executing
-definitions; their types must still refer to those owners.
-This is coverage/routing admission, not an inference that names prove semantics.
-Types, proof terms, the runtime boundary and review supply the semantic evidence.
--/
 namespace AcornOwnershipAudit
 open Lean
 
-/-- Compiler module indices, rather than declaration namespaces, establish ownership. -/
 def ownerOf (env : Environment) (name : Name) : IO Name := do
   let some index := env.getModuleIdxFor? name
     | throw (IO.userError s!"{name}: no compiled declaration owner")
@@ -27,9 +12,6 @@ def ownerOf (env : Environment) (name : Name) : IO Name := do
     | throw (IO.userError s!"{name}: invalid compiled owner index")
   return imported.module
 
-/-- Follow actual compiler IR calls and closures, excluding erased proof/type references.
-External compiler/library primitives end traversal and remain trusted. `maintained` are the
-discovered sources. -/
 def executionClosure (env : Environment) (maintained : Array Name) (imports : NameSet) :
     IO NameSet := do
   let mut pending := #[`main]
@@ -49,7 +31,6 @@ def executionClosure (env : Environment) (maintained : Array Name) (imports : Na
     pending := pending ++ IR.collectUsedDecls env [declaration]
   return seen
 
-/-- Every declared entry must reach its own reviewed executing owners. -/
 def entryContract (env : Environment) (maintained : Array Name) (owner : Name)
     (imports : NameSet) : IO Unit := do
   let contracts := AcornOwnership.entryUses.filter (·.1 == owner)
@@ -60,7 +41,6 @@ def entryContract (env : Environment) (maintained : Array Name) (owner : Name)
   let missing := required.filter (!reachable.contains ·)
   require missing.isEmpty s!"{owner}: native main no longer reaches {missing}"
 
-/-- The required theorem's checked statement must still name its executable definition. -/
 def anchor (env : Environment) (maintained : Array Name)
     (proofOwner theoremName implementation : Name) : IO Unit := do
   let some (.thmInfo theoremInfo) := env.find? theoremName
@@ -75,27 +55,16 @@ def anchor (env : Environment) (maintained : Array Name)
   require (theoremInfo.type.getUsedConstantsAsSet.contains implementation)
     s!"{theoremName}: statement no longer refers to {implementation}"
 
-/-- The decision kinds of `Regula.Contract`. A contract whose condition applies one of them to its
-implementation (`appliesKind`) states which direction of the decision is proved. -/
 def decisionKinds : Array Name :=
   #[`Regula.Decides, `Regula.DecidesSoundly, `Regula.DecidesCompletely]
 
-/-- The modules that state decision contracts: the registry, and the proof module whose contracts
-need the proof library. -/
 def contractOwners : Array Name := #[AcornModuleInventory.decisionRegistry, `AcornVerif.Decisions]
 
-/-- The binder kinds of a type, outermost first. -/
 def binderInfos : Expr → List BinderInfo
   | .mdata _ type => binderInfos type
   | .forallE _ _ body binder => binder :: binderInfos body
   | _ => []
 
-/-- Whether a contract's condition applies a decision kind `K` to the contract's implementation, in
-one of two closed forms: `K accepts spec`, which lacks exactly the kind's last explicit argument, so
-the contract applies it to the implementation; or `fun g => K accepts spec t`, whose last explicit
-argument `t` contains the bound `g`, which the contract instantiates with the implementation. Every
-other form is refused, such as `fun _ => K accepts spec id`, whose decision is not about the
-implementation. -/
 def appliesKind (env : Environment) (condition : Expr) : Bool := Id.run do
   let (body, bound) := match condition.consumeMData with
     | .lam _ _ body _ => (body.consumeMData, true)
@@ -111,18 +80,12 @@ def appliesKind (env : Environment) (condition : Expr) : Bool := Id.run do
   else
     return args.size + 1 == binders.length
 
-/-- Whether a type is that of a decision procedure: its result, after every binder, is a
-`Decidable` proposition, which carries both directions of the decision in its type. -/
 def decidableResult : Expr → Bool
   | .mdata _ type => decidableResult type
   | .forallE _ _ body _ => decidableResult body
   | type => #[`Decidable, `DecidableEq, `DecidablePred, `DecidableRel].contains
       type.getAppFn.constName
 
-/-- The function a contract is about, when its subject is that function itself: a constant applied
-to nothing but arguments its type takes implicitly (a universe-, type- or instance-level
-instantiation). A subject applied to an explicit argument, such as `f x₀`, states the contract of
-one application, and names no function here. -/
 def wholeFunction (env : Environment) (subject : Expr) : Option Name := do
   let subject := subject.consumeMData
   let .const function _ := subject.getAppFn | none
@@ -133,12 +96,6 @@ def wholeFunction (env : Environment) (subject : Expr) : Option Name := do
     type := body
   return function
 
-/-- Every function the registry registers (`Regula.RegisteredDecision`) has a contract in
-`contractOwners` about the whole function (`wholeFunction`) whose condition applies a decision kind
-to that function (`appliesKind`), unless it is a decision procedure. Regula v0.13.1 reads no
-registration or contract, so this audit is what makes a registration require its contract. A
-registration outside the registry is refused, and so is a registry that registers nothing. Returns
-the number of registrations. -/
 def registrations (env : Environment) : IO Nat := do
   let mut registered : Array Name := #[]
   let mut contracted : NameSet := {}
@@ -168,8 +125,6 @@ def registrations (env : Environment) : IO Nat := do
         s!"{function}: registered with no contract that applies a decision kind to it")
   return registered.size
 
-/-- Follow the entry's actual serialized import edges. Shared dependency data
-must never make a declaration outside this closure available to its IR check. -/
 def importClosure (env : Environment) (root : Name) : IO NameSet := do
   let mut seen : NameSet := {}
   let mut pending := #[root]
@@ -185,14 +140,6 @@ def importClosure (env : Environment) (root : Name) : IO NameSet := do
     pending := pending ++ data.imports.map (·.module)
   return seen
 
-/-- Reuse compiler-loaded dependency regions, keeping each executable's `main`
-isolated. Lean itself constructs every environment and rejects conflicting
-constants. Regions remain alive until this bounded audit process exits;
-no sibling environment may free shared regions. Ordinary sibling maps are
-released, while the common environment also serves the theorem inventory and
-document admission.
-Complete mode initializes the same reviewed non-entry scope used by corpus
-admission, after source admission; standalone ownership needs no extensions. -/
 unsafe def compiled (complete : Bool := false) : IO Unit := do
   let modules ← sources
   let entries ← targets modules
@@ -262,7 +209,6 @@ unsafe def compiled (complete : Bool := false) : IO Unit := do
 
 end AcornOwnershipAudit
 
-/-- Source/target admission can run before project modules are compiled. -/
 unsafe def main (args : List String) : IO UInt32 := do
   try
     match args with

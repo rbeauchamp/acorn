@@ -1,97 +1,29 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Handcrafted.AgentEpisodes
 
-/-!
-# Selection that draws before it credits
-
-`TemporalControl.select` interleaves draws with writes that read the reward of the
-percept: the owed meta reward, a closing option's terminal credit, the on-policy credit
-of the meta decision, the settlement and the start of a selected option, and the
-executing option's own credit. This module states the same dispatch as two functions.
-
-`TemporalControl.drawFirst` makes every draw of a step and takes no reward word. So no
-draw reads a learner write of the reward of the percept: that is what its type states.
-It does take the frame's achievement event (D8), on which an executing option ends
-(`Skill.goal_ends`), and in the grid world the reward word is a function of that event
-(`Host.StepResult.reward_completion`); the action is therefore not independent of the
-event. It writes what a draw reads and what holds no learned value: the rate schedule, the
-model caches, the assignment refresh of a free boundary, the trajectory link of an
-option that a run interrupts, the diagnostic planning errors, occupancy and the action
-generator. It returns the decision and an `Owed` record of the writes it did not make.
-
-`TemporalControl.settle` makes those writes from the record and the reward, in the
-order `select` makes them: the owed meta reward, then the advance of the deferred meta
-clock of a served step; or the terminal credit, the meta credit and the settlement, the
-start and the first credit of a selected option; or the credit of a continuing one. It
-draws nothing.
-
-The order of choice and update is that of J. B. Travnik, K. W. Mathewson, R. S. Sutton
-and P. M. Pilarski, *Reactive Reinforcement Learning in Asynchronous Environments*,
-Frontiers in Robotics and AI 5:79 (2018): Algorithm 1 (SARSA, section 2) and Algorithm 2
-(Reactive SARSA, section 3) both choose the next action from the action values before
-the update of that iteration, and Algorithm 2 also takes it before the update. The
-source has no options, no assignment refresh and no planning; what this module does with
-them is Acorn's own and is declared in PAR-20.
-
-The dispatch can differ from `select` at two points, and at no other (PAR-20;
-`AcornVerif.DrawFirst` states both dispatches as one form that reads its mode at these
-two points):
-
-- An option that starts draws its first action from its own frozen policy as the
-  preceding step left it, after the assignment refresh (`Skill.frozenPolicy`). `select`
-  draws it after the terminal credit, the settlement and the invocation start. The
-  credit of that action is the ordinary one against the started policy's own values
-  (`Skill.startTemporal`, `Skill.startTemporal_step`).
-- Under the discounted criterion the terminal credit of an option that closes follows
-  the assignment refresh, as it does under the differential criterion in `select`. The
-  refresh has to precede the draws, and the credit reads the reward. The refresh
-  retains the original owner of a slot it replaces (`Closing.oldOwner`), and that owner
-  takes no credit.
--/
 namespace Acorn.Handcrafted
 open Features
 
 variable {interface : Interface} {profile : FeatureProfile}
   {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
 
-/-- The first action of an invocation, drawn before the invocation start is written. -/
 structure StartDraw (interface : Interface) where
-  /-- The option the meta decision selected. -/
   slot : Fin Acorn.FeatureConstants.skillCount
-  /-- The option's potential at the start frame. -/
   potential : Potential
-  /-- The persistent draw from the option's frozen policy at the start frame. -/
   drawn : PersistentDecision interface.actions
 
-/-- The writes a draw-first selection did not make. Each constructor names one dispatch
-branch, with the draws that branch made. `TemporalControl.settle` makes the writes. -/
 inductive Owed (interface : Interface) (profile : FeatureProfile) (config : Features.Config)
     (criterion : Criterion) (dimension : Dimension) where
-  /-- Nothing is owed: selection made every write, or the profile has no hierarchy. -/
   | settled
-  /-- A served exploration step owes the meta reward and, when the run held no option,
-  the advance of the deferred meta clock. -/
   | served (skip : Bool)
-  /-- A continuing option owes the meta reward, its own credit for the drawn decision and
-  the advance of the deferred meta clock. -/
   | continuing (slot : Fin Acorn.FeatureConstants.skillCount)
       (activation : OptionActivation (profile.mode != .frozen))
       (next : OptionContinuation interface.actions dimension activation)
       (drawn : PersistentDecision interface.actions)
-  /-- A free dispatch owes the meta reward, the terminal credit of an option that closes
-  with its terminal value, the credit of the drawn meta decision, and the settlement,
-  the start and the first credit of an option that starts. -/
   | boundary
       (closing : Option (Closing interface.actions config criterion dimension interface.layout
         (EndingPayload (profile.mode != .frozen)) × Binary32))
       (decision : PolicyDecision metaCount) (start : Option (StartDraw interface))
 
-/-- Selection preparation that reads no reward: advance the rate schedule, then observe
-the models before dispatch under the current value function. -/
 def TemporalControl.prepareDraw (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension) :
     TemporalControl interface profile config criterion dimension :=
@@ -102,14 +34,11 @@ def TemporalControl.prepareDraw (state : TemporalControl interface profile confi
         (fun skill => models.predict skill.model state.valueFunction features) } } }
     else state
 
-/-- The reward of a percept enters the owed meta span of a learning hierarchy. -/
 def TemporalControl.oweReward (state : TemporalControl interface profile config criterion dimension)
     (reward : Binary32) : TemporalControl interface profile config criterion dimension :=
   if profile.usesHierarchy && profile.mode != .frozen then
     state.withGap (state.gap.accumulate reward criterion.rule.gamma) else state
 
-/-- Selection preparation is the reward-free preparation followed by the owed reward,
-for every state, frame and reward word. -/
 theorem TemporalControl.prepareSelection_owe
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -120,9 +49,6 @@ theorem TemporalControl.prepareSelection_owe
   dsimp only
   split <;> split <;> rfl
 
-/-- A served exploration step without the advance of the deferred meta clock, which
-follows the owed reward. The flag reports whether that advance is owed: the run held no
-option. Every other write and the decision are those of `TemporalControl.serve`. -/
 def TemporalControl.serveDraw (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Option (TemporalControl interface profile config criterion dimension × Bool ×
@@ -140,26 +66,16 @@ def TemporalControl.serveDraw (state : TemporalControl interface profile config 
       servedProbabilities action, true, metaValues, none, none, interrupted.2⟩)
   | .idle | .option _ _ => none
 
-/-- The event a closing option's terminal credit records
-(`AcornVerif.DrawFirst.closeOption_closing`). It reads the closing record only. -/
 def closingEvent (closing : Closing interface.actions config criterion dimension interface.layout
     (EndingPayload (profile.mode != .frozen))) : EndEvent :=
   ⟨closing.slot, closing.activation.activation.age, closing.activation.reason⟩
 
-/-- The terminal value of an option that closes at a free dispatch: the value of the
-drawn meta action under the differential criterion, and the supplied estimate under the
-discounted one. -/
 def terminalValue (criterion : Criterion) (decision : PolicyDecision metaCount)
     (estimate : Binary32) : Binary32 :=
   match criterion with
   | .differential => decision.continuation
   | .discounted => estimate
 
-/-- A free dispatch that draws before it credits: refresh the assignments and the
-models, run the supplied planning, draw the meta action, then draw the primitive action
-or the first action of the selected option from that option's frozen policy. It writes
-the refresh, occupancy and the generator, and it owes the terminal credit, the meta
-credit and the start. The terminal value of a closing option is `terminalValue`. -/
 def TemporalControl.drawBoundary (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
@@ -191,9 +107,6 @@ def TemporalControl.drawBoundary (state : TemporalControl interface profile conf
       ⟨.option slot, first.1.action, policy.values, first.1.probabilities, first.1.explored,
         decision.snapshot.values, some decision, some slot, ended⟩)
 
-/-- Selection that draws before it credits, with the branch priority of
-`TemporalControl.selectWithOperations`. It takes no reward. Refusal returns no
-replacement state when a declared potential is not owned by the supplied source. -/
 def TemporalControl.drawFirst (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -229,12 +142,6 @@ def TemporalControl.drawFirst (state : TemporalControl interface profile config 
       state.drawBoundary plan features declared (some ⟨slot, ⟨activation, potential, reason⟩, none⟩)
         estimate
 
-/-- The executing option's credit for a decision that is already drawn: the skill write
-of `TemporalControl.stepOption`, with no draw and no occupancy write. The state is
-consumed and the option taken out of the table before its learners are updated, and
-`TemporalControl.creditOption_eq` proves the result equal to the listed composition;
-storage reuse is a performance expectation, not a proved property (see
-`detachedUpdate`). -/
 def TemporalControl.creditOption (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : OptionActivation (profile.mode != .frozen))
@@ -248,8 +155,6 @@ def TemporalControl.creditOption (state : TemporalControl interface profile conf
   ⟨⟨⟨representation, ⟨control, metaController, credited.1, demons⟩⟩, references⟩,
     credit, creditMatches, average, rate, lifetime⟩
 
-/-- Taking the option out of the table before its credit preserves the composition:
-the credited option is written back to its slot and nothing else changes. -/
 theorem TemporalControl.creditOption_eq (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : OptionActivation (profile.mode != .frozen))
@@ -268,15 +173,6 @@ theorem TemporalControl.creditOption_eq (state : TemporalControl interface profi
         simp only [TemporalControl.creditOption, detachedUpdate_eq]
         rfl
 
-/-- The settlement, the start and the first credit of a selected option whose first
-action is already drawn: the skill writes of the option branch of
-`TemporalControl.dispatchMeta`, with no draw and no occupancy write. The value function
-and the rate source are read from the state it is given, which the meta credit has
-already written, and the stopping estimate is supplied by the caller from the recorded
-meta decision. The state is consumed and the option taken out of the table before it is
-updated, and `TemporalControl.startOption_eq` proves the result equal to the listed
-composition; storage reuse is a performance expectation, not a proved property (see
-`detachedUpdate`). -/
 def TemporalControl.startOption (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (start : StartDraw interface) (goal : Bool) (estimate reward : Binary32) :
@@ -291,8 +187,6 @@ def TemporalControl.startOption (state : TemporalControl interface profile confi
   ⟨⟨⟨representation, ⟨control, metaController, started.1, demons⟩⟩, references⟩,
     credit, creditMatches, average, rate, lifetime⟩
 
-/-- Taking the selected option out of the table before its start preserves the
-composition: the started option is written back to its slot and nothing else changes. -/
 theorem TemporalControl.startOption_eq (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (start : StartDraw interface) (goal : Bool) (estimate reward : Binary32) :
@@ -311,9 +205,6 @@ theorem TemporalControl.startOption_eq (state : TemporalControl interface profil
         simp only [TemporalControl.startOption, detachedUpdate_eq]
         rfl
 
-/-- The writes a draw-first selection owes, from the reward of the percept, in the
-order `TemporalControl.selectWithOperations` makes them. It draws nothing and writes
-neither occupancy nor the action generator. -/
 def TemporalControl.settle (state : TemporalControl interface profile config criterion dimension)
     (owed : Owed interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -336,10 +227,6 @@ def TemporalControl.settle (state : TemporalControl interface profile config cri
     | some start => state.startOption models features start goal
         (comparisonValue criterion decision.snapshot) reward
 
-/-- The owed writes of a free dispatch that starts an option: the owed reward, the
-terminal credit of an option that closes, the meta credit, and then
-`TemporalControl.startOption` on the recorded first action, with the stopping estimate of
-the recorded meta decision. -/
 theorem TemporalControl.settle_started (state : TemporalControl interface profile config criterion dimension)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout
       (EndingPayload (profile.mode != .frozen)) × Binary32))
@@ -353,9 +240,6 @@ theorem TemporalControl.settle_started (state : TemporalControl interface profil
               reward closing.2).1).learnMeta features decision).startOption models features start
         goal (comparisonValue criterion decision.snapshot) reward := rfl
 
-/-! ## Every declared source stays matched -/
-
-/-- The reward-free preparation changes the rate schedule and the model caches only. -/
 theorem TemporalControl.prepareDraw_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension) : (state.prepareDraw models features).Aligned := by
@@ -363,13 +247,11 @@ theorem TemporalControl.prepareDraw_aligned (state : TemporalControl interface p
   dsimp only
   split <;> exact aligned
 
-/-- The owed reward writes the meta span only. -/
 theorem TemporalControl.oweReward_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (reward : Binary32) : (state.oweReward reward).Aligned := by
   unfold TemporalControl.oweReward
   split <;> exact aligned
 
-/-- A served step that draws first retains every admitted interest. -/
 theorem TemporalControl.serveDraw_aligned (state next : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (features : SwiftTd.ActiveSet dimension) (skip : Bool)
     (decision : TemporalDecision interface.actions)
@@ -387,8 +269,6 @@ theorem TemporalControl.serveDraw_aligned (state next : TemporalControl interfac
   · contradiction
   · contradiction
 
-/-- A free dispatch that draws first always has a potential for the option it selects,
-and its writes retain every admitted interest. -/
 theorem TemporalControl.drawBoundary_total (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -414,8 +294,6 @@ theorem TemporalControl.drawBoundary_total (state : TemporalControl interface pr
     simp only [hp, bind, Option.bind, pure]
     exact ⟨_, _, _, rfl, drawnAligned⟩
 
-/-- Every aligned local state draws a real action before it credits, with the priority
-of selection and a matching potential producer, and retains source alignment. -/
 theorem TemporalControl.drawFirst_total (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -453,7 +331,6 @@ theorem TemporalControl.drawFirst_total (state : TemporalControl interface profi
         · exact (prepared.withPhase .idle).drawBoundary_total preparedAligned plan features
             observation _ _
 
-/-- The credit of a drawn decision keeps the source of the current table owner. -/
 theorem TemporalControl.creditOption_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -466,7 +343,6 @@ theorem TemporalControl.creditOption_aligned (state : TemporalControl interface 
   rw [Skill.creditTemporal_interest]
   rfl
 
-/-- The start of a selected option keeps the source of the current table owner. -/
 theorem TemporalControl.startOption_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (start : StartDraw interface) (goal : Bool)
@@ -477,7 +353,6 @@ theorem TemporalControl.startOption_aligned (state : TemporalControl interface p
   rw [Skill.startTemporal_interest]
   rfl
 
-/-- The owed writes keep every declared option source matched, for every record. -/
 theorem TemporalControl.settle_aligned (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (owed : Owed interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -509,10 +384,6 @@ theorem TemporalControl.settle_aligned (state : TemporalControl interface profil
     | some start =>
       exact TemporalControl.startOption_aligned _ learnedAligned models features start goal _ reward
 
-/-! ## Episode ownership -/
-
-/-- The reward-free preparation updates neither the active invocation nor any episode
-observation. -/
 theorem TemporalControl.prepareDraw_episodes (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension) :
     (state.prepareDraw models features).lifetime = state.lifetime ∧
@@ -521,8 +392,6 @@ theorem TemporalControl.prepareDraw_episodes (state : TemporalControl interface 
   dsimp only
   split <;> exact ⟨rfl, rfl⟩
 
-/-- A served step that draws first starts nothing, leaves no option executing and ends
-exactly the option the run held. -/
 theorem TemporalControl.serveDraw_episodes (state next : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (skip : Bool)
     (observed : TemporalDecision interface.actions)
@@ -549,7 +418,6 @@ theorem TemporalControl.serveDraw_episodes (state next : TemporalControl interfa
       · rw [active]
         exact interrupted.2.2
 
-/-- A served step that draws first draws no meta decision. -/
 theorem TemporalControl.serveDraw_undrawn (state next : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (skip : Bool)
     (decision : TemporalDecision interface.actions)
@@ -567,8 +435,6 @@ theorem TemporalControl.serveDraw_undrawn (state next : TemporalControl interfac
   · contradiction
   · contradiction
 
-/-- A free dispatch that draws first has a new active slot exactly when its decision
-records a start, and its decision ends exactly the supplied closing activation. -/
 theorem TemporalControl.drawBoundary_episodes (state next : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
@@ -604,8 +470,6 @@ theorem TemporalControl.drawBoundary_episodes (state next : TemporalControl inte
       cases executed
       exact ⟨drawnLifetime, Occupancy.afterOption_executing _ _ _, endedSlot, rfl⟩
 
-/-- Selection that draws first exposes the complete start and end transition of each
-activation, as `TemporalControl.select_episodes` does for selection. -/
 theorem TemporalControl.drawFirst_episodes (state next : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -690,8 +554,6 @@ theorem TemporalControl.drawFirst_episodes (state next : TemporalControl interfa
             rw [active, proof.2.1, proof.2.2.1]
             exact .ending slot observed.started
 
-/-- Selection that draws first cannot leave an option active in a primitive-only
-profile. -/
 theorem TemporalControl.drawFirst_primitive (state next : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -714,29 +576,24 @@ theorem TemporalControl.drawFirst_primitive (state next : TemporalControl interf
     exact ((prepared.withPhase .idle).primitive_episodes features (Vector.replicate _ .zero) none
       none).2.1
 
-/-- One temporal state holds the lifetime record, occupancy and the action generator of
-another: no operation between the two recorded an episode, moved an activation or drew. -/
 abbrev TemporalControl.Framed
     (next origin : TemporalControl interface profile config criterion dimension) : Prop :=
   next.lifetime = origin.lifetime ∧
     next.runtime.references.phase = origin.runtime.references.phase ∧
     next.runtime.references.rng = origin.runtime.references.rng
 
-/-- The owed reward writes the meta span only. -/
 theorem TemporalControl.oweReward_framed
     (state origin : TemporalControl interface profile config criterion dimension)
     (kept : state.Framed origin) (reward : Binary32) : (state.oweReward reward).Framed origin := by
   unfold TemporalControl.oweReward
   split <;> exact kept
 
-/-- A skipped meta decision writes the meta span only. -/
 theorem TemporalControl.skipMeta_framed
     (state origin : TemporalControl interface profile config criterion dimension)
     (kept : state.Framed origin) : state.skipMeta.Framed origin := by
   unfold TemporalControl.skipMeta
   split <;> exact kept
 
-/-- The credit of a drawn decision writes the option table only. -/
 theorem TemporalControl.creditOption_framed
     (state origin : TemporalControl interface profile config criterion dimension)
     (kept : state.Framed origin) (models : OptionModelOps criterion dimension)
@@ -748,7 +605,6 @@ theorem TemporalControl.creditOption_framed
   rw [TemporalControl.creditOption_eq]
   exact kept
 
-/-- The start of a selected option writes the option table only. -/
 theorem TemporalControl.startOption_framed
     (state origin : TemporalControl interface profile config criterion dimension)
     (kept : state.Framed origin) (models : OptionModelOps criterion dimension)
@@ -758,7 +614,6 @@ theorem TemporalControl.startOption_framed
   rw [TemporalControl.startOption_eq]
   exact kept
 
-/-- Terminal credit writes the option table only. -/
 theorem TemporalControl.closeOption_framed
     (state origin : TemporalControl interface profile config criterion dimension)
     (kept : state.Framed origin) (models : OptionModelOps criterion dimension)
@@ -772,7 +627,6 @@ theorem TemporalControl.closeOption_framed
   | none => exact kept
   | some owner => exact kept
 
-/-- Meta credit writes the meta-controller and the meta span only. -/
 theorem TemporalControl.learnMeta_framed
     (state origin : TemporalControl interface profile config criterion dimension)
     (kept : state.Framed origin) (features : SwiftTd.ActiveSet dimension)
@@ -780,9 +634,6 @@ theorem TemporalControl.learnMeta_framed
   rw [TemporalControl.learnMeta_eq]
   split <;> exact kept
 
-/-- **The owed writes record no episode, move no activation and draw nothing.** For
-every state, record, frame and reward word, the settled state holds the lifetime record,
-occupancy and the action generator it was given. -/
 theorem TemporalControl.settle_framed (state : TemporalControl interface profile config criterion dimension)
     (owed : Owed interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)

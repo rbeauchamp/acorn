@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AuditPins
 import AcornTools.ModuleInventory
 import AcornTools.TrackedFiles
@@ -10,12 +5,6 @@ import AcornTools.Corpus.Documents
 import AcornTools.Corpus.Pins
 import AcornTools.Corpus.Browser
 
-/-! # Maintained corpus admission
-
-Language boundaries, document references and prior-art qualifications are checked
-against the complete regular-file corpus. Source and compiled Lean policy remain
-AcornTools.Boundary.Audit's responsibility.
--/
 namespace AcornCorpus
 
 private def require (legal : Bool) (message : String) : IO Unit :=
@@ -61,7 +50,6 @@ private def language (path : String) : IO Unit := do
           let tokens := String.ofList (line.toList.map fun c => if c.isAlphanum || c == '_' || c == '.' then c else ' ')
           require (!pythonToken tokens) s!"{path}: Python interpreter in maintained infrastructure"
 
-/-- Maintained documentation and contributor guidance. -/
 def prose (path : String) : Bool :=
   (["README.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md"].contains path) ||
   (path.startsWith "docs/" && path.endsWith ".md" &&
@@ -113,7 +101,6 @@ private def refutations (lines : List String) (heading : String → Bool) : IO U
       found := false
     else if line.contains "*Refutation attempt.*" then found := true
 
-/-- Admit the complete prior-art and current qualification register. -/
 def priorArtTexts (reviewText design frontier : String) : IO Unit := do
   let review ← visible reviewText
   let entries := review.filterMap fun line =>
@@ -143,8 +130,6 @@ def priorArtTexts (reviewText design frontier : String) : IO Unit := do
   refutations (← visible frontier)
     (fun line => line.startsWith "## F" && (line.drop 4).toString.toList.head?.any Char.isDigit)
 
-/-- Ordinary admission checks every maintained file. The focused document mode
-retains document checks and cannot substitute for the complete suite. -/
 unsafe def check (documentsOnly : Bool := false)
     (env? : Option Lean.Environment := none) : IO Unit := do
   let tracked ← AcornTrackedFiles.listTracked "." ""

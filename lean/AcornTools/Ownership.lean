@@ -1,35 +1,13 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Init
 
-/-! # Maintained ownership obligations
-
-The executable inventory is compared with Lake's evaluated configuration and
-compiled module owners. A module of the libraries `Acorn`, `AcornVerif`, `NativeApp`,
-`AcornDocument` and `Entry` has no entry here: Lake's glob assigns each source below a
-library root to that library, and the Regula audit claims every module of the first
-four, the default targets. Each other source is a tool listed in `AcornTools.ModuleInventory` or a
-module of the documentation site listed below. This routing information does not
-assert semantic completeness. Runtime sources receive source/compiled boundary
-admission; the Regula audit checks the axioms of every claimed declaration.
-Tooling is the explicit trust boundary listed in `AcornTools.ModuleInventory`,
-never an application escape hatch.
--/
 namespace AcornOwnership
 open Lean
 
-/-- The reviewed modules of the documentation site, the separate Lake package in `site/`;
-filesystem discovery rejects missing or extra owners. The site is documentation tooling over
-pinned Verso, a trust boundary outside the application's proof claim. -/
 def siteModules : Array Name := #[
   `AcornDocs, `AcornDocs.Verification, `AcornSite, `AcornSite.Markdown, `AcornSite.Owners,
   `AcornSite.Reference, `Main
 ]
 
-/-- Native entry points, checked against both evaluated Lake targets and compiled `main`. -/
 def executables : Array (String × Name) := #[
   ("swifttd-native", `Entry.SwiftTdNative),
   ("feature-native", `Entry.FeatureNative),
@@ -53,11 +31,6 @@ def executables : Array (String × Name) := #[
   ("frame-check", `AcornTools.Frame)
 ]
 
-/-- Required statements about executing definitions must retain their actual execution
-references. The entries are the critical entry and transition obligations, the decision
-contracts of `Acorn.Decisions` and `AcornVerif.Decisions` that no registration requires,
-and the theorem `AcornDocument.external_listed`. The list is not a
-quota or a claim that all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Host.AgentConstruction, `Acorn.Handcrafted.AgentConstruction.admit_iff,
     `Acorn.Handcrafted.AgentConstruction.admit),
@@ -761,11 +734,6 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.stanceCertified)
 ]
 
-/-- Required native entry dependencies after proof erasure. These are routing
-obligations; the IR graph alone does not prove control-flow or argument semantics.
-Each root's `main` applies its claimed module's entry function, the first one listed.
-Erased ANSI, checksum and timing-proof parameters select the compiler's reduced-arity
-owners. -/
 def entryUses : Array (Name × Array Name) := #[
   (`Entry.AcornCore, #[`NativeApp.Main.main, `NativeApp.streamingOptions,
     `Acorn.Host.Viewer.runNativeCampaign,
