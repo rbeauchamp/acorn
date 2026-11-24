@@ -101,7 +101,7 @@ guidance. Inspect the generated behavior for the workload being optimized.
   [Floating-point numbers](https://lean-lang.org/doc/reference/latest/Basic-Types/Floating-Point-Numbers/).
   In `lean/Acorn/Encoding.lean`, raw `Binary32` and `Binary64` values stay as
   raw machine words without passing through Lean core's Float32.ofBits or
-  `Float.ofBits` (whose logical models canonicalize NaNs), `Binary32.key` assigns
+  Float.ofBits (whose logical models canonicalize NaNs), `Binary32.key` assigns
   both `±0` encodings key `0`, and `Binary32.Finite` and `Binary64.Finite`
   `Decidable` instances apply *UInt32.decLt* and *UInt64.decLt* directly rather
   than *inferInstanceAs* (which Lean v4.36.0 unfolds into `Nat` comparisons).
@@ -109,10 +109,12 @@ guidance. Inspect the generated behavior for the workload being optimized.
   hardware operations may choose NaN sign and payload unlike Lean's
   canonicalizing float model, no FMA or custom native override is used,
   `Conversion.ofInt` converts the integer's magnitude through `UInt64`
-  (*natAbs.toUInt64*), so magnitude wraps modulo `2^64` rather than at the
-  signed 32-bit exactness range (for example, `2^31` converts without wrapping,
-  while `Conversion.ofI64Word` avoids intermediate arbitrary-precision `Int`
-  allocation), widening/narrowing aligns IEEE-754
+  (*natAbs.toUInt64*), so its magnitude wraps modulo `2^64` rather than at the
+  signed 32-bit `Conversion.toI32` round-trip domain (`CurrentFloat.toI32_ofInt`;
+  for example, `2^31` lies outside signed 32-bit range yet converts exactly, and
+  `CurrentOrder.numerical64_ofInt` proves exactness for `|value| < 2^53`), while
+  `Conversion.ofI64Word` avoids intermediate arbitrary-precision `Int`
+  allocation, widening/narrowing aligns IEEE-754
   fields with exact bias/shift offsets (`874` subnormal bias, `896` normal
   exponent offset, `897` smallest normal biased exponent, `925`/`926` subnormal
   shifts, `1075` binary64 integer bias, and `1150` normal overflow bound), and
