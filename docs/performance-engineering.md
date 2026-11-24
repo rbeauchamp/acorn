@@ -131,7 +131,7 @@ with one fixed deadline. The gate runs the command twice, each run under its own
 deadline: `./scripts/verify.sh build-executing` selects every module outside
 `AcornVerif` except `AcornTools.AxiomPins`, and every executable. It builds these
 targets and their dependencies, with native objects where applicable. The
-complete command selects every discovered module, including the proof library
+complete command selects every tracked module, including the proof library
 and axiom pins, and reuses outputs only where Lake's traces match. So in the gate
 the cold build and the checks no longer share one deadline. Reuse Lake's
 source/toolchain-validated configuration trace and batch independent source
@@ -140,7 +140,7 @@ reuses a previous verification result or substitutes a digest for correctness.
 Import only the mathematics and tooling a module uses. Order build requests so
 that none delays the scheduling of independent work, as the gate's
 [build request order](verification.md#build-and-source-inventory) does;
-request order must retain the complete discovered module and target inventory.
+request order must retain the complete tracked module and target inventory.
 Within one verification process, reuse imported compiler data across consumers
 and isolated entry environments. Retain compiler ownership, duplicate-declaration
 refusals and each entry's actual import closure. Shared memory must outlive every

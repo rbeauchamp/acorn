@@ -164,9 +164,8 @@ cd acorn
 ./scripts/start.sh
 ```
 
-You need Git to clone the repository. You can also download and unpack its
-source archive, then run the launcher from that directory, under the same
-condition.
+You need Git to clone the repository: the launcher and build tools admit
+sources from a Git checkout, so an unpacked source archive is not supported.
 
 </details>
 

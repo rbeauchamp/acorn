@@ -5,6 +5,7 @@ Authors: acorn contributors
 -/
 import Lean
 import Acorn.Provenance
+import AcornTools.TrackedFiles
 
 /-! # Closed departure ownership
 
@@ -87,6 +88,7 @@ def check (env : Environment) (maintained : Array Name) : IO Unit := do
           if owners.contains owner then actual := name :: actual
   require (actual.length == types.length && actual.all types.contains)
     s!"quarantine data-type inventory differs: {actual}"
+  AcornTrackedFiles.ensureTrackedRegular ".." "" "docs/learned-only-binding.md"
   let text ← IO.FS.readFile "../docs/learned-only-binding.md"
   let entries := ((text.splitOn "### D").drop 1).map fun entry =>
     ("D" ++ (entry.takeWhile Char.isDigit).toString, entry)

@@ -6,6 +6,7 @@ Authors: acorn contributors
 import LeanIntent.Confirmation.Read
 import LeanIntent.Implementation.Read
 import AcornVerif.Intent.Awaiting
+import AcornTools.TrackedFiles
 
 /-! # `intent-check` executable
 
@@ -59,9 +60,7 @@ def awaiting : List (Name × String) :=
 /-- The output of the bootstrap run with `args`, from the package directory; an error when it
 fails. -/
 def bootstrap (args : Array String) : IO String := do
-  let output ← IO.Process.output {
-    cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
-      "Bootstrap.lean"] ++ args, stdin := .null }
+  let output ← IO.Process.output (← AcornTrackedFiles.bootstrapProcess args)
   unless output.exitCode == 0 do
     throw (IO.userError s!"the bootstrap refused {args}: {output.stderr}")
   return output.stdout
@@ -138,6 +137,7 @@ def inEnvironment {α : Type} (env : Environment) (x : MetaM α) : IO (α × Nat
 initializers must run for the imported environment's extensions to load, as for every reader of a
 compiled environment. -/
 unsafe def run : IO Bool := do
+  AcornTrackedFiles.verifyGitRoot ".." "" true
   let (libraries, modules) ← projectModules
   initSearchPath (← findSysroot)
   enableInitializersExecution
