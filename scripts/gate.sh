@@ -608,6 +608,7 @@ emit_gate_summary() {
     "$post_mode" "${nc_jobs:-none}" "$gate_total_dur"
 
   if [[ "$summary_fail" != 0 && "$early_abort" == 0 ]]; then
+    gate_passed=0
     return 1
   fi
 }
@@ -712,6 +713,12 @@ mkdir -p "$post_logs" "$gate_scratch/prov-tmp" "$gate_scratch/stage1-tmp" \
 # INT/TERM traps reach and reap the active child group; always reap any surviving
 # group members before clearing fg_child_pid.
 run_fg_group() {
+  local custom_tmpdir="$1"
+  shift
+  [[ -n "$custom_tmpdir" && ! -L "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
+    echo 'gate: isolated TMPDIR missing for function phase' >&2
+    return 1
+  }
   local rc=0 fifo="$gate_scratch/fg.reap"
   rm -f "$fifo"
   mkfifo "$fifo"
@@ -725,6 +732,7 @@ run_fg_group() {
     exec 4>&- 8>&-
     spawn_pgid_reap_anchor "$gate_scratch/fg.pgid" 9
     exec 9<&-
+    export TMPDIR="$custom_tmpdir"
     "$@"
   ) &
   fg_child_pid=$!
@@ -743,7 +751,7 @@ run_fg_group() {
 run_fg_exec() {
   local custom_tmpdir="$1"
   shift
-  [[ -n "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
+  [[ -n "$custom_tmpdir" && ! -L "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
     echo 'gate: isolated TMPDIR missing for external phase' >&2
     return 1
   }
@@ -775,7 +783,7 @@ run_fg_exec() {
 run_fg_dep_bounded() {
   local limit_s="$1" custom_tmpdir="$2"
   shift 2
-  [[ -n "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
+  [[ -n "$custom_tmpdir" && ! -L "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
     echo 'gate: isolated TMPDIR missing for bounded phase' >&2
     return 1
   }
@@ -820,7 +828,6 @@ provision_lean_workspace() {
   # Parallel cache extraction can exhaust macOS's inherited 256-descriptor limit.
   # Give provisioning a process-local floor before Lake can fetch dependencies;
   # preserve higher limits and the hard limit. This is a budget, not a peak bound.
-  export TMPDIR="$gate_scratch/prov-tmp"
   local descriptor_limit current=0
   descriptor_limit=$(ulimit -Sn)
   if [[ "$descriptor_limit" != unlimited ]] && (( descriptor_limit < 4096 )); then
@@ -848,7 +855,6 @@ provision_lean_workspace() {
 }
 
 provision_site_workspace() {
-  export TMPDIR="$gate_scratch/prov-tmp"
   dependency_git
   cd site
   # Verso's modules and the shared library its documents load.
@@ -858,10 +864,10 @@ provision_site_workspace() {
 provision_state='running'
 provision_start="$SECONDS"
 step 'provisioning the pinned dependencies'
-run_fg_group provision_lean_workspace
+run_fg_group "$gate_scratch/prov-tmp" provision_lean_workspace
 run_fg_exec "$gate_scratch/prov-tmp" ./scripts/lean.sh provision-status
 run_fg_exec "$gate_scratch/prov-tmp" ./scripts/tracked-files.sh admit-site --clean .
-run_fg_group provision_site_workspace
+run_fg_group "$gate_scratch/prov-tmp" provision_site_workspace
 check_nc_cache_dirs allow-missing
 if [[ ! -L "$nc_bin" && -e "$nc_bin" && ! -f "$nc_bin" ]]; then
   echo "gate: refusing unexpected non-regular cache entry: $nc_bin" >&2
@@ -1049,7 +1055,7 @@ if [[ "$verified" == 0 ]]; then
     run_bg_bounded() {
       local limit_s="$1" custom_tmpdir="$2" prefix="$3"
       shift 3
-      [[ -n "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
+      [[ -n "$custom_tmpdir" && ! -L "$custom_tmpdir" && -d "$custom_tmpdir" ]] || {
         echo "gate: isolated TMPDIR missing for background phase: $prefix" >&2
         return 1
       }
