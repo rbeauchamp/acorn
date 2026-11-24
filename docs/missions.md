@@ -146,17 +146,17 @@ Then record each target you proved in [the record of proved targets](../lean/Aco
 
 Lean accepts an entry only when the theorem proves the statement the registry holds under that name, whichever way you stated it, so the record is how the repository knows a target is proved, and a statement written out wrongly fails there. Change nothing under `lean/AcornVerif/Targets/`, and do not change a definition that a target names: together they are the contract.
 
-### Step 6: run the gate
+### Step 6: commit
+
+Sign your commits with an SSH or GPG key registered with GitHub: the main branch requires verified signatures, and GitHub can refuse to merge a pull request whose commits it cannot verify. Keep [LICENSE](../LICENSE) as Acorn's copyright and license notice; do not add per-file MIT headers or comments to scoped Lean files under the `no-comments` policy (record citations and decision rationale in the documentation destinations given in [AGENTS](../AGENTS.md#learned-only-and-research-admission) and [review and delivery](../AGENTS.md#review-and-delivery)), and preserve existing non-Lean license notices.
+
+### Step 7: run the gate
 
 ```sh
 ./scripts/gate.sh
 ```
 
-It has passed only when its last line begins `gate: every merge check passed`. Any other ending is a failure, whatever came before it. Each verification stage has a hard limit of 360 seconds that cannot be extended; if a stage is killed on a slower machine, run the gate again, since Lean's build tool keeps the modules it finished. Run it on the exact commit you will submit.
-
-### Step 7: commit
-
-Sign your commits with an SSH or GPG key registered with GitHub: the main branch requires verified signatures, and GitHub can refuse to merge a pull request whose commits it cannot verify. Keep [LICENSE](../LICENSE) as Acorn's copyright and license notice; do not add per-file MIT headers or comments to scoped Lean files under the `no-comments` policy (record citations and decision rationale in the documentation destinations given in [AGENTS](../AGENTS.md#learned-only-and-research-admission) and [review and delivery](../AGENTS.md#review-and-delivery)), and preserve existing non-Lean license notices.
+It has passed only when its last line begins `gate: every merge check passed`. Any other ending is a failure, whatever came before it. Each verification stage has a hard limit of 360 seconds that cannot be extended; if a stage is killed on a slower machine, run the gate again, since Lean's build tool keeps the modules it finished. Run it on the exact commit you will submit: the gate checks committed tracked files against HEAD and refuses uncommitted edits to tracked files ([verification](verification.md#build-and-source-inventory)).
 
 ### Step 8: open the pull request
 

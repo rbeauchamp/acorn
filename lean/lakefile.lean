@@ -5,6 +5,105 @@ Released under the MIT license as described in the repository LICENSE.
 import Lake
 open Lake DSL
 
+private def stripNewline (text : String) : String :=
+  (text.dropEndWhile fun c => c == '\n' || c == '\r').toString
+
+private def isHexOid (value : String) : Bool :=
+  (value.length == 40 || value.length == 64) &&
+    value.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f'))
+
+private def admitTrackedHelper (dir : System.FilePath) (expectedPrefix : String) :
+    IO System.FilePath := do
+  let dirMeta ← dir.symlinkMetadata
+  unless dirMeta.type == .dir do
+    throw (IO.userError s!"expected directory for Git root: {dir}")
+  let topOut ← IO.Process.output {
+    cmd := "git", args := #["--no-optional-locks", "-C", dir.toString, "rev-parse", "--show-toplevel"],
+    stdin := .null }
+  unless topOut.exitCode == 0 do
+    throw (IO.userError s!"git rev-parse --show-toplevel failed in {dir}: {topOut.stderr}")
+  let prefixOut ← IO.Process.output {
+    cmd := "git", args := #["--no-optional-locks", "-C", dir.toString, "rev-parse", "--show-prefix"],
+    stdin := .null }
+  unless prefixOut.exitCode == 0 do
+    throw (IO.userError s!"git rev-parse --show-prefix failed in {dir}: {prefixOut.stderr}")
+  let topStr := stripNewline topOut.stdout
+  let prefixStr := stripNewline prefixOut.stdout
+  unless prefixStr == expectedPrefix do
+    throw (IO.userError s!"unexpected git prefix {prefixStr} in {dir}, expected {expectedPrefix}")
+  let repoRoot := System.FilePath.mk topStr
+  let expectedDir := if prefixStr.isEmpty then repoRoot
+    else repoRoot / (prefixStr.dropEndWhile (· == '/')).toString
+  unless (← IO.FS.realPath expectedDir) == (← IO.FS.realPath dir) do
+    throw (IO.userError s!"git root mismatch for {dir}")
+  let scriptsMeta ← (repoRoot / "scripts").symlinkMetadata
+  unless scriptsMeta.type == .dir do
+    throw (IO.userError "scripts is not a real directory")
+  let helper := repoRoot / "scripts/tracked-files.sh"
+  let helperMeta ← helper.symlinkMetadata
+  unless helperMeta.type == .file do
+    throw (IO.userError "scripts/tracked-files.sh is not a regular file")
+  let stageOut ← IO.Process.output {
+    cmd := "git",
+    args := #["--no-optional-locks", "--literal-pathspecs", "-C", repoRoot.toString,
+      "-c", "core.quotePath=false", "ls-files", "--stage", "-z", "--", "scripts/tracked-files.sh"],
+    stdin := .null }
+  unless stageOut.exitCode == 0 do
+    throw (IO.userError s!"git ls-files failed for scripts/tracked-files.sh: {stageOut.stderr}")
+  let records := (stageOut.stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
+  let [record] := records | throw (IO.userError "scripts/tracked-files.sh is not tracked")
+  let [metaPart, path] := record.splitOn "\t"
+    | throw (IO.userError s!"malformed git ls-files record: {record}")
+  let [mode, oid, stage] := metaPart.splitOn " "
+    | throw (IO.userError s!"malformed git ls-files metadata: {metaPart}")
+  unless (mode == "100644" || mode == "100755") && stage == "0" &&
+      path == "scripts/tracked-files.sh" && isHexOid oid do
+    throw (IO.userError "scripts/tracked-files.sh is not a stage-0 tracked regular file")
+  return repoRoot
+
+private def runTrackedHelper (repoRoot : System.FilePath) (args : Array String) : IO String := do
+  let helper := repoRoot / "scripts/tracked-files.sh"
+  let out ← IO.Process.output { cmd := helper.toString, args, stdin := .null }
+  unless out.exitCode == 0 do
+    throw (IO.userError (out.stderr ++ out.stdout).trimAscii.toString)
+  return out.stdout
+
+private def trackedEntriesIn (root : System.FilePath) (expectedPrefix : String) : IO (Array String) := do
+  let repoRoot ← admitTrackedHelper root expectedPrefix
+  let stdout ← runTrackedHelper repoRoot
+    #["list-tracked", "--prefix", expectedPrefix, "--require-lean", root.toString]
+  let paths := ((stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)).toArray
+  if paths.isEmpty then
+    throw (IO.userError s!"tracked-files returned no tracked entries in {root}")
+  return paths.qsort (· < ·)
+
+private def ensureTrackedRegularIn (root : System.FilePath) (expectedPrefix : String)
+    (rel : String) : IO Unit := do
+  let repoRoot ← admitTrackedHelper root expectedPrefix
+  discard (runTrackedHelper repoRoot #["admit-file", repoRoot.toString, expectedPrefix ++ rel])
+
+private def moduleRelPath (root : Lean.Name) : String :=
+  String.intercalate "/" (root.components.map (·.toString (escape := false))) ++ ".lean"
+
+private def trackedExeRoot (entries : Array String) (root : Lean.Name) : IO Lean.Name := do
+  let rel := moduleRelPath root
+  unless entries.contains rel do
+    throw (IO.userError s!"executable root is not a tracked regular file: {rel}")
+  return root
+
+private def trackedLibGlobs (entries : Array String) (root : Lean.Name) : Array Glob :=
+  let prefixStr := Lean.Name.toString (escape := false) root
+  let exactFile := prefixStr ++ ".lean"
+  let subPrefix := prefixStr ++ "/"
+  entries.filterMap fun rel =>
+    if rel == exactFile || (rel.startsWith subPrefix && rel.endsWith ".lean") then
+      let stem := (rel.dropEnd 5).toString
+      some <| Glob.one ((stem.splitOn "/").foldl Lean.Name.str Lean.Name.anonymous)
+    else none
+
+private def trackedPackageEntries : Array String :=
+  run_io (trackedEntriesIn __dir__ "lean/")
+
 /-- Strict operation settings shared by the executing library and native application. -/
 def nativeFloatFlags : Array String := #["-ffp-contract=off", "-fno-fast-math"]
 
@@ -13,19 +112,13 @@ def checkpointFlags : Array String := #["-std=c11", "-D_POSIX_C_SOURCE=200809L",
   "-Wall", "-Wextra", "-Werror", "-pedantic", "-O2"]
 
 /-- The native build inventory rejects links and nonregular source entries. -/
-partial def nativeSources (root : System.FilePath) : IO (Array System.FilePath) := do
+def nativeSources (root : System.FilePath) : IO (Array System.FilePath) := do
   let mut files := #[]
-  for entry in ← root.readDir do
-    if entry.fileName == ".lake" || entry.fileName == "lake-packages" ||
-        entry.fileName == ".DS_Store" then continue
-    let metadata ← entry.path.symlinkMetadata
-    match metadata.type with
-    | .dir => files := files ++ (← nativeSources entry.path)
-    | .file =>
-      if entry.path.extension == some "lean" || entry.path.extension == some "c" ||
-          entry.fileName == "lean-toolchain" || entry.fileName == "lake-manifest.json" then
-        files := files.push entry.path
-    | _ => throw (IO.userError s!"native source is not a regular entry: {entry.path}")
+  for rel in ← trackedEntriesIn root "lean/" do
+    let path := root / rel
+    if path.extension == some "lean" || path.extension == some "c" ||
+        rel == "lean-toolchain" || rel == "lake-manifest.json" then
+      files := files.push path
   return files.qsort (fun left right => left.toString < right.toString)
 
 /-- Hash each source with provisioned OpenSSL in one process. Admit exactly one
@@ -101,7 +194,8 @@ executing definitions, which are not, and Lean refuses that import from a `modul
 no elaboration. -/
 @[default_target]
 lean_lib «AcornVerif» where
-  globs := #[.andSubmodules `AcornVerif]
+  roots := #[]
+  globs := trackedLibGlobs trackedPackageEntries `AcornVerif
   allowNonModules := true
 
 /-- Executable Acorn foundations.
@@ -113,14 +207,16 @@ It is the one module of this library that imports Regula's contract and registra
 and no executable imports it. -/
 @[default_target]
 lean_lib «Acorn» where
-  globs := #[.andSubmodules `Acorn]
+  roots := #[]
+  globs := trackedLibGlobs trackedPackageEntries `Acorn
   moreLeancArgs := nativeFloatFlags
 
 /-- Native entry points embed provenance after their complete source dependency is built.
 This bootstrap is a build/OS boundary, outside the current algorithm library. -/
 @[default_target]
 lean_lib «NativeApp» where
-  globs := #[.andSubmodules `NativeApp]
+  roots := #[]
+  globs := trackedLibGlobs trackedPackageEntries `NativeApp
   extraDepTargets := #[`nativeProvenance, `checkpointSync]
   moreLeancArgs := nativeFloatFlags
 
@@ -128,6 +224,8 @@ lean_lib «NativeApp» where
 The inventory covers every Lean/C source in this package and the declared audit pin owner.
 Digests establish byte identity, not authenticity or a correctness theorem. -/
 def provenanceJob (pkg : Package) : FetchM (Job System.FilePath) := do
+  ensureTrackedRegularIn pkg.dir "lean/" "Acorn/Host/AuditPins.lean"
+  ensureTrackedRegularIn (pkg.dir / "..") "" "viewer/static/index.html"
   let sources ← nativeSources pkg.dir
   let pinOwner := pkg.dir / "Acorn/Host/AuditPins.lean"
   let sources := sources ++ #[pkg.dir / "../viewer/static/index.html"]
@@ -176,31 +274,32 @@ target nativeProvenance pkg : System.FilePath := provenanceJob pkg
 /-- Native consumer of the current proof-bearing learner, with the same
 strict floating-operation options as the executing library. -/
 lean_exe «swifttd-native» where
-  root := `Entry.SwiftTdNative
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.SwiftTdNative)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- Native consumer of current feature encoding and lifecycle transitions. -/
 lean_exe «feature-native» where
-  root := `Entry.FeatureNative
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.FeatureNative)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- Native consumer of the current local prediction/control composition. -/
 lean_exe «control-native» where
-  root := `Entry.ControlNative
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.ControlNative)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- Native consumer of current option policy and persistent exploration definitions. -/
 lean_exe «temporal-native» where
-  root := `Entry.TemporalNative
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.TemporalNative)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- Native consumer of the full current agent's exact initialization, prefix and observations. -/
 lean_exe «agent-native» where
-  root := `Entry.AgentNative
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.AgentNative)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- Minimal file-sync primitive; all checkpoint semantics remain in Lean. -/
 target checkpointSync pkg : System.FilePath := do
+  ensureTrackedRegularIn pkg.dir "lean/" "os/checkpoint-sync.c"
   let source ← inputTextFile (pkg.dir / "os/checkpoint-sync.c")
   let output := pkg.buildDir / "bin/checkpoint-sync"
   let compiler ← IO.Process.output { cmd := "cc", args := #["--version"] }
@@ -212,7 +311,7 @@ target checkpointSync pkg : System.FilePath := do
 
 /-- The viewer-owned current native agent stream, with the same executable definitions as its proofs. -/
 lean_exe «acorn-core» where
-  root := `Entry.AcornCore
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.AcornCore)
   moreLeancArgs := nativeFloatFlags
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
 
@@ -220,31 +319,31 @@ lean_exe «acorn-core» where
 The core is named by its declaration, a facetless key: Lake resolves it through this
 package to the store entry of a direct `acorn-core` request, so both share one link job. -/
 lean_exe «acorn-viewer» where
-  root := `Entry.AcornViewer
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.AcornViewer)
   moreLeancArgs := nativeFloatFlags
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
   needs := #[«acorn-core»]
 
 /-- Deterministic JavaScript kernel generated for the viewer. -/
 lean_exe «browser-kernel» where
-  root := `Entry.BrowserKernel
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.BrowserKernel)
   moreLeancArgs := nativeFloatFlags
 
 /-- Native current-agent checkpoint writer, receiver-bound loader and resume consumer. -/
 lean_exe «checkpoint-native» where
-  root := `Entry.CheckpointNative
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.CheckpointNative)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
   extraDepTargets := #[`checkpointSync]
 
 /-- Native consumer of current world, raw terrain and CLI admission. -/
 lean_exe «world-native» where
-  root := `Entry.WorldNative
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.WorldNative)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- The host of the Microduck's world: the agent's loop driven over three `nc` connections
 to the simulated daemons, with telemetry on standard output. -/
 lean_exe «microduck-host» where
-  root := `Entry.MicroduckHost
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.MicroduckHost)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- Generator-only certificate tool: proposes certificates for selecting properties of a
@@ -253,71 +352,77 @@ the campaign runner and the comparator out of its import closure. That closure h
 attempt protocol and campaign admission through the curriculum; the tool starts no attempt,
 and no audit enforces that. -/
 lean_exe «world-certificates» where
-  root := `Entry.WorldCertificates
+  root := run_io (trackedExeRoot trackedPackageEntries `Entry.WorldCertificates)
   moreLeancArgs := #["-ffp-contract=off", "-fno-fast-math"]
 
 /-- Inventory theorem declarations from compiled project modules, scoped by
 the compiler's owning-module index rather than source text or name prefixes. -/
 lean_exe «theorem-count» where
-  root := `AcornTools.TheoremCount
+  root := run_io (trackedExeRoot trackedPackageEntries `AcornTools.TheoremCount)
   supportInterpreter := true
 
 /-- Boundary admission entry, isolated from application compilation. -/
 lean_exe «lean-boundary-audit» where
-  root := `AcornTools.Boundary.Main
+  root := run_io (trackedExeRoot trackedPackageEntries `AcornTools.Boundary.Main)
   supportInterpreter := true
 
 /-- Inspect the actual native compiler flags, primitives and execution routes. -/
 lean_exe «native-audit» where
-  root := `AcornTools.Native.Audit
+  root := run_io (trackedExeRoot trackedPackageEntries `AcornTools.Native.Audit)
 
 /-- The build bootstrap, which `scripts/lean.sh` interprets with `lean --run` before anything is
 built, so its `main` stays in its own file: the one top-level `main` of the claim. The complete
 local suite also compiles it. -/
 @[default_target]
 lean_lib «Bootstrap» where
+  roots := #[]
+  globs := trackedLibGlobs trackedPackageEntries `Bootstrap
 
 /-- The names that maintained prose may cite from outside the project, which the corpus
 audit admits, with the theorem that states what an admitted name is. -/
 @[default_target]
 lean_lib «AcornDocument» where
+  roots := #[]
+  globs := trackedLibGlobs trackedPackageEntries `AcornDocument
 
 /-- The executables' roots. Each module declares the top-level `main` of one executable,
 which applies the entry function of a claimed module and holds nothing else. `lake lint`
 imports the claimed modules into one environment, where Lean refuses two declarations of
 `main`, so these roots are no default target and no claimed module imports one. -/
 lean_lib «Entry» where
-  globs := #[.andSubmodules `Entry]
+  roots := #[]
+  globs := trackedLibGlobs trackedPackageEntries `Entry
   moreLeancArgs := nativeFloatFlags
 
 /-- Reviewed build and verification tools, separate from application libraries. -/
 lean_lib AcornTools where
-  globs := #[.andSubmodules `AcornTools]
+  roots := #[]
+  globs := trackedLibGlobs trackedPackageEntries `AcornTools
 
 /-- Check discovered sources, evaluated executable roots and required proof links. -/
 lean_exe «ownership-audit» where
-  root := `AcornTools.OwnershipAudit
+  root := run_io (trackedExeRoot trackedPackageEntries `AcornTools.OwnershipAudit)
   supportInterpreter := true
 
 /-- Offline ordinary verification orchestration. -/
 lean_exe «acorn-gates» where
-  root := `AcornTools.Gate
+  root := run_io (trackedExeRoot trackedPackageEntries `AcornTools.Gate)
 
 /-- Source-only maintained-corpus admission. -/
 lean_exe «corpus-audit» where
-  root := `AcornTools.Corpus.Main
+  root := run_io (trackedExeRoot trackedPackageEntries `AcornTools.Corpus.Main)
   supportInterpreter := true
 
 /-- lean-intent's confirmation and implementation checks, which the merge gate runs on the
 modules of the default libraries of the finished build. -/
 lean_exe «intent-check» where
-  root := `AcornTools.Intent
+  root := run_io (trackedExeRoot trackedPackageEntries `AcornTools.Intent)
   supportInterpreter := true
 
 /-- The check of each target's pinned frame, which the merge gate runs on the finished build:
 every declaration a pinned target reads prints to the text its pin file records. -/
 lean_exe «frame-check» where
-  root := `AcornTools.Frame
+  root := run_io (trackedExeRoot trackedPackageEntries `AcornTools.Frame)
   supportInterpreter := true
 
 /-- A sufficient condition for a configured build key to share its target's one Lake job.
@@ -345,6 +450,12 @@ waits for that target before it reads any later build request, so the gate reque
 entry last. -/
 script acornTargets do
   let pkg ← getRootPackage
+  let tracked ← trackedEntriesIn pkg.dir "lean/"
+  for exe in pkg.leanExes do
+    let rel := moduleRelPath exe.config.root
+    unless exe.config.srcDir == "." && tracked.contains rel do
+      IO.eprintln s!"executable '{exe.name}' root is not a tracked regular file: {rel}"
+      return 1
   let targets := #[(pkg.config.toLeanConfig, #[])] ++
     pkg.leanLibs.map (fun lib => (lib.config.toLeanConfig, lib.config.needs)) ++
     pkg.leanExes.map (fun exe => (exe.config.toLeanConfig, exe.config.needs))
@@ -420,36 +531,40 @@ def importedNativeObjects (sources : Array System.FilePath) (library : String) :
           job := job.mix ((← dependency.coExport.fetch).map fun _ => ())
   return job
 
+def trackedSourceFiles (pkg : Package) (rels : Array String) : IO (Array System.FilePath) := do
+  for rel in rels do
+    ensureTrackedRegularIn pkg.dir "lean/" rel
+  return rels.map (fun rel => pkg.dir / System.FilePath.mk rel)
+
 /-- The FloatLib modules the proof bridge imports. Provisioning builds this target beside
 Mathlib; FloatLib publishes no build cache, and verification must not compile a
 dependency inside its deadline. -/
-target floatlibBridge pkg : Unit :=
-  importedArtifacts #[pkg.dir / "AcornVerif" / "FloatLibBridge.lean"] "FloatLib"
+target floatlibBridge pkg : Unit := do
+  importedArtifacts (← trackedSourceFiles pkg #["AcornVerif/FloatLibBridge.lean"]) "FloatLib"
 
 /-- The Regula modules that the two decision registries and `AcornTools.Theorems` import, with
 the native objects that `theorem-count` and `ownership-audit` link from `AcornTools.Theorems`'s
 Regula imports. Provisioning builds this target beside `floatlibBridge`, so that verification,
 which builds every declared executable, compiles no dependency inside its deadline. -/
 target regulaInterface pkg : Unit := do
-  let registries :=
-    #[pkg.dir / "Acorn" / "Decisions.lean", pkg.dir / "AcornVerif" / "Decisions.lean"]
-  let tools := #[pkg.dir / "AcornTools" / "Theorems.lean"]
+  let registries ← trackedSourceFiles pkg #["Acorn/Decisions.lean", "AcornVerif/Decisions.lean"]
+  let tools ← trackedSourceFiles pkg #["AcornTools/Theorems.lean"]
   let arts ← importedArtifacts (registries ++ tools) "Regula"
   let native ← importedNativeObjects tools "Regula"
   return arts.mix native
 
 /-- The lean-intent modules the intent bridge and the gate's `intent-check` import. Provisioning
 builds this target beside `floatlibBridge`, for the same reason. -/
-target leanIntentBridge pkg : Unit :=
+target leanIntentBridge pkg : Unit := do
   importedArtifacts
-    #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean", pkg.dir / "AcornTools" / "Intent.lean"]
+    (← trackedSourceFiles pkg #["AcornVerif/LeanIntentBridge.lean", "AcornTools/Intent.lean"])
     "LeanIntent"
 
 /-- The native objects of the lean-intent modules `intent-check` links: each lean-intent module that
 it or the intent bridge imports, read from their import lines, and every module that one imports.
 Provisioning builds this target beside `leanIntentBridge`, so that verification, which builds every
 declared executable, compiles no dependency inside its deadline. -/
-target leanIntentNative pkg : Unit :=
+target leanIntentNative pkg : Unit := do
   importedNativeObjects
-    #[pkg.dir / "AcornVerif" / "LeanIntentBridge.lean", pkg.dir / "AcornTools" / "Intent.lean"]
+    (← trackedSourceFiles pkg #["AcornVerif/LeanIntentBridge.lean", "AcornTools/Intent.lean"])
     "LeanIntent"

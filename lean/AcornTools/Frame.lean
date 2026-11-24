@@ -5,77 +5,7 @@ Authors: acorn contributors
 -/
 import Lean
 import AcornTools.ModuleInventory
-
-/-! # `frame-check` executable
-
-A target is a statement a mission is to prove, frozen under `lean/AcornVerif/Targets/`. Its text
-is frozen with its file. Its meaning is not: the statement reads definitions elsewhere, and a
-change to one of them changes what the statement says while its file stays the same. This
-program lets a target pin those definitions, and the merge gate runs it on the finished build.
-
-**The frame of a target.** Start from the target's constant and follow constants: a
-definition's type and value, a theorem's or an axiom's type, an inductive type's type and
-constructors, a constructor's or a recursor's type. Three kinds of name bound the walk.
-
-- A *free* name is not followed and not part of the frame: a submission may change it.
-- A *stop* name is part of the frame, and what it names is not followed.
-- A name outside the project's own modules (`Acorn`, `AcornVerif`) is not followed and not part
-  of the frame. The dependencies' commits are pinned by Lake's manifest, which this program does
-  not read.
-
-**A pin file** is a file `<name>.frame` under `lean/AcornVerif/Targets/`, so only a merge the
-owner makes can add or change one. It names the target, its module, the free names, the stop
-names, and for each declaration of the frame the SHA-256 digest of its printed kind, universe
-parameters, type and value (`declText`). Lines are `target`, `module`, `free`, `stop` and `pin`
-followed by their words; an empty line is skipped, and no other line is admitted.
-
-**The check** (no argument). It lists `lean/AcornVerif/Targets/` and admits two kinds of entry:
-a regular file whose name ends in `.lean` and a regular file whose name ends in `.frame`, which
-is a pin file. Any other entry, a subdirectory or a symbolic link included, fails the check and
-is named, so a pin file that is misplaced or misnamed is refused and not passed over. For each
-pin file it imports the module, computes the frame and compares it with the pinned one as a set
-of names with digests. A declaration pinned and no longer reached, reached and not pinned, or
-with another digest fails the check, and each is printed. With no pin file it says so and
-passes: a target without a pin file is not pinned.
-
-**Printing a pin file** (`print <module> <target> [free <name>]... [stop <name>]...`) writes
-the pin file's text for those names to standard output.
-
-**Compiled modules and their sources.** The declarations are read from compiled modules, never
-from sources, and running this program builds the program and no module it reads. So before it
-imports a module, for the check and for printing alike, it requires four things (`current`),
-and builds nothing itself. First, the module is, under exactly its name, one of the package's
-Lean sources: a member of the inventory of regular source files that verification's build
-requests from (`AcornModuleInventory.allModules`). Then Lake, asked about the root package
-alone, reports that module built from the present sources and names the source file it read
-and its compiled file. Next, that source file is the inventoried file. Last, the compiled file
-Lean finds for the module is the file Lake named. A module that has no source file of exactly
-its name in the tree, a name that differs from a source's only in the case of its letters
-included, a module the root package does not hold, a module that is out of date or imports one
-that is, a module whose source Lake reads from another place, and a module whose compiled file
-Lean finds elsewhere are each refused by name, with status 1. So, under what `current` lists
-as trusted, a compiled file left by an earlier build is not read in place of the tree's source.
-
-Some refusals follow that are of no module a pin can usefully name. A module of a dependency
-is no source of this package: no dependency imports the project, so the environment of such a
-module declares nothing in `Acorn` or `AcornVerif` and its frame is empty. A source placed in
-the tree under a dependency's module name is in the inventory, and is a module of the root
-package only if one of its libraries holds it; otherwise Lake, asked about the root package
-alone, does not know it. A module of the documentation package in `site/` is no source of this
-package either, and its compiled files are not on this program's search path. And an entry
-below the package directory that is neither a directory nor a regular file, the build and
-dependency directories apart, makes the inventory fail and this program with it, as it fails
-verification.
-
-What a pass means: every declaration the walk reaches prints to the text it printed when the
-file was made, read from compiled modules that Lake reports built from the sources present when
-the program ran. It does not say what those declarations mean, that the free names were well
-chosen, or that the dependencies are unchanged. The digest is a detector of change. It is taken
-with this file's own SHA-256, which each run checks against three published test vectors before
-it reads anything. The vectors show that the empty message, a message of one block and a
-message of two blocks digest as published, and no more: they do not show that an implementation
-meeting them is SHA-256, or that it detects every change.
--/
+import AcornTools.TrackedFiles
 
 namespace AcornFrameCheck
 
@@ -348,18 +278,16 @@ compiled files since; that the tree does not change while this program runs; and
 search path, which the bootstrap's `lake exe` sets with the workspace's own library directories
 first, finds the modules that `module` imports where Lake answered for them, since only the
 file of `module` itself is compared. -/
-def current (module : Name) : IO Unit := do
-  unless (← AcornModuleInventory.allModules).contains module do
+def current (module : Name) (requireClean : Bool := true) : IO Unit := do
+  unless (← AcornModuleInventory.allModules (requireClean := requireClean)).contains module do
     throw (IO.userError s!"module {module}: not read, since the tree holds no source file of \
       exactly this name among the package's Lean sources")
   let some text := requestText module
     | throw (IO.userError s!"module {module}: not read, since Lake cannot be asked about this \
         name (it is empty, holds a colon or a slash, or does not read back from its printed \
         text)")
-  let output ← IO.Process.output {
-    cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
-      "Bootstrap.lean", "query", "--no-build", "@/+" ++ text ++ ":lean",
-      "@/+" ++ text ++ ":olean"], stdin := .null }
+  let output ← IO.Process.output (← AcornTrackedFiles.bootstrapProcess
+    #["query", "--no-build", "@/+" ++ text ++ ":lean", "@/+" ++ text ++ ":olean"])
   unless output.exitCode == 0 do
     throw (IO.userError s!"module {text}: not read, since Lake does not report the root \
       package's module of this name built from the present sources (status \
@@ -383,14 +311,14 @@ def current (module : Name) : IO Unit := do
 
 /-- The environment of a compiled module, read only once `current` has admitted the module.
 Every environment this program reads comes from here. -/
-def imported (module : Name) : IO Environment := do
-  current module
+def imported (module : Name) (requireClean : Bool := true) : IO Environment := do
+  current module requireClean
   importModules #[{ module }] {}
 
 /-- The frame of a pin's target, in the environment of its module. A module that `current`
 refuses and an unknown target are refused. -/
-def computed (pin : Pin) : IO (Std.HashMap Name String) := do
-  let env ← imported pin.home
+def computed (pin : Pin) (requireClean : Bool := true) : IO (Std.HashMap Name String) := do
+  let env ← imported pin.home requireClean
   unless (env.find? pin.target).isSome do
     throw (IO.userError s!"{pin.home} declares no {pin.target}")
   return frame env (pin.free.foldl (·.insert ·) {}) (pin.stop.foldl (·.insert ·) {}) pin.target
@@ -422,19 +350,25 @@ def verify (file : System.FilePath) : IO Bool := do
     {now.size} in the frame, {verdict}"
   return same
 
-/-- The pin files: the regular files ending in `.frame` in `AcornVerif/Targets`, the directory
-of the package that only the owner's merges change. The directory admits those and regular
-files ending in `.lean`; any other entry is refused by name. -/
 def pinFiles : IO (Array System.FilePath) := do
-  let directory : System.FilePath := "AcornVerif" / "Targets"
+  let prefixPath := "AcornVerif/Targets/"
+  let tracked ← AcornTrackedFiles.listTracked "." "lean/"
+  let mut sawTarget := false
   let mut files : Array System.FilePath := #[]
-  for entry in ← directory.readDir do
-    let regular := (← entry.path.symlinkMetadata).type == .file
-    if regular && entry.fileName.endsWith ".frame" then
-      files := files.push entry.path
-    else unless regular && entry.fileName.endsWith ".lean" do
-      throw (IO.userError s!"{entry.path} is neither a regular file ending in .lean nor a \
-        regular file ending in .frame")
+  for rel in tracked do
+    if rel.startsWith prefixPath then
+      sawTarget := true
+      let name := (rel.drop prefixPath.length).toString
+      if name.isEmpty || name.contains '/' then
+        throw (IO.userError s!"AcornVerif/Targets/{name} is neither a regular file ending in .lean \
+          nor a regular file ending in .frame")
+      if name.endsWith ".frame" then
+        files := files.push ("AcornVerif" / "Targets" / name)
+      else unless name.endsWith ".lean" do
+        throw (IO.userError s!"AcornVerif/Targets/{name} is neither a regular file ending in .lean \
+          nor a regular file ending in .frame")
+  unless sawTarget do
+    throw (IO.userError "no tracked files under AcornVerif/Targets")
   return files.qsort (·.toString < ·.toString)
 
 /-- The names that follow a keyword in the arguments of `print`. -/
@@ -449,6 +383,7 @@ def run (args : List String) : IO UInt32 := do
     IO.eprintln "frame-check: this program's SHA-256 does not meet its test vectors"
     return 1
   try
+    AcornTrackedFiles.admitLeanToolchain
     initSearchPath (← findSysroot)
     match args with
     | [] =>
@@ -471,7 +406,7 @@ def run (args : List String) : IO UInt32 := do
         return 2
       let pin : Pin :=
         ⟨target.toName, declaring.toName, namesAfter "free" rest, namesAfter "stop" rest, #[]⟩
-      let now ← computed pin
+      let now ← computed pin (requireClean := false)
       let filled : Pin := ⟨pin.target, pin.home, pin.free, pin.stop, now.toArray⟩
       IO.print filled.text
       return 0

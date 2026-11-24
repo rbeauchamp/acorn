@@ -6,6 +6,7 @@ Authors: acorn contributors
 import AcornTools.ModuleInventory
 import AcornTools.Ownership
 import AcornTools.Boundary.Departures
+import AcornTools.TrackedFiles
 
 /-!
 # Admission of the current Lean execution boundary
@@ -408,6 +409,7 @@ unsafe def command (args : List String) : IO UInt32 := do
   unless [["source"], ["compiled"], ["proof-source"]].contains args do
     IO.eprintln "usage: lean-boundary-audit (source|compiled|proof-source)"
     return 1
+  AcornTrackedFiles.admitLeanToolchain
   Lean.initSearchPath (← Lean.findSysroot)
   let proofs := args == ["proof-source"]
   -- The decision registry states contracts, so it is admitted with the proof sources.

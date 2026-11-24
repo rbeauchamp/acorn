@@ -24,9 +24,11 @@ path = "../lean"
 # Site-owned Verso extensions: owner-checked references and the Markdown rendering.
 [[lean_lib]]
 name = "AcornSite"
-globs = ["AcornSite", "AcornSite.+"]
+roots = []
+globs = ["AcornSite", "AcornSite.Markdown", "AcornSite.Owners", "AcornSite.Reference"]
 
 # The documents.
 [[lean_lib]]
 name = "AcornDocs"
-globs = ["AcornDocs", "AcornDocs.+"]
+roots = []
+globs = ["AcornDocs", "AcornDocs.Verification"]

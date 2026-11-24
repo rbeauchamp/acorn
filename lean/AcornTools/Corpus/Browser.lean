@@ -8,6 +8,7 @@ import Acorn.Host.Viewer.Buffer
 import Acorn.Host.Viewer.Retry
 import Acorn.Host.Viewer.Supervision
 import Acorn.Host.Viewer.WorldMemory
+import AcornTools.TrackedFiles
 
 /-! # Browser execution wiring admission
 
@@ -139,6 +140,7 @@ private def documentConstants (text : String) : Except String Unit := do
 
 /-- Check the generated-program call sites and the request/timer inventory. -/
 def check : IO Unit := do
+  AcornTrackedFiles.ensureTrackedRegular "." "" "viewer/static/index.html"
   let page ← IO.FS.readFile "viewer/static/index.html"
   let script := compact (← scripts page)
   for (token, count) in [("setInterval(", 3), ("setTimeout(", 1), ("fetch(", 1)] do
@@ -176,6 +178,7 @@ def check : IO Unit := do
   let connect ← body script "connect()"
   require ((connect.splitOn "received++").length == 2) "capture counter must have one guarded increment"
   require (page.contains "$(\"t_world\").title = WORLD_TILE_NOTE;") "readout reset omits world-tile title"
+  AcornTrackedFiles.ensureTrackedRegular "." "" "docs/viewer-ux.md"
   match documentConstants (← IO.FS.readFile "docs/viewer-ux.md") with
   | .ok () => pure ()
   | .error message => require false message
