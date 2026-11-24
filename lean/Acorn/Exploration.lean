@@ -1,53 +1,24 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Policy
 import Acorn.FeatureConstants
 
-/-!
-# Bounded persistent exploration
-
-Dabney, Ostrovski & Barreto, *Temporally-Extended ε-Greedy Exploration*,
-ICLR (2021), arXiv:2006.01782v1 (2020), §4.2, PDF p. 5 and Algorithm 1,
-PDF p. 14. Acorn's D3 sampler uses the capped reciprocal tail, not the exact
-zeta distribution. It serves n total actions as in §4.2; Algorithm 1's n+1
-loop is characterized separately by the retained mathematical owner.
-The seeded generator is deterministic. Nominal epsilon observations do not
-assert independent uniform draws or exact finite-word probabilities.
-
-Algorithm 1 applies the persistent draw to the agent's one behaviour policy:
-at every step with no run in progress, a run starts with probability ε, whichever
-action is greedy. `PolicySnapshot.drawPersistent` is that draw for the layer that
-selects the step's primitive action, primitive control or an executing option.
--/
 namespace Acorn.Features
 
-/-- Current meta action count with its machine-width admission. -/
 def metaCount : Word.Count := ⟨Acorn.FeatureConstants.metaActionCount.toUInt64, by decide⟩
 
-/-- D3 fixes persistence to at most 128 primitive actions. -/
 def explorationCap : Nat := Acorn.FeatureConstants.explorationMaxDuration
 
-/-- A sampled run stores only its remaining actions after the returned first action. -/
 structure ExploratoryRun (count : Word.Count) where
-  /-- The receiving action space owns admission for the whole run. -/
   action : Action count.word.toNat
-  /-- At most cap minus one actions remain. -/
   remaining : Fin explorationCap
 
 instance (count : Word.Count) : Provenance (ExploratoryRun count) := ⟨some .explorationDuration⟩
 
-/-- Serve one committed action without drawing or consulting a value function.
-Spent runs produce no action; the caller resumes boundary selection. -/
 def ExploratoryRun.serve {count : Word.Count} (run : ExploratoryRun count) :
     Option (Action count.word.toNat × ExploratoryRun count) :=
   if h : 0 < run.remaining.val then
     some (run.action, ⟨run.action, ⟨run.remaining.val - 1, by have := run.remaining.isLt; omega⟩⟩)
   else none
 
-/-- An actual continuation repeats its committed action and reduces the clock by one. -/
 theorem ExploratoryRun.serve_exact {count : Word.Count} (run next : ExploratoryRun count)
     (action : Action count.word.toNat) (served : run.serve = some (action, next)) :
     action = run.action ∧ next.action = run.action ∧ next.remaining.val + 1 = run.remaining.val := by
@@ -57,13 +28,9 @@ theorem ExploratoryRun.serve_exact {count : Word.Count} (run next : ExploratoryR
     exact ⟨rfl, rfl, by dsimp; omega⟩
   · contradiction
 
-/-- No hidden extra action exists after the remaining clock reaches zero. -/
 theorem ExploratoryRun.spent {count : Word.Count} (run : ExploratoryRun count) :
     run.serve = none ↔ run.remaining.val = 0 := by simp [serve]
 
-/-- Reciprocal draw in the actual binary64 operation order. Truncation reads
-the nonnegative finite dyadic fields; the stored remainder is capped at admission.
-On the RNG's [0,1) range this is floor(1/(1-u)) minus the first served action. -/
 def durationRemainingSpec (uniform : Binary64) : Fin explorationCap :=
   let one := Binary64.ofUInt64 1
   let reciprocal := one.div (one.sub uniform)
@@ -74,14 +41,12 @@ def durationRemainingSpec (uniform : Binary64) : Fin explorationCap :=
     simp only [explorationCap, Acorn.FeatureConstants.explorationMaxDuration] at *
     omega⟩
 
-/-- Word duration classification preserves the draw's native operation order. -/
 def durationCountWord (uniform : Binary64) : UInt32 :=
   let one := Binary64.ofUInt64 1
   let reciprocal := one.div (one.sub uniform)
   if !(reciprocal.less (Binary64.ofUInt64 explorationCap.toUInt64)) then 128
   else Conversion.cappedTrunc128 reciprocal
 
-/-- Duration classification always fits the declared exploration cap. -/
 theorem durationCountWord_bound (uniform : Binary64) :
     (durationCountWord uniform).toNat ≤ 128 := by
   dsimp only [durationCountWord]
@@ -90,12 +55,10 @@ theorem durationCountWord_bound (uniform : Binary64) :
   · rw [Conversion.cappedTrunc128_exact]
     exact Nat.min_le_right _ _
 
-/-- Serve the first action before storing the scalar remaining clock. -/
 def durationWord (uniform : Binary64) : UInt32 :=
   let count := durationCountWord uniform
   if count = 0 then 0 else count - 1
 
-/-- Saturating word subtraction removes exactly the first served action. -/
 theorem durationWord_exact (uniform : Binary64) :
     (durationWord uniform).toNat = (durationCountWord uniform).toNat - 1 := by
   dsimp only [durationWord]
@@ -112,7 +75,6 @@ theorem durationWord_exact (uniform : Binary64) :
       change 1 ≤ _
       omega
 
-/-- The executing bounded clock leaves word storage only at its Fin boundary. -/
 def durationRemaining (uniform : Binary64) : Fin explorationCap :=
   ⟨(durationWord uniform).toNat, by
     rw [durationWord_exact]
@@ -120,8 +82,6 @@ def durationRemaining (uniform : Binary64) : Fin explorationCap :=
     change _ < 128
     omega⟩
 
-/-- Early capping preserves the stored remainder over every raw draw, without
-assuming the caller supplied an RNG-range value. -/
 theorem durationRemaining_eq_spec (uniform : Binary64) :
     durationRemaining uniform = durationRemainingSpec uniform := by
   apply Fin.ext
@@ -132,7 +92,6 @@ theorem durationRemaining_eq_spec (uniform : Binary64) :
     simp only [explorationCap, Acorn.FeatureConstants.explorationMaxDuration]
     omega
 
-/-- Branch, duration, then action: the same draw order for every layer that draws. -/
 def beginExploration (count : Word.Count) (rate : SwiftTd.ExploreRate) (rng : Rng.Xoshiro256) :
     Option (ExploratoryRun count) × Rng.Xoshiro256 :=
   let branch := rng.nextF64
@@ -141,19 +100,12 @@ def beginExploration (count : Word.Count) (rate : SwiftTd.ExploreRate) (rng : Rn
     let action := uniformAction count duration.2
     (some ⟨action.1, durationRemaining duration.1⟩, action.2)
 
-/-- A persistent draw retains its nominal snapshot and possible continuation. -/
 structure PersistentDecision (count : Word.Count) where
-  /-- The actual admitted action. -/
   action : Action count.word.toNat
-  /-- True only when a new persistent run was drawn. -/
   explored : Bool
-  /-- The run includes its already-served first action. -/
   run : Option (ExploratoryRun count)
-  /-- Nominal masses at the draw, before persistence conditions later steps. -/
   probabilities : Vector Binary32 count.word.toNat
 
-/-- The persistent draw with its work: a run begun, or the greedy draw, and the nominal
-masses. -/
 def PolicySnapshot.drawPersistentCosted {count : Word.Count} (snapshot : PolicySnapshot count)
     (rng : Rng.Xoshiro256) : Costed (PersistentDecision count × Rng.Xoshiro256) :=
   let draw := beginExploration count snapshot.epsilon rng
@@ -169,12 +121,10 @@ def PolicySnapshot.drawPersistentCosted {count : Word.Count} (snapshot : PolicyS
     let masses ← snapshot.probabilitiesCosted
     Costed.pure (⟨greedy.1, explored, none, masses⟩, greedy.2)
 
-/-- Persistent exploration or the existing ordered greedy reservoir. -/
 def PolicySnapshot.drawPersistent {count : Word.Count} (snapshot : PolicySnapshot count)
     (rng : Rng.Xoshiro256) : PersistentDecision count × Rng.Xoshiro256 :=
   (snapshot.drawPersistentCosted rng).val
 
-/-- A persistent draw begins a run, or takes the greedy draw, and reports the nominal masses. -/
 theorem PolicySnapshot.drawPersistent_def {count : Word.Count} (snapshot : PolicySnapshot count)
     (rng : Rng.Xoshiro256) :
     snapshot.drawPersistent rng =
@@ -188,8 +138,6 @@ theorem PolicySnapshot.drawPersistent_def {count : Word.Count} (snapshot : Polic
   dsimp only
   cases (beginExploration count snapshot.epsilon rng).1 <;> rfl
 
-/-- Frozen-decision credit for a persistent draw with its work: the discount and trace decay of
-the duration, then the update over the snapshot's values. -/
 def Controller.persistentStepCosted {count : Word.Count} {config : Acorn.Config}
     {dimension : Dimension} (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
@@ -199,9 +147,6 @@ def Controller.persistentStepCosted {count : Word.Count} {config : Acorn.Config}
     controller.valuesStepCosted features snapshot.values drawn.action reward
       (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration)
 
-/-- Frozen-decision credit for a persistent draw from `snapshot`: the action the draw
-returned and the snapshot's original values, the update `Controller.policyStep` makes
-for a plain draw. -/
 def Controller.persistentStep {count : Word.Count} {config : Acorn.Config} {dimension : Dimension}
     (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
@@ -209,8 +154,6 @@ def Controller.persistentStep {count : Word.Count} {config : Acorn.Config} {dime
     Controller config dimension count.word.toNat :=
   (controller.persistentStepCosted features snapshot drawn reward duration).val
 
-/-- Persistent-draw credit is the update over the snapshot's values at the duration's discount and
-trace decay. -/
 theorem Controller.persistentStep_def {count : Word.Count} {config : Acorn.Config}
     {dimension : Dimension} (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (snapshot : PolicySnapshot count)
@@ -220,8 +163,6 @@ theorem Controller.persistentStep_def {count : Word.Count} {config : Acorn.Confi
         (Portable.pow config.rule.gamma duration) (Portable.pow controller.traceDecay duration) :=
   rfl
 
-/-- The credit is `Controller.policyStep`'s for every frozen decision of the same
-snapshot and action, so a persistent draw is credited as a plain draw of that action. -/
 theorem Controller.persistentStep_policy {count : Word.Count} {config : Acorn.Config}
     {dimension : Dimension} (controller : Controller config dimension count.word.toNat)
     (features : SwiftTd.ActiveSet dimension) (drawn : PersistentDecision count)
@@ -231,27 +172,21 @@ theorem Controller.persistentStep_policy {count : Word.Count} {config : Acorn.Co
       controller.persistentStep features decision.snapshot drawn reward duration := by
   simp only [Controller.persistentStep_def, Controller.policyStep_def, same]
 
-/-- The served masses with their work: one mass for each action. -/
 def servedProbabilitiesCosted {count : Word.Count} (action : Action count.word.toNat) :
     Costed (Vector Binary32 count.word.toNat) :=
   Costed.ofFn fun query => Costed.op .read (if query = action then .one else .zero)
 
-/-- Served steps have point-mass observations, regardless of the boundary epsilon. -/
 def servedProbabilities {count : Word.Count} (action : Action count.word.toNat) :
     Vector Binary32 count.word.toNat := (servedProbabilitiesCosted action).val
 
-/-- The served masses are one at the served action and zero elsewhere. -/
 theorem servedProbabilities_def {count : Word.Count} (action : Action count.word.toNat) :
     servedProbabilities action =
       Vector.ofFn fun query => if query = action then .one else .zero := rfl
 
-/-- The selected action is the only nonzero reported mass while a run persists. -/
 theorem served_probability {count : Word.Count} (action query : Action count.word.toNat) :
     (servedProbabilities action).get query = (if query = action then .one else .zero) := by
   simp [servedProbabilities_def, Vector.get, Fin.cast]
 
-/-- A served step cannot provide support for a different action, even with
-positive boundary epsilon. This is a conditional statement over every run. -/
 theorem served_excludes_other {count : Word.Count} (run next : ExploratoryRun count)
     (action other : Action count.word.toNat) (served : run.serve = some (action, next))
     (different : other ≠ run.action) : action ≠ other := by

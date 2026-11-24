@@ -1,35 +1,18 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Ansi
 import Acorn.Host.Baseline
 
-/-!
-# Native current-world consumer
-
-`actions` executes a finite caller-supplied action stream through the same world
-used by the runner. `terrain` admits complete raw public terrain arguments.
-`admit` executes CLI admission without starting an agent, study or IO owner.
-This is a direct component consumer; full learning composition remains with its
-assigned owner and is never replaced by a scripted callback.
--/
 namespace Acorn.WorldDriver
 open Host
 
-/-- Explicit diagnostic names for the closed current world-refusal domain. -/
 def worldError : WorldError → String
   | .coordinateOverflow => "signed coordinate arithmetic overflow"
   | .inadmissibleConfig => "world configuration fails admission bounds"
 
-/-- Current standard/custom configuration refusal names. -/
 def configError : WorldConfigError → String
   | .sideTooSmall => "SideTooSmall" | .sideTooLarge => "SideTooLarge"
   | .nonpositiveSide => "NonpositiveSide" | .zeroDayLength => "ZeroDayLength"
   | .sideExceedsPatch => "SideExceedsPatch" | .scaleOverflow => "ScaleOverflow"
 
-/-- CLI diagnostics retain their closed category and offending text. -/
 def cliError : Cli.Error → String
   | .command name => s!"unknown command: {name}"
   | .unknown name => s!"unknown flag: {name}"
@@ -38,16 +21,11 @@ def cliError : Cli.Error → String
   | .invalid name value => s!"invalid {name}: {value}"
   | .world error => s!"invalid world config: {configError error}"
 
-/-- An unsigned number of the command line (`Digits.natural`), checked against the full
-unsigned width before narrowing. -/
 def word (text : String) (width : Nat) : Except String Nat :=
   match Digits.natural text with
   | none => .error s!"invalid unsigned integer: {text}"
   | some value => if value < 2 ^ width then .ok value else .error s!"integer overflow: {text}"
 
-/-- A terrain coordinate, independent of world bounds: a signed integer of the command line
-(`Digits.integer`), an optional minus sign or plus sign and then the digits `0` to `9`, from
-`-2 ^ 63` to `2 ^ 63 - 1` (`Coordinate.checked`). -/
 def coordinate (text : String) : Except String Coordinate :=
   match Digits.integer text with
   | none => .error s!"invalid signed integer: {text}"
@@ -56,7 +34,6 @@ def coordinate (text : String) : Except String Coordinate :=
     | none => .error s!"coordinate overflow: {text}"
     | some coordinate => .ok coordinate
 
-/-- Native world consumer executes initialization, finite-prefix transition and observation. -/
 @[noinline] def execute (seed : UInt64) (side : Coordinate) (actions : List Action) : Except String String := do
   let config ← (WorldConfig.standard seed side).mapError configError
   let initial ← (World.initial config).mapError worldError
@@ -64,11 +41,9 @@ def coordinate (text : String) : Except String Coordinate :=
   let observation ← world.observe |>.mapError worldError
   return s!"time={world.time} x={world.body.position.x.val} y={world.body.position.y.val} energy={world.body.energy.val} day={observation.day}"
 
-/-- Terrain consumer uses the actual raw-word scale and signed coordinates. -/
 @[noinline] def executeTerrain (x y : Coordinate) (seed : UInt64) (scale : Binary32) : Except String UInt8 := do
   return (← terrain ⟨x, y⟩ seed scale |>.mapError worldError).code
 
-/-- Closed native command routing. Admission-only output does not claim execution by a later owner. -/
 def dispatch (arguments : List String) : Except String (IO String) := do
   match arguments with
   | "admit" :: rest =>
@@ -100,7 +75,6 @@ def dispatch (arguments : List String) : Except String (IO String) := do
 
 end Acorn.WorldDriver
 
-/-- Native startup, output and computation refusals return failure with an explicit diagnostic. -/
 def _root_.Acorn.WorldDriver.main (arguments : List String) : IO UInt32 := do
   try
     match Acorn.WorldDriver.dispatch arguments with

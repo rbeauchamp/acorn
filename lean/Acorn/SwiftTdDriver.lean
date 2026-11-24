@@ -1,33 +1,12 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Digits
 import Acorn.SwiftTd
 
-/-!
-# Native current-learner driver
-
-A small command-line consumer of the admitted learner and its actual TD entry.
-The tail-recursive traversal retains only the current learner. Its output
-describes that execution.
-The learner's citations and mathematical/implementation boundaries are owned
-by `Acorn.SwiftTd` and `AcornVerif.CurrentLearner`.
--/
-
 namespace Acorn.SwiftTdDriver
 
-/-- The driver's finite feature space; the learner itself remains generic
-over every admitted dimension. -/
 def dimension : Dimension := ⟨8, by decide, ⟨3, rfl⟩, by decide⟩
 
-/-- One chosen control criterion for a native execution receipt. Both
-criterion families remain available through the generic driver function. -/
 def config : Config := ⟨.control, .differential⟩
 
-/-- Consume a finite number of actual learner steps without retaining old
-states. Feature construction uses the existing dimension-indexed hash admission. -/
 def run {config : Config} {dimension : Dimension} :
     Nat → SwiftTd.Learner config dimension → SwiftTd.Learner config dimension
   | 0, learner => learner
@@ -36,16 +15,11 @@ def run {config : Config} {dimension : Dimension} :
     let features : SwiftTd.ActiveSet dimension := ⟨[idx], by simp⟩
     run count (learner.apply (.step features Binary32.one))
 
-/-- Initialize within a non-inlined generic call so the compiler cannot
-hoist the complete initial learner into a permanently shared global snapshot. -/
 @[noinline] def execute (config : Config) (dimension : Dimension) (steps : Nat) :
     SwiftTd.Learner config dimension := run steps (SwiftTd.Learner.initial config dimension)
 
 end Acorn.SwiftTdDriver
 
-/-- Run the current native learner for the requested step count, an unsigned number of the
-command line (`Acorn.Digits.natural`), one by default, printing only integral observation
-encodings. -/
 def _root_.Acorn.SwiftTdDriver.main (arguments : List String) : IO UInt32 := do
   let count := match arguments with
     | [] => some 1

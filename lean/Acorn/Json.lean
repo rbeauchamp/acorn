@@ -1,67 +1,13 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Digits
 
-/-! # Strict, total JSON admission
-
-Objects retain fields until schema consumption; duplicates are rejected before
-construction. Number spelling survives parsing, so integer admission cannot
-truncate a fraction. Structural fuel is derived from input length; the separate
-128-level bound governs nesting. Strings are Unicode scalars, with paired UTF-16
-escapes decoded explicitly. The host must reject invalid UTF-8 before parsing.
-
-A number is scanned into a `Numeral`, the parts of its spelling: a minus sign, the digits
-before the point, the digits after it and an exponent part. `Numeral.Formed` is the form
-of a JSON number in the grammar of RFC 8259, section 6. `Numeral.scan` is the one
-scanner. The parser keeps the spelling that the scanned numeral has, and `Value.numeral`
-scans a kept spelling again with the same scanner, so a reader of numbers needs no second
-one. Every scanned numeral is formed and its spelling is the head of the scanned list
-(`Numeral.scan_formed`); the spelling of a formed numeral scans to that numeral with
-nothing left (`Numeral.scan_chars`); and a value has a numeral exactly when it is a number
-with the spelling of that numeral, which is formed (`Value.numeral_iff`). No theorem
-states that every number of a parsed text has a numeral: it follows from `parse_sound`, whose
-grammar spells each number of an accepted text as a `Grammar.Number`, with
-`Grammar.number_iff` and `Value.numeral_iff`, by an induction over the derivation that no
-theorem states.
-
-A formed numeral with no exponent part is also scanned back from the head of a longer
-text that goes on with no digit, point or exponent mark (`Numeral.scan_append`).
-`Numeral.natural` is the numeral of a natural number, its decimal digits, and it is
-formed (`Numeral.natural_formed`).
-
-`parse` has two theorems. `Grammar.Text` is the grammar of a JSON text of RFC 8259,
-written as relations that name no function of the parser, and `parse_sound` states that
-every text that `parse` accepts is a text of that grammar, with the value that `parse` gives
-as a value that the grammar gives the text. A `Request` is a JSON object of two levels, whose members are
-scalars or one object of scalars, and `Request.chars` is its text with no space.
-`parse_request` states that `parse` reads that text back as the value of the request,
-for every request whose names and strings are of plain characters (no quotation mark, no
-reverse solidus, no control character), whose names differ at each level and whose numbers
-are formed numerals with no exponent part. Its proof follows the parser through the text:
-the white space, the body of a string, the scanner of a number, the value reader and the
-loop over the members of an object, each with a lemma for texts of this family, and the
-fuel that `parse` derives from the length of the text is shown to be enough. No theorem
-states that `parse` accepts a text of the grammar outside that family: with an array, an
-escape, a nested object of more levels or white space.
--/
 namespace Acorn.Json
 
-/-- Syntax admitted before domain-specific construction. -/
 inductive Value where
-  /-- JSON null. -/
   | null
-  /-- JSON boolean. -/
   | bool (value : Bool)
-  /-- Original numeric spelling. -/
   | number (spelling : String)
-  /-- Decoded Unicode string. -/
   | string (value : String)
-  /-- Ordered array. -/
   | array (values : List Value)
-  /-- Unique decoded field names, in source order. -/
   | object (fields : List (String × Value))
 
 private def ws (cs : List Char) : List Char :=
@@ -120,101 +66,70 @@ private def stringValue (cs : List Char) : Except String (String × List Char) :
   let rest ← require '"' cs
   stringBody cs.length rest ""
 
-/-- The exponent part of a JSON number, as its spelling has it. -/
 structure Exponent where
-  /-- Whether the mark is `E` and not `e`. -/
   upper : Bool
-  /-- The sign after the mark: none, `some false` for a plus and `some true` for a minus. -/
   sign : Option Bool
-  /-- The digits of the exponent. -/
   digits : List Char
   deriving DecidableEq
 
-/-- A JSON number in the parts of its spelling. -/
 structure Numeral where
-  /-- Whether the spelling starts with a minus sign. -/
   negative : Bool
-  /-- The digits before the point. -/
   whole : List Char
-  /-- The digits after the point, if the spelling has a point. -/
   fraction : Option (List Char)
-  /-- The exponent part, if the spelling has one. -/
   exponent : Option Exponent
   deriving DecidableEq
 
-/-- The characters of the sign of an exponent. -/
 def Exponent.signChars : Option Bool → List Char
   | none => []
   | some false => ['+']
   | some true => ['-']
 
-/-- The characters of the exponent part: the mark, the sign and the digits. -/
 def Exponent.chars (exponent : Exponent) : List Char :=
   (if exponent.upper then 'E' else 'e') ::
     (Exponent.signChars exponent.sign ++ exponent.digits)
 
-/-- The characters of the part after the point: the point and the digits, or nothing. -/
 def Numeral.fractionChars : Option (List Char) → List Char
   | none => []
   | some digits => '.' :: digits
 
-/-- The characters of the exponent part, or nothing. -/
 def Numeral.exponentChars : Option Exponent → List Char
   | none => []
   | some exponent => exponent.chars
 
-/-- The spelling of a numeral, as characters. -/
 def Numeral.chars (numeral : Numeral) : List Char :=
   (if numeral.negative then ['-'] else []) ++ numeral.whole ++
     Numeral.fractionChars numeral.fraction ++ Numeral.exponentChars numeral.exponent
 
-/-- A decimal digit: a character from `0` to `9`, by its code, which is `DIGIT`
-(`%x30-39`) in the grammar of RFC 8259. -/
 def Numeral.Digit (c : Char) : Prop := 48 ≤ c.toNat ∧ c.toNat ≤ 57
 
-/-- The test of a digit that the scanner runs accepts exactly the decimal digits. -/
 theorem Numeral.digit_iff (c : Char) : c.isDigit = true ↔ Numeral.Digit c := by
   unfold Char.isDigit Numeral.Digit
   rw [Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
   exact Iff.rfl
 
-/-- A numeral has the form of a JSON number, as the grammar of T. Bray (ed.), *The
-JavaScript Object Notation (JSON) Data Interchange Format*, RFC 8259, 2017, section 6
-gives it (`number = [ minus ] int [ frac ] [ exp ]`): the digits before the point are a
-single zero or a run of digits that does not start with a zero (`int`), a point is
-followed by at least one digit (`frac`), and an exponent mark and its optional sign are
-followed by at least one digit (`exp`). -/
 structure Numeral.Formed (numeral : Numeral) : Prop where
-  /-- The digits before the point are a single zero, or do not start with a zero. -/
   whole : numeral.whole = ['0'] ∨
     (numeral.whole ≠ [] ∧ (∀ c ∈ numeral.whole, Numeral.Digit c) ∧
       numeral.whole.head? ≠ some '0')
-  /-- A point is followed by at least one digit, and by digits only. -/
   fraction : ∀ digits, numeral.fraction = some digits →
     digits ≠ [] ∧ ∀ c ∈ digits, Numeral.Digit c
-  /-- An exponent has at least one digit, and digits only. -/
   exponent : ∀ exponent, numeral.exponent = some exponent →
     exponent.digits ≠ [] ∧ ∀ c ∈ exponent.digits, Numeral.Digit c
 
-/-- The longest run of digits at the head of a list and what follows it, or nothing when
-the list does not start with a digit. -/
 private def Numeral.run (cs : List Char) : Option (List Char × List Char) :=
   if (cs.takeWhile Char.isDigit).isEmpty then none
   else some (cs.takeWhile Char.isDigit, cs.dropWhile Char.isDigit)
 
-/-- The digits before the point: a single zero, or a run of digits. -/
 private def Numeral.scanWhole : List Char → Option (List Char × List Char)
   | [] => none
   | head :: tail => if head = '0' then some (['0'], tail) else Numeral.run (head :: tail)
 
-/-- The digits after a point, if the list starts with a point. -/
 private def Numeral.scanFraction : List Char → Option (Option (List Char) × List Char)
   | [] => some (none, [])
   | head :: tail =>
     if head = '.' then (Numeral.run tail).map fun found => (some found.1, found.2)
     else some (none, head :: tail)
 
-/-- The sign of an exponent, if the list starts with one. -/
 private def Numeral.scanSign : List Char → Option Bool × List Char
   | [] => (none, [])
   | head :: tail =>
@@ -222,13 +137,11 @@ private def Numeral.scanSign : List Char → Option Bool × List Char
     else if head = '-' then (some true, tail)
     else (none, head :: tail)
 
-/-- The exponent part after its mark: the sign and the digits. -/
 private def Numeral.scanPower (upper : Bool) (tail : List Char) :
     Option (Option Exponent × List Char) :=
   (Numeral.run (Numeral.scanSign tail).2).map fun found =>
     (some ⟨upper, (Numeral.scanSign tail).1, found.1⟩, found.2)
 
-/-- The exponent part, if the list starts with its mark. -/
 private def Numeral.scanExponent : List Char → Option (Option Exponent × List Char)
   | [] => some (none, [])
   | head :: tail =>
@@ -236,22 +149,16 @@ private def Numeral.scanExponent : List Char → Option (Option Exponent × List
     else if head = 'E' then Numeral.scanPower true tail
     else some (none, head :: tail)
 
-/-- The minus sign of a number, if the list starts with one. -/
 private def Numeral.scanMinus : List Char → Bool × List Char
   | [] => (false, [])
   | head :: tail => if head = '-' then (true, tail) else (false, head :: tail)
 
-/-- The numeral at the head of a list of characters and what follows it, or nothing when
-the list does not start with a JSON number. This is the one reader of a number's
-spelling: the parser uses it, and `Value.numeral` reads a kept spelling back with it. -/
 def Numeral.scan (cs : List Char) : Option (Numeral × List Char) :=
   (Numeral.scanWhole (Numeral.scanMinus cs).2).bind fun whole =>
     (Numeral.scanFraction whole.2).bind fun fraction =>
       (Numeral.scanExponent fraction.2).map fun exponent =>
         (⟨(Numeral.scanMinus cs).1, whole.1, fraction.1, exponent.1⟩, exponent.2)
 
-/-- The digits of a run before a list that starts with no digit are what `takeWhile`
-takes. -/
 private theorem Numeral.run_taken (digits rest : List Char)
     (all : ∀ c ∈ digits, c.isDigit = true)
     (stop : ∀ c, rest.head? = some c → c.isDigit = false) :
@@ -273,7 +180,6 @@ private theorem Numeral.run_taken (digits rest : List Char)
     · simp only [List.cons_append, List.takeWhile_cons, digit, ↓reduceIte, inner.1]
     · simp only [List.cons_append, List.dropWhile_cons, digit, ↓reduceIte, inner.2]
 
-/-- What `takeWhile` takes with the test of a digit is digits only. -/
 private theorem Numeral.taken_digits (cs : List Char) :
     ∀ c ∈ cs.takeWhile Char.isDigit, c.isDigit = true := by
   induction cs with
@@ -289,7 +195,6 @@ private theorem Numeral.taken_digits (cs : List Char) :
       · exact hold c inside
     · exact nomatch member
 
-/-- **A run of digits before a list that starts with no digit is found whole.** -/
 private theorem Numeral.run_append (digits rest : List Char) (nonempty : digits ≠ [])
     (all : ∀ c ∈ digits, c.isDigit = true)
     (stop : ∀ c, rest.head? = some c → c.isDigit = false) :
@@ -301,7 +206,6 @@ private theorem Numeral.run_append (digits rest : List Char) (nonempty : digits 
   | nil => exact absurd rfl nonempty
   | cons head tail => rfl
 
-/-- **A found run is at least one digit, digits only, and the head of the list.** -/
 private theorem Numeral.run_some {cs digits rest : List Char}
     (found : Numeral.run cs = some (digits, rest)) :
     digits ≠ [] ∧ (∀ c ∈ digits, c.isDigit = true) ∧ cs = digits ++ rest := by
@@ -315,7 +219,6 @@ private theorem Numeral.run_some {cs digits rest : List Char}
       Numeral.taken_digits cs,
       (List.takeWhile_append_dropWhile ..).symm⟩
 
-/-- What `scanMinus` returns spells the list. -/
 private theorem Numeral.scanMinus_chars (cs : List Char) :
     cs = (if (Numeral.scanMinus cs).1 then ['-'] else []) ++ (Numeral.scanMinus cs).2 := by
   cases cs with
@@ -325,7 +228,6 @@ private theorem Numeral.scanMinus_chars (cs : List Char) :
     · simp only [Numeral.scanMinus, minus, ↓reduceIte, List.singleton_append]
     · simp only [Numeral.scanMinus, minus, ↓reduceIte, Bool.false_eq_true, List.nil_append]
 
-/-- What `scanSign` returns spells the list. -/
 private theorem Numeral.scanSign_chars (cs : List Char) :
     cs = Exponent.signChars (Numeral.scanSign cs).1 ++ (Numeral.scanSign cs).2 := by
   cases cs with
@@ -341,8 +243,6 @@ private theorem Numeral.scanSign_chars (cs : List Char) :
       · simp only [Numeral.scanSign, plus, minus, ↓reduceIte]
         rfl
 
-/-- The digits before the point that `scanWhole` finds are a single zero or a run with no
-leading zero, and they are the head of the list. -/
 private theorem Numeral.scanWhole_some {cs whole rest : List Char}
     (found : Numeral.scanWhole cs = some (whole, rest)) :
     (whole = ['0'] ∨
@@ -365,8 +265,6 @@ private theorem Numeral.scanWhole_some {cs whole rest : List Char}
         have same : first = '0' := Option.some.inj leading
         exact zero ((List.cons.inj parts).1.trans same)
 
-/-- The digits after a point that `scanFraction` finds are a run of at least one digit,
-and the point with them is the head of the list. -/
 private theorem Numeral.scanFraction_some {cs rest : List Char} {fraction : Option (List Char)}
     (found : Numeral.scanFraction cs = some (fraction, rest)) :
     (∀ digits, fraction = some digits → digits ≠ [] ∧ ∀ c ∈ digits, c.isDigit = true) ∧
@@ -399,8 +297,6 @@ private theorem Numeral.scanFraction_some {cs rest : List Char} {fraction : Opti
       subst same after
       exact ⟨fun _ wrong => (nomatch wrong), rfl⟩
 
-/-- The exponent part that `scanPower` finds after a mark has a run of at least one digit,
-and its characters without the mark are the head of the list. -/
 private theorem Numeral.scanPower_some {tail rest : List Char} {upper : Bool}
     {exponent : Option Exponent}
     (found : Numeral.scanPower upper tail = some (exponent, rest)) :
@@ -422,8 +318,6 @@ private theorem Numeral.scanPower_some {tail rest : List Char} {upper : Bool}
     rw [parts, ← List.append_assoc] at signed
     exact signed
 
-/-- The exponent part that `scanExponent` finds has a run of at least one digit, and its
-characters are the head of the list. -/
 private theorem Numeral.scanExponent_some {cs rest : List Char} {exponent : Option Exponent}
     (found : Numeral.scanExponent cs = some (exponent, rest)) :
     (∀ part, exponent = some part →
@@ -465,7 +359,6 @@ private theorem Numeral.scanExponent_some {cs rest : List Char} {exponent : Opti
         subst same after
         exact ⟨fun _ wrong => (nomatch wrong), rfl⟩
 
-/-- **Every scanned numeral is formed, and its spelling is the head of the list.** -/
 theorem Numeral.scan_formed {cs rest : List Char} {numeral : Numeral}
     (found : Numeral.scan cs = some (numeral, rest)) :
     numeral.Formed ∧ cs = numeral.chars ++ rest := by
@@ -505,13 +398,11 @@ theorem Numeral.scan_formed {cs rest : List Char} {numeral : Numeral}
         simp only [List.append_assoc] at minus ⊢
         exact minus
 
-/-- A digit is none of the five characters that can follow a run of digits in a number. -/
 private theorem Numeral.digit_other {c : Char} (digit : c.isDigit = true) :
     c ≠ '-' ∧ c ≠ '+' ∧ c ≠ '.' ∧ c ≠ 'e' ∧ c ≠ 'E' := by
   refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> intro same <;> rw [same] at digit <;>
     exact absurd digit (by decide)
 
-/-- The exponent part starts with its mark, which is no digit and no point. -/
 private theorem Numeral.exponentChars_head (exponent : Option Exponent) (c : Char)
     (first : (Numeral.exponentChars exponent).head? = some c) :
     c.isDigit = false ∧ c ≠ '.' := by
@@ -521,8 +412,6 @@ private theorem Numeral.exponentChars_head (exponent : Option Exponent) (c : Cha
     have mark : c = if part.upper then 'E' else 'e' := (Option.some.inj first).symm
     cases upper : part.upper <;> rw [upper] at mark <;> subst mark <;> decide
 
-/-- `scanMinus` finds the minus sign of a spelling whose next part starts with no minus
-sign. -/
 private theorem Numeral.scanMinus_append (negative : Bool) (tail : List Char)
     (plain : ∀ c, tail.head? = some c → c ≠ '-') :
     Numeral.scanMinus ((if negative then ['-'] else []) ++ tail) = (negative, tail) := by
@@ -535,8 +424,6 @@ private theorem Numeral.scanMinus_append (negative : Bool) (tail : List Char)
       have other := plain head rfl
       simp only [Bool.false_eq_true, ↓reduceIte, List.nil_append, Numeral.scanMinus, other]
 
-/-- `scanWhole` finds the digits before the point of a formed numeral, before a list that
-starts with no digit. -/
 private theorem Numeral.scanWhole_append (whole rest : List Char)
     (formed : whole = ['0'] ∨
       (whole ≠ [] ∧ (∀ c ∈ whole, c.isDigit = true) ∧ whole.head? ≠ some '0'))
@@ -552,8 +439,6 @@ private theorem Numeral.scanWhole_append (whole rest : List Char)
       simp only [List.cons_append, Numeral.scanWhole, other, ↓reduceIte]
       exact Numeral.run_append (head :: others) rest nonempty all stop
 
-/-- `scanFraction` finds the part after the point of a formed numeral, before a list that
-starts with no digit and no point. -/
 private theorem Numeral.scanFraction_append (fraction : Option (List Char)) (rest : List Char)
     (formed : ∀ digits, fraction = some digits →
       digits ≠ [] ∧ ∀ c ∈ digits, c.isDigit = true)
@@ -573,7 +458,6 @@ private theorem Numeral.scanFraction_append (fraction : Option (List Char)) (res
       Numeral.run_append digits rest nonempty all fun c first => (stop c first).1,
       Option.map_some]
 
-/-- `scanSign` finds the sign of an exponent before a run of digits. -/
 private theorem Numeral.scanSign_append (sign : Option Bool) (digits : List Char)
     (nonempty : digits ≠ []) (all : ∀ c ∈ digits, c.isDigit = true) :
     Numeral.scanSign (Exponent.signChars sign ++ digits) = (sign, digits) := by
@@ -594,7 +478,6 @@ private theorem Numeral.scanSign_append (sign : Option Bool) (digits : List Char
       simp only [Exponent.signChars, List.singleton_append, Numeral.scanSign, other,
         ↓reduceIte]
 
-/-- `scanExponent` finds the exponent part of a formed numeral at the end of a list. -/
 private theorem Numeral.scanExponent_chars (exponent : Option Exponent)
     (formed : ∀ part, exponent = some part →
       part.digits ≠ [] ∧ ∀ c ∈ part.digits, c.isDigit = true) :
@@ -617,7 +500,6 @@ private theorem Numeral.scanExponent_chars (exponent : Option Exponent)
         simp only [Numeral.exponentChars, Exponent.chars, ↓reduceIte, Numeral.scanExponent,
           other, Numeral.scanPower, signed, ran, Option.map_some]
 
-/-- **The spelling of a formed numeral scans to that numeral, with nothing left.** -/
 theorem Numeral.scan_chars (numeral : Numeral) (formed : numeral.Formed) :
     Numeral.scan numeral.chars = some (numeral, []) := by
   have wholeChecked : numeral.whole = ['0'] ∨
@@ -724,23 +606,17 @@ private def elements : Nat → Nat → List Char → List Value → Except Strin
     | _ => throw "expected array separator or end"
 end
 
-/-- Parse one entire document, rejecting trailing input and duplicate decoded keys. -/
 def parse (text : String) : Except String Value := do
   let (v, rest) ← value (text.length + 2) 0 text.toList
   unless (ws rest).isEmpty do throw "trailing JSON input"
   return v
 
-/-- Unicode White_Space, matching the retained manifest text admission contract.
-This is distinct from JSON's four grammar whitespace characters. -/
 def unicodeWhitespace (c : Char) : Bool :=
   let n := c.toNat
   (9 ≤ n && n ≤ 13) || n == 32 || n == 0x85 || n == 0xa0 || n == 0x1680 ||
     (0x2000 ≤ n && n ≤ 0x200a) || n == 0x2028 || n == 0x2029 ||
     n == 0x202f || n == 0x205f || n == 0x3000
 
-/-- The numeral of a number: its kept spelling, scanned by the scanner that the parser
-uses. Nothing for a value that is no number, and for a number whose spelling is not the
-whole spelling of a JSON number. -/
 def Value.numeral : Value → Option Numeral
   | .number spelling =>
     match Numeral.scan spelling.toList with
@@ -748,12 +624,9 @@ def Value.numeral : Value → Option Numeral
     | _ => none
   | _ => none
 
-/-- A value is a number whose kept spelling is the spelling of a formed numeral. -/
 def Value.Numeric (value : Value) : Prop :=
   ∃ numeral : Numeral, numeral.Formed ∧ value = .number (String.ofList numeral.chars)
 
-/-- **A value has a numeral exactly when it is a number with the spelling of that numeral,
-and the numeral is formed.** For every value and numeral. -/
 theorem Value.numeral_iff (value : Value) (numeral : Numeral) :
     value.numeral = some numeral ↔
       numeral.Formed ∧ value = .number (String.ofList numeral.chars) := by
@@ -784,50 +657,36 @@ theorem Value.numeral_iff (value : Value) (numeral : Numeral) :
     unfold Value.numeral
     simp only [String.toList_ofList, Numeral.scan_chars numeral formed]
 
-/-- Require a nonempty, non-whitespace string. -/
 def Value.text : Value → Except String String
   | .string s => if s.toList.all unicodeWhitespace then .error "expected nonempty string" else .ok s
   | _ => .error "expected nonempty string"
 
-/-- Unsigned machine-width integer admission uses spelling, never numeric rounding: a number
-spelled by decimal digits alone (`Digits.read`), below `2 ^ 64`. -/
 def Value.natural : Value → Except String Nat
   | .number s => match Digits.read s with
     | some n => if n < 2^64 then .ok n else .error "unsigned integer overflow"
     | none => .error "expected unsigned integer"
   | _ => .error "expected unsigned integer"
 
-/-- Require an array. -/
 def Value.list : Value → Except String (List Value)
   | .array vs => .ok vs
   | _ => .error "expected array"
 
-/-- Require an object for field consumption. -/
 def Value.fields : Value → Except String (List (String × Value))
   | .object vs => .ok vs
   | _ => .error "expected object"
 
-/-- JSON null is the only absent optional value. -/
 def Value.optional : Value → Option Value
   | .null => none
   | v => some v
 
-/-- The value of the first member of an object that has the name, and nothing for an
-object with no such member and for a value that is no object. It consumes nothing, so a
-reader can take some members of an object and leave the others. `parse` refuses an object
-with two members of one name, so in a parsed text the first is the only one. -/
 def Value.member (name : String) : Value → Option Value
   | .object fields => (fields.find? fun field => field.1 = name).map (·.2)
   | _ => none
 
-/-- `inner` is the value of the first member of the object `outer` that has the name: the
-members of the object are some members with other names, then the member, then the rest. -/
 def Value.Member (name : String) (outer inner : Value) : Prop :=
   ∃ before after : List (String × Value),
     outer = .object (before ++ (name, inner) :: after) ∧ ∀ field ∈ before, field.1 ≠ name
 
-/-- **The member read is the first member with the name.** For every name and every two
-values. -/
 theorem Value.member_iff (name : String) (outer inner : Value) :
     outer.member name = some inner ↔ Value.Member name outer inner := by
   unfold Value.Member
@@ -849,54 +708,33 @@ theorem Value.member_iff (name : String) (outer inner : Value) :
   | null | bool _ | number _ | string _ | array _ =>
     exact ⟨fun found => (nomatch found), fun ⟨_, _, same, _⟩ => (nomatch same)⟩
 
-/-! ## The text of a request, and reading it back
-
-A request that a host writes is a JSON object of two levels: its members are scalars
-(a string, a number by its numeral, a boolean) or one object of scalars. `Request.chars`
-is the text of such an object, with no space. `parse_request` states that `parse`
-reads that text back as the value of the request, for every request whose strings need no
-escape, whose numbers are formed numerals with no exponent part, and whose member names
-differ at each level. It is a statement about `parse` on a family of texts; `parse_sound`
-in the next section states what every text that `parse` accepts is. -/
-
-/-- A character that a string of a request can hold as it is: no quotation mark, no
-reverse solidus and no control character. -/
 def Plain (c : Char) : Prop :=
   c ≠ '"' ∧ c ≠ '\\' ∧ 32 ≤ c.toNat
 
 instance (c : Char) : Decidable (Plain c) :=
   inferInstanceAs (Decidable (c ≠ '"' ∧ c ≠ '\\' ∧ 32 ≤ c.toNat))
 
-/-- A scalar of a request: a string, a number by its numeral, or a boolean. -/
 inductive Scalar where
-  /-- A string. -/
   | text (value : String)
-  /-- A number, by its numeral. -/
   | number (numeral : Numeral)
-  /-- A boolean. -/
   | flag (value : Bool)
 
-/-- The value of a scalar. -/
 def Scalar.value : Scalar → Value
   | .text value => .string value
   | .number numeral => .number (String.ofList numeral.chars)
   | .flag value => .bool value
 
-/-- The text of a scalar. -/
 def Scalar.chars : Scalar → List Char
   | .text value => '"' :: (value.toList ++ ['"'])
   | .number numeral => numeral.chars
   | .flag true => ['t', 'r', 'u', 'e']
   | .flag false => ['f', 'a', 'l', 's', 'e']
 
-/-- A scalar that the text of a request writes as it is: a string of plain characters, a
-formed numeral with no exponent part, or a boolean. -/
 def Scalar.Simple : Scalar → Prop
   | .text value => ∀ c ∈ value.toList, Plain c
   | .number numeral => numeral.Formed ∧ numeral.exponent = none
   | .flag _ => True
 
-/-- The white space of the parser leaves a list that starts with no space as it is. -/
 private theorem ws_cons (c : Char) (cs : List Char)
     (solid : (c == ' ' || c == '\r' || c == '\n' || c == '\t') = false) :
     ws (c :: cs) = c :: cs := by
@@ -904,7 +742,6 @@ private theorem ws_cons (c : Char) (cs : List Char)
   rw [List.dropWhile_cons, solid]
   rfl
 
-/-- Pushing characters one by one appends their string. -/
 private theorem foldl_push (characters : List Char) (out : String) :
     characters.foldl String.push out = out ++ String.ofList characters := by
   induction characters generalizing out with
@@ -912,7 +749,6 @@ private theorem foldl_push (characters : List Char) (out : String) :
   | cons head tail hold =>
     rw [List.foldl_cons, hold, String.push_eq_append, String.ofList_cons, String.append_assoc]
 
-/-- One plain character of the body of a string is pushed, and the body goes on. -/
 private theorem stringBody_step (c : Char) (cs : List Char) (out : String) (fuel : Nat)
     (plain : Plain c) :
     stringBody (fuel + 1) (c :: cs) out = stringBody fuel cs (out.push c) := by
@@ -931,8 +767,6 @@ private theorem stringBody_step (c : Char) (cs : List Char) (out : String) (fuel
     obtain ⟨rfl, rfl⟩ := List.cons.inj same
     simp only [Nat.not_lt.mpr visible, ↓reduceIte]
 
-/-- The body of a string of plain characters is read up to its closing quotation mark, with
-fuel for each character and the mark. -/
 private theorem stringBody_plain (characters rest : List Char) (out : String) (fuel : Nat)
     (plain : ∀ c ∈ characters, Plain c) (enough : characters.length < fuel) :
     stringBody fuel (characters ++ '"' :: rest) out =
@@ -952,7 +786,6 @@ private theorem stringBody_plain (characters rest : List Char) (out : String) (f
         (fun c inside => plain c (List.mem_cons_of_mem head inside))
         (Nat.lt_of_succ_lt_succ enough)
 
-/-- A string of plain characters between quotation marks is read as that string. -/
 private theorem stringValue_plain (characters rest : List Char)
     (plain : ∀ c ∈ characters, Plain c) :
     stringValue ('"' :: (characters ++ '"' :: rest)) = .ok (String.ofList characters, rest) := by
@@ -961,14 +794,9 @@ private theorem stringValue_plain (characters rest : List Char)
   rw [stringBody_plain characters rest "" _ plain (by simp; omega), foldl_push,
     String.empty_append]
 
-/-- A character that can follow a number in the text of a request: no digit, no point and
-no exponent mark. -/
 private def Stops (rest : List Char) : Prop :=
   ∀ c, rest.head? = some c → c.isDigit = false ∧ c ≠ '.' ∧ c ≠ 'e' ∧ c ≠ 'E'
 
-/-- **A formed numeral with no exponent part is scanned back from the head of a text.** For
-every such numeral and every text after it that starts with no digit, no point and no
-exponent mark: the scanner gives the numeral and that text. -/
 theorem Numeral.scan_append (numeral : Numeral) (formed : numeral.Formed)
     (bare : numeral.exponent = none) (rest : List Char)
     (stop : ∀ c, rest.head? = some c → c.isDigit = false ∧ c ≠ '.' ∧ c ≠ 'e' ∧ c ≠ 'E') :
@@ -1036,26 +864,21 @@ theorem Numeral.scan_append (numeral : Numeral) (formed : numeral.Formed)
   simp only [whole, Option.bind_some, fraction, exponent, Option.map_some]
   rw [← same]
 
-/-- A formed numeral with no exponent part, at the head of a text that goes on with no
-digit, point or exponent mark, is read as the number with its spelling. -/
 private theorem number_append (numeral : Numeral) (formed : numeral.Formed)
     (bare : numeral.exponent = none) (rest : List Char) (stop : Stops rest) :
     number (numeral.chars ++ rest) = .ok (.number (String.ofList numeral.chars), rest) := by
   unfold number
   rw [Numeral.scan_append numeral formed bare rest stop]
 
-/-- What follows a value in an object of a request: a comma or a closing brace. -/
 private def Delimited (rest : List Char) : Prop :=
   ∃ tail, rest = ',' :: tail ∨ rest = '}' :: tail
 
-/-- A text that starts with a comma or a brace stops a number. -/
 private theorem Delimited.stops {rest : List Char} (delimited : Delimited rest) : Stops rest := by
   obtain ⟨tail, rfl | rfl⟩ := delimited <;>
     (intro c first
      cases Option.some.inj first
      decide)
 
-/-- The text of a formed numeral starts with a minus sign or a digit. -/
 private theorem Numeral.chars_head (numeral : Numeral) (formed : numeral.Formed) :
     ∃ first more, numeral.chars = first :: more ∧ (first = '-' ∨ first.isDigit = true) := by
   unfold Numeral.chars
@@ -1071,8 +894,6 @@ private theorem Numeral.chars_head (numeral : Numeral) (formed : numeral.Formed)
         rw [shape] at all
         exact ⟨head, _, rfl, .inr ((Numeral.digit_iff head).mpr (all head List.mem_cons_self))⟩
 
-/-- A simple scalar at the head of a text that goes on with a comma or a brace is read as
-its value, at any depth the parser admits and with any fuel. -/
 private theorem value_scalar (scalar : Scalar) (simple : scalar.Simple) (rest : List Char)
     (delimited : Delimited rest) (fuel depth : Nat) (shallow : depth ≤ 128) :
     value (fuel + 1) depth (scalar.chars ++ rest) = .ok (scalar.value, rest) := by
@@ -1148,41 +969,27 @@ private theorem value_scalar (scalar : Scalar) (simple : scalar.Simple) (rest : 
     · rename_i wrong
       exact nomatch wrong
 
-/-- A member of an object as the parser meets it: the characters of its name, the text of
-its value, the value, and the fuel that reading the value needs. -/
 private structure Entry where
-  /-- The characters of the name. -/
   name : List Char
-  /-- The text of the value. -/
   text : List Char
-  /-- The value. -/
   parsed : Value
-  /-- The fuel that reading the value needs. -/
   need : Nat
 
-/-- The parser's value reader reads the text of the member as its value, before a comma or
-a brace, at one depth and with the fuel the member needs. -/
 private def Entry.Read (depth : Nat) (entry : Entry) : Prop :=
   ∀ fuel rest, entry.need ≤ fuel → Delimited rest →
     value fuel depth (entry.text ++ rest) = .ok (entry.parsed, rest)
 
-/-- The text of one member: its name between quotation marks, a colon and its value. -/
 private def Entry.chars (entry : Entry) : List Char :=
   '"' :: (entry.name ++ '"' :: ':' :: entry.text)
 
-/-- The texts of the members of an object one after the other, with a comma between two. -/
 def joined : List (List Char) → List Char
   | [] => []
   | [text] => text
   | text :: next :: more => text ++ ',' :: joined (next :: more)
 
-/-- The name and the value of a member, as the parser keeps them. -/
 private def Entry.field (entry : Entry) : String × Value :=
   (String.ofList entry.name, entry.parsed)
 
-/-- The members of an object that is not empty are read in order, up to the closing brace:
-for names of plain characters that differ from each other and from the members read
-before, values that the value reader reads, and fuel for each member. -/
 private theorem fields_entries (entries : List Entry) (depth : Nat) :
     ∀ (out : List (String × Value)) (rest : List Char) (fuel : Nat),
       entries ≠ [] →
@@ -1257,9 +1064,6 @@ private theorem fields_entries (entries : List Entry) (depth : Nat) :
       rw [regroup] at later
       exact later
 
-/-- An object with members is read as the object of their fields, whatever follows it: for
-names of plain characters that differ, values that the value reader reads one level deeper,
-and fuel for each member. -/
 private theorem value_entries (entries : List Entry) (depth fuel : Nat) (rest : List Char)
     (shallow : depth ≤ 128) (nonempty : entries ≠ [])
     (names : ∀ entry ∈ entries, ∀ c ∈ entry.name, Plain c)
@@ -1285,11 +1089,9 @@ private theorem value_entries (entries : List Entry) (depth fuel : Nat) (rest : 
     simp only [deep, ↓reduceIte, ws_cons '{' _ (by decide), ws_cons '"' _ (by decide)]
     exact inner
 
-/-- The text of a scalar is not empty, and reading it needs one unit of fuel. -/
 private def Scalar.entry (name : String) (scalar : Scalar) : Entry :=
   ⟨name.toList, scalar.chars, scalar.value, 1⟩
 
-/-- A simple scalar is read at every depth the parser admits. -/
 private theorem Scalar.entry_read (name : String) (scalar : Scalar) (simple : scalar.Simple)
     (depth : Nat) (shallow : depth ≤ 128) : (scalar.entry name).Read depth := by
   intro fuel rest needed delimited
@@ -1298,57 +1100,40 @@ private theorem Scalar.entry_read (name : String) (scalar : Scalar) (simple : sc
     omega⟩
   exact value_scalar scalar simple rest delimited less depth shallow
 
-/-- A member of a request: a scalar, or an object of scalars by their names. -/
 inductive Part where
-  /-- A scalar. -/
   | scalar (scalar : Scalar)
-  /-- An object of scalars, each with its name. -/
   | object (members : List (String × Scalar))
 
-/-- The text of a member with a name: the name between quotation marks, a colon and the text
-of the value. -/
 def member (name : String) (text : List Char) : List Char :=
   '"' :: (name.toList ++ '"' :: ':' :: text)
 
-/-- The value of a part. -/
 def Part.value : Part → Value
   | .scalar inner => inner.value
   | .object members => .object (members.map fun pair => (pair.1, pair.2.value))
 
-/-- The text of a part. -/
 def Part.chars : Part → List Char
   | .scalar inner => inner.chars
   | .object members =>
     '{' :: (joined (members.map fun pair => member pair.1 pair.2.chars) ++ ['}'])
 
-/-- A part that the text of a request writes as it is: a simple scalar, or an object whose
-names are of plain characters and differ and whose scalars are simple. -/
 def Part.Simple : Part → Prop
   | .scalar inner => inner.Simple
   | .object members =>
     (∀ pair ∈ members, (∀ c ∈ pair.1.toList, Plain c) ∧ pair.2.Simple) ∧
       (members.map fun pair => pair.1).Nodup
 
-/-- A request: the members of its object, each with its name. -/
 abbrev Request := List (String × Part)
 
-/-- The value of a request: the object of its members. -/
 def Request.value (request : Request) : Value :=
   .object (request.map fun pair => (pair.1, pair.2.value))
 
-/-- The text of a request: its members between braces, with a comma between two and no
-space. -/
 def Request.chars (request : Request) : List Char :=
   '{' :: (joined (request.map fun pair => member pair.1 pair.2.chars) ++ ['}'])
 
-/-- A request that its text writes as it is: the names of its members are of plain
-characters and differ, and its parts are simple. -/
 def Request.Simple (request : Request) : Prop :=
   (∀ pair ∈ request, (∀ c ∈ pair.1.toList, Plain c) ∧ pair.2.Simple) ∧
     (request.map fun pair => pair.1).Nodup
 
-/-- A text of the joined texts has, with the count of the texts, at most the length of the
-whole and one. -/
 private theorem joined_length (texts : List (List Char)) :
     ∀ text ∈ texts, text.length + texts.length ≤ (joined texts).length + 1 := by
   induction texts with
@@ -1373,21 +1158,17 @@ private theorem joined_length (texts : List (List Char)) :
         simp only [List.length_cons] at bound
         omega
 
-/-- The names of members, read back from their characters, are the names. -/
 private theorem names_back {α : Type} (pairs : List (String × α)) :
     (pairs.map fun pair => String.ofList pair.1.toList) = pairs.map fun pair => pair.1 :=
   List.map_congr_left fun _ _ => String.ofList_toList
 
-/-- The fuel that reading a part needs. -/
 private def Part.need : Part → Nat
   | .scalar _ => 1
   | .object members => members.length + 2
 
-/-- A part as a member the parser meets. -/
 private def Part.entry (name : String) (part : Part) : Entry :=
   ⟨name.toList, part.chars, part.value, part.need⟩
 
-/-- The fuel a part needs is at most the length of its text and one. -/
 private theorem Part.need_le (part : Part) : part.need ≤ part.chars.length + 1 := by
   cases part with
   | scalar inner => exact Nat.succ_le_succ (Nat.zero_le _)
@@ -1403,7 +1184,6 @@ private theorem Part.need_le (part : Part) : part.need ≤ part.chars.length + 1
       simp only [List.length_map, List.length_cons] at bound ⊢
       omega
 
-/-- A simple part is read at every depth below the deepest the parser admits. -/
 private theorem part_read (name : String) (part : Part) (simple : part.Simple)
     (depth : Nat) (shallow : depth + 1 ≤ 128) : (part.entry name).Read depth := by
   cases part with
@@ -1452,11 +1232,6 @@ private theorem part_read (name : String) (part : Part) (simple : part.Simple)
       rw [fielded, List.map_map] at read
       exact read
 
-/-- **The parser reads the text of a request back as its value.** For every request whose
-names are of plain characters and differ at each level, whose strings are of plain
-characters and whose numbers are formed numerals with no exponent part: `parse` accepts the
-text, and the value it gives is the value of the request, with every member in its
-place. -/
 theorem parse_request (request : Request) (simple : request.Simple) :
     parse (String.ofList request.chars) = .ok request.value := by
   obtain ⟨parts, distinct⟩ := simple
@@ -1601,135 +1376,63 @@ theorem parse_nullable_line (members : List (String × Option Scalar))
   rw [whole]
   rfl
 
-/-! ## The grammar of a JSON text, and the texts the parser accepts
-
-The grammar of T. Bray (ed.), *The JavaScript Object Notation (JSON) Data Interchange
-Format*, RFC 8259, 2017, sections 2 to 7, written as relations between a list of characters
-and the value it denotes. The relations name no function of the parser. They keep three
-restrictions of the parser, each of which the RFC permits:
-
-* every value is at a depth of nesting of at most 128, the top-level value at depth zero and
-  the values of an array or an object one deeper than it (section 9: "An implementation may
-  set limits on the maximum depth of nesting");
-* the names of an object differ (section 4: "The names within an object SHOULD be unique");
-* a `\u` escape of a code point from `D800` to `DFFF` is half of a surrogate pair, a high
-  surrogate followed by an escaped low surrogate, and the pair denotes one character beyond
-  the Basic Multilingual Plane (section 7). The grammar of section 7 also admits a lone
-  surrogate, whose meaning section 8.2 leaves unpredictable; the parser refuses it, because
-  the characters of a Lean string are Unicode scalar values.
-
-The text is a list of Unicode scalar values: the host decodes UTF-8 (section 8.1) before
-`parse` reads it. A number denotes its spelling (`Value.number`), which section 6 leaves to
-the implementation to interpret. `Grammar.Number` states section 6 character by character,
-and `Grammar.number_iff` proves that its lists are the spellings (`Numeral.chars`) of the
-formed numerals (`Numeral.Formed`), the numerals that the parser's scanner returns.
-
-`parse_sound` states that every text that `parse` accepts is a JSON text of this grammar
-(`Grammar.Text`), with the value that `parse` gives as a value that the grammar gives the text.
-The proof follows the parser through its readers: the white space, the escapes, the body of
-a string, the scanner of a number, the value reader and the loops over the members of an
-object and the elements of an array, by induction on the fuel. It does not state that
-`parse` accepts every text of the grammar. That the grammar gives each text at most one value
-is not proved here; it follows from the completeness theorem tracked in
-https://github.com/rbeauchamp/acorn/issues/163. -/
-
 namespace Grammar
 
-/-- White space, `ws` in section 2 of RFC 8259: a space, a horizontal tab, a line feed or a
-carriage return. -/
 def Space (c : Char) : Prop :=
   c = ' ' ∨ c = '\t' ∨ c = '\n' ∨ c = '\r'
 
-/-- A run of white space, possibly empty. -/
 def Blank (cs : List Char) : Prop :=
   ∀ c ∈ cs, Space c
 
-/-- A hexadecimal digit and its value, `HEXDIG` of D. Crocker and P. Overell (eds.), RFC 5234,
-2008, appendix B.1, which section 7 of RFC 8259 uses in an escape. The letters are of either
-case (RFC 5234, section 2.3): `0` to `9` for the values below ten, and `a` to `f` or `A` to
-`F` for ten to fifteen. -/
 def HexDigit (c : Char) (d : Nat) : Prop :=
   (d < 10 ∧ c.toNat = 48 + d) ∨ (10 ≤ d ∧ d < 16 ∧ (c.toNat = 87 + d ∨ c.toNat = 55 + d))
 
-/-- Four hexadecimal digits, `4HEXDIG` in section 7, and the number they spell, the most
-significant digit first. -/
 def Quad (cs : List Char) (n : Nat) : Prop :=
   ∃ c₀ c₁ c₂ c₃ d₀ d₁ d₂ d₃, cs = [c₀, c₁, c₂, c₃] ∧ HexDigit c₀ d₀ ∧ HexDigit c₁ d₁ ∧
     HexDigit c₂ d₂ ∧ HexDigit c₃ d₃ ∧ n = 4096 * d₀ + 256 * d₁ + 16 * d₂ + d₃
 
-/-- One character of a string, `char` in section 7, and the character it denotes. -/
 inductive Character : List Char → Char → Prop
-  /-- An unescaped character, `unescaped = %x20-21 / %x23-5B / %x5D-10FFFF`: every
-  character from the space on, except the quotation mark and the reverse solidus. -/
   | plain (c : Char) (visible : 32 ≤ c.toNat) (unquoted : c ≠ '"') (unescaped : c ≠ '\\') :
       Character [c] c
-  /-- The escaped quotation mark. -/
   | quote : Character ['\\', '"'] '"'
-  /-- The escaped reverse solidus. -/
   | reverseSolidus : Character ['\\', '\\'] '\\'
-  /-- The escaped solidus. -/
   | solidus : Character ['\\', '/'] '/'
-  /-- The escaped backspace, `U+0008`. -/
   | backspace : Character ['\\', 'b'] '\x08'
-  /-- The escaped form feed, `U+000C`. -/
   | formFeed : Character ['\\', 'f'] '\x0c'
-  /-- The escaped line feed, `U+000A`. -/
   | lineFeed : Character ['\\', 'n'] '\n'
-  /-- The escaped carriage return, `U+000D`. -/
   | carriageReturn : Character ['\\', 'r'] '\r'
-  /-- The escaped horizontal tab, `U+0009`. -/
   | tab : Character ['\\', 't'] '\t'
-  /-- A `\u` escape of a code point of the Basic Multilingual Plane that is no surrogate, and
-  the character with that code point. -/
   | unit (digits : List Char) (n : Nat) (c : Char) (spelled : Quad digits n)
       (scalar : n < 0xd800 ∨ 0xdfff < n) (code : c.toNat = n) :
       Character ('\\' :: 'u' :: digits) c
-  /-- Two `\u` escapes of a surrogate pair, a high surrogate and a low surrogate, and the
-  character beyond the Basic Multilingual Plane that the pair encodes in UTF-16. -/
   | pair (high low : List Char) (h l : Nat) (c : Char) (first : Quad high h)
       (second : Quad low l) (leading : 0xd800 ≤ h ∧ h ≤ 0xdbff)
       (trailing : 0xdc00 ≤ l ∧ l ≤ 0xdfff)
       (code : c.toNat = 0x10000 + (h - 0xd800) * 0x400 + (l - 0xdc00)) :
       Character ('\\' :: 'u' :: (high ++ '\\' :: 'u' :: low)) c
 
-/-- The characters of a string between its quotation marks, `*char` in section 7, and the
-characters they denote. -/
 inductive Characters : List Char → List Char → Prop
-  /-- No character. -/
   | nil : Characters [] []
-  /-- One character, then the others. -/
   | cons {cs rest : List Char} {c : Char} {decoded : List Char} (spelled : Character cs c)
       (more : Characters rest decoded) : Characters (cs ++ rest) (c :: decoded)
 
-/-- A string, `string = quotation-mark *char quotation-mark` in section 7, and the string
-it denotes. -/
 def Quoted (cs : List Char) (s : String) : Prop :=
   ∃ body decoded, Characters body decoded ∧ cs = '"' :: (body ++ ['"']) ∧
     s = String.ofList decoded
 
-/-- A decimal digit, `DIGIT = %x30-39` of RFC 5234, appendix B.1, which section 6 uses: a
-character from `0` to `9`, by its code. -/
 def Digit (c : Char) : Prop := 48 ≤ c.toNat ∧ c.toNat ≤ 57
 
-/-- The integer part of a number, `int = zero / ( digit1-9 *DIGIT )` in section 6: a single
-zero, or a digit other than zero (`digit1-9 = %x31-39`) followed by digits. -/
 def IntegerPart (cs : List Char) : Prop :=
   cs = ['0'] ∨
     ∃ first more, cs = first :: more ∧ Digit first ∧ first ≠ '0' ∧ ∀ c ∈ more, Digit c
 
-/-- The fraction part of a number, `frac = decimal-point 1*DIGIT` in section 6: a point and
-at least one digit. -/
 def FractionPart (cs : List Char) : Prop :=
   ∃ digits, cs = '.' :: digits ∧ digits ≠ [] ∧ ∀ c ∈ digits, Digit c
 
-/-- The exponent part of a number, `exp = e [ minus / plus ] 1*DIGIT` with `e = %x65 / %x45`
-in section 6: a mark `e` or `E`, an optional sign and at least one digit. -/
 def ExponentPart (cs : List Char) : Prop :=
   ∃ mark sign digits, (mark = 'e' ∨ mark = 'E') ∧ (sign = [] ∨ sign = ['-'] ∨ sign = ['+']) ∧
     digits ≠ [] ∧ (∀ c ∈ digits, Digit c) ∧ cs = mark :: (sign ++ digits)
 
-/-- A number, `number = [ minus ] int [ frac ] [ exp ]` in section 6: an optional minus
-sign, the integer part, an optional fraction part and an optional exponent part. -/
 def Number (cs : List Char) : Prop :=
   ∃ minus int frac exp, (minus = [] ∨ minus = ['-']) ∧ IntegerPart int ∧
     (frac = [] ∨ FractionPart frac) ∧ (exp = [] ∨ ExponentPart exp) ∧
@@ -1737,61 +1440,41 @@ def Number (cs : List Char) : Prop :=
 
 mutual
 
-/-- A value of section 3 at a depth of nesting, and the value it denotes. It has no white
-space around it. -/
 inductive Value : Nat → List Char → Json.Value → Prop
-  /-- The literal `null`. -/
   | null {depth : Nat} (within : depth ≤ 128) : Value depth ['n', 'u', 'l', 'l'] .null
-  /-- The literal `true`. -/
   | truth {depth : Nat} (within : depth ≤ 128) : Value depth ['t', 'r', 'u', 'e'] (.bool true)
-  /-- The literal `false`. -/
   | falsity {depth : Nat} (within : depth ≤ 128) :
       Value depth ['f', 'a', 'l', 's', 'e'] (.bool false)
-  /-- A number of section 6, which denotes its spelling. -/
   | number {depth : Nat} {cs : List Char} (within : depth ≤ 128) (spelled : Number cs) :
       Value depth cs (.number (String.ofList cs))
-  /-- A string of section 7. -/
   | string {depth : Nat} {cs : List Char} {s : String} (within : depth ≤ 128)
       (quoted : Quoted cs s) : Value depth cs (.string s)
-  /-- An array of section 5 with no element: brackets with white space between them. -/
   | emptyArray {depth : Nat} {inside : List Char} (within : depth ≤ 128) (blank : Blank inside) :
       Value depth ('[' :: (inside ++ [']'])) (.array [])
-  /-- An array of section 5 with elements, one level deeper. -/
   | array {depth : Nat} {inside : List Char} {values : List Json.Value} (within : depth ≤ 128)
       (items : Elements (depth + 1) inside values) :
       Value depth ('[' :: (inside ++ [']'])) (.array values)
-  /-- An object of section 4 with no member: braces with white space between them. -/
   | emptyObject {depth : Nat} {inside : List Char} (within : depth ≤ 128) (blank : Blank inside) :
       Value depth ('{' :: (inside ++ ['}'])) (.object [])
-  /-- An object of section 4 with members, one level deeper, whose names differ. -/
   | object {depth : Nat} {inside : List Char} {fields : List (String × Json.Value)}
       (within : depth ≤ 128) (members : Members (depth + 1) inside fields)
       (distinct : (fields.map Prod.fst).Nodup) :
       Value depth ('{' :: (inside ++ ['}'])) (.object fields)
 
-/-- The elements of an array between its brackets, `value *( value-separator value )` in
-section 5, each with the white space around it, and the values they denote in order. -/
 inductive Elements : Nat → List Char → List Json.Value → Prop
-  /-- The last element. -/
   | last {depth : Nat} {before cs after : List Char} {v : Json.Value} (leading : Blank before)
       (item : Value depth cs v) (trailing : Blank after) :
       Elements depth (before ++ cs ++ after) [v]
-  /-- An element, a comma, and the elements after it. -/
   | cons {depth : Nat} {before cs after more : List Char} {v : Json.Value}
       {values : List Json.Value} (leading : Blank before) (item : Value depth cs v)
       (trailing : Blank after) (rest : Elements depth more values) :
       Elements depth (before ++ cs ++ after ++ ',' :: more) (v :: values)
 
-/-- The members of an object between its braces, `member *( value-separator member )` in
-section 4, with `member = string name-separator value` and the white space around each
-part, and the names and values they denote in order. -/
 inductive Members : Nat → List Char → List (String × Json.Value) → Prop
-  /-- The last member. -/
   | last {depth : Nat} {before name between colon cs after : List Char} {key : String}
       {v : Json.Value} (leading : Blank before) (named : Quoted name key) (spaced : Blank between)
       (separated : Blank colon) (item : Value depth cs v) (trailing : Blank after) :
       Members depth (before ++ name ++ between ++ ':' :: (colon ++ cs ++ after)) [(key, v)]
-  /-- A member, a comma, and the members after it. -/
   | cons {depth : Nat} {before name between colon cs after more : List Char} {key : String}
       {v : Json.Value} {fields : List (String × Json.Value)} (leading : Blank before)
       (named : Quoted name key) (spaced : Blank between) (separated : Blank colon)
@@ -1802,15 +1485,12 @@ inductive Members : Nat → List Char → List (String × Json.Value) → Prop
 
 end
 
-/-- A JSON text, `JSON-text = ws value ws` in section 2, and the value it denotes: a value
-at depth zero with white space before and after it. -/
 def Text (cs : List Char) (v : Json.Value) : Prop :=
   ∃ before body after, Blank before ∧ Value 0 body v ∧ Blank after ∧
     cs = before ++ body ++ after
 
 end Grammar
 
-/-- The optional minus sign of the grammar is the sign of a numeral. -/
 private theorem Grammar.minus_iff (cs : List Char) :
     (cs = [] ∨ cs = ['-']) ↔ ∃ negative : Bool, (if negative then ['-'] else []) = cs := by
   constructor
@@ -1822,7 +1502,6 @@ private theorem Grammar.minus_iff (cs : List Char) :
     · exact .inl rfl
     · exact .inr rfl
 
-/-- The integer part of the grammar is the digits before the point of a formed numeral. -/
 private theorem Grammar.integerPart_iff (cs : List Char) :
     Grammar.IntegerPart cs ↔
       (cs = ['0'] ∨ (cs ≠ [] ∧ (∀ c ∈ cs, Numeral.Digit c) ∧ cs.head? ≠ some '0')) := by
@@ -1850,8 +1529,6 @@ private theorem Grammar.integerPart_iff (cs : List Char) :
         · intro c inside
           exact digits c (List.mem_cons_of_mem _ inside)
 
-/-- The optional fraction part of the grammar is the part after the point of a formed
-numeral. -/
 private theorem Grammar.fractionPart_iff (cs : List Char) :
     (cs = [] ∨ Grammar.FractionPart cs) ↔ ∃ fraction : Option (List Char),
       (∀ digits, fraction = some digits → digits ≠ [] ∧ ∀ c ∈ digits, Numeral.Digit c) ∧
@@ -1866,7 +1543,6 @@ private theorem Grammar.fractionPart_iff (cs : List Char) :
     · exact .inl rfl
     · exact .inr ⟨digits, rfl, formed digits rfl⟩
 
-/-- The optional exponent part of the grammar is the exponent part of a formed numeral. -/
 private theorem Grammar.exponentPart_iff (cs : List Char) :
     (cs = [] ∨ Grammar.ExponentPart cs) ↔ ∃ exponent : Option Exponent,
       (∀ e, exponent = some e → e.digits ≠ [] ∧ ∀ c ∈ e.digits, Numeral.Digit c) ∧
@@ -1901,9 +1577,6 @@ private theorem Grammar.exponentPart_iff (cs : List Char) :
           · exact .inr (.inr rfl)
           · exact .inr (.inl rfl)
 
-/-- The numbers of the grammar are the spellings of the formed numerals: a list of
-characters is a number of section 6 exactly when it is `Numeral.chars` of a numeral of
-that form. -/
 theorem Grammar.number_iff (cs : List Char) :
     Grammar.Number cs ↔ ∃ numeral : Numeral, numeral.Formed ∧ numeral.chars = cs := by
   constructor
@@ -1920,8 +1593,6 @@ theorem Grammar.number_iff (cs : List Char) :
       (Grammar.fractionPart_iff _).mpr ⟨point, pointed, rfl⟩,
       (Grammar.exponentPart_iff _).mpr ⟨power, powered, rfl⟩, rfl⟩
 
-/-- The white space that `ws` drops is white space of the grammar, and it is the head of the
-list. -/
 private theorem ws_blank (cs : List Char) :
     ∃ before, Grammar.Blank before ∧ cs = before ++ ws cs := by
   refine ⟨cs.takeWhile fun c => c == ' ' || c == '\r' || c == '\n' || c == '\t', ?_,
@@ -1932,7 +1603,6 @@ private theorem ws_blank (cs : List Char) :
   rcases spaced with ((same | same) | same) | same <;> subst same <;> unfold Grammar.Space <;>
     simp
 
-/-- A run of white space before another is one run. -/
 private theorem Grammar.Blank.append {first second : List Char} (one : Grammar.Blank first)
     (other : Grammar.Blank second) : Grammar.Blank (first ++ second) := by
   intro c inside
@@ -1940,7 +1610,6 @@ private theorem Grammar.Blank.append {first second : List Char} (one : Grammar.B
   · exact one c early
   · exact other c late
 
-/-- `require` accepts exactly a list that starts with the character, and returns the rest. -/
 private theorem require_ok {c : Char} {cs rest : List Char} (read : require c cs = .ok rest) :
     cs = c :: rest := by
   cases cs with
@@ -1953,16 +1622,12 @@ private theorem require_ok {c : Char} {cs rest : List Char} (read : require c cs
     · simp only [require, beq_iff_eq, same, ↓reduceIte] at read
       exact nomatch read
 
-/-- A code point that is no surrogate and below `0x110000` is the code point of the character
-that `Char.ofNat` gives. -/
 private theorem toNat_ofNat_scalar {n : Nat} (scalar : n < 0xd800 ∨ (0xdfff < n ∧ n < 0x110000)) :
     (Char.ofNat n).toNat = n := by
   unfold Char.ofNat
   rw [dite_eq_left scalar]
   rfl
 
-/-- The value that `quad` gives a character is below 16 only for a hexadecimal digit, and then
-it is the value of that digit. -/
 private theorem quad_digit (c : Char)
     (below : (if c.isDigit = true then c.toNat - 48
       else if (decide ('a' ≤ c) && decide (c ≤ 'f')) = true then c.toNat - 87
@@ -2000,15 +1665,12 @@ private theorem quad_digit (c : Char)
         omega
       · exact absurd below (Nat.lt_irrefl 16)
 
-/-- A bind of `Except` that returns a value runs its first part to a value. -/
 theorem except_bind_ok {ε α β : Type} {x : Except ε α} {f : α → Except ε β} {y : β}
     (read : (x >>= f) = .ok y) : ∃ a, x = .ok a ∧ f a = .ok y := by
   cases x with
   | error e => exact nomatch read
   | ok a => exact ⟨a, rfl, read⟩
 
-/-- Four steps of a loop, each of which takes one hexadecimal digit from the head of the list,
-read four hexadecimal digits from its head. -/
 private theorem quad_steps
     (body : Nat → List Char × Nat → Except String (ForInStep (List Char × Nat)))
     (step : ∀ i cs n r, body i (cs, n) = .ok r →
@@ -2055,7 +1717,6 @@ private theorem quad_ok {cs rest : List Char} {n : Nat} (read : quad cs = .ok (n
       exact ⟨c, tail, d, rfl, digit below, (Except.ok.inj stepped).symm⟩
     · exact nomatch stepped
 
-/-- Four hexadecimal digits spell a number below `0x10000`. -/
 private theorem Grammar.Quad.small {cs : List Char} {n : Nat} (spelled : Grammar.Quad cs n) :
     n < 0x10000 := by
   obtain ⟨_, _, _, _, d₀, d₁, d₂, d₃, -, x₀, x₁, x₂, x₃, rfl⟩ := spelled
@@ -2065,8 +1726,6 @@ private theorem Grammar.Quad.small {cs : List Char} {n : Nat} (spelled : Grammar
   have b₃ : d₃ < 16 := by unfold Grammar.HexDigit at x₃; omega
   omega
 
-/-- What `unicode` reads after `\u` is a `\u` escape of the grammar, and the character it
-returns is the character the escape denotes. -/
 private theorem unicode_ok {cs rest : List Char} {c : Char} (read : unicode cs = .ok (c, rest)) :
     ∃ escape, Grammar.Character ('\\' :: 'u' :: escape) c ∧ cs = escape ++ rest := by
   unfold unicode at read
@@ -2107,13 +1766,10 @@ private theorem unicode_ok {cs rest : List Char} {c : Char} (read : unicode cs =
       refine ⟨high, .unit high first _ spelled (by omega) ?_, rfl⟩
       exact toNat_ofNat_scalar (by omega)
 
-/-- Pushing one character and then appending a string appends the string of both. -/
 private theorem push_ofList (out : String) (c : Char) (rest : List Char) :
     out.push c ++ String.ofList rest = out ++ String.ofList (c :: rest) := by
   rw [String.push_eq_append, String.ofList_cons, String.append_assoc]
 
-/-- One character of the grammar before characters of the grammar and a closing quotation
-mark are characters of the grammar before that mark. -/
 private theorem body_cons {escape r rest body decoded : List Char} {d : Char} {out s : String}
     (spelled : Grammar.Character escape d) (chars : Grammar.Characters body decoded)
     (same : r = body ++ '"' :: rest) (value : s = out.push d ++ String.ofList decoded) :
@@ -2122,8 +1778,6 @@ private theorem body_cons {escape r rest body decoded : List Char} {d : Char} {o
   ⟨escape ++ body, d :: decoded, .cons spelled chars, by rw [same, List.append_assoc],
     by rw [value, push_ofList]⟩
 
-/-- What `stringBody` reads up to a closing quotation mark is the characters of a string of
-the grammar, and the string it returns appends the characters they denote. -/
 private theorem stringBody_ok (fuel : Nat) {cs rest : List Char} {out s : String}
     (read : stringBody fuel cs out = .ok (s, rest)) :
     ∃ body decoded, Grammar.Characters body decoded ∧ cs = body ++ '"' :: rest ∧
@@ -2172,8 +1826,6 @@ private theorem stringBody_ok (fuel : Nat) {cs rest : List Char} {out s : String
           | cons next more => exact escapes next more solidus rfl
         exact body_cons (escape := [c]) (.plain c (by omega) unquoted unescaped) chars same value
 
-/-- What `stringValue` reads is a string of the grammar, and it returns the string that the
-string of the grammar denotes. -/
 private theorem stringValue_ok {cs rest : List Char} {s : String}
     (read : stringValue cs = .ok (s, rest)) :
     ∃ spelled, Grammar.Quoted spelled s ∧ cs = spelled ++ rest := by
@@ -2185,8 +1837,6 @@ private theorem stringValue_ok {cs rest : List Char} {s : String}
   exact ⟨'"' :: (chars ++ ['"']), ⟨chars, decoded, spelled, rfl, by rw [String.empty_append]⟩,
     by simp⟩
 
-/-- What `number` reads is the spelling of a formed numeral, and it returns the number with
-that spelling. -/
 private theorem number_ok {cs rest : List Char} {v : Value} (read : number cs = .ok (v, rest)) :
     ∃ numeral : Numeral, numeral.Formed ∧ v = .number (String.ofList numeral.chars) ∧
       cs = numeral.chars ++ rest := by
@@ -2198,7 +1848,6 @@ private theorem number_ok {cs rest : List Char} {v : Value} (read : number cs = 
     exact ⟨numeral, formed, same.symm, parts⟩
   · exact nomatch read
 
-/-- White space before the members of an object is white space of their first member. -/
 private theorem Grammar.Members.blank {depth : Nat} {space body : List Char}
     {fields : List (String × Json.Value)} (blank : Grammar.Blank space)
     (members : Grammar.Members depth body fields) :
@@ -2213,7 +1862,6 @@ private theorem Grammar.Members.blank {depth : Nat} {space body : List Char}
       trailing rest
     simpa only [List.append_assoc, List.cons_append] using joined
 
-/-- White space before the elements of an array is white space of their first element. -/
 private theorem Grammar.Elements.blank {depth : Nat} {space body : List Char}
     {values : List Json.Value} (blank : Grammar.Blank space)
     (elements : Grammar.Elements depth body values) :
@@ -2226,11 +1874,6 @@ private theorem Grammar.Elements.blank {depth : Nat} {space body : List Char}
     have joined := Grammar.Elements.cons (blank.append leading) item trailing rest
     simpa only [List.append_assoc, List.cons_append] using joined
 
-/-- **What the value reader, the member loop and the element loop accept is text of the
-grammar.** For every fuel: an accepted value is white space and a value of the grammar at the
-depth, with the value read as a value that the grammar gives it; an accepted run of members or elements is the
-members or elements of the grammar before the closing brace or bracket, with the names of the
-members of an object distinct. -/
 private theorem read_sound (fuel : Nat) :
     (∀ depth input v rest, value fuel depth input = .ok (v, rest) →
       ∃ before cs, Grammar.Blank before ∧ Grammar.Value depth cs v ∧
@@ -2361,10 +2004,6 @@ private theorem read_sound (fuel : Nat) :
           .cons blank itemIs afterBlank items, by simp, by simp⟩
       · exact nomatch closing
 
-/-- **Every text that the parser accepts is a JSON text of the grammar, and the value the
-parser gives is a value that the grammar gives the text.** For every text and value: white
-space, a value at depth zero, and white space (`Grammar.Text`), with a derivation of the
-grammar that gives the value. -/
 theorem parse_sound (text : String) (v : Value) (parsed : parse text = .ok v) :
     Grammar.Text text.toList v := by
   unfold parse at parsed
@@ -2381,9 +2020,6 @@ theorem parse_sound (text : String) (v : Value) (parsed : parse text = .ok v) :
     exact ⟨before, body, after, blank, item, afterBlank, by rw [shape, afterShape]⟩
   · exact nomatch finished
 
-/-! ## The numeral of a natural number -/
-
-/-- The character of each of the ten decimal digits. -/
 def Numeral.figure : Fin 10 → Char
   | 0 => '0'
   | 1 => '1'
@@ -2396,7 +2032,6 @@ def Numeral.figure : Fin 10 → Char
   | 8 => '8'
   | 9 => '9'
 
-/-- Every figure is a decimal digit, and its code less the code of `0` is its number. -/
 theorem Numeral.figure_digit :
     ∀ digit : Fin 10, Numeral.Digit (Numeral.figure digit) ∧
       (Numeral.figure digit).toNat - 48 = digit.val := by
@@ -2404,14 +2039,10 @@ theorem Numeral.figure_digit :
     (Numeral.figure digit).toNat ≤ 57) ∧ (Numeral.figure digit).toNat - 48 = digit.val
   decide
 
-/-- Only the figure of zero is `0`. -/
 private theorem Numeral.figure_zero :
     ∀ digit : Fin 10, Numeral.figure digit = '0' → digit.val = 0 := by
   decide
 
-/-- The decimal digits of a natural number, the most significant first, with no leading
-zero: one figure below ten, and otherwise the digits of the tenth part followed by the
-figure of the rest. -/
 def Numeral.digits (natural : Nat) : List Char :=
   if small : natural < 10 then [Numeral.figure ⟨natural, small⟩]
   else Numeral.digits (natural / 10) ++
@@ -2419,13 +2050,9 @@ def Numeral.digits (natural : Nat) : List Char :=
 termination_by natural
 decreasing_by omega
 
-/-- The numeral of a natural number: its decimal digits, with no sign, point or exponent
-part. -/
 def Numeral.natural (natural : Nat) : Numeral :=
   ⟨false, Numeral.digits natural, none, none⟩
 
-/-- The digits of a natural number are decimal digits, there is at least one, and the first
-is `0` only for zero. -/
 private theorem Numeral.digits_shape (natural : Nat) :
     (∀ c ∈ Numeral.digits natural, Numeral.Digit c) ∧ Numeral.digits natural ≠ [] ∧
       ((Numeral.digits natural).head? = some '0' → natural = 0) := by
@@ -2453,7 +2080,6 @@ private theorem Numeral.digits_shape (natural : Nat) :
           have zero := leading first
           omega
 
-/-- **The numeral of a natural number is formed.** For every natural number. -/
 theorem Numeral.natural_formed (natural : Nat) : (Numeral.natural natural).Formed := by
   obtain ⟨all, nonempty, leading⟩ := Numeral.digits_shape natural
   refine ⟨?_, fun _ wrong => (nomatch wrong), fun _ wrong => (nomatch wrong)⟩
@@ -2465,28 +2091,22 @@ theorem Numeral.natural_formed (natural : Nat) : (Numeral.natural natural).Forme
       rfl)
   · exact .inr ⟨nonempty, all, fun first => zero (leading first)⟩
 
-/-- Consuming schema decoder; finishing requires every field to have an owner. -/
 abbrev Decoder := StateT (List (String × Value)) (Except String)
 
-/-- Consume exactly one required field. -/
 def take (key : String) : Decoder Value := do
   let fields ← get
   let some pair := fields.find? (fun p => p.1 == key) | throw s!"missing field {key}"
   set (fields.filter fun p => p.1 != key)
   return pair.2
 
-/-- Consume a required nonempty string. -/
 def text (key : String) : Decoder String := do (← take key).text
 
-/-- Consume a required string array. -/
 def texts (key : String) : Decoder (List String) := do
   (← (← take key).list).mapM (fun v => v.text)
 
-/-- Admit the specified schema version. -/
 def version (expected : Nat) : Decoder Unit := do
   unless (← (← take "schema_version").natural) == expected do throw "unsupported schema_version"
 
-/-- Run schema construction and reject every unrecognized field. -/
 def decode {α : Type} (v : Value) (body : Decoder α) : Except String α := do
   let (result, rest) ← body.run (← v.fields)
   unless rest.isEmpty do throw s!"unknown fields: {rest.map Prod.fst}"
