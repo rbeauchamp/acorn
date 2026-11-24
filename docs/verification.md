@@ -1611,8 +1611,11 @@ leaves a current-version stopped file, and the reason the next launch gives is t
 state says stopped. A Start that reaches the control endpoint before the publication is only
 queued; it is handled at a later turn of the actor if the start-up goes on, and is lost with the
 viewer if the start-up fails after the publication. If the publication fails, the viewer exits
-with that error before it prints the ready line, and the file, which is replaced only by a rename
-after a complete write, is still the original. A viewer that fails once its listener is bound
+with that error before it prints the ready line: a failure before the rename leaves the original
+file intact, whereas an indeterminate rename error (such as POSIX.1-2017 `rename` EIO or Linux
+NFS rename-despite-error) can leave either the original file or the newly renamed current-version
+stopped file on disk, so the next launch reads whichever entry is present and gives that entry's
+reason. A viewer that fails once its listener is bound
 ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
 turn on that path takes a command from the queue, so nothing is started from the intent the file
 records and a Start queued by then is not handled. Whenever the start state is stopped, the one
@@ -1627,11 +1630,88 @@ as well; for no state file, or a file of the current version that says stopped, 
 after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
 turn of the actor. The viewer says nothing of this kind when the start state is running.
 
-The statement starts from a durable state that intends to stay stopped, so it does not cover a
-Stop that the viewer has acknowledged but not yet written to its state file when the viewer
-crashes, or whose write failed: the file then still says running, by the earlier Start, and the
-next viewer with the same child resumes it. Holding the acknowledgement of a Stop until it is
-written would close that window and is a change to the control interface. Nor does it say who may
+The explicit-start statement above starts from a durable state that intends to stay stopped;
+browser Stop persistence closes the crash window between acknowledging a browser Stop and
+writing `desired = .stopped` to `state.json`. In the control endpoint
+(`lean/Acorn/Host/Viewer/HttpServer.lean`) and supervisor actor
+(`lean/Acorn/Host/Viewer/Supervisor.lean`), `Acorn.Host.Viewer.Supervisor.submitControl`
+holds an admitted `stop` request behind a promise until the supervisor actor completes the
+state-file write rather than replying on queue admission alone (and
+`Acorn.Host.Viewer.Supervisor.submit` refuses `.stop` so callers cannot bypass durable
+dispatch). For the pure supervisor step,
+`Acorn.Host.Viewer.Core.step_no_ackStop` shows no step emits
+`Acorn.Host.Viewer.Follow.ackStop`; `Acorn.Host.Viewer.Core.resolve_ackStop_spec`
+and `Acorn.Host.Viewer.Core.resume_ackStop_spec` establish that
+`Acorn.Host.Viewer.Follow.ackStop` is emitted only upon a successful write
+whose written `Acorn.Host.Viewer.PersistedState` has `desired = .stopped`,
+and `Acorn.Host.Viewer.Core.resume_error_no_ackStop` ensures every
+write-error outcome omits `Acorn.Host.Viewer.Follow.ackStop`.
+`Acorn.Host.Viewer.Core.stop_acknowledges_or_refuses` covers every supervisor state
+(idle or busy, open or closing/closed, current or retired owner, with or without a waiting
+replacement): stepping `.command .stop` either refuses immediately via
+`Acorn.Host.Viewer.Follow.refuseStop` without emitting
+`Acorn.Host.Viewer.Follow.ackStop`, or schedules a `.writeState` of a stopped
+`Acorn.Host.Viewer.PersistedState` (without acknowledging on the step) whose resolution
+emits `Acorn.Host.Viewer.Follow.ackStop` on write success and
+`Acorn.Host.Viewer.Follow.refuseStop` without `Acorn.Host.Viewer.Follow.ackStop`
+on write error. Under an interleaving state machine over disk updates (including indeterminate state-write
+rename errors via `Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`), crashes between
+any two steps, and reboots (including optional startup state write-back and arbitrary Clear
+configurations) (`Acorn.Host.Viewer.CrashState`, `Acorn.Host.Viewer.CrashStep`,
+`Acorn.Host.Viewer.CrashReached`, `Acorn.Host.Viewer.CrashState.Invariant`,
+`Acorn.Host.Viewer.CrashReached.invariant`),
+`Acorn.Host.Viewer.PersistedState.encode_decode_stopped`,
+`Acorn.Host.Viewer.CrashReached.crashed_disk_stopped` and
+`Acorn.Host.Viewer.CrashReached.startup_cannot_resume_running` prove that
+once `Acorn.Host.Viewer.Follow.ackStop` has been observed in supervisor processing order
+with no later Start admitted by an idle, open supervisor (ordered at the actor's acknowledging
+resolution rather than browser HTTP receipt time, so a concurrent Start processed after that
+resolution supersedes it), a crash at any point leaves the on-disk state
+stopped (or absent mid-Clear archive), so whenever a reboot loads the state via
+`Acorn.Host.Viewer.DiskState.BootState` (covering both missing-file startup and any
+successful parse and decode), the loaded state has `desired = .stopped` and never resumes
+running without a later explicit Start, while
+`Acorn.Host.Viewer.CrashReached.stop_never_acked_on_write_error` proves that a failed
+write step — whether the failure leaves the previous disk entry untouched
+(`Acorn.Host.Viewer.CrashStep.writeFail`) or publishes the temporary file despite
+reporting an error (`Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`) — leaves
+`ackedStop` unchanged without emitting `Acorn.Host.Viewer.Follow.ackStop`.
+`Acorn.Host.Viewer.exists_stop_crash_restart_witness` constructs a
+`stop -> write -> ack -> crash` trace from every running persisted state with a conditional
+boot extension for every admissible `Acorn.Host.Viewer.DiskState.BootState`, and
+`Acorn.Host.Viewer.exists_stop_crash_reboot_populated` unconditionally inhabits the full
+`stop -> write -> ack -> crash -> boot` trace by proving `Json.parse` and
+`Acorn.Host.Viewer.PersistedState.decode` succeed on the published stopped file.
+The boundary between these theorems and the host program is read from the code and not proved:
+`Acorn.Host.Viewer.RunDirectory.writeState` writes and flushes an exclusively created
+temporary file and renames it over `state.json` under the run directory's stable-path
+assumption; neither the temporary file nor the directory is fsynced (power-loss durability is
+not claimed), and visibility of complete bytes without torn files rests on local-filesystem
+atomic rename semantics. Although `Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`
+models an ambiguous `state.json` rename failure (such as POSIX.1-2017 `rename` EIO
+or Linux NFS rename-despite-error) without weakening the stopped-disk or no-ack guarantees,
+`Acorn.Host.Viewer.RunDirectory.archive` classifies any caught filesystem rename error as
+`Acorn.Host.Viewer.ArchiveResult.unchanged` without re-inspecting the filesystem, so
+archival assumes on the failure side that a failed directory rename leaves the run directory
+at its original path. Mapping `Acorn.Host.Viewer.Follow.ackStop` to HTTP `202` and
+definite pre-execution refusals (`Acorn.Host.Viewer.ControlResult.refused`, `busy`,
+`unavailable`) versus unconfirmed Stop outcomes
+(`Acorn.Host.Viewer.ControlResult.unconfirmed`, serialized with `"unconfirmed":true`,
+including write errors that may still request child wind-up and the 10-second `awaitControl`
+timeout that ends only the HTTP wait without cancelling the Stop) to HTTP `503` in
+`HttpServer.lean` and `Supervisor.lean` — where `Supervisor.performInActor` maps
+`Acorn.Host.Viewer.Follow.refuseStop` to a fixed public
+`Acorn.Host.Viewer.ControlResult.unconfirmed` string so HTTP `/control` JSON responses
+never expose raw operating-system error messages or local run-directory/archive paths (detailed native
+diagnostics remain in `Supervision.lean`'s `core.report .failed` diagnostic path and stderr) —
+is likewise read from the code. On viewer shutdown interrupting an admitted Stop, the supervisor
+resolves the waiter as `Acorn.Host.Viewer.ControlResult.unconfirmed` so HTTP returns `503`
+(`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes before server teardown,
+whereas server cancellation during shutdown can also yield an empty `503` or closed connection
+without a JSON body; the browser treats both fail-closed as unconfirmed/unknown. Exiting without
+starting a core on a parse or schema refusal from
+`Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean` is likewise
+read from the code. Nor does the theorem say who may
 submit a Start: the viewer serves its page on the loopback interface to whoever loads it. And that
 a Start was given is a property of the program: it is separate from the owner's authorization for
 a run of a learner, which [running a program](../CONTRIBUTING.md#running-a-program) governs.
@@ -1875,9 +1955,11 @@ or a device, is refused before it is opened, so the read never waits on an entry
 supply a finite document. The two looks and the open are separate calls, so this rests on the
 run directory's stable-path assumption like the rest of the reader. Every state the actor writes
 goes through `Acorn.Host.Viewer.RunDirectory.writeState` with the record of its own
-configuration's child. Publication uses an exclusively created temporary file and a rename after
-a complete write and flush. Filesystem stability and POSIX rename remain the run directory's
-trust boundary; no power-loss durability is claimed.
+configuration's child. Publication uses an exclusively created temporary file under the run
+directory's IO mutex and renames it onto `state.json` after a complete write and flush: failures
+before the rename never replace the target, whereas an indeterminate rename error can leave
+either the original or the newly renamed entry. Filesystem stability and POSIX rename remain the
+run directory's trust boundary; no power-loss durability is claimed.
 
 The actor. What the actor compares before it starts the configuration's child is
 `Acorn.Host.Viewer.ChildProgram`. The bootstrap builds the constructor from the launch
@@ -1912,8 +1994,10 @@ write is the one that marks a launch as attempted (`Acorn.Host.Viewer.Pending.la
 refusal there writes nothing and spawns nothing: the call's result is the write's error with the
 reason, which the step treats as a launch that could not be recorded, so the run stops. Every
 refusal is printed on standard error and reported in the page by the step, as the reason of the
-failed call. The actor hands the step an operator's Start only for a Start that
-`Acorn.Host.Viewer.Supervisor.submit` queued, and the bootstrap passes the state it built
+failed call. The actor hands the step an operator's Start only for a Start queued by
+`Acorn.Host.Viewer.Supervisor.submit` (the `--start` flag) or
+`Acorn.Host.Viewer.Supervisor.submitControl` (the HTTP control endpoint),
+and the bootstrap passes the state it built
 or read to `Acorn.Host.Viewer.Supervision.start`. The supervisor is constructed
 (`Acorn.Host.Viewer.Supervisor.new`) only after the bootstrap has admitted the initial
 state. A state built with no state file, or read from a file of the current version with the

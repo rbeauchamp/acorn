@@ -1516,6 +1516,91 @@ theorem parse_request (request : Request) (simple : request.Simple) :
     rw [whole]
     rfl
 
+private def nullableEntry (name : String) : Option Scalar → Entry
+  | some scalar => scalar.entry name
+  | none => ⟨name.toList, ['n', 'u', 'l', 'l'], .null, 1⟩
+
+private theorem nullableEntry_read (name : String) (item : Option Scalar)
+    (simple : ∀ scalar, item = some scalar → scalar.Simple)
+    (depth : Nat) (shallow : depth ≤ 128) : (nullableEntry name item).Read depth := by
+  cases item with
+  | some scalar => exact scalar.entry_read name (simple scalar rfl) depth shallow
+  | none =>
+    intro fuel rest needed _
+    obtain ⟨less, rfl⟩ : ∃ less, fuel = less + 1 := ⟨fuel - 1, by
+      have : 1 ≤ fuel := needed
+      omega⟩
+    have deep : ¬depth > 128 := Nat.not_lt.mpr shallow
+    show value (less + 1) depth ('n' :: 'u' :: 'l' :: 'l' :: rest) = .ok (.null, rest)
+    unfold value
+    simp only [deep, ↓reduceIte, ws_cons 'n' _ (by decide)]
+    rfl
+
+def nullableChars (members : List (String × Option Scalar)) : List Char :=
+  '{' :: (joined ((members.map fun pair => nullableEntry pair.1 pair.2).map Entry.chars) ++
+    ['}', '\n'])
+
+def nullableValue (members : List (String × Option Scalar)) : Value :=
+  .object (members.map fun pair => (pair.1, match pair.2 with | some s => s.value | none => .null))
+
+theorem parse_nullable_line (members : List (String × Option Scalar))
+    (nonempty : members ≠ [])
+    (plainNames : ∀ pair ∈ members, ∀ c ∈ pair.1.toList, Plain c)
+    (simpleScalars : ∀ pair ∈ members, ∀ scalar, pair.2 = some scalar → scalar.Simple)
+    (distinct : (members.map Prod.fst).Nodup) :
+    parse (String.ofList (nullableChars members)) = .ok (nullableValue members) := by
+  unfold parse
+  rw [String.toList_ofList, String.length_ofList]
+  have entriesNonempty : (members.map fun pair => nullableEntry pair.1 pair.2) ≠ [] := by
+    cases members with
+    | nil => exact absurd rfl nonempty
+    | cons _ _ => exact List.cons_ne_nil _ _
+  have read := value_entries (members.map fun pair => nullableEntry pair.1 pair.2) 0
+    ((nullableChars members).length + 1) ['\n'] (Nat.zero_le _) entriesNonempty
+    (fun entry inside => by
+      obtain ⟨pair, held, rfl⟩ := List.mem_map.mp inside
+      rcases pair with ⟨k, v⟩
+      cases v <;> exact plainNames _ held)
+    (fun entry inside => by
+      obtain ⟨pair, held, rfl⟩ := List.mem_map.mp inside
+      exact nullableEntry_read pair.1 pair.2 (simpleScalars pair held) 1 (by decide))
+    (by
+      rw [List.map_map]
+      have hstr : (members.map fun pair => String.ofList (nullableEntry pair.1 pair.2).name) =
+          members.map Prod.fst := by
+        refine List.map_congr_left fun pair _ => ?_
+        rcases pair with ⟨k, v⟩
+        cases v <;> exact String.ofList_toList
+      exact hstr ▸ distinct)
+    (fun entry inside => by
+      obtain ⟨pair, _, rfl⟩ := List.mem_map.mp inside
+      have hneed : (nullableEntry pair.1 pair.2).need = 1 := by
+        rcases pair with ⟨_, v⟩
+        cases v <;> rfl
+      have text := joined_length
+        ((members.map fun pair => nullableEntry pair.1 pair.2).map Entry.chars)
+        (nullableEntry pair.1 pair.2).chars
+        (List.mem_map.mpr ⟨_, inside, rfl⟩)
+      rw [hneed, List.length_map]
+      unfold nullableChars
+      simp only [List.length_cons, List.length_append, List.length_map] at text ⊢
+      omega)
+  have fielded : (members.map fun pair => nullableEntry pair.1 pair.2).map Entry.field =
+      members.map fun pair => (pair.1, match pair.2 with | some s => s.value | none => .null) := by
+    rw [List.map_map]
+    refine List.map_congr_left fun pair _ => ?_
+    rcases pair with ⟨k, v⟩
+    cases v <;> exact Prod.ext (String.ofList_toList (s := k)) rfl
+  rw [fielded] at read
+  have whole : value ((nullableChars members).length + 2) 0 (nullableChars members) =
+      .ok (nullableValue members, ['\n']) := read
+  show (do
+    let (v, rest) ← value ((nullableChars members).length + 2) 0 (nullableChars members)
+    unless (ws rest).isEmpty do throw "trailing JSON input"
+    return v) = _
+  rw [whole]
+  rfl
+
 /-! ## The grammar of a JSON text, and the texts the parser accepts
 
 The grammar of T. Bray (ed.), *The JavaScript Object Notation (JSON) Data Interchange

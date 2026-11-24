@@ -145,14 +145,14 @@ inductive Pending where
   /-- Clear's replacement directory. -/
   | reopen (identity : Identity) (intended : Desired) (archive : System.FilePath)
   /-- Clear's replacement state. -/
-  | replacement (state : PersistedState)
+  | replacement (state : PersistedState) (ackStop : Bool := false)
 
 /-- The call each pending operation makes, from the lifecycle of the state that waits: an
 identity is installed with that lifecycle, the identity adopted. -/
 def Pending.call (pending : Pending) (lifecycle : Lifecycle) : Call :=
   match pending with
   | .intent _ state | .launch state _ | .adopt _ _ state | .exitIntent state
-  | .replacement state => .writeState state
+  | .replacement state _ => .writeState state
   | .spawn generation plan => .spawn generation plan
   | .windUp generation => .windUp generation
   | .commit generation actual _ detail =>
@@ -165,7 +165,7 @@ def Pending.call (pending : Pending) (lifecycle : Lifecycle) : Call :=
 /-- Whether a pending operation acts on the run directory: through its capability, or by
 opening its replacement. -/
 def Pending.writes : Pending → Bool
-  | .intent _ _ | .launch _ _ | .adopt _ _ _ | .exitIntent _ | .replacement _
+  | .intent _ _ | .launch _ _ | .adopt _ _ _ | .exitIntent _ | .replacement _ _
   | .exitMap _ _ | .map _ | .closeMap _ | .archive _ _ _
   | .reopen _ _ _ => true
   | .spawn _ _ | .windUp _ | .commit _ _ _ _ | .seed _ => false
@@ -173,7 +173,7 @@ def Pending.writes : Pending → Bool
 /-- Whether a pending operation belongs to a Clear, the saving of its intent included. -/
 def Pending.clears : Pending → Bool
   | .intent command _ => command == .clear
-  | .seed _ | .archive _ _ _ | .reopen _ _ _ | .replacement _ => true
+  | .seed _ | .archive _ _ _ | .reopen _ _ _ | .replacement _ _ => true
   | _ => false
 
 /-- Whether a pending operation starts or changes what the run intends: a command's or an
@@ -217,6 +217,8 @@ inductive Follow where
   | announceExit (reason : String)
   /-- The page's acknowledgement of Clear. -/
   | announceCleared
+  | ackStop
+  | refuseStop (reason : String)
   /-- Start the readers of the spawned child. -/
   | attach (generation : UInt64)
   /-- A line on the viewer's standard output. -/
@@ -343,10 +345,10 @@ def stop (core : Core) : Core := core.moveTo (core.lifecycle.request .stop)
 waits to be published. -/
 def mapWritable (core : Core) : Bool := core.owner == .current && core.replacement.isNone
 
-/-- A command's intent could not be saved: the core still winds up, and nothing starts. -/
-def intentFailed (core : Core) (reason : String) : Stepped :=
-  ⟨core.stop.report .failed s!"intent could not be saved; process wind-up requested: {reason}",
-    [], []⟩
+def intentFailed (core : Core) (reason : String) (refuseStop : Bool := false) : Stepped :=
+  ⟨core.stop.report .failed
+    s!"intent write failed (persistence unconfirmed); process wind-up requested: {reason}",
+    [], if refuseStop then [.refuseStop reason] else []⟩
 
 /-- An operator command from the bounded queue. A disabled Clear changes nothing. While a
 replacement waits to be published, Start and Stop revise its intent and Clear is refused.
@@ -357,10 +359,18 @@ def command (core : Core) (clearDisabled : Option String) (command : Command) : 
   | some replacement =>
     if command == .clear then
       ⟨core.report .failed "replacement state publication is pending; Clear refused", [], []⟩
+    else if command == .stop then
+      let next := { replacement with desired := .stopped }
+      match core.owner with
+      | .retired reason => core.intentFailed reason true
+      | .current =>
+        ⟨{ core with
+          replacement := some next
+          pending := some (.replacement next true) }, [], []⟩
     else ⟨{ core with replacement := some { replacement with desired := command.desired } }, [], []⟩
   | none =>
     match core.owner with
-    | .retired reason => core.intentFailed reason
+    | .retired reason => core.intentFailed reason (command == .stop)
     | .current =>
       ⟨{ core with
         pending := some (.intent command { core.persisted with desired := command.desired }) },
@@ -368,12 +378,17 @@ def command (core : Core) (clearDisabled : Option String) (command : Command) : 
 
 /-- A command's intent was saved: the lifecycle follows the command. -/
 def intentSaved (core : Core) (command : Command) (state : PersistedState) : Stepped :=
-  let (transition, reason) := match command with
-    | .start => (ControlTransition.startRequested, "operator requested Start")
-    | .stop => (.stopRequested, "operator requested Stop")
-    | .clear => (.clearRequested, "operator requested whole-run Clear")
+  let (transition, reason, follows) := match command with
+    | .start => (ControlTransition.startRequested, "operator requested Start", [])
+    | .stop =>
+      if state.desired == .stopped then
+        (.stopRequested, "operator requested Stop", [.ackStop])
+      else
+        (.stopRequested, "operator requested Stop",
+          [.refuseStop "stop intent did not record stopped"])
+    | .clear => (.clearRequested, "operator requested whole-run Clear", [])
   ⟨({ core with persisted := state }.moveTo (core.lifecycle.request command)).report
-    transition reason, [], []⟩
+    transition reason, [], follows⟩
 
 /-- A checkpoint-selected identity could not be persisted: its output stays held and the
 core winds up. -/
@@ -601,7 +616,7 @@ def retiredReason (archive : System.FilePath) : String :=
 /-- The outcome of the pending call, from a state with nothing pending. -/
 def resolve (core : Core) (now : Nat) :
     (pending : Pending) → (pending.call core.lifecycle).Result → Stepped
-  | .intent _ _, .error reason => core.intentFailed reason
+  | .intent command _, .error reason => core.intentFailed reason (command == .stop)
   | .intent command state, .ok () => core.intentSaved command state
   | .launch _ _, .error reason =>
     ⟨core.stop.report .failed s!"launch intent publication failed: {reason}", [], []⟩
@@ -663,9 +678,18 @@ def resolve (core : Core) (now : Nat) :
   | .reopen identity intended _, .ok () =>
     let state : PersistedState := ⟨identity, intended, .cleared, false⟩
     ⟨{ core with replacement := some state, pending := some (.replacement state) }, [], []⟩
-  | .replacement _, .error reason =>
-    ⟨core.report .failed s!"old run archived; replacement state not published: {reason}", [], []⟩
-  | .replacement state, .ok () => core.replaced state
+  | .replacement _ ackStop, .error reason =>
+    ⟨core.report .failed
+      s!"old run archived; replacement state write failed (publication unconfirmed): {reason}", [],
+      if ackStop then [.refuseStop reason] else []⟩
+  | .replacement state ackStop, .ok () =>
+    let stepped := core.replaced state
+    if ackStop then
+      if state.desired == .stopped then
+        { stepped with follows := stepped.follows ++ [.ackStop] }
+      else
+        { stepped with follows := stepped.follows ++ [.refuseStop "stop intent did not record stopped"] }
+    else stepped
 
 /-! ## The step -/
 
@@ -688,17 +712,23 @@ def start (persisted : PersistedState) (clearDisabled : Option String) (reason :
 step when the reading is before it. -/
 def instant (core : Core) (reading : Nat) : Nat := max core.last reading
 
+def stopRefusalFollow (reason : String) : Event → List Follow
+  | .command .stop => [.refuseStop reason]
+  | .command _ | .candidate _ _ | .exited _ _ | .finished _ _ _ | .refused _ | .tick | .close =>
+    []
+
 /-- The step of an event, before the instant is recorded. A state that waits for a call's
 outcome takes no event; a closed viewer takes none; a closing one takes no command. -/
 def dispatch (core : Core) (clearDisabled : Option String) (now : Nat) (event : Event) :
     Stepped :=
   match core.pending with
-  | some _ => ⟨core, [], []⟩
+  | some _ => ⟨core, [], stopRefusalFollow "supervisor is busy with another operation" event⟩
   | none =>
     match core.closing, event with
-    | .closed _, _ => ⟨core, [], []⟩
+    | .closed _, event => ⟨core, [], stopRefusalFollow "viewer is closed" event⟩
     | .open, .command command => core.command clearDisabled command
-    | .closing _, .command _ => ⟨core, [], []⟩
+    | .closing _, .command command =>
+      ⟨core, [], if command == .stop then [.refuseStop "viewer is closing"] else []⟩
     | _, .candidate generation actual => core.candidate generation actual
     | _, .exited code uptime => core.exited now code uptime
     | _, .finished stdout stderr log => core.finished stdout stderr log
@@ -970,9 +1000,24 @@ theorem command_invariant (core : Core) (clearDisabled : Option String) (command
       dsimp only
       split
       · exact invariant.report _ _
-      · exact Invariant.of_none ready fun hc => by
-          have := (invariant.clearless hc).2.1
-          rw [hrep] at this; cases this
+      · split
+        · cases hown : core.owner with
+          | retired reason => exact invariant.stop.report _ _
+          | current =>
+            dsimp only
+            exact Invariant.of_some
+              (p := .replacement { replacement with desired := .stopped } true)
+              rfl
+              (fun _ => rfl)
+              (fun hc => by
+                have := (invariant.clearless hc).2.1
+                rw [hrep] at this; cases this)
+              (fun hcl => absurd serving hcl)
+              (fun _ _ h => by cases h)
+              (fun _ _ h => by cases h)
+        · exact Invariant.of_none ready fun hc => by
+            have := (invariant.clearless hc).2.1
+            rw [hrep] at this; cases this
     | none =>
       dsimp only
       cases hown : core.owner with
@@ -1472,12 +1517,12 @@ theorem resolve_reopen_invariant (core : Core) (clearDisabled : Option String) (
       (fun _ _ h => by cases h)
 
 theorem resolve_replacement_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
-    (state : PersistedState)
-    (result : ((Pending.replacement state).call core.lifecycle).Result)
+    (state : PersistedState) (ackStop : Bool)
+    (result : ((Pending.replacement state ackStop).call core.lifecycle).Result)
     (invariant : core.Invariant clearDisabled)
-    (waiting : core.pending = some (.replacement state)) :
-    ({ core with pending := none }.resolve now (.replacement state) result).core.Invariant
-      clearDisabled := by
+    (waiting : core.pending = some (.replacement state ackStop)) :
+    ({ core with pending := none }.resolve now (.replacement state ackStop)
+        result).core.Invariant clearDisabled := by
   have hnotDis : clearDisabled.isSome = true → False := fun hc => by
     have := (invariant.clearless hc).2.2 _ waiting
     cases this
@@ -1485,13 +1530,10 @@ theorem resolve_replacement_invariant (core : Core) (clearDisabled : Option Stri
   | error _ => exact (core.cleared_invariant clearDisabled invariant).report _ _
   | ok _ =>
     simp only [Core.resolve, Core.replaced]
-    cases (core.lifecycle.replacementIntent state.desired).archived state.identity with
-    | none =>
+    repeat' split
+    all_goals (
       apply Invariant.report
-      exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
-    | some _ =>
-      apply Invariant.report
-      exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+      exact Invariant.of_none rfl fun hc => (hnotDis hc).elim)
 
 theorem resolve_windUp_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (result : ((Pending.windUp generation).call core.lifecycle).Result)
@@ -1560,7 +1602,7 @@ theorem resolve_invariant (core : Core) (clearDisabled : Option String) (now : N
   | seed => exact core.resolve_seed_invariant _ _ _ _ invariant waiting
   | archive => exact core.resolve_archive_invariant _ _ _ _ _ _ invariant waiting
   | reopen => exact core.resolve_reopen_invariant _ _ _ _ _ _ invariant waiting
-  | replacement => exact core.resolve_replacement_invariant _ _ _ _ invariant waiting
+  | replacement => exact core.resolve_replacement_invariant _ _ _ _ _ invariant waiting
 
 /-- **Every event keeps the invariant.** -/
 theorem dispatch_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
@@ -2053,9 +2095,9 @@ theorem resolve_reopen_calm (core : Core) (now : Nat) (identity : Identity) (int
     constructor <;>
     simp_all [Core.report])
 
-theorem resolve_replacement_calm (core : Core) (now : Nat) (state : PersistedState)
-    (result : ((Pending.replacement state).call core.lifecycle).Result) :
-    Calm core ({ core with pending := none }.resolve now (.replacement state) result).core := by
+theorem resolve_replacement_calm (core : Core) (now : Nat) (state : PersistedState) (ackStop : Bool)
+    (result : ((Pending.replacement state ackStop).call core.lifecycle).Result) :
+    Calm core ({ core with pending := none }.resolve now (.replacement state ackStop) result).core := by
   cases result <;> simp only [Core.resolve, Core.replaced] <;> repeat' split
   all_goals (
     (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
@@ -2141,7 +2183,7 @@ theorem resume_calm (core : Core) (reading : Nat) (pending : Pending)
     | seed => exact core.resolve_seed_calm _ _ _
     | archive => exact core.resolve_archive_calm _ _ _ _ _
     | reopen => exact core.resolve_reopen_calm _ _ _ _ _
-    | replacement => exact core.resolve_replacement_calm _ _ _
+    | replacement => exact core.resolve_replacement_calm _ _ _ _
   exact ⟨calm.generation, calm.quiet⟩
 
 end Core

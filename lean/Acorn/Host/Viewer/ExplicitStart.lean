@@ -12,7 +12,7 @@ theorem Command.desired_stopped (command : Command) (other : command ≠ .start)
 def Pending.Unstarted : Pending → Prop
   | .intent command state => command ≠ .start ∧ state.desired = .stopped
   | .launch _ _ | .spawn _ _ => False
-  | .adopt _ _ state | .commit _ _ state _ | .exitIntent state | .replacement state =>
+  | .adopt _ _ state | .commit _ _ state _ | .exitIntent state | .replacement state _ =>
     state.desired = .stopped
   | .seed intended | .archive _ intended _ | .reopen _ intended _ => intended = .stopped
   | .windUp _ | .exitMap _ _ | .map _ | .closeMap _ => True
@@ -71,8 +71,14 @@ theorem command_unstarted (core : Core) (clearDisabled : Option String) (command
   · split
     · split
       · exact unstarted.reported _ _
-      · exact ⟨unstarted.lifecycle, unstarted.persisted,
-          fun state held => by cases held; exact stopped, unstarted.pending⟩
+      · split
+        · split
+          · exact unstarted.stopped.reported _ _
+          · exact ⟨unstarted.lifecycle, unstarted.persisted,
+              fun state held => by cases held; rfl,
+              fun waiting held => by cases held; rfl⟩
+        · exact ⟨unstarted.lifecycle, unstarted.persisted,
+            fun state held => by cases held; exact stopped, unstarted.pending⟩
     · split
       · exact unstarted.stopped.reported _ _
       · exact unstarted.waiting rfl rfl rfl rfl ⟨other, stopped⟩
@@ -304,10 +310,13 @@ theorem resolve_unstarted (core : Core) (now : Nat) (pending : Pending)
       exact ⟨unstarted.lifecycle, unstarted.persisted,
         fun state held => by cases held; exact admitted,
         fun waiting held => by cases held; exact admitted⟩
-  | replacement state =>
+  | replacement state ackStop =>
     cases result with
     | error reason => exact unstarted.reported _ _
-    | ok => exact core.replaced_unstarted state admitted unstarted
+    | ok =>
+      dsimp only [Core.resolve]
+      repeat' split
+      all_goals exact core.replaced_unstarted state admitted unstarted
 
 theorem start_unstarted (persisted : PersistedState) (clearDisabled : Option String)
     (reason : String) (reading : Nat) (stopped : persisted.desired = .stopped) :

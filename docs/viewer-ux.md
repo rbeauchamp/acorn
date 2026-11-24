@@ -479,14 +479,46 @@ Rules that apply to every number, label and colour on the page.
   exists"; Clear, while stopped, "archive this run and create a new
   zero-knowledge identity; the core stays stopped". A disabled control still
   says why, so "unavailable here" is distinguishable from "this build has no
-  such button". A request the server refuses, or a viewer the page cannot
-  reach, raises a fault pill beside the controls (`⚠ stop refused — <why>`)
-  that stays until a control frame shows the server moved; the toast that also
-  says it is below the fold. The control endpoint is `POST /control`, bound to
-  `127.0.0.1`, POST-only, JSON-only, and gated by a token minted per viewer
-  start and read from the served page, so a page left open from a previous
-  start holds a stale one and is refused; bodies are capped and rejections say
-  little about which check failed.
+  such button". For Start and Clear, a request the server refuses (`⚠ <cmd>
+  refused — <why>`) or a viewer the page cannot reach (`⚠ cannot reach the
+  viewer to <cmd>`) raises a fault pill beside the controls that stays until a
+  control frame shows the server moved; the toast that also says it is below
+  the fold. The control endpoint is `POST /control`, bound to `127.0.0.1`,
+  POST-only, JSON-only, and gated by a token minted per viewer start and read
+  from the served page, so a page left open from a previous start holds a stale
+  one and is refused; bodies are capped and rejections say little about which
+  check failed. HTTP `/control` JSON error responses use fixed public strings
+  and never expose raw operating-system error messages or local run-directory/archive
+  paths; detailed native diagnostics remain in the supervisor's failure
+  diagnostic path and standard error. For a browser Stop (`{"cmd":"stop"}`),
+  `POST /control` holds its HTTP response until the supervisor actor completes
+  the `state.json` write for `desired: "stopped"`: it returns `202`
+  (`{"ok":true}`) only once the stopped state has been written, flushed and
+  renamed over `state.json`; it returns `503` (`{"ok":false,"reason":...}`) if
+  refused before admission (supervisor queue full, unavailable, or mailbox
+  already closing), and returns `503`
+  (`{"ok":false,"unconfirmed":true,"reason":...}`) if persisting fails or the
+  10-second HTTP wait times out. When viewer shutdown interrupts an admitted
+  Stop, the supervisor resolves the waiter as `.unconfirmed` so HTTP returns
+  `503` (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response
+  completes before server teardown, whereas server cancellation during shutdown
+  can also yield an empty `503` or closed connection without a JSON body.
+  Timing out ends only the HTTP wait and does not cancel the Stop (it may still
+  be queued, already executing in the actor, or already published before waiter
+  resolution), and a persistence error on a live run can still request child
+  wind-up or leave a pending Clear replacement revised to stopped; a lost
+  connection or abrupt crash can leave the browser with no HTTP response at
+  all. Only HTTP `202` confirms a browser Stop: a definite pre-execution
+  refusal (`!r.ok` with JSON `ok === false` and `unconfirmed !== true`) raises
+  `⚠ stop refused — <why>` (hover text noting refusal before taking effect),
+  any other non-`202` response — including `503` with `unconfirmed: true`, an
+  empty `503` from shutdown cancellation, or an unexpected status — raises
+  `⚠ stop not confirmed — <why>` (hover text noting the outcome was not
+  confirmed and it may still take effect or have requested wind-up), and a
+  closed connection or unreachable viewer raises
+  `⚠ stop outcome unknown — viewer unreachable` (hover text noting no HTTP
+  response was received); each pill stays until a control frame shows the
+  server moved, with a matching toast below the fold.
 - **UX-22 · Stop is cooperative and persistent.** The core finishes its current
   finite attempt, attempts a checkpoint if saving is armed, and exits through
   the same writer as periodic and finite-campaign completion. Successful save
@@ -519,7 +551,8 @@ Rules that apply to every number, label and colour on the page.
   The launcher owns terminal SIGINT and forwards this request, so Ctrl-C does
   not interrupt the viewer/core process group. No kill deadline is introduced.
   Shutdown retains the durable intent; browser Stop remains the operation that
-  persists stopped intent.
+  persists stopped intent and returns HTTP `202` only after `state.json` has
+  been written, flushed and renamed on disk.
 - **UX-23 · Clear is one click: stop → archive → reseed → restore.** The
   whole run directory is renamed into the archive (UX-43) and a new random
   seed is taken. Cooperative stop happens first and attempts an armed save.
@@ -1014,7 +1047,11 @@ What each panel must show. How it draws it is the code's.
   endpoint before the publication is only queued; it is handled afterwards if
   the start-up goes on, and is lost with the viewer if the start-up fails
   after the publication. If the publication itself fails, the viewer exits
-  with that error before its ready line, and the file is still the original.
+  with that error before its ready line: a failure before the rename leaves the
+  original file intact, whereas an indeterminate rename error (such as
+  POSIX.1-2017 `rename` EIO or Linux NFS rename-despite-error) may leave either
+  the original file or the newly renamed stopped file on disk, in which case the
+  next launch reads whichever entry is present and gives that entry's reason.
   A viewer that fails once its listener is bound ends through its shutdown,
   whose turns step the supervisor to close it and can write the map; no turn
   on that path takes a command from the queue. An operator who starts the viewer directly on a run
@@ -1044,10 +1081,31 @@ What each panel must show. How it draws it is the code's.
   state file, or a file of the current schema that says stopped, it is printed
   after the ready line and not under `--start`. Under `--start` the Start is submitted once the listener is
   bound. The viewer announces nothing of this kind when the state it starts
-  with is running. A Stop that the viewer has acknowledged but not yet written
-  when the viewer crashes is not made durable: the saved state still says
-  running, by the earlier Start, and the next launch with the same child
-  resumes it.
+  with is running. Browser Stop (`POST /control` with `{"cmd":"stop"}`) returns
+  HTTP `202` only after `state.json` has been written, flushed and renamed on
+  disk with `desired: "stopped"` — confirming that earlier publication — and
+  returns HTTP `503` without acknowledging if refused before admission (queue
+  full, unavailable, or mailbox already closing) or if persistence is
+  unconfirmed (writing fails, or the 10-second HTTP wait times out, which ends
+  only the HTTP wait without cancelling the Stop; HTTP error responses carry
+  fixed public strings rather than raw OS errors or local paths, while detailed
+  native diagnostics stay in the supervisor's failure diagnostics and stderr).
+  When viewer shutdown interrupts an admitted Stop, the supervisor resolves the
+  waiter as `.unconfirmed` so HTTP returns `503`
+  (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes
+  before server teardown, whereas server cancellation during shutdown can also
+  yield an empty `503` or closed connection without a JSON body; both are
+  treated fail-closed by the browser as unconfirmed/unknown. Directory entries
+  are not fsynced, so power-loss durability is not claimed, and a lost
+  connection or abrupt crash can yield no HTTP response. The no-later-Start
+  condition is ordered in supervisor processing order starting from that
+  acknowledging resolution (not browser HTTP receipt time, so a concurrent Start
+  processed by the supervisor after that resolution — even before the browser
+  receives `202` — supersedes it): with no later Start admitted by the
+  supervisor while open, a viewer process crash at any step leaves the on-disk
+  state stopped — or absent during a Clear archive before the replacement state
+  is written — and the next launch with the same child cannot resume running
+  without an explicit Start.
 
   When the supervisor does start the ranked core, it runs the executable
   `acorn-core` beside the viewer with the explicitly selected ranked research
