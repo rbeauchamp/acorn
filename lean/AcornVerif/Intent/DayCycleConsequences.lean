@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Intent.DayCycle
 
 namespace AcornVerif.Intent.DayCycle
@@ -11,7 +6,6 @@ open LeanIntent
 
 variable {Ctx Act Obs E : Type} [LT E]
 
-/-- Every day lasts the same even number of ticks, at least two, and is placed alike. -/
 def everyDayAlike : Consequence (DayWorld Ctx Act Obs E) :=
   ⟨"every day lasts the same even number of ticks, at least two, placed alike", .entailment,
     fun w => 2 ≤ w.length ∧ w.length % 2 = 0 ∧ ∀ t, w.night (t + w.length) = w.night t⟩
@@ -26,7 +20,6 @@ theorem everyDayAlike_holds : (everyDayAlike (Ctx := Ctx) (Act := Act) (Obs := O
   show (t + w.length + s) % w.length < _ ↔ (t + s) % w.length < _
   rw [Nat.add_right_comm, Nat.add_mod_right]
 
-/-- Every action costs more at every night moment than at every daytime moment. -/
 def nightAlwaysDearer : Consequence (DayWorld Ctx Act Obs E) :=
   ⟨"every action costs more at any night moment than at any daytime moment", .entailment,
     fun w => ∀ c a t t', w.night t = true → w.night t' = false → w.cost t' c a < w.cost t c a⟩
@@ -35,7 +28,6 @@ theorem nightAlwaysDearer_holds : (nightAlwaysDearer (Ctx := Ctx) (Act := Act) (
     (E := E)).HoldsOf (dayCycleFor Ctx Act Obs E) :=
   fun _ hw => (dayCycle_meets.mp hw).2.1
 
-/-- What the agent sees always tells day from night. -/
 def tellsDayFromNightAlways : Consequence (DayWorld Ctx Act Obs E) :=
   ⟨"what the agent sees always tells day from night", .entailment,
     fun w => ∀ t t' c c', w.sees t c = w.sees t' c' → w.night t = w.night t'⟩
@@ -44,7 +36,6 @@ theorem tellsDayFromNightAlways_holds : (tellsDayFromNightAlways (Ctx := Ctx) (A
     (Obs := Obs) (E := E)).HoldsOf (dayCycleFor Ctx Act Obs E) :=
   fun _ hw => (dayCycle_meets.mp hw).2.2.1
 
-/-- What the agent sees always tells it the quarter of the day. -/
 def seesQuarterOfDay : Consequence (DayWorld Ctx Act Obs E) :=
   ⟨"what the agent sees always tells it which quarter of the day it is in", .entailment,
     fun w => ∃ start, ∀ t t' c c', w.sees t c = w.sees t' c' →
@@ -54,7 +45,6 @@ theorem seesQuarterOfDay_holds : (seesQuarterOfDay (Ctx := Ctx) (Act := Act) (Ob
     (E := E)).HoldsOf (dayCycleFor Ctx Act Obs E) :=
   fun _ hw => (dayCycle_meets.mp hw).2.2.2
 
-/-- A day of 1000 ticks is allowed. -/
 def longDay : Consequence (DayWorld Ctx Act Obs E) :=
   ⟨"a day may last 1000 ticks", .possibility, fun w => w.length = 1000⟩
 
@@ -64,13 +54,10 @@ theorem longDay_holds {lo hi : E} (hlt : lo < hi) {sight : Fin 4 → Obs}
       (dayCycleFor Ctx Act Obs E) :=
   ⟨clockWorld 1000 0 lo hi sight, clockWorld_meets (by decide) (by decide) hlt hsight, rfl⟩
 
-/-- The world in which the agent sees only whether it is day or night. -/
 def dayOrNightOnlyWorld (lo hi : E) (o₁ o₂ : Obs) : Consequence (DayWorld Ctx Act Obs E) :=
   ⟨"the agent may see only whether it is day or night", .possibility,
     fun w => w = dayOrNightOnly lo hi o₁ o₂⟩
 
-/-- The world of `clockWorld 4 0` whose night action costs `hi` in the first night tick of each
-day and `hi'` in the second. -/
 def varyingNight (lo hi hi' : E) (sight : Fin 4 → Obs) : DayWorld Ctx Act Obs E :=
   { clockWorld (Ctx := Ctx) (Act := Act) 4 0 lo hi sight with
     cost := fun t _ _ => if NightHalf 4 0 t then (if t % 4 = 0 then hi else hi') else lo }
@@ -92,7 +79,6 @@ theorem varyingNight_meets {lo hi hi' : E} (hlt : lo < hi) (hlt' : lo < hi')
   · exact hlt
   · exact hlt'
 
-/-- Night costs may differ between two moments of the same night. -/
 def nightCostVaries : Consequence (DayWorld Ctx Act Obs E) :=
   ⟨"an action may cost more at one night moment than at another", .possibility,
     fun w => ∃ c a t t', w.night t = true ∧ w.night t' = true ∧ w.cost t c a ≠ w.cost t' c a⟩
@@ -114,11 +100,6 @@ theorem nightCostVaries_holds (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi
       rw [ite_eq_left h0, ite_eq_left z0, ite_eq_left h1, ite_eq_right z1]
       exact hne⟩
 
-/-! ## The record explained -/
-
-/-- The day record explained in plain words, with its consequences. The consequences need a
-situation `c`, an action `a`, three energy amounts with `lo` below the two different amounts `hi`
-and `hi'`, and four different sights. -/
 def dayCycleExplained (c : Ctx) (a : Act) {lo hi hi' : E} (hlt : lo < hi) (hlt' : lo < hi')
     (hne : hi ≠ hi') {sight : Fin 4 → Obs} (hsight : ∀ i j, sight i = sight j → i = j) :
     Explanation (dayCycleFor Ctx Act Obs E) where

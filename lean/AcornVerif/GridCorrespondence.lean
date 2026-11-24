@@ -1,44 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AgentPrefix
 
-/-!
-# The grid agent composed directly over host observations
-
-The executed agent meets the grid world through its interface: the host turns each
-observation into a percept (`Grid.percept`) and, under the default step order, runs the
-two parts of `Agent.act` on it (`Agent.callbacks_act`). This module states the same
-agent the other way round, as a composition that reads the host observation itself,
-and proves the two equal. Every statement here about the host's step is about the
-callbacks of the default order; the steps of `plan-after-act` and of `act-then-learn`
-have no frozen reference.
-
-The definitions under `Direct` are a frozen reference. Each is the definition of the
-same name at commit `d3bc6e0`, before the agent took an interface. Its computational
-body is kept word for word, apart from naming the other frozen definitions it calls and,
-in `finish`, leaving out the step of the options' off-policy questions, which the agent
-no longer holds (PAR-18, retired); only its proof arguments are restated:
-`TemporalControl.initial`, `TemporalControl.finish`, `TemporalControl.step`,
-`TemporalControl.alignedStep`, `Agent.initial`, `Agent.frame`, `Agent.act`,
-`PredictionControl.advance` and the whole step of
-`Agent.callbacks`, which was its `act` field at that commit. Only their state types are written at the grid instance, because
-the stored types now carry the interface. No executing module imports this one.
-
-The theorems are equalities for every agent state, observation, reward word and
-achievement flag: construction, the composed transition with its returned decision,
-the host's action and next state, and the prefix input edge. Restoration has no frozen
-reference: the restore of that commit started the option models, primitive credit, the rate schedule and every process-local reference afresh, and the
-executed restore is exact (`Agent.restore_exact`).
-
-What the reference does not freeze is the storage below the composition. The core
-types replaced the constant nine by an action-count parameter, which the grid
-instance sets to that constant, and the selection, option, model and planning
-definitions the reference calls are the executed ones. A reference for them would be
-a second copy of the learned core.
--/
 namespace AcornVerif.GridCorrespondence
 open Acorn Acorn.Features Acorn.Handcrafted
 
@@ -47,7 +8,6 @@ variable {profile : FeatureProfile} {config : Features.Config} {criterion : Crit
 
 namespace Direct
 
-/-- Zero knowledge, no invented prior transition, and canonical action-stream seed. -/
 def initialControl (profile : FeatureProfile) (config : Features.Config)
     (criterion : Criterion) (dimension : Dimension) :
     TemporalControl Grid.interface profile config criterion dimension :=
@@ -57,8 +17,6 @@ def initialControl (profile : FeatureProfile) (config : Features.Config)
     profile.credit.initial, by cases profile.credit <;> rfl, .initial,
     RateState.initial profile.rate, Lifetime.Stats.initial _⟩
 
-/-- Complete one selected primitive step: primitive credit, demons, then gain, and record
-the frame for later search control. -/
 def finish (state : TemporalControl Grid.interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32)
     (decision : TemporalDecision Grid.actions) :
@@ -81,9 +39,6 @@ def finish (state : TemporalControl Grid.interface profile config criterion dime
     predicted.control.credit, predicted.creditMatches, predicted.control.average, rate,
     predicted.lifetime⟩
 
-/-- One local temporal transition: selection, off-policy learning of every option
-that is not executing, the closing of an interrupted option's meta span, then credit
-and feedback on every selected path. -/
 def step (state : TemporalControl Grid.interface profile config criterion dimension)
     (planning : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32)
@@ -96,8 +51,6 @@ def step (state : TemporalControl Grid.interface profile config criterion dimens
     (spatialPotentials obs) reward goal decision
   pure (finish (followed.closeSpan continuation) features obs reward decision, decision)
 
-/-- One already-selected primitive transition: the signal values are evaluated once
-from the observation, then `advanceWith`. -/
 def advance (state : PredictionControl Grid.interface profile criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32)
     (action : Action Acorn.FeatureConstants.primitiveCount) (own : Bool) (clock : UInt64 := 0) :
@@ -106,21 +59,17 @@ def advance (state : PredictionControl Grid.interface profile criterion dimensio
 
 end Direct
 
-/-- Direct construction is the interface construction at the grid instance. -/
 theorem initialControl_eq (profile : FeatureProfile) (config : Features.Config)
     (criterion : Criterion) (dimension : Dimension) :
     Direct.initialControl profile config criterion dimension =
       TemporalControl.initial Grid.interface profile config criterion dimension := rfl
 
-/-- The direct completion boundary is the interface one on the grid frame, whatever
-the frame's task mode and achievement flag. -/
 theorem finish_eq (state : TemporalControl Grid.interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32)
     (decision : TemporalDecision Grid.actions) (mode : TaskFeatureMode) (achieved : Bool) :
     Direct.finish state features obs reward decision =
       state.finish features (Grid.frame mode obs achieved) reward decision := rfl
 
-/-- The direct local transition is the interface one on the grid frame. -/
 theorem step_eq (state : TemporalControl Grid.interface profile config criterion dimension)
     (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
     (obs : Host.Observation) (reward : Binary32) (goal : Bool) (mode : TaskFeatureMode)
@@ -128,7 +77,6 @@ theorem step_eq (state : TemporalControl Grid.interface profile config criterion
     Direct.step state planning features obs reward goal =
       state.step planning features (Grid.frame mode obs achieved) reward goal := rfl
 
-/-- The direct prediction and credit transition is the interface one on the grid frame. -/
 theorem advance_eq (state : PredictionControl Grid.interface profile criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Host.Observation) (reward : Binary32)
     (action : Action Acorn.FeatureConstants.primitiveCount) (own : Bool) (clock : UInt64)
@@ -138,8 +86,6 @@ theorem advance_eq (state : PredictionControl Grid.interface profile criterion d
 
 namespace Direct
 
-/-- Execute the direct local transition once. Its totality proof closes the
-potential-source premise; the proof and its existential witnesses are erased. -/
 def alignedStep (state : TemporalControl Grid.interface profile config criterion dimension)
     (aligned : state.Aligned) (planning : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension)
@@ -161,7 +107,6 @@ def alignedStep (state : TemporalControl Grid.interface profile config criterion
       cases same
       exact valid⟩
 
-/-- Complete cold initialization reuses the direct component constructor. -/
 def initial (profile : FeatureProfile) (config : Features.Config) (criterion : Criterion)
     (dimension : Dimension) (planning : PlanningSelection) :
     Agent Grid.interface profile config criterion dimension planning :=
@@ -169,7 +114,6 @@ def initial (profile : FeatureProfile) (config : Features.Config) (criterion : C
     TemporalControl.initial_aligned Grid.interface profile config criterion dimension,
     TemporalControl.initial_episodes Grid.interface profile config criterion dimension⟩
 
-/-- Materialize a frame from this exact receiver, old cache and complete observation. -/
 def frame (state : Agent Grid.interface profile config criterion dimension planning)
     (observation : Host.Observation) :
     EncodingFrame dimension state.control.runtime.lifecycle.representation.bank
@@ -181,9 +125,6 @@ def frame (state : Agent Grid.interface profile config criterion dimension plann
       (feedbackPredictions state.control.runtime.references.demonPredictions)
       profile.taskMode) (observationPatch observation profile.taskMode)
 
-/-- The actual full decision: clock, current-bank encoding, temporal learning and
-observation, then the receiver-owned tester on the same frame. The returned
-decision is the one credited. -/
 def act (state : Agent Grid.interface profile config criterion dimension planning)
     (observation : Host.Observation) (reward : Binary32) (goal : Bool) :
     Agent Grid.interface profile config criterion dimension planning ×
@@ -198,8 +139,6 @@ def act (state : Agent Grid.interface profile config criterion dimension plannin
       result.2.1⟩
   (next.retire frame.units, result.1.2)
 
-/-- The host's step: raw preceding reward and terminal event are passed unchanged
-to the composed core, and the chosen index becomes a host action. -/
 def callbackAct (state : Agent Grid.interface profile config criterion dimension planning)
     (observation : Host.Observation) (result : Host.RawStepResult) :
     Host.Action × Agent Grid.interface profile config criterion dimension planning :=
@@ -208,20 +147,16 @@ def callbackAct (state : Agent Grid.interface profile config criterion dimension
 
 end Direct
 
-/-- Direct cold initialization is the interface agent's at the grid instance. -/
 theorem initial_eq (profile : FeatureProfile) (config : Features.Config) (criterion : Criterion)
     (dimension : Dimension) (planning : PlanningSelection) :
     Direct.initial profile config criterion dimension planning =
       Agent.initial Grid.interface profile config criterion dimension planning := rfl
 
-/-- The direct encoding's unit outputs are the interface agent's on the grid frame. -/
 theorem frame_units (state : Agent Grid.interface profile config criterion dimension planning)
     (obs : Host.Observation) (achieved : Bool) :
     (Direct.frame state obs).units =
       (state.frame (Grid.frame profile.taskMode obs achieved)).units := rfl
 
-/-- The direct encoding's active set is the interface agent's on the grid frame: the
-coder reads the same words, with the same feedback, and the same symbols. -/
 theorem frame_active (state : Agent Grid.interface profile config criterion dimension planning)
     (obs : Host.Observation) (achieved : Bool) :
     (Direct.frame state obs).active =
@@ -229,8 +164,6 @@ theorem frame_active (state : Agent Grid.interface profile config criterion dime
   rw [(state.frame (Grid.frame profile.taskMode obs achieved)).fresh, state.grid_words]
   rfl
 
-/-- The direct decision is obtained from the direct local transition on its own
-encoding. -/
 theorem act_execution (state : Agent Grid.interface profile config criterion dimension planning)
     (obs : Host.Observation) (reward : Binary32) (goal : Bool) :
     ∃ (next : TemporalControl Grid.interface profile config criterion dimension)
@@ -246,9 +179,6 @@ theorem act_execution (state : Agent Grid.interface profile config criterion dim
     state.advanceClock.episodes planning (Direct.frame state.advanceClock obs).active
     (Grid.frame .complete obs goal) reward goal result.1.2 result.2.1, result.2.1, rfl⟩
 
-/-- **The composed transition.** For every grid agent state, host observation, reward
-word and achievement flag, the direct decision and the interface agent's decision on
-the grid percept return the same next state and the same decision. -/
 theorem act_eq (state : Agent Grid.interface profile config criterion dimension planning)
     (obs : Host.Observation) (reward : Binary32) (goal : Bool) :
     Direct.act state obs reward goal =
@@ -266,16 +196,12 @@ theorem act_eq (state : Agent Grid.interface profile config criterion dimension 
   rw [replaced, installed, frame_units state.advanceClock obs goal]
   rfl
 
-/-- **The host's step under the default order.** The action the host executes and the
-agent it carries forward are the direct composition's, for every state, observation and
-raw result. -/
 theorem callback_eq (state : Agent Grid.interface profile config criterion dimension planning)
     (obs : Host.Observation) (result : Host.RawStepResult) :
     (Agent.callbacks .learnThenAct).act state obs result = Direct.callbackAct state obs result := by
   rw [Agent.callbacks_act]
   simp only [Direct.callbackAct, act_eq]
 
-/-- The prefix input edge delivers the direct composition's next state. -/
 theorem input_eq (state : Agent Grid.interface profile config criterion dimension planning)
     (obs : Host.Observation) (result : Host.RawStepResult) :
     state.input (.act obs result) =

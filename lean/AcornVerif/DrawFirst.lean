@@ -1,109 +1,21 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Handcrafted.StepParts
 
-/-!
-# The draw-first selection against selection
-
-`TemporalControl.drawFirst` and `TemporalControl.settle` are the dispatch of
-`TemporalControl.selectWithOperations` with every draw before every write that reads
-the reward (`Acorn.Handcrafted.DrawFirst`). This module states where the two give one
-result and where they can differ. Every statement is about the executed definitions.
-
-**Where they agree** (`selectWithOperations_settle`). For every state, frame and reward
-word: when the draw-first decision starts no option, and no option closes at a free
-dispatch under the discounted criterion, selection returns the settled state and the
-same decision. The proof moves each owed write past the draws, which read neither the
-meta span nor an option the write touches. `actThenLearn_planAfterAct` carries
-it to the whole step: on such a percept the step under `actThenLearn` is the step
-under `planAfterAct`, with the same next agent and decision.
-
-**Where they can differ.** In the two excluded cases, and in no other. `dispatchForm`
-writes the dispatch once, as a specification with a mode, and reads the mode in two
-places. `selectWithOperations_form` proves that selection is the form in the mode
-`selection`, and `drawFirst_form` that the draw-first dispatch followed by the owed
-writes is the form in the mode `drawFirst`, for every state, frame and reward word and
-on every branch. The two need not differ at each instance of those cases:
-`boundaryForm_frozen` proves that in a frozen profile a free dispatch gives one result
-in both modes, also when it starts an option.
-
-- *An option starts.* Selection credits and starts the option and then draws
-  (`dispatchMeta_start`): the first action is the persistent draw from the policy the
-  start froze, after the terminal credit, the meta credit, the settlement and the
-  invocation start. The draw-first dispatch draws it from the frozen policy of the
-  option the assignment refresh left, before each of those (`drawBoundary_start`). Both
-  then make the writes of the start with `TemporalControl.startOption`
-  (`TemporalControl.settle_started`), and the drawn decision is the input that this
-  difference changes.
-- *An option closes at a free dispatch under the discounted criterion.* Selection
-  credits the closing option and then refreshes the assignments. The draw-first
-  dispatch refreshes first, because the refresh precedes the draws, and credits the
-  owner the refresh retained. The differential criterion has that order in both. Where
-  the closing option is kept and the meta draw selects it again, the state that
-  `startOption` is given can differ as well, by this difference.
-
-What the draws that both make read is stated for the draw-first dispatch itself:
-`drawBoundary_meta` and `drawBoundary_unplanned` for the meta draw, and
-`drawFirst_assigns` for the assignment refresh that precedes it.
-
-**Each pair whose order the two dispatches exchange.** A write that selection makes
-before a read and the draw-first path makes after it, or the reverse, is one of the two
-places above or is covered by a statement that the pair commutes.
-
-- The owed meta reward, which selection writes first, against the model caches
-  (`TemporalControl.prepareSelection_owe`), a served step (`serve_settle`), the stopping
-  decision and the draw of an executing option (in `selectWithOperations_form`), the
-  assignment refresh (`refreshFree_owe`), the planning selection runs (`planFree_owe`),
-  the meta draw (`drawMeta_owe`), the primitive draw (`choosePrimitive_owe`) and the
-  first draw of an option that starts (`credited_reads`, for the generator and the
-  objective; its policy is the first place).
-- The terminal credit of an option that closes, under the differential criterion,
-  against the primitive draw (`choosePrimitive_close`) and the first draw of an option
-  that starts (the first place).
-- The same credit under the discounted criterion, against the assignment refresh, the
-  planning, the meta draw and both later draws: the second place. No statement says
-  which of those reads the credit leaves unchanged.
-- The meta credit against the primitive draw (`choosePrimitive_learnMeta`) and the first
-  draw of an option that starts (the first place).
-- The settlement and the invocation start against the first draw of the started option:
-  the first place.
-- Occupancy and the generator after a draw, which the draw-first path writes before the
-  owed writes, against the owed reward (`oweReward_placed`), the terminal credit
-  (`closeOption_placed`), the meta credit (`learnMeta_placed`), the start
-  (`startOption_placed`, `settled_placed`) and the credit of a continuing option
-  (`stepOption_credit`).
-- The terminal credit against the owed reward, which the form applies in the other order
-  than selection does under the discounted criterion (`closeOption_owe`).
-
-The order of choice and update is that of J. B. Travnik, K. W. Mathewson, R. S. Sutton
-and P. M. Pilarski, *Reactive Reinforcement Learning in Asynchronous Environments*,
-Frontiers in Robotics and AI 5:79 (2018), Algorithm 1 (section 2) and Algorithm 2
-(section 3); PAR-20 declares what Acorn adds to it.
--/
 namespace AcornVerif.DrawFirst
 open Acorn Acorn.Features Acorn.Handcrafted
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
 
-/-! ## The owed reward commutes with every write a draw makes -/
-
-/-- In a learning hierarchy the owed reward is one write of the meta span. -/
 theorem oweReward_learning (state : TemporalControl interface profile config criterion dimension)
     (reward : Binary32) (learning : (profile.usesHierarchy && profile.mode != .frozen) = true) :
     state.oweReward reward = state.withGap (state.gap.accumulate reward criterion.rule.gamma) := by
   simp only [TemporalControl.oweReward, learning, ↓reduceIte]
 
-/-- Outside a learning hierarchy nothing is owed for the reward. -/
 theorem oweReward_idle (state : TemporalControl interface profile config criterion dimension)
     (reward : Binary32) (idle : (profile.usesHierarchy && profile.mode != .frozen) = false) :
     state.oweReward reward = state := by
   simp only [TemporalControl.oweReward, idle, Bool.false_eq_true, ↓reduceIte]
 
-/-- The owed reward commutes with the assignment refresh. -/
 theorem refreshFree_owe (state : TemporalControl interface profile config criterion dimension)
     (reward : Binary32)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))) :
@@ -112,7 +24,6 @@ theorem refreshFree_owe (state : TemporalControl interface profile config criter
   unfold TemporalControl.oweReward
   split <;> rfl
 
-/-- The owed reward commutes with planning. -/
 theorem planFree_owe (state : TemporalControl interface profile config criterion dimension)
     (reward : Binary32)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -122,7 +33,6 @@ theorem planFree_owe (state : TemporalControl interface profile config criterion
   unfold TemporalControl.oweReward
   split <;> rfl
 
-/-- The owed reward commutes with the meta draw. -/
 theorem drawMeta_owe (state : TemporalControl interface profile config criterion dimension)
     (reward : Binary32) (features : SwiftTd.ActiveSet dimension) :
     (state.oweReward reward).drawMeta features =
@@ -130,7 +40,6 @@ theorem drawMeta_owe (state : TemporalControl interface profile config criterion
   unfold TemporalControl.oweReward
   split <;> rfl
 
-/-- The owed reward commutes with a fresh primitive choice. -/
 theorem choosePrimitive_owe (state : TemporalControl interface profile config criterion dimension)
     (reward : Binary32) (features : SwiftTd.ActiveSet dimension)
     (metaValues : Vector Binary32 metaCount.word.toNat)
@@ -141,7 +50,6 @@ theorem choosePrimitive_owe (state : TemporalControl interface profile config cr
   unfold TemporalControl.oweReward
   split <;> rfl
 
-/-- Meta credit commutes with a fresh primitive choice. -/
 theorem choosePrimitive_learnMeta (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount)
     (metaValues : Vector Binary32 metaCount.word.toNat)
@@ -152,7 +60,6 @@ theorem choosePrimitive_learnMeta (state : TemporalControl interface profile con
   simp only [TemporalControl.learnMeta_eq]
   split <;> rfl
 
-/-- Terminal credit commutes with a fresh primitive choice. -/
 theorem choosePrimitive_close (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
@@ -166,19 +73,12 @@ theorem choosePrimitive_close (state : TemporalControl interface profile config 
   simp only [TemporalControl.closeOption_eq]
   cases closing.oldOwner <;> rfl
 
-/-- Terminal credit records the closing event, whatever the state and the reward. -/
 theorem closeOption_closing (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
     (reward terminal : Binary32) :
     (state.closeOption models features closing reward terminal).2 = closingEvent closing := rfl
 
-/-! ## A free dispatch -/
-
-/-- **A free dispatch that starts no option.** For every state, frame and reward word:
-when the draw-first dispatch starts no option, and a closing activation is supplied only
-under the differential criterion, the free dispatch of selection on the state that owes
-the reward returns the settled state and the same decision. -/
 theorem atBoundary_settle (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -235,10 +135,6 @@ theorem atBoundary_settle (state : TemporalControl interface profile config crit
         rw [choosePrimitive_learnMeta, choosePrimitive_close, choosePrimitive_owe]
         rfl
 
-/-! ## A served step and a continuing option -/
-
-/-- **A served step.** For every state and reward word, serving a run from the state
-that owes the reward is serving it with the draw-first step and settling. -/
 theorem serve_settle (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) (goal : Bool) :
@@ -284,7 +180,6 @@ theorem serve_settle (state : TemporalControl interface profile config criterion
             TemporalControl.interrupt, Option.isSome_some, ↓reduceIte, Bool.not_true,
             Bool.false_eq_true] <;> (repeat' split) <;> rfl
 
-/-- The option a write put in a slot is the option read from that slot. -/
 theorem withSkill_get (state : TemporalControl interface profile config criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount)
     (skill : Skill interface.actions config criterion dimension interface.layout) :
@@ -292,17 +187,12 @@ theorem withSkill_get (state : TemporalControl interface profile config criterio
   change (state.runtime.lifecycle.consumers.skills.set slot.val skill slot.isLt)[slot.val] = skill
   exact Vector.getElem_set_self _
 
-/-- Two writes of one slot leave the second. -/
 theorem withSkill_twice (state : TemporalControl interface profile config criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount)
     (first second : Skill interface.actions config criterion dimension interface.layout) :
     (state.withSkill slot first).withSkill slot second = state.withSkill slot second := by
   simp [TemporalControl.withSkill, Vector.set_set]
 
-/-- **The option step is its draw, its occupancy write and its credit.** For every
-state, activation, continuation and reward word: the executed option step returns the
-credit of the persistent draw from the continuation's frozen policy, with occupancy and
-the generator after that draw, and the decision of that draw. -/
 theorem stepOption_credit (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : OptionActivation (profile.mode != .frozen))
@@ -321,13 +211,6 @@ theorem stepOption_credit (state : TemporalControl interface profile config crit
   simp only [TemporalControl.stepOption_eq, TemporalControl.creditOption_eq,
     Skill.stepTemporal_credit]
 
-/-! ## The whole dispatch -/
-
-/-- **Selection is the draw-first dispatch followed by the owed writes, where no option
-starts and no terminal credit crosses a refresh.** For every state, model interface,
-planning function, frame and reward word: when the draw-first decision starts no
-option, and it does not both record a meta decision and end an option under the
-discounted criterion, selection returns the settled state and the same decision. -/
 theorem selectWithOperations_settle
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
@@ -432,13 +315,6 @@ theorem selectWithOperations_settle
       rw [oweReward_idle _ _ idle]
       rfl
 
-/-! ## The whole step -/
-
-/-- **Under `actThenLearn` the step is the step under `planAfterAct` wherever no option
-starts and no terminal credit crosses a refresh.** For every agent state and percept, in
-every world: when the decision of the first part starts no option, and it does not both
-record a meta decision and end an option under the discounted criterion, the two orders
-return the same next agent and the same decision. -/
 theorem actThenLearn_planAfterAct
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface)
@@ -480,16 +356,6 @@ theorem actThenLearn_planAfterAct
       percept.frame.achieved (state.choose .planAfterAct percept).decision
   rw [controls, decisions]
 
-/-! ## Where the two can differ: the first action of an option that starts -/
-
-/-- **What the first action of an option reads when the draw is first.** For every free
-dispatch that draws first and whose decision starts an option: the option is the one
-the drawn meta action names, and the action, the reported values and masses and the
-exploration flag are those of the persistent draw from that option's frozen policy in
-the state after the assignment refresh, the supplied planning and the meta draw, at the
-generator the meta draw left. That option is the one the refresh left: planning and the
-meta draw write no option. No terminal credit, meta credit, settlement or invocation
-start precedes the draw. -/
 theorem drawBoundary_start (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
@@ -535,11 +401,6 @@ theorem drawBoundary_start (state : TemporalControl interface profile config cri
       rw [← options]
       exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, value, _, potential, rfl⟩
 
-/-- **What the meta draw reads when the draw is first.** For every free dispatch that
-draws first and every planning parameter, the meta decision the dispatch records is the
-draw from the meta-controller of the state after the assignment refresh and that
-planning, at the supplied features and that state's meta rate. No write that reads the
-reward precedes it. -/
 theorem drawBoundary_meta (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
@@ -571,11 +432,6 @@ theorem drawBoundary_meta (state : TemporalControl interface profile config crit
       cases drawn
       rfl
 
-/-- **The meta draw of the order that acts before it learns.** For every free dispatch
-that draws first with the no-planning boundary, which is the one `Agent.choose` runs
-under `actThenLearn`: the meta decision is drawn from the frozen meta-controller of the
-refreshed state, at that state's meta rate. It is the statement
-`TemporalControl.atBoundary_unplanned` makes for selection without planning. -/
 theorem drawBoundary_unplanned (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
@@ -593,8 +449,6 @@ theorem drawBoundary_unplanned (state : TemporalControl interface profile config
   have kept := (state.refreshFree closing).1.planFree_none features
   rw [TemporalControl.drawMeta_snapshot, kept.1, kept.2]
 
-/-- A free dispatch that draws first leaves each slot the objective its refresh
-installed: the draws write no option. -/
 theorem drawBoundary_interest (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
@@ -629,12 +483,6 @@ theorem drawBoundary_interest (state : TemporalControl interface profile config 
       cases drawn
       exact options
 
-/-- **The assignment refresh precedes the draws when the draw is first.** With learned
-subtasks, every draw-first decision that draws a meta decision is taken with the
-slot-stable ranking installed: each slot's objective is the ranking's assignment for the
-Demon-0 weights and the objectives the decision started from. It is the statement
-`TemporalControl.select_assigns` makes for selection; the dispatch takes no reward, so no
-part of the percept's reward reaches the refresh. -/
 theorem drawFirst_assigns (state : TemporalControl interface profile config criterion dimension)
     (learned : profile.ranksSubtasks = true)
     (models : OptionModelOps criterion dimension)
@@ -699,13 +547,6 @@ theorem drawFirst_assigns (state : TemporalControl interface profile config crit
             contradiction
           · exact boundary (ready.withPhase .idle) _ _ executed
 
-/-- **What the first action of an option reads in selection.** For every dispatch of a
-drawn meta decision that names an option with a supplied potential: selection makes the
-meta credit, settles and starts the option, and then draws. The first action is the
-persistent draw from the policy the start froze, and the returned state is the one
-`TemporalControl.startOption` returns for that draw, with occupancy and the generator
-after it. So the draw-first dispatch and selection make the writes of a start with one
-function, `startOption` (`TemporalControl.settle_started`), at two drawn decisions. -/
 theorem dispatchMeta_start (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
@@ -735,30 +576,14 @@ theorem dispatchMeta_start (state : TemporalControl interface profile config cri
     withSkill_twice]
   rfl
 
-/-! ## One form of both executed dispatches
-
-`dispatchForm` writes the dispatch once, as a specification. It names a `Dispatch` mode
-and reads it in two places and nowhere else. `selectWithOperations_form` and
-`drawFirst_form` prove, for every state, frame and reward word and with no hypothesis on
-the branch, that selection is the form in the mode `selection` and that the draw-first
-dispatch followed by the owed writes is the form in the mode `drawFirst`. So the two
-places are the complete list of the differences between the two executed dispatches. -/
-
-/-- The two executed dispatches that `dispatchForm` describes. -/
 inductive Dispatch where
-  /-- `TemporalControl.selectWithOperations`. -/
   | selection
-  /-- `TemporalControl.drawFirst` followed by `TemporalControl.settle`. -/
   | drawFirst
 
-/-- Whether the terminal value of a closing option is the value of the sampled next
-meta action: under the differential criterion it is, and under the discounted one it is
-the nominal estimate that the stopping decision read. -/
 def sampled : Criterion → Bool
   | .differential => true
   | .discounted => false
 
-/-- A temporal state with occupancy and the action generator of a draw written. -/
 def placed (state : TemporalControl interface profile config criterion dimension)
     (phase : Occupancy (OptionActivation (profile.mode != .frozen))
       (CommittedRun interface.actions (profile.mode != .frozen)))
@@ -767,14 +592,6 @@ def placed (state : TemporalControl interface profile config criterion dimension
   { state with runtime := { state.runtime with references :=
     { state.runtime.references with rng := rng } } }
 
-/-- The free dispatch as one composition: the assignment refresh, the supplied planning,
-the meta draw, the owed reward, the terminal credit of a retained closing at the supplied
-terminal value, the meta credit, and then the primitive choice or the start of the
-selected option. The mode is read in one place: the policy that the first action of an
-option that starts is drawn from. Under `selection` it is the policy that the start
-freezes, after the settlement and the invocation reset of the credited state. Under
-`drawFirst` it is the frozen policy of that option in the state the meta draw left,
-before the owed reward, the terminal credit and the meta credit. -/
 def boundaryForm (mode : Dispatch)
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
@@ -819,14 +636,6 @@ def boundaryForm (mode : Dispatch)
         ⟨.option slot, first.1.action, policy.values, first.1.probabilities, first.1.explored,
           met.2.snapshot.values, some met.2, some slot, event⟩)
 
-/-- The whole dispatch as one composition, with the branch priority of selection. The
-mode is read in two places. The first is inside `boundaryForm`: the policy that the first
-action of an option that starts is drawn from. The second is here, where an executing
-option ends and the terminal value is not sampled, which is the discounted criterion
-(`sampled`): under `selection` the terminal credit is applied to the state before the
-free dispatch, which then refreshes; under `drawFirst` the closing activation is passed
-into the free dispatch, which refreshes first and credits the retained owner. The
-terminal value is the same estimate in both. -/
 def dispatchForm (mode : Dispatch)
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
@@ -884,9 +693,6 @@ def dispatchForm (mode : Dispatch)
                 boundaryForm mode free models plan features declared reward goal (some closing)
                   none (fun _ => estimate)
 
-/-! ### The writes of a draw commute with the owed writes -/
-
-/-- The owed reward commutes with the writes of a draw. -/
 theorem oweReward_placed (state : TemporalControl interface profile config criterion dimension)
     (phase : Occupancy (OptionActivation (profile.mode != .frozen))
       (CommittedRun interface.actions (profile.mode != .frozen)))
@@ -895,7 +701,6 @@ theorem oweReward_placed (state : TemporalControl interface profile config crite
   unfold TemporalControl.oweReward
   split <;> rfl
 
-/-- Terminal credit commutes with the writes of a draw. -/
 theorem closeOption_placed (state : TemporalControl interface profile config criterion dimension)
     (phase : Occupancy (OptionActivation (profile.mode != .frozen))
       (CommittedRun interface.actions (profile.mode != .frozen)))
@@ -908,7 +713,6 @@ theorem closeOption_placed (state : TemporalControl interface profile config cri
   simp only [TemporalControl.closeOption_eq]
   cases closing.oldOwner <;> rfl
 
-/-- Meta credit commutes with the writes of a draw. -/
 theorem learnMeta_placed (state : TemporalControl interface profile config criterion dimension)
     (phase : Occupancy (OptionActivation (profile.mode != .frozen))
       (CommittedRun interface.actions (profile.mode != .frozen)))
@@ -919,7 +723,6 @@ theorem learnMeta_placed (state : TemporalControl interface profile config crite
   simp only [TemporalControl.learnMeta_eq]
   split <;> rfl
 
-/-- The start of a selected option commutes with the writes of a draw. -/
 theorem startOption_placed (state : TemporalControl interface profile config criterion dimension)
     (phase : Occupancy (OptionActivation (profile.mode != .frozen))
       (CommittedRun interface.actions (profile.mode != .frozen)))
@@ -931,9 +734,6 @@ theorem startOption_placed (state : TemporalControl interface profile config cri
   simp only [TemporalControl.startOption_eq]
   rfl
 
-/-- The owed writes of a start commute with the writes of a draw: the owed reward, a
-retained terminal credit, the meta credit and the start of the option give the same state
-whether occupancy and the generator were written before them or after. -/
 theorem settled_placed (state : TemporalControl interface profile config criterion dimension)
     (phase : Occupancy (OptionActivation (profile.mode != .frozen))
       (CommittedRun interface.actions (profile.mode != .frozen)))
@@ -960,7 +760,6 @@ theorem settled_placed (state : TemporalControl interface profile config criteri
     dsimp only
     rw [oweReward_placed, closeOption_placed, learnMeta_placed, startOption_placed]
 
-/-- Terminal credit commutes with the owed reward. -/
 theorem closeOption_owe (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
@@ -975,9 +774,6 @@ theorem closeOption_owe (state : TemporalControl interface profile config criter
       simpa using learning
     rw [oweReward_idle _ _ idle, oweReward_idle _ _ idle]
 
-/-- The owed reward, a retained terminal credit and the meta credit keep each option's
-objective and the generator: they write a policy, a model, the meta-controller and the
-meta span. -/
 theorem credited_reads (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (retained : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))))
@@ -1009,10 +805,6 @@ theorem credited_reads (state : TemporalControl interface profile config criteri
         ((state.oweReward reward).closeOption_framed (state.oweReward reward) ⟨rfl, rfl, rfl⟩
           models features closing reward terminal) features decision).2.2).trans owed.2⟩
 
-/-! ### Each executed free dispatch is the form -/
-
-/-- **The free dispatch of selection is the form in the mode `selection`.** For every
-state, frame, reward word, closing activation and carried event. -/
 theorem atBoundary_form (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -1059,10 +851,6 @@ theorem atBoundary_form (state : TemporalControl interface profile config criter
         simp only [admitted]
         rfl
 
-/-- **The draw-first free dispatch followed by the owed writes is the form in the mode
-`drawFirst`.** For every state, frame, reward word, closing activation and estimate. The
-terminal value of a retained closing is the drawn meta action's value under the
-differential criterion and the supplied estimate under the discounted one. -/
 theorem drawBoundary_form (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -1109,8 +897,6 @@ theorem drawBoundary_form (state : TemporalControl interface profile config crit
         exact congrArg some (Prod.ext
           (settled_placed met.1 _ _ models features (some owner) reward _ met.2 _ goal _) rfl)
 
-/-- The form of a free dispatch with no closing activation does not read the terminal
-value: the refresh retains no closing where none is supplied. -/
 theorem boundaryForm_terminal (mode : Dispatch)
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
@@ -1125,10 +911,6 @@ theorem boundaryForm_terminal (mode : Dispatch)
   dsimp only
   rw [retained]
 
-/-! ### Each executed dispatch is the form -/
-
-/-- **Selection is the form in the mode `selection`.** For every state, model interface,
-planning function, frame and reward word, on every branch. -/
 theorem selectWithOperations_form
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
@@ -1217,9 +999,6 @@ theorem selectWithOperations_form
       rw [oweReward_idle _ _ idle]
       rfl
 
-/-- **The draw-first dispatch followed by the owed writes is the form in the mode
-`drawFirst`.** For every state, model interface, planning function, frame and reward
-word, on every branch. -/
 theorem drawFirst_form
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
@@ -1278,10 +1057,6 @@ theorem drawFirst_form
       simp only [primitive, Bool.not_false, ↓reduceIte]
       rfl
 
-/-! ### The two places do not always differ -/
-
-/-- In a frozen profile terminal credit writes nothing: the closing option is written
-back as it was. -/
 theorem closeOption_frozen (state : TemporalControl interface profile config criterion dimension)
     (frozen : profile.mode = .frozen) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension)
@@ -1317,14 +1092,6 @@ theorem closeOption_frozen (state : TemporalControl interface profile config cri
               demons⟩⟩, references⟩, credit, creditMatches, average, rate, lifetime⟩ :
                 TemporalControl interface ⟨.frozen, _, _, _⟩ config criterion dimension)) kept
 
-/-- **In a frozen profile the free dispatch is one result in both modes.** For every
-state of a frozen profile, frame, reward word, closing activation and terminal value, the
-form of the free dispatch is the same in the mode `selection` and in the mode
-`drawFirst`, also when the meta draw starts an option. The owed reward, the terminal
-credit and the meta credit write nothing there, and a frozen start neither settles nor
-resets, so the policy that the start freezes is the frozen policy of the option the
-refresh left. So the first place where the two dispatches can differ is not a place
-where they always differ. -/
 theorem boundaryForm_frozen (state : TemporalControl interface profile config criterion dimension)
     (frozen : profile.mode = .frozen) (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
