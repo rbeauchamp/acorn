@@ -1,29 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentIntervals
 import AcornVerif.CurrentExponential
-/-!
-# Executing exponential argument reduction
-
-The actual primitive operations, exact widening, finite truncation and
-source-generated constants bound the chosen exponent and the ordered two-part
-remainder. The polynomial input interval and nonpositive exponent conclusion
-hold for every admitted machine input. At exponent zero the remainder retains
-the input numerical value, including either zero sign. These contracts bound
-argument reduction in the approximation recipe, under the declared native
-primitive/compiler trust.
--/
 open Acorn
 open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmetic
 open AcornVerif.CurrentOrder AcornVerif.CurrentOperations AcornVerif.CurrentDivision
 open AcornVerif.CurrentIntervals
 namespace AcornVerif.CurrentReduction
 
-/-- The exact generated dyadic constant values satisfy the bounds used by reduction and its two-
-part residual identity. -/
 theorem reduction_constants :
     Portable.log2e.Finite ∧ Portable.ln2Hi.Finite ∧ Portable.ln2Lo.Finite ∧
     1 < numerical64 Portable.log2e ∧ numerical64 Portable.log2e < 29 / 20 ∧
@@ -46,8 +28,6 @@ theorem reduction_constants :
   rw [logValue,highValue,lowValue]
   norm_num
 
-/-- A half-away offset followed by toward-zero truncation stays within one half plus the stated
-selection error of its input. -/
 theorem trunc_selection_band (product selected : ℚ) (integer : Int) (error : ℚ)
     (errorSmall : error < 1 / 2)
     (near : |selected - (product + (if product < 0 then -(1 / 2 : ℚ) else 1 / 2))| ≤ error)
@@ -68,9 +48,6 @@ theorem trunc_selection_band (product selected : ℚ) (integer : Int) (error : �
     rw [abs_le]
     constructor <;> linarith [trunc.1,trunc.2,hn.1,hn.2]
 
-/-- Every finite wide input in the containing interval [-104,89] produces an exponent in
-[-151,129] and a finite remainder in [-0.349,0.349]; nonpositive inputs give nonpositive exponents.
--/
 theorem expReduce_contract (wide : Binary64) (finite : wide.Finite)
     (lower : -104 ≤ numerical64 wide) (upper : numerical64 wide ≤ 89) :
     let reduced := Portable.expReduce wide;
@@ -273,8 +250,6 @@ theorem expReduce_contract (wide : Binary64) (finite : wide.Finite)
     (numerical64 wide≤0 → exponent≤0)
   exact ⟨exponentLo,exponentHi,remainderProof.1,remainderBound,nonpositive⟩
 
-/-- If actual reduction selects exponent zero, its two subtractions preserve the finite input
-numerical value. -/
 theorem expReduce_zero_remainder (wide : Binary64) (finite : wide.Finite)
     (zero : (Portable.expReduce wide).1 = 0) :
     (Portable.expReduce wide).2.Finite ∧
@@ -296,8 +271,6 @@ theorem expReduce_zero_remainder (wide : Binary64) (finite : wide.Finite)
   have second := binary64_sub_zero_value (wide.sub ⟨0⟩) first.1
   exact ⟨second.1,second.2.trans first.2⟩
 
-/-- The actual saturation classifier and exact widening supply every hypothesis of the executing
-reduction contract. -/
 theorem exp_admitted_reduction (value : Binary32) (admitted : Portable.expSaturation value = none) :
     let reduced := Portable.expReduce (Conversion.widen value);
     value.Finite ∧ -151≤reduced.1 ∧ reduced.1≤129 ∧ reduced.2.Finite ∧
