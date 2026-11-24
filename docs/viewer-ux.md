@@ -490,15 +490,15 @@ Rules that apply to every number, label and colour on the page.
   is `POST /control`, bound to `127.0.0.1`, POST-only, JSON-only, and gated by a
   token minted per viewer start and read from the served page, so a page left
   open from a previous start holds a stale one and is refused; bodies are capped
-  and rejections say little about which check failed. For a browser Stop,
-  `POST /control` holds its HTTP response until the supervisor actor completes
-  the `state.json` write for `desired: "stopped"`: it returns `202`
-  (`{"ok":true}`) only once the stopped state has been written, flushed and
-  renamed over `state.json`; it returns `503` (`{"ok":false,"reason":...}`) if
-  refused before execution (supervisor queue full, unavailable, or mailbox
-  closing), and returns `503` (`{"ok":false,"unconfirmed":true,"reason":...}`)
-  if persisting fails, the 10-second HTTP wait times out, or viewer shutdown
-  interrupts the wait. Timing out ends only the HTTP wait and does not cancel
+  and rejections say little about which check failed. For a browser Stop
+  (`{"cmd":"stop"}`), `POST /control` holds its HTTP response until the
+  supervisor actor completes the `state.json` write for `desired: "stopped"`: it
+  returns `202` (`{"ok":true}`) only once the stopped state has been written,
+  flushed and renamed over `state.json`; it returns `503`
+  (`{"ok":false,"reason":...}`) if refused before admission (supervisor queue
+  full, unavailable, or mailbox already closing), and returns `503`
+  (`{"ok":false,"unconfirmed":true,"reason":...}`) if persisting fails, the
+  10-second HTTP wait times out, or viewer shutdown interrupts an admitted Stop. Timing out ends only the HTTP wait and does not cancel
   the Stop (it may still be queued, already executing in the actor, or already
   published before waiter resolution), and a persistence error on a live run can
   still request child wind-up or leave a pending Clear replacement revised to
@@ -1067,14 +1067,14 @@ What each panel must show. How it draws it is the code's.
   state file, or a file of the current schema that says stopped, it is printed
   after the ready line and not under `--start`. Under `--start` the Start is submitted once the listener is
   bound. The viewer announces nothing of this kind when the state it starts
-  with is running. Browser Stop (`POST /control`) returns HTTP `202` only after
-  `state.json` has been written, flushed and renamed on disk with
-  `desired: "stopped"` — confirming that earlier publication — and returns HTTP
-  `503` without acknowledging if refused before execution (queue full,
-  unavailable, or mailbox closing) or if persistence is unconfirmed (writing
-  fails, viewer shutdown interrupts the wait, or the 10-second HTTP wait times
-  out, which ends only the HTTP wait without cancelling the Stop; directory
-  entries are not fsynced, so power-loss durability is not claimed, and a lost
+  with is running. Browser Stop (`POST /control` with `{"cmd":"stop"}`) returns
+  HTTP `202` only after `state.json` has been written, flushed and renamed on
+  disk with `desired: "stopped"` — confirming that earlier publication — and
+  returns HTTP `503` without acknowledging if refused before admission (queue
+  full, unavailable, or mailbox already closing) or if persistence is
+  unconfirmed (writing fails, viewer shutdown interrupts an admitted Stop, or
+  the 10-second HTTP wait times out, which ends only the HTTP wait without
+  cancelling the Stop; directory entries are not fsynced, so power-loss durability is not claimed, and a lost
   connection or abrupt crash can yield no HTTP response). The no-later-Start
   condition is ordered in supervisor processing order starting from that
   acknowledging resolution (not browser HTTP receipt time, so a concurrent Start

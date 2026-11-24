@@ -297,7 +297,7 @@ private def Supervisor.closeMailbox (supervisor : Supervisor) (reason : String) 
     set { mailbox with commands := .empty, waiters := #[], closing := true }
     return mailbox.waiters
   for waiter in waiters do
-    waiter.resolve (.refused reason)
+    waiter.resolve (.unconfirmed reason)
 
 /-- HTTP and process output use this actor's exact same broadcaster. -/
 def Supervisor.http (supervisor : Supervisor) (assets : ViewerAssets) : IO HttpViewer :=
@@ -313,7 +313,6 @@ def Supervisor.step (supervisor : Supervisor) : IO Unit :=
       if ← supervisor.ready then
         if let some (command, waiter) ← supervisor.popCommand then
           if let some promise := waiter then
-            supervisor.settleStop (.unconfirmed "superseded by newer stop")
             modify fun actor => { actor with activeStop := some promise }
           supervisor.handle (.command command)
       supervisor.observe
@@ -339,7 +338,6 @@ private def Supervisor.closeTurn (supervisor : Supervisor) : IO (Option Bool) :=
       | .closed failed => return some failed
       | .open | .closing _ => return none
     finally
-      supervisor.settleStop (.unconfirmed "viewer is closing")
       supervisor.closeMailbox "viewer is closing"
 
 /-- Graceful viewer shutdown winds the core up and keeps the process slot until reap and pipe

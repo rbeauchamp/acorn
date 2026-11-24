@@ -2905,13 +2905,13 @@ async function sendCmd(cmd) {
       headers: { "Content-Type": "application/json", "X-Oak-Token": CTL_TOKEN },
       body: JSON.stringify({ cmd })
     });
-    if (!r.ok) {
+    if (r.status !== 202) {
       let why = `${r.status}`;
       let definiteRefusal = false;
       try {
         const j = await r.json();
         if (j && j.reason) why = j.reason;
-        if (j && j.ok === false && j.unconfirmed !== true) definiteRefusal = true;
+        if (!r.ok && j && j.ok === false && j.unconfirmed !== true) definiteRefusal = true;
       } catch (e) {}
       if (definiteRefusal) {
         toast(`⚠ ${cmd} refused — ${why}`, "fault");

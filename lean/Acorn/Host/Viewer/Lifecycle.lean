@@ -795,40 +795,6 @@ theorem Lifecycle.replacementIntent_stopped_unstarted (state : Lifecycle) (ident
   exact Lifecycle.archived_unstarted (state.replacementIntent .stopped) next identity hins
     (helper harch)
 
-theorem Lifecycle.retire_phase_eq (state : Lifecycle) (generation : UInt64)
-    (harch : state.phase = .archiving) : (state.retire generation).phase = .archiving := by
-  unfold retire
-  split
-  · rename_i hbad
-    rw [harch] at hbad
-    change (Phase.archiving.accepts generation || (Phase.archiving == Phase.starting generation)) = true at hbad
-    have hfalse : (Phase.archiving.accepts generation || (Phase.archiving == Phase.starting generation)) = false := rfl
-    rw [hfalse] at hbad
-    cases hbad
-  · exact harch
-
-theorem Lifecycle.failed_phase_ne_archiving (state : Lifecycle) (generation now : UInt64)
-    (healthy : Bool) : (state.failed generation now healthy).phase = .archiving ↔ state.phase = .archiving := by
-  unfold failed acceptsFailure
-  split
-  · rename_i hacc
-    cases hp : state.phase <;> simp [hp] at hacc ⊢
-    have hfalse : ((Phase.archiving == Phase.starting generation) = true ∨ (Phase.archiving == Phase.running generation) = true) → False := by
-      intro h; rcases h with h1 | h2
-      · cases h1
-      · cases h2
-    exact False.elim (hfalse hacc)
-  · rfl
-
-theorem Lifecycle.request_phase_archiving (state : Lifecycle) (command : Command) :
-    (state.request command).phase = .archiving ↔ state.phase = .archiving := by
-  cases command <;> cases hp : state.phase <;> simp [request, hp]
-
-theorem Lifecycle.adoptFinalIdentity_phaseValue (state : Lifecycle) (generation : UInt64)
-    (identity : Identity) :
-    (state.adoptFinalIdentity generation identity).phaseValue = state.phaseValue := by
-  exact Lifecycle.finalIdentity_phase state generation identity
-
 theorem Lifecycle.archiveIntent_phase_ne_archiving (state : Lifecycle) (intended : Desired)
     (hint : state.archiveIntent = some intended) : state.phaseValue ≠ .archiving := by
   unfold archiveIntent at hint
@@ -902,12 +868,21 @@ theorem Lifecycle.retire_phaseValue_archiving (state : Lifecycle) (generation : 
 
 theorem Lifecycle.failed_phaseValue_archiving (state : Lifecycle) (generation now : UInt64)
     (healthy : Bool) :
-    (state.failed generation now healthy).phaseValue = .archiving ↔ state.phaseValue = .archiving :=
-  Lifecycle.failed_phase_ne_archiving state generation now healthy
+    (state.failed generation now healthy).phaseValue = .archiving ↔ state.phaseValue = .archiving := by
+  unfold phaseValue failed acceptsFailure
+  split
+  · rename_i hacc
+    cases hp : state.phase <;> simp [hp] at hacc ⊢
+    have hfalse : ((Phase.archiving == Phase.starting generation) = true ∨ (Phase.archiving == Phase.running generation) = true) → False := by
+      intro h; rcases h with h1 | h2
+      · cases h1
+      · cases h2
+    exact False.elim (hfalse hacc)
+  · rfl
 
 theorem Lifecycle.request_phaseValue_archiving (state : Lifecycle) (command : Command) :
-    (state.request command).phaseValue = .archiving ↔ state.phaseValue = .archiving :=
-  Lifecycle.request_phase_archiving state command
+    (state.request command).phaseValue = .archiving ↔ state.phaseValue = .archiving := by
+  cases command <;> cases hp : state.phase <;> simp [request, phaseValue, hp]
 
 theorem Lifecycle.archived_phase_ne_archiving (state next : Lifecycle) (identity : Identity)
     (hins : state.archived identity = some next) : next.phaseValue ≠ .archiving := by
@@ -934,30 +909,6 @@ theorem Lifecycle.beginArchive_phaseValue (state next : Lifecycle)
   split at hbeg
   · cases hbeg; rfl
   · cases hbeg
-
-theorem Lifecycle.request_clear_unstarted (state : Lifecycle) (unstarted : state.Unstarted) :
-    (state.request .clear).Unstarted := by
-  refine ⟨rfl, ?_⟩
-  intro h
-  unfold request at h
-  dsimp at h
-  cases hcp : state.clearPending with
-  | none =>
-    simp [hcp, Option.or] at h
-    exact absurd h (by rw [unstarted.1]; intro hc; cases hc)
-  | some prev =>
-    simp [hcp, Option.or] at h
-    subst h
-    exact unstarted.2 hcp
-
-theorem Lifecycle.Archival.desired_stopped (state : Lifecycle) (arch : state.Archival)
-    (h : state.clearPendingValue.isSome = true ∨ state.phaseValue = .archiving) :
-    state.desiredValue = .stopped :=
-  h.elim arch.1 arch.2
-
-theorem Lifecycle.Unstarted.desired_stopped (state : Lifecycle) (u : state.Unstarted) :
-    state.desiredValue = .stopped :=
-  u.1
 
 theorem Lifecycle.request_start_clearPendingValue (state : Lifecycle) :
     (state.request .start).clearPendingValue = none := rfl
@@ -1025,12 +976,6 @@ theorem Lifecycle.archived_clearPendingValue (state next : Lifecycle) (identity 
   split at hins
   · cases hins; rfl
   · cases hins
-
-theorem Lifecycle.archiveFailed_clearPendingValue (state : Lifecycle) :
-    state.archiveFailed.clearPendingValue.isSome = true →
-      state.clearPendingValue.isSome = true := by
-  unfold archiveFailed clearPendingValue
-  split <;> intro h <;> first | cases h | exact h
 
 theorem Lifecycle.adoptFinalIdentity_clearPendingValue (state : Lifecycle)
     (generation : UInt64) (identity : Identity) :
