@@ -567,6 +567,59 @@ corresponding `static` scalar or object declaration) and re-checks scalar types
 against IR; the `4096` extraction fuel bounds the extractor only and never serves
 as a claimed program execution bound. Primitive IEEE interpretation remains a native assumption.
 
+Native build provenance embeds source, toolchain, and audit identifiers into
+`NativeApp` (`lean/NativeApp/Build.lean`), which is a build/OS bootstrap
+boundary outside the core algorithm library `Acorn`. In `lean/lakefile.lean`,
+the `NativeApp` library and the `acorn-core` and `acorn-viewer` executables
+declare Lake's nativeProvenance target (alongside checkpointSync) in
+extraDepTargets, so provenanceJob runs before `NativeApp` compiles and
+contributes its trace to `NativeApp.Build`. provenanceJob admits
+`lean/Acorn/Host/AuditPins.lean` and `viewer/static/index.html` as Git-tracked
+regular files, collects tracked regular entries under `lean/` via nativeSources
+(every `.lean` and `.c` file, including `lean/Acorn/Host/AuditPins.lean` and
+`lean/os/checkpoint-sync.c`, plus `lean/lean-toolchain` and
+`lean/lake-manifest.json`), appends `viewer/static/index.html`, resolves real
+paths, and sorts them. nativeDigests (shared by singleton hashing in
+nativeDigest) rejects paths containing newlines, hashes the list in one
+`openssl dgst -sha256 -r` invocation, and requires one lowercase
+64-hex-character SHA-256 digest per input in order with the matching path.
+provenanceJob requires every resolved real path to lie beneath the repository
+root, writes the sorted repository-relative inventory (`acorn-lean-source-v2`)
+to `.lake/build/native-source-inventory.txt`, and hashes it to produce the
+64-hex-character source digest. It also queries `lean --version`,
+`leanc --version`, and `cc --version` (refusing any non-zero exit), writes those
+outputs together with the shared strict floating-point flags nativeFloatFlags
+(`-ffp-contract=off`, `-fno-fast-math`), the `checkpoint-sync` C compiler flags
+checkpointFlags, and the `source=` digest line (`acorn-lean-build-v1`) to
+`.lake/build/native-build-identity.txt`, and hashes that file to produce the
+64-hex-character build digest. Finally, it reads
+`lean/Acorn/Host/AuditPins.lean` (the single owner of
+`Acorn.Host.AuditPins.declaredDigest`), requires a unique
+`def declaredDigest : UInt64 := 0x` literal with 16 lowercase hexadecimal digits
+followed by a newline, and writes the source, build, and audit lines to
+`.lake/build/native-provenance.txt`, keying Lake's dependency trace on the
+binary contents of all collected sources together with the compiler/flag
+settings and sorted source paths. `lean/NativeApp/Build.lean` embeds those three
+files at compile time through `include_str`: the private provenance triple,
+`NativeApp.sourceInventory` (the source framing for explicitly requested
+scientific execution), and `NativeApp.buildRecord` (the compiler settings
+recorded beside the source identity). `NativeApp.decodeBuildIdentity` admits the
+embedded provenance into `Acorn.Host.Viewer.TelemetryBuild` only when it
+consists of exactly three newline-terminated lowercase hexadecimal strings of
+lengths 64, 64, and 16; `NativeApp.buildIdentity` supplies that decoded record
+to shared telemetry and execution, and `NativeApp.runCore`'s streaming campaign
+path (`lean/NativeApp/Core.lean`) and `NativeApp.executeMutationAudit`
+(`lean/NativeApp/MutationAudit.lean`) refuse to run when
+`NativeApp.buildIdentity` fails admission. Compiler, native toolchain, OpenSSL
+hashing, and Lake build orchestration (including trace freshness and that the
+build files read by `include_str` correspond to the compiled binary) remain
+trusted boundaries: Lean code does not verify that a supplied or embedded build
+digest identifies the executing binary
+(`lean/Acorn/Host/Viewer/CoreTelemetry.lean`). These digests establish raw byte
+identity and mutation detection only; they never supply cryptographic
+authenticity, tamper resistance against an untrusted build environment, or a
+correctness theorem.
+
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
 validates, and every gate check enumerates only Git-tracked stage-0 regular
