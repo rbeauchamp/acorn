@@ -6,8 +6,6 @@ Authors: acorn contributors
 import Acorn.Host.WorldObservation
 import AcornVerif.CurrentTerrain
 import AcornVerif.CurrentActions
-import AcornVerif.CurrentSpawn
-import AcornVerif.CurrentStep
 import AcornVerif.FloatLibBridge
 import Mathlib.Data.Fintype.Card
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
@@ -62,11 +60,18 @@ theorem facing_harvest_admission {config : WorldConfig} (world : World config) :
     ∃ key, harvestKey config (world.body.position.facingPosition world.body.facing) = some key :=
   world.body.position.facingKey_exists world.body.facing
 
+private theorem pow_inst_eq (a : Nat) :
+    ∀ n : Nat, @HPow.hPow Nat Nat Nat (@instHPow Nat Nat instPowNat) a n = a ^ n
+  | 0 => rfl
+  | n + 1 => by
+    change @HPow.hPow Nat Nat Nat (@instHPow Nat Nat instPowNat) a n * a = a ^ (n + 1)
+    rw [pow_succ, pow_inst_eq a n]
+
 theorem isPastLast_iff_pastLast (q : Binary32) :
     isPastLast q = true ↔ CurrentTerrain.PastLast q := by
-  rw [FloatLibBridge.isPastLast_iff_units]
-  unfold CurrentTerrain.PastLast
-  rfl
+  rw [Host.isPastLast_iff_units]
+  unfold Host.QuotientPastLast CurrentTerrain.PastLast
+  rw [pow_inst_eq 2 63, pow_inst_eq 2 1074]
 
 theorem octaveScale_eq (scale : Binary32) (octave : Nat) :
     octaveScale scale octave = CurrentTerrain.octaveScale scale octave := by
@@ -78,7 +83,7 @@ theorem octaveScale_eq (scale : Binary32) (octave : Nat) :
 
 private theorem admitBounds_nonempty (raw : RawWorldConfig) (hpos : 0 < raw.side.val)
     (hmax : raw.side.val ≤ RawWorldConfig.maxSide) :
-    raw.admitLo.val < 0 ∧ 0 < raw.admitHi.val := by
+    raw.admitLo.val < 0 ∧ 0 < (raw.admitHi hpos hmax).val := by
   rw [raw.admitLo_val, raw.admitHi_val hpos hmax]
   by_cases hd : raw.deerCap = 0
   · rw [ite_eq_left hd, ite_eq_left hd]
@@ -88,23 +93,26 @@ private theorem admitBounds_nonempty (raw : RawWorldConfig) (hpos : 0 < raw.side
 
 theorem admissible_latticeAdmits {config : WorldConfig} (hadm : config.raw.admissible = true)
     (tile : Position)
-    (hx : config.raw.admitLo.val ≤ tile.x.val ∧ tile.x.val ≤ config.raw.admitHi.val)
-    (hy : config.raw.admitLo.val ≤ tile.y.val ∧ tile.y.val ≤ config.raw.admitHi.val) :
+    (hx : (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ tile.x.val ∧
+      tile.x.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1))
+    (hy : (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ tile.y.val ∧
+      tile.y.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1)) :
     CurrentTerrain.LatticeAdmits tile config.raw.baseScale := by
   obtain ⟨hpos, hmax, _, hrange⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
   have hbounds := admitBounds_nonempty config.raw hpos hmax
-  have hoct := (scaleAdmitsRange_iff config.raw.admitLo config.raw.admitHi
+  have hoct := (scaleAdmitsRange_iff config.raw.admitLo (config.raw.admitHi hpos hmax)
     config.raw.baseScale).mp hrange
+  rw [← config.raw.admitLo_val, ← config.raw.admitHi_val hpos hmax] at hx hy
   intro octave below
   obtain ⟨hlo_f, hhi_f⟩ := hoct octave below
   have hnot_past : ∀ c : Coordinate,
-      config.raw.admitLo.val ≤ c.val → c.val ≤ config.raw.admitHi.val →
+      config.raw.admitLo.val ≤ c.val → c.val ≤ (config.raw.admitHi hpos hmax).val →
         ¬ CurrentTerrain.PastLast
           ((coordinateFloat c).div (CurrentTerrain.octaveScale config.raw.baseScale octave)) := by
     intro c hc_lo hc_hi hpl
     rw [← octaveScale_eq, ← isPastLast_iff_pastLast] at hpl
     have hfalse := FloatLibBridge.coordinateFloat_div_pastLast_interval
-      config.raw.admitLo c config.raw.admitHi hbounds.1 hbounds.2 hc_lo hc_hi
+      config.raw.admitLo c (config.raw.admitHi hpos hmax) hbounds.1 hbounds.2 hc_lo hc_hi
       (octaveScale config.raw.baseScale octave) hlo_f hhi_f
     rw [hpl] at hfalse
     cases hfalse
@@ -112,16 +120,17 @@ theorem admissible_latticeAdmits {config : WorldConfig} (hadm : config.raw.admis
 
 theorem admissible_tileKind_isOk {config : WorldConfig} (hadm : config.raw.admissible = true)
     (world : World config) (tile : Position)
-    (hx : config.raw.admitLo.val ≤ tile.x.val ∧ tile.x.val ≤ config.raw.admitHi.val)
-    (hy : config.raw.admitLo.val ≤ tile.y.val ∧ tile.y.val ≤ config.raw.admitHi.val) :
+    (hx : (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ tile.x.val ∧
+      tile.x.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1))
+    (hy : (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ tile.y.val ∧
+      tile.y.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1)) :
     (world.tileKind tile).isOk = true :=
   (CurrentTerrain.tileKind_isOk world tile).mpr (admissible_latticeAdmits hadm tile hx hy)
 
-theorem admissible_inBoxMargin {config : WorldConfig} (hadm : config.raw.admissible = true)
+theorem admissible_inBoxMargin {config : WorldConfig} (_ : config.raw.admissible = true)
     (c : Coordinate) (hlo : -5 ≤ c.val) (hhi : c.val ≤ config.raw.side.val + 4) :
-    config.raw.admitLo.val ≤ c.val ∧ c.val ≤ config.raw.admitHi.val := by
-  obtain ⟨hpos, hmax, _, _⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
-  rw [config.raw.admitLo_val, config.raw.admitHi_val hpos hmax]
+    (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ c.val ∧
+      c.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1) := by
   by_cases hd : config.raw.deerCap = 0
   · rw [ite_eq_left hd, ite_eq_left hd]
     exact ⟨hlo, hhi⟩
@@ -224,28 +233,28 @@ theorem standard_admits (seed : UInt64) (side : Coordinate) (config : WorldConfi
     have hmax : side.val ≤ 3000000000 := hsb.2.2
     change max 8 (side.val.toNat / 16) ≤ 2 ^ 28
     omega
+  have hmax : config.raw.side.val ≤ RawWorldConfig.maxSide := by
+    have hmax' : side.val ≤ 3000000000 := hsb.2.2
+    rw [hsb.1]
+    change side.val ≤ 2 ^ 63 - 5
+    omega
   have hbase_eq : config.raw.baseScale = Binary32.ofUInt64 sNat.toUInt64 := by
     rw [hraw]
   have hrange :
-      scaleAdmitsRange config.raw.admitLo config.raw.admitHi config.raw.baseScale = true :=
+      scaleAdmitsRange config.raw.admitLo (config.raw.admitHi config.positiveSide hmax)
+        config.raw.baseScale = true :=
     (scaleAdmitsRange_iff _ _ _).mpr fun octave below => by
       rw [hbase_eq]
       exact ⟨FloatLibBridge.octaveScale_ofNat_not_pastLast sNat hs_lo hs_hi
           config.raw.admitLo octave below,
         FloatLibBridge.octaveScale_ofNat_not_pastLast sNat hs_lo hs_hi
-          config.raw.admitHi octave below⟩
-  have hadm : config.raw.admissible = true := by
-    rw [RawWorldConfig.admissible_iff]
-    refine ⟨config.positiveSide, ?_, config.positiveDay, hrange⟩
-    have hmax : side.val ≤ 3000000000 := hsb.2.2
-    rw [hsb.1]
-    change side.val ≤ 2 ^ 63 - 5
-    omega
+          (config.raw.admitHi config.positiveSide hmax) octave below⟩
+  have hadm : config.raw.admissible = true :=
+    (RawWorldConfig.admissible_iff config.raw).mpr
+      ⟨config.positiveSide, hmax, config.positiveDay, hrange⟩
   refine ⟨hadm, ?_⟩
   unfold WorldConfig.admit
-  have hbits := (RawWorldConfig.admissible_iff config.raw).mp hadm
-  simp only [hbits.1, hbits.2.1, hbits.2.2.1, hbits.2.2.2]
-  rfl
+  simp only [config.positiveSide, hmax, config.positiveDay, hrange, ↓reduceDIte]
 
 theorem admissible_boxPosition_tileKind_isOk {config : WorldConfig}
     (hadm : config.raw.admissible = true) (world : World config) (pos : BoxPosition config) :
@@ -329,13 +338,22 @@ private theorem forIn_range'_ok {ε σ : Type} (count : Nat)
     | yield after =>
       exact forIn_range'_ok count body step remaining (start + 1) after (by omega)
 
-private theorem forIn_range_ok {ε σ : Type} (count : Nat)
+theorem forIn_range_ok {ε σ : Type} (count : Nat)
     (body : Nat → σ → Except ε (ForInStep σ))
     (step : ∀ index state, index < count → ∃ next, body index state = .ok next) (init : σ) :
     ∃ result, forIn [:count] init body = .ok result := by
   rw [Std.Legacy.Range.forIn_eq_forIn_range']
   simp only [Std.Legacy.Range.size, Nat.sub_zero, Nat.add_sub_cancel, Nat.div_one]
   exact forIn_range'_ok count body step count 0 init (Nat.zero_add count)
+
+theorem forIn_range_isOk {ε σ : Type} (count : Nat) (init : σ)
+    (body : Nat → σ → Except ε (ForInStep σ))
+    (each : ∀ index state, index < count → (body index state).isOk = true) :
+    (forIn [:count] init body).isOk = true :=
+  isOk_of_exists _ (forIn_range_ok count body (fun index state below => by
+    cases h : body index state with
+    | error e => have hok := each index state below; rw [h] at hok; cases hok
+    | ok next => exact ⟨next, rfl⟩) init)
 
 private theorem forIn_range_bind_ok {ε σ α : Type} (count : Nat) (init : σ)
     (body : Nat → σ → Except ε (ForInStep σ)) (cont : σ → Except ε α)
@@ -495,18 +513,17 @@ theorem admissible_enterable_of_deerCap {config : WorldConfig}
     (hadm : config.raw.admissible = true) (hcap : config.raw.deerCap ≠ 0)
     (world : World config) (tile : Position) :
     (world.enterable tile).isOk = true := by
-  obtain ⟨hpos, hmax, _, _⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
   have hx := tile.x.property
   have hy := tile.y.property
   have hx_adm :
-      config.raw.admitLo.val ≤ tile.x.val ∧ tile.x.val ≤ config.raw.admitHi.val := by
-    rw [config.raw.admitLo_val, config.raw.admitHi_val hpos hmax,
-      ite_eq_right hcap, ite_eq_right hcap]
+      (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ tile.x.val ∧
+        tile.x.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1) := by
+    rw [ite_eq_right hcap, ite_eq_right hcap]
     exact ⟨hx.1, by omega⟩
   have hy_adm :
-      config.raw.admitLo.val ≤ tile.y.val ∧ tile.y.val ≤ config.raw.admitHi.val := by
-    rw [config.raw.admitLo_val, config.raw.admitHi_val hpos hmax,
-      ite_eq_right hcap, ite_eq_right hcap]
+      (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ tile.y.val ∧
+        tile.y.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1) := by
+    rw [ite_eq_right hcap, ite_eq_right hcap]
     exact ⟨hy.1, by omega⟩
   have htk := admissible_tileKind_isOk hadm world tile hx_adm hy_adm
   unfold World.enterable

@@ -141,9 +141,14 @@ kinds proved in `AcornVerif.Decisions` include:
   it), and `Host.initializeDeer` (`initialize_deer_accepts`, registered by
   `Host_initializeDeer_registered`).
 - Terrain generation and readers: `Host.valueNoise`, `Host.octaveLoop`,
-  `Host.fbm`, `Host.terrain`, `Host.World.tileKind`, `Host.World.enterable`, and
-  `Host.walkableTile` (two-way kinds, using `CurrentTerrain.PastLast` and
-  `CurrentTerrain.LatticeAdmits`).
+  `Host.fbm`, `Host.terrain`, `Host.World.tileKind`, and `Host.World.enterable`
+  (two-way kinds characterizing successful sampling, using
+  `CurrentTerrain.PastLast` and `CurrentTerrain.LatticeAdmits`, with
+  `terrain_read`, `tile_kind`, and `world_enterable` stating accepted values
+  beside them); and `Host.walkableTile` (`terrain_walkable`, a two-way kind
+  accepting a tile exactly when every world of the configuration can enter it,
+  so a successful terrain lookup returning water or mountain still gives
+  `false`).
 - Paid actions: `Host.performAction` and `Host.payAndAct` (two-way kinds, with
   `perform_action` and `pay_and_act` stating accepted energy and movement
   effects).
@@ -227,6 +232,9 @@ theorem:
 - `Host.World.GoalSatisfied` and `Host.World.Attained`
   (`Host.World.goalSatisfied_iff`)
 - `Host.FoodDue` (`Host.foodDue_iff`)
+- `Host.QuotientPastLast` (`Host.isPastLast_iff_units`),
+  `Host.ScaleAdmitsRange` (`Host.scaleAdmitsRange_spec_iff`), and
+  `Host.RawWorldConfig.Admissible` (`Host.RawWorldConfig.admissible_spec_iff`)
 
 Functions reached by specifications decide those propositions rather than
 calling the tests directly: `Binary32.key`, `Binary32.saturate`,
@@ -273,10 +281,11 @@ complete kinds of `Host.World.observe`, `Host.World.observeTile`,
 `Host.scaleAdmitsOctave`, `Host.scaleAdmitsRange`,
 `Host.RawWorldConfig.admissible`, `Host.octaveScale`,
 `Host.RawWorldConfig.admitLo`, or `Host.RawWorldConfig.admitHi`; their
-specifications state the exact numeric quotient condition directly via
-`Host.coordinateFloat` (`coordinate_float`), `Binary32.div`, `Binary32.mul`,
-`Binary32.Finite`, `Binary32.Negative`, and `Conversion.magnitudeUnits32` (or
-`CurrentTerrain.PastLast`).
+specifications state the exact numeric quotient condition through
+`Host.QuotientPastLast`, `Host.ScaleAdmitsRange`, and
+`Host.RawWorldConfig.Admissible`, built directly from `Host.coordinateFloat`
+(`coordinate_float`), `Binary32.div`, `Binary32.mul`, `Binary32.Finite`,
+`Binary32.Negative`, and `Conversion.magnitudeUnits32`.
 
 ## What carries no separate contract
 

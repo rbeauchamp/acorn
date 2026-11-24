@@ -697,454 +697,68 @@ theorem coordinate_checked : Regula.ExecutableContract Host.Coordinate.checked
 theorem Host_Coordinate_checked_registered :
     Regula.RegisteredDecision @Host.Coordinate.checked := ⟨⟩
 
-private theorem exp190_helper (e f n c : Nat) (hn : 40 + n = 190 + c) (he : 190 ≤ e) :
-    (2 ^ 63 - 1) * 2 ^ n ≤ (2 ^ 23 + f) * 2 ^ (e + c) := by
-  have heq : e + c = (e - 150) + n := by omega
-  rw [heq, Nat.pow_add]
-  have h23 : 2 ^ 23 ≤ 2 ^ 23 + f := Nat.le_add_right _ _
-  have hpow : 2 ^ 40 ≤ 2 ^ (e - 150) := Nat.pow_le_pow_right (by decide) (by omega)
-  have hmul : 2 ^ 23 * 2 ^ 40 ≤ (2 ^ 23 + f) * 2 ^ (e - 150) := Nat.mul_le_mul h23 hpow
-  have h63 : 2 ^ 63 - 1 ≤ (2 ^ 23 + f) * 2 ^ (e - 150) :=
-    Nat.le_trans (by decide : 2 ^ 63 - 1 ≤ 2 ^ 23 * 2 ^ 40) hmul
-  rw [← Nat.mul_assoc]
-  exact Nat.mul_le_mul_right (2 ^ n) h63
-
-private theorem exp0_helper (f n c : Nat) (hn : 23 + c ≤ n) (hf : f < 2 ^ 23) :
-    f * 2 ^ c < (2 ^ 63 - 1) * 2 ^ n := by
-  have hle : 2 ^ 23 * 2 ^ c ≤ 2 ^ n := by
-    rw [← Nat.pow_add]
-    exact Nat.pow_le_pow_right (by decide) hn
-  have hlt1 : f * 2 ^ c < 2 ^ 23 * 2 ^ c :=
-    Nat.mul_lt_mul_of_pos_right hf (Nat.two_pow_pos c)
-  have hlt2 : 2 ^ n < (2 ^ 63 - 1) * 2 ^ n := by
-    calc 2 ^ n = 1 * 2 ^ n := (Nat.one_mul _).symm
-      _ < (2 ^ 63 - 1) * 2 ^ n :=
-        Nat.mul_lt_mul_of_pos_right (by decide) (Nat.two_pow_pos n)
-  exact Nat.lt_trans hlt1 (Nat.lt_of_le_of_lt hle hlt2)
-
-private theorem exp189_helper (e f n c : Nat) (hn : 39 + n = 189 + c) (he : e ≤ 189)
-    (hf : 2 ^ 23 + f ≤ 2 ^ 24 - 1) :
-    (2 ^ 23 + f) * 2 ^ (e + c) < (2 ^ 63 - 1) * 2 ^ n := by
-  have hpow : 2 ^ (e + c) ≤ 2 ^ (39 + n) :=
-    Nat.pow_le_pow_right (by decide) (by omega)
-  rw [Nat.pow_add 2 39 n] at hpow
-  have hmul : (2 ^ 23 + f) * 2 ^ (e + c) ≤ ((2 ^ 24 - 1) * 2 ^ 39) * 2 ^ n := by
-    rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul hf hpow
-  have hlt : ((2 ^ 24 - 1) * 2 ^ 39) * 2 ^ n < (2 ^ 63 - 1) * 2 ^ n :=
-    Nat.mul_lt_mul_of_pos_right (by decide) (Nat.two_pow_pos n)
-  exact Nat.lt_of_le_of_lt hmul hlt
-
-private theorem isPastLast_iff_units_core (q : Binary32) :
-    Host.isPastLast q = true ↔
-      q = ⟨0x7f800000⟩ ∨
-        (q.Finite ∧ ¬ q.Negative ∧
-          (2 ^ 63 - 1) * 2 ^ 1074 ≤ Conversion.magnitudeUnits32 q) := by
-  have hb := q.bits.toNat_lt
-  have hmag : q.magnitude = q.bits.toNat % 2 ^ 31 := by
-    unfold Binary32.magnitude
-    rw [UInt32.toNat_and, show (0x7fffffff : UInt32).toNat = 2 ^ 31 - 1 by decide]
-    exact Nat.and_two_pow_sub_one_eq_mod _ 31
-  constructor
-  · intro hp
-    unfold Host.isPastLast at hp
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at hp
-    rcases hp with ⟨hlo, hhi⟩
-    by_cases heq : q.bits.toNat = 0x7f800000
-    · left
-      cases q; congr 1; apply UInt32.eq_of_toBitVec_eq
-      apply BitVec.eq_of_toNat_eq; exact heq
-    · right
-      have hb_hi : q.bits.toNat < 2 ^ 31 := by omega
-      have hnneg : ¬ q.Negative := by unfold Binary32.Negative; omega
-      have hmag_eq : q.magnitude = q.bits.toNat := by
-        rw [hmag]; exact Nat.mod_eq_of_lt hb_hi
-      have hfin : q.Finite := by unfold Binary32.Finite; omega
-      refine ⟨hfin, hnneg, ?_⟩
-      have hexp : 190 ≤ q.magnitude / 2 ^ 23 := by omega
-      unfold Conversion.magnitudeUnits32
-      dsimp only
-      rw [ite_eq_right (by omega : q.magnitude / 2 ^ 23 ≠ 0)]
-      exact exp190_helper _ _ 1074 924 (by decide) hexp
-  · intro h
-    rcases h with rfl | ⟨hfin, hnneg, hunits⟩
-    · decide
-    · have hb_lo : q.bits.toNat < 2 ^ 31 := by unfold Binary32.Negative at hnneg; omega
-      have hmag_eq : q.magnitude = q.bits.toNat := by
-        rw [hmag]; exact Nat.mod_eq_of_lt hb_lo
-      have hfin' : q.magnitude < 0x7f800000 := hfin
-      have hpow_hi : 0x5f000000 ≤ q.bits.toNat := by
-        apply Classical.byContradiction
-        intro hlt
-        have hlt' : q.bits.toNat < 0x5f000000 := by omega
-        have hexp_hi : q.magnitude / 2 ^ 23 ≤ 189 := by omega
-        unfold Conversion.magnitudeUnits32 at hunits
-        dsimp only at hunits
-        by_cases h0 : q.magnitude / 2 ^ 23 = 0
-        · rw [ite_eq_left h0] at hunits
-          have hf : q.magnitude % 2 ^ 23 < 2 ^ 23 := Nat.mod_lt _ (by decide)
-          exact absurd (Nat.lt_of_le_of_lt hunits (exp0_helper _ 1074 925 (by decide) hf))
-            (Nat.lt_irrefl _)
-        · rw [ite_eq_right h0] at hunits
-          have hfrac : 2 ^ 23 + q.magnitude % 2 ^ 23 ≤ 2 ^ 24 - 1 := by
-            have := Nat.mod_lt q.magnitude (by decide : 0 < 2 ^ 23)
-            have h24 : (2 ^ 24 : Nat) = 2 * 2 ^ 23 := by decide
-            omega
-          exact absurd
-            (Nat.lt_of_le_of_lt hunits
-              (exp189_helper _ _ 1074 924 (by decide) hexp_hi hfrac))
-            (Nat.lt_irrefl _)
-      unfold Host.isPastLast
-      simp only [Bool.and_eq_true, decide_eq_true_eq]
-      exact ⟨hpow_hi, by omega⟩
-
-private theorem not_isPastLast_iff (q : Binary32) :
-    (!Host.isPastLast q) = true ↔
-      q ≠ ⟨0x7f800000⟩ ∧
-        (q.Finite → q.Negative ∨
-          Conversion.magnitudeUnits32 q < (2 ^ 63 - 1) * 2 ^ 1074) := by
-  have h := isPastLast_iff_units_core q
-  constructor
-  · intro hb
-    have hf : Host.isPastLast q ≠ true := by
-      intro ht; rw [ht] at hb; cases hb
-    constructor
-    · intro heq; exact hf (h.mpr (Or.inl heq))
-    · intro hfin
-      by_cases hneg : q.Negative
-      · exact Or.inl hneg
-      · right
-        exact Nat.lt_of_not_le fun hle => hf (h.mpr (Or.inr ⟨hfin, hneg, hle⟩))
-  · intro ⟨hne, hrem⟩
-    cases hpl : Host.isPastLast q
-    · rfl
-    · exfalso
-      rcases h.mp hpl with rfl | ⟨hfin, hneg, hle⟩
-      · exact hne rfl
-      · rcases hrem hfin with hn | hlt
-        · exact hneg hn
-        · omega
-
-private theorem world_config_admit_iff (raw : Host.RawWorldConfig) :
-    (Host.WorldConfig.admit raw).isOk = true ↔
-      0 < raw.side.val ∧ raw.side.val ≤ 2 ^ 63 - 5 ∧ 0 < raw.dayLength.toNat ∧
-        ∀ lo hi : Host.Coordinate,
-          lo.val = (if raw.deerCap = 0 then -5 else -2 ^ 63) →
-          hi.val = (if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1) →
-          ∀ s0 s1 s2 s3 : Binary32,
-            s0 = raw.baseScale →
-            s1 = s0.mul ⟨0x40000000⟩ →
-            s2 = s1.mul ⟨0x40000000⟩ →
-            s3 = s2.mul ⟨0x40000000⟩ →
-            ∀ s ∈ [s0, s1, s2, s3],
-              let qLo := (Host.coordinateFloat lo).div s
-              let qHi := (Host.coordinateFloat hi).div s
-              (qLo ≠ ⟨0x7f800000⟩ ∧
-                (qLo.Finite → qLo.Negative ∨
-                  Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
-              (qHi ≠ ⟨0x7f800000⟩ ∧
-                (qHi.Finite → qHi.Negative ∨
-                  Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)) := by
-  rw [Host.WorldConfig.admit_isOk_iff, Host.RawWorldConfig.admissible_iff]
-  have hmax : Host.RawWorldConfig.maxSide = 2 ^ 63 - 5 := rfl
-  have hlo_val : raw.admitLo.val = if raw.deerCap = 0 then -5 else -2 ^ 63 := by
-    simpa [UInt64.eq_iff_toBitVec_eq] using Host.RawWorldConfig.admitLo_val raw
-  constructor
-  · intro ⟨hpos, hmx, hday, hsc⟩
-    have hmx' : raw.side.val ≤ 2 ^ 63 - 5 := by rw [← hmax]; exact hmx
-    refine ⟨hpos, hmx', hday, ?_⟩
-    intro lo hi hlo hhi s0 s1 s2 s3 hs0 hs1 hs2 hs3 s hmem
-    have hhi_val : raw.admitHi.val =
-        if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1 := by
-      simpa [UInt64.eq_iff_toBitVec_eq] using Host.RawWorldConfig.admitHi_val raw hpos hmx
-    have hlo_eq : lo = raw.admitLo := Subtype.ext (hlo.trans hlo_val.symm)
-    have hhi_eq : hi = raw.admitHi := Subtype.ext (hhi.trans hhi_val.symm)
-    rw [hlo_eq, hhi_eq]
-    rw [Host.scaleAdmitsRange_iff] at hsc
-    have ho_s : Host.scaleAdmitsOctave raw.admitLo raw.admitHi s = true := by
-      have ho_fn : ∀ octave, octave < 4 →
-          Host.scaleAdmitsOctave raw.admitLo raw.admitHi
-            (Host.octaveScale raw.baseScale octave) = true := by
-        intro octave hlt
-        obtain ⟨hl, hr⟩ := hsc octave hlt
-        unfold Host.scaleAdmitsOctave
-        simp only [hl, hr, Bool.not_false, Bool.and_self]
-      have h0 := ho_fn 0 (by decide)
-      have h1 := ho_fn 1 (by decide)
-      have h2 := ho_fn 2 (by decide)
-      have h3 := ho_fn 3 (by decide)
-      simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
-      rcases hmem with rfl | rfl | rfl | rfl
-      · simpa [hs0, Host.octaveScale] using h0
-      · simpa [hs1, hs0, Host.octaveScale] using h1
-      · simpa [hs2, hs1, hs0, Host.octaveScale] using h2
-      · simpa [hs3, hs2, hs1, hs0, Host.octaveScale] using h3
-    unfold Host.scaleAdmitsOctave at ho_s
-    simp only [Bool.and_eq_true] at ho_s
-    exact ⟨(not_isPastLast_iff _).mp ho_s.1, (not_isPastLast_iff _).mp ho_s.2⟩
-  · intro ⟨hpos, hmx, hday, hforall⟩
-    have hmx' : raw.side.val ≤ Host.RawWorldConfig.maxSide := by rw [hmax]; exact hmx
-    refine ⟨hpos, hmx', hday, ?_⟩
-    rw [Host.scaleAdmitsRange_iff]
-    have hhi_val : raw.admitHi.val =
-        if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1 := by
-      simpa [UInt64.eq_iff_toBitVec_eq] using Host.RawWorldConfig.admitHi_val raw hpos hmx'
-    have hspec := hforall raw.admitLo raw.admitHi hlo_val hhi_val
-      (Host.octaveScale raw.baseScale 0)
-      (Host.octaveScale raw.baseScale 1)
-      (Host.octaveScale raw.baseScale 2)
-      (Host.octaveScale raw.baseScale 3)
-      rfl rfl rfl rfl
-    intro octave hlt
-    have hmem : Host.octaveScale raw.baseScale octave ∈
-        [Host.octaveScale raw.baseScale 0, Host.octaveScale raw.baseScale 1,
-          Host.octaveScale raw.baseScale 2, Host.octaveScale raw.baseScale 3] := by
-      match octave, hlt with
-      | 0, _ => simp
-      | 1, _ => simp
-      | 2, _ => simp
-      | 3, _ => simp
-    obtain ⟨hl, hr⟩ := hspec _ hmem
-    have nl : Host.isPastLast ((Host.coordinateFloat raw.admitLo).div
-        (Host.octaveScale raw.baseScale octave)) = false := by
-      have := (not_isPastLast_iff _).mpr hl
-      cases h : Host.isPastLast ((Host.coordinateFloat raw.admitLo).div
-          (Host.octaveScale raw.baseScale octave))
-      · rfl
-      · simp [h] at this
-    have nr : Host.isPastLast ((Host.coordinateFloat raw.admitHi).div
-        (Host.octaveScale raw.baseScale octave)) = false := by
-      have := (not_isPastLast_iff _).mpr hr
-      cases h : Host.isPastLast ((Host.coordinateFloat raw.admitHi).div
-          (Host.octaveScale raw.baseScale octave))
-      · rfl
-      · simp [h] at this
-    exact ⟨nl, nr⟩
-
 theorem is_past_last : Regula.ExecutableContract Host.isPastLast
-    (Regula.Decides (· = true) (fun q : Binary32 =>
-      q = ⟨0x7f800000⟩ ∨
-        (q.Finite ∧ ¬ q.Negative ∧
-          (2 ^ 63 - 1) * 2 ^ 1074 ≤ Conversion.magnitudeUnits32 q))) :=
+    (Regula.Decides (· = true) Host.QuotientPastLast) :=
   ⟨decides
-    (fun q => isPastLast_iff_units_core q)
-    ⟨⟨0x5f000000⟩, (isPastLast_iff_units_core _).mp (by decide)⟩
-    ⟨⟨0⟩, fun h => absurd ((isPastLast_iff_units_core _).mpr h) (by decide)⟩⟩
+    Host.isPastLast_iff_units
+    ⟨⟨0x5f000000⟩, (Host.isPastLast_iff_units _).mp (by decide)⟩
+    ⟨⟨0⟩, fun h => absurd ((Host.isPastLast_iff_units _).mpr h) (by decide)⟩⟩
 
 theorem Host_isPastLast_registered : Regula.RegisteredDecision @Host.isPastLast := ⟨⟩
-
-private theorem scale_admits_octave_iff (input : Host.Coordinate × Host.Coordinate × Binary32) :
-    Host.scaleAdmitsOctave input.1 input.2.1 input.2.2 = true ↔
-      let qLo := (Host.coordinateFloat input.1).div input.2.2
-      let qHi := (Host.coordinateFloat input.2.1).div input.2.2
-      (qLo ≠ ⟨0x7f800000⟩ ∧
-        (qLo.Finite → qLo.Negative ∨
-          Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
-      (qHi ≠ ⟨0x7f800000⟩ ∧
-        (qHi.Finite → qHi.Negative ∨
-          Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)) := by
-  unfold Host.scaleAdmitsOctave
-  simp only [Bool.and_eq_true, not_isPastLast_iff]
 
 theorem scale_admits_octave : Regula.ExecutableContract Host.scaleAdmitsOctave (fun admits =>
     Regula.Decides (· = true)
       (fun input : Host.Coordinate × Host.Coordinate × Binary32 =>
-        let qLo := (Host.coordinateFloat input.1).div input.2.2
-        let qHi := (Host.coordinateFloat input.2.1).div input.2.2
-        (qLo ≠ ⟨0x7f800000⟩ ∧
-          (qLo.Finite → qLo.Negative ∨
-            Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
-        (qHi ≠ ⟨0x7f800000⟩ ∧
-          (qHi.Finite → qHi.Negative ∨
-            Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)))
+        ¬Host.QuotientPastLast ((Host.coordinateFloat input.1).div input.2.2) ∧
+          ¬Host.QuotientPastLast ((Host.coordinateFloat input.2.1).div input.2.2))
       (fun input => admits input.1 input.2.1 input.2.2)) :=
   ⟨decides
-    (fun input => scale_admits_octave_iff input)
+    (fun input => Host.scaleAdmitsOctave_spec_iff input.1 input.2.1 input.2.2)
     ⟨(⟨-5, by decide⟩, ⟨5, by decide⟩, ⟨0x3f800000⟩),
-      (scale_admits_octave_iff _).mp (by decide)⟩
+      (Host.scaleAdmitsOctave_spec_iff _ _ _).mp (by decide)⟩
     ⟨(⟨-5, by decide⟩, ⟨5, by decide⟩, ⟨0⟩),
-      fun h => absurd ((scale_admits_octave_iff _).mpr h) (by decide)⟩⟩
+      fun h => absurd ((Host.scaleAdmitsOctave_spec_iff _ _ _).mpr h) (by decide)⟩⟩
 
 theorem Host_scaleAdmitsOctave_registered :
     Regula.RegisteredDecision @Host.scaleAdmitsOctave := ⟨⟩
 
-private theorem scale_admits_range_iff (input : Host.Coordinate × Host.Coordinate × Binary32) :
-    Host.scaleAdmitsRange input.1 input.2.1 input.2.2 = true ↔
-      ∀ s0 s1 s2 s3 : Binary32,
-        s0 = input.2.2 →
-        s1 = s0.mul ⟨0x40000000⟩ →
-        s2 = s1.mul ⟨0x40000000⟩ →
-        s3 = s2.mul ⟨0x40000000⟩ →
-        ∀ s ∈ [s0, s1, s2, s3],
-          let qLo := (Host.coordinateFloat input.1).div s
-          let qHi := (Host.coordinateFloat input.2.1).div s
-          (qLo ≠ ⟨0x7f800000⟩ ∧
-            (qLo.Finite → qLo.Negative ∨
-              Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
-          (qHi ≠ ⟨0x7f800000⟩ ∧
-            (qHi.Finite → qHi.Negative ∨
-              Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)) := by
-  rw [Host.scaleAdmitsRange_iff]
-  constructor
-  · intro hsc s0 s1 s2 s3 hs0 hs1 hs2 hs3 s hmem
-    have ho_fn : ∀ octave, octave < 4 →
-        Host.scaleAdmitsOctave input.1 input.2.1
-          (Host.octaveScale input.2.2 octave) = true := by
-      intro octave hlt
-      obtain ⟨hl, hr⟩ := hsc octave hlt
-      unfold Host.scaleAdmitsOctave
-      simp only [hl, hr, Bool.not_false, Bool.and_self]
-    have h0 := ho_fn 0 (by decide)
-    have h1 := ho_fn 1 (by decide)
-    have h2 := ho_fn 2 (by decide)
-    have h3 := ho_fn 3 (by decide)
-    simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
-    have ho_s : Host.scaleAdmitsOctave input.1 input.2.1 s = true := by
-      rcases hmem with rfl | rfl | rfl | rfl
-      · simpa [hs0, Host.octaveScale] using h0
-      · simpa [hs1, hs0, Host.octaveScale] using h1
-      · simpa [hs2, hs1, hs0, Host.octaveScale] using h2
-      · simpa [hs3, hs2, hs1, hs0, Host.octaveScale] using h3
-    exact (scale_admits_octave_iff (input.1, input.2.1, s)).mp ho_s
-  · intro hforall octave hlt
-    have hspec := hforall
-      (Host.octaveScale input.2.2 0)
-      (Host.octaveScale input.2.2 1)
-      (Host.octaveScale input.2.2 2)
-      (Host.octaveScale input.2.2 3)
-      rfl rfl rfl rfl
-    have hmem : Host.octaveScale input.2.2 octave ∈
-        [Host.octaveScale input.2.2 0, Host.octaveScale input.2.2 1,
-          Host.octaveScale input.2.2 2, Host.octaveScale input.2.2 3] := by
-      match octave, hlt with
-      | 0, _ => simp
-      | 1, _ => simp
-      | 2, _ => simp
-      | 3, _ => simp
-    obtain ⟨hl, hr⟩ := hspec _ hmem
-    have nl : Host.isPastLast ((Host.coordinateFloat input.1).div
-        (Host.octaveScale input.2.2 octave)) = false := by
-      have := (not_isPastLast_iff _).mpr hl
-      cases h : Host.isPastLast ((Host.coordinateFloat input.1).div
-          (Host.octaveScale input.2.2 octave))
-      · rfl
-      · simp [h] at this
-    have nr : Host.isPastLast ((Host.coordinateFloat input.2.1).div
-        (Host.octaveScale input.2.2 octave)) = false := by
-      have := (not_isPastLast_iff _).mpr hr
-      cases h : Host.isPastLast ((Host.coordinateFloat input.2.1).div
-          (Host.octaveScale input.2.2 octave))
-      · rfl
-      · simp [h] at this
-    exact ⟨nl, nr⟩
-
 theorem scale_admits_range : Regula.ExecutableContract Host.scaleAdmitsRange (fun admits =>
     Regula.Decides (· = true)
       (fun input : Host.Coordinate × Host.Coordinate × Binary32 =>
-        ∀ s0 s1 s2 s3 : Binary32,
-          s0 = input.2.2 →
-          s1 = s0.mul ⟨0x40000000⟩ →
-          s2 = s1.mul ⟨0x40000000⟩ →
-          s3 = s2.mul ⟨0x40000000⟩ →
-          ∀ s ∈ [s0, s1, s2, s3],
-            let qLo := (Host.coordinateFloat input.1).div s
-            let qHi := (Host.coordinateFloat input.2.1).div s
-            (qLo ≠ ⟨0x7f800000⟩ ∧
-              (qLo.Finite → qLo.Negative ∨
-                Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
-            (qHi ≠ ⟨0x7f800000⟩ ∧
-              (qHi.Finite → qHi.Negative ∨
-                Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)))
+        Host.ScaleAdmitsRange input.1 input.2.1 input.2.2)
       (fun input => admits input.1 input.2.1 input.2.2)) :=
   ⟨decides
-    (fun input => scale_admits_range_iff input)
+    (fun input => Host.scaleAdmitsRange_spec_iff input.1 input.2.1 input.2.2)
     ⟨(⟨-5, by decide⟩, ⟨5, by decide⟩, ⟨0x3f800000⟩),
-      (scale_admits_range_iff _).mp (by decide)⟩
+      (Host.scaleAdmitsRange_spec_iff _ _ _).mp (by decide)⟩
     ⟨(⟨-5, by decide⟩, ⟨5, by decide⟩, ⟨0⟩),
-      fun h => absurd ((scale_admits_range_iff _).mpr h) (by decide)⟩⟩
+      fun h => absurd ((Host.scaleAdmitsRange_spec_iff _ _ _).mpr h) (by decide)⟩⟩
 
 theorem Host_scaleAdmitsRange_registered :
     Regula.RegisteredDecision @Host.scaleAdmitsRange := ⟨⟩
 
-private theorem raw_world_config_admissible_iff (raw : Host.RawWorldConfig) :
-    raw.admissible = true ↔
-      0 < raw.side.val ∧ raw.side.val ≤ 2 ^ 63 - 5 ∧ 0 < raw.dayLength.toNat ∧
-        ∀ lo hi : Host.Coordinate,
-          lo.val = (if raw.deerCap = 0 then -5 else -2 ^ 63) →
-          hi.val = (if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1) →
-          ∀ s0 s1 s2 s3 : Binary32,
-            s0 = raw.baseScale →
-            s1 = s0.mul ⟨0x40000000⟩ →
-            s2 = s1.mul ⟨0x40000000⟩ →
-            s3 = s2.mul ⟨0x40000000⟩ →
-            ∀ s ∈ [s0, s1, s2, s3],
-              let qLo := (Host.coordinateFloat lo).div s
-              let qHi := (Host.coordinateFloat hi).div s
-              (qLo ≠ ⟨0x7f800000⟩ ∧
-                (qLo.Finite → qLo.Negative ∨
-                  Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
-              (qHi ≠ ⟨0x7f800000⟩ ∧
-                (qHi.Finite → qHi.Negative ∨
-                  Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)) :=
-  (Host.WorldConfig.admit_isOk_iff raw).symm.trans (world_config_admit_iff raw)
-
 theorem raw_world_config_admissible :
     Regula.ExecutableContract Host.RawWorldConfig.admissible
-      (Regula.Decides (· = true) (fun raw : Host.RawWorldConfig =>
-        0 < raw.side.val ∧ raw.side.val ≤ 2 ^ 63 - 5 ∧ 0 < raw.dayLength.toNat ∧
-          ∀ lo hi : Host.Coordinate,
-            lo.val = (if raw.deerCap = 0 then -5 else -2 ^ 63) →
-            hi.val = (if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1) →
-            ∀ s0 s1 s2 s3 : Binary32,
-              s0 = raw.baseScale →
-              s1 = s0.mul ⟨0x40000000⟩ →
-              s2 = s1.mul ⟨0x40000000⟩ →
-              s3 = s2.mul ⟨0x40000000⟩ →
-              ∀ s ∈ [s0, s1, s2, s3],
-                let qLo := (Host.coordinateFloat lo).div s
-                let qHi := (Host.coordinateFloat hi).div s
-                (qLo ≠ ⟨0x7f800000⟩ ∧
-                  (qLo.Finite → qLo.Negative ∨
-                    Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
-                (qHi ≠ ⟨0x7f800000⟩ ∧
-                  (qHi.Finite → qHi.Negative ∨
-                    Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)))) :=
+      (Regula.Decides (· = true) Host.RawWorldConfig.Admissible) :=
   ⟨decides
-    (fun raw => raw_world_config_admissible_iff raw)
+    Host.RawWorldConfig.admissible_spec_iff
     ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
-      (raw_world_config_admissible_iff _).mp (by decide)⟩
+      (Host.RawWorldConfig.admissible_spec_iff _).mp (by decide)⟩
     ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
-      fun h => absurd ((raw_world_config_admissible_iff _).mpr h) (by decide)⟩⟩
+      fun h => absurd ((Host.RawWorldConfig.admissible_spec_iff _).mpr h) (by decide)⟩⟩
 
 theorem Host_RawWorldConfig_admissible_registered :
     Regula.RegisteredDecision @Host.RawWorldConfig.admissible := ⟨⟩
 
 theorem world_config_admit : Regula.ExecutableContract Host.WorldConfig.admit
-    (Regula.Decides (·.isOk = true) (fun raw : Host.RawWorldConfig =>
-      0 < raw.side.val ∧ raw.side.val ≤ 2 ^ 63 - 5 ∧ 0 < raw.dayLength.toNat ∧
-        ∀ lo hi : Host.Coordinate,
-          lo.val = (if raw.deerCap = 0 then -5 else -2 ^ 63) →
-          hi.val = (if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1) →
-          ∀ s0 s1 s2 s3 : Binary32,
-            s0 = raw.baseScale →
-            s1 = s0.mul ⟨0x40000000⟩ →
-            s2 = s1.mul ⟨0x40000000⟩ →
-            s3 = s2.mul ⟨0x40000000⟩ →
-            ∀ s ∈ [s0, s1, s2, s3],
-              let qLo := (Host.coordinateFloat lo).div s
-              let qHi := (Host.coordinateFloat hi).div s
-              (qLo ≠ ⟨0x7f800000⟩ ∧
-                (qLo.Finite → qLo.Negative ∨
-                  Conversion.magnitudeUnits32 qLo < (2 ^ 63 - 1) * 2 ^ 1074)) ∧
-              (qHi ≠ ⟨0x7f800000⟩ ∧
-                (qHi.Finite → qHi.Negative ∨
-                  Conversion.magnitudeUnits32 qHi < (2 ^ 63 - 1) * 2 ^ 1074)))) :=
+    (Regula.Decides (·.isOk = true) Host.RawWorldConfig.Admissible) :=
   ⟨decides
-    (fun raw => world_config_admit_iff raw)
+    (fun raw => (Host.WorldConfig.admit_isOk_iff raw).trans
+      (Host.RawWorldConfig.admissible_spec_iff raw))
     ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
-      (world_config_admit_iff _).mp (by decide)⟩
+      (Host.RawWorldConfig.admissible_spec_iff _).mp (by decide)⟩
     ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
-      fun h => absurd ((world_config_admit_iff _).mpr h) (by decide)⟩⟩
+      fun h => absurd ((Host.RawWorldConfig.admissible_spec_iff _).mpr h) (by decide)⟩⟩
 
 /-- Registers `Host.WorldConfig.admit` as a decision function. -/
 theorem Host_WorldConfig_admit_registered : Regula.RegisteredDecision @Host.WorldConfig.admit := ⟨⟩

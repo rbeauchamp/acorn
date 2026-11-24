@@ -1452,33 +1452,6 @@ private theorem isOk_of_bind {ε α β : Type} {first : Except ε α} {rest : α
   | error refusal => exact accepted
   | ok value => rfl
 
-/-- A loop over a list of consecutive indices in `Except` succeeds where every pass at an index
-below the bound succeeds. -/
-private theorem forIn_range'_isOk {ε σ : Type} (count : Nat)
-    (body : Nat → σ → Except ε (ForInStep σ))
-    (each : ∀ index state, index < count → (body index state).isOk = true) :
-    ∀ (remaining start : Nat) (init : σ), start + remaining = count →
-      (forIn (List.range' start remaining 1) init body).isOk = true
-  | 0, start, init, _ => by simp [Except.isOk, Except.toBool, pure, Except.pure]
-  | remaining + 1, start, init, total => by
-    rw [List.range'_succ, List.forIn_cons]
-    obtain ⟨next, taken⟩ := ok_of_isOk (each start init (by omega))
-    rw [taken]
-    cases next with
-    | done after => rfl
-    | yield after =>
-      exact forIn_range'_isOk count body each remaining (start + 1) after (by omega)
-
-/-- A loop over a range in `Except` succeeds where every pass succeeds. -/
-private theorem forIn_range_isOk {ε σ : Type} (count : Nat) (init : σ)
-    (body : Nat → σ → Except ε (ForInStep σ))
-    (each : ∀ index state, index < count → (body index state).isOk = true) :
-    (forIn [:count] init body).isOk = true := by
-  rw [Std.Legacy.Range.forIn_eq_forIn_range']
-  have size : ([:count] : Std.Legacy.Range).size = count := by simp [Std.Legacy.Range.size]
-  rw [size]
-  exact forIn_range'_isOk count body each count 0 init (by omega)
-
 /-- A loop over a range in `Except` that succeeds, and whose every successful pass yields, ran a
 successful pass at each index below the bound (`CurrentSpawn.forIn_range_indexed`). -/
 private theorem forIn_range_passes {ε σ : Type} (count : Nat) (init : σ)
@@ -1521,9 +1494,9 @@ private theorem countKindNear_isOk {config : Host.WorldConfig} (world : Host.Wor
   unfold Host.countKindNear
   dsimp only
   refine bind_isOk _ _ ?_ fun _ => rfl
-  refine forIn_range_isOk _ _ _ fun row state rowBound => ?_
+  refine CurrentWorld.forIn_range_isOk _ _ _ fun row state rowBound => ?_
   refine bind_isOk _ _ ?_ fun _ => rfl
-  refine forIn_range_isOk _ _ _ fun column count columnBound => ?_
+  refine CurrentWorld.forIn_range_isOk _ _ _ fun column count columnBound => ?_
   obtain ⟨tile, tileColumn, tileRow, admitted⟩ := admits row column rowBound columnBound
   have translated := CurrentCertificates.translate_of_eq _ _ _ _ tileColumn tileRow
   obtain ⟨found, located⟩ := ok_of_isOk ((CurrentTerrain.tileKind_isOk world tile).mpr admitted)
@@ -1721,78 +1694,6 @@ theorem spawn_consider_value : Regula.ExecutableContract @Host.considerSpawn (fu
 def oneTile : Host.WorldConfig :=
   ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
 
-/-- Each coordinate from `-4` to `4` has a quotient by each octave scale of the noise scale one
-that is not past the last coordinate. The kernel evaluates the thirty-six quotients. -/
-private theorem near_admits : ∀ offset : Fin 9, ∀ octave : Fin 4,
-    ¬CurrentTerrain.PastLast
-      ((Host.coordinateFloatWord (Int64.ofInt ((offset.val : Int) - 4))).div
-        (CurrentTerrain.octaveScale ⟨0x3f800000⟩ octave.val)) := by
-  decide +kernel
-
-/-- The value noise of `oneTile` admits every tile within four tiles of the center of its box,
-the coordinate `0, 0` (`near_admits`). -/
-private theorem center_square : SquareAdmits 0 0 4 oneTile.raw.baseScale := by
-  intro row column rowBound columnBound
-  refine ⟨⟨⟨(column : Int) - 4, by omega⟩, ⟨(row : Int) - 4, by omega⟩⟩, ?_, ?_, ?_⟩
-  · change (column : Int) - 4 = (0 : Int) + ((column : Int) - (4 : Nat))
-    omega
-  · change (row : Int) - 4 = (0 : Int) + ((row : Int) - (4 : Nat))
-    omega
-  · exact fun octave below =>
-      ⟨near_admits ⟨column, columnBound⟩ ⟨octave, below⟩,
-        near_admits ⟨row, rowBound⟩ ⟨octave, below⟩⟩
-
-/-- The spawn rule succeeds at the center of the box of `oneTile`, whatever the best candidate
-so far (`considerSpawn_iff`, `center_square`). -/
-private theorem consider_center (best : Option (Host.SpawnCandidate oneTile)) :
-    (Host.considerSpawn (Host.World.empty oneTile) 0 0 best).isOk = true :=
-  (considerSpawn_iff _ _ _ _).mpr (.inr center_square)
-
-/-- The spawn search succeeds in the empty world of `oneTile`: its spiral has the radius zero
-and the offset zero alone, whose candidate is the center of the box (`consider_center`). -/
-private theorem select_oneTile : (Host.selectSpawn (Host.World.empty oneTile)).isOk = true := by
-  unfold Host.selectSpawn
-  dsimp only
-  refine bind_isOk _ _ ?_ fun _ => ?_
-  · refine forIn_range_isOk _ _ _ fun radius state radiusBound => ?_
-    refine bind_isOk _ _ ?_ fun _ => ?_
-    · refine forIn_range_isOk _ _ _ fun direction state _ => ?_
-      refine bind_isOk _ _ ?_ fun _ => ?_
-      · refine forIn_range_isOk _ _ _ fun offset state offsetBound => ?_
-        have side : oneTile.side = 1 := rfl
-        have radiusZero : radius = 0 := by rw [side] at radiusBound; omega
-        subst radiusZero
-        have offsetZero : offset = 0 := by omega
-        subst offsetZero
-        have centerCoord :
-            (((oneTile.side / 2 : Nat) : Int) +
-              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
-                ((0 : Nat) : Int) +
-              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
-                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = 0 := by
-          simp [side]
-        have centerRow :
-            (((oneTile.side / 2 : Nat) : Int) +
-              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
-                ((0 : Nat) : Int) +
-              (Host.Direction.fromIndex ⟨direction % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
-                (((0 : Nat) : Int) - ((0 : Nat) : Int))) = 0 := by
-          simp [side]
-        rw [centerCoord, centerRow]
-        refine bind_isOk _ _ (consider_center _) fun _ => ?_
-        split <;> rfl
-      · split <;> rfl
-    · split <;> rfl
-  · split <;> rfl
-
-/-- The placement of the deer succeeds in the empty world of `oneTile`: at the deer cap zero its
-loop runs no pass. -/
-private theorem deer_oneTile : (Host.initializeDeer (Host.World.empty oneTile)).isOk = true := by
-  unfold Host.initializeDeer
-  dsimp only
-  refine bind_isOk _ _ (forIn_range_isOk _ _ _ fun index _ bound => ?_) fun _ => rfl
-  exact absurd bound (Nat.not_lt_zero index)
-
 theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =>
     (∀ {config} (world : Host.World config) (spawn : Host.BoxPosition config),
       select world = .ok spawn →
@@ -1804,145 +1705,28 @@ theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =
                 ∀ tile, ¬CurrentSpawn.Walkable world tile)))) ∧
       ∃ (config : Host.WorldConfig) (world : Host.World config), (select world).isOk = true) :=
   ⟨⟨fun world spawn selected => CurrentSpawn.selectSpawn_post world spawn selected,
-    ⟨oneTile, Host.World.empty oneTile, select_oneTile⟩⟩⟩
-
-private theorem world_initial_isOk_spec (config : Host.WorldConfig) :
-    (Host.World.initial config).isOk = true ↔
-      0 < config.raw.side.val ∧ config.raw.side.val ≤ 2 ^ 63 - 5 ∧
-        0 < config.raw.dayLength.toNat ∧
-        ∀ lo hi : Host.Coordinate,
-          lo.val = (if config.raw.deerCap = 0 then -5 else -2 ^ 63) →
-          hi.val = (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1) →
-          ∀ s0 s1 s2 s3 : Binary32,
-            s0 = config.raw.baseScale →
-            s1 = s0.mul ⟨0x40000000⟩ →
-            s2 = s1.mul ⟨0x40000000⟩ →
-            s3 = s2.mul ⟨0x40000000⟩ →
-            ∀ s ∈ [s0, s1, s2, s3],
-              ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-              ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s) := by
-  rw [CurrentWorld.initial_isOk_iff, Host.RawWorldConfig.admissible_iff]
-  have hmax : Host.RawWorldConfig.maxSide = 2 ^ 63 - 5 := rfl
-  have hlo_val : config.raw.admitLo.val = if config.raw.deerCap = 0 then -5 else -2 ^ 63 := by
-    simpa [UInt64.eq_iff_toBitVec_eq] using Host.RawWorldConfig.admitLo_val config.raw
-  constructor
-  · intro ⟨hpos, hmx, hday, hsc⟩
-    have hmx' : config.raw.side.val ≤ 2 ^ 63 - 5 := by rw [← hmax]; exact hmx
-    refine ⟨hpos, hmx', hday, ?_⟩
-    intro lo hi hlo hhi s0 s1 s2 s3 hs0 hs1 hs2 hs3 s hmem
-    have hhi_val : config.raw.admitHi.val =
-        if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1 := by
-      simpa [UInt64.eq_iff_toBitVec_eq] using
-        Host.RawWorldConfig.admitHi_val config.raw hpos hmx
-    have hlo_eq : lo = config.raw.admitLo := Subtype.ext (hlo.trans hlo_val.symm)
-    have hhi_eq : hi = config.raw.admitHi := Subtype.ext (hhi.trans hhi_val.symm)
-    rw [hlo_eq, hhi_eq]
-    rw [Host.scaleAdmitsRange_iff] at hsc
-    have hnot : ∀ octave, octave < 4 →
-        ¬ CurrentTerrain.PastLast
-            ((Host.coordinateFloat config.raw.admitLo).div
-              (Host.octaveScale config.raw.baseScale octave)) ∧
-        ¬ CurrentTerrain.PastLast
-            ((Host.coordinateFloat config.raw.admitHi).div
-              (Host.octaveScale config.raw.baseScale octave)) := by
-      intro octave hlt
-      obtain ⟨hl, hr⟩ := hsc octave hlt
-      exact ⟨fun hp => by (rw [(CurrentWorld.isPastLast_iff_pastLast _).mpr hp] at hl; cases hl),
-        fun hp => by (rw [(CurrentWorld.isPastLast_iff_pastLast _).mpr hp] at hr; cases hr)⟩
-    have h0 := hnot 0 (by decide)
-    have h1 := hnot 1 (by decide)
-    have h2 := hnot 2 (by decide)
-    have h3 := hnot 3 (by decide)
-    simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
-    rcases hmem with rfl | rfl | rfl | rfl
-    · simpa [hs0, Host.octaveScale] using h0
-    · simpa [hs1, hs0, Host.octaveScale] using h1
-    · simpa [hs2, hs1, hs0, Host.octaveScale] using h2
-    · simpa [hs3, hs2, hs1, hs0, Host.octaveScale] using h3
-  · intro ⟨hpos, hmx, hday, hforall⟩
-    have hmx' : config.raw.side.val ≤ Host.RawWorldConfig.maxSide := by rw [hmax]; exact hmx
-    refine ⟨hpos, hmx', hday, ?_⟩
-    rw [Host.scaleAdmitsRange_iff]
-    have hhi_val : config.raw.admitHi.val =
-        if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1 := by
-      simpa [UInt64.eq_iff_toBitVec_eq] using
-        Host.RawWorldConfig.admitHi_val config.raw hpos hmx'
-    have hspec := hforall config.raw.admitLo config.raw.admitHi hlo_val hhi_val
-      (Host.octaveScale config.raw.baseScale 0)
-      (Host.octaveScale config.raw.baseScale 1)
-      (Host.octaveScale config.raw.baseScale 2)
-      (Host.octaveScale config.raw.baseScale 3)
-      rfl rfl rfl rfl
-    intro octave hlt
-    have hmem : Host.octaveScale config.raw.baseScale octave ∈
-        [Host.octaveScale config.raw.baseScale 0, Host.octaveScale config.raw.baseScale 1,
-          Host.octaveScale config.raw.baseScale 2, Host.octaveScale config.raw.baseScale 3] := by
-      match octave, hlt with
-      | 0, _ => simp
-      | 1, _ => simp
-      | 2, _ => simp
-      | 3, _ => simp
-    obtain ⟨hl, hr⟩ := hspec _ hmem
-    constructor
-    · cases h : Host.isPastLast ((Host.coordinateFloat config.raw.admitLo).div
-          (Host.octaveScale config.raw.baseScale octave))
-      · rfl
-      · exact absurd ((CurrentWorld.isPastLast_iff_pastLast _).mp h) hl
-    · cases h : Host.isPastLast ((Host.coordinateFloat config.raw.admitHi).div
-          (Host.octaveScale config.raw.baseScale octave))
-      · rfl
-      · exact absurd ((CurrentWorld.isPastLast_iff_pastLast _).mp h) hr
+    ⟨oneTile, Host.World.empty oneTile,
+      CurrentWorld.admissible_selectSpawn_isOk (by decide) _⟩⟩⟩
 
 theorem world_initial_accepts : Regula.ExecutableContract Host.World.initial (fun initial =>
     Regula.Decides (· = true)
-      (fun config : Host.WorldConfig =>
-        0 < config.raw.side.val ∧ config.raw.side.val ≤ 2 ^ 63 - 5 ∧
-          0 < config.raw.dayLength.toNat ∧
-          ∀ lo hi : Host.Coordinate,
-            lo.val = (if config.raw.deerCap = 0 then -5 else -2 ^ 63) →
-            hi.val = (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1) →
-            ∀ s0 s1 s2 s3 : Binary32,
-              s0 = config.raw.baseScale →
-              s1 = s0.mul ⟨0x40000000⟩ →
-              s2 = s1.mul ⟨0x40000000⟩ →
-              s3 = s2.mul ⟨0x40000000⟩ →
-              ∀ s ∈ [s0, s1, s2, s3],
-                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+      (fun config : Host.WorldConfig => config.raw.Admissible)
       (Regula.Dependent.isOk initial)) :=
   ⟨decides
-    (fun config => world_initial_isOk_spec config)
-    ⟨oneTile,
-      (world_initial_isOk_spec oneTile).mp
-        ((CurrentWorld.initial_isOk_iff oneTile).mpr (by decide))⟩
-    ⟨wide,
-      fun h => absurd
-        ((CurrentWorld.initial_isOk_iff wide).mp ((world_initial_isOk_spec wide).mpr h))
-        (by decide)⟩⟩
+    (fun config => (CurrentWorld.initial_isOk_iff config).trans
+      (Host.RawWorldConfig.admissible_spec_iff config.raw))
+    ⟨oneTile, (Host.RawWorldConfig.admissible_spec_iff oneTile.raw).mp (by decide)⟩
+    ⟨wide, fun h => absurd
+      ((Host.RawWorldConfig.admissible_spec_iff wide.raw).mpr h) (by decide)⟩⟩
 
 theorem world_observe_accepts : Regula.ExecutableContract @Host.World.observe (fun observe =>
     Regula.DecidesCompletely (·.isOk = true)
-      (fun input : (config : Host.WorldConfig) × Host.World config =>
-        0 < input.1.raw.side.val ∧ input.1.raw.side.val ≤ 2 ^ 63 - 5 ∧
-          0 < input.1.raw.dayLength.toNat ∧
-          ∀ lo hi : Host.Coordinate,
-            lo.val = (if input.1.raw.deerCap = 0 then -5 else -2 ^ 63) →
-            hi.val = (if input.1.raw.deerCap = 0 then
-              input.1.raw.side.val + 4 else 2 ^ 63 - 1) →
-            ∀ s0 s1 s2 s3 : Binary32,
-              s0 = input.1.raw.baseScale →
-              s1 = s0.mul ⟨0x40000000⟩ →
-              s2 = s1.mul ⟨0x40000000⟩ →
-              s3 = s2.mul ⟨0x40000000⟩ →
-              ∀ s ∈ [s0, s1, s2, s3],
-                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+      (fun input : (config : Host.WorldConfig) × Host.World config => input.1.raw.Admissible)
       (fun input : (config : Host.WorldConfig) × Host.World config =>
         @observe input.1 input.2)) :=
   ⟨{ complete := fun input hspec =>
        CurrentWorld.admissible_observe_isOk
-         ((CurrentWorld.initial_isOk_iff input.1).mp
-           ((world_initial_isOk_spec input.1).mpr hspec))
+         ((Host.RawWorldConfig.admissible_spec_iff input.1.raw).mpr hspec)
          input.2
      refused := by
        let base := Host.World.empty wide
@@ -1957,27 +1741,12 @@ theorem world_observe_accepts : Regula.ExecutableContract @Host.World.observe (f
 
 theorem world_step_accepts : Regula.ExecutableContract @Host.World.step (fun step =>
     Regula.DecidesCompletely (· = true)
-      (fun input : WorldAction =>
-        0 < input.config.raw.side.val ∧ input.config.raw.side.val ≤ 2 ^ 63 - 5 ∧
-          0 < input.config.raw.dayLength.toNat ∧
-          ∀ lo hi : Host.Coordinate,
-            lo.val = (if input.config.raw.deerCap = 0 then -5 else -2 ^ 63) →
-            hi.val = (if input.config.raw.deerCap = 0 then
-              input.config.raw.side.val + 4 else 2 ^ 63 - 1) →
-            ∀ s0 s1 s2 s3 : Binary32,
-              s0 = input.config.raw.baseScale →
-              s1 = s0.mul ⟨0x40000000⟩ →
-              s2 = s1.mul ⟨0x40000000⟩ →
-              s3 = s2.mul ⟨0x40000000⟩ →
-              ∀ s ∈ [s0, s1, s2, s3],
-                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+      (fun input : WorldAction => input.config.raw.Admissible)
       (Regula.Dependent.isOk fun input : WorldAction =>
         @step input.config input.world input.action)) :=
   ⟨{ complete := fun input hspec =>
        CurrentWorld.admissible_step_isOk
-         ((CurrentWorld.initial_isOk_iff input.config).mp
-           ((world_initial_isOk_spec input.config).mpr hspec))
+         ((Host.RawWorldConfig.admissible_spec_iff input.config.raw).mpr hspec)
          input.world input.action
      refused :=
        ⟨⟨wideAt ⟨0x3f000000⟩, Host.World.empty _, .harvest⟩, fun accepted => by
@@ -1988,27 +1757,12 @@ theorem world_step_accepts : Regula.ExecutableContract @Host.World.step (fun ste
 
 theorem spawn_select_accepts : Regula.ExecutableContract @Host.selectSpawn (fun select =>
     Regula.DecidesCompletely (· = true)
-      (fun input : (config : Host.WorldConfig) × Host.World config =>
-        0 < input.1.raw.side.val ∧ input.1.raw.side.val ≤ 2 ^ 63 - 5 ∧
-          0 < input.1.raw.dayLength.toNat ∧
-          ∀ lo hi : Host.Coordinate,
-            lo.val = (if input.1.raw.deerCap = 0 then -5 else -2 ^ 63) →
-            hi.val = (if input.1.raw.deerCap = 0 then
-              input.1.raw.side.val + 4 else 2 ^ 63 - 1) →
-            ∀ s0 s1 s2 s3 : Binary32,
-              s0 = input.1.raw.baseScale →
-              s1 = s0.mul ⟨0x40000000⟩ →
-              s2 = s1.mul ⟨0x40000000⟩ →
-              s3 = s2.mul ⟨0x40000000⟩ →
-              ∀ s ∈ [s0, s1, s2, s3],
-                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+      (fun input : (config : Host.WorldConfig) × Host.World config => input.1.raw.Admissible)
       (Regula.Dependent.isOk fun input : (config : Host.WorldConfig) × Host.World config =>
         @select input.1 input.2)) :=
   ⟨{ complete := fun input hspec =>
        CurrentWorld.admissible_selectSpawn_isOk
-         ((CurrentWorld.initial_isOk_iff input.1).mp
-           ((world_initial_isOk_spec input.1).mpr hspec))
+         ((Host.RawWorldConfig.admissible_spec_iff input.1.raw).mpr hspec)
          input.2
      refused := by
        let zeroTile : Host.WorldConfig :=
@@ -2027,27 +1781,12 @@ structure WorldObserveTile where
 theorem observe_tile_accepts : Regula.ExecutableContract @Host.World.observeTile
     (fun observeTile =>
       Regula.DecidesCompletely (·.isOk = true)
-        (fun input : WorldObserveTile =>
-          0 < input.config.raw.side.val ∧ input.config.raw.side.val ≤ 2 ^ 63 - 5 ∧
-            0 < input.config.raw.dayLength.toNat ∧
-            ∀ lo hi : Host.Coordinate,
-              lo.val = (if input.config.raw.deerCap = 0 then -5 else -2 ^ 63) →
-              hi.val = (if input.config.raw.deerCap = 0 then
-                input.config.raw.side.val + 4 else 2 ^ 63 - 1) →
-              ∀ s0 s1 s2 s3 : Binary32,
-                s0 = input.config.raw.baseScale →
-                s1 = s0.mul ⟨0x40000000⟩ →
-                s2 = s1.mul ⟨0x40000000⟩ →
-                s3 = s2.mul ⟨0x40000000⟩ →
-                ∀ s ∈ [s0, s1, s2, s3],
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (fun input : WorldObserveTile => input.config.raw.Admissible)
         (fun input : WorldObserveTile =>
           @observeTile input.config input.world input.occupied input.row input.column)) :=
   ⟨{ complete := fun input hspec =>
        CurrentWorld.admissible_observeTile_isOk
-         ((CurrentWorld.initial_isOk_iff input.config).mp
-           ((world_initial_isOk_spec input.config).mpr hspec))
+         ((Host.RawWorldConfig.admissible_spec_iff input.config.raw).mpr hspec)
          input.world input.occupied input.row input.column
      refused := by
        let base := Host.World.empty wide
@@ -2063,27 +1802,12 @@ theorem observe_tile_accepts : Regula.ExecutableContract @Host.World.observeTile
 theorem wander_population_accepts : Regula.ExecutableContract @Host.wanderPopulation
     (fun wander =>
       Regula.DecidesCompletely (· = true)
-        (fun input : (config : Host.WorldConfig) × Host.World config =>
-          0 < input.1.raw.side.val ∧ input.1.raw.side.val ≤ 2 ^ 63 - 5 ∧
-            0 < input.1.raw.dayLength.toNat ∧
-            ∀ lo hi : Host.Coordinate,
-              lo.val = (if input.1.raw.deerCap = 0 then -5 else -2 ^ 63) →
-              hi.val = (if input.1.raw.deerCap = 0 then
-                input.1.raw.side.val + 4 else 2 ^ 63 - 1) →
-              ∀ s0 s1 s2 s3 : Binary32,
-                s0 = input.1.raw.baseScale →
-                s1 = s0.mul ⟨0x40000000⟩ →
-                s2 = s1.mul ⟨0x40000000⟩ →
-                s3 = s2.mul ⟨0x40000000⟩ →
-                ∀ s ∈ [s0, s1, s2, s3],
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (fun input : (config : Host.WorldConfig) × Host.World config => input.1.raw.Admissible)
         (Regula.Dependent.isOk fun input : (config : Host.WorldConfig) × Host.World config =>
           @wander input.1 input.2)) :=
   ⟨{ complete := fun input hspec =>
        CurrentWorld.admissible_wanderPopulation_isOk
-         ((CurrentWorld.initial_isOk_iff input.1).mp
-           ((world_initial_isOk_spec input.1).mpr hspec))
+         ((Host.RawWorldConfig.admissible_spec_iff input.1.raw).mpr hspec)
          input.2
      refused := by
        let deerCfg : Host.WorldConfig :=
@@ -2105,28 +1829,13 @@ structure FoodTrialsInput where
 theorem food_trials_accepts : Regula.ExecutableContract @Host.foodTrials
     (fun trials =>
       Regula.DecidesCompletely (· = true)
-        (fun input : FoodTrialsInput =>
-          0 < input.config.raw.side.val ∧ input.config.raw.side.val ≤ 2 ^ 63 - 5 ∧
-            0 < input.config.raw.dayLength.toNat ∧
-            ∀ lo hi : Host.Coordinate,
-              lo.val = (if input.config.raw.deerCap = 0 then -5 else -2 ^ 63) →
-              hi.val = (if input.config.raw.deerCap = 0 then
-                input.config.raw.side.val + 4 else 2 ^ 63 - 1) →
-              ∀ s0 s1 s2 s3 : Binary32,
-                s0 = input.config.raw.baseScale →
-                s1 = s0.mul ⟨0x40000000⟩ →
-                s2 = s1.mul ⟨0x40000000⟩ →
-                s3 = s2.mul ⟨0x40000000⟩ →
-                ∀ s ∈ [s0, s1, s2, s3],
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (fun input : FoodTrialsInput => input.config.raw.Admissible)
         (Regula.Dependent.isOk fun input : FoodTrialsInput =>
           @trials input.config input.world input.count input.rng)) :=
   ⟨{ complete := fun input hspec =>
        (Regula.Dependent.isOk_eq_true_iff _ input).mpr
          (CurrentWorld.admissible_foodTrials_isOk
-           ((CurrentWorld.initial_isOk_iff input.config).mp
-             ((world_initial_isOk_spec input.config).mpr hspec))
+           ((Host.RawWorldConfig.admissible_spec_iff input.config.raw).mpr hspec)
            input.world input.count input.rng)
      refused := by
        let twoZero : Host.WorldConfig :=
@@ -2142,27 +1851,12 @@ structure SpawnFoodInput where
 theorem spawn_food_accepts : Regula.ExecutableContract @Host.spawnFood
     (fun spawn =>
       Regula.DecidesCompletely (· = true)
-        (fun input : SpawnFoodInput =>
-          0 < input.config.raw.side.val ∧ input.config.raw.side.val ≤ 2 ^ 63 - 5 ∧
-            0 < input.config.raw.dayLength.toNat ∧
-            ∀ lo hi : Host.Coordinate,
-              lo.val = (if input.config.raw.deerCap = 0 then -5 else -2 ^ 63) →
-              hi.val = (if input.config.raw.deerCap = 0 then
-                input.config.raw.side.val + 4 else 2 ^ 63 - 1) →
-              ∀ s0 s1 s2 s3 : Binary32,
-                s0 = input.config.raw.baseScale →
-                s1 = s0.mul ⟨0x40000000⟩ →
-                s2 = s1.mul ⟨0x40000000⟩ →
-                s3 = s2.mul ⟨0x40000000⟩ →
-                ∀ s ∈ [s0, s1, s2, s3],
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (fun input : SpawnFoodInput => input.config.raw.Admissible)
         (Regula.Dependent.isOk fun input : SpawnFoodInput =>
           @spawn input.config input.world input.rng)) :=
   ⟨{ complete := fun input hspec =>
        CurrentWorld.admissible_spawnFood_isOk
-         ((CurrentWorld.initial_isOk_iff input.config).mp
-           ((world_initial_isOk_spec input.config).mpr hspec))
+         ((Host.RawWorldConfig.admissible_spec_iff input.config.raw).mpr hspec)
          input.world input.rng
      refused := by
        let twoZero : Host.WorldConfig :=
@@ -2173,27 +1867,12 @@ theorem spawn_food_accepts : Regula.ExecutableContract @Host.spawnFood
 theorem initialize_deer_accepts : Regula.ExecutableContract @Host.initializeDeer
     (fun init =>
       Regula.DecidesCompletely (· = true)
-        (fun input : (config : Host.WorldConfig) × Host.World config =>
-          0 < input.1.raw.side.val ∧ input.1.raw.side.val ≤ 2 ^ 63 - 5 ∧
-            0 < input.1.raw.dayLength.toNat ∧
-            ∀ lo hi : Host.Coordinate,
-              lo.val = (if input.1.raw.deerCap = 0 then -5 else -2 ^ 63) →
-              hi.val = (if input.1.raw.deerCap = 0 then
-                input.1.raw.side.val + 4 else 2 ^ 63 - 1) →
-              ∀ s0 s1 s2 s3 : Binary32,
-                s0 = input.1.raw.baseScale →
-                s1 = s0.mul ⟨0x40000000⟩ →
-                s2 = s1.mul ⟨0x40000000⟩ →
-                s3 = s2.mul ⟨0x40000000⟩ →
-                ∀ s ∈ [s0, s1, s2, s3],
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat lo).div s) ∧
-                  ¬ CurrentTerrain.PastLast ((Host.coordinateFloat hi).div s))
+        (fun input : (config : Host.WorldConfig) × Host.World config => input.1.raw.Admissible)
         (Regula.Dependent.isOk fun input : (config : Host.WorldConfig) × Host.World config =>
           @init input.1 input.2)) :=
   ⟨{ complete := fun input hspec =>
        CurrentWorld.admissible_initializeDeer_isOk
-         ((CurrentWorld.initial_isOk_iff input.1).mp
-           ((world_initial_isOk_spec input.1).mpr hspec))
+         ((Host.RawWorldConfig.admissible_spec_iff input.1.raw).mpr hspec)
          input.2
      refused := by
        let twoZero : Host.WorldConfig :=
