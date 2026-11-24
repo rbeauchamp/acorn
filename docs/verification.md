@@ -2099,7 +2099,10 @@ spelled in decimal digits alone, which `Acorn.Digits.read` reads. `Acorn.Digits`
 (`lean/Acorn/Digits.lean`) separates `Acorn.Digits.natural` (unsigned CLI flags and native
 driver arguments), `Acorn.Digits.read` (viewer request lengths, ps RSS,
 `Acorn.Json.Value.natural`, and corpus-audit line numbers), and `Acorn.Digits.integer`
-(signed 64-bit `world-native` terrain coordinates mapping `-0` to `0`) rather than calling Lean
+(arbitrary signed integer digits mapping `-0` to `0` with no bit-width bound—for example,
+`9223372036854775808` succeeds—while `WorldDriver.coordinate` in `lean/Acorn/WorldDriver.lean`
+enforces signed 64-bit `world-native` terrain coordinate admission through
+`Acorn.Host.Coordinate.checked`) rather than calling Lean
 core's String.toNat?, because at Lean v4.36.0 (`Std/Data/String/ToNat.lean`, String.isNat\_iff and
 String.toNat?\_eq\_some\_ofDigitChars) String.toNat? accepts and strips `_` digit separators
 (`"4_2".toNat? = some 42`), whereas review (not an automated gate check) keeps String.toNat? out
@@ -2176,13 +2179,17 @@ byte, in order, a function of the bytes alone: Landon Curt Noll, Kiem-Phong Vo, 
 3rd and Tony Hansen, The FNV Non-Cryptographic Hash Algorithm, RFC 9923 (2026), sections 2,
 5, and 8.2.2 (`https://www.rfc-editor.org/rfc/rfc9923.html`); the step and the offset basis are
 those of `lean/Acorn/Rng.lean` (with `Acorn.Rng.fnv_byte` separating two byte strings differing in a
-single byte). `Acorn.Rng` also implements seeded word streams after Sebastiano Vigna's SplitMix64
+single byte). It tells two files apart against accident and not against forgery.
+`Acorn.Rng` also implements seeded word streams after Sebastiano Vigna's SplitMix64
 reference (`https://prng.di.unimi.it/splitmix64.c`, 2015, next) and David Blackman and Sebastiano
 Vigna's xoshiro256\*\* reference (`https://prng.di.unimi.it/xoshiro256starstar.c`, 2018, rotl and
 next), where `Acorn.Rng.SplitMix64.next` intentionally adds `Acorn.Rng.increment` both when
 advancing state and inside `Acorn.Rng.mix64` (`Acorn.Rng.splitmix_two_offsets`) and raw all-zero
-`Acorn.Rng.Xoshiro256` state remains admitted (`Acorn.Rng.Xoshiro256.zero`). It tells two files apart
-against accident and not against forgery. What a viewer reads of the file of the program its
+`Acorn.Rng.Xoshiro256` state remains admitted (`Acorn.Rng.Xoshiro256.zero`); these total
+deterministic functions establish no IID or uniform-seed hypothesis, and RNG distribution results
+depend on separate source-word hypotheses in `AcornVerif.CurrentRng` (for example,
+`Acorn.Rng.Xoshiro256.nextBelow` uses multiply-high scaling, leaving 7 of the 9 grid actions
+with one extra preimage because `2^64 % 9 = 7`). What a viewer reads of the file of the program its
 supervisor would start (`Acorn.Host.Viewer.ProgramReading`) is the length of the file in
 bytes and the digest of every byte of the file, in order. It is a function of the bytes read
 alone, so it does not depend on what the state file can hold;
