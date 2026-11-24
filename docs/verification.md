@@ -1964,10 +1964,14 @@ write into the replacement root. If creating the fresh replacement directory the
 directory fails (`Acorn.Host.Viewer.Pending.reopen`), the old run is already in the archive
 and the supervisor permanently retires the previous owner (`owner := .retired`, leaving it
 untouched thereafter by `Acorn.Host.Viewer.Supervision.retired_untouched`) rather than
-leaving the old run in place; the operator can recover the archived run from the exact destination
-`<parent>/<run-name>.archive/<stamp>-<attempt>` recorded in the supervisor's failure
-diagnostic (`old run archived at <archive>; replacement directory unavailable: ...` or
-`... replacement owner unavailable: ...`). Mapping `Acorn.Host.Viewer.Follow.ackStop` to HTTP `202` and
+leaving the old run in place; the operator can recover the archived run under the sibling archive
+layout `<parent>/<run-name>.archive/<stamp>-<attempt>`. Both replacement-failure branches emit a
+supervisor failure diagnostic naming the archive path
+(`old run archived at <archive>; replacement directory unavailable: ...` or
+`... replacement owner unavailable: ...`), but pass it through
+`Acorn.Host.Viewer.Core.report` and `Acorn.Host.Viewer.controlDiagnostic`, which retain
+only the first 1,024 characters and append `" [truncated]"` when longer, so a long archive path can
+be truncated and lose its identifying `<stamp>-<attempt>` suffix in the diagnostic. Mapping `Acorn.Host.Viewer.Follow.ackStop` to HTTP `202` and
 definite pre-execution refusals (`Acorn.Host.Viewer.ControlResult.refused`, `busy`,
 `unavailable`) versus unconfirmed Stop outcomes
 (`Acorn.Host.Viewer.ControlResult.unconfirmed`, serialized with `"unconfirmed":true`,

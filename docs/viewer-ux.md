@@ -1131,9 +1131,17 @@ What each panel must show. How it draws it is the code's.
   flight. The archive root is a sibling, not a child and not a distant path: a
   child would be archived into itself, and a distant one could be on another
   filesystem where `rename` is not atomic. A stray `./acorn-weights.ckpt` in
-  the working directory is moved in on startup, and only when the destination
-  is empty — a checkpoint outside the run directory would survive a Clear, and
-  the current run's weights are never overwritten to tidy up an older file.
+  the working directory is moved in on startup by
+  `RunDirectory.adoptStrayCheckpoint` only when the destination-absence check
+  finds no `weights.ckpt` entry (refusing a non-regular stray entry if present)
+  — a checkpoint outside the run directory would survive a Clear, and the
+  current run's weights are never overwritten to tidy up an older file,
+  provided startup does not race another checkpoint writer. Because
+  `RunDirectory.adoptStrayCheckpoint` serializes with in-process publication
+  and archival under the run directory's mutex, checks destination absence, and
+  then calls ordinary `rename`, that mutex does not exclude an external writer
+  creating `weights.ckpt` between the check and `rename`; the stable-path
+  assumption excludes such a concurrent writer.
 - **UX-44 · The explored map belongs to the run.** The viewer server keeps
   retained sensed tiles in the current run (`Acorn.Host.Viewer.WorldMemory`),
   keyed by the *world* — run ID, side and seed — so that a frame from any other
