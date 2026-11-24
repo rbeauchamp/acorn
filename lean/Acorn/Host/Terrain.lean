@@ -81,50 +81,11 @@ def TileKind.harvestYield : TileKind → Option Item
   | .tree => some .wood | .stone => some .stone | .ore => some .gold
   | .water | .sand | .grass | .forest | .mountain => none
 
-/-- A failed signed lattice increment or entity translation is explicit. -/
 inductive WorldError where
   /-- A signed coordinate operation has no representable result. -/
   | coordinateOverflow
+  | inadmissibleConfig
   deriving DecidableEq
-
-/-- Coordinate admission makes native signed ingress exact. -/
-theorem coordinateIngress_exact (coordinate : Coordinate) :
-    (Int64.ofInt coordinate.val).toInt = coordinate.val := by
-  rw [Int64.toInt_ofInt, Int.bmod_eq_of_le coordinate.property.1 coordinate.property.2]
-
-/-- Direct signed-to-binary32 conversion rounds once, including the minimum i64. -/
-def coordinateFloatWord (value : Int64) : Binary32 :=
-  let negative := value.toUInt64 ≥ (0x8000000000000000 : UInt64)
-  let magnitude := Binary32.ofUInt64 (if negative then -value.toUInt64 else value.toUInt64)
-  if negative then ⟨magnitude.bits ^^^ 0x80000000⟩ else magnitude
-
-/-- Word magnitude and sign implement the complete signed conversion recipe. -/
-theorem coordinateFloatWord_eq (value : Int64) : coordinateFloatWord value =
-    let magnitude := Binary32.ofUInt64 value.toInt.natAbs.toUInt64;
-    if value.toInt < 0 then ⟨magnitude.bits ^^^ 0x80000000⟩ else magnitude := by
-  have magnitude : (if value < 0 then -value.toUInt64 else value.toUInt64) =
-      value.toInt.natAbs.toUInt64 := by
-    apply UInt64.toNat.inj
-    rw [Conversion.i64Magnitude_exact]
-    have bound : value.toInt.natAbs < 2^64 := by
-      rw [← Conversion.i64Magnitude_exact]
-      exact UInt64.toNat_lt _
-    exact (UInt64.toNat_ofNat_of_lt' bound).symm
-  unfold coordinateFloatWord
-  simp only [Conversion.i64Sign_eq]
-  rw [magnitude]
-  simp only [Int64.lt_iff_toInt_lt]
-  rfl
-
-/-- Existing coordinate storage enters a fixed-width conversion exactly once. -/
-def coordinateFloat (coordinate : Coordinate) : Binary32 :=
-  coordinateFloatWord (Int64.ofInt coordinate.val)
-
-/-- Every admitted coordinate retains its direct binary32 conversion meaning. -/
-theorem coordinateFloat_eq (coordinate : Coordinate) : coordinateFloat coordinate =
-    let magnitude := Binary32.ofUInt64 coordinate.val.natAbs.toUInt64;
-    if coordinate.val < 0 then ⟨magnitude.bits ^^^ 0x80000000⟩ else magnitude := by
-  rw [coordinateFloat, coordinateFloatWord_eq, coordinateIngress_exact]
 
 /-- Assemble raw fields using exact bounded integer arithmetic.
 The floor caller permits a fraction equal to 2^23, carrying into the exponent. -/

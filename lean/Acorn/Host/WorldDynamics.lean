@@ -15,7 +15,6 @@ wander in signed-coordinate space rather than being clamped to the body box.
 -/
 namespace Acorn.Host
 
-/-- Ordered wandering of one deer consumes a direction draw only on movement. -/
 def wanderDeer {config : WorldConfig} (world : World config) (position : Position)
     (rng : Rng.Xoshiro256) : Except WorldError (Position × Rng.Xoshiro256) := do
   let (draw, rng) := rng.next
@@ -23,9 +22,11 @@ def wanderDeer {config : WorldConfig} (world : World config) (position : Positio
     let (directionWord, rng) := rng.nextBelow ⟨4, by decide⟩
     let direction := Direction.fromIndex ⟨directionWord.val.toNat, directionWord.property⟩
     let (dx, dy) := direction.delta
-    let some candidate := position.translate dx dy | .error .coordinateOverflow
-    let kind ← world.tileKind candidate
-    return (if kind.Walkable then candidate else position, rng)
+    match position.translate dx dy with
+    | none => return (position, rng)
+    | some candidate =>
+      let kind ← world.tileKind candidate
+      return (if kind.Walkable then candidate else position, rng)
   else return (position, rng)
 
 /-- Vector traversal retains deer order and exactly preserves population length. -/

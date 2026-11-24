@@ -21,11 +21,13 @@ open Host
 /-- Explicit diagnostic names for the closed current world-refusal domain. -/
 def worldError : WorldError → String
   | .coordinateOverflow => "signed coordinate arithmetic overflow"
+  | .inadmissibleConfig => "world configuration fails admission bounds"
 
 /-- Current standard/custom configuration refusal names. -/
 def configError : WorldConfigError → String
   | .sideTooSmall => "SideTooSmall" | .sideTooLarge => "SideTooLarge"
   | .nonpositiveSide => "NonpositiveSide" | .zeroDayLength => "ZeroDayLength"
+  | .sideExceedsPatch => "SideExceedsPatch" | .scaleOverflow => "ScaleOverflow"
 
 /-- CLI diagnostics retain their closed category and offending text. -/
 def cliError : Cli.Error → String

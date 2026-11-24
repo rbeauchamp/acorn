@@ -29,400 +29,6 @@ import Acorn.Host.Viewer.Options
 import Acorn.Host.Viewer.WireNumber
 import Acorn.Host.Viewer.WorldMemory
 
-/-!
-# Registered decisions of the executing library
-
-A decision is a function whose result accepts or refuses its input: an admission, a parser or
-a validity test. Each contract below is a `Regula.ExecutableContract` about the executing
-definition itself, with the kind its proof establishes: `Regula.Decides` states that the
-function accepts exactly the inputs that satisfy the written specification, with one accepted
-and one refused input as witnesses. A declaration of type `Regula.RegisteredDecision` beside
-the contract registers the function, and the ownership audit requires a contract with a kind
-for each registered function whose result is not `Decidable _`, so removing the contract while
-the function stays registered fails the audit. No rule of Regula reads a contract or a
-registration.
-
-## Selection rule
-
-A decision is registered when a theorem beside its definition, or in the proof library, proves
-a property of its accepted or refused results, or when the inputs it accepts follow by
-unfolding its definition in this module. The property is the set of accepted or refused inputs
-where a theorem states one, and otherwise what an accepted or a refused result is; each
-contract's docstring says which. A contract states only what its theorem proves: a decision
-with one proved direction carries that direction alone. Five groups are registered.
-
-* Decisions of independent arguments carry a kind and the registration. A function of several
-  arguments is decided on their product through `Function.uncurry`.
-* A decision procedure whose result type is `Decidable _` carries both directions in its type,
-  so it is registered with no contract.
-* A decision with an argument or result type that depends on an earlier argument, such as
-  `Bounded32.admit`, and a decision that takes its element type as an argument, such as
-  `Host.Viewer.Buffer.offer`, carry a kind and the registration in the forms that `Regula.Contract`
-  gives for them. The kind is stated about the function applied to the two fields of a pair, or to
-  every field of a structure of its arguments, in order. The structure is declared beside the
-  contract, and a field can be a type or have a type that depends on an earlier field. Where the
-  result type depends on the input, the kind is about `Regula.Dependent.isSome` or
-  `Regula.Dependent.isOk` of that function: whether the result holds a value, with the value
-  forgotten.
-* A function with a kind can carry a second statement beside it for what its kind does not
-  state: the value of an accepted result (`cli_value_found`, and each statement with a name that
-  ends in `_value`; `payload_admit_value` and `candidate_load_value` in `AcornVerif.Decisions`
-  stand in the same way beside requirements that also keep no kind), the exact verdict on a part
-  of the inputs (`capture_follows`, and `task_observed` in `AcornVerif.Decisions`), a set of
-  accepted inputs beside a sound kind, which carries one accepted input (`schema_covers_empty`,
-  `predicate_eval_programs`), or which of several accepted results an input has
-  (`microduck_outcome_judged`, for a verdict of five outcomes whose kind states only which
-  inputs the daemon accepted, and `microduck_line_read`, for the lines of a daemon that a host
-  reads). That statement is a requirement with no kind, and the ownership audit requires it by
-  name.
-* A function keeps a requirement with no kind where no kind is true of it, or where the rule of the
-  section "Tests that a specification does not share" excludes the kind. The function carries no
-  registration, and the ownership audit requires the contract by name, with a statement that still
-  refers to the executing definition. The docstring of each such statement says what stands in the
-  way.
-
-## Statements that keep no kind
-
-Thirty-two functions of this module have a contract and no kind. The reasons are four.
-Twenty more are no decisions, and their statements say what they are: `Host.coordinateFloat`
-and `Agent.runPrefix` refuse no input (`coordinate_float`, `agent_run_prefix`), and eighteen
-definitions that specifications share with their functions have the statements of the section
-"Definitions that specifications share".
-
-* No kind is true of the function, or no theorem states one. `StepSizeRails.admit` accepts every
-  configuration, and a complete or a two-way kind carries a refused input. The statement of
-  `Host.World.step` is a property of the world that an accepted step returns, and no theorem
-  states which steps succeed. Eleven transitions of an attempt, of the comparator and of the
-  world refuse where the world refuses an observation or a step: `Host.OwnedStep.environment`,
-  `Host.PreparedStep.environment`, `Host.PreparedStep.commit`, `Host.Attempt.sense`,
-  `Host.Attempt.tick`, `Host.Attempt.finish`, `Host.Attempt.close`, `Host.Attempt.complete`,
-  `Host.AnsiState.tick`, `Host.BaselineAttempt.tick` and `Host.World.observe`;
-  `Host.AnsiState.tick` also refuses where its step counter overflows. No theorem states which
-  observations or steps succeed. A specification of their accepted inputs would name
-  `Host.World.observe`, which runs the ownership test `Host.Inventory.owns` that these functions
-  run, or `Host.World.step`, which decides propositions in the place of its tests.
-  `Host.World.initial` refuses where the spawn search or the placement of the deer refuses, and
-  no theorem states that the spawn search returns a spawn for every seed.
-  `AgentConstruction.State.restore` refuses no input that its type admits: every image that
-  `Checkpoint.loadCandidate` admits belongs to a resumable construction
-  (`CurrentCheckpoint.unresumable_unloaded`), and under a resumable profile the restore returns
-  the image's agent (`AgentConstruction.State.restore_exact`).
-* The specification reads a part of the input whose type declares an invariant that names tests that
-  the function runs. The rule of the section "Tests that a specification does not share" reads the
-  declaration of the result type of a field that the specification reads, and of the type of a
-  definition that the specification applies to such a field, so it excludes the kind although the
-  specification names none of those tests. These are `Features.Lifecycle.lessUseful`,
-  `Features.Lifecycle.candidate` and `Features.Lifecycle.prefer`, whose specifications read the
-  stored utilities of the lifecycle state; the two transitions `Host.Microduck.Idle.sense` and
-  `Host.Microduck.Awaiting.release`, whose host carries the proof that it is reached by the
-  transitions; and nine selection functions of the temporal controller, whose specifications read
-  the temporal state: `TemporalControl.serve`, `TemporalControl.serveDraw`,
-  `TemporalControl.dispatchMeta`, `TemporalControl.atBoundary`,
-  `TemporalControl.selectWithOperations`, `TemporalControl.select`, `TemporalControl.step`,
-  `TemporalControl.drawBoundary` and `TemporalControl.drawFirst`. The declaration of the lifecycle
-  state reaches the tests `Binary32.isNaN`, `Binary32.less` and `Binary32.negative` through the
-  invariants of the learners of its consumers. A temporal state reaches such tests through the
-  invariants of its learners, the stored-word check `NumericState.resumable` of a learner read from
-  an image among them, and its lifetime records. A served step reaches one of them,
-  `Binary32.negative`, through the value predictions it reports, and has a statement of the step it
-  serves beside its contract (`temporal_serve_frame`, `serve_draw_frame`).
-* The verdict is the guard of the function, and the guard applies a definition that no
-  proposition states apart from it. Whether `Host.Viewer.Admission.receive` stores a capture and
-  whether `Host.Viewer.HealthAdmission.receive` accepts one depend on the capture orders
-  `Host.Viewer.Capture.follows` and `Host.Viewer.Capture.after`, which carry one-way kinds and no
-  proposition, so a specification would name the test, which the rule of the section "Tests that
-  a specification does not share" excludes; the verdict of each is also the first component of a
-  pair whose state has a type that depends on the identity, and the kinds read a result whose
-  type depends on the input only through `Regula.Dependent.isSome` and `Regula.Dependent.isOk`.
-* The result has a type that depends on the input and is neither an `Option` nor an `Except`, and
-  the kinds read such a result only through `Regula.Dependent.isSome` and
-  `Regula.Dependent.isOk`. `Costed.findIdx?` returns its index with the equation that names it,
-  a type that depends on the array and the test.
-
-A requirement with no kind is checked only as a theorem about the executing definition. Such a
-statement can fix one direction only, and it need not show that both outcomes occur for its
-function, and the rule of the section "Tests that a specification does not share" does not
-apply to its specification. Each docstring says what its statement gives and what
-it does not claim. Kinds for the functions of the second reason are remaining
-work of https://github.com/rbeauchamp/acorn/issues/105.
-
-A contract whose proof needs the proof library is stated in `AcornVerif.Decisions`. The ownership
-audit counts the decision contracts of that module toward the registrations of this library. A
-function whose kind is stated there is registered in the last section of this module, and the
-ownership audit requires the kind as it requires a kind stated here; a statement with no kind there
-is required by name by the ownership audit, as one here is. The certificate checkers
-`Host.replayCertified`, `Host.regionBlocked` and `Host.stanceCertified` are stated there, with
-`Host.walkableTile`: what an accepted certificate establishes is a statement about runs of the
-executed world step, proved in `AcornVerif.CurrentCertificates`. No checker is complete about its
-goal, so `Host.regionBlocked` and `Host.stanceCertified` carry the sound kind.
-`Host.replayCertified` carries the two-way kind about its action list, with
-`Host.ReplayCertificate.check` and the replay `Host.World.advanceActions`: their specifications are
-about runs of the executed world step, which decides propositions in the place of its tests.
-`Host.walkableTile` carries the two-way kind. The terrain generator `Host.terrain` and its readers
-`Host.World.tileKind` and `Host.World.enterable` carry the two-way kind there too, with the value
-noise `Host.valueNoise`, its fold over the octaves `Host.octaveLoop` and the field of the terrain
-`Host.fbm`, which the generator applies, because the proof of their refusals needs the exact floor
-of `AcornVerif.CurrentFloor`. `Host.Released.environment` carries the two-way kind there, and
-`Host.World.observe`, `Host.Attempt.finish` and `Host.Attempt.complete` have an accepted input
-stated there, because the observation of the attempt `fresh` succeeds by the terrain admission of
-`AcornVerif.CurrentTerrain`. The count `Host.countKindNear` and the rule `Host.considerSpawn` of the
-spawn search carry the two-way kind there (`spawn_count`, `spawn_consider`), because their proofs
-need the terrain admission of `AcornVerif.CurrentTerrain` (`CurrentTerrain.tileKind_isOk`) and the
-checked translation of `AcornVerif.CurrentCertificates`. The values of their accepted results
-(`spawn_count_value`, `spawn_consider_value`) and the requirement with no kind of the search
-`Host.selectSpawn` (`spawn_select`) are stated there because their theorems are in
-`AcornVerif.CurrentSpawn`. `Host.World.initial` has an accepted input stated there
-(`world_initial_accepts`), at a configuration of one tile whose spawn search succeeds by the terrain
-admission of `AcornVerif.CurrentTerrain`. The test of a cleared learner slot `NumericState.clearAt`
-carries the two-way kind there (`learner_clear`), because its theorem is in
-`AcornVerif.CurrentLearnerCheck`. The stored-word check `NumericState.resumable` has a requirement
-with no kind there (`learner_resumable`), for the second reason above: its kind was proved, and the
-rule of the next section excludes it.
-
-## Tests that a specification does not share
-
-A kind compares a function with its specification as the two are defined now. Where the two
-call one test, a defect of that test changes the two sides together, and the proof of the kind
-can stay valid. So the specification of a contract with a kind reaches no test that the function
-or the acceptance predicate also reaches. Review applies this rule; no check of Regula or of
-Acorn does. A test is a function with a result of `Bool`, or a
-definition with a result of `BEq`, outside Lean's own library. The projection function of a
-structure field is no test, whatever the type of the field: it reads stored data. So
-`inventory_craft` may read the fields `Host.Inventory.axe` and `Host.Inventory.boat`, which
-`Host.Inventory.Owns` and `Host.Inventory.craft` both read. The rule reads the specification at
-any depth, through the declarations it names and the declared types of the parts of the input it
-reads.
-
-Each such condition is a proposition, with a theorem that connects the test with it:
-
-* `Binary32.Negative`, the sign bit as a bound on the word, with `Binary32.negative_iff`;
-* `Binary32.IsNaN` and `Binary64.IsNaN`, a NaN by its exponent field and its fraction field,
-  with `Binary32.isNaN_iff` and `Binary64.isNaN_iff`;
-* `Binary32.Less` and `Binary64.Less`, the strict order by the signed keys of two words that
-  are not NaNs, with `Binary32.less_iff` and `Binary64.less_iff`;
-* `Host.TileKind.Walkable`, terrain that is neither water nor a mountain, with
-  `Host.TileKind.walkable_iff`;
-* `Host.Inventory.Owns`, the flag of the named tool, with `Host.Inventory.owns_iff`;
-* `FeatureProfile.Resumable`, the four discriminants of the profile whose state a checkpoint
-  holds, with `FeatureProfile.checkpoint_iff`;
-* `Binary32.LessOrEqual`, the non-strict order by the signed keys of two words that are not NaNs,
-  with `Binary32.lessOrEqual_iff`;
-* `Host.InBox`, the bounds on the two coordinates, with `Host.inBox_iff`;
-* `Host.World.GoalSatisfied`, a goal installed in the world and attained on the stored fields of
-  the world (`Host.World.Attained`), with `Host.World.goalSatisfied_iff`;
-* `Host.FoodDue`, the food schedule on the clock and the interval, with `Host.foodDue_iff`.
-
-A function that a specification reaches decides the proposition in the place of the call of
-the test: the signed key `Binary32.key`, `Binary32.saturate`, `Agreement.units`,
-`Checkpoint.imagePayload`, `Host.wanderDeer`, `Lifetime.sumUpdate`, `Conversion.toI64Word`,
-`Host.floor32`, `Host.castWord`, `Host.classifyTerrain`, `Host.World.enterable`, and the ordered
-maximum, the candidates and the masses of a frozen policy (`PolicySnapshot.best`,
-`PolicySnapshot.candidates`, `PolicySnapshot.probabilities`), crafting `Host.Inventory.craft`,
-the food spawn `Host.spawnFood` and the world step `Host.World.step`. The
-instance of each proposition runs its test, so the executed comparison is the same one. A
-specification that would name a test names the proposition: `inventory_craft` and
-`region_covers` here, and `exp_saturation` in `AcornVerif.Decisions`.
-
-The rule compares names. It says nothing of a shared function with a result that is
-neither `Bool` nor `BEq`, such as `Binary32.key`, `Binary32.magnitude` or `Host.terrain`: no
-type tells a function that a specification is about from one that prepares its input. Those
-functions stay a matter of review. Review admits such a shared function where something other
-than the kind fixes it: a primitive operation of a number type that Lean's library defines, such
-as `Binary32.div`, which applies Lean core's `Float32.div` to the words, or a function with a
-statement of its own against a reading that does not apply it, such as `coordinate_float`. The
-specifications of the Microduck tests state the age of a depth frame by the stamps of the two
-frames, so they share no reader of the age with the tests. The definitions of the section
-"Definitions that specifications share" have statements of their own, and so do, in
-`AcornVerif.Decisions`, the squared discrepancy `Agreement.squaredUnits`, the cap of a total
-`Lifetime.maximumSum`, the readers of a Microduck number `Host.Microduck.spelled`,
-`Host.Microduck.Decimal.ofNumeral` and `Host.Microduck.Decimal.fixed`, the facing position
-`Host.BoxPosition.facingPosition`, the offset table `Host.Direction.delta`, the discount and
-horizon words `Discount.gamma` and `Discount.horizon`, the domains of the weights and the
-predictions `ValueRule.domain` and `Discount.predictionRange`, the bound of a total
-`Lifetime.Quantity.bound` and the envelope `Agreement.envelopeUnits`. For `snapshot_consistent`
-the account names the costed `PolicySnapshot.probabilitiesCosted`, whose value is
-`PolicySnapshot.probabilities`, which `snapshot_masses` states. The specification of
-`exploration_begins` there states the output of the generator from its stored words and reads no
-definition of the generator. Three readers of stored data have no statement of their own: the
-weight word `Weight.value`, the generator and tester state `Features.Lifecycle.progress` and the
-viewer's phase `Host.Viewer.Lifecycle.phaseValue` each return a field that their argument holds,
-which is stored data as a structure field is. The readers of a number word that Acorn defines,
-`Binary32.key`, `Binary32.magnitude`, `Binary32.negate`, `Binary64.key`, `Binary64.magnitude`
-and `Conversion.widen`, and the world step `Host.World.step`, the installation of a goal
-`Host.World.setGoal` and the terrain `Host.terrain`, which the replays and the kinds of the terrain
-are about, are shared with no statement of their own against another reading; statements of
-their own for them are remaining work of https://github.com/rbeauchamp/acorn/issues/67. The
-inventory above covers the contracts with a kind; `box_center`
-stands beside it for `spawn_select` in `AcornVerif.Decisions`, which keeps no kind. The statements
-with no kind also apply definitions that their functions apply: declared constants, readers and
-arithmetic of the executing library, and the executing constructors that build a witness; which
-of them need statements of their own is remaining work of the same issue.
-
-The vocabulary of the world, `Host.Direction`, `Host.Action`, `Host.TileKind`, `Host.Position`
-and `Host.BoxPosition`, derives decidable equality and no `BEq` instance of its own: `==` on it
-is Lean's `instBEqOfDecidableEq`, which is no test. A specification about runs of the world step
-therefore shares no comparison of actions, tile kinds or positions with the step.
-
-## What is not registered
-
-The groups below are a list with no check of completeness: a new definition with a `Bool`,
-`Option`, `Except` or `Decidable _` result can arrive with no contract and no entry here.
-
-* A structure field, which is stored data, and a function with a `Decidable _` result, which
-  carries both directions of its decision in its type, have no contract.
-* No theorem of the maintained libraries names the definition in its statement. This is the
-  absence of a direct reference and nothing more. These are the other command-line parsers of
-  `Host.Cli` (`Host.Cli.value`, `Host.Cli.profile`, `Host.Cli.planningValue`,
-  `Host.Cli.planningSelection`, `Host.Cli.stepOrderValue` and `Host.Cli.stepOrder` have
-  contracts), the native drivers and `NativeApp`, the readers and the
-  private helpers of the JSON parser (the parser `Json.parse` has the contracts `json_parse`,
-  which states texts it accepts, and `json_parse_text`, which states that it accepts only
-  JSON texts; the scanner of a number `Json.Numeral.scan`, the reader `Json.Value.numeral` and
-  the member lookup `Json.Value.member` have the contracts `json_scan`, `json_numeral` and
-  `json_member`), the viewer's envelope and map decoders, the summaries of an endurance run,
-  whose means are absent for an empty sample (`Host.Endurance.Rates.summary`,
-  `Host.Endurance.ErrorStats.summary`, `Host.Endurance.Reduction.energySummary`), and the
-  transitions and lookups that no theorem mentions. Most are
-  functions between fixed types, `Host.Viewer.MapBytes.admit` and `Host.Viewer.decodeMapRuns`
-  return `Except String (MapBytes key)` for the receiving key, and `Json.decode` returns
-  `Except String α` for the result type `α` it is given.
-* No theorem names the definition, and its body applies a definition that has a contract or a
-  `Decidable _` result. `Prediction.admit` and `LogStepSize.admit` are `Bounded32.admit` at
-  a derived interval, `Lifetime.SumCount.admit` is the body of `Checkpoint.admitSum`, the
-  viewer's line emitters apply `wireText` and `sseLine`, and `Host.CertificateDriver.execute`
-  refuses when `Host.WorldConfig.standard` or world generation does.
-* No theorem names the definition, it belongs to `Host.CertificateSearch`, and each caller
-  outside that module applies a definition that has a contract or a `Decidable _` result.
-* The definition is the comparison of an instance that a `deriving` clause generated.
-* The definition is the default value of a structure field that is not a function, which is
-  stored data as the field is.
-* The definition is a transition, test or classifier of the viewer supervisor whose properties
-  the supervisor's own theorems state, in `Host.Viewer.Lifecycle` and `Host.Viewer.Supervision`:
-  `Host.Viewer.Lifecycle.reserve`, `Host.Viewer.Lifecycle.beginArchive`,
-  `Host.Viewer.Lifecycle.archived`, `Host.Viewer.Lifecycle.archiveIntent`,
-  `Host.Viewer.Lifecycle.exhausted`, `Host.Viewer.Lifecycle.retryReady`,
-  `Host.Viewer.PersistedState.launch` and the classifiers `Host.Viewer.Pending.writes`,
-  `Host.Viewer.Pending.clears` and `Host.Viewer.Pending.serves`. Those theorems are the evidence
-  of what the supervisor's step decides, and the ownership audit requires by name the ones that
-  state what an accepted result holds (`Host.Viewer.Lifecycle.reserve_some`,
-  `Host.Viewer.Lifecycle.archived_identity`, `Host.Viewer.PersistedState.launch_identity`).
-  Contracts with a kind for them are remaining work.
-* The definition belongs to the proof library `AcornVerif`, which has no executable. Its
-  theorems relate it to the executing definitions, and no claim rests on running it. The
-  interaction kernel and the world classes (`AcornVerif.Kernel`, `AcornVerif.WorldClass`) state
-  worlds, agents, goals and bounds as structures and propositions, so they declare no
-  definition with such a result.
-* A theorem names the definition, and the definition decides nothing. The readers of the
-  phases of a Microduck host `Host.Microduck.Phase.armed` and `Host.Microduck.Phase.last`
-  return the field of that name which the state holds in either phase, which is stored data as
-  a structure field is. The age of the depth frame of a Microduck reading
-  (`Host.Microduck.Reading.age`) refuses nothing, and it is absent exactly when the reading has
-  no depth frame (`Host.Microduck.Reading.age_present`). The value toward which the span of an
-  interrupted option closes (`Handcrafted.TemporalControl.takeoverValue`) refuses nothing
-  either: it is absent on every frame that interrupts no option
-  (`AcornVerif.CurrentTemporal.takeover_none`), and `AcornVerif.CurrentTemporal.takeover_value`
-  states its value where a span closes. `Handcrafted.DefaultConstruction.runPrefix` reports
-  whether a stop ended its fold, which is the fold of `Agent.runPrefix`
-  (`Handcrafted.DefaultConstruction.runPrefix_agent`, with the contract `agent_run_prefix`). The
-  event of `Handcrafted.TemporalControl.interrupt` and the closing of
-  `Handcrafted.TemporalControl.refreshFree` hold a value exactly when their option argument does
-  (`Handcrafted.TemporalControl.interrupt_frame`,
-  `Handcrafted.TemporalControl.refresh_episode_slot`), and `Host.Viewer.goalTelemetry` encodes
-  a goal (`Host.Viewer.goalTelemetry_family`). This module makes no statement about what a
-  caller does with the result of such a definition.
-* A theorem names the definition, and its verdict is the verdict of a definition with a contract.
-  `Host.Microduck.Idle.tick` and `Host.Microduck.Awaiting.tick` send what
-  `Host.Microduck.Bridge.tick` sends for the last release, with the contracts `bridge_tick` and
-  `bridge_tick_value`, and
-  the ownership audit requires by name `Host.Microduck.Idle.tick_keeps` and
-  `Host.Microduck.Awaiting.tick_keeps`, which state that.
-  `Host.Microduck.Stage.attend` returns the percept that `Host.Microduck.Idle.sense` gives, with
-  the contract `microduck_sense`, and only private lemmas of the proofs of
-  `Host.Microduck.Stage.step_learning` and `Host.Microduck.Ran.held` name it.
-
-The body of a registered decision applies some of these definitions, directly or through
-other definitions. Where a theorem names such a definition, it has a contract; a section near
-the end of this module states those, and `AcornVerif.Decisions` states the contracts and kinds
-of the spawn search that `Host.World.initial` applies (`Host.selectSpawn`, the
-rule `Host.considerSpawn` and the count `Host.countKindNear`), whose theorems are in the proof
-library, and also the kinds of the value noise `Host.valueNoise`, its fold over the octaves
-`Host.octaveLoop` and the field of the terrain `Host.fbm`, which `Host.terrain` applies, and the
-statement of the stored words of a learner `Checkpoint.managedWords`, which the learner format
-of the checkpoint writes (`managed_words`). Two definitions are the exception.
-`Host.Microduck.Reading.age`, which
-`Handcrafted.Microduck.fresh` applies, has no contract: `Host.Microduck.Reading.age_exact`
-states the age of a depth frame that is not after its state frame, and the ownership audit
-requires it by name. No specification reads it: the specifications of the Microduck tests state
-the age by the stamps of the two frames. `Handcrafted.TemporalControl.takeoverValue`, which
-`Handcrafted.TemporalControl.step` applies, has no contract either; the group above names the
-theorems that state it. The tests
-`Handcrafted.Microduck.upright` and `Handcrafted.Microduck.fresh`, which
-`Handcrafted.Microduck.near` and `Handcrafted.Microduck.clear` apply, are registered decisions
-with the contracts `microduck_upright` and `microduck_fresh`, beside the contracts
-`microduck_near` and `microduck_clear`, which state the conjunction of the tests. Where no
-theorem names an applied definition, it has no contract of its own, and the contract of the
-decision that applies it is the evidence.
-The seven private scanners of the parts of a number, which `Json.Numeral.scan` applies, are
-in that case: only private lemmas of the proofs of `Json.Numeral.scan_formed` and
-`Json.Numeral.scan_chars` name them, and the contract `json_scan` is their evidence. The
-readers of a profile and of an unsigned word of the native drivers,
-`Host.AgentArguments.profile` and `Host.AgentArguments.word`, which
-`Host.AgentArguments.admit` applies, are in that case too: only private lemmas of the proof of
-`agent_arguments_admit` name them, and that contract and `agent_arguments_admit_value` are
-their evidence. The
-private readers of the parts of a frame in `Host.Microduck.Wire`, which
-`Host.Microduck.State.read` and `Host.Microduck.Depth.read` apply, are in that case too:
-only private lemmas of the proofs of `Host.Microduck.State.read_iff` and
-`Host.Microduck.Depth.read_iff` name them, and the contracts `microduck_state` and
-`microduck_depth` are their evidence. `Host.Microduck.Line.read` applies the same readers
-and private helpers of its own, one for each case of a line and the tests those apply, with
-the contract `microduck_line` as their evidence; private lemmas state each in the relations
-that the contract names. `Host.Microduck.Idle.sense` and
-`Host.Microduck.Awaiting.release` apply private transitions on what a host holds, with the
-contracts `microduck_sense` and `microduck_release`, which keep no kind, as their evidence, and
-`Host.Microduck.Idle.hear`, which is no decision, applies two private tests,
-`Host.Microduck.showing` and the test of `Host.Microduck.Sent.answer`;
-`Host.Microduck.Idle.hear_shown` and `Host.Microduck.Sent.answer_iff` state what each gives.
-
-What the list does not hold:
-
-* This module registers no function of `NativeApp`, another library. Each is in the group that
-  no theorem names. `Bootstrap`
-  decides only in `IO`.
-* An effect is not in the list: its result type is `IO`. An effect with a pure core is covered
-  through that core. `Checkpoint.loadFile` returns the verdict of `Checkpoint.resume` on the
-  bytes it read, which carries the sound kind `checkpoint_resume` in `AcornVerif.Decisions`
-  beside the sound kind `checkpoint_load`; `Checkpoint.Store.save` refuses with
-  `Checkpoint.saveBytes`, and also refuses an image longer than `Checkpoint.maximumBytes`
-  (`Checkpoint.Error.oversized`; `CurrentCheckpointSize.snapshot_size_bound` states when no such
-  refusal occurs); and `Host.CertificateDriver.dispatch` admits its arguments with
-  `Digits.natural` and `Host.Coordinate.checked` and prints what `execute`
-  returns. An effect with no pure core decides from state outside the Lean definitions, so no
-  theorem states its verdict: `Host.StopFlag.requested` and the `Host.Viewer.Broadcast`
-  operations read shared state under a lock, `Host.Viewer.RunDirectory.adoptStrayCheckpoint`
-  reads the file system and `Host.Viewer.NativeResources.observe` reads the operating system.
-  The concurrency and operating-system assumptions of the verification guide stand for them.
-* The gates under `lean/AcornTools` are outside the Regula claim as reviewed tooling. Their
-  pure checks, such as `AcornNativeAudit.allowedArgument`, are part of that trust boundary.
-
-No kind says that a specification is the intended one, that every caller acts on the verdict,
-or which value an accepting result carries. Exactness of the accepted value is stated by the
-theorems beside each definition.
-
-This module declares theorems, specification predicates, the structures of the arguments of
-the functions with a dependent type, and closed values that are inputs of the witnesses of
-kinds: `wide` and `last` for the terrain, the values of the section "Closed inputs of the
-kinds with a dependent type", `sourced`, `spot`, `sixteen` and `single` of the section
-"Classifiers and lookups", `phased` of the section "The executing invocation and the named
-action", `silent`, `quiet`, `foreignHeld` and `foreignFree` of the section "Temporal
-selection", and `standing`, `obstructed`, `unobstructed` and `unsighted` of the section "Host
-admission and parsing", the readings of the Microduck contracts. It also declares the callbacks
-`waiting`, a closed part of the accepted input that `ansi_tick_accepts` states.
-No executable and no other module imports it, so no entry point links those definitions, and
-the registration attribute's module, which imports Lean's elaborator, is linked into no
-native entry point.
--/
-
 namespace Acorn.Decisions
 open Features Handcrafted
 
@@ -1091,18 +697,68 @@ theorem coordinate_checked : Regula.ExecutableContract Host.Coordinate.checked
 theorem Host_Coordinate_checked_registered :
     Regula.RegisteredDecision @Host.Coordinate.checked := ⟨⟩
 
-/-- Custom world admission accepts exactly a positive side and a nonzero day length. -/
-theorem world_config_admit : Regula.ExecutableContract Host.WorldConfig.admit
-    (Regula.Decides (·.isOk = true) (fun raw : Host.RawWorldConfig =>
-      0 < raw.side.val ∧ 0 < raw.dayLength.toNat)) :=
+theorem is_past_last : Regula.ExecutableContract Host.isPastLast
+    (Regula.Decides (· = true) Host.QuotientPastLast) :=
   ⟨decides
-    (fun raw => by
-      show (Host.WorldConfig.admit raw).isOk = true ↔ _
-      unfold Host.WorldConfig.admit
-      by_cases side : 0 < raw.side.val <;> by_cases day : 0 < raw.dayLength.toNat <;>
-        simp [side, day, Except.isOk, Except.toBool])
-    ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩
-    ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, .zero⟩, by decide⟩⟩
+    Host.isPastLast_iff_units
+    ⟨⟨0x5f000000⟩, (Host.isPastLast_iff_units _).mp (by decide)⟩
+    ⟨⟨0⟩, fun h => absurd ((Host.isPastLast_iff_units _).mpr h) (by decide)⟩⟩
+
+theorem Host_isPastLast_registered : Regula.RegisteredDecision @Host.isPastLast := ⟨⟩
+
+theorem scale_admits_octave : Regula.ExecutableContract Host.scaleAdmitsOctave (fun admits =>
+    Regula.Decides (· = true)
+      (fun input : Host.Coordinate × Host.Coordinate × Binary32 =>
+        ¬Host.QuotientPastLast ((Host.coordinateFloat input.1).div input.2.2) ∧
+          ¬Host.QuotientPastLast ((Host.coordinateFloat input.2.1).div input.2.2))
+      (fun input => admits input.1 input.2.1 input.2.2)) :=
+  ⟨decides
+    (fun input => Host.scaleAdmitsOctave_spec_iff input.1 input.2.1 input.2.2)
+    ⟨(⟨-5, by decide⟩, ⟨5, by decide⟩, ⟨0x3f800000⟩),
+      (Host.scaleAdmitsOctave_spec_iff _ _ _).mp (by decide)⟩
+    ⟨(⟨-5, by decide⟩, ⟨5, by decide⟩, ⟨0⟩),
+      fun h => absurd ((Host.scaleAdmitsOctave_spec_iff _ _ _).mpr h) (by decide)⟩⟩
+
+theorem Host_scaleAdmitsOctave_registered :
+    Regula.RegisteredDecision @Host.scaleAdmitsOctave := ⟨⟩
+
+theorem scale_admits_range : Regula.ExecutableContract Host.scaleAdmitsRange (fun admits =>
+    Regula.Decides (· = true)
+      (fun input : Host.Coordinate × Host.Coordinate × Binary32 =>
+        Host.ScaleAdmitsRange input.1 input.2.1 input.2.2)
+      (fun input => admits input.1 input.2.1 input.2.2)) :=
+  ⟨decides
+    (fun input => Host.scaleAdmitsRange_spec_iff input.1 input.2.1 input.2.2)
+    ⟨(⟨-5, by decide⟩, ⟨5, by decide⟩, ⟨0x3f800000⟩),
+      (Host.scaleAdmitsRange_spec_iff _ _ _).mp (by decide)⟩
+    ⟨(⟨-5, by decide⟩, ⟨5, by decide⟩, ⟨0⟩),
+      fun h => absurd ((Host.scaleAdmitsRange_spec_iff _ _ _).mpr h) (by decide)⟩⟩
+
+theorem Host_scaleAdmitsRange_registered :
+    Regula.RegisteredDecision @Host.scaleAdmitsRange := ⟨⟩
+
+theorem raw_world_config_admissible :
+    Regula.ExecutableContract Host.RawWorldConfig.admissible
+      (Regula.Decides (· = true) Host.RawWorldConfig.Admissible) :=
+  ⟨decides
+    Host.RawWorldConfig.admissible_spec_iff
+    ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+      (Host.RawWorldConfig.admissible_spec_iff _).mp (by decide)⟩
+    ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+      fun h => absurd ((Host.RawWorldConfig.admissible_spec_iff _).mpr h) (by decide)⟩⟩
+
+theorem Host_RawWorldConfig_admissible_registered :
+    Regula.RegisteredDecision @Host.RawWorldConfig.admissible := ⟨⟩
+
+theorem world_config_admit : Regula.ExecutableContract Host.WorldConfig.admit
+    (Regula.Decides (·.isOk = true) Host.RawWorldConfig.Admissible) :=
+  ⟨decides
+    (fun raw => (Host.WorldConfig.admit_isOk_iff raw).trans
+      (Host.RawWorldConfig.admissible_spec_iff raw))
+    ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+      (Host.RawWorldConfig.admissible_spec_iff _).mp (by decide)⟩
+    ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+      fun h => absurd ((Host.RawWorldConfig.admissible_spec_iff _).mpr h) (by decide)⟩⟩
 
 /-- Registers `Host.WorldConfig.admit` as a decision function. -/
 theorem Host_WorldConfig_admit_registered : Regula.RegisteredDecision @Host.WorldConfig.admit := ⟨⟩
@@ -5779,14 +5435,6 @@ theorem action_direction : Regula.ExecutableContract Host.Action.direction
 /-- Registers `Host.Action.direction` as a decision function. -/
 theorem Host_Action_direction_registered : Regula.RegisteredDecision @Host.Action.direction := ⟨⟩
 
-/-- A successful world step advances the clock by one (`Host.World.step_clock`).
-
-The statement keeps no kind. It is a property of the world that an accepted step returns, and
-the erasure of a kind forgets that value. No theorem states which steps succeed, so no
-specification of the accepted inputs is stated.
-
-**Not claimed:** which steps succeed, or the successor state. The theorems of
-`AcornVerif.CurrentStep` state the successor. -/
 theorem world_step : Regula.ExecutableContract @Host.World.step (fun step =>
     ∀ (config : Host.WorldConfig) (world next : Host.World config) (action : Host.Action)
       (events : Host.StepResult), @step config world action = .ok (next, events) →
@@ -7909,20 +7557,6 @@ theorem draw_boundary : Regula.ExecutableContract @TemporalControl.drawBoundary 
     ⟨Grid.interface, _, bank, .discounted, narrow, foreignFree, planningBoundary .none,
       .empty narrow, quiet, none, .zero, Option.isNone_iff_eq_none.mp (by decide +kernel)⟩⟩⟩
 
-/-! ## Host transitions
-
-The transitions of an attempt and of the world refuse where the world refuses an observation or
-a step, the ANSI tick also where its step counter overflows, and initialization refuses where
-the spawn search or the placement of the deer refuses. No theorem states which observations or
-steps succeed, or that the spawn search returns a spawn for every seed, so each keeps a
-requirement with no kind; a specification that names `Host.World.observe` also reaches the
-ownership test `Host.Inventory.owns`, which the transitions of an attempt run.
-`AcornVerif.Decisions` states an accepted input of the
-observation, of finishing and of the fold, each at the attempt `fresh`, and of initialization, at
-a configuration of one tile, and `ansi_tick_accepts` here states one of the ANSI tick.
-`Host.Released.environment` has its two-way kind in `AcornVerif.Decisions`, and its statement
-here is the value of its result beside that kind. -/
-
 /-- The transition result of a release is the environment of an accepted release, and the
 refusal of a refused one, with the stage it kept dropped.
 
@@ -7946,15 +7580,6 @@ theorem released_environment : Regula.ExecutableContract @Host.Released.environm
       exact ⟨fun other => by simp [Host.Released.environment],
         fun other => by simp [Host.Released.environment]⟩⟩
 
-/-- The environment of a stage is the world's step on its action: an accepted transition holds
-the stage, and the world and the events of that step, and a refusal is the step's refusal.
-
-The statement keeps no kind. The stage is accepted exactly when the world's step accepts its action,
-and no theorem states which steps succeed (`world_step`). A specification of the accepted stages
-would read the stage, whose type carries the proof that its observation succeeded, which reaches the
-ownership test `Host.Inventory.owns` that the function runs through the crafting of the step. The
-rule of the section "Tests that a specification does not share" reads the declaration of such a part
-of the input, so it would exclude a kind over it. -/
 theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environment
     (fun environment =>
       ∀ {config α goal cap} (selected : Host.OwnedStep config α goal cap),
@@ -7970,10 +7595,6 @@ theorem owned_environment : Regula.ExecutableContract @Host.OwnedStep.environmen
     · rename_i world result stepped
       exact ⟨stepped.symm, fun _ accepted => by cases accepted; rfl⟩⟩
 
-/-- The environment of a prepared step is the world's step on its action: an accepted transition
-holds the prepared step, and the world and the events of that step, and a refusal is the step's
-refusal. The statement keeps no kind, for the first reason that `owned_environment` states: no
-theorem states which steps succeed. -/
 theorem prepared_environment : Regula.ExecutableContract @Host.PreparedStep.environment
     (fun environment =>
       ∀ {config α β goal cap} (prepared : Host.PreparedStep config α β goal cap),
@@ -8036,15 +7657,6 @@ private theorem sense_exact {config : Host.WorldConfig} {α : Type} {goal : Host
       · cases accepted
         rfl
 
-/-- Sensing returns no input exactly when the attempt has stopped, refuses exactly when it has
-not stopped and the world refuses its observation, with that refusal, and otherwise returns an
-input of the same attempt.
-
-The statement keeps no kind. An attempt that has stopped is accepted without an observation;
-one that has not stopped is accepted exactly when the world's observation succeeds, and no
-theorem states which observations succeed. A specification of the accepted attempts would name
-`Host.World.observe`, which runs the ownership test `Host.Inventory.owns` that sensing runs, so
-the rule of the section "Tests that a specification does not share" would exclude a kind with it. -/
 theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense =>
     ∀ {config α goal cap} (attempt : Host.Attempt config α goal cap),
       (sense attempt = .ok none ↔ Stopped attempt) ∧
@@ -8053,14 +7665,6 @@ theorem attempt_sense : Regula.ExecutableContract @Host.Attempt.sense (fun sense
         ∀ input, sense attempt = .ok (some input) → input.before = attempt) :=
   ⟨fun attempt => sense_exact attempt⟩
 
-/-- A stopped attempt executes no action through its tick: the tick returns the attempt
-unchanged and no frame (`Host.Attempt.tick_finished`).
-
-The statement keeps no kind. A tick refuses where sensing refuses or the world refuses the
-action the agent chose, and no theorem states which steps succeed.
-
-**Not claimed:** which ticks succeed, or what a tick returns from an attempt that has not
-stopped. -/
 theorem attempt_tick : Regula.ExecutableContract @Host.Attempt.tick (fun tick =>
     ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
       (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap),
@@ -8069,16 +7673,6 @@ theorem attempt_tick : Regula.ExecutableContract @Host.Attempt.tick (fun tick =>
     Host.Attempt.tick_finished callbacks context attempt
       (by simpa [Host.Attempt.finished, Stopped] using stopped)⟩
 
-/-- A finished attempt continues as its own run with the attempt recorded, and the outcome's
-position and the terminal frame's position are that run's body position
-(`Host.Attempt.finish_position`).
-
-The statement keeps no kind. Finishing refuses exactly where the world refuses the final
-observation, and no theorem states which observations succeed.
-`AcornVerif.Decisions.attempt_finish_accepts` states an accepted input: the attempt `fresh`,
-with any callbacks and context.
-
-**Not claimed:** which attempts finish without a refusal. -/
 theorem attempt_finish : Regula.ExecutableContract @Host.Attempt.finish (fun finish =>
     ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
       (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap)
@@ -8091,13 +7685,6 @@ theorem attempt_finish : Regula.ExecutableContract @Host.Attempt.finish (fun fin
   ⟨fun callbacks context attempt run outcome frame finished =>
     Host.Attempt.finish_position callbacks context attempt run outcome frame finished⟩
 
-/-- Closing an attempt returns what finishing it returns, and a refusal of finishing as a
-refusal that holds no stage. A value that the native bookkeeping `Host.finishAttempt` returns
-normally agrees with it (`Host.finishAttempt_returned`, `Host.AttemptAgrees`): the same refusal,
-or the same run state and outcome. The native value holds the runner's resources in the place of
-the terminal frame, which the agreement does not compare.
-
-The statement keeps no kind, for the reason that `attempt_finish` states. -/
 theorem attempt_close : Regula.ExecutableContract @Host.Attempt.close (fun close =>
     ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
       (context : Host.GoalContext) (attempt : Host.Attempt config α goal cap),
@@ -8131,18 +7718,6 @@ theorem attempt_close : Regula.ExecutableContract @Host.Attempt.close (fun close
       · intro refusal
         exact ⟨fun same => (nomatch same), fun ⟨_, same⟩ => (nomatch same)⟩⟩
 
-/-- When the fold of an attempt ends in a refused action, it holds the stage of one whole step
-on an attempt that the fold reached in fewer passes than its fuel, from which the world refused
-that action (`Host.Attempt.complete_learned`). A value that the attempt runner `Host.runAttempt`
-returns normally agrees with this fold at the fuel `cap.toNat`, the attempt's own step cap
-(`Host.runAttempt_complete`): the same refusal, or the same run state and outcome.
-
-The statement keeps no kind. The fold refuses where the world refuses an observation or an
-action, and no theorem states which observations or steps succeed.
-`AcornVerif.Decisions.attempt_complete_accepts` states an accepted input: the attempt `fresh`
-at the fuel zero, with any callbacks and context.
-
-**Not claimed:** which folds end in a refusal, or the value of a fold that does not. -/
 theorem attempt_complete : Regula.ExecutableContract @Host.Attempt.complete (fun complete =>
     ∀ {order config α β goal cap} (callbacks : Host.AgentCallbacks order α β)
       (context : Host.GoalContext) (fuel : Nat) (attempt : Host.Attempt config α goal cap)
@@ -8175,15 +7750,6 @@ at the clock zero. The kernel evaluates it. -/
 private theorem fresh_waits : ((fresh 1).run.world.step .wait).isOk = true := by
   decide +kernel
 
-/-- A successful tick of the ANSI loop keeps the observation it consumed until an explicit
-refresh (`Host.AnsiState.tick_observation`).
-
-The statement keeps no kind. A tick refuses where the world refuses the agent's action or the
-step counter overflows, and no theorem states which steps succeed. `ansi_tick_accepts` states an
-accepted input: the world of the attempt `fresh` with a step counter of zero, and the callbacks
-`waiting`.
-
-**Not claimed:** which ticks succeed, or the world and the frame a tick returns. -/
 theorem ansi_tick : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
     ∀ {config α β} (state next : Host.AnsiState config α)
       (callbacks : Host.AgentCallbacks .learnThenAct α β) (index : Nat)
@@ -8192,13 +7758,6 @@ theorem ansi_tick : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
   ⟨fun state next callbacks index frame ticked =>
     Host.AnsiState.tick_observation state next callbacks index frame ticked⟩
 
-/-- The ANSI tick accepts the world of `fresh` with a step counter of zero and the callbacks
-`waiting`, for every observation it holds and every goal index: the world's step on `wait`
-succeeds (`fresh_waits`), and the counter advances to one. `ansi_tick` states what an accepted
-tick keeps and keeps no kind for the reason given there; this statement is a requirement with no
-kind beside it, and a function that refuses every input fails it.
-
-**Not claimed:** which other ticks succeed. -/
 theorem ansi_tick_accepts : Regula.ExecutableContract @Host.AnsiState.tick (fun tick =>
     ∀ (observation : Host.Observation) (index : Nat),
       (tick (⟨(fresh 1).run.world, (), {}, observation, 0⟩ : Host.AnsiState wide Unit) waiting
@@ -8209,17 +7768,6 @@ theorem ansi_tick_accepts : Regula.ExecutableContract @Host.AnsiState.tick (fun 
     simp only [Host.AgentCallbacks.act, waiting, stepped, Except.mapError, bind, Except.bind]
     rfl⟩
 
-/-- An initial world starts at time zero with no goal, full energy, facing north, no food and
-no harvest (`Host.World.initial_fields`).
-
-The statement keeps no kind. Initialization refuses where the spawn search or the placement of
-the deer refuses, and that the spawn search returns a spawn for every seed is not proved
-(`docs/design.md`, "What the world guarantees").
-`AcornVerif.Decisions.world_initial_accepts` states an accepted input: the configuration
-`AcornVerif.Decisions.oneTile`, of one tile, with no deer and the noise scale one.
-
-**Not claimed:** which other configurations initialize, or the spawn and the deer of an initial
-world. -/
 theorem world_initial : Regula.ExecutableContract Host.World.initial (fun initial =>
     ∀ (config : Host.WorldConfig) (world : Host.World config), initial config = .ok world →
       world.time = 0 ∧ world.goal = none ∧ world.goalStart = 0 ∧
@@ -8227,31 +7775,12 @@ theorem world_initial : Regula.ExecutableContract Host.World.initial (fun initia
         world.body.facing = .north ∧ world.food.entries = #[] ∧ world.harvested.size = 0) :=
   ⟨fun config world initialized => Host.World.initial_fields config world initialized⟩
 
-/-- An observation carries the world's task relation, the input of the reward predicate
-(`Host.World.observe_task`).
-
-The statement keeps no kind. The observation refuses a window tile whose coordinates leave the
-signed range, and wherever `Host.World.tileKind` refuses a tile of the window: where the value
-noise of the tile has no lattice successor at an octave of the noise scale
-(`AcornVerif.CurrentTerrain.tileKind_isOk`). `Host.WorldConfig.admit` does not bound the noise
-scale. No theorem composes these refusals into the set of worlds that the observation refuses.
-`AcornVerif.Decisions.world_observe_accepts` states an accepted input: the world of the attempt
-`fresh`.
-
-**Not claimed:** which worlds observe without a refusal, or the tiles of an observation. -/
 theorem world_observe : Regula.ExecutableContract @Host.World.observe (fun observe =>
     ∀ {config} (world : Host.World config) (observation : Host.Observation),
       observe world = .ok observation → observation.task = world.taskObservation) :=
   ⟨fun world observation observed => Host.World.observe_task world observation observed⟩
 
 
-/-- Committing a prepared step refuses exactly when the world's step on its action refuses, with
-that refusal; an accepted commit holds the world and the result of that step, and one more step
-of the attempt.
-
-The statement keeps no kind, for the first reason that `owned_environment` states: the commit is
-accepted exactly when the world's step accepts its action, and no theorem states which steps
-succeed. -/
 theorem prepared_commit : Regula.ExecutableContract @Host.PreparedStep.commit (fun commit =>
     ∀ {order config α β goal cap} (prepared : Host.PreparedStep config α β goal cap)
       (callbacks : Host.AgentCallbacks order α β),
@@ -8332,13 +7861,6 @@ private theorem baselineTick_exact {config : Host.WorldConfig} {cap : UInt64}
       · cases accepted
         exact ⟨stepped, rfl, rfl⟩
 
-/-- A tick of the comparator returns its state unchanged once the goal is satisfied or the cap
-is reached; otherwise it refuses exactly when the world's step on the action drawn from its
-stream refuses, with that refusal, and an accepted tick holds the world and the result of that
-step, the advanced stream and one more step.
-
-The statement keeps no kind. A tick is accepted where the world's step accepts the drawn action,
-and no theorem states which steps succeed. -/
 theorem baseline_tick : Regula.ExecutableContract @Host.BaselineAttempt.tick (fun tick =>
     ∀ {config cap} (state : Host.BaselineAttempt config cap),
       (state.result.done = true ∨ cap.toNat ≤ state.steps.val → tick state = .ok state) ∧
@@ -8458,5 +7980,23 @@ theorem Host_octaveLoop_registered : Regula.RegisteredDecision @Host.octaveLoop 
 
 /-- Registers `Host.fbm` as a decision function. -/
 theorem Host_fbm_registered : Regula.RegisteredDecision @Host.fbm := ⟨⟩
+
+theorem Host_World_initial_registered : Regula.RegisteredDecision @Host.World.initial := ⟨⟩
+
+theorem Host_World_observe_registered : Regula.RegisteredDecision @Host.World.observe := ⟨⟩
+
+theorem Host_World_observeTile_registered : Regula.RegisteredDecision @Host.World.observeTile := ⟨⟩
+
+theorem Host_World_step_registered : Regula.RegisteredDecision @Host.World.step := ⟨⟩
+
+theorem Host_wanderPopulation_registered : Regula.RegisteredDecision @Host.wanderPopulation := ⟨⟩
+
+theorem Host_foodTrials_registered : Regula.RegisteredDecision @Host.foodTrials := ⟨⟩
+
+theorem Host_spawnFood_registered : Regula.RegisteredDecision @Host.spawnFood := ⟨⟩
+
+theorem Host_selectSpawn_registered : Regula.RegisteredDecision @Host.selectSpawn := ⟨⟩
+
+theorem Host_initializeDeer_registered : Regula.RegisteredDecision @Host.initializeDeer := ⟨⟩
 
 end Acorn.Decisions

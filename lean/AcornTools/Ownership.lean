@@ -565,6 +565,7 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Features.Assignment.identity),
   (`Acorn.Decisions, `Acorn.Decisions.total_observe_value, `Acorn.Agreement.Total.observe),
   (`Acorn.Decisions, `Acorn.Decisions.world_step, `Acorn.Host.World.step),
+  (`AcornVerif.Decisions, `AcornVerif.Decisions.world_step_accepts, `Acorn.Host.World.step),
   (`Acorn.Decisions, `Acorn.Decisions.lifecycle_prefer, `Acorn.Features.Lifecycle.prefer),
   (`Acorn.Decisions, `Acorn.Decisions.episode_end_value,
     `Acorn.Features.TemporalDecision.episodeEnd),
