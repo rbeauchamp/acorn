@@ -192,8 +192,8 @@ restriction and its pinned-Lake rationale. Before any Lake command, `Bootstrap.l
 reject `-f`/`--file`/`-d`/`--dir`/`--packages` overrides on build and query
 (and as leading Lake options on exe and env, while preserving `-K`
 configuration settings and executable or command arguments), and run Lake
-explicitly against the tracked configuration (`-f lakefile.lean`, and
-`-f lakefile.toml` for the documentation site) with `--wfail`, so any warning,
+explicitly against the tracked configuration (`-f lakefile.lean`, while
+documentation site commands pass `-f lakefile.toml` directly) with `--wfail`, so any warning,
 including a header-time warning such as a deprecated import, fails the build
 (while `scripts/regula.sh` preserves Regula's default `lake build --wfail` and
 `lake lint` invocation after verifying `lean/lakefile.lean` and refusing any
@@ -453,9 +453,11 @@ directories while failing closed on an empty or non-Git tree, unmerged stages,
 or any tracked symbolic link or non-regular entry, and check explicit
 inventories of the tool modules and of the native entries. Each shell launcher
 (`scripts/gate.sh`, `scripts/verify.sh`, `scripts/lean.sh`, `scripts/regula.sh`),
-`lean/Bootstrap.lean` and `lean/lakefile.lean` admit `scripts/tracked-files.sh` directly against
-Git before executing it, and `scripts/gate.sh` admits its child scripts before
-launching them. Before any shell or Lake consumer reads them,
+`lean/Bootstrap.lean`, `lean/lakefile.lean` and `lean/AcornTools/TrackedFiles.lean`
+admit `scripts/tracked-files.sh` directly against Git before executing it,
+`lean/AcornTools/TrackedFiles.lean` admits `lean/Bootstrap.lean` and
+`lean/lean-toolchain` before compiled tools invoke them, and `scripts/gate.sh`
+admits its child scripts before launching them. Before any shell or Lake consumer reads them,
 `scripts/tracked-files.sh` admits manifests (`lean/lake-manifest.json`,
 `site/lake-manifest.json`), toolchains (`lean/lean-toolchain`,
 `site/lean-toolchain`), Lake configurations (`lean/lakefile.lean`,
@@ -482,8 +484,9 @@ paths directly from the current admitted native module inventory rather than
 walking compiler output directories. When tracked Lean files change,
 `scripts/tracked-files.sh` deletes only cached `lakefile.olean` and trace files
 whose parsed trace confirms Acorn ownership (leaving missing, malformed and
-other packages' traces untouched) and writes its stamp and override files
-atomically through exclusive temporary files before invoking Lake
+other packages' traces untouched) and writes the tracked-module stamp
+atomically through an exclusive temporary file (while `lean/Bootstrap.lean` and
+`lean/AcornTools/Gate.lean` write their override files the same way) before invoking Lake
 (`-f lakefile.lean` through `Bootstrap.lean`, `-f lakefile.toml` under `site/`,
 and default workspace resolution after shadow-config refusal for
 `scripts/regula.sh`), while `scripts/verify.sh` invokes
