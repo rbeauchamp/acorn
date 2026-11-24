@@ -150,13 +150,19 @@ jobs:
             done < "$jobs_file"
             return 1
           }
+          reap_provision() {
+            if [[ "$prov_ctrl_open" == 1 ]]; then
+              exec 4>&- 5<&- 6>&-
+              while IFS= read -r _ <&3; do :; done 2>/dev/null || true
+              prov_ctrl_open=0
+              exec 3<&-
+            fi
+          }
           cleanup_provision() {
+            trap '' INT TERM
             local pid="$prov_pid"
             prov_pid=''
-            if [[ "$prov_ctrl_open" == 1 ]]; then
-              exec 4>&- 5<&-
-              prov_ctrl_open=0
-            fi
+            reap_provision
             if [[ -n "$pid" ]]; then
               wait "$pid" 2>/dev/null || true
             fi
@@ -187,6 +193,7 @@ jobs:
             fi
           }
           cancel_provision() {
+            trap '' INT TERM
             local sig_rc="$1" pid="$prov_pid"
             prov_pid=''
             if [[ "$prov_ctrl_open" == 1 ]]; then
@@ -196,11 +203,10 @@ jobs:
                   if ! job_is_running "$pid" "$prov_dir/jobs.tmp"; then
                     break
                   fi
-                  sleep 0.1 4>&-
+                  sleep 0.1 3<&- 4>&-
                 done
               fi
-              exec 4>&- 5<&-
-              prov_ctrl_open=0
+              reap_provision
             fi
             if [[ -n "$pid" ]]; then
               wait "$pid" 2>/dev/null || true
@@ -212,16 +218,19 @@ jobs:
           trap 'cancel_provision 130' INT
           trap 'cancel_provision 143' TERM
           prov_ctrl="$prov_dir/ctrl"
-          mkfifo "$prov_ctrl"
-          prov_ctrl_open=1
+          prov_done="$prov_dir/done"
+          mkfifo "$prov_ctrl" "$prov_done"
           exec 4<>"$prov_ctrl"
           exec 5<"$prov_ctrl"
-          rm -f "$prov_ctrl"
+          exec 6<>"$prov_done"
+          exec 3<"$prov_done"
+          rm -f "$prov_ctrl" "$prov_done"
+          prov_ctrl_open=1
           status=0
           set -m
           (
             set +m
-            exec 4>&-
+            exec 3<&- 4>&-
             sh -c 'echo $PPID' > "$prov_dir/pgid"
             IFS= read -r my_pgid < "$prov_dir/pgid"
             rm -f "$prov_dir/pgid"
@@ -240,16 +249,15 @@ jobs:
                 kill -KILL -- -"$my_pgid" 2>/dev/null || true
               fi
             ) &
-            exec 5<&-
+            exec 5<&- 6>&-
             exec ./scripts/gate.sh provision
           ) &
           prov_pid=$!
           set +m
-          exec 5<&-
+          exec 5<&- 6>&-
           wait "$prov_pid" 2>/dev/null || status=$?
           prov_pid=''
-          exec 4>&-
-          prov_ctrl_open=0
+          reap_provision
           report_provision "$status" "failed (exit $status)"
           exit "$status"
       # The merge gate itself, by the same script with no argument. Its own provisioning

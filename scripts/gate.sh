@@ -659,17 +659,47 @@ spawn_pgid_reap_anchor() {
   fi
 }
 
+# shellcheck disable=SC2317,SC2329
+reap_fg_group() {
+  if [[ "$fg_reap_open" == 1 ]]; then
+    exec 8>&- 9<&- 6>&-
+    while IFS= read -r _ <&7; do :; done 2>/dev/null || true
+    fg_reap_open=0
+    exec 7<&-
+  fi
+}
+
+# shellcheck disable=SC2317,SC2329
+reap_sup_group() {
+  if [[ "$sup_ctrl_open" == 1 ]]; then
+    exec 4>&- 5<&- 6>&-
+    while IFS= read -r _ <&3; do :; done 2>/dev/null || true
+    sup_ctrl_open=0
+    exec 3<&-
+  fi
+}
+
+open_fg_reap_fifos() {
+  local ctrl_fifo="$gate_scratch/fg.ctrl" done_fifo="$gate_scratch/fg.done"
+  rm -f "$ctrl_fifo" "$done_fifo"
+  mkfifo "$ctrl_fifo" "$done_fifo"
+  exec 8<>"$ctrl_fifo"
+  exec 9<"$ctrl_fifo"
+  exec 6<>"$done_fifo"
+  exec 7<"$done_fifo"
+  rm -f "$ctrl_fifo" "$done_fifo"
+  fg_reap_open=1
+}
+
 # Invoked by the EXIT/INT/TERM traps; older ShellCheck does not trace trap callbacks.
 # shellcheck disable=SC2317,SC2329
 cleanup_post_checks() {
+  trap '' INT TERM
   local fg_pid="$fg_child_pid"
   local pid="$post_checks_pid"
   fg_child_pid=''
   post_checks_pid=''
-  if [[ "$fg_reap_open" == 1 ]]; then
-    exec 8>&- 9<&-
-    fg_reap_open=0
-  fi
+  reap_fg_group
   if [[ -n "$fg_pid" ]]; then
     wait "$fg_pid" 2>/dev/null || true
   fi
@@ -680,11 +710,10 @@ cleanup_post_checks() {
         if ! job_is_running "$pid" "$gate_scratch/jobs.tmp"; then
           break
         fi
-        sleep 0.1 4>&-
+        sleep 0.1 3<&- 4>&-
       done
     fi
-    exec 4>&- 5<&-
-    sup_ctrl_open=0
+    reap_sup_group
   fi
   if [[ -n "$pid" ]]; then
     wait "$pid" 2>/dev/null || true
@@ -719,29 +748,23 @@ run_fg_group() {
     echo 'gate: isolated TMPDIR missing for function phase' >&2
     return 1
   }
-  local rc=0 fifo="$gate_scratch/fg.reap"
-  rm -f "$fifo"
-  mkfifo "$fifo"
-  fg_reap_open=1
-  exec 8<>"$fifo"
-  exec 9<"$fifo"
-  rm -f "$fifo"
+  local rc=0
+  open_fg_reap_fifos
   set -m
   (
     set +m
-    exec 4>&- 8>&-
+    exec 3<&- 4>&- 7<&- 8>&-
     spawn_pgid_reap_anchor "$gate_scratch/fg.pgid" 9
-    exec 9<&-
+    exec 6>&- 9<&-
     export TMPDIR="$custom_tmpdir"
     "$@"
   ) &
   fg_child_pid=$!
   set +m
-  exec 9<&-
+  exec 6>&- 9<&-
   wait "$fg_child_pid" 2>/dev/null || rc=$?
   fg_child_pid=''
-  exec 8>&-
-  fg_reap_open=0
+  reap_fg_group
   return "$rc"
 }
 
@@ -755,28 +778,22 @@ run_fg_exec() {
     echo 'gate: isolated TMPDIR missing for external phase' >&2
     return 1
   }
-  local rc=0 fifo="$gate_scratch/fg.reap"
-  rm -f "$fifo"
-  mkfifo "$fifo"
-  fg_reap_open=1
-  exec 8<>"$fifo"
-  exec 9<"$fifo"
-  rm -f "$fifo"
+  local rc=0
+  open_fg_reap_fifos
   set -m
   (
     set +m
-    exec 4>&- 8>&-
+    exec 3<&- 4>&- 7<&- 8>&-
     spawn_pgid_reap_anchor "$gate_scratch/fg.pgid" 9
-    exec 9<&-
+    exec 6>&- 9<&-
     exec env TMPDIR="$custom_tmpdir" "$@"
   ) &
   fg_child_pid=$!
   set +m
-  exec 9<&-
+  exec 6>&- 9<&-
   wait "$fg_child_pid" 2>/dev/null || rc=$?
   fg_child_pid=''
-  exec 8>&-
-  fg_reap_open=0
+  reap_fg_group
   return "$rc"
 }
 
@@ -787,29 +804,23 @@ run_fg_dep_bounded() {
     echo 'gate: isolated TMPDIR missing for bounded phase' >&2
     return 1
   }
-  local rc=0 fifo="$gate_scratch/fg.reap"
-  rm -f "$fifo"
-  mkfifo "$fifo"
-  fg_reap_open=1
-  exec 8<>"$fifo"
-  exec 9<"$fifo"
-  rm -f "$fifo"
+  local rc=0
+  open_fg_reap_fifos
   set -m
   (
     set +m
-    exec 4>&- 8>&-
+    exec 3<&- 4>&- 7<&- 8>&-
     spawn_pgid_reap_anchor "$gate_scratch/fg.pgid" 9
-    exec 9<&-
+    exec 6>&- 9<&-
     dependency_git
     exec env TMPDIR="$custom_tmpdir" "$timeout_command" --signal=KILL "${limit_s}s" "$@"
   ) &
   fg_child_pid=$!
   set +m
-  exec 9<&-
+  exec 6>&- 9<&-
   wait "$fg_child_pid" 2>/dev/null || rc=$?
   fg_child_pid=''
-  exec 8>&-
-  fg_reap_open=0
+  reap_fg_group
   return "$rc"
 }
 
@@ -1020,30 +1031,40 @@ if [[ "$verified" == 0 ]]; then
   fi
   bg_supervisor_launched=1
   sup_ctrl="$gate_scratch/sup.ctrl"
-  rm -f "$sup_ctrl"
-  mkfifo "$sup_ctrl"
-  sup_ctrl_open=1
+  sup_done="$gate_scratch/sup.done"
+  rm -f "$sup_ctrl" "$sup_done"
+  mkfifo "$sup_ctrl" "$sup_done"
   exec 4<>"$sup_ctrl"
   exec 5<"$sup_ctrl"
-  rm -f "$sup_ctrl"
+  exec 6<>"$sup_done"
+  exec 3<"$sup_done"
+  rm -f "$sup_ctrl" "$sup_done"
+  sup_ctrl_open=1
 
   set -m
   (
     set +m
-    exec 4>&-
+    exec 3<&- 4>&-
     spawn_pgid_reap_anchor "$gate_scratch/sup.pgid" 5 term-then-kill
     exec 5<&-
     bg_child_pid=''
     bg_reap_open=0
+    # shellcheck disable=SC2317,SC2329
+    reap_bg_group() {
+      if [[ "$bg_reap_open" == 1 ]]; then
+        exec 7>&- 8<&- 4>&-
+        while IFS= read -r _ <&5; do :; done 2>/dev/null || true
+        bg_reap_open=0
+        exec 5<&-
+      fi
+    }
     # Invoked by the background subshell's EXIT/INT/TERM traps.
     # shellcheck disable=SC2317,SC2329
     cleanup_bg_child() {
+      trap '' INT TERM
       local pid="$bg_child_pid"
       bg_child_pid=''
-      if [[ "$bg_reap_open" == 1 ]]; then
-        exec 6>&- 7<&-
-        bg_reap_open=0
-      fi
+      reap_bg_group
       if [[ -n "$pid" ]]; then
         wait "$pid" 2>/dev/null || true
       fi
@@ -1059,31 +1080,32 @@ if [[ "$verified" == 0 ]]; then
         echo "gate: isolated TMPDIR missing for background phase: $prefix" >&2
         return 1
       }
-      local t0="$SECONDS" rc=0 fifo="$gate_scratch/bg.reap"
+      local t0="$SECONDS" rc=0 ctrl_fifo="$gate_scratch/bg.ctrl" done_fifo="$gate_scratch/bg.done"
       printf '%d\n' "$t0" > "${prefix}.started.tmp"
       mv -f "${prefix}.started.tmp" "${prefix}.started"
-      rm -f "$fifo"
-      mkfifo "$fifo"
+      rm -f "$ctrl_fifo" "$done_fifo"
+      mkfifo "$ctrl_fifo" "$done_fifo"
+      exec 7<>"$ctrl_fifo"
+      exec 8<"$ctrl_fifo"
+      exec 4<>"$done_fifo"
+      exec 5<"$done_fifo"
+      rm -f "$ctrl_fifo" "$done_fifo"
       bg_reap_open=1
-      exec 6<>"$fifo"
-      exec 7<"$fifo"
-      rm -f "$fifo"
       set -m
       (
         set +m
-        exec 6>&-
-        spawn_pgid_reap_anchor "$gate_scratch/bg.pgid" 7
-        exec 7<&-
+        exec 5<&- 7>&-
+        spawn_pgid_reap_anchor "$gate_scratch/bg.pgid" 8
+        exec 4>&- 6>&- 8<&-
         dependency_git
         exec env TMPDIR="$custom_tmpdir" "$timeout_command" --signal=KILL "${limit_s}s" "$@"
       ) > "${prefix}.log" 2>&1 < /dev/null &
       bg_child_pid=$!
       set +m
-      exec 7<&-
+      exec 4>&- 8<&-
       wait "$bg_child_pid" 2>/dev/null || rc=$?
       bg_child_pid=''
-      exec 6>&-
-      bg_reap_open=0
+      reap_bg_group
       printf '%d\n' $((SECONDS - t0)) > "${prefix}.dur.tmp"
       mv -f "${prefix}.dur.tmp" "${prefix}.dur"
       printf '%d\n' "$rc" > "${prefix}.status.tmp"
@@ -1101,7 +1123,7 @@ if [[ "$verified" == 0 ]]; then
   ) < /dev/null &
   post_checks_pid=$!
   set +m
-  exec 5<&-
+  exec 5<&- 6>&-
 
   regula_state='running'
   regula_start="$SECONDS"
@@ -1113,8 +1135,7 @@ if [[ "$verified" == 0 ]]; then
   post_checks_status=0
   wait "$post_checks_pid" 2>/dev/null || post_checks_status=$?
   post_checks_pid=''
-  exec 4>&-
-  sup_ctrl_open=0
+  reap_sup_group
 
   intended=1
   framed=1
