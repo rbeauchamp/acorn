@@ -1,42 +1,23 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Lean.Data.Json.Parser
 import Lean.Data.Json.FromToJson.Basic
 
-/-! # Provisioned, offline Lake invocation
-
-This bootstrap imports only the pinned Lean toolchain. It maps locked Git
-dependencies to existing local paths before Lake loads the workspace. The lock
-and provisioned dependency contents are trusted inputs, not downloaded by this
-command. The bootstrap is build tooling, outside the application's proof claim.
--/
 namespace AcornBootstrap
 open Lean
 
-/-- Lift a schema refusal into an explicit command failure. -/
 def checked {α : Type} (value : Except String α) : IO α :=
   match value with
   | .ok result => pure result
   | .error error => throw (IO.userError error)
 
-/-- A locked name cannot escape the provisioned package directory. -/
 def component (value : String) : IO String := do
   unless !value.isEmpty && value != "." && value != ".." &&
       value.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') do
     throw (IO.userError s!"unsupported package component: {value}")
   return value
 
-/-- The package directory of a locked name, computed as Lake computes it (Lake of Lean
-v4.36.0): it reads the name with `String.toName` (`FromJson Name`) and materializes the package
-in the directory `Name.toString (escape := false)` names (`PackageEntry.dirName`). So a name Lake
-writes in Lean's escape, such as `«lean-intent»`, has the directory `lean-intent`. -/
 def packageDir (name : String) : IO String :=
   component (name.toName.toString (escape := false))
 
-/-- Missing provisioned files are distinct from unreadable or non-regular paths. -/
 def regularFileAvailable (path : System.FilePath) : IO Bool := do
   let mut current : System.FilePath := "."
   let parts := path.components.toArray
@@ -50,12 +31,10 @@ def regularFileAvailable (path : System.FilePath) : IO Bool := do
       throw (IO.userError s!"non-regular provisioned path: {current}")
   return true
 
-/-- Mandatory inputs and offline execution reject missing files. -/
 def regularFile (path : System.FilePath) : IO Unit := do
   unless ← regularFileAvailable path do
     throw (IO.userError s!"missing provisioned file: {path}")
 
-/-- Admitted local replacements preserve every dependency's locked identity fields. -/
 def overrides : IO (Json × Bool) := do
   regularFile "lake-manifest.json"
   let lock ← checked (Json.parse (← IO.FS.readFile "lake-manifest.json"))
@@ -92,8 +71,6 @@ def overrides : IO (Json × Bool) := do
     unless (← checked (entry.getObjVal? "subDir")) == Json.null do
       throw (IO.userError "subdirectory dependencies need explicit provisioning support")
     let dir := s!".lake/packages/{directory}"
-    -- Inspect every entry even when an earlier dependency is absent: missing
-    -- provisioning cannot hide a later schema or filesystem refusal.
     let configAvailable ← regularFileAvailable (dir / config)
     let manifestAvailable ← regularFileAvailable (dir / manifest)
     let gitMeta? ← try some <$> (System.FilePath.mk dir / ".git").symlinkMetadata catch error =>
@@ -117,9 +94,6 @@ def overrides : IO (Json × Bool) := do
   return (Json.mkObj [("version", toJson "1.2.0"), ("packages", toJson entries)],
     available && mathlibAvailable)
 
-/-- Interpreted `lean --run` still executes `main` after header-time warnings, such as
-a deprecated import, that `warningAsError` does not reach. This file must elaborate
-under the launcher options with no message at all before any command proceeds. -/
 def silentElaboration : IO Unit := do
   let output ← IO.Process.output {
     cmd := (← IO.appPath).toString, stdin := .null,
@@ -127,22 +101,11 @@ def silentElaboration : IO Unit := do
   unless output.exitCode == 0 && output.stdout.isEmpty && output.stderr.isEmpty do
     throw (IO.userError s!"Bootstrap.lean elaboration reported messages:\n{output.stdout}{output.stderr}")
 
-/-- Lake runs with cache fetching disabled and the admitted local dependencies.
-`--wfail` makes any logged warning fail the build, including header-time warnings
-(for example a deprecated import) that `warningAsError` does not reach. -/
 def lake (overrides : System.FilePath) (args : Array String) : IO.Process.SpawnArgs := {
   cmd := "lake",
   args := #["-f", "lakefile.lean", "--no-cache", "--wfail", s!"--packages={overrides}"] ++ args,
   stdin := .null, env := #[("LAKE_ARTIFACT_CACHE", some "false")] }
 
-/-- The proof bridge is the single owner of its FloatLib imports, the intent bridge and the gate's
-`AcornTools.Intent` of their lean-intent imports, and the two decision registries together with
-`AcornTools.Theorems` of their Regula imports. FloatLib, lean-intent and Regula publish no build
-cache, and verification must not compile a dependency inside its deadline. Lake itself decides
-readiness: with `--no-build` it exits 3 unless every artifact and trace in the import closure of
-the `floatlibBridge`, `regulaInterface` (including the native objects linked from
-`AcornTools.Theorems`'s Regula imports) and `leanIntentBridge` targets, and every native object of
-the `leanIntentNative` target, is current, so no list of expected files is kept here. -/
 def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
   let output ← IO.Process.output
     (lake overrides #["build", "--no-build", "floatlibBridge", "regulaInterface",
@@ -395,17 +358,12 @@ private def writeFileAtomicExclusive (path : System.FilePath) (text : String) : 
       return
   throw (IO.userError s!"unable to allocate exclusive temporary file for {path}")
 
-/-- Invoke Lake only after local dependency admission. -/
 def run (args : List String) : IO UInt32 := do
   silentElaboration
   validateCallerArgs args
   syncTrackedConfigTrace (requiresCleanHead args)
   let (contents, available) ← overrides
   let path : System.FilePath := ".lake/acorn-path-packages.json"
-  -- Lake validates its configuration trace against source and toolchain changes;
-  -- explicit dependency overrides are resolved again on every invocation. Skip
-  -- rewriting when the file already holds the exact overrides, and update
-  -- atomically otherwise so concurrent read-only invocations never see a partial file.
   if available then
     let text := contents.compress ++ "\n"
     let current ← try some <$> IO.FS.readFile path catch _ => pure none
@@ -420,7 +378,6 @@ def run (args : List String) : IO UInt32 := do
 
 end AcornBootstrap
 
-/-- Bootstrap failures are explicit and never trigger dependency provisioning. -/
 def main (args : List String) : IO UInt32 := do
   try AcornBootstrap.run args catch error =>
     IO.eprintln s!"offline Lake: {error}"

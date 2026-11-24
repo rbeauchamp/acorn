@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.Buffer
 import Acorn.Host.Viewer.Retry
@@ -10,16 +5,6 @@ import Acorn.Host.Viewer.Supervision
 import Acorn.Host.Viewer.WorldMemory
 import AcornTools.TrackedFiles
 
-/-! # Browser execution wiring admission
-
-The generated kernel owns the page constants that `BrowserConstant` represents, the
-frame store and its ring binding, whole-frame admission, record conversion, validation
-and numeric programs; their agreement with the schema is proved beside their
-definitions. This lexical gate
-holds only what stays handwritten: the call sites that route the observer through
-those owners, and its request/timer inventory. Rendered browser behavior is
-inspected separately.
--/
 namespace AcornBrowserAudit
 open Acorn.Host.Viewer
 
@@ -29,9 +14,6 @@ private def require (legal : Bool) (message : String) : IO Unit :=
 private def compact (text : String) : String :=
   String.ofList (text.toList.filter (!·.isWhitespace))
 
-/-- Remove JavaScript comments, strings and regex literals before wiring checks.
-This conservative scanner follows the maintained page syntax; unterminated
-constructs fail admission rather than contributing apparent executable tokens. -/
 def code (text : String) : IO String := do
   let mut rest := text.toList
   let mut out := []
@@ -79,7 +61,6 @@ private def body (script function : String) : IO String := do
     out := c :: out
   throw (IO.userError s!"browser function is unclosed: {function}")
 
-/-- All inline browser source after lexical comment/literal removal. -/
 def scripts (page : String) : IO String := do
   let mut result := ""
   for part in (page.splitOn "<script").drop 1 do
@@ -90,9 +71,6 @@ def scripts (page : String) : IO String := do
     result := result ++ (← code source)
   return result
 
-/-- The constants that Appendix A of the viewer specification quotes, in the order of its table,
-each with the module that declares it and the value the viewer uses: the page's own constants,
-which the generated kernel declares (`BrowserConstant`), then the server's. -/
 private def ownedConstants : List (String × String × Nat) :=
   (([.readPace, .statsWindow, .frameCapacity, .ribbonSpan, .staleAfter, .tilePixels] :
       List BrowserConstant).map fun constant =>
@@ -102,30 +80,18 @@ private def ownedConstants : List (String × String × Nat) :=
     ("healthyRunMs", "Acorn.Host.Viewer.Supervision", healthyRunMs),
     ("mapSideCapacity", "Acorn.Host.Viewer.WorldMemory", mapSideCapacity)]
 
-/-- The constants table of Appendix A rendered from the Lean owners: its header, its separator
-and one row per constant of `ownedConstants`, each line ending in a line feed. -/
 private def constantsTable : String :=
   "| constant | value | declared in |\n|---|---|---|\n" ++
     String.join (ownedConstants.map fun (name, source, value) =>
       s!"| `{name}` | {value} | `{source}` |\n")
 
-/-- The title of Appendix A of the viewer specification. -/
 private def appendixTitle : String := "Appendix A · Constants this document quotes"
 
-/-- The number of places in `lines` where the lines of `block` occur one after another. -/
 private def occurrences (block : List String) (lines : List String) : Nat :=
   match lines with
   | [] => if block.isEmpty then 1 else 0
   | _ :: rest => (if block.isPrefixOf lines then 1 else 0) + occurrences block rest
 
-/-- Check the constants table of the viewer specification against the Lean owners. The
-specification is read as lines, split at each line feed. Exactly one line holds the title of
-Appendix A, and it is the whole heading `## Appendix A · Constants this document quotes`. Among
-the lines after it, to the end of the file, the lines of `constantsTable` occur one after another
-exactly once, and no other line contains `|`, so no second table, extra row or row in another
-spelling can stand beside it. The lines run to the end of the file rather than to the next
-heading of the same level, which Appendix A, the last such section, does not have, so finding
-that heading needs no reading of code blocks or HTML. -/
 private def documentConstants (text : String) : Except String Unit := do
   let lines := text.splitOn "\n"
   let table := (constantsTable.splitOn "\n").dropLast
@@ -138,7 +104,6 @@ private def documentConstants (text : String) : Except String Unit := do
   unless appendix.filter (·.contains '|') == table do
     throw "a table line in Appendix A outside the constants table"
 
-/-- Check the generated-program call sites and the request/timer inventory. -/
 def check : IO Unit := do
   AcornTrackedFiles.ensureTrackedRegular "." "" "viewer/static/index.html"
   let page ← IO.FS.readFile "viewer/static/index.html"

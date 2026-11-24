@@ -1,19 +1,7 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Init
 
-/-! # Reviewed native call routes
-
-These compiler-symbol sequences retain the native boundary's existing routing
-obligations. They detect replacement drift, not correctness of the generated C.
-The owning Lean definitions and their proofs establish the semantic contracts.
--/
 namespace AcornNativeRoutes
 
-/-- Module, compiled function, and ordered calls of each reviewed native route. -/
 def routes : Array (String × String × Array String) := #[
   ("Host/Control", "lp_acorn___private_Acorn_Host_Control_0__Acorn_Host_closeCommandSource", #["lean_io_cancel", "lean_io_process_child_try_wait", "lean_io_process_child_kill", "lean_io_process_child_wait"]),
   ("Host/Control", "lp_acorn___private_Acorn_Host_Control_0__Acorn_Host_ClosedCommandSource_join", #["lean_task_get_own"]),
@@ -351,8 +339,6 @@ def routes : Array (String × String × Array String) := #[
   ("Host/Runner", "lp_acorn_Acorn_Host_finishAttempt___redArg", #["lp_acorn_Acorn_Host_Attempt_finish___redArg", "lp_acorn_Acorn_Host_notifyObserver"])
 ]
 
-/-- Ordered closure code pointers connect deferred IO and capture to the same
-reviewed owners; checking a detached lambda alone does not establish that link. -/
 def closures : Array (String × String × Array String) := #[
   ("Host/Runner", "lp_acorn_Acorn_Host_runAdmittedCampaign___redArg", #[
     "lp_acorn_Acorn_Host_runAdmittedCampaign___redArg___lam__0___boxed"]),
