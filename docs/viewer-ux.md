@@ -479,21 +479,31 @@ Rules that apply to every number, label and colour on the page.
   exists"; Clear, while stopped, "archive this run and create a new
   zero-knowledge identity; the core stays stopped". A disabled control still
   says why, so "unavailable here" is distinguishable from "this build has no
-  such button". A request the server refuses, or a viewer the page cannot
-  reach, raises a fault pill beside the controls (`⚠ stop refused — <why>`)
-  that stays until a control frame shows the server moved; the toast that also
-  says it is below the fold. The control endpoint is `POST /control`, bound to
-  `127.0.0.1`, POST-only, JSON-only, and gated by a token minted per viewer
-  start and read from the served page, so a page left open from a previous
-  start holds a stale one and is refused; bodies are capped and rejections say
-  little about which check failed. For a browser Stop, `POST /control` holds its
-  HTTP response until the supervisor actor completes the `state.json` write for
-  `desired: "stopped"`: it returns `202` (`{"ok":true}`) only once the stopped
-  state has been written, flushed and renamed over `state.json`, and returns
-  `503` (`{"ok":false,"reason":...}`) if the supervisor queue is full or
-  unavailable, persisting fails, the 10-second wait times out, or the viewer is
-  closing or shuts down before completion, so the page raises the fault pill
-  instead of acknowledging an unpersisted Stop.
+  such button". A definite pre-execution refusal raises a fault pill beside the
+  controls (`⚠ <cmd> refused — <why>`, hover text noting refusal before taking
+  effect), an unconfirmed control outcome raises `⚠ <cmd> not confirmed — <why>`
+  (hover text noting the outcome was not confirmed and it may still take effect
+  or have requested wind-up), and a lost connection or unreachable viewer raises
+  `⚠ <cmd> outcome unknown — viewer unreachable` (hover text noting no HTTP
+  response was received); each pill stays until a control frame shows the server
+  moved, and the toast that also says it is below the fold. The control endpoint
+  is `POST /control`, bound to `127.0.0.1`, POST-only, JSON-only, and gated by a
+  token minted per viewer start and read from the served page, so a page left
+  open from a previous start holds a stale one and is refused; bodies are capped
+  and rejections say little about which check failed. For a browser Stop,
+  `POST /control` holds its HTTP response until the supervisor actor completes
+  the `state.json` write for `desired: "stopped"`: it returns `202`
+  (`{"ok":true}`) only once the stopped state has been written, flushed and
+  renamed over `state.json`; it returns `503` (`{"ok":false,"reason":...}`) if
+  refused before execution (supervisor queue full, unavailable, or mailbox
+  closing), and returns `503` (`{"ok":false,"unconfirmed":true,"reason":...}`)
+  if persisting fails, the 10-second HTTP wait times out, or viewer shutdown
+  interrupts the wait. Timing out ends only the HTTP wait — the Stop remains
+  queued and can still persist later — and a persistence error on a live run can
+  still request child wind-up or leave a pending Clear replacement revised to
+  stopped; a lost connection or abrupt crash can leave the browser with no HTTP
+  response at all. In all non-`202` cases the page raises the matching fault
+  pill instead of acknowledging an unpersisted Stop.
 - **UX-22 · Stop is cooperative and persistent.** The core finishes its current
   finite attempt, attempts a checkpoint if saving is armed, and exits through
   the same writer as periodic and finite-campaign completion. Successful save
@@ -1054,14 +1064,21 @@ What each panel must show. How it draws it is the code's.
   bound. The viewer announces nothing of this kind when the state it starts
   with is running. Browser Stop (`POST /control`) returns HTTP `202` only after
   `state.json` has been written, flushed and renamed on disk with
-  `desired: "stopped"` (and returns HTTP `503` without acknowledging if the
-  supervisor queue is full or unavailable, writing fails, the viewer is closing
-  or shuts down before completion, or the 10-second wait times out; directory
-  entries are not fsynced, so power-loss durability is not claimed), so once a
-  browser Stop is acknowledged (with no later Start admitted while open), a
-  viewer process crash at any step leaves the on-disk state stopped — or absent
-  during a Clear archive before the replacement state is written — and the next
-  launch with the same child cannot resume running without an explicit Start.
+  `desired: "stopped"` — confirming that earlier publication — and returns HTTP
+  `503` without acknowledging if refused before execution (queue full,
+  unavailable, or mailbox closing) or if persistence is unconfirmed (writing
+  fails, viewer shutdown interrupts the wait, or the 10-second HTTP wait times
+  out, which leaves the queued Stop eligible to execute later; directory entries
+  are not fsynced, so power-loss durability is not claimed, and a lost
+  connection or abrupt crash can yield no HTTP response). The no-later-Start
+  condition is ordered in supervisor processing order starting from that
+  acknowledging resolution (not browser HTTP receipt time, so a concurrent Start
+  processed by the supervisor after that resolution — even before the browser
+  receives `202` — supersedes it): with no later Start admitted by the
+  supervisor while open, a viewer process crash at any step leaves the on-disk
+  state stopped — or absent during a Clear archive before the replacement state
+  is written — and the next launch with the same child cannot resume running
+  without an explicit Start.
 
   When the supervisor does start the ranked core, it runs the executable
   `acorn-core` beside the viewer with the explicitly selected ranked research

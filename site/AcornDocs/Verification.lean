@@ -1505,35 +1505,55 @@ replacement): stepping `.command .stop` either refuses immediately via
 {decl}`Acorn.Host.Viewer.PersistedState` (without acknowledging on the step) whose resolution
 emits {decl}`Acorn.Host.Viewer.Follow.ackStop` on write success and
 {decl}`Acorn.Host.Viewer.Follow.refuseStop` without {decl}`Acorn.Host.Viewer.Follow.ackStop`
-on write error. Under an interleaving state machine over disk updates, crashes between any two
-steps, and reboots (including optional startup state write-back and arbitrary Clear
+on write error. Under an interleaving state machine over disk updates (including indeterminate state-write
+rename errors via {decl}`Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`), crashes between
+any two steps, and reboots (including optional startup state write-back and arbitrary Clear
 configurations) ({decl}`Acorn.Host.Viewer.CrashState`, {decl}`Acorn.Host.Viewer.CrashStep`,
 {decl}`Acorn.Host.Viewer.CrashReached`, {decl}`Acorn.Host.Viewer.CrashState.Invariant`,
 {decl}`Acorn.Host.Viewer.CrashReached.invariant`),
 {decl}`Acorn.Host.Viewer.PersistedState.encode_decode_stopped`,
 {decl}`Acorn.Host.Viewer.CrashReached.crashed_disk_stopped` and
 {decl}`Acorn.Host.Viewer.CrashReached.startup_cannot_resume_running` prove that
-once {decl}`Acorn.Host.Viewer.Follow.ackStop` has been observed with no later
-Start admitted by an idle, open supervisor, a crash at any point leaves the on-disk state
+once {decl}`Acorn.Host.Viewer.Follow.ackStop` has been observed in supervisor processing order
+with no later Start admitted by an idle, open supervisor (ordered at the actor's acknowledging
+resolution rather than browser HTTP receipt time, so a concurrent Start processed after that
+resolution supersedes it), a crash at any point leaves the on-disk state
 stopped (or absent mid-Clear archive), so whenever a reboot loads the state via
 {decl}`Acorn.Host.Viewer.DiskState.BootState` (covering both missing-file startup and any
 successful parse and decode), the loaded state has `desired = .stopped` and never resumes
 running without a later explicit Start, while
 {decl}`Acorn.Host.Viewer.CrashReached.stop_never_acked_on_write_error` proves that a failed
-write step leaves `ackedStop` and the on-disk state unchanged without emitting
-{decl}`Acorn.Host.Viewer.Follow.ackStop` and
-{decl}`Acorn.Host.Viewer.exists_stop_crash_restart_witness` establishes non-vacuity from every
-running persisted state through a `stop -> write -> ack -> crash -> reboot` trace.
+write step — whether the failure leaves the previous disk entry untouched
+({decl}`Acorn.Host.Viewer.CrashStep.writeFail`) or publishes the temporary file despite
+reporting an error ({decl}`Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`) — leaves
+`ackedStop` unchanged without emitting {decl}`Acorn.Host.Viewer.Follow.ackStop`.
+{decl}`Acorn.Host.Viewer.exists_stop_crash_restart_witness` constructs a
+`stop -> write -> ack -> crash` trace from every running persisted state with a conditional
+boot extension for every admissible {decl}`Acorn.Host.Viewer.DiskState.BootState`, and
+{decl}`Acorn.Host.Viewer.exists_stop_crash_reboot_populated` unconditionally inhabits the full
+`stop -> write -> ack -> crash -> boot` trace by proving `Json.parse` and
+{decl}`Acorn.Host.Viewer.PersistedState.decode` succeed on the published stopped file.
 The boundary between these theorems and the host program is read from the code and not proved:
 {decl}`Acorn.Host.Viewer.RunDirectory.writeState` writes and flushes an exclusively created
-temporary file and renames it over `state.json`, so atomicity of POSIX rename under the run
-directory's stable-path assumption remains a trust boundary and neither the temporary file nor
-the directory is fsynced (power-loss durability is not claimed); mapping
-{decl}`Acorn.Host.Viewer.Follow.ackStop` and {decl}`Acorn.Host.Viewer.Follow.refuseStop` to
-HTTP `202` and `503` (along with queue-full, 10-second `awaitControl` timeout, and closing or
-shutdown refusals in `HttpServer.lean` and `Supervisor.lean`) and exiting without starting a
-core on a parse or schema refusal from {decl}`Acorn.Host.Viewer.RunDirectory.readState` in
-`lean/NativeApp/Viewer.lean` are likewise read from the code. Nor does the theorem say who may
+temporary file and renames it over `state.json` under the run directory's stable-path
+assumption; neither the temporary file nor the directory is fsynced (power-loss durability is
+not claimed), and visibility of complete bytes without torn files rests on local-filesystem
+atomic rename semantics. Although {decl}`Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`
+models an ambiguous `state.json` rename failure (such as POSIX.1-2017 `rename` EIO
+or Linux NFS rename-despite-error) without weakening the stopped-disk or no-ack guarantees,
+{decl}`Acorn.Host.Viewer.RunDirectory.archive` classifies any caught filesystem rename error as
+{decl}`Acorn.Host.Viewer.ArchiveResult.unchanged` without re-inspecting the filesystem, so
+archival assumes on the failure side that a failed directory rename leaves the run directory
+at its original path. Mapping {decl}`Acorn.Host.Viewer.Follow.ackStop` to HTTP `202` and
+definite pre-execution refusals ({decl}`Acorn.Host.Viewer.ControlResult.refused`, `busy`,
+`unavailable`) versus unconfirmed Stop outcomes
+({decl}`Acorn.Host.Viewer.ControlResult.unconfirmed`, serialized with `"unconfirmed":true`,
+including write errors that may still request child wind-up, the 10-second `awaitControl`
+timeout that ends only the HTTP wait without dequeuing the Stop, and shutdown interruptions)
+to HTTP `503` in `HttpServer.lean` and `Supervisor.lean`, together with exiting without
+starting a core on a parse or schema refusal from
+{decl}`Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean`, are likewise
+read from the code. Nor does the theorem say who may
 submit a Start: the viewer serves its page on the loopback interface to whoever loads it. And that
 a Start was given is a property of the program: it is separate from the owner's authorization for
 a run of a learner, which [running a program](../CONTRIBUTING.md#running-a-program) governs.

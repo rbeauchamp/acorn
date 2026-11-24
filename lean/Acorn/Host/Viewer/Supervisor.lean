@@ -96,7 +96,7 @@ private def Supervisor.performInActor (supervisor : Supervisor) (effect : Effect
     Std.AtomicT (Actor supervisor.config.clearDisabled) IO Unit := do
   match effect with
   | .follow .ackStop => supervisor.settleStop .accepted
-  | .follow (.refuseStop reason) => supervisor.settleStop (.refused reason)
+  | .follow (.refuseStop reason) => supervisor.settleStop (.unconfirmed reason)
   | other =>
     let actor ← get
     supervisor.perform actor.directory other
@@ -313,14 +313,14 @@ def Supervisor.step (supervisor : Supervisor) : IO Unit :=
       if ← supervisor.ready then
         if let some (command, waiter) ← supervisor.popCommand then
           if let some promise := waiter then
-            supervisor.settleStop (.refused "superseded by newer stop")
+            supervisor.settleStop (.unconfirmed "superseded by newer stop")
             modify fun actor => { actor with activeStop := some promise }
           supervisor.handle (.command command)
       supervisor.observe
       supervisor.attribute
       if ← supervisor.ready then supervisor.handle .tick
     finally
-      supervisor.settleStop (.refused "stop did not persist before step ended")
+      supervisor.settleStop (.unconfirmed "stop did not persist before step ended")
 
 /-- One turn of a closing viewer: the close is handed once, then the process is watched, the
 identity its readers delivered is attributed, and a tick closes the viewer once no process
@@ -339,7 +339,7 @@ private def Supervisor.closeTurn (supervisor : Supervisor) : IO (Option Bool) :=
       | .closed failed => return some failed
       | .open | .closing _ => return none
     finally
-      supervisor.settleStop (.refused "viewer is closing")
+      supervisor.settleStop (.unconfirmed "viewer is closing")
       supervisor.closeMailbox "viewer is closing"
 
 /-- Graceful viewer shutdown winds the core up and keeps the process slot until reap and pipe

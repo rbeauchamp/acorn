@@ -2776,477 +2776,53 @@ private theorem Core.StopGuard.report {core : Core} (guard : core.StopGuard)
     (tr : ControlTransition) (reason : String) : (core.report tr reason).StopGuard :=
   guard.same rfl rfl rfl rfl
 
-private theorem Core.StopGuard.stop {core : Core} (guard : core.StopGuard) :
-    core.stop.StopGuard := by
-  refine ⟨⟨Lifecycle.request_stop_unstarted core.lifecycle, guard.held.persisted, fun p hp => ?_⟩,
-    guard.replacement, fun st ack hp => ?_, fun c s hp => ?_⟩
-  all_goals
-    simp only [Core.stop, Core.moveTo] at hp
-    cases hwt : windUpTarget core.slot core.lifecycle (core.lifecycle.request .stop) <;>
-      simp [hwt] at hp
-    (try cases hp)
-    (try exact trivial)
-
 private theorem Core.StopGuard.at {stepped : Stepped} (guard : stepped.core.StopGuard)
     (now : Nat) : (stepped.at now).core.StopGuard :=
   guard.same rfl rfl rfl rfl
 
+theorem Core.StopGuard.toUnstarted {core : Core} (guard : core.StopGuard) : core.Unstarted where
+  lifecycle := guard.held.lifecycle
+  persisted := guard.held.persisted
+  replacement := guard.replacement
+  pending p hp := by
+    cases p with
+    | intent c s => exact guard.noStartIntent c s hp
+    | replacement st ack => exact guard.pendingReplacement st ack hp
+    | launch _ _ | spawn _ _ | adopt _ _ _ | commit _ _ _ _ | exitIntent _
+    | seed _ | archive _ _ _ | reopen _ _ _ | windUp _ | exitMap _ _ | map _ | closeMap _ =>
+      exact guard.held.pending _ hp
+
+theorem Core.Unstarted.toStopGuard {core : Core} (unstarted : core.Unstarted) : core.StopGuard where
+  held :=
+    ⟨unstarted.lifecycle, unstarted.persisted, fun p hp => by
+      cases p with
+      | intent c s => exact Or.inr (unstarted.pending _ hp)
+      | replacement _ _ => exact trivial
+      | launch _ _ | spawn _ _ | adopt _ _ _ | commit _ _ _ _ | exitIntent _
+      | seed _ | archive _ _ _ | reopen _ _ _ | windUp _ | exitMap _ _ | map _ | closeMap _ =>
+        exact unstarted.pending _ hp⟩
+  replacement := unstarted.replacement
+  pendingReplacement st ack hp := unstarted.pending _ hp
+  noStartIntent c s hp := unstarted.pending _ hp
+
+theorem Core.StopGuard.iff_unstarted (core : Core) : core.StopGuard ↔ core.Unstarted :=
+  ⟨Core.StopGuard.toUnstarted, Core.Unstarted.toStopGuard⟩
+
 theorem Core.start_stopGuard (persisted : PersistedState) (clearDisabled : Option String)
     (reason : String) (reading : Nat) (hstopped : persisted.desired = .stopped) :
     (Core.start persisted clearDisabled reason reading).StopGuard :=
-  ⟨⟨⟨hstopped, (fun h => by cases h)⟩, hstopped, (fun _ h => by cases h)⟩,
-    (fun _ h => by cases h), (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-
-private theorem Core.StopGuard.candidate {core : Core} (guard : core.StopGuard)
-    (_hp : core.pending = none) (generation : UInt64) (actual : CoreIdentity) :
-    (core.candidate generation actual).core.StopGuard := by
-  simp only [Core.candidate]
-  split
-  · exact guard
-  · split
-    · exact guard.stop.report _ _
-    · cases core.owner with
-      | retired _ => simp only [Core.adoptFailed]; exact guard.stop.report _ _
-      | current =>
-        refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-          guard.replacement, (fun st ack h => by cases h), (fun c s h => by cases h)⟩
-        cases Option.some.inj h
-        exact guard.held.persisted
-
-private theorem Core.StopGuard.exited {core : Core} (guard : core.StopGuard)
-    (hp : core.pending = none) (now : Nat) (code : UInt32) (uptimeMs : Nat) :
-    (core.exited now code uptimeMs).core.StopGuard := by
-  simp only [Core.exited]
-  cases hslot : core.slot with
-  | empty | draining _ _ _ => exact guard
-  | live generation =>
-    let requested := core.lifecycle.phaseValue == .stopping generation
-    have hlcu : ((if requested then core.lifecycle
-        else core.lifecycle.failed generation (clockWord now)
-          (decide (uptimeMs > healthyRunMs))).retire generation).Unstarted := by
-      apply Lifecycle.retire_unstarted
-      by_cases hreq : requested
-      · simp only [hreq, ↓reduceIte]; exact guard.held.lifecycle
-      · simp only [hreq]
-        exact Lifecycle.failed_unstarted _ _ _ _ guard.held.lifecycle
-    exact ⟨⟨hlcu, guard.held.persisted, fun p h => guard.held.pending p h⟩,
-      guard.replacement, (fun st ack h => by rw [hp] at h; cases h),
-      (fun c s h => by rw [hp] at h; cases h)⟩
-
-private theorem Core.StopGuard.finished {core : Core} (guard : core.StopGuard)
-    (_hp : core.pending = none) (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus) :
-    (core.finished stdout stderr log).core.StopGuard := by
-  simp only [Core.finished]
-  cases core.slot with
-  | empty | live _ => exact guard
-  | draining _ code _ =>
-    dsimp only
-    cases hcls : core.closing with
-    | «open» =>
-      dsimp only
-      split
-      · refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-          guard.replacement, (fun st ack h => by cases h), (fun c s h => by cases h)⟩
-        cases Option.some.inj h; trivial
-      · simp only [Core.exitReported]
-        split
-        · have g1 : Core.StopGuard { core with
-              slot := .empty
-              detail := { core.detail with log := log, abnormalExit := code != 0 }
-              failure := if terminationFailed code stdout stderr log then
-                some (exitReason code ++ outputReason stdout stderr log) else core.failure
-              closing := .open } := guard.same rfl rfl rfl rfl
-          exact (g1.report _ _).report _ _
-        · refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-            guard.replacement, (fun st ack h => by cases h), (fun c s h => by cases h)⟩
-          cases Option.some.inj h
-          exact guard.held.lifecycle.desired_stopped
-    | closing failed =>
-      dsimp only
-      have g1 : Core.StopGuard { core with
-          slot := .empty
-          detail := { core.detail with log := log, abnormalExit := code != 0 }
-          failure := if terminationFailed code stdout stderr log then
-            some (exitReason code ++ outputReason stdout stderr log) else core.failure
-          closing := .closing (failed || terminationFailed code stdout stderr log) } :=
-        guard.same rfl rfl rfl rfl
-      exact g1.report _ _
-    | closed _ =>
-      dsimp only
-      exact guard.same rfl rfl rfl rfl
-
-private theorem Core.StopGuard.dispatch (core : Core) (clearDisabled : Option String)
-    (now : Nat) (event : Event) (guard : core.StopGuard) (hnoStart : event ≠ .command .start) :
-    (core.dispatch clearDisabled now event).core.StopGuard := by
-  unfold Core.dispatch
-  cases hp : core.pending with
-  | some _ => exact guard
-  | none =>
-    cases hc : core.closing with
-    | closed _ => exact guard
-    | closing _ =>
-      cases event with
-      | command _ => exact guard
-      | candidate gen actual => exact guard.candidate hp gen actual
-      | exited code uptimeMs => exact guard.exited hp now code uptimeMs
-      | finished stdout stderr log => exact guard.finished hp stdout stderr log
-      | refused reason =>
-        simp only [Core.refused, hc]
-        exact guard.same rfl rfl rfl rfl
-      | tick =>
-        simp only [Core.tick, hc]
-        cases core.slot with
-        | empty =>
-          simp only [Core.closeOut]
-          split
-          · refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-              guard.replacement, (fun st ack h => by cases h), (fun c s h => by cases h)⟩
-            cases Option.some.inj h; trivial
-          · simp only [Core.closed, hc]; exact guard.same rfl rfl rfl rfl
-        | live _ | draining _ _ _ => exact guard
-      | close => simp only [Core.close, hc]; exact guard
-    | «open» =>
-      cases event with
-      | command cmd =>
-        have hns : cmd ≠ .start := fun h => hnoStart (congrArg Event.command h)
-        have hcmdStopped : cmd.desired = .stopped := by
-          cases cmd with
-          | start => exact absurd rfl hns
-          | stop | clear => rfl
-        simp only [Core.command]
-        split
-        · exact guard
-        · cases hrep : core.replacement with
-          | some rep =>
-            dsimp only
-            split
-            · exact guard.report _ _
-            · split
-              · cases core.owner with
-                | retired _ => simp only [Core.intentFailed]; exact guard.stop.report _ _
-                | current =>
-                  refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-                    (fun r hr => by cases Option.some.inj hr; rfl),
-                    (fun st ack h => by cases Option.some.inj h; rfl),
-                    (fun c s h => by cases h)⟩
-                  cases Option.some.inj h; trivial
-              · rename_i hnotClear hnotStop
-                cases cmd with
-                | start => exact absurd rfl hns
-                | stop => exact absurd rfl hnotStop
-                | clear => exact absurd rfl hnotClear
-          | none =>
-            dsimp only
-            cases core.owner with
-            | retired _ => simp only [Core.intentFailed]; exact guard.stop.report _ _
-            | current =>
-              refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-                (fun _ hr => by cases hr), (fun st ack h => by cases h), fun c s h => ?_⟩
-              · cases Option.some.inj h
-                exact .inr ⟨hns, hcmdStopped⟩
-              · cases Option.some.inj h
-                exact ⟨hns, hcmdStopped⟩
-      | candidate gen actual => exact guard.candidate hp gen actual
-      | exited code uptimeMs => exact guard.exited hp now code uptimeMs
-      | finished stdout stderr log => exact guard.finished hp stdout stderr log
-      | refused _ => simp only [Core.refused, hc]; exact guard.report _ _
-      | tick =>
-        have hlc : (core.launchCheck now).core.StopGuard := by
-          simp only [Core.launchCheck]
-          split
-          · rw [Lifecycle.unstarted_reserve core.lifecycle guard.held.lifecycle (clockWord now)]
-            exact guard
-          · exact guard
-        have hmol : (core.mapOrLaunch now).core.StopGuard := by
-          simp only [Core.mapOrLaunch]
-          split
-          · refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-              guard.replacement, (fun st ack h => by cases h), (fun c s h => by cases h)⟩
-            cases Option.some.inj h; trivial
-          · exact hlc
-        simp only [Core.tick, hc]
-        cases hrep : core.replacement with
-        | some rep =>
-          dsimp only
-          cases core.owner with
-          | retired _ => dsimp only; exact guard
-          | current =>
-            dsimp only
-            refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-              (fun rep1 h => guard.replacement rep1 (by cases Option.some.inj h; exact hrep)),
-              fun st ack h => ?_, (fun c s h => by cases h)⟩
-            · cases Option.some.inj h; trivial
-            · cases Option.some.inj h; exact guard.replacement rep hrep
-        | none =>
-          dsimp only
-          cases hai : core.lifecycle.archiveIntent with
-          | none => dsimp only; exact hmol
-          | some intended =>
-            have hind : intended = .stopped := by
-              unfold Lifecycle.archiveIntent at hai
-              split at hai
-              · cases intended with
-                | stopped => rfl
-                | running => exact absurd hai guard.held.lifecycle.2
-              · cases hai
-            cases core.slot with
-            | empty =>
-              dsimp only
-              simp only [Core.clear]
-              split
-              · exact guard.stop.report _ _
-              · cases core.owner with
-                | retired _ => dsimp only; exact guard
-                | current =>
-                  dsimp only
-                  refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-                    guard.replacement, (fun st ack h => by cases h), (fun c s h => by cases h)⟩
-                  cases Option.some.inj h
-                  exact hind
-            | live _ | draining _ _ _ => dsimp only; exact hmol
-      | close =>
-        simp only [Core.close, hc]
-        have g2 := (guard.same rfl rfl rfl rfl).stop.report .stopRequested
-          "viewer closing; finishing the current attempt and checkpoint"
-        split
-        · simp only [Core.closeOut]
-          split
-          · refine ⟨⟨g2.held.lifecycle, g2.held.persisted, fun p h => ?_⟩,
-              g2.replacement, (fun st ack h => by cases h), (fun c s h => by cases h)⟩
-            cases Option.some.inj h; trivial
-          · exact g2.same rfl rfl rfl rfl
-        · exact g2.same rfl rfl rfl rfl
+  (Core.start_unstarted persisted clearDisabled reason reading hstopped).toStopGuard
 
 theorem Core.step_stopGuard (core : Core) (clearDisabled : Option String) (reading : Nat)
     (event : Event) (guard : core.StopGuard) (hnoStart : event ≠ .command .start) :
     (core.step clearDisabled reading event).core.StopGuard :=
-  (Core.StopGuard.dispatch core clearDisabled (core.instant reading) event guard hnoStart).at
-    (core.instant reading)
+  (Core.step_unstarted core clearDisabled reading event hnoStart guard.toUnstarted).toStopGuard
 
 theorem Core.resume_stopGuard (core : Core) (reading : Nat) (pending : Pending)
     (result : (pending.call core.lifecycle).Result)
-    (hp : core.pending = some pending) (sh : core.ShapeInvariant) (guard : core.StopGuard) :
-    (core.resume reading pending result).core.StopGuard := by
-  have gBase : ({ core with pending := none } : Core).StopGuard :=
-    ⟨⟨guard.held.lifecycle, guard.held.persisted, (fun _ h => by cases h)⟩,
-      guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-  unfold Core.resume
-  apply Core.StopGuard.at
-  cases pending with
-  | intent command state =>
-    have hns := guard.noStartIntent command state hp
-    cases result with
-    | error _ => exact gBase.stop.report _ _
-    | ok u =>
-      cases u
-      simp only [Core.resolve, Core.intentSaved]
-      have hlcu : (core.lifecycle.request command).Unstarted := by
-        cases command with
-        | start => exact absurd rfl hns.1
-        | stop => exact Lifecycle.request_stop_unstarted core.lifecycle
-        | clear => exact Lifecycle.request_clear_unstarted core.lifecycle guard.held.lifecycle
-      refine ⟨⟨hlcu, hns.2, fun p h => ?_⟩, guard.replacement, fun st ack h => ?_, fun c s h => ?_⟩
-      all_goals
-        simp only [Core.report, Core.moveTo] at h
-        cases hwt : windUpTarget core.slot core.lifecycle (core.lifecycle.request command) <;>
-          simp [hwt] at h
-        (try cases h)
-        (try exact trivial)
-  | launch state _ => exact absurd (guard.held.pending _ hp) (fun h => h)
-  | spawn _ _ => exact absurd (guard.held.pending _ hp) (fun h => h)
-  | windUp _ =>
-    cases result with
-    | error _ =>
-      cases hc : core.closing with
-      | «open» =>
-        simp only [Core.resolve, Core.refused]
-        have gOpen : Core.StopGuard { core with pending := none, closing := .open } :=
-          gBase.same rfl rfl rfl rfl
-        exact gOpen.report _ _
-      | closing _ =>
-        simp only [Core.resolve, Core.refused]
-        exact gBase.same rfl rfl rfl rfl
-      | closed _ =>
-        simp only [Core.resolve, Core.refused]
-        exact gBase.same rfl rfl rfl rfl
-    | ok _ => exact gBase
-  | adopt generation actual state =>
-    have hst : state.desired = .stopped := guard.held.pending _ hp
-    cases result with
-    | error _ => exact gBase.stop.report _ _
-    | ok u =>
-      cases u
-      simp only [Core.resolve, Core.adopted]
-      refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-        guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-      cases Option.some.inj h; exact hst
-  | commit generation actual state detail =>
-    have hst : state.desired = .stopped := guard.held.pending _ hp
-    cases result with
-    | error _ =>
-      have gs : ({ core with persisted := state, pending := none } : Core).StopGuard :=
-        ⟨⟨guard.held.lifecycle, hst, (fun _ h => by cases h)⟩,
-          guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-      exact gs.stop.report _ _
-    | ok dropped =>
-      simp only [Core.resolve, Core.committed]
-      have hlcu := Lifecycle.adoptFinalIdentity_unstarted core.lifecycle generation actual.identity
-        guard.held.lifecycle
-      have g1 : Core.StopGuard { core with
-          persisted := state, detail := detail,
-          lifecycle := core.lifecycle.adoptFinalIdentity generation actual.identity,
-          pending := none } :=
-        ⟨⟨hlcu, hst, (fun _ h => by cases h)⟩,
-          guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-      split
-      · exact g1.report _ _
-      · exact g1
-  | exitMap _ _ =>
-    have hex : ∀ (c : Core) (r : ExitReport), c.StopGuard → (c.exitReported r).core.StopGuard := by
-      intro c r gc
-      simp only [Core.exitReported]
-      split
-      · have g0 : Core.StopGuard
-            { c with detail := r.detail, failure := r.failure } :=
-          gc.same rfl rfl rfl rfl
-        exact (g0.report _ _).report _ _
-      · refine ⟨⟨gc.held.lifecycle, gc.held.persisted, fun p h => ?_⟩,
-          gc.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-        cases Option.some.inj h
-        exact gc.held.lifecycle.desired_stopped
-    cases result with
-    | error _ => dsimp only [Core.resolve]; exact hex _ _ (gBase.same rfl rfl rfl rfl)
-    | ok _ => dsimp only [Core.resolve]; exact hex _ _ (gBase.same rfl rfl rfl rfl)
-  | exitIntent state =>
-    have hst : state.desired = .stopped := guard.held.pending _ hp
-    cases result with
-    | error _ => exact gBase.report _ _
-    | ok u =>
-      cases u
-      exact ⟨⟨guard.held.lifecycle, hst, (fun _ h => by cases h)⟩,
-        guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-  | map _ =>
-    have hlc : ∀ c : Core, c.StopGuard → (c.launchCheck (core.instant reading)).core.StopGuard := by
-      intro c gc
-      simp only [Core.launchCheck]
-      split
-      · rw [Lifecycle.unstarted_reserve c.lifecycle gc.held.lifecycle _]; exact gc
-      · exact gc
-    cases result with
-    | error _ => exact hlc _ (gBase.report _ _)
-    | ok _ => exact hlc _ (gBase.same rfl rfl rfl rfl)
-  | closeMap _ =>
-    have hcl : ∀ c : Core, c.StopGuard → c.closed.core.StopGuard := by
-      intro c gc
-      simp only [Core.closed]
-      cases c.closing <;> exact gc.same rfl rfl rfl rfl
-    cases result with
-    | error _ => exact hcl _ (gBase.report _ _)
-    | ok _ => exact hcl _ (gBase.same rfl rfl rfl rfl)
-  | seed intended =>
-    have hind : intended = .stopped := guard.held.pending _ hp
-    cases result with
-    | error _ => exact gBase.stop.report _ _
-    | ok seed =>
-      simp only [Core.resolve, Core.seeded]
-      split
-      · exact gBase.stop.report _ _
-      · cases hba : core.lifecycle.beginArchive with
-        | none => exact gBase
-        | some lc =>
-          cases core.owner with
-          | retired _ => dsimp only; exact gBase.same rfl rfl rfl rfl
-          | current =>
-            dsimp only
-            have hlcu := Lifecycle.beginArchive_unstarted _ _ hba guard.held.lifecycle
-            let identity : Identity := ⟨core.persisted.identity.run + 1, seed,
-              core.persisted.identity.agentEpoch + 1⟩
-            have gSeed : Core.StopGuard { core with
-                lifecycle := lc, owner := .current
-                pending := some (.archive identity intended (clockWord (core.instant reading))) } :=
-              ⟨⟨hlcu, guard.held.persisted, fun p h => by cases Option.some.inj h; exact hind⟩,
-                guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-            exact gSeed.report _ _
-  | archive id intended _ =>
-    have hind : intended = .stopped := guard.held.pending _ hp
-    cases result with
-    | unchanged _ =>
-      have gUnch : Core.StopGuard
-          { core with lifecycle := core.lifecycle.archiveFailed, pending := none } :=
-        ⟨⟨Lifecycle.archiveFailed_unstarted _ guard.held.lifecycle,
-            guard.held.persisted, (fun _ h => by cases h)⟩,
-          guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-      exact gUnch.report _ _
-    | moved archive _ =>
-      have gMov : Core.StopGuard { core with
-          lifecycle := core.lifecycle.archiveFailed
-          owner := .retired (retiredReason archive)
-          pending := none } :=
-        ⟨⟨Lifecycle.archiveFailed_unstarted _ guard.held.lifecycle,
-            guard.held.persisted, (fun _ h => by cases h)⟩,
-          guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-      exact gMov.report _ _
-    | ready archive =>
-      refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-        guard.replacement, (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
-      cases Option.some.inj h; exact hind
-  | reopen id intended archive =>
-    have hind : intended = .stopped := guard.held.pending _ hp
-    cases result with
-    | error _ =>
-      dsimp only [Core.resolve]
-      have gFail : Core.StopGuard
-          { core with owner := .retired (retiredReason archive), pending := none } :=
-        gBase.same rfl rfl rfl rfl
-      exact gFail.report _ _
-    | ok u =>
-      cases u
-      dsimp only [Core.resolve]
-      refine ⟨⟨guard.held.lifecycle, guard.held.persisted, fun p h => ?_⟩,
-        (fun r hr => by cases Option.some.inj hr; exact hind),
-        (fun st ack h => by cases Option.some.inj h; exact hind),
-        (fun _ _ h => by cases h)⟩
-      cases Option.some.inj h; trivial
-  | replacement state ackStop =>
-    have hst : state.desired = .stopped := guard.pendingReplacement state ackStop hp
-    cases result with
-    | error _ => dsimp only [Core.resolve]; exact gBase.report _ _
-    | ok u =>
-      cases u
-      dsimp only [Core.resolve]
-      have gRep : ({ core with pending := none }.replaced state).core.StopGuard := by
-        simp only [Core.replaced]
-        have hBoth := Lifecycle.replacementIntent_stopped_unstarted core.lifecycle state.identity
-          sh.archival.lifecycle
-        rw [hst]
-        cases hins : (core.lifecycle.replacementIntent .stopped).archived state.identity with
-        | none =>
-          dsimp only
-          have hrep : core.replacement = some state := sh.replacementMatches state ackStop hp
-          have hph := sh.replacementArchiving (by simp [hrep])
-          have hlcu := hBoth.2 hins hph
-          have gNone : Core.StopGuard { core with
-              lifecycle := core.lifecycle.replacementIntent .stopped, pending := none } :=
-            ⟨⟨hlcu, guard.held.persisted, (fun _ h => by cases h)⟩,
-              guard.replacement, (fun _ _ h => by cases h),
-              (fun _ _ h => by cases h)⟩
-          exact gNone.report _ _
-        | some installed =>
-          dsimp only
-          have hlcu := hBoth.1 installed hins
-          have gSome : Core.StopGuard { core with
-              lifecycle := installed, persisted := state, replacement := none,
-              detail := { core.detail with log := {}, abnormalExit := false },
-              failure := none, mapAt := 0, mapRevision := none, pending := none } :=
-            ⟨⟨hlcu, hst, (fun _ h => by cases h)⟩,
-              (fun _ h => by cases h), (fun _ _ h => by cases h),
-              (fun _ _ h => by cases h)⟩
-          exact gSome.report _ _
-      cases ackStop with
-      | false => exact gRep
-      | true =>
-        cases hdes : (state.desired == .stopped) <;>
-          simp only [↓reduceIte, Bool.false_eq_true] <;> exact gRep
+    (hp : core.pending = some pending) (guard : core.StopGuard) :
+    (core.resume reading pending result).core.StopGuard :=
+  (Core.resume_unstarted core reading pending result guard.toUnstarted hp).toStopGuard
 
 theorem Core.resume_ackStop_stopGuard (core : Core) (reading : Nat) (pending : Pending)
     (result : (pending.call core.lifecycle).Result)
@@ -3472,6 +3048,20 @@ inductive CrashStep : CrashState → CrashState → Prop where
         { st with
           core := (st.core.resume reading p result).core
           tmpWrite := none }
+  | writeFailIndeterminate (st : CrashState) (reading : Nat) (p : Pending)
+      (state : PersistedState) (child : Option (List String)) (reason : String)
+      (result : (p.call st.core.lifecycle).Result)
+      (hlive : st.live = true)
+      (hp : st.core.pending = some p)
+      (ht : st.tmpWrite = some (state, child))
+      (hd : st.writeDone = none)
+      (ha : st.archiveMoved = none) (hf : st.archiveFailedDisk = none)
+      (herr : (p.call st.core.lifecycle).IsWriteStateErr result reason) :
+      CrashStep st
+        { st with
+          core := (st.core.resume reading p result).core
+          tmpWrite := none
+          disk := .file (state.encode child) child }
   | archiveMoveOnDisk (st : CrashState) (id : Identity) (intended : Desired) (t : UInt64)
       (archive : System.FilePath)
       (hlive : st.live = true)
@@ -3745,7 +3335,7 @@ theorem CrashStep.invariant {st next : CrashState} (inv : st.Invariant)
         have hdisk := (inv.durableStop hack hns).1
         have hguard := ((inv.durableStop hack hns).2 hlive).1
         exact ⟨hdisk, fun _ =>
-          ⟨Core.resume_stopGuard st.core reading p result hp inv.shape hguard,
+          ⟨Core.resume_stopGuard st.core reading p result hp hguard,
             (fun _ _ h => by rw [(inv.donePending state hd).1] at h; cases h),
             (fun _ h => by cases h)⟩⟩
   | writeFail reading p reason result hlive hp hd ha hf herr =>
@@ -3757,7 +3347,18 @@ theorem CrashStep.invariant {st next : CrashState} (inv : st.Invariant)
     obtain ⟨hdisk, hliveInv⟩ := inv.durableStop hack hns
     obtain ⟨hguard, _, _⟩ := hliveInv hlive
     exact ⟨hdisk, fun _ =>
-      ⟨Core.resume_stopGuard st.core reading p result hp inv.shape hguard,
+      ⟨Core.resume_stopGuard st.core reading p result hp hguard,
+        (fun _ _ h => by cases h), (fun _ h => by rw [hd] at h; cases h)⟩⟩
+  | writeFailIndeterminate reading p state child reason result hlive hp ht hd ha hf herr =>
+    have hboth := Core.ShapeInvariant.resume reading p result hp inv.shape inv.clean
+    refine ⟨hboth.1, hboth.2, (fun _ _ h => by cases h),
+      (fun _ h => by rw [hd] at h; cases h),
+      (fun a h => by rw [ha] at h; cases h), (fun m a r h => by rw [hf] at h; cases h), ?_⟩
+    intro hack hns
+    obtain ⟨_, hliveInv⟩ := inv.durableStop hack hns
+    obtain ⟨hguard, htmp, _⟩ := hliveInv hlive
+    exact ⟨⟨state, rfl, htmp state child ht⟩, fun _ =>
+      ⟨Core.resume_stopGuard st.core reading p result hp hguard,
         (fun _ _ h => by cases h), (fun _ h => by rw [hd] at h; cases h)⟩⟩
   | archiveMoveOnDisk id intended t archive hlive hp ht hd ha hf =>
     refine ⟨inv.shape, inv.clean,
@@ -3785,7 +3386,7 @@ theorem CrashStep.invariant {st next : CrashState} (inv : st.Invariant)
       obtain ⟨hdisk, hliveInv⟩ := inv.durableStop hack hns
       obtain ⟨hguard, htmp, hdone⟩ := hliveInv hlive
       refine ⟨hdisk, fun _ => ⟨Core.resume_stopGuard st.core reading (.archive id intended t)
-          (.ready archive) hp inv.shape hguard, htmp, hdone⟩⟩
+          (.ready archive) hp hguard, htmp, hdone⟩⟩
   | archiveFailOnDisk id intended t moved archive reason hlive hp ht hd ha hf =>
     refine ⟨inv.shape, inv.clean,
       (fun s c h => by rw [ht] at h; cases h),
@@ -3817,7 +3418,7 @@ theorem CrashStep.invariant {st next : CrashState} (inv : st.Invariant)
       obtain ⟨hdisk, hliveInv⟩ := inv.durableStop hack hns
       obtain ⟨hguard, htmp, hdone⟩ := hliveInv hlive
       exact ⟨hdisk, fun _ => ⟨Core.resume_stopGuard st.core reading (.archive id intended t)
-        res hp inv.shape hguard, htmp, hdone⟩⟩
+        res hp hguard, htmp, hdone⟩⟩
   | resumeOther reading p result hlive hp ht hd ha hf hnotWrite hnotArch =>
     have hboth := Core.ShapeInvariant.resume reading p result hp inv.shape inv.clean
     refine ⟨hboth.1, hboth.2,
@@ -3828,7 +3429,7 @@ theorem CrashStep.invariant {st next : CrashState} (inv : st.Invariant)
     intro hack hns
     obtain ⟨hdisk, hliveInv⟩ := inv.durableStop hack hns
     obtain ⟨hguard, htmp, hdone⟩ := hliveInv hlive
-    exact ⟨hdisk, fun _ => ⟨Core.resume_stopGuard st.core reading p result hp inv.shape hguard,
+    exact ⟨hdisk, fun _ => ⟨Core.resume_stopGuard st.core reading p result hp hguard,
       htmp, hdone⟩⟩
   | crash hlive =>
     refine ⟨inv.shape, inv.clean, (fun _ _ h => by cases h), (fun _ h => by cases h),
@@ -3896,11 +3497,27 @@ theorem CrashReached.stop_never_acked_on_write_error (st : CrashState) (reading 
     (hlive : st.live = true) (hp : st.core.pending = some p)
     (hd : st.writeDone = none) (ha : st.archiveMoved = none) (hf : st.archiveFailedDisk = none)
     (herr : (p.call st.core.lifecycle).IsWriteStateErr result reason) :
-    let next := { st with core := (st.core.resume reading p result).core, tmpWrite := none }
-    CrashStep st next ∧ next.ackedStop = st.ackedStop ∧ next.disk = st.disk ∧
-      Follow.ackStop ∉ (st.core.resume reading p result).follows :=
-  ⟨CrashStep.writeFail st reading p reason result hlive hp hd ha hf herr,
-    rfl, rfl, Core.resume_error_no_ackStop st.core reading p reason result herr⟩
+    (CrashStep st { st with core := (st.core.resume reading p result).core, tmpWrite := none } ∧
+      ({ st with core := (st.core.resume reading p result).core, tmpWrite := none } :
+        CrashState).ackedStop = st.ackedStop ∧
+      Follow.ackStop ∉ (st.core.resume reading p result).follows) ∧
+    (∀ state child, st.tmpWrite = some (state, child) →
+      CrashStep st
+        { st with
+          core := (st.core.resume reading p result).core
+          tmpWrite := none
+          disk := .file (state.encode child) child } ∧
+      ({ st with
+          core := (st.core.resume reading p result).core
+          tmpWrite := none
+          disk := .file (state.encode child) child } : CrashState).ackedStop = st.ackedStop ∧
+      Follow.ackStop ∉ (st.core.resume reading p result).follows) :=
+  ⟨⟨CrashStep.writeFail st reading p reason result hlive hp hd ha hf herr,
+      rfl, Core.resume_error_no_ackStop st.core reading p reason result herr⟩,
+    fun state child ht =>
+      ⟨CrashStep.writeFailIndeterminate st reading p state child reason result hlive hp ht hd ha hf
+          herr,
+        rfl, Core.resume_error_no_ackStop st.core reading p reason result herr⟩⟩
 
 theorem exists_stop_crash_restart_witness (persisted0 : PersistedState)
     (clearDisabled : Option String) (reason : String) (reading : Nat) (disk : DiskState)
@@ -3991,5 +3608,157 @@ theorem exists_stop_crash_restart_witness (persisted0 : PersistedState)
       nextClearDisabled loaded hboot bootReason bootReading).1
   exact ⟨rebooted, CrashStep.boot mid loaded seed migrated nextChild nextClearDisabled wroteDisk
     bootReason bootReading rfl hboot, rfl, rfl, hstopped⟩
+
+set_option maxRecDepth 2048 in
+theorem exists_stop_crash_reboot_populated (clearDisabled nextClearDisabled : Option String)
+    (reason bootReason : String) (reading bootReading : Nat) (disk : DiskState)
+    (seed : UInt64) (migrated wroteDisk : Bool) (nextChild : Option (List String)) :
+    let persisted0 : PersistedState := ⟨⟨1, 42, 0⟩, .running, .fresh, true⟩
+    let stoppedState : PersistedState := { persisted0 with desired := .stopped }
+    ∃ (mid rebooted : CrashState),
+      CrashReached (CrashState.initial persisted0 clearDisabled reason reading disk) mid ∧
+      mid.live = false ∧
+      mid.ackedStop = true ∧
+      mid.startAfterAck = false ∧
+      mid.disk = .file (stoppedState.encode none) none ∧
+      DiskState.BootState mid.disk seed migrated nextChild stoppedState ∧
+      CrashStep mid rebooted ∧
+      CrashReached (CrashState.initial persisted0 clearDisabled reason reading disk) rebooted ∧
+      rebooted.live = true ∧
+      rebooted.core = Core.start stoppedState nextClearDisabled bootReason bootReading ∧
+      rebooted.disk =
+        (if wroteDisk then .file (stoppedState.encode nextChild) nextChild else mid.disk) ∧
+      stoppedState.desired = .stopped := by
+  let persisted0 : PersistedState := ⟨⟨1, 42, 0⟩, .running, .fresh, true⟩
+  let stoppedState : PersistedState := { persisted0 with desired := .stopped }
+  let origin := CrashState.initial persisted0 clearDisabled reason reading disk
+  let s1 : CrashState :=
+    { origin with
+      core := (origin.core.step clearDisabled (reading + 1) (.command .stop)).core
+      startAfterAck := origin.startAfterAck ||
+        (origin.ackedStop && (Event.command .stop).isStart &&
+          origin.core.pending.isNone && (origin.core.closing == .open)) }
+  have step1 : CrashStep origin s1 := CrashStep.step origin (reading + 1) (.command .stop) rfl
+  have hp1 : s1.core.pending = some (.intent .stop stoppedState) := by
+    simp [s1, origin, CrashState.initial, Core.step, Core.dispatch, Core.start, Core.command,
+      Stepped.at, Command.desired, stoppedState, Core.command_beq]
+  let s2 : CrashState := { s1 with tmpWrite := some (stoppedState, none) }
+  have step2 : CrashStep s1 s2 :=
+    CrashStep.writeTmp s1 (.intent .stop stoppedState) stoppedState none
+      rfl hp1 rfl rfl rfl rfl rfl
+  let s3 : CrashState :=
+    { s2 with
+      tmpWrite := none
+      writeDone := some stoppedState
+      disk := .file (stoppedState.encode none) none }
+  have step3 : CrashStep s2 s3 := CrashStep.writeRename s2 stoppedState none rfl rfl
+  let stepped4 := s3.core.resume (reading + 2) (.intent .stop stoppedState) (.ok ())
+  have hfol4 : stepped4.follows = [Follow.ackStop] := by
+    simp [stepped4, Core.resume, Core.resolve, Core.intentSaved, Stepped.at, stoppedState,
+      Core.desired_beq]
+  have hackBool4 : stepped4.follows.any Follow.hasAckStop = true := by
+    rw [hfol4]
+    rfl
+  let s4 : CrashState :=
+    { s3 with
+      core := stepped4.core
+      writeDone := none
+      ackedStop := s3.ackedStop || stepped4.follows.any Follow.hasAckStop
+      startAfterAck := if stepped4.follows.any Follow.hasAckStop then false else s3.startAfterAck }
+  have step4 : CrashStep s3 s4 :=
+    CrashStep.writeFinishOk s3 (reading + 2) (.intent .stop stoppedState) stoppedState (.ok ())
+      rfl hp1 rfl rfl trivial
+  let mid : CrashState :=
+    { s4 with
+      live := false
+      tmpWrite := none
+      writeDone := none
+      archiveMoved := none
+      archiveFailedDisk := none }
+  have step5 : CrashStep s4 mid := CrashStep.crash s4 rfl
+  have hreachMid : CrashReached origin mid :=
+    ((((CrashReached.refl.tail step1).tail step2).tail step3).tail step4).tail step5
+  let members : List (String × Option Json.Scalar) := [
+    ("schema_version", some (.number ⟨false, ['2'], none, none⟩)),
+    ("seed", some (.number ⟨false, ['4', '2'], none, none⟩)),
+    ("desired", some (.text "stopped")),
+    ("run_id", some (.text "0000000000000001")),
+    ("agent_epoch", some (.number ⟨false, ['0'], none, none⟩)),
+    ("origin", some (.text "fresh")),
+    ("process_started", some (.flag true)),
+    ("child", none)
+  ]
+  let doc : Json.Value := Json.nullableValue members
+  have hrunHex : runHex 1 = "0000000000000001" := by decide
+  have henc : stoppedState.encode none = String.ofList (Json.nullableChars members) := by
+    have hstr : stoppedState.encode none =
+        "{\"schema_version\":2,\"seed\":42,\"desired\":\"stopped\",\"run_id\":\"0000000000000001\",\"agent_epoch\":0,\"origin\":\"fresh\",\"process_started\":true,\"child\":null}\n" := by
+      unfold PersistedState.encode stateSchema Desired.tag NewAgentOrigin.tag childText
+      simp only [stoppedState, persisted0, hrunHex]
+      decide
+    have hchars : String.ofList (Json.nullableChars members) =
+        "{\"schema_version\":2,\"seed\":42,\"desired\":\"stopped\",\"run_id\":\"0000000000000001\",\"agent_epoch\":0,\"origin\":\"fresh\",\"process_started\":true,\"child\":null}\n" := by
+      decide
+    rw [hstr, hchars]
+  have hparsed : Json.parse (stoppedState.encode none) = .ok doc := by
+    rw [henc]
+    refine Json.parse_nullable_line members (List.cons_ne_nil _ _) ?_ ?_ ?_
+    · intro pair hp c hc
+      simp only [members, List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+        exact (by revert c hc; unfold Json.Plain; decide)
+    · intro pair hp scalar hs
+      simp only [members, List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      · cases Option.some.inj hs
+        refine ⟨⟨Or.inr ⟨by decide, ?_, by decide⟩, (fun _ h => nomatch h), (fun _ h => nomatch h)⟩, rfl⟩
+        intro c hc
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
+        subst hc
+        unfold Json.Numeral.Digit
+        decide
+      · cases Option.some.inj hs
+        refine ⟨⟨Or.inr ⟨by decide, ?_, by decide⟩, (fun _ h => nomatch h), (fun _ h => nomatch h)⟩, rfl⟩
+        intro c hc
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
+        rcases hc with rfl | rfl <;> (unfold Json.Numeral.Digit; decide)
+      · cases Option.some.inj hs
+        intro c hc; revert c hc; unfold Json.Plain; decide
+      · cases Option.some.inj hs
+        intro c hc; revert c hc; unfold Json.Plain; decide
+      · cases Option.some.inj hs
+        exact ⟨⟨Or.inl rfl, (fun _ h => nomatch h), (fun _ h => nomatch h)⟩, rfl⟩
+      · cases Option.some.inj hs
+        intro c hc; revert c hc; unfold Json.Plain; decide
+      · cases Option.some.inj hs; trivial
+      · cases hs
+    · decide
+  have hdecoded : PersistedState.decode nextChild doc = .ok stoppedState := by
+    unfold PersistedState.decode PersistedState.admit
+    have hv : stateVersion doc = some stateSchema := rfl
+    have hdec : Json.decode doc
+        (PersistedState.fields (doc.member "schema_version").isSome (doc.member "child").isSome) =
+        .ok stoppedState := rfl
+    simp only [hv, admitVersion, ↓reduceIte, bind, Except.bind, hdec, pure, Except.pure,
+      Except.map]
+    by_cases hc : nextChild.isSome ∧ stateChild doc = nextChild <;> simp [hc, stoppedState]
+  have hboot : DiskState.BootState mid.disk seed migrated nextChild stoppedState :=
+    ⟨doc, hparsed, hdecoded⟩
+  let rebooted : CrashState :=
+    { clearDisabled := nextClearDisabled
+      live := true
+      core := Core.start stoppedState nextClearDisabled bootReason bootReading
+      disk := if wroteDisk then .file (stoppedState.encode nextChild) nextChild else mid.disk
+      tmpWrite := none
+      writeDone := none
+      archiveMoved := none
+      archiveFailedDisk := none
+      ackedStop := mid.ackedStop
+      startAfterAck := mid.startAfterAck }
+  have step6 : CrashStep mid rebooted :=
+    CrashStep.boot mid stoppedState seed migrated nextChild nextClearDisabled wroteDisk
+      bootReason bootReading rfl hboot
+  exact ⟨mid, rebooted, hreachMid, rfl, by simp [mid, s4, hackBool4],
+    by simp [mid, s4, hackBool4], rfl, hboot, step6, hreachMid.tail step6, rfl, rfl, rfl, rfl⟩
 
 end Acorn.Host.Viewer

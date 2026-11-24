@@ -45,6 +45,7 @@ inductive ControlResult where
   /-- Clear cannot preserve this configuration's file ownership. -/
   | clearUnavailable
   | refused (reason : String)
+  | unconfirmed (reason : String)
   deriving Nonempty
 
 inductive ControlDispatch where
@@ -105,6 +106,9 @@ private def controlResponse : ControlResult → ContextAsync (Response Body.Any)
   | .refused reason =>
     response .serviceUnavailable (.mk "application/json")
       ("{\"ok\":false,\"reason\":" ++ telemetryString (stopDiagnostic reason) ++ "}").toUTF8
+  | .unconfirmed reason =>
+    response .serviceUnavailable (.mk "application/json")
+      ("{\"ok\":false,\"unconfirmed\":true,\"reason\":" ++ telemetryString (stopDiagnostic reason) ++ "}").toUTF8
 
 private def promiseSelector {α : Type} (task : Task (Option α)) : Selector (Option α) where
   tryFn := do
@@ -120,11 +124,11 @@ private def promiseSelector {α : Type} (task : Task (Option α)) : Selector (Op
 private def awaitControl (task : Task (Option ControlResult)) : ContextAsync ControlResult := do
   Selectable.one #[
     .case (promiseSelector task) fun outcome =>
-      pure (outcome.getD (.refused "supervisor stopped before persisting stop")),
+      pure (outcome.getD (.unconfirmed "supervisor stopped before persisting stop")),
     .case (← ContextAsync.doneSelector) fun _ =>
-      pure (.refused "viewer shutdown interrupted stop request"),
+      pure (.unconfirmed "viewer shutdown interrupted stop request"),
     .case (← Selector.sleep controlTimeout) fun _ =>
-      pure (.refused "timed out waiting for stop persistence")
+      pure (.unconfirmed "timed out waiting for stop persistence")
   ]
 
 private def HttpViewer.control (viewer : HttpViewer) (request : Request Body.Stream) :
