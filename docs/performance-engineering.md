@@ -119,10 +119,13 @@ guidance. Inspect the generated behavior for the workload being optimized.
   exponent offset, `897` smallest normal biased exponent, `925`/`926` subnormal
   shifts, `1075` binary64 integer bias, and `1150` normal overflow bound), and
   `Rounding.nearestEven` / `Rounding.wordShift64` isolate nearest-even integer
-  quotient rounding. In `lean/Acorn/Portable.lean`, `Portable.exp` keeps Int32
-  range reduction via `Portable.expReduceWord` / `Portable.expScaleWord`
-  (`Portable.exp_eq_spec`) to avoid `Int`, modulo, `Option`, and pair
-  allocations while preserving input NaN words (`Portable.exp_nan_word`),
+  quotient rounding. In `lean/Acorn/Portable.lean`, `Portable.exp` classifies
+  saturation directly and keeps Int32 range reduction scalar by calling
+  `Portable.expExponent`, `Portable.expRemainder`, and `Portable.expScaleWord`
+  directly—avoiding `Int`, modulo, `Option`, and pair allocations—while the
+  pair-returning `Portable.expReduceWord` (wrapped by `Portable.expReduce`) is
+  part of the specification used by `Portable.exp_eq_spec`, and input NaN words
+  are preserved (`Portable.exp_nan_word`),
   `Portable.ln` maps NaN and negative inputs to positive quiet NaN
   `0x7fc00000`, and `Portable.powLoop` / `Portable.powLoopWord` multiply the
   accumulator before squaring (`Portable.powLoop_zero` returns without reading
