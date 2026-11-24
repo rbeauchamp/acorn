@@ -49,14 +49,16 @@ env:
 # No step continues after a failure.
 jobs:
   gate:
-    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's limit is the
-    # sum of the limits of the two jobs that ran these checks side by side before; no
-    # check's own deadline is changed, and each of verification's two stages keeps
-    # verify.sh's 360-second deadline. Regula's contract names Ubuntu 24.04.5 LTS on x86-64,
-    # the release that this runner image held when Regula observed it; an image of another
+    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's 20-minute ceiling
+    # and the 12-minute provisioning / 13-minute merge-gate step ceilings bound wall-clock time
+    # while leaving headroom for ubuntu-24.04 runner variance so regressions fail promptly; each
+    # verification stage keeps verify.sh's 360-second deadline and scripts/gate.sh bounds
+    # no-comments admission (60s), Regula (360s), lean-intent (180s), frame-check (120s) and
+    # no-comments execution (300s) individually. Regula's contract names Ubuntu 24.04.5 LTS on
+    # x86-64, the release that this runner image held when Regula observed it; an image of another
     # release is outside that contract.
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - name: Identify the commit to verify
         id: commit
@@ -75,6 +77,7 @@ jobs:
             exit 1
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         timeout-minutes: 2
         with:
@@ -124,11 +127,162 @@ jobs:
             exit 1
           fi
       # The pinned dependencies, by the script of the commit under verification, as that
-      # commit's Lake configuration and lock files name them. The limit bounds a stalled
-      # download and is no check's deadline; no check runs in this step.
+      # commit's Lake configuration and lock files name them. The 12-minute limit bounds a
+      # stalled download and is no check's deadline; no check runs in this step.
       - name: Provision the pinned dependencies
-        timeout-minutes: 27
-        run: ./scripts/gate.sh provision
+        id: provision
+        timeout-minutes: 12
+        run: |
+          start_epoch=$(date +%s)
+          prov_dir=$(mktemp -d)
+          prov_pid=''
+          prov_ctrl_open=0
+          prov_output_written=0
+          prov_warning_emitted=0
+          prov_summary_written=0
+          prov_report_done=0
+          prov_report_rc=0
+          # shellcheck disable=SC2317,SC2329
+          job_is_running() {
+            local target_pid="$1" jobs_file="$2" line
+            local re='^\[([0-9]+)\][+-]?[[:space:]]+([0-9]+)[[:space:]]+Running'
+            [[ -n "$target_pid" && -n "$jobs_file" ]] || return 1
+            jobs -rl > "$jobs_file" 2>/dev/null || return 1
+            while IFS= read -r line; do
+              if [[ "$line" =~ $re && "${BASH_REMATCH[2]}" == "$target_pid" ]]; then
+                return 0
+              fi
+            done < "$jobs_file"
+            return 1
+          }
+          reap_provision() {
+            if [[ "$prov_ctrl_open" == 1 ]]; then
+              exec 4>&- 5<&- 6>&-
+              while IFS= read -r _ <&3; do :; done 2>/dev/null || true
+              prov_ctrl_open=0
+              exec 3<&-
+            fi
+          }
+          # shellcheck disable=SC2317,SC2329
+          cleanup_provision() {
+            local exit_rc=$?
+            trap '' INT TERM
+            local pid="$prov_pid"
+            prov_pid=''
+            reap_provision
+            if [[ -n "$pid" ]]; then
+              wait "$pid" 2>/dev/null || true
+            fi
+            if [[ "$exit_rc" != 0 && "$prov_report_done" == 0 ]]; then
+              report_provision "$exit_rc" "failed (exit $exit_rc)" || true
+            fi
+            if [[ -n "$prov_dir" ]]; then
+              rm -rf "$prov_dir"
+              prov_dir=''
+            fi
+          }
+          report_provision() {
+            local rc="$1" label="$2" elapsed handoff_rc=0 summary_body=''
+            prov_report_rc="$rc"
+            elapsed=$(( $(date +%s) - start_epoch ))
+            if [[ "$prov_output_written" == 0 ]]; then
+              if echo "seconds=$elapsed" >> "${GITHUB_OUTPUT:-}"; then
+                prov_output_written=1
+              else
+                # shellcheck disable=SC2320
+                handoff_rc=$?
+                if [[ "$rc" == 0 ]]; then
+                  rc="$handoff_rc"
+                  prov_report_rc="$handoff_rc"
+                  label="failed (output handoff, exit $handoff_rc)"
+                fi
+              fi
+            fi
+            if [[ "$prov_warning_emitted" == 0 ]] && (( elapsed > 480 )); then
+              if printf '::warning title=Verify / gate budget::Provision took %dm %02ds (%d s) (target <= 8m 00s (480 s)).\n' \
+                $((elapsed / 60)) $((elapsed % 60)) "$elapsed"; then
+                prov_warning_emitted=1
+              fi
+            fi
+            if [[ "$rc" != 0 && "$prov_summary_written" == 0 && -n "${GITHUB_STEP_SUMMARY:-}" && ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
+              printf -v summary_body \
+                '## Verify / gate phase timings\n\n| Phase | Duration | Target budget | Hard limit | Status |\n|---|---:|---:|---:|---|\n| Provision pinned dependencies | %dm %02ds (%d s) | <= 8m 00s (480 s) | 12m | %s |\n| Merge gate (scripts/gate.sh) | - | <= 10m 00s (600 s) | 13m | not run (provisioning failed) |\n\n' \
+                $((elapsed / 60)) $((elapsed % 60)) "$elapsed" "$label"
+              if printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY"; then
+                prov_summary_written=1
+              fi
+            fi
+            prov_report_done=1
+          }
+          # shellcheck disable=SC2317,SC2329
+          cancel_provision() {
+            trap '' INT TERM
+            local sig_rc="$1" pid="$prov_pid"
+            prov_pid=''
+            if [[ "$prov_ctrl_open" == 1 ]]; then
+              if [[ -n "$pid" && -n "$prov_dir" ]] && job_is_running "$pid" "$prov_dir/jobs.tmp"; then
+                printf 'term\n' >&4 2>/dev/null || true
+                for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+                  if ! job_is_running "$pid" "$prov_dir/jobs.tmp"; then
+                    break
+                  fi
+                  sleep 0.1 3<&- 4>&-
+                done
+              fi
+              reap_provision
+            fi
+            if [[ -n "$pid" ]]; then
+              wait "$pid" 2>/dev/null || true
+            fi
+            report_provision "$sig_rc" "interrupted / cancelled (exit $sig_rc)" || true
+            exit "$sig_rc"
+          }
+          trap cleanup_provision EXIT
+          trap 'cancel_provision 130' INT
+          trap 'cancel_provision 143' TERM
+          prov_ctrl="$prov_dir/ctrl"
+          prov_done="$prov_dir/done"
+          mkfifo "$prov_ctrl" "$prov_done"
+          exec 4<>"$prov_ctrl"
+          exec 5<"$prov_ctrl"
+          exec 6<>"$prov_done"
+          exec 3<"$prov_done"
+          rm -f "$prov_ctrl" "$prov_done"
+          prov_ctrl_open=1
+          status=0
+          set -m
+          (
+            set +m
+            exec 3<&- 4>&-
+            sh -c 'echo $PPID' > "$prov_dir/pgid"
+            IFS= read -r my_pgid < "$prov_dir/pgid"
+            rm -f "$prov_dir/pgid"
+            (
+              exec </dev/null >/dev/null 2>&1
+              trap '' TERM
+              while IFS= read -r cmd <&5; do
+                case "$cmd" in
+                  term)
+                    if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+                      kill -TERM -- -"$my_pgid" 2>/dev/null || true
+                    fi ;;
+                esac
+              done
+              if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+                kill -KILL -- -"$my_pgid" 2>/dev/null || true
+              fi
+            ) &
+            exec 5<&- 6>&-
+            exec ./scripts/gate.sh provision
+          ) &
+          prov_pid=$!
+          set +m
+          exec 5<&- 6>&-
+          wait "$prov_pid" 2>/dev/null || status=$?
+          prov_pid=''
+          reap_provision
+          report_provision "$status" "failed (exit $status)"
+          exit "$prov_report_rc"
       # The merge gate itself, by the same script with no argument. Its own provisioning
       # finds the dependencies current. It then runs verification as two timed
       # stages, each under verify.sh's own 360-second deadline: the cold build fills all four
@@ -139,14 +293,22 @@ jobs:
       # complete command unchanged: Lake reuses a stage one output only where its trace
       # matches the checked-out source, toolchain and options, and builds everything else.
       # The script then runs the Regula audit (scripts/regula.sh,
-      # docs/verification.md#regula-audit), lean-intent's confirmation and implementation
-      # checks (lean/AcornTools/Intent.lean), and the check of each target's pin file
-      # (lean/AcornTools/Frame.lean), each also when an earlier check failed. Serially afterward,
-      # and only when ordinary verification succeeded (so un-admitted sources are never
-      # elaborated), it runs the pinned no-comments check (.no-comments.json, comment-ratchet.json,
-      # lean/no-comments.pin). The script exits non-zero when any check failed, and its `gate:`
-      # lines give the time of each part.
+      # docs/verification.md#regula-audit, 360-second deadline), lean-intent's confirmation and
+      # implementation checks (lean/AcornTools/Intent.lean, 180-second deadline), and the check
+      # of each target's pin file (lean/AcornTools/Frame.lean, 120-second deadline), each also
+      # when an earlier check failed. Only when ordinary verification succeeded (so un-admitted
+      # sources are never elaborated), after admitting cache containment, offline SHA-256 and
+      # bounded tracked config/ratchet files upfront (60-second deadline), it runs the pinned
+      # no-comments check (.no-comments.json, comment-ratchet.json, lean/no-comments.pin,
+      # 300-second deadline) after lean-intent and frame-check inside the background subshell
+      # beside Regula. The script writes a per-phase duration table to $GITHUB_STEP_SUMMARY
+      # (including partial progress on early failure or cancellation), emits ::warning:: budget
+      # alerts when target budgets are exceeded, exits non-zero when any check failed, and prints
+      # its `gate:` lines with each part's status and time.
       - name: The merge gate on the exact source
+        timeout-minutes: 13
         env:
           ACORN_BASE_REF: refs/remotes/origin/${{ github.base_ref }}
-        run: ./scripts/gate.sh
+          ACORN_PROVISION_SECONDS: ${{ steps.provision.outputs.seconds }}
+          ACORN_JOB_START_EPOCH: ${{ steps.commit.outputs.start_epoch }}
+        run: exec ./scripts/gate.sh

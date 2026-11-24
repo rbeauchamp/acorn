@@ -55,8 +55,9 @@ reopened and at every push to it, and at no other time, on GitHub's standard
 `ubuntu-24.04` x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
 elan from a release pinned by the SHA-256 of its archive. Every workflow step
-that reaches the network before the gate has its own time limit, so a stalled
-download fails that step. The workflow keeps no cache: each run provisions the
+that reaches the network before the gate, the merge-gate step itself and the
+overall job each carry an explicit time limit, so a stalled download or a
+duration regression fails promptly. The workflow keeps no cache: each run provisions the
 dependencies from their pinned sources. Automatic local setup supports macOS and
 Ubuntu/Debian Linux.
 
@@ -598,35 +599,76 @@ the executing library, the tools except the axiom pins, and their dependencies;
 the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
-[Regula audit](#regula-audit), lean-intent's two checks and the frame
-check on the same commit (each also when an earlier step failed), and serially
-after them (only when ordinary verification succeeded, so un-admitted sources
-are never elaborated) the pinned `no-comments`
-check (`.no-comments.json`, `comment-ratchet.json`, `lean/no-comments.pin`),
-passing only when both runs, the audit and all four post-checks pass. When
-ordinary verification passed,
-lean-intent's two checks and the frame check run one after another in a
-background subshell beside the Regula audit, because every module and executable
-is already built and all three read the finished build without writing to
-`lean/.lake/`; when verification failed, all three run one after another, and the
-`no-comments` check is refused without executing the binary. Otherwise, once
-verification succeeded, the `no-comments` check runs serially afterward so its
-workers never overlap with the Regula audit's memory peak, offline-verifying the
-binary's SHA-256
-from `lean/no-comments.pin` (for `darwin-arm64` and `linux-x86_64`) before
-executing and checking all scoped `.lean`
+[Regula audit](#regula-audit) (360-second deadline), lean-intent's two checks
+(180-second deadline) and the frame check (120-second deadline) on the same
+commit (each also when an earlier step failed), and, only when ordinary
+verification succeeded (so un-admitted sources are never elaborated), the pinned
+`no-comments` check (`.no-comments.json`, `comment-ratchet.json`,
+`lean/no-comments.pin`, 60-second tracked-file admission deadline and 300-second
+execution deadline), passing only when both runs, the audit and all four
+post-checks pass. Every post-verification deadline uses GNU coreutils timeout
+with process-group SIGKILL and no grace period, matching `scripts/verify.sh`
+(exit status `137` on deadline SIGKILL or external SIGKILL fails the check and
+the gate). `scripts/gate.sh` isolates every phase's temporary directory (provisioning, both
+verification stages and every post-verification check) under a parent-owned
+scratch directory removed on exit or cancellation, runs provisioning functions
+and external phases in dedicated process groups with interruptible waits (using
+direct process replacement so `scripts/verify.sh`'s GNU timeout and its
+descendants share the recorded group) so SIGINT/SIGTERM cancellation signals
+and reaps active child groups (subject to POSIX Bash's normal
+launch-to-PID-recording boundary), and reaps any surviving group members after
+each wait returns.
+When ordinary verification passed, `scripts/gate.sh` first verifies
+`no-comments` cache containment, offline SHA-256 against `lean/no-comments.pin`
+(for `darwin-arm64` and `linux-x86_64`) and bounded tracked-file admission
+(`admit-no-comments`, timed and bounded separately under its 60-second deadline)
+of `.no-comments.json` and its configured ratchet path, workspace directories,
+Lake flags (refusing reconfiguring/rehashing flags such as `-R`,
+`--reconfigure`, `--rehash` and `--old`), empty tool/workspace-exclude prefixes
+and Verso-scoped exclude prefixes alongside `lean/no-comments.pin` and both
+workspaces. It then runs the Regula audit in the foreground while lean-intent's
+two checks, the frame check and (when admitted) the `no-comments` check run one
+after another in a background subshell, passing only when every check and the
+background supervisor itself exit cleanly (recording missing timing data as
+unavailable rather than zero). Because ordinary verification has
+already built every module and executable and synchronized Lake's configuration
+cache, the generated override file and the tracked-module stamp inside
+`lean/.lake/`, those compiled and cached build artifacts stay unmodified across
+the overlapped phase: `sync-config` writes its comparison file inside temporary
+storage and creates no files under `lean/.lake/` on a stamp hit (writing an
+exclusive staging file beside the stamp only on a stamp miss),
+`.no-comments.json` admission forbids Lake reconfiguring flags, and each
+bounded phase writes temporary/staging files inside its isolated parent-owned
+scratch directory. In that overlapped phase
+`no-comments` runs with `--jobs` set to one less than the host CPU count,
+clamped between `1` and `6` (3 workers on a four-processor runner and 6 on
+larger hosts), leaving a core for Regula's single-threaded kernel replay and
+limiting concurrent worker parallelism; the worker cap is a concurrency bound
+and does not enforce a hard combined-memory ceiling (measured on macOS arm64,
+the overlapped post-verification phase peaked at 6.31 GiB physical footprint at
+`--jobs 3` and 6.95 GiB at `--jobs 6`, while Ubuntu runner memory headroom
+rests on the 16 GiB runner image). When verification failed, Regula,
+lean-intent and the frame check run one after another under their individual
+deadlines, and the `no-comments` check is refused without executing the binary.
+When executed, `no-comments` checks all scoped `.lean`
 files across `lean/` (including `lean/lakefile.lean`) and `site/` code
 (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
 `site/AcornDocs.lean` and `site/AcornDocs/` Verso prose), using explicit
 `-f lakefile.lean` and `-f lakefile.toml` workspace configuration flags in
-`.no-comments.json` after validating `.no-comments.json`'s configured ratchet
-path, workspace directories, Lake flags, empty tool/workspace-exclude prefixes
-and Verso-scoped exclude prefixes alongside `lean/no-comments.pin` and both
-workspaces against tracked regular files,
-against `comment-ratchet.json` for exact head sync, plus unconditional
-monotonic non-growth against the merge-base ratchet alongside rejecting newly
-excluded files that still hold comments at the merge base (tracked files with
-zero comments carry no ratchet entry).
+`.no-comments.json`, against `comment-ratchet.json` for exact head sync, plus
+unconditional monotonic non-growth against the merge-base ratchet alongside
+rejecting newly excluded files that still hold comments at the merge base
+(tracked files with zero comments carry no ratchet entry). The pinned
+`lean-no-comments` v0.3.1 release batches Lake workspace setup and reuses a
+persistent worker process across files sharing an identical import header and
+environment (spawning fresh processes across distinct headers); while exact
+inventory agreement with v0.2.0 is verified on the repository tree and governed
+executing/proof modules are barred from defining unsafe or native-plugin
+initializers by `lean-boundary-audit`, process reuse across matching-header
+files (including tooling modules, site code and imported libraries) rests on
+the upstream tool's documented trust assumption that elaborated commands and
+imported plugins or initializers do not depend on per-file isolation of
+process-global mutable state within a batch.
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake
@@ -752,18 +794,45 @@ relies on the owner re-running `./scripts/gate.sh` against main before merge.
 The arrangement on GitHub differs from the pipeline's as follows. A step of
 the workflow downloads elan's pinned release in every run and installs it only
 after the archive's SHA-256 matches. The script's provisioning runs in a step
-of its own, whose 27-minute limit bounds a stalled download and is no check's
+of its own, whose 12-minute limit bounds a stalled download and is no check's
 deadline, and the script's provisioning in the last step then finds the
 dependencies current. Nothing is stored between runs: every run
 provisions everything from its pinned sources and builds from cold project
 outputs. A copy stored by an earlier head of a pull request, which controls its
 own workflow, could otherwise be restored and trusted by a later head whose own
-changes show nothing of it. The job has a 60-minute limit, where the
-pipeline's Test step has none. That limit is the sum of the limits of the two
-jobs that ran these checks side by side before 2026-10-28; no check's own
-deadline changed, and each of verification's two stages keeps its 360-second
-deadline. This shape, slower than two jobs with stored dependencies, was decided
-on the owner's behalf by the agent supervising Acorn's research.
+changes show nothing of it. The merge-gate step runs `exec ./scripts/gate.sh` (so runner cancellation
+signals reach the gate directly) under a 13-minute
+`timeout-minutes` limit and the workflow's gate job carries a 20-minute `timeout-minutes`
+limit, where the pipeline's Test step has none; a successful provisioning step
+requires its duration handoff to `$GITHUB_OUTPUT` to succeed, while cancellation
+reporting stays best effort; each of verification's two stages
+keeps its 360-second deadline, and `scripts/gate.sh` individually bounds
+`no-comments` admission (60 seconds), the Regula audit (360 seconds),
+lean-intent checks (180 seconds), frame check (120 seconds) and `no-comments`
+execution (300 seconds). On every run that reaches the provisioning or merge-gate step (including
+provisioning failure/cancellation and gate failure/cancellation after
+`scripts/gate.sh`'s pre-execution admission and trap setup, while the runner
+can still publish step outputs; failures in earlier workflow steps such as
+commit check, checkout, package admission or elan provisioning, or pre-trap
+startup admission, exit without writing a phase table), the workflow and
+`scripts/gate.sh` print a per-phase timing summary line, write a per-phase
+duration table (provisioning, dependency re-check, verification stages 1 and 2,
+`no-comments` admission, Regula, lean-intent, frame, `no-comments` execution,
+post-verification wall time, merge-gate total and workflow elapsed time from
+commit identification through gate completion, excluding runner setup and
+post-job checkout cleanup, recording actual phase starts and completions and
+marking unreached or interrupted phases explicitly) to `$GITHUB_STEP_SUMMARY`
+when set to a non-symlink regular file path (failing a normal gate run if
+writing that summary fails), and emit GitHub Actions `::warning::` budget
+annotations when a phase or total exceeds its early-warning target
+(provisioning over 8 minutes, verification stages 1 and 2 combined over 6
+minutes, Regula over 4 minutes, `no-comments` execution over 3 minutes, merge
+gate over 10 minutes, or workflow elapsed time over 15 minutes) so slowdowns
+surface before hitting the hard ceilings. Warnings surface creeping duration
+regressions without loosening any check; hitting a per-check, step or job hard
+limit fails the check or job. This cold-provisioned single-job shape, slower
+than two jobs with stored dependencies, was decided on the owner's behalf by the
+agent supervising Acorn's research.
 
 A pull request's run is started by GitHub's ordinary event for pull requests,
 never the privileged one that runs with the base repository's rights, so the run
@@ -829,25 +898,32 @@ runs, in the `gate:` lines that the head's own script prints there. Each of
 these lines ends with the time of day and the seconds since the script started.
 The script of this revision prints `gate: verification, stage one` before its
 first check and then reports each check's exit status on its own line:
-`gate: verification exited 0; Regula audit beside lean-intent and frame checks`
-(or `gate: verification exited N; Regula audit` when verification exited
+`gate: verification exited 0; Regula audit beside lean-intent, frame and no-comments checks`
+(or `gate: verification exited 0; Regula audit beside lean-intent and frame checks`
+when `no-comments` fails pre-execution integrity or admission checks, or
+`gate: verification exited N; Regula audit` when verification exited
 non-zero) for verification's two stages together,
 `gate: Regula audit exited N; lean-intent checks`,
 `gate: lean-intent checks exited N; frame check`,
 `gate: frame check exited N; no-comments check` and
 `gate: no-comments check exited N` (or
 `gate: no-comments check refused (integrity check failed)` when the cached
-binary fails cache-containment or offline SHA-256 verification before starting, or
+binary fails cache-containment or offline SHA-256 verification before starting,
+`gate: no-comments check refused (admission check failed, exit N)` when
+`admit-no-comments` fails before starting the binary, or
 `gate: no-comments check refused (verification failed)` when either stage of
-ordinary verification failed); when verification passed,
-`gate: verification exited 0; Regula audit beside lean-intent and frame checks`
-prints before either starts, while
-`gate: Regula audit exited N; lean-intent checks`,
-`gate: lean-intent checks exited N; frame check` and
-`gate: frame check exited N; no-comments check` wait until both the Regula
-audit and the background subshell finish.
-It prints `gate: every merge check passed` last, and only when every status
-is 0. A head that holds another revision of the script runs that revision's
+ordinary verification failed); if the background supervisor exits without
+producing an observed integer status for a check, the script reports
+`status unavailable (background supervisor exited N)` for that check rather
+than synthesizing an exit status, and fails the gate. A check terminated by its
+hard process-group SIGKILL deadline or by an external SIGKILL reports exit
+status `137`. When verification passed, the
+verification-exited line prints before the overlapped post-verification checks
+start, while the Regula, lean-intent, frame and `no-comments` status lines wait
+until both the Regula audit and the background subshell finish. Before the final
+exit check it prints `gate: phase timings (s): ...` with each phase's measured
+duration, and it prints `gate: every merge check passed` last, and only when
+every status is 0. A head that holds another revision of the script runs that revision's
 checks and prints that revision's lines, which the head's own `scripts/gate.sh`
 gives: a revision from before the `no-comments` check or frame check prints no
 line for it.
@@ -859,9 +935,11 @@ every check of the head's script passed is the line
 `gate: every merge check passed`. Each attempt of a run is read by its own log.
 In the attempt being read, a check with no line that reports its exit status has
 no verdict (including when the script prints
-`gate: no-comments check refused (integrity check failed)` or
+`gate: no-comments check refused (integrity check failed)`,
+`gate: no-comments check refused (admission check failed, exit N)` or
 `gate: no-comments check refused (verification failed)` before starting the
-binary, which still fails the gate), and an attempt without the passing line is
+binary, or reports `status unavailable` when the background supervisor fails to
+record a child exit status, each of which still fails the gate), and an attempt without the passing line is
 no pass of the gate. So an
 attempt gives no check a verdict when GitHub marked it failed before a runner
 started, as when an approval was never given; when a step before the last
@@ -1096,7 +1174,8 @@ The audit is a second check of the merge gate and is not part of
 `./scripts/verify.sh`. It builds the claimed modules again where Lake's traces
 differ and runs Regula's checker, whose replay of the claim's cone does not fit
 beside the ordinary checks inside the 360-second deadline. The gate runs it
-after ordinary verification and requires both before a merge. A pass is Regula's
+after ordinary verification, under its own 360-second deadline, and requires
+both before a merge. A pass is Regula's
 proof verdict, with the meaning and the assumption that the section above
 states; it does not replace review.
 

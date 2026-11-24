@@ -145,6 +145,23 @@ Within one verification process, reuse imported compiler data across consumers
 and isolated entry environments. Retain compiler ownership, duplicate-declaration
 refusals and each entry's actual import closure. Shared memory must outlive every
 consumer; never free one environment's regions while a sibling still uses them.
+After ordinary verification passes in `scripts/gate.sh`, run the post-verification
+checks (`lean-intent`, `frame-check` and the SHA-256-verified `no-comments`
+check, after bounded upfront admission refusing Lake reconfiguring flags)
+sequentially in a background subshell beside the Regula audit, sizing
+`no-comments` worker concurrency (`clamp(cpus - 1, 1, 6)`) to leave a core for
+Regula's single-threaded kernel replay and limit concurrent worker parallelism
+(note this caps worker count rather than enforcing a hard combined-memory
+bound). The pinned `lean-no-comments` v0.3.1 release reuses persistent worker
+processes across files sharing an identical import header; exact inventory
+parity with v0.2.0 is checked on the repository tree, while cross-file
+independence from process-global mutable state within a batch remains an
+explicit upstream trust assumption documented in
+[verification](verification.md#build-and-source-inventory). Enforce explicit
+hard ceilings on every check, step and job in `scripts/gate.sh` and
+`.github/workflows/verify.yml`, and emit `$GITHUB_STEP_SUMMARY` phase timings
+plus `::warning::` budget alerts so CI duration regressions surface immediately
+without skipping, narrowing or weakening the checked properties.
 
 Apply the [proof-first policy](../AGENTS.md#correct-by-construction) to correctness
 and resource claims. Pure analysis definitions state contracts over explicit

@@ -350,7 +350,7 @@ EOF
 }
 
 sync_config() {
-  local root="$1" require_clean="$2" for_regula="$3" admit_manifest="${4:-0}" real_root tracked_tmp stamp
+  local root="$1" require_clean="$2" for_regula="$3" admit_manifest="${4:-0}" real_root tracked_tmp stage_tmp stamp
   verify_repo_root "$root" "$require_clean"
   real_root=$(cd "$root" && pwd -P) || fail "failed to resolve repository root: $root"
   admit_one_file "$real_root" lean/lakefile.lean
@@ -364,7 +364,7 @@ sync_config() {
   mkdir -p "$real_root/lean/.lake"
   admit_pkg_lake_containment "$real_root" lean 1 1
   stamp="$real_root/lean/.lake/acorn-tracked-modules.z"
-  tracked_tmp=$(mktemp "$real_root/lean/.lake/acorn-tracked-modules.z.XXXXXX")
+  tracked_tmp=$(mktemp "${TMPDIR:-/tmp}/acorn-tracked-modules.z.XXXXXX")
   cleanup_paths+=("$tracked_tmp")
   validate_tracked_subtree "$real_root/lean" "lean" "$tracked_tmp" 1 0
   if [[ ! -f "$stamp" ]] || ! cmp -s "$tracked_tmp" "$stamp"; then
@@ -373,10 +373,12 @@ sync_config() {
       admit_pkg_lake_containment "$real_root" site 0 0
       clean_acorn_config_cache "$real_root" site
     fi
-    mv -f "$tracked_tmp" "$stamp"
-  else
-    rm -f "$tracked_tmp"
+    stage_tmp=$(mktemp "$real_root/lean/.lake/acorn-tracked-modules.z.XXXXXX")
+    cleanup_paths+=("$stage_tmp")
+    cp -f "$tracked_tmp" "$stage_tmp"
+    mv -f "$stage_tmp" "$stamp"
   fi
+  rm -f "$tracked_tmp"
   if [[ "$admit_manifest" == 1 ]]; then
     admit_manifests_and_site "$real_root" lean
   fi
@@ -827,8 +829,7 @@ def checkLakeArgs (wsDir : String) (expectedCfg : String) (lakeArgs : Array Stri
     else if arg == "--no-cache" then
       sawNoCache := true
       i := i + 1
-    else if #["--wfail", "--iofail", "-q", "--quiet", "-v", "--verbose",
-        "--old", "--rehash", "-R", "--reconfigure"].contains arg then
+    else if #["--wfail", "--iofail", "-q", "--quiet", "-v", "--verbose"].contains arg then
       i := i + 1
     else
       throw s!"disallowed Lake argument '{arg}' in {wsDir}.lakeArgs"
