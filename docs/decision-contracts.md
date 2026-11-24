@@ -146,9 +146,9 @@ kinds proved in `AcornVerif.Decisions` include:
   `CurrentTerrain.PastLast` and `CurrentTerrain.LatticeAdmits`, with
   `terrain_read`, `tile_kind`, and `world_enterable` stating accepted values
   beside them); and `Host.walkableTile` (`terrain_walkable`, a two-way kind
-  accepting a tile exactly when every world of the configuration can enter it,
-  so a successful terrain lookup returning water or mountain still gives
-  `false`).
+  accepting a tile exactly when every world of the configuration can enter it).
+  The walkability check rejects water and mountain even when the terrain lookup
+  succeeds.
 - Paid actions: `Host.performAction` and `Host.payAndAct` (two-way kinds, with
   `perform_action` and `pay_and_act` stating accepted energy and movement
   effects).
