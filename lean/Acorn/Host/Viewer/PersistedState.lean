@@ -1,45 +1,29 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.RunDirectory
 import Acorn.Host.Viewer.Wire
 import Acorn.Rng
 
 namespace Acorn.Host.Viewer
 
-/-- Origin of an agent constructed without restoring a checkpoint. -/
 inductive NewAgentOrigin where
-  /-- Initial run construction. -/
   | fresh
-  /-- Construction after explicit Clear. -/
   | cleared
   deriving DecidableEq, BEq
 
-/-- Exact persisted spelling of the closed origin domain. -/
 def NewAgentOrigin.tag : NewAgentOrigin → String
   | .fresh => "fresh"
   | .cleared => "cleared"
 
-/-- Durable identity, user intent and prior-process fact owned by state.json. -/
 structure PersistedState where
-  /-- Run, terrain seed and logical agent identity. -/
   identity : Identity
-  /-- Operator's persisted intent. -/
   desired : Desired
-  /-- Origin of a newly constructed agent. -/
   origin : NewAgentOrigin
-  /-- Whether this run previously launched a process. -/
   processStarted : Bool
   deriving DecidableEq, BEq
 
-/-- Closed operator-intent spellings. -/
 def Desired.tag : Desired → String
   | .running => "running"
   | .stopped => "stopped"
 
-/-- Fixed-width lowercase hexadecimal representation of a full-width run ID. -/
 def runHex (word : UInt64) : String :=
   String.ofList ((List.range 16).reverse.map fun index =>
     let digit := word.toNat / 16 ^ index % 16
@@ -151,7 +135,6 @@ def PersistedState.admit (child : Option (List String)) (value : Json.Value) :
         | .stopped => (state, .saved)
     else ({ state with desired := .stopped }, .earlier)
 
-/-- The complete current state schema refuses unknown fields and partial identity. -/
 def PersistedState.decode (child : Option (List String)) (value : Json.Value) :
     Except String PersistedState :=
   (PersistedState.admit child value).map Prod.fst
@@ -260,11 +243,8 @@ def startAccount (source : StartSource) (desired : Desired) : Option String :=
       "it starts only on a Start on the viewer's control endpoint, " ++
       "which the page's Start button sends, or the --start flag")
 
-/-- Absence, refusal and successful restore require distinct caller branches. -/
 inductive StateRead where
-  /-- No prior state file exists. -/
   | missing
-  /-- IO, syntax or schema refused the prior file. -/
   | refused (reason : String)
   | restored (state : PersistedState) (source : StartSource)
 
@@ -276,7 +256,6 @@ private def stateBytes (handle : IO.FS.Handle) (remaining : Nat) (bytes : ByteAr
   else throw (IO.userError "viewer state exceeds 4096 bytes")
 termination_by remaining
 
-/-- A bounded read preserves the distinction between missing and malformed state. -/
 def RunDirectory.readState (directory : RunDirectory) (child : Option (List String)) :
     IO StateRead := do
   try discard (directory.path .state).symlinkMetadata
@@ -300,8 +279,6 @@ def RunDirectory.readState (directory : RunDirectory) (child : Option (List Stri
       | .ok (state, source) => return .restored state source
   catch error => return .refused error.toString
 
-/-- Exclusive temporary creation prevents truncating a file owned by another pending writer.
-Only successful complete writing and flushing can reach the rename publication. -/
 def RunDirectory.writeState (directory : RunDirectory) (child : Option (List String))
     (state : PersistedState) : IO Unit :=
   directory.publishBytes .state (state.encode child).toUTF8
