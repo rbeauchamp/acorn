@@ -1,72 +1,38 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Admission
 import Acorn.Cost
-
-/-!
-# Standard native arithmetic boundary
-
-Storage remains raw. Arithmetic alone crosses Lean's standard `Float32` and
-`Float` boundary. Their definitions have kernel models and standard native
-replacements; native replacement correctness, IEEE arithmetic mode, and the
-compiler/runtime remain trusted. In particular the logical float model
-canonicalizes NaNs whereas native arithmetic may choose a sign and payload.
-No theorem here equates those exceptional result words across targets.
-
-All subsequent state writes must re-enter the receiving refinement. Its
-admission guarantee holds for every result word, independently of floating
-accuracy or native NaN choices. Ordered folds below use the same primitive
-definitions as individual updates. No fused operation, transcendental call,
-or custom native replacement is introduced.
--/
 
 namespace Acorn
 
 namespace Binary32
 
-/-- Standard binary32 addition; raw result bits retain the native NaN policy. -/
 def add (left right : Binary32) : Binary32 :=
   ⟨(Float32.add (Float32.ofBits left.bits) (Float32.ofBits right.bits)).toBits⟩
 
-/-- Standard binary32 subtraction. -/
 def sub (left right : Binary32) : Binary32 :=
   ⟨(Float32.sub (Float32.ofBits left.bits) (Float32.ofBits right.bits)).toBits⟩
 
-/-- Standard binary32 multiplication, rounded independently of later additions. -/
 def mul (left right : Binary32) : Binary32 :=
   ⟨(Float32.mul (Float32.ofBits left.bits) (Float32.ofBits right.bits)).toBits⟩
 
-/-- Standard binary32 division, including exceptional operands and results. -/
 def div (left right : Binary32) : Binary32 :=
   ⟨(Float32.div (Float32.ofBits left.bits) (Float32.ofBits right.bits)).toBits⟩
 
-/-- Unsigned word conversion uses the standard modeled conversion primitive. -/
 def ofUInt64 (word : UInt64) : Binary32 := ⟨word.toFloat32.toBits⟩
 
-/-- A left-to-right machine sum with its work: one visit and one `sumTerm` for each value. -/
 def sumFromCosted (initial : Binary32) (values : List Binary32) : Costed Binary32 :=
   Costed.foldl (fun total value => Costed.op .sumTerm (total.add value)) initial values
 
-/-- A left-to-right machine sum; reassociation is not part of this definition. -/
 def sumFrom (initial : Binary32) (values : List Binary32) : Binary32 :=
   (sumFromCosted initial values).val
 
 theorem sumFrom_def (initial : Binary32) (values : List Binary32) :
     sumFrom initial values = values.foldl add initial := rfl
 
-/-- Read and add each term in input order without constructing a mapped list, with its work:
-for each value, the work of its costed read and one stretch at `site`, and the fold's control. The
-site names the addition of what a term reads. -/
 @[inline] def sumMapCosted {α : Type} (site : Site) (initial : Binary32) (values : List α)
     (read : α → Costed Binary32) : Costed Binary32 :=
   Costed.foldl (fun total value => Costed.bind (read value) fun term =>
     Costed.op site (total.add term)) initial values
 
-/-- Read and add each term in input order without constructing a mapped list. The value does
-not depend on the site. -/
 @[inline] def sumMap {α : Type} (initial : Binary32) (values : List α)
     (read : α → Binary32) : Binary32 :=
   (sumMapCosted .sumTerm initial values fun value => Costed.pure (read value)).val
@@ -75,13 +41,11 @@ theorem sumMap_def {α : Type} (initial : Binary32) (values : List α) (read : �
     sumMap initial values read = values.foldl (fun total value => total.add (read value)) initial :=
   rfl
 
-/-- Fusion preserves every rounded addition, for every initial word and input. -/
 theorem sumMap_eq {α : Type} (initial : Binary32) (values : List α)
     (read : α → Binary32) :
     sumMap initial values read = sumFrom initial (values.map read) := by
   simp [sumMap_def, sumFrom_def, List.foldl_map]
 
-/-- Splitting an ordered sum preserves the intermediate machine accumulator. -/
 theorem sumFrom_append (initial : Binary32) (first second : List Binary32) :
     sumFrom initial (first ++ second) = sumFrom (sumFrom initial first) second := by
   simp [sumFrom_def, List.foldl_append]
@@ -90,34 +54,26 @@ end Binary32
 
 namespace Binary64
 
-/-- Standard binary64 addition. -/
 def add (left right : Binary64) : Binary64 :=
   ⟨(Float.add (Float.ofBits left.bits) (Float.ofBits right.bits)).toBits⟩
 
-/-- Standard binary64 subtraction. -/
 def sub (left right : Binary64) : Binary64 :=
   ⟨(Float.sub (Float.ofBits left.bits) (Float.ofBits right.bits)).toBits⟩
 
-/-- Standard binary64 multiplication, with its own rounding boundary. -/
 def mul (left right : Binary64) : Binary64 :=
   ⟨(Float.mul (Float.ofBits left.bits) (Float.ofBits right.bits)).toBits⟩
 
-/-- Standard binary64 division. -/
 def div (left right : Binary64) : Binary64 :=
   ⟨(Float.div (Float.ofBits left.bits) (Float.ofBits right.bits)).toBits⟩
 
-/-- Unsigned word conversion through the standard modeled primitive. -/
 def ofUInt64 (word : UInt64) : Binary64 := ⟨word.toFloat.toBits⟩
 
-/-- Sign change is performed on storage, without losing any NaN payload bits. -/
 def negate (value : Binary64) : Binary64 := ⟨value.bits ^^^ 0x8000000000000000⟩
 
-/-- Raw signed machine-order key, identifying the two zero encodings. -/
 def key (value : Binary64) : Int :=
   if value.bits &&& 0x8000000000000000 != 0 then -(value.magnitude : Int)
   else value.magnitude
 
-/-- Strict comparison keeps NaNs unordered without translating their words. -/
 def less (left right : Binary64) : Bool :=
   let lm := left.bits &&& 0x7fffffffffffffff
   let rm := right.bits &&& 0x7fffffffffffffff
@@ -127,8 +83,6 @@ def less (left right : Binary64) : Bool :=
     (if ln then if rn then rm < lm else lm != 0 || rm != 0
      else if rn then false else lm < rm)
 
-/-- Word comparison agrees with the signed-magnitude specification for every
-encoding, including unordered NaNs and the two equal zero encodings. -/
 theorem less_eq_key (left right : Binary64) :
     left.less right = (!left.isNaN && !right.isNaN && decide (left.key < right.key)) := by
   have order (a b : Binary64) :
@@ -164,31 +118,22 @@ theorem less_eq_key (left right : Binary64) :
       · exact .inl none
   · constructor <;> intro _ <;> omega
 
-/-- Strict numeric order of two words: neither is a NaN, and the signed keys are in strict
-order. The two zero encodings have one key, so neither is below the other. -/
 def Less (left right : Binary64) : Prop := ¬left.IsNaN ∧ ¬right.IsNaN ∧ left.key < right.key
 
-/-- Strict word comparison accepts exactly the pairs in strict numeric order. -/
 theorem less_iff (left right : Binary64) : left.less right = true ↔ left.Less right := by
   rw [less_eq_key]
   simp only [Less, Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq, ← isNaN_iff,
     Bool.not_eq_true, and_assoc]
 
-/-- Strict word comparison decides the strict numeric order, so a function that decides `Less`
-runs that comparison. -/
 instance (left right : Binary64) : Decidable (left.Less right) :=
   decidable_of_iff _ (less_iff left right)
 
-/-- One Horner step has a separate multiply followed by a separate addition. -/
 def hornerStep (argument accumulator coefficient : Binary64) : Binary64 :=
   (accumulator.mul argument).add coefficient
 
-/-- Horner evaluation in coefficient order, from the specified accumulator. -/
 def hornerFrom (argument initial : Binary64) (coefficients : List Binary64) : Binary64 :=
   coefficients.foldl (hornerStep argument) initial
 
-/-- Every finite coefficient sequence composes through the actual accumulator,
-including nonfinite inputs; no real-polynomial equivalence is assumed. -/
 theorem hornerFrom_append (argument initial : Binary64) (first second : List Binary64) :
     hornerFrom argument initial (first ++ second) =
       hornerFrom argument (hornerFrom argument initial first) second := by
@@ -198,12 +143,9 @@ end Binary64
 
 namespace Bounded32
 
-/-- A native arithmetic update must pass through the receiving state's interval. -/
 def addProjected {range : Interval32} (stored : Bounded32 range) (delta : Binary32) :
     Bounded32 range := project range (stored.value.add delta)
 
-/-- The actual arithmetic write preserves the indexed storage invariant for
-all operands; it requires no assumption that an intermediate result is finite. -/
 theorem addProjected_legal {range : Interval32} (stored : Bounded32 range)
     (delta : Binary32) : range.Contains (stored.addProjected delta).value :=
   (stored.addProjected delta).legal

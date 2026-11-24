@@ -1,38 +1,19 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Digits
 import Acorn.Handcrafted.TemporalControl
 
-/-!
-# Native option/exploration consumer
-
-This invokes the actual option policy and persistent sampler on arbitrary raw
-inputs. It executes the actual expectation models and planner and is not a full-agent runner.
-Output is an execution observation, never a correctness oracle or learning study.
-The temporal entry point uses these same concrete definitions.
--/
 namespace Acorn.TemporalDriver
 open Features Handcrafted
 
-/-- Small diagnostic storage; the policy definitions remain dimension-generic. -/
 def dimension : Dimension := ⟨8, by decide, ⟨3, rfl⟩, by decide⟩
 
-/-- The grid world's primitive action count. -/
 def actionCount : Word.Count := ⟨Acorn.FeatureConstants.primitiveCount.toUInt64, by decide⟩
 
-/-- A positive projected raw word becomes the diagnostic unit's held bonus; any other
-word leaves the diagnostic slot neutral. Kept out of line so the entry's route stays linear. -/
 @[noinline] def diagnosticAssignment (config : Features.Config) (unit : Fin config.units.count)
     (word : UInt64) : Assignment config :=
   match Bonus.ofWeight (Prediction.project .g99 ⟨word.toUInt32⟩) with
   | some bonus => .selected unit bonus
   | none => .neutral
 
-/-- Exercise actual native begin, admitted step, termination decision and closing
-credit with dynamic inputs. Each current criterion uses the same typed kernel. -/
 @[noinline] def execute (seed word : UInt64) (criterion : Criterion) : Nat × Nat × UInt32 :=
   let config : Features.Config :=
     ⟨seed, 1, by decide, ⟨3, by decide, by decide⟩, Handcrafted.declaredTester⟩
@@ -65,8 +46,6 @@ credit with dynamic inputs. Each current criterion uses the same typed kernel. -
 
 end Acorn.TemporalDriver
 
-/-- Read the seed and raw word as unsigned numbers of the command line (`Acorn.Digits.natural`),
-refusing either at `2 ^ 64` or more instead of wrapping it. -/
 def _root_.Acorn.TemporalDriver.main (arguments : List String) : IO UInt32 := do
   let parsed := match arguments with
     | [] => some (0, 0)

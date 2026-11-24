@@ -407,8 +407,10 @@ that a reading is paired with. A parsed JSON value is read into these types by
 frame is read exactly when it is what the value writes, member by member
 ({decl}`Acorn.Host.Microduck.State.read_iff`, {decl}`Acorn.Host.Microduck.Depth.read_iff`).
 A whole parsed line is read by {decl}`Acorn.Host.Microduck.Line.read` as exactly one case
-of declared criteria, which are taken from JSON-RPC 2.0 and are not the whole of it: a
-notification, as a frame of its stream or as a notice
+of declared criteria, which are taken from JSON-RPC 2.0 (JSON-RPC Working Group,
+*JSON-RPC 2.0 Specification*, 2010, updated 2013, sections 4, 4.1, 5, and 5.1) and are not
+the whole of it (for example, notification params can be any value and extra members are
+not refused): a notification, as a frame of its stream or as a notice
 ({decl}`Acorn.Host.Microduck.Line.read_state`, {decl}`Acorn.Host.Microduck.Line.read_depth`),
 a response with a result or with an error ({decl}`Acorn.Host.Microduck.Line.read_result`,
 {decl}`Acorn.Host.Microduck.Line.read_fault`), and invalid for every other value
@@ -423,9 +425,20 @@ So for every identifier and command the parser reads the line of a send as the r
 that send ({decl}`Acorn.Host.Microduck.Command.line_asked`). A second theorem states what every
 text that the parser accepts is: a JSON text of the grammar of RFC 8259,
 {decl}`Acorn.Json.Grammar.Text`, with a derivation that gives the value that the parser returns
-({decl}`Acorn.Json.parse_sound`). So a line of a daemon that the parser accepts is read as a value
-that the grammar gives its text. No theorem states that the parser accepts every text of the
-grammar, and none is about what a daemon sends or accepts.
+({decl}`Acorn.Json.parse_sound`), using RFC 5234 DIGIT (`%x30-39`) and case-insensitive HEXDIG
+(2008, section 2.3 and appendix B.1), host UTF-8 decoding before parsing (RFC 8259 §8.1),
+lone-surrogate rejection because Lean Char holds Unicode scalar values (RFC 8259 §8.2),
+distinct object-member names rejecting duplicate decoded keys before object construction
+(RFC 8259 §4), and a zero-based value-depth nesting limit of 128 (RFC 8259 §9: a top-level
+value starts at depth 0, empty arrays and objects return at their own depth so 129 nested
+arrays are accepted when the innermost array is empty at depth 128, and placing any value
+inside it reaches depth 129 and is refused); {decl}`Acorn.Json.unicodeWhitespace` matches Unicode
+White\_Space for manifest {decl}`Acorn.Json.Value.text` admission rather than RFC 8259's four
+whitespace characters ({decl}`Acorn.Json.Grammar.Space`). So a line of a daemon that the parser accepts
+is read as a value that the grammar gives its text. No theorem states that the parser accepts
+every text of the grammar (and grammar-value uniqueness follows from the completeness theorem
+tracked in [issue 163](https://github.com/rbeauchamp/acorn/issues/163)), and none is about what a
+daemon sends or accepts.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
@@ -2047,9 +2060,20 @@ new run of a fresh agent that intends to stay stopped, so the absence of a file 
 supervisor no running intent; its second argument records that a stray checkpoint of an earlier
 layout was adopted into the run. The version a state file names
 ({decl}`Acorn.Host.Viewer.stateVersion`) is nothing when the member is absent or is not a number
-spelled in decimal digits alone, which {decl}`Acorn.Digits.read` reads. The rule is about
-spelling: a string, `null`, and a number spelled with a sign, a fraction or an exponent are all
-read as no readable version. The child record a state file names
+spelled in decimal digits alone, which {decl}`Acorn.Digits.read` reads. {leanModule}`Acorn.Digits`
+(`lean/Acorn/Digits.lean`) separates {decl}`Acorn.Digits.natural` (unsigned CLI flags and native
+driver arguments), {decl}`Acorn.Digits.read` (viewer request lengths, ps RSS,
+{decl}`Acorn.Json.Value.natural`, and corpus-audit line numbers), and {decl}`Acorn.Digits.integer`
+(arbitrary signed integer digits mapping `-0` to `0` with no bit-width bound—for example,
+`9223372036854775808` succeeds—while `WorldDriver.coordinate` in `lean/Acorn/WorldDriver.lean`
+and `Host.Cli.requiredCoordinate` in `lean/Acorn/Host/Cli.lean` enforce signed 64-bit
+coordinate admission through {decl}`Acorn.Host.Coordinate.checked`) rather than calling Lean
+core's String.toNat?, because at Lean v4.36.0 (`Std/Data/String/ToNat.lean`, String.isNat\_iff and
+String.toNat?\_eq\_some\_ofDigitChars) String.toNat? accepts and strips `_` digit separators
+(`"4_2".toNat? = some 42`), whereas review (not an automated gate check) keeps String.toNat? out
+of the executing library; Microduck JSON numbers instead use {leanModule}`Acorn.Json`'s RFC 8259 §6 scanner,
+where leading zeros are refused. The rule is about spelling: a string, `null`, and a number
+spelled with a sign, a fraction or an exponent are all read as no readable version. The child record a state file names
 ({decl}`Acorn.Host.Viewer.stateChild`) is the words of its `child` member when that is a JSON
 array of strings, and nothing when the member is absent or has any other form. Admission of the
 version a state file names is decided once ({decl}`Acorn.Host.Viewer.admitVersion`): a natural
@@ -2117,9 +2141,20 @@ with three more for each word's quotation marks and comma
 word, every word admitted, within the budget ({decl}`Acorn.Host.Viewer.childAdmitted`). The
 digest of a file's content ({decl}`Acorn.Host.Viewer.fileDigest`) is 64-bit FNV-1a over every
 byte, in order, a function of the bytes alone: Landon Curt Noll, Kiem-Phong Vo, Donald Eastlake
-3rd and Tony Hansen, The FNV Non-Cryptographic Hash Algorithm, RFC 9923 (2026), sections 2 and
-5; the step and the offset basis are those of `lean/Acorn/Rng.lean`. It tells two files apart
-against accident and not against forgery. What a viewer reads of the file of the program its
+3rd and Tony Hansen, The FNV Non-Cryptographic Hash Algorithm, RFC 9923 (2026), sections 2,
+5, and 8.2.2 (`https://www.rfc-editor.org/rfc/rfc9923.html`); the step and the offset basis are
+those of `lean/Acorn/Rng.lean` (with {decl}`Acorn.Rng.fnv_byte` separating two byte strings differing in a
+single byte). It tells two files apart against accident and not against forgery.
+{leanModule}`Acorn.Rng` also implements seeded word streams after Sebastiano Vigna's SplitMix64
+reference (`https://prng.di.unimi.it/splitmix64.c`, 2015, next) and David Blackman and Sebastiano
+Vigna's xoshiro256\*\* reference (`https://prng.di.unimi.it/xoshiro256starstar.c`, 2018, rotl and
+next), where {decl}`Acorn.Rng.SplitMix64.next` intentionally adds {decl}`Acorn.Rng.increment` both when
+advancing state and inside {decl}`Acorn.Rng.mix64` ({decl}`Acorn.Rng.splitmix_two_offsets`) and raw all-zero
+{decl}`Acorn.Rng.Xoshiro256` state remains admitted ({decl}`Acorn.Rng.Xoshiro256.zero`); these total
+deterministic functions establish no IID or uniform-seed hypothesis, and RNG distribution results
+depend on separate source-word hypotheses in `AcornVerif.CurrentRng` (for example,
+{decl}`Acorn.Rng.Xoshiro256.nextBelow` uses multiply-high scaling, leaving 7 of the 9 grid actions
+with one extra preimage because `2^64 % 9 = 7`). What a viewer reads of the file of the program its
 supervisor would start ({decl}`Acorn.Host.Viewer.ProgramReading`) is the length of the file in
 bytes and the digest of every byte of the file, in order. It is a function of the bytes read
 alone, so it does not depend on what the state file can hold;
