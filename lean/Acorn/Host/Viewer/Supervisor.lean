@@ -80,7 +80,12 @@ private def Supervisor.perform (supervisor : Supervisor) (directory : RunDirecto
   | .follow .announceCleared => do
     if let .error refusal := ← supervisor.broadcast.announceCleared then
       throw (IO.userError refusal)
-  | .follow .ackStop | .follow (.refuseStop _) => pure ()
+  | .follow .ackStop => pure ()
+  | .follow (.refuseStop reason) =>
+    try
+      IO.eprintln s!"viewer stop: persistence unconfirmed: {reason}"
+      (← IO.getStderr).flush
+    catch _ => pure ()
   | .follow (.attach generation) => supervisor.process.attach generation directory
   | .follow (.say text) => try IO.println text catch _ => pure ()
   | .follow (.complain text) => try IO.eprintln s!"viewer shutdown: {text}" catch _ => pure ()
@@ -96,7 +101,9 @@ private def Supervisor.performInActor (supervisor : Supervisor) (effect : Effect
     Std.AtomicT (Actor supervisor.config.clearDisabled) IO Unit := do
   match effect with
   | .follow .ackStop => supervisor.settleStop .accepted
-  | .follow (.refuseStop _) =>
+  | .follow (.refuseStop reason) =>
+    let actor ← get
+    supervisor.perform actor.directory (.follow (.refuseStop reason))
     supervisor.settleStop (.unconfirmed "stop persistence could not be confirmed")
   | other =>
     let actor ← get
