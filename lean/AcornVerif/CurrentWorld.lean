@@ -83,8 +83,8 @@ theorem octaveScale_eq (scale : Binary32) (octave : Nat) :
 
 private theorem admitBounds_nonempty (raw : RawWorldConfig) (hpos : 0 < raw.side.val)
     (hmax : raw.side.val ≤ RawWorldConfig.maxSide) :
-    raw.admitLo.val < 0 ∧ 0 < (raw.admitHi hpos hmax).val := by
-  rw [raw.admitLo_val, raw.admitHi_val hpos hmax]
+    raw.admitLo.val < 0 ∧ 0 < (raw.admitHi hmax).val := by
+  rw [raw.admitLo_val, raw.admitHi_val hmax]
   by_cases hd : raw.deerCap = 0
   · rw [ite_eq_left hd, ite_eq_left hd]
     omega
@@ -100,19 +100,19 @@ theorem admissible_latticeAdmits {config : WorldConfig} (hadm : config.raw.admis
     CurrentTerrain.LatticeAdmits tile config.raw.baseScale := by
   obtain ⟨hpos, hmax, _, hrange⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
   have hbounds := admitBounds_nonempty config.raw hpos hmax
-  have hoct := (scaleAdmitsRange_iff config.raw.admitLo (config.raw.admitHi hpos hmax)
+  have hoct := (scaleAdmitsRange_iff config.raw.admitLo (config.raw.admitHi hmax)
     config.raw.baseScale).mp hrange
-  rw [← config.raw.admitLo_val, ← config.raw.admitHi_val hpos hmax] at hx hy
+  rw [← config.raw.admitLo_val, ← config.raw.admitHi_val hmax] at hx hy
   intro octave below
   obtain ⟨hlo_f, hhi_f⟩ := hoct octave below
   have hnot_past : ∀ c : Coordinate,
-      config.raw.admitLo.val ≤ c.val → c.val ≤ (config.raw.admitHi hpos hmax).val →
+      config.raw.admitLo.val ≤ c.val → c.val ≤ (config.raw.admitHi hmax).val →
         ¬ CurrentTerrain.PastLast
           ((coordinateFloat c).div (CurrentTerrain.octaveScale config.raw.baseScale octave)) := by
     intro c hc_lo hc_hi hpl
     rw [← octaveScale_eq, ← isPastLast_iff_pastLast] at hpl
     have hfalse := FloatLibBridge.coordinateFloat_div_pastLast_interval
-      config.raw.admitLo c (config.raw.admitHi hpos hmax) hbounds.1 hbounds.2 hc_lo hc_hi
+      config.raw.admitLo c (config.raw.admitHi hmax) hbounds.1 hbounds.2 hc_lo hc_hi
       (octaveScale config.raw.baseScale octave) hlo_f hhi_f
     rw [hpl] at hfalse
     cases hfalse
@@ -127,7 +127,7 @@ theorem admissible_tileKind_isOk {config : WorldConfig} (hadm : config.raw.admis
     (world.tileKind tile).isOk = true :=
   (CurrentTerrain.tileKind_isOk world tile).mpr (admissible_latticeAdmits hadm tile hx hy)
 
-theorem admissible_inBoxMargin {config : WorldConfig} (_ : config.raw.admissible = true)
+theorem admissible_inBoxMargin {config : WorldConfig}
     (c : Coordinate) (hlo : -5 ≤ c.val) (hhi : c.val ≤ config.raw.side.val + 4) :
     (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ c.val ∧
       c.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1) := by
@@ -144,8 +144,8 @@ theorem admissible_box_tileKind_isOk {config : WorldConfig} (hadm : config.raw.a
     (hy : -5 ≤ tile.y.val ∧ tile.y.val ≤ config.raw.side.val + 4) :
     (world.tileKind tile).isOk = true :=
   admissible_tileKind_isOk hadm world tile
-    (admissible_inBoxMargin hadm tile.x hx.1 hx.2)
-    (admissible_inBoxMargin hadm tile.y hy.1 hy.2)
+    (admissible_inBoxMargin tile.x hx.1 hx.2)
+    (admissible_inBoxMargin tile.y hy.1 hy.2)
 
 theorem admissible_translate_isSome {config : WorldConfig} (hadm : config.raw.admissible = true)
     (pos : BoxPosition config) (dx dy : Int)
@@ -241,20 +241,20 @@ theorem standard_admits (seed : UInt64) (side : Coordinate) (config : WorldConfi
   have hbase_eq : config.raw.baseScale = Binary32.ofUInt64 sNat.toUInt64 := by
     rw [hraw]
   have hrange :
-      scaleAdmitsRange config.raw.admitLo (config.raw.admitHi config.positiveSide hmax)
+      scaleAdmitsRange config.raw.admitLo (config.raw.admitHi hmax)
         config.raw.baseScale = true :=
     (scaleAdmitsRange_iff _ _ _).mpr fun octave below => by
       rw [hbase_eq]
       exact ⟨FloatLibBridge.octaveScale_ofNat_not_pastLast sNat hs_lo hs_hi
           config.raw.admitLo octave below,
         FloatLibBridge.octaveScale_ofNat_not_pastLast sNat hs_lo hs_hi
-          (config.raw.admitHi config.positiveSide hmax) octave below⟩
+          (config.raw.admitHi hmax) octave below⟩
   have hadm : config.raw.admissible = true :=
     (RawWorldConfig.admissible_iff config.raw).mpr
       ⟨config.positiveSide, hmax, config.positiveDay, hrange⟩
   refine ⟨hadm, ?_⟩
   unfold WorldConfig.admit
-  simp only [config.positiveSide, hmax, config.positiveDay, hrange, ↓reduceDIte]
+  simp only [config.positiveSide, hmax, config.positiveDay, hrange, ↓reduceDIte, ↓reduceIte]
 
 theorem admissible_boxPosition_tileKind_isOk {config : WorldConfig}
     (hadm : config.raw.admissible = true) (world : World config) (pos : BoxPosition config) :
@@ -625,8 +625,8 @@ theorem admissible_actionAdmits {config : WorldConfig}
     intro tile hx0 hxs hy0 hys
     rw [hside_eq] at hxs hys
     exact admissible_latticeAdmits hadm tile
-      (admissible_inBoxMargin hadm tile.x (by omega) (by omega))
-      (admissible_inBoxMargin hadm tile.y (by omega) (by omega))
+      (admissible_inBoxMargin tile.x (by omega) (by omega))
+      (admissible_inBoxMargin tile.y (by omega) (by omega))
   have hreads : ∀ dx dy : Int, -5 ≤ dx ∧ dx ≤ 5 → -5 ≤ dy ∧ dy ≤ 5 →
       CurrentActions.Reads world dx dy := by
     intro dx dy hdx hdy tile htx hty
@@ -639,8 +639,8 @@ theorem admissible_actionAdmits {config : WorldConfig}
     have hpx : (world.body.position.x.val : Int) = world.body.position.position.x.val := rfl
     have hpy : (world.body.position.y.val : Int) = world.body.position.position.y.val := rfl
     exact admissible_latticeAdmits hadm tile
-      (admissible_inBoxMargin hadm tile.x (by omega) (by omega))
-      (admissible_inBoxMargin hadm tile.y (by omega) (by omega))
+      (admissible_inBoxMargin tile.x (by omega) (by omega))
+      (admissible_inBoxMargin tile.y (by omega) (by omega))
   cases action with
   | north => intro tile _ _ hx0 hxs hy0 hys; exact hin_box tile hx0 hxs hy0 hys
   | south => intro tile _ _ hx0 hxs hy0 hys; exact hin_box tile hx0 hxs hy0 hys

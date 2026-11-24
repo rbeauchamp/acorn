@@ -96,9 +96,9 @@ theorem twentyTickDay_admitted :
   have hside : 0 < raw.side.val := by decide
   have hmax : raw.side.val ≤ RawWorldConfig.maxSide := by decide
   have hd : 0 < raw.dayLength.toNat := by decide
-  have hsc : scaleAdmitsRange raw.admitLo (raw.admitHi hside hmax) raw.baseScale = true := by
-    have hhi : raw.admitHi hside hmax = ⟨5, by decide⟩ :=
-      Subtype.ext (by rw [raw.admitHi_val hside hmax]; decide)
+  have hsc : scaleAdmitsRange raw.admitLo (raw.admitHi hmax) raw.baseScale = true := by
+    have hhi : raw.admitHi hmax = ⟨5, by decide⟩ :=
+      Subtype.ext (by rw [raw.admitHi_val hmax]; decide)
     rw [hhi]
     decide
   refine ⟨raw, ⟨raw, hside, hd⟩, ?_, rfl⟩
