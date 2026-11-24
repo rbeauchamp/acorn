@@ -768,9 +768,7 @@ description. Its nine actions are four directions, wait, harvest, craft axe,
 craft boat and eat. The authored curriculum combines survival, collection,
 navigation and crafting goals. Task reward is 1 on achievement and 0 otherwise.
 The task description does not provide an action-effect model to the learner.
-See [observations](../lean/Acorn/Host/Observation.lean),
-[actions](../lean/Acorn/Host/Task.lean), and
-[the curriculum](../lean/Acorn/Host/Curriculum.lean).
+See [observations](../lean/Acorn/Host/Observation.lean), [actions](../lean/Acorn/Host/Task.lean), [procedural terrain](../lean/Acorn/Host/Terrain.lean), [world state](../lean/Acorn/Host/WorldState.lean), [world observation](../lean/Acorn/Host/WorldObservation.lean), and [the curriculum](../lean/Acorn/Host/Curriculum.lean). Across those host world definitions: `Goal.find` shares `.reach`'s `GoalFamily` and hashes fixed cue `Rng.hash3 5 0 0` (`lean/Acorn/Host/Task.lean`), while `Action.fromIndex` (`≥ 9` -> `.eat`) and `TileKind.fromCode` (`≥ 7` -> `.ore`) provide total legacy fallbacks; `floor32` preserves `±0`, `±∞`, and `NaN` payloads (`floor32_exceptional`) with exponent carries handled by `assemble32`, `@[noinline] def castWord` (`lean/Acorn/Host/Terrain.lean`) maps any `NaN` to quiet `NaN` `0x7ff8000000000000` (mapped to `0` by `Conversion.toI64`) so the compiler cannot fold a `NaN` cast into a cached integer past the resource audit, `lattice` scales an upper 32-bit hash word by `2^-32` and can round to `1.0` (no `< 1` bound is claimed), and `terrain` XORs the seed with `0xe1e0e1e000000001` (elevation), `0xe1e0e1e000000002` (moisture), `7` (tree/forest dither), and `9` (stone/ore dither); `World.occupancy` (`lean/Acorn/Host/WorldObservation.lean`) indexes food then deer into a coordinate `Std.TreeMap`, coalescing duplicates into `(Bool × Bool)` presence bits without RNG draws or mutation; and `World.taskObservation` and `World.Attained` (`lean/Acorn/Host/WorldState.lean`) compute elapsed survive duration via saturating `Nat` subtraction `world.time.toNat - world.goalStart.toNat` while *world.time* wraps modulo `2^64`.
 
 ### What the world guarantees
 
@@ -1317,13 +1315,7 @@ order it names. The loop produces no reported durations.
 
 What these theorems do not establish:
 
-- **That the loop returns.** A crash is a loop that did not return, and
-  `runVisitDecisions_complete` says nothing of one. The loop writes a checkpoint only at a
-  visit's boundary, so a crash leaves the last completed save or none. That a completed
-  save survives the crash and a partial one leaves the old file is assumed of the store:
-  `lean/Acorn/Host/Checkpoint/IO.lean` states what a saved report establishes on each
-  platform, and where a sync stops at the drive a power loss can lose this save and the image
-  it replaced.
+- **That the loop returns.** A crash is a loop that did not return, and `runVisitDecisions_complete` says nothing of one. The loop writes a checkpoint only at a visit's boundary, so a crash leaves the last completed save or none. That a completed save survives the crash and a partial one leaves the old file is assumed of the store: [checkpoints](#checkpoints) and [checkpoint admission](verification.md#checkpoint-admission) state what `Store.save` establishes on each platform, and where a sync stops at the drive a power loss can lose this save and the image it replaced.
 - **That the bytes a process loads are this run's.** `visits_resumed` takes bytes a save of
   this run's agent wrote; a checkpoint file is not authenticated. It fixes one start and one
   cap, which the checkpoint does not hold, so that a later process was given the same ones is
@@ -1573,9 +1565,7 @@ on assumptions that are proved nowhere:
 - the daemon's expiry of 500 ms, and that it ages a velocity from its receipt;
 - the receipt follows the reading of the clock a send is stamped with by at most the
   transit allowance;
-- a reading of the clock at least every 50 ms, which needs a reader that runs while
-  the agent's step computes. That is a property of the driver of the host's loop, which is not
-  built, and of the operating system's scheduling;
+- a reading of the clock at least every 50 ms, which needs a reader that runs while the agent's step computes. That is a property of `microduck-host` (`Acorn.Host.Microduck.Driver`, described under "The driver and the transport" below, which ticks every 20 ms via `IO.sleep 1` and counts gaps above `Declared.gap`) and of the operating system's scheduling;
 - that the posture a caller states is the body's. A wrong one sends the toggle the
   wrong way;
 - that the declared duration of an action covers what the body takes for it.
@@ -1666,8 +1656,7 @@ older (`Reading.age_ahead`). The two frames are stamped on the daemons' clock, a
 `Stamp`. It is a type apart from the `Instant` of a host's clock, because a host that
 reaches the daemons from another machine reads another clock.
 
-The scales and the choice of fields are authored, and what a reading leaves out the
-frame of the interface cannot carry.
+A reading has no depth frame before the first one arrives, or on a body with no depth sensor (vendor documentation notes that most Microduck bodies lack a depth sensor: [issue 70 comment](https://github.com/rbeauchamp/acorn/issues/70#issuecomment-5976760764); in the simulator, observed gains are `160` and `200`, while *Limits.not_finite*, absent joint rates, and `null` servo gain come from reading vendor source, and `Cell.status` is `5` for a valid return or `255` for nothing in range). In `Acorn.Host.Microduck.Sensing`, `joints` and `"velocities"` keep the 15-joint ordering (left leg yaw, roll, pitch, knee, ankle; neck pitch; head pitch, yaw, roll; mouth; right leg yaw, roll, pitch, knee, ankle), upright `"safety.gravity"` corresponds to `(0, 0, -1000)` in thousandths, and 14 daemon JSON fields are deliberately omitted (seconds timestamp beside `"t_ns"`, link/sensor poses, commanded joint positions, head command, quaternion orientation, motor currents, odometry horizontal `x`/`y` and heading, velocity echo, control-loop rate and overruns, two optional-feature objects, battery, and depth sequence number, second stamp, `rows`, and `"cols"`). The scales and the choice of fields are authored, and what a reading leaves out the frame of the interface cannot carry.
 
 **Reading a number of the daemon's text.** The repository's JSON reader keeps the
 spelling of a number, and scans it into a `Numeral`, the parts of the spelling: a
@@ -1720,24 +1709,7 @@ outside the ten policy labels is the policy `other`, by a table of labels that t
 function of names is proved equal to (`Policy.named_iff`). The joint rates, the gain
 and the list of limit names can be missing, and a missing member and a null member are
 both read as nothing measured. The object that holds the list of limit names must be
-an object. A depth frame must state eight rows and eight columns. A member that neither
-reader names is not read. The names of the members and the
-labels are those of the record of one observed run; no theorem relates them to what a
-daemon sends. `Line.read` reads a whole parsed line by declared criteria, with one
-constructor of its result for each case and one theorem for each constructor. The
-criteria are taken from the JSON-RPC 2.0 specification and are not the whole of it: a
-line that meets them need not be valid by that specification (JSON-RPC Working Group, *JSON-RPC 2.0 Specification*, 2010, updated 2013, sections 4, 4.1, 5, and 5.1), since the parameters of
-a notification can be any value and no further member is refused. A notification has
-the version `2.0`, a string method and no identifier:
-it is a state frame or a depth frame when its parameters write the frame, an unread
-frame of that stream when they write none, and a notice for another method. A response
-has no method and an identifier, and exactly one of a result and an error: a result
-carries the boolean of its accepted member, and an error is an object with an integer
-code and a string message, with an identifier that can be null. Every other value is
-invalid, an error member that is null beside a result included (`Line.read_state`,
-`Line.read_depth`, `Line.read_unread`, `Line.read_notice`, `Line.read_result`,
-`Line.read_fault`, `Line.read_invalid`). What a host does at an unread frame is not
-decided.
+an object. A depth frame must state eight rows and eight columns. A whole parsed line is read by `Line.read` as exactly one case of declared criteria, with one constructor of its result for each case and one theorem for each constructor (`Counted` reads `Acorn.Json.Value.numeral` rather than `Acorn.Json.Value.natural` because no theorem states the accepted spellings of `Value.natural` and it refuses numbers `≥ 2^64`). The criteria are taken from the JSON-RPC 2.0 specification and are not the whole of it: a line that meets them need not be valid by that specification (JSON-RPC Working Group, *JSON-RPC 2.0 Specification*, 2010, updated 2013, sections 4, 4.1, 5, and 5.1), since the parameters of a notification can be any value and no further member is refused. A notification has the version `2.0`, a string method and no identifier: it is a state frame or a depth frame when its parameters write the frame, an unread frame of that stream when they write none, and a notice for another method (`Stream.request` sends an empty `"params"` object `{}` with no rate for `.state` and omits `"params"` for `.depth`, while `Command.Asked` refuses extra members such as `"robot.enable"`'s `"toggle"`). A response has no method and an identifier, and exactly one of a result and an error: a result carries the boolean of its accepted member, and an error is an object with an integer code and a string message, with an identifier that can be null (`Line.read_fault` / `Faulted`, matching the daemon intake error record at [issue 95 comment](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6058876518)). Every other value is invalid, an error member that is null beside a result included (`Line.read_state`, `Line.read_depth`, `Line.read_unread`, `Line.read_notice`, `Line.read_result`, `Line.read_fault`, `Line.read_invalid`). What a host does at an unread frame is not decided. Member lookup scans object member lists linearly (`State.read` looks up `"safety"` four times); parse cost is not otherwise bounded.
 
 **What a host holds, and its transitions.** A host has two phases, and each is a type:
 `Idle`, with no percept awaiting its action, and `Awaiting`, with one. Sensing takes an
@@ -1761,8 +1733,8 @@ interface declares its pace, so every value holds that pace (`Idle.declared`,
   velocities that move, the standing network or the sitting label for standing still,
   the label of each skill and of each posture. That evidence is weak: the forward
   velocity and the turns share one label, a frame from before a command took effect can
-  show the action, and the next percept can be sensed before the label changes. How
-  often it is wrong, in either direction, is UNKNOWN until the simulator runs.
+  show the action, and the next percept can be sensed before the label changes. How often it is wrong, in either direction, is UNKNOWN until the simulator runs.
+- `lean/Acorn/Host/Microduck/Session.lean`: *Idle.hear_shown* and *Action.shows_iff* are declared from [the record of commands and labels](https://github.com/rbeauchamp/acorn/issues/95#issuecomment-6046235895) (walking label observed 3 to 62 ms after send; standing network 44 to 271 ms after stop; walking label for turns and sitting label for *still* while seated read from text and untimed; error rate UNKNOWN). On open, *opening* sends 3 startup requests (two stream subscriptions and one policy enable, ignoring their answers), and a state frame heard after a release can still have been stamped before that release on the daemon's own clock (host-clock age unmeasured).
 - A state frame is paired with a depth frame only when the depth frame is stamped at or
   before it: the later of the two latest depth frames that is, chosen when the host
   senses. With none, the reading has no depth, which the frame of the interface marks as
@@ -1835,18 +1807,7 @@ cycle is admitted from the last step on (`Loop.step_release`), and the counts ho
 percept for each percept sensed and a release for each but the one awaited (`Ran.counts`).
 None of these reads a clock or a socket.
 
-**The driver and the transport.** `Acorn.Host.Microduck.Transport` is the trusted
-boundary: one child process `/usr/bin/nc -U <socket>` for each of the three connections
-(commands and answers, the state stream, the depth stream), whose output lines reader
-tasks append to one list in the order read; nothing in it parses a line. The executable
-`microduck-host` (`Acorn.Host.Microduck.Driver`) holds a `Loop` and changes it only with
-`Loop.step`, at readings of the monotonic clock: in each pass every line heard, then a
-finished task only after IO.hasFinished answered true for the task the loop holds, with
-the reading taken after that answer, then a tick every 20 ms; the lines a step returns go
-to their connections in order before the next step. It cannot make its thread read the
-clock at least every `Declared.gap`, which the declared keeping assumes, so it counts the
-gaps between two ticks above it and reports the largest, with one telemetry line for each
-change of stage.
+**The driver and the transport.** `Acorn.Host.Microduck.Transport` is the trusted boundary: one child process `/usr/bin/nc -U <socket>` for each of the three connections (commands and answers, the state stream, the depth stream), whose output lines reader tasks append to one list in the order read (`heard` records lines in reader-task scheduling order across sockets, while `Transport.send` preserves per-connection send order and `unbroken` relies on daemon JSON escaping `\n`); nothing in it parses a line, and because macOS `/usr/bin/nc` lacks a close-on-EOF flag, `Transport.within` terminates connections by killing each child (*Connection.stop*) and records the earliest monotonic end timestamp after stopping every connection and joining all readers (`ended`). The executable `microduck-host` (`Acorn.Host.Microduck.Driver`) holds a `Loop` and changes it only with `Loop.step`, at readings of the monotonic clock: in each pass every line heard, then a finished task only after *IO.hasFinished* answered true for the task the loop holds (`Loop.finished`), with the reading taken after that answer, then a tick every 20 ms (`tickPeriod`), sleeping 1 ms (`IO.sleep 1`) between passes when no line was taken so macOS background timer coalescing does not lengthen the pause; the lines a step returns go to their connections in order before the next step (*sendAll* catches only `Transport.send` errors and skips trailing sends and `Event.sent`). At exit, `microduck-host` reports status `2` on option decode refusal, `1` on transport error or `Ending.closed` (when a send failed or an external reader ended before the deadline and at or before `finished`, so `Transport.within` shutdown kills never count as `closed`), and `0` on `Ending.duration`; `Command` has no relax, shutdown, or disable command, leaving velocity expiry to the daemon. It cannot make its thread read the clock at least every `Declared.gap`, which the declared keeping assumes, so it counts the gaps between two ticks above it and reports the largest, with one telemetry line for each change of stage; `Transport`, the monotonic clock, *IO.hasFinished*/runtime tasks, and OS thread scheduling remain trusted boundaries.
 
 **The interface value and the frame.** `Acorn.Handcrafted.Microduck.interface` is
 this world's instance of the interface: the 64 zones of a depth frame as its symbol
@@ -2243,17 +2204,7 @@ holds positive zero; `Interval32` and `Symmetric32` (`lean/Acorn/Admission.lean`
 
 Loading admits a file in two stages. The header must match the receiving construction:
 format generation, criterion, capacity and learner count, seed, tilings and bank size, the
-resumable profile and the step order (`Checkpoint.admitHeader_iff`; generation 19 is refused because it shared generation 20's layout while placing feature weights at XOR-hash slots instead of non-XOR `hash2` / `hash3`). The body is then read as an image of the construction: every stored word in its own domain, every learner
-through the check of its invariant (`NumericState.resumable`, which decides the schedule
-invariant of its capacity theorem: `CurrentLearnerCheck.resumable_iff`), and the agent's
-two invariants (`Checkpoint.Format.decodeNaturalInto` refuses a highest base-128 digit of zero after any lower digits, and `Checkpoint.Format.decodeInto` completeness holds for `Lawful` formats while `Checkpoint.Format.decodeInto_written` characterizes canonical formats). Nothing is projected or repaired. Loading the bytes that a save of a state
-writes returns that state, for every state of every construction of the resumable profile
-and every receiver (`CurrentCheckpoint.load_saved`, from `CurrentImage.imageFormat_exact`
-and `Checkpoint.roundtrip`); the byte layer is part of the proof, and native file IO, the
-runtime and the OS are trusted. Every file of an earlier format is refused with its
-generation word (`CurrentCheckpoint.previous_generation_unloaded`). A file of format 20
-stores, after each option slot's trajectory, that option's off-policy questions, which the
-agent no longer holds ([PAR-18](prior-art-review.md#par-18--off-policy-questions), retired).
+resumable profile and the step order (`Checkpoint.admitHeader_iff`; generation 19 is refused because it shared generation 20's layout while placing feature weights at XOR-hash slots instead of non-XOR `hash2` / `hash3`). The body is then read as an image of the construction: every stored word in its own domain (`binary32Codec` and `binary64Codec` preserve raw stored `Binary32.bits` and `Binary64.bits` including `-0.0` without numeric conversion, `decodeListInto` uses a single tail-recursive accumulator with no per-element stack frame, `vectorCodec` reads a fixed schema count rather than an untrusted wire length, `Format` separates `Lawful` and `Canonical` into `Format.Exact` so learner-state round-trips can rely on `AcornVerif` invariants, `Format.list` checks `count.toNat ≤ bound` before reading elements, and `encodeNaturalInto`/`decodeNaturalInto` encode canonical least-significant-byte-first 7-bit base-128 naturals in constant native stack—refusing terminating `0` after continuation bytes—with `decodeNaturalInto` taking quadratic work in byte length as *lower.foldl* rebuilds `Nat` per byte), every learner through the check of its invariant (`NumericState.resumable`, which decides the schedule invariant of its capacity theorem: `CurrentLearnerCheck.resumable_iff`), and the agent's two invariants (`Checkpoint.Format.decodeNaturalInto` refuses a highest base-128 digit of zero after any lower digits, and `Checkpoint.Format.decodeInto` completeness holds for `Lawful` formats while `Checkpoint.Format.decodeInto_written` characterizes canonical formats). Nothing is projected or repaired. Loading the bytes that a save of a state writes returns that state, for every state of every construction of the resumable profile and every receiver (`CurrentCheckpoint.load_saved`, from `CurrentImage.imageFormat_exact` and `Checkpoint.roundtrip`); the byte layer is part of the proof, and native file IO (`Store.save`, `readBounded`, `loadFile`, `Store.hooks`, whose exclusive temp-file creation, `checkpoint-sync` *F_FULLFSYNC* vs macOS *fsync* fallback on *ENOTTY*/*ENOTSUP*/*EINVAL* and accepted durability risks are detailed in [checkpoint admission](verification.md#checkpoint-admission)), the runtime and the OS are trusted. Every file of an earlier format is refused with its generation word (`CurrentCheckpoint.previous_generation_unloaded`). A file of format 20 stores, after each option slot's trajectory, that option's off-policy questions, which the agent no longer holds ([PAR-18](prior-art-review.md#par-18--off-policy-questions), retired).
 A file of format 19 has the layout of format 20, but its weights were placed by the hashes
 that read their first two words only through their XOR, so a saved weight can sit at the
 slot of another feature. A file of format 18 or earlier holds no option model, primitive
@@ -2484,9 +2435,7 @@ these boundaries do not restart its learned weights.
 | `--csv PATH` | Stream attempt outcomes to a new [outcome CSV](#outcome-csv) file; cannot be combined with `--checkpoint`. |
 | `--baseline` | After the campaign, run the random-policy comparator over the same campaign and print both achieved counts; cannot be combined with `--control-stdin` or with `--cycles 0`: command admission refuses either before the agent runs. |
 
-These are core flags, not viewer flags. See
-[the CLI definition](../lean/Acorn/Host/Cli.lean) for the full accepted domain.
-Numbers in text use `Acorn.Digits` (`lean/Acorn/Digits.lean`): `Digits.natural` parses unsigned CLI flags and native-driver arguments (an optional leading `+` followed by digits `0` to `9`; native drivers such as `control-native`, `feature-native`, `swifttd-native`, and `temporal-native` additionally refuse values `≥ 2^64` instead of wrapping); `Digits.read` parses digits alone for viewer request content lengths, ps RSS values, `Json.Value.natural`, and corpus-audit line numbers; and `Digits.integer` parses arbitrary signed decimal integers (an optional leading `+` or `-` followed by digits `0` to `9`, mapping `-0` to `0` with no bit-width bound—for example, `9223372036854775808` succeeds), while `WorldDriver.coordinate` (`lean/Acorn/WorldDriver.lean`, for `world-native terrain X Y SEED SCALE_BITS`) and `Host.Cli.requiredCoordinate` (`lean/Acorn/Host/Cli.lean`, for `visits` `--target-x` and `--target-y`) enforce signed 64-bit coordinate admission through `Host.Coordinate.checked`. Each allows leading zeros while refusing whitespace, digit separators such as `_`, and multiple signs ([the digit reader](../lean/Acorn/Digits.lean); Microduck JSON numbers instead use `Acorn.Json`'s RFC 8259 §6 scanner, where leading zeros are refused). `PlanningSelection.parse` (`lean/Acorn/Planning.lean`) likewise accepts only `"none"` and `"expectation"` and refuses every other string with `none` without substitution.
+These are core flags, not viewer flags. See [the CLI definition](../lean/Acorn/Host/Cli.lean) for the full accepted domain (`Cli.scan` skips non-`--` tokens because `NativeApp` passes full `arguments` including subcommand tokens such as `"demo"` or `"visits"`, so arbitrary positional or single-dash flags are also skipped). Numbers in text use `Acorn.Digits` (`lean/Acorn/Digits.lean`): `Digits.natural` parses unsigned CLI flags and native-driver arguments (an optional leading `+` followed by digits `0` to `9`; native drivers such as `control-native`, `feature-native`, `swifttd-native`, and `temporal-native` additionally refuse values `≥ 2^64` instead of wrapping, and `AgentArguments.admit` / `AgentArguments.Admitted` / `AgentArguments.Constructs` in `lean/Acorn/Host/AgentArguments.lean` enforce `word < 2^64`, `tilings > 0`, `1 ≤ units ≤ 65535`, `exponent < 32`, fixed `.learnThenAct` step order and declared tester, with `AgentArguments.input` repeating *word.toUInt8* and `done := word &&& 1 == 1`); `Digits.read` parses digits alone for viewer request content lengths, ps RSS values, `Json.Value.natural`, and corpus-audit line numbers; and `Digits.integer` parses arbitrary signed decimal integers (an optional leading `+` or `-` followed by digits `0` to `9`, mapping `-0` to `0` with no bit-width bound—for example, `9223372036854775808` succeeds), while `WorldDriver.coordinate` (`lean/Acorn/WorldDriver.lean`, for `world-native terrain X Y SEED SCALE_BITS`) and `Host.Cli.requiredCoordinate` (`lean/Acorn/Host/Cli.lean`, for `visits` `--target-x` and `--target-y`) enforce signed 64-bit coordinate admission through `Host.Coordinate.checked`. Each allows leading zeros while refusing whitespace, digit separators such as `_`, and multiple signs ([the digit reader](../lean/Acorn/Digits.lean); Microduck JSON numbers instead use `Acorn.Json`'s RFC 8259 §6 scanner, where leading zeros are refused). `PlanningSelection.parse` (`lean/Acorn/Planning.lean`) likewise accepts only `"none"` and `"expectation"` and refuses every other string with `none` without substitution. *TemporalProfile.researchProfile* sits in `lean/Acorn/Host/TemporalProfile.lean` to keep runner IO dependencies out of `Acorn.Handcrafted.FeatureProfile`, and `AgentConstruction.runCampaign` checks `Grid.interface.timing = .synchronized` because `Host.runCampaign` does not import `Grid`. In `lean/Acorn/Host/Ansi.lean`, ANSI mode deliberately persists the sensor image across goal installation and a terminal step, exposing that pre-installation image beside post-step world fields ([issue 274](https://github.com/rbeauchamp/acorn/issues/274)).
 
 After building with the launcher, a short terminal example, which in work on a
 change needs the owner's authorization
@@ -2580,13 +2529,13 @@ reporter, which returns nothing. `Attempt.finish_position` proves that the
 stream continuing past an attempt is the attempt's own state with the attempt
 recorded, and that the recorded position is that state's body position.
 `foldOutcome_position` and `addOutcomeSteps_position` prove that the audit
-digest and the step total do not read the position. The comparator is a pure
-function of the world configuration, the seed and the campaign arguments, and
-it runs on a separate copy of the initial world after the agent's campaign has
-returned so its comment rows precede the CSV footer
-([attempt protocol](../lean/Acorn/Host/Attempt.lean),
-[metrics](../lean/Acorn/Host/Metrics.lean),
-[comparator](../lean/Acorn/Host/Baseline.lean)).
+digest and the step total do not read the position. The comparator is a pure function of the world configuration, the seed and the campaign arguments, and it runs on a separate copy of the initial world after the agent's campaign has returned so its comment rows precede the CSV footer ([attempt protocol](../lean/Acorn/Host/Attempt.lean), [metrics](../lean/Acorn/Host/Metrics.lean), [comparator](../lean/Acorn/Host/Baseline.lean)).
+
+### Host campaign progression, checksums, and endurance reduction
+
+- **Campaign admission and loop invariants (`lean/Acorn/Host/Campaign.lean`, `lean/Acorn/Host/Runner.lean`):** `CampaignPlan.admit` normalizes `attempts == 0` to `1` and clamps `goals` to *curriculumSize* while refusing `stepCapZero` and `emptyUnbounded`; `CampaignPlan.initial` returns `.complete` immediately when `goals == 0` (`CampaignPlan.empty_finite`); `saturatingIncrement64` and `saturatingIncrement32` saturate `CampaignCursor.cycle` at `2^64 - 1` without halting unbounded campaigns while `WritableCheckpoint.advanceBy_phase` maintains modular periodic saves; `atAttemptBoundary` checks `stopping` before budget exhaustion; `.refused` admission or `interval == 0` permanently disables writes (`WritableCheckpoint.refused`), and `.closing` accelerates due saves (`WritableCheckpoint.closing_due`, `WritableCheckpoint.stop_due`); `campaignStep` unpacks `CampaignProgress` on entry so compiled code may reuse `Agent` storage across the attempt (not a pure-value property), and `runAdmittedCampaign` keeps an unreachable fallback *throw* after `for _ in forever`.
+- **Audit checksums, diagnostics, and streaming metrics (`lean/Acorn/Host/AgentAudit.lean`, `AgentDiagnostics.lean`, `Metrics.lean`):** `agentChecksum` covers learners, differential gain, planning count, seed, clock, bank, generator, and each unit's tester `origin`, `birth`, and `utility` bytes while omitting transient credit, predictions, exploration state, and observational lifetime records; `transitionChecksum` folds vacant slot words as `0xffffffffffffffff`; `imprintCensus` deduplicates across hash aliases and equal weight magnitudes; `modelDiagnostics` avoids the reset-reader traversal due to distinct aliasing semantics; `initialBehavior` hashes `"decision-stream-v1"`; and `auditDigest` and `streamingAudit` hash `"deterministic-audit-v2"` (`OutcomeFold` tracks exact affine `(multiplier, offset)` recurrence over wrapping `UInt64` via `OutcomeFold.push_apply` and `streamingAudit_eq_report`).
+- **Endurance observation reduction (`lean/Acorn/Host/Endurance.lean`):** `Endurance.horizon` maps `.g90` to `200`, `.g95` to `400`, and `.g99` to `2000` (`Endurance.historyCapacity = 2000`); `Rates.note` skips `NaN`/infinities and applies `Config := ⟨role, .discounted .g99⟩` rail cutoffs `eta * 0.999` and `etaMin * 1.001` (`lower` checks `a < upper && a <= lower`); `realizedReturn` accumulates ordered `Float` (`Binary64`, trusted boundary) skipping non-finite cumulants while advancing `power`; `Reduction.ingest` counts individual non-finite scalars plus `1` if any prediction or cumulant is non-finite; `rankIndex` and `energyQuantile` compute exact integer cumulative rank crossings without float rounding; and `mean` returns `none` when count is `0`.
 
 ## Reading the viewer
 
