@@ -1,23 +1,6 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Planning
 import AcornVerif.CurrentLearner
 import AcornVerif.Resource.ModelWork
-
-/-!
-# Work of planning at a free boundary
-
-Twins of the planning of `Acorn.Planning`. Expectation planning backs up every option at the
-current frame and then every option at one stored frame, each backup a model prediction and
-one planning step of the meta-controller's row of that option. A stored frame is an active
-set of the agent's dimension, so its length is at most the capacity
-(`AcornVerif.CurrentLearner.active_cardinality`); no theorem ties it to the length of a
-frame's encoding, because a stored frame read from a checkpoint image is admitted at any
-length up to the capacity.
--/
 
 namespace AcornVerif.Resource.Twin
 
@@ -26,8 +9,6 @@ open Acorn Acorn.Features
 variable {actions : Word.Count} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
 
-/-- Twin of `PlanningResult.lookAhead`: the option model's prediction and the meta row's
-planning step. -/
 def lookAhead (κ : Costs) (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
       Acorn.FeatureConstants.skillCount)
@@ -47,7 +28,6 @@ theorem lookAhead_val (κ : Costs) (state : PlanningResult criterion dimension)
     (lookAhead κ state skills features gain rate slot).val =
       state.lookAhead skills features gain rate slot := rfl
 
-/-- Bound of one look-ahead over `width` features. -/
 abbrev lookAheadBound (κ : Costs) (positions width : Nat) : Nat :=
   predictBound κ positions width + (planBound κ width + κ .planClose + κ .lookAhead)
 
@@ -62,7 +42,6 @@ theorem lookAhead_work (κ : Costs) (state : PlanningResult criterion dimension)
     ⟨0, by decide⟩) fun _ =>
     Costed.bind_work_le (plan_work κ state.controller _ features _) fun _ => Nat.le_refl _
 
-/-- Twin of `PlanningResult.backup`. -/
 def backup (κ : Costs) (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
       Acorn.FeatureConstants.skillCount)
@@ -75,7 +54,6 @@ def backup (κ : Costs) (state : PlanningResult criterion dimension)
       predictions := result.1.predictions.set slot.val result.2.1 slot.isLt
       errors := result.1.errors.set slot.val result.2.2 slot.isLt }
 
-/-- Twin of `PlanningResult.sweep`. -/
 def sweep (κ : Costs) (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
       Acorn.FeatureConstants.skillCount)
@@ -85,7 +63,6 @@ def sweep (κ : Costs) (state : PlanningResult criterion dimension)
   let result ← lookAhead κ state skills features gain rate slot
   Costed.pure result.1
 
-/-- Twin of `PlanningResult.backupAll`: one backup for each option. -/
 def backupAll (κ : Costs) (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
       Acorn.FeatureConstants.skillCount)
@@ -101,7 +78,6 @@ theorem backupAll_val (κ : Costs) (state : PlanningResult criterion dimension)
     (backupAll κ state skills features gain rate).val = state.backupAll skills features gain rate :=
   rfl
 
-/-- Bound of the backups of every option over `width` features. -/
 abbrev backupAllBound (κ : Costs) (positions width : Nat) : Nat :=
   Library.foldl.work (κ .visit) Acorn.FeatureConstants.skillCount
     (lookAheadBound κ positions width + κ .backupClose)
@@ -119,7 +95,6 @@ theorem backupAll_work (κ : Costs) (state : PlanningResult criterion dimension)
       fun _ => Nat.le_refl _)
   rwa [planning_work] at folded
 
-/-- Twin of `PlanningResult.sweepAll`: one sweep for each option. -/
 def sweepAll (κ : Costs) (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
       Acorn.FeatureConstants.skillCount)
@@ -128,7 +103,6 @@ def sweepAll (κ : Costs) (state : PlanningResult criterion dimension)
   Costed.foldl (κ .visit) (fun state slot => sweep κ state skills features gain rate slot) state
     planningSlots
 
-/-- Bound of the sweeps of every option over `width` features. -/
 abbrev sweepAllBound (κ : Costs) (positions width : Nat) : Nat :=
   Library.foldl.work (κ .visit) Acorn.FeatureConstants.skillCount
     (lookAheadBound κ positions width + 0)
@@ -146,7 +120,6 @@ theorem sweepAll_work (κ : Costs) (state : PlanningResult criterion dimension)
       fun _ => Nat.le_refl _)
   rwa [planning_work] at folded
 
-/-- A look-ahead's bound grows with the width of its frame. -/
 theorem lookAheadBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     lookAheadBound κ positions width ≤ lookAheadBound κ positions limit := by
@@ -165,9 +138,6 @@ theorem lookAheadBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
     inputBound, planBound]
   omega
 
-/-- The costed run of `planningBoundary`: no planning stores cleared errors, a closed term of the
-compiled code; expectation planning backs up every option at the frame, then at the stored frame
-search control selects. -/
 def planningBoundaryRun (κ : Costs) (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
@@ -193,7 +163,6 @@ theorem planningBoundaryRun_val (κ : Costs) (selection : PlanningSelection)
       planningBoundary selection state skills features gain rate := by
   cases selection <;> rfl
 
-/-- Twin of `planningBoundary`. -/
 def planningBoundary (κ : Costs) (selection : PlanningSelection)
     (state : PlanningResult criterion dimension)
     (skills : Vector (Skill actions config criterion dimension discounts)
@@ -203,7 +172,6 @@ def planningBoundary (κ : Costs) (selection : PlanningSelection)
   Costed.via (Features.planningBoundary selection state skills features gain rate)
     (planningBoundaryRun κ selection state skills features gain rate)
 
-/-- Bound of a free boundary's planning over `width` features at a capacity. -/
 abbrev planningBound (κ : Costs) (capacity positions width : Nat) : Nat :=
   backupAllBound κ positions width + sweepAllBound κ positions capacity + κ .planBoundary
 
