@@ -2894,7 +2894,7 @@ let ctlFaultAt = null;
 function showControlFault(text, title) {
   const el = $("s_ctlfault");
   el.textContent = `⚠ ${text}`; el.className = "pill reset";
-  el.title = title;
+  el.title = title || "the last control request did not take effect; the pill clears when the server's state moves";
   ctlFaultAt = ctlState ? ctlState.transition : "";
 }
 function hideControlFault() { $("s_ctlfault").className = "pill hidden"; ctlFaultAt = null; }
@@ -2905,30 +2905,44 @@ async function sendCmd(cmd) {
       headers: { "Content-Type": "application/json", "X-Oak-Token": CTL_TOKEN },
       body: JSON.stringify({ cmd })
     });
-    if (r.status !== 202) {
-      let why = `${r.status}`;
-      let definiteRefusal = false;
-      try {
-        const j = await r.json();
-        if (j && j.reason) why = j.reason;
-        if (!r.ok && j && j.ok === false && j.unconfirmed !== true) definiteRefusal = true;
-      } catch (e) {}
-      if (definiteRefusal) {
-        toast(`⚠ ${cmd} refused — ${why}`, "fault");
-        showControlFault(`${cmd} refused — ${why}`,
-          "the last control request was refused before taking effect; the pill clears when the server's state moves");
-      } else {
-        toast(`⚠ ${cmd} not confirmed — ${why}`, "fault");
-        showControlFault(`${cmd} not confirmed — ${why}`,
-          "the outcome of the last control request was not confirmed; it may still take effect or have requested wind-up; the pill clears when the server's state moves");
+    if (cmd === "stop") {
+      if (r.status !== 202) {
+        let why = `${r.status}`;
+        let definiteRefusal = false;
+        try {
+          const j = await r.json();
+          if (j && j.reason) why = j.reason;
+          if (!r.ok && j && j.ok === false && j.unconfirmed !== true) definiteRefusal = true;
+        } catch (e) {}
+        if (definiteRefusal) {
+          toast(`⚠ stop refused — ${why}`, "fault");
+          showControlFault(`stop refused — ${why}`,
+            "the last stop request was refused before taking effect; the pill clears when the server's state moves");
+        } else {
+          toast(`⚠ stop not confirmed — ${why}`, "fault");
+          showControlFault(`stop not confirmed — ${why}`,
+            "the outcome of the last stop request was not confirmed; it may still take effect or have requested wind-up; the pill clears when the server's state moves");
+        }
       }
+    } else if (!r.ok) {
+      let why = `${r.status}`;
+      try { const j = await r.json(); if (j && j.reason) why = j.reason; } catch (e) {}
+      toast(`⚠ ${cmd} refused — ${why}`, "fault");
+      showControlFault(`${cmd} refused — ${why}`);
     }
   } catch (e) {
-    // No HTTP response arrived (lost connection or viewer crash); the page
-    // cannot know whether the request reached the viewer or persisted.
-    toast(`⚠ ${cmd} outcome unknown — viewer unreachable`, "fault");
-    showControlFault(`${cmd} outcome unknown — viewer unreachable`,
-      "no HTTP response was received from the viewer; the request may or may not have taken effect; the pill clears when the server's state moves");
+    if (cmd === "stop") {
+      // No HTTP response arrived (lost connection or viewer crash); the page
+      // cannot know whether the stop reached the viewer or persisted.
+      toast("⚠ stop outcome unknown — viewer unreachable", "fault");
+      showControlFault("stop outcome unknown — viewer unreachable",
+        "no HTTP response was received from the viewer; the stop may or may not have taken effect; the pill clears when the server's state moves");
+    } else {
+      // The viewer itself is unreachable. Say so rather than leaving the button
+      // looking as though the request landed.
+      toast(`⚠ cannot reach the viewer to ${cmd}`, "fault");
+      showControlFault(`cannot reach the viewer to ${cmd}`);
+    }
   }
 }
 

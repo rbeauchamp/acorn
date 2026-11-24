@@ -96,7 +96,8 @@ private def Supervisor.performInActor (supervisor : Supervisor) (effect : Effect
     Std.AtomicT (Actor supervisor.config.clearDisabled) IO Unit := do
   match effect with
   | .follow .ackStop => supervisor.settleStop .accepted
-  | .follow (.refuseStop reason) => supervisor.settleStop (.unconfirmed reason)
+  | .follow (.refuseStop _) =>
+    supervisor.settleStop (.unconfirmed "stop persistence could not be confirmed")
   | other =>
     let actor ← get
     supervisor.perform actor.directory other

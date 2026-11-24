@@ -1697,11 +1697,20 @@ at its original path. Mapping `Acorn.Host.Viewer.Follow.ackStop` to HTTP `202` a
 definite pre-execution refusals (`Acorn.Host.Viewer.ControlResult.refused`, `busy`,
 `unavailable`) versus unconfirmed Stop outcomes
 (`Acorn.Host.Viewer.ControlResult.unconfirmed`, serialized with `"unconfirmed":true`,
-including write errors that may still request child wind-up, the 10-second `awaitControl`
-timeout that ends only the HTTP wait without cancelling the Stop, and shutdown interruptions)
-to HTTP `503` in `HttpServer.lean` and `Supervisor.lean`, together with exiting without
+including write errors that may still request child wind-up and the 10-second `awaitControl`
+timeout that ends only the HTTP wait without cancelling the Stop) to HTTP `503` in
+`HttpServer.lean` and `Supervisor.lean` — where `Supervisor.performInActor` maps
+`Acorn.Host.Viewer.Follow.refuseStop` to a fixed public
+`Acorn.Host.Viewer.ControlResult.unconfirmed` string so HTTP `/control` JSON responses
+never expose raw OS `IO.Error` messages or local run-directory/archive paths (detailed native
+diagnostics remain in `Supervision.lean`'s `core.report .failed` diagnostic path and stderr) —
+is likewise read from the code. On viewer shutdown interrupting an admitted Stop, the supervisor
+resolves the waiter as `Acorn.Host.Viewer.ControlResult.unconfirmed` so HTTP returns `503`
+(`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes before server teardown,
+whereas server cancellation during shutdown can also yield an empty `503` or closed connection
+without a JSON body; the browser treats both fail-closed as unconfirmed/unknown. Exiting without
 starting a core on a parse or schema refusal from
-`Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean`, are likewise
+`Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean` is likewise
 read from the code. Nor does the theorem say who may
 submit a Start: the viewer serves its page on the loopback interface to whoever loads it. And that
 a Start was given is a property of the program: it is separate from the owner's authorization for

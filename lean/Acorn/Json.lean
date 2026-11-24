@@ -1537,8 +1537,7 @@ private theorem nullableEntry_read (name : String) (item : Option Scalar)
     rfl
 
 def nullableChars (members : List (String × Option Scalar)) : List Char :=
-  '{' :: (joined (members.map fun pair =>
-      member pair.1 (match pair.2 with | some s => s.chars | none => ['n', 'u', 'l', 'l'])) ++
+  '{' :: (joined ((members.map fun pair => nullableEntry pair.1 pair.2).map Entry.chars) ++
     ['}', '\n'])
 
 def nullableValue (members : List (String × Option Scalar)) : Value :=
@@ -1556,13 +1555,6 @@ theorem parse_nullable_line (members : List (String × Option Scalar))
     cases members with
     | nil => exact absurd rfl nonempty
     | cons _ _ => exact List.cons_ne_nil _ _
-  have charsMap : (members.map fun pair => nullableEntry pair.1 pair.2).map Entry.chars =
-      members.map fun pair =>
-        member pair.1 (match pair.2 with | some s => s.chars | none => ['n', 'u', 'l', 'l']) := by
-    rw [List.map_map]
-    refine List.map_congr_left fun pair _ => ?_
-    rcases pair with ⟨k, v⟩
-    cases v <;> rfl
   have read := value_entries (members.map fun pair => nullableEntry pair.1 pair.2) 0
     ((nullableChars members).length + 1) ['\n'] (Nat.zero_le _) entriesNonempty
     (fun entry inside => by
@@ -1581,17 +1573,14 @@ theorem parse_nullable_line (members : List (String × Option Scalar))
         cases v <;> exact String.ofList_toList
       exact hstr ▸ distinct)
     (fun entry inside => by
-      obtain ⟨pair, held, rfl⟩ := List.mem_map.mp inside
+      obtain ⟨pair, _, rfl⟩ := List.mem_map.mp inside
       have hneed : (nullableEntry pair.1 pair.2).need = 1 := by
-        rcases pair with ⟨k, v⟩
+        rcases pair with ⟨_, v⟩
         cases v <;> rfl
-      have hmem : member pair.1
-            (match pair.2 with | some s => s.chars | none => ['n', 'u', 'l', 'l']) ∈
-          members.map fun pair =>
-            member pair.1
-              (match pair.2 with | some s => s.chars | none => ['n', 'u', 'l', 'l']) :=
-        List.mem_map.mpr ⟨pair, held, rfl⟩
-      have text := joined_length _ _ hmem
+      have text := joined_length
+        ((members.map fun pair => nullableEntry pair.1 pair.2).map Entry.chars)
+        (nullableEntry pair.1 pair.2).chars
+        (List.mem_map.mpr ⟨_, inside, rfl⟩)
       rw [hneed, List.length_map]
       unfold nullableChars
       simp only [List.length_cons, List.length_append, List.length_map] at text ⊢
@@ -1602,7 +1591,7 @@ theorem parse_nullable_line (members : List (String × Option Scalar))
     refine List.map_congr_left fun pair _ => ?_
     rcases pair with ⟨k, v⟩
     cases v <;> exact Prod.ext (String.ofList_toList (s := k)) rfl
-  rw [charsMap, fielded] at read
+  rw [fielded] at read
   have whole : value ((nullableChars members).length + 2) 0 (nullableChars members) =
       .ok (nullableValue members, ['\n']) := read
   show (do

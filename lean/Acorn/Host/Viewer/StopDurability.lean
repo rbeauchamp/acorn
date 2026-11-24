@@ -1159,21 +1159,6 @@ theorem Core.stop_acknowledges_or_refuses (core : Core) (clearDisabled : Option 
                 cases herr
                 simp [Core.resume, Core.resolve, Core.intentFailed, command_beq, Stepped.at])⟩
 
-def Pending.StopHeld : Pending → Prop
-  | .intent command state =>
-    (command = .start ∧ state.desired = .running) ∨
-      (command ≠ .start ∧ state.desired = .stopped)
-  | .replacement _ _ => True
-  | .launch _ _ | .spawn _ _ => False
-  | .adopt _ _ state | .commit _ _ state _ | .exitIntent state => state.desired = .stopped
-  | .seed intended | .archive _ intended _ | .reopen _ intended _ => intended = .stopped
-  | .windUp _ | .exitMap _ _ | .map _ | .closeMap _ => True
-
-structure Core.StopHeld (core : Core) : Prop where
-  lifecycle : core.lifecycle.Unstarted
-  persisted : core.persisted.desired = .stopped
-  pending : ∀ pending, core.pending = some pending → pending.StopHeld
-
 structure Core.ArchivalInvariant (core : Core) : Prop where
   lifecycle : core.lifecycle.Archival
   archivingGuarded : core.lifecycle.phaseValue = .archiving →
@@ -2727,22 +2712,19 @@ private theorem Core.ShapeInvariant.resume {core : Core} (reading : Nat) (pendin
           simp only [↓reduceIte, Bool.false_eq_true] <;> exact hrepCore
 
 structure Core.StopGuard (core : Core) : Prop where
-  held : core.StopHeld
+  lifecycle : core.lifecycle.Unstarted
+  persisted : core.persisted.desired = .stopped
   replacement : ∀ rep, core.replacement = some rep → rep.desired = .stopped
-  pendingReplacement : ∀ st ack, core.pending = some (.replacement st ack) →
-    st.desired = .stopped
-  noStartIntent : ∀ c s, core.pending = some (.intent c s) → c ≠ .start ∧ s.desired = .stopped
+  pending : ∀ pending, core.pending = some pending → pending.Unstarted
 
 private theorem Core.StopGuard.same {core next : Core} (guard : core.StopGuard)
     (hlc : next.lifecycle = core.lifecycle)
     (hpers : next.persisted = core.persisted)
     (hrep : next.replacement = core.replacement)
-    (hpend : next.pending = core.pending) : next.StopGuard := by
-  refine ⟨⟨hlc ▸ guard.held.lifecycle, hpers ▸ guard.held.persisted,
-      fun p hp => guard.held.pending p (hpend ▸ hp)⟩,
+    (hpend : next.pending = core.pending) : next.StopGuard :=
+  ⟨hlc ▸ guard.lifecycle, hpers ▸ guard.persisted,
     fun rep hr => guard.replacement rep (hrep ▸ hr),
-    fun st ack hp => guard.pendingReplacement st ack (hpend ▸ hp),
-    fun c s hp => guard.noStartIntent c s (hpend ▸ hp)⟩
+    fun p hp => guard.pending p (hpend ▸ hp)⟩
 
 private theorem Core.StopGuard.report {core : Core} (guard : core.StopGuard)
     (tr : ControlTransition) (reason : String) : (core.report tr reason).StopGuard :=
@@ -2753,29 +2735,16 @@ private theorem Core.StopGuard.at {stepped : Stepped} (guard : stepped.core.Stop
   guard.same rfl rfl rfl rfl
 
 theorem Core.StopGuard.toUnstarted {core : Core} (guard : core.StopGuard) : core.Unstarted where
-  lifecycle := guard.held.lifecycle
-  persisted := guard.held.persisted
+  lifecycle := guard.lifecycle
+  persisted := guard.persisted
   replacement := guard.replacement
-  pending p hp := by
-    cases p with
-    | intent c s => exact guard.noStartIntent c s hp
-    | replacement st ack => exact guard.pendingReplacement st ack hp
-    | launch _ _ | spawn _ _ | adopt _ _ _ | commit _ _ _ _ | exitIntent _
-    | seed _ | archive _ _ _ | reopen _ _ _ | windUp _ | exitMap _ _ | map _ | closeMap _ =>
-      exact guard.held.pending _ hp
+  pending := guard.pending
 
 theorem Core.Unstarted.toStopGuard {core : Core} (unstarted : core.Unstarted) : core.StopGuard where
-  held :=
-    ⟨unstarted.lifecycle, unstarted.persisted, fun p hp => by
-      cases p with
-      | intent c s => exact Or.inr (unstarted.pending _ hp)
-      | replacement _ _ => exact trivial
-      | launch _ _ | spawn _ _ | adopt _ _ _ | commit _ _ _ _ | exitIntent _
-      | seed _ | archive _ _ _ | reopen _ _ _ | windUp _ | exitMap _ _ | map _ | closeMap _ =>
-        exact unstarted.pending _ hp⟩
+  lifecycle := unstarted.lifecycle
+  persisted := unstarted.persisted
   replacement := unstarted.replacement
-  pendingReplacement st ack hp := unstarted.pending _ hp
-  noStartIntent c s hp := unstarted.pending _ hp
+  pending := unstarted.pending
 
 theorem Core.StopGuard.iff_unstarted (core : Core) : core.StopGuard ↔ core.Unstarted :=
   ⟨Core.StopGuard.toUnstarted, Core.Unstarted.toStopGuard⟩
@@ -2819,15 +2788,14 @@ theorem Core.resume_ackStop_stopGuard (core : Core) (reading : Nat) (pending : P
       subst hcmd
       have hrepNone := sh.intentNoReplacement .stop state hp
       simp only [Core.resolve, Core.intentSaved]
-      refine ⟨⟨Lifecycle.request_stop_unstarted core.lifecycle, hst, fun p h => ?_⟩,
+      refine ⟨Lifecycle.request_stop_unstarted core.lifecycle, hst,
         (fun r hr => by simp only [Core.report, Core.moveTo] at hr; rw [hrepNone] at hr; cases hr),
-        fun _ _ h => ?_, fun _ _ h => ?_⟩
-      all_goals
-        simp only [Core.report, Core.moveTo] at h
-        cases hwt : windUpTarget core.slot core.lifecycle (core.lifecycle.request .stop) <;>
-          simp [hwt] at h
-        (try cases h)
-        (try exact trivial)
+        fun p h => ?_⟩
+      simp only [Core.report, Core.moveTo] at h
+      cases hwt : windUpTarget core.slot core.lifecycle (core.lifecycle.request .stop) <;>
+        simp [hwt] at h
+      cases h
+      exact trivial
   | replacement s ackStop =>
     dsimp [Pending.call] at hcall
     cases hcall
@@ -2849,9 +2817,9 @@ theorem Core.resume_ackStop_stopGuard (core : Core) (reading : Nat) (pending : P
           have hlcu := hBoth.2 hins hph
           have gNone : Core.StopGuard { core with
               lifecycle := core.lifecycle.replacementIntent .stopped, pending := none } :=
-            ⟨⟨hlcu, hps, (fun _ h => by cases h)⟩,
+            ⟨hlcu, hps,
               (fun r hr => by rw [hr] at hrep; cases Option.some.inj hrep; exact hst),
-              (fun _ _ h => by cases h), (fun _ _ h => by cases h)⟩
+              (fun _ h => by cases h)⟩
           exact gNone.report _ _
         | some installed =>
           dsimp only
@@ -2860,9 +2828,7 @@ theorem Core.resume_ackStop_stopGuard (core : Core) (reading : Nat) (pending : P
               lifecycle := installed, persisted := state, replacement := none,
               detail := { core.detail with log := {}, abnormalExit := false },
               failure := none, mapAt := 0, mapRevision := none, pending := none } :=
-            ⟨⟨hlcu, hst, (fun _ h => by cases h)⟩,
-              (fun _ h => by cases h), (fun _ _ h => by cases h),
-              (fun _ _ h => by cases h)⟩
+            ⟨hlcu, hst, (fun _ h => by cases h), (fun _ h => by cases h)⟩
           exact gSome.report _ _
       dsimp only [Core.resolve]
       cases ackStop with
@@ -3222,27 +3188,7 @@ theorem CrashStep.invariant {st next : CrashState} (inv : st.Invariant)
       refine ⟨hdisk, fun _ => ⟨hguard, ?_, hdone⟩⟩
       intro s c hs
       cases Option.some.inj hs
-      have hsh := hguard.held.pending p hp
-      cases p with
-      | intent cmd s0 =>
-        dsimp [Pending.call] at hcall
-        cases hcall
-        exact (hguard.noStartIntent cmd state hp).2
-      | replacement st0 ack =>
-        dsimp [Pending.call] at hcall
-        cases hcall
-        exact hguard.pendingReplacement state ack hp
-      | launch _ _ => exact absurd hsh (fun h => h)
-      | adopt _ _ s0 =>
-        dsimp [Pending.call] at hcall
-        cases hcall
-        exact hsh
-      | exitIntent s0 =>
-        dsimp [Pending.call] at hcall
-        cases hcall
-        exact hsh
-      | spawn _ _ | windUp _ | commit _ _ _ _ | exitMap _ _ | map _ | closeMap _ | seed _
-      | archive _ _ _ | reopen _ _ _ => cases hcall
+      exact (hguard.toUnstarted.spawns_nothing.2.2 p hp).2 state hcall
   | writeRename state child hlive ht =>
     obtain ⟨p, hp, hcall⟩ := inv.tmpPending state child ht
     refine ⟨inv.shape, inv.clean, (fun _ _ h => by cases h), ?_, ?_, ?_, ?_⟩
