@@ -67,22 +67,31 @@ guidance. Inspect the generated behavior for the workload being optimized.
   metadata is needed. Sharing is legitimate when required by semantics; inspect
   generated reuse/copy paths before attributing a cost to source syntax.
   [Reference counting](https://lean-lang.org/doc/reference/latest/Run-Time-Code/Reference-Counting/).
-  In `lean/Acorn/FeatureConsumers.lean`, `Acorn.Features.takeOut` is marked
-  `@[noinline]` so reading element `index` and writing the stand-in slot
-  `(index.val + 1) % size` both precede caller use of the taken element;
-  `Acorn.Features.detachedUpdate` and `Acorn.Features.detachedUpdateCosted`
-  (used by `Acorn.Sarsa` updates `Controller.creditStep`, `Controller.stopStep`,
-  and `Controller.terminal`, with value equality proved in
-  `Acorn.Features.detachedUpdate_eq`) reuse the element's storage in place only
-  under three unchecked runtime conditions: the vector is uniquely referenced by
-  that call (`RC = 1`), the element appears in no other slot and has no other
-  reference, and `size > 1`. Likewise, `Acorn.Features.Skill.stepTemporal`
-  destructures the policy step's result before crediting the model under the
-  same unproved runtime-exclusivity expectation, and `@[noinline]` on
-  `Acorn.SwiftTdDriver.execute`, `Acorn.ControlDriver.execute`,
-  `Acorn.FeatureDriver.execute`, and `Acorn.TemporalDriver.diagnosticAssignment`
-  prevents the compiler from hoisting initial learner/consumer storage into
-  shared process-global terms.
+  In `lean/Acorn/FeatureConsumers.lean`, `Acorn.Features.takeOut` reads element
+  `index` and overwrites slot `index` with its stand-in argument, and is marked
+  `@[noinline]` so both operations precede caller use of the taken element. Both
+  `Acorn.Features.detachedUpdate` (called by option-table updates in
+  `Acorn.Handcrafted.TemporalControl` and `Acorn.Handcrafted.DrawFirst`, with
+  value equality proved in `Acorn.Features.detachedUpdate_eq`) and
+  `Acorn.Features.detachedUpdateCosted` (called by `Controller.creditStepCosted`
+  in `lean/Acorn/Sarsa.lean`, whereas `Controller.stopStepCosted` and
+  `Controller.terminalCosted` map all rows via `Costed.mapVector`) pass the next
+  slot's element `(index.val + 1) % size` as the stand-in into slot `index`—for
+  example, on `[a, b]` at index `0`, `takeOut` reads `a` and produces `[b, b]`—so
+  slot `index` temporarily holds a second reference to the next element while
+  the update runs before overwriting slot `index` with the updated element. The
+  runtime can then reuse the taken element's storage in place only under three
+  unchecked conditions: the vector is uniquely referenced by that call (`RC = 1`),
+  the element appears in no other slot and has no other reference, and `size > 1`;
+  where any fails, the update writes to copies with the same result. Likewise,
+  `Acorn.Features.Skill.stepTemporal` destructures the policy step's result
+  before crediting the model under the same unproved runtime-exclusivity
+  expectation. `@[noinline]` on `Acorn.SwiftTdDriver.execute`,
+  `Acorn.ControlDriver.execute`, `Acorn.FeatureDriver.execute`, and
+  `Acorn.TemporalDriver.execute` keeps initial learner/consumer storage
+  dynamically allocated instead of hoisted into shared process-global terms,
+  whereas `@[noinline]` on `Acorn.TemporalDriver.diagnosticAssignment` keeps
+  that entry's route linear.
 - **Arithmetic:** favor native machine scalars through hot calculations when
   their correspondence with the admitted representation is established. Avoid
   repeated word/float conversions where a shared, proved implementation can
@@ -99,9 +108,11 @@ guidance. Inspect the generated behavior for the workload being optimized.
   In `lean/Acorn/Arithmetic.lean` and `lean/Acorn/Conversion.lean`, native
   hardware operations may choose NaN sign and payload unlike Lean's
   canonicalizing float model, no FMA or custom native override is used,
-  `Conversion.ofInt` exposes `UInt64` magnitude wrapping outside the admitted
-  signed 32-bit domain (while `Conversion.ofI64Word` avoids intermediate
-  arbitrary-precision `Int` allocation), widening/narrowing aligns IEEE-754
+  `Conversion.ofInt` converts the integer's magnitude through `UInt64`
+  (*natAbs.toUInt64*), so magnitude wraps modulo `2^64` rather than at the
+  signed 32-bit exactness range (for example, `2^31` converts without wrapping,
+  while `Conversion.ofI64Word` avoids intermediate arbitrary-precision `Int`
+  allocation), widening/narrowing aligns IEEE-754
   fields with exact bias/shift offsets (`874` subnormal bias, `896` normal
   exponent offset, `897` smallest normal biased exponent, `925`/`926` subnormal
   shifts, `1075` binary64 integer bias, and `1150` normal overflow bound), and

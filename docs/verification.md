@@ -483,7 +483,11 @@ text that the parser accepts is: a JSON text of the grammar of RFC 8259,
 (`Acorn.Json.parse_sound`), using RFC 5234 DIGIT (`%x30-39`) and case-insensitive HEXDIG
 (2008, section 2.3 and appendix B.1), host UTF-8 decoding before parsing (RFC 8259 §8.1),
 lone-surrogate rejection because Lean Char holds Unicode scalar values (RFC 8259 §8.2),
-and a 128-level nesting limit (RFC 8259 §9); `Acorn.Json.unicodeWhitespace` matches Unicode
+distinct object-member names rejecting duplicate decoded keys before object construction
+(RFC 8259 §4), and a zero-based value-depth nesting limit of 128 (RFC 8259 §9: a top-level
+value starts at depth 0, empty arrays and objects return at their own depth so 129 nested
+arrays are accepted when the innermost array is empty at depth 128, and placing any value
+inside it reaches depth 129 and is refused); `Acorn.Json.unicodeWhitespace` matches Unicode
 White\_Space for manifest `Acorn.Json.Value.text` admission rather than RFC 8259's four
 whitespace characters (`Acorn.Json.Grammar.Space`). So a line of a daemon that the parser accepts
 is read as a value that the grammar gives its text. No theorem states that the parser accepts
