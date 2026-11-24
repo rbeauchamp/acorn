@@ -142,11 +142,64 @@ def dependencyImportsBuilt (overrides : System.FilePath) : IO Bool := do
 private def stripNewline (text : String) : String :=
   (text.dropEndWhile fun c => c == '\n' || c == '\r').toString
 
+private def symlinkMetadata? (path : System.FilePath) : IO (Option IO.FS.Metadata) :=
+  try some <$> path.symlinkMetadata catch error =>
+    if error matches .noFileOrDirectory .. then pure none else throw error
+
+private def isBlockedLakeFlag (arg : String) : Bool :=
+  arg == "--file" || arg.startsWith "--file=" ||
+    arg == "--dir" || arg.startsWith "--dir=" ||
+    (arg.startsWith "-" && !arg.startsWith "--" &&
+      (arg.contains 'f' || arg.contains 'd'))
+
+private def validateCallerArgs (args : List String) : IO Unit := do
+  if args == ["provision-status"] ||
+      args == ["script", "run", "acornTargets"] ||
+      args == ["script", "run", "intentLibraries"] then
+    return
+  match args with
+  | "build" :: rest | "query" :: rest =>
+    for arg in rest do
+      if isBlockedLakeFlag arg then
+        throw (IO.userError s!"disallowed Lake override option in bootstrap invocation: {arg}")
+  | "exe" :: target :: _ =>
+    if target.isEmpty || target.startsWith "-" then
+      throw (IO.userError s!"invalid executable target: {target}")
+  | ["env"] => pure ()
+  | "env" :: cmd :: _ =>
+    if cmd.isEmpty || cmd.startsWith "-" then
+      throw (IO.userError s!"invalid env command: {cmd}")
+  | _ =>
+    throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
+
+private def checkPkgContainment (pkgDir : System.FilePath) (pkgName shadowName : String) :
+    IO Unit := do
+  let some pkgMeta ← symlinkMetadata? pkgDir
+    | throw (IO.userError s!"missing package directory: {pkgName}")
+  unless pkgMeta.type == .dir do
+    throw (IO.userError s!"non-directory package path: {pkgName}")
+  if (← symlinkMetadata? (pkgDir / shadowName)).isSome then
+    throw (IO.userError s!"unexpected Lake config shadow: {pkgName}/{shadowName}")
+  let lakeDir := pkgDir / ".lake"
+  let some lakeMeta ← symlinkMetadata? lakeDir | return
+  unless lakeMeta.type == .dir do
+    throw (IO.userError s!"non-directory Lake directory: {pkgName}/.lake")
+  if (← symlinkMetadata? (lakeDir / "package-overrides.json")).isSome then
+    throw (IO.userError s!"unbound {pkgName}/.lake/package-overrides.json; remove the ambient override")
+  for fileName in ["acorn-path-packages.json", "acorn-tracked-modules.z"] do
+    if let some fileMeta ← symlinkMetadata? (lakeDir / fileName) then
+      unless fileMeta.type == .file do
+        throw (IO.userError s!"non-regular Lake cache file: {pkgName}/.lake/{fileName}")
+  if let some configMeta ← symlinkMetadata? (lakeDir / "config") then
+    unless configMeta.type == .dir do
+      throw (IO.userError s!"non-directory Lake config cache: {pkgName}/.lake/config")
+
 private def verifyTrackedConfigFile (rel : String) : IO Unit := do
   regularFile rel
   let out ← IO.Process.output {
     cmd := "git",
-    args := #["-C", ".", "-c", "core.quotePath=false", "ls-files", "--stage", "-z", "--", rel],
+    args := #["--literal-pathspecs", "-C", ".", "-c", "core.quotePath=false", "ls-files",
+      "--stage", "-z", "--", rel],
     stdin := .null }
   unless out.exitCode == 0 do
     throw (IO.userError s!"git ls-files failed for {rel}: {out.stderr}")
@@ -160,30 +213,37 @@ private def verifyTrackedConfigFile (rel : String) : IO Unit := do
     throw (IO.userError s!"path is not a tracked regular file: {rel}")
 
 private def removeRegularIfExists (path : System.FilePath) : IO Unit := do
-  let meta? ← try some <$> path.symlinkMetadata catch error =>
-    if error matches .noFileOrDirectory .. then pure none else throw error
-  if let some m := meta? then
+  if let some m ← symlinkMetadata? path then
     unless m.type == .file do
       throw (IO.userError s!"non-regular cached config entry: {path}")
     try IO.FS.removeFile path catch error =>
       if error matches .noFileOrDirectory .. then pure () else throw error
 
+private def isAcornConfigTrace (tracePath : System.FilePath) : IO Bool := do
+  let some m ← symlinkMetadata? tracePath | return true
+  unless m.type == .file do
+    throw (IO.userError s!"non-regular cached trace entry: {tracePath}")
+  let parsed? := (Json.parse (← IO.FS.readFile tracePath)).toOption
+  match parsed? >>= fun json => (json.getObjValAs? String "name").toOption with
+  | some "[anonymous]" => return true
+  | some "acorn" => return true
+  | none => return true
+  | some _ => return false
+
 private def clearLakeConfigCache (lakeDir : System.FilePath) : IO Unit := do
   let configDir := lakeDir / "config"
-  let meta? ← try some <$> configDir.symlinkMetadata catch error =>
-    if error matches .noFileOrDirectory .. then pure none else throw error
-  let some m := meta? | return
+  let some m ← symlinkMetadata? configDir | return
   unless m.type == .dir do
     throw (IO.userError s!"non-directory Lake config cache: {configDir}")
-  removeRegularIfExists (configDir / "lakefile.olean")
-  removeRegularIfExists (configDir / "lakefile.olean.trace")
   for entry in ← configDir.readDir do
-    let entryMeta ← try some <$> entry.path.symlinkMetadata catch error =>
-      if error matches .noFileOrDirectory .. then pure none else throw error
-    if let some em := entryMeta then
-      if em.type == .dir then
-        removeRegularIfExists (entry.path / "lakefile.olean")
-        removeRegularIfExists (entry.path / "lakefile.olean.trace")
+    unless !entry.fileName.isEmpty && entry.fileName.toList.all (·.isDigit) do continue
+    let some em ← symlinkMetadata? entry.path | continue
+    unless em.type == .dir do
+      throw (IO.userError s!"non-directory Lake config entry: {entry.path}")
+    let tracePath := entry.path / "lakefile.olean.trace"
+    if ← isAcornConfigTrace tracePath then
+      removeRegularIfExists (entry.path / "lakefile.olean")
+      removeRegularIfExists tracePath
 
 private def syncTrackedConfigTrace : IO Unit := do
   let topOut ← IO.Process.output {
@@ -199,6 +259,9 @@ private def syncTrackedConfigTrace : IO Unit := do
   let expectedDir := System.FilePath.mk (stripNewline topOut.stdout) / "lean"
   unless (← IO.FS.realPath expectedDir) == (← IO.FS.realPath ".") do
     throw (IO.userError "git root mismatch in lean directory")
+  checkPkgContainment "." "lean" "lakefile.toml"
+  checkPkgContainment "../site" "site" "lakefile.lean"
+  verifyTrackedConfigFile "lean-toolchain"
   verifyTrackedConfigFile "lakefile.lean"
   verifyTrackedConfigFile "lake-manifest.json"
   let out ← IO.Process.output {
@@ -219,6 +282,8 @@ private def syncTrackedConfigTrace : IO Unit := do
     clearLakeConfigCache "../site/.lake"
     IO.FS.createDirAll ".lake"
     let tmp : System.FilePath := s!"{stampPath}.{← IO.Process.getPID}.tmp"
+    if (← symlinkMetadata? tmp).isSome then
+      throw (IO.userError s!"existing temporary stamp path: {tmp}")
     try
       IO.FS.writeBinFile tmp desired
       IO.FS.rename tmp stampPath
@@ -229,11 +294,7 @@ private def syncTrackedConfigTrace : IO Unit := do
 /-- Invoke Lake only after local dependency admission. -/
 def run (args : List String) : IO UInt32 := do
   silentElaboration
-  unless args == ["provision-status"] ||
-      (!args.isEmpty && (#["build", "exe", "env", "query"].contains (args.headD "") ||
-      args == ["script", "run", "acornTargets"] ||
-      args == ["script", "run", "intentLibraries"])) do
-    throw (IO.userError "usage: scripts/lean.sh (build|exe|env|query|provision-status) ...")
+  validateCallerArgs args
   syncTrackedConfigTrace
   let (contents, available) ← overrides
   let path : System.FilePath := ".lake/acorn-path-packages.json"
@@ -246,6 +307,8 @@ def run (args : List String) : IO UInt32 := do
     let current ← try some <$> IO.FS.readFile path catch _ => pure none
     unless current == some text do
       let tmp : System.FilePath := s!"{path}.{← IO.Process.getPID}.tmp"
+      if (← symlinkMetadata? tmp).isSome then
+        throw (IO.userError s!"existing temporary override path: {tmp}")
       try
         IO.FS.writeFile tmp text
         IO.FS.rename tmp path
@@ -253,13 +316,6 @@ def run (args : List String) : IO UInt32 := do
         try IO.FS.removeFile tmp catch _ => pure ()
         throw error
   let ready ← if available then dependencyImportsBuilt path else pure false
-  -- This status is the launcher's sole provisioning admission: 0 means ready,
-  -- 2 means missing dependencies, and every refusal returns 1. It builds nothing,
-  -- writes only the override file above and asks Lake whether the FloatLib modules
-  -- the bridge imports, the lean-intent modules the intent bridge and `AcornTools.Intent`
-  -- import with the native objects `AcornTools.Intent` links, and the Regula modules the
-  -- decision registries and `AcornTools.Theorems` import with the native objects
-  -- `AcornTools.Theorems`'s consumers link are current.
   if args == ["provision-status"] then return if ready then 0 else 2
   unless ready do
     throw (IO.userError "missing pinned dependencies; scripts/start.sh --prepare-only provisions them, and in work on a change to Acorn, CONTRIBUTING.md (\"Running a program\") states the conditions for running it")

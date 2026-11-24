@@ -355,9 +355,11 @@ def verify (file : System.FilePath) : IO Bool := do
 def pinFiles : IO (Array System.FilePath) := do
   let prefixPath := "AcornVerif/Targets/"
   let tracked ← AcornTrackedFiles.listTracked "." (some "lean/")
+  let mut sawTarget := false
   let mut files : Array System.FilePath := #[]
   for rel in tracked do
     if rel.startsWith prefixPath then
+      sawTarget := true
       let name := (rel.drop prefixPath.length).toString
       if name.isEmpty || name.contains '/' then
         throw (IO.userError s!"AcornVerif/Targets/{name} is neither a regular file ending in .lean \
@@ -367,6 +369,8 @@ def pinFiles : IO (Array System.FilePath) := do
       else unless name.endsWith ".lean" do
         throw (IO.userError s!"AcornVerif/Targets/{name} is neither a regular file ending in .lean \
           nor a regular file ending in .frame")
+  unless sawTarget do
+    throw (IO.userError "no tracked files under AcornVerif/Targets")
   return files.qsort (·.toString < ·.toString)
 
 /-- The names that follow a keyword in the arguments of `print`. -/

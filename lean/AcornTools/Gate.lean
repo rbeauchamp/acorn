@@ -115,9 +115,14 @@ interpreted; a linked executable would compile the native code of every proof mo
 document imports. `whole` prints each step's output in one piece, for a check that runs
 beside others. -/
 def site (write : Bool) (whole : Bool := false) : IO Unit := do
+  AcornTrackedFiles.checkLakeWorkspace ".."
   AcornTrackedFiles.ensureTrackedRegular ".." (some "") "site/lakefile.toml"
+  AcornTrackedFiles.ensureTrackedRegular ".." (some "") "site/lake-manifest.json"
+  AcornTrackedFiles.ensureTrackedRegular ".." (some "") "site/lean-toolchain"
   AcornTrackedFiles.ensureTrackedRegular ".." (some "") "site/Main.lean"
-  AcornTrackedFiles.syncTrackedConfigTrace "." (some "lean/") ".lake" #["../site/.lake"]
+  AcornTrackedFiles.ensureTrackedRegular ".." (some "") "docs/verification.md"
+  AcornOwnershipAudit.siteSources
+  AcornTrackedFiles.syncTrackedConfigTrace ".."
   let flags := #["-f", "lakefile.toml", "--no-cache", "--wfail", s!"--packages={← siteOverrides}"]
   let env := #[("LAKE_ARTIFACT_CACHE", some "false")]
   let ready ← IO.Process.output {
@@ -136,6 +141,7 @@ the build requests each one that `keep` accepts, with its native object where it
 and every declared executable. The two source admissions run at once with Lake's target
 inventory, since none depends on another. -/
 def admitAndBuild (keep : Lean.Name → Bool) : IO Unit := do
+  AcornTrackedFiles.syncTrackedConfigTrace ".."
   lake #["build", "lean-boundary-audit"]
   let modules ← AcornOwnershipAudit.sources
   let waiting ← IO.mkRef #[]

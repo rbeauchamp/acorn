@@ -90,8 +90,8 @@ private def ensureTrackedRegularIn (root : System.FilePath) (rel : String) : IO 
   verifyGitDirectory root
   let out ← IO.Process.output {
     cmd := "git",
-    args := #["-C", root.toString, "-c", "core.quotePath=false", "ls-files", "--stage", "-z",
-      "--", rel],
+    args := #["--literal-pathspecs", "-C", root.toString, "-c", "core.quotePath=false",
+      "ls-files", "--stage", "-z", "--", rel],
     stdin := .null }
   unless out.exitCode == 0 do
     throw (IO.userError s!"git ls-files failed for {rel} in {root}: {out.stderr}")

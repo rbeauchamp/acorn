@@ -17,8 +17,12 @@ export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PAT
 step() { printf 'gate: %s at %s (%d s)\n' "$1" "$(date -u +%H:%M:%SZ)" "$SECONDS"; }
 
 nc_pin='lean/no-comments.pin'
-if [[ -L lean || ! -d lean || ! -f "$nc_pin" || -L "$nc_pin" ]] ||
-    ! git -C . -c core.quotePath=false ls-files --error-unmatch -- "$nc_pin" >/dev/null 2>&1; then
+[[ ! -L scripts && -d scripts && ! -L scripts/tracked-files.sh && -f scripts/tracked-files.sh ]] || {
+  echo "gate: missing non-symlink scripts/tracked-files.sh" >&2
+  exit 1
+}
+./scripts/tracked-files.sh admit-file . scripts/tracked-files.sh scripts/gate.sh "$nc_pin"
+if [[ -L lean || ! -d lean || ! -f "$nc_pin" || -L "$nc_pin" ]]; then
   echo "gate: missing or non-regular pin file: $nc_pin" >&2
   exit 1
 fi
@@ -135,38 +139,6 @@ dependency_git() {
   export GIT_CONFIG_COUNT=$((n + 1)) "GIT_CONFIG_KEY_$n=core.symlinks" "GIT_CONFIG_VALUE_$n=false"
 }
 
-sync_tracked_lake_config() {
-  local top prefix_dir tracked_tmp entry
-  top=$(git -C . rev-parse --show-toplevel)
-  prefix_dir=$(git -C . rev-parse --show-prefix)
-  if [[ -z "$top" || "$prefix_dir" != "lean/" || "$(pwd -P)" != "$(cd "$top" && pwd -P)/lean" ]]; then
-    echo "gate: must run tracked Lake sync inside tracked lean/ directory" >&2
-    exit 1
-  fi
-  if [[ -L lakefile.lean || ! -f lakefile.lean ]]; then
-    echo "gate: lean/lakefile.lean must be a regular file" >&2
-    exit 1
-  fi
-  git -C . -c core.quotePath=false ls-files --error-unmatch -- lakefile.lean >/dev/null
-  mkdir -p .lake
-  tracked_tmp=$(mktemp .lake/acorn-tracked-modules.z.XXXXXX)
-  if ! git -C . -c core.quotePath=false ls-files --stage -z -- '*.lean' > "$tracked_tmp" || [[ ! -s "$tracked_tmp" ]]; then
-    rm -f "$tracked_tmp"
-    echo "gate: failed to enumerate tracked lean/*.lean modules" >&2
-    exit 1
-  fi
-  if [[ ! -f .lake/acorn-tracked-modules.z ]] || ! cmp -s "$tracked_tmp" .lake/acorn-tracked-modules.z; then
-    for entry in .lake/config/lakefile.olean .lake/config/lakefile.olean.trace .lake/config/*/lakefile.olean .lake/config/*/lakefile.olean.trace ../site/.lake/config/lakefile.olean ../site/.lake/config/lakefile.olean.trace ../site/.lake/config/*/lakefile.olean ../site/.lake/config/*/lakefile.olean.trace; do
-      if [[ -e "$entry" || -L "$entry" ]]; then
-        rm -f "$entry"
-      fi
-    done
-    mv -f "$tracked_tmp" .lake/acorn-tracked-modules.z
-  else
-    rm -f "$tracked_tmp"
-  fi
-}
-
 step 'provisioning the pinned dependencies'
 (
   # Parallel cache extraction can exhaust macOS's inherited 256-descriptor limit.
@@ -177,8 +149,8 @@ step 'provisioning the pinned dependencies'
     ulimit -Sn 4096
   fi
   dependency_git
+  ./scripts/tracked-files.sh sync-config .
   cd lean
-  sync_tracked_lake_config
   # Lake decides whether Mathlib and Regula's lint driver need provisioning: with
   # --no-build it exits 3 unless every artifact and trace of these targets is current.
   current=0
@@ -198,14 +170,10 @@ step 'provisioning the pinned dependencies'
   lake -f lakefile.lean build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
 )
 ./scripts/lean.sh provision-status
+./scripts/tracked-files.sh admit-site .
 (
   dependency_git
   cd site
-  if [[ -L lakefile.toml || ! -f lakefile.toml ]]; then
-    echo "gate: site/lakefile.toml must be a regular file" >&2
-    exit 1
-  fi
-  git -C . -c core.quotePath=false ls-files --error-unmatch -- lakefile.toml >/dev/null
   # Verso's modules and the shared library its documents load.
   lake -f lakefile.toml build verso/VersoManual verso/VersoManual:shared
 )
@@ -331,14 +299,10 @@ elif ! verify_sha256 "$nc_sha256" "$nc_bin"; then
   commented=1
   step 'no-comments check refused (integrity check failed)'
 else
-  for nc_file in .no-comments.json comment-ratchet.json; do
-    if [[ -L "$nc_file" || ! -f "$nc_file" ]] ||
-        ! git -C . -c core.quotePath=false ls-files --error-unmatch -- "$nc_file" >/dev/null 2>&1; then
-      echo "gate: missing or untracked non-regular file: $nc_file" >&2
-      commented=1
-    fi
-  done
-  if [[ "$commented" == 0 ]]; then
+  if ! ./scripts/tracked-files.sh admit-file . .no-comments.json comment-ratchet.json "$nc_pin" ||
+      ! ./scripts/tracked-files.sh admit-lake-dirs .; then
+    commented=1
+  else
     nc_args=(check)
     if [[ -n "${ACORN_BASE_REF:-}" ]]; then
       nc_args+=(--base-ref "$ACORN_BASE_REF")

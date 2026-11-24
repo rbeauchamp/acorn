@@ -34,9 +34,6 @@ private def corpusFilesFrom (tracked : Array String) : IO (Array String) := do
     throw (IO.userError "tracked corpus is empty")
   return result
 
-def files : IO (Array String) := do
-  corpusFilesFrom (← AcornTrackedFiles.listTracked "." (some ""))
-
 private def pythonToken (text : String) : Bool :=
   (text.splitOn " ").any fun word =>
     ["python", "python2", "python3", "pypy", "pypy3"].contains word || word.startsWith "python3."
@@ -163,8 +160,7 @@ unsafe def check (documentsOnly : Bool := false)
     pure (path, ← IO.FS.readFile path)
   AcornBrowserAudit.check
   AcornPinAudit.check documents
-  AcornDocument.check documents (← AcornModuleInventory.allModules "lean") (env? := env?)
-    (tracked? := some tracked)
+  AcornDocument.check documents (← AcornModuleInventory.allModules "lean") tracked (env? := env?)
   IO.println (if documentsOnly then "corpus: document references and prior-art qualifications admitted"
     else "corpus: language, document references and prior-art qualifications admitted")
 

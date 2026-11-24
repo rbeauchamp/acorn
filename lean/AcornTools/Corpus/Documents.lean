@@ -316,10 +316,7 @@ private def resolves (names : Std.HashSet String) (name : String) : Bool :=
 /-- Every applicable path and declaration claim is checked, reporting all stale
 references together; archive paths and external study citations are refused. -/
 unsafe def check (documents : Array (String × String)) (selection : Array Name)
-    (env? : Option Environment := none) (tracked? : Option (Array String) := none) : IO Unit := do
-  let tracked ← match tracked? with
-    | some paths => pure paths
-    | none => AcornTrackedFiles.listTracked "." (some "")
+    (tracked : Array String) (env? : Option Environment := none) : IO Unit := do
   let index := trackedIndex tracked
   let names ← match env? with
     | some env => symbolsFrom env selection

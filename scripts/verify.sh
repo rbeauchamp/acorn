@@ -23,9 +23,16 @@ acorn_verify_checks() {
     exit 127
   fi
   cd "$(dirname "$1")/.."
+  [[ ! -L scripts && -d scripts && ! -L scripts/tracked-files.sh && -f scripts/tracked-files.sh ]] || {
+    echo "verify.sh: missing non-symlink scripts/tracked-files.sh" >&2
+    exit 1
+  }
+  ./scripts/tracked-files.sh admit-file . \
+    scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
   git diff --check
   git diff --cached --check
-  shellcheck scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
+  SHELLCHECK_OPTS='' shellcheck --norc \
+    scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
   shift 2
   ./scripts/lean.sh exe acorn-gates "$@"
 }
