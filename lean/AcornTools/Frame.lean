@@ -286,10 +286,8 @@ def current (module : Name) (requireClean : Bool := true) : IO Unit := do
     | throw (IO.userError s!"module {module}: not read, since Lake cannot be asked about this \
         name (it is empty, holds a colon or a slash, or does not read back from its printed \
         text)")
-  let output ← IO.Process.output {
-    cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
-      "Bootstrap.lean", "query", "--no-build", "@/+" ++ text ++ ":lean",
-      "@/+" ++ text ++ ":olean"], stdin := .null }
+  let output ← IO.Process.output (← AcornTrackedFiles.bootstrapProcess
+    #["query", "--no-build", "@/+" ++ text ++ ":lean", "@/+" ++ text ++ ":olean"])
   unless output.exitCode == 0 do
     throw (IO.userError s!"module {text}: not read, since Lake does not report the root \
       package's module of this name built from the present sources (status \
@@ -385,6 +383,7 @@ def run (args : List String) : IO UInt32 := do
     IO.eprintln "frame-check: this program's SHA-256 does not meet its test vectors"
     return 1
   try
+    AcornTrackedFiles.admitLeanToolchain
     initSearchPath (← findSysroot)
     match args with
     | [] =>

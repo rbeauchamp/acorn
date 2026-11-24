@@ -55,9 +55,8 @@ def sources : IO (Array Name) := do
 second component names the executables whose configuration lists a target in `needs`.
 `modules` are the discovered sources, which hold every executable root. -/
 def inventory (modules : Array Name) : IO (Array (String × Name) × Array String) := do
-  let output ← IO.Process.output {
-    cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
-      "Bootstrap.lean", "script", "run", "acornTargets"] }
+  let output ← IO.Process.output (← AcornTrackedFiles.bootstrapProcess
+    #["script", "run", "acornTargets"])
   require (output.exitCode == 0) s!"Lake target discovery failed: {output.stderr}"
   let values ← IO.ofExcept ((← IO.ofExcept (Json.parse output.stdout)).getArr?)
   let mut actual := #[]

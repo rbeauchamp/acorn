@@ -48,8 +48,9 @@ def together (checks : List (IO Unit)) : IO Unit := do
     throw (IO.userError (String.intercalate "\n" failures.reverse))
 
 /-- Every build goes through the same local-dependency admission. -/
-def lake (args : Array String) : IO Unit :=
-  run "lean" (#["-DwarningAsError=true", "-DautoImplicit=false", "--run", "Bootstrap.lean"] ++ args)
+def lake (args : Array String) : IO Unit := do
+  let process ← AcornTrackedFiles.bootstrapProcess args
+  run process.cmd process.args
 
 /-- Verify a generated resource as complete bytes, never as a sampled semantic claim. -/
 def browserKernel : IO Unit := do

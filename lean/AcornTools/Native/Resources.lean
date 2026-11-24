@@ -387,6 +387,7 @@ def eagerInitializers (env : Environment) (admitted : Array Name) : IO (List Nam
 /-- Load current compiler declarations and reject any root leaving the admitted
 fragment. Lake freshness and module-origin gates run in the enclosing suite. -/
 unsafe def audit (admitted : Array Name) : IO Unit := do
+  AcornTrackedFiles.admitLeanToolchain
   let sysroot ← findSysroot
   initSearchPath sysroot
   let library ← getLibDir sysroot

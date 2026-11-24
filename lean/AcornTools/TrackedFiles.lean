@@ -158,6 +158,15 @@ def ensureTrackedRegular (dir : System.FilePath) (expectedPrefix : String)
     throw (IO.userError s!"path is not a tracked regular file: {rel}")
   ensureRegular dir rel
 
+def admitLeanToolchain : IO Unit :=
+  ensureTrackedRegular "." "lean/" "lean-toolchain" false
+
+def bootstrapProcess (args : Array String) : IO IO.Process.SpawnArgs := do
+  ensureTrackedRegular "." "lean/" "Bootstrap.lean" false
+  admitLeanToolchain
+  return { cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
+    "Bootstrap.lean"] ++ args, stdin := .null }
+
 def runTrackedHelperStdout (repoRoot : System.FilePath) (args : Array String)
     (requireClean : Bool := true) : IO String := do
   ensureTrackedRegular repoRoot "" "scripts/tracked-files.sh" requireClean

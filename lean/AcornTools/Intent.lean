@@ -60,9 +60,7 @@ def awaiting : List (Name × String) :=
 /-- The output of the bootstrap run with `args`, from the package directory; an error when it
 fails. -/
 def bootstrap (args : Array String) : IO String := do
-  let output ← IO.Process.output {
-    cmd := "lean", args := #["-DwarningAsError=true", "-DautoImplicit=false", "--run",
-      "Bootstrap.lean"] ++ args, stdin := .null }
+  let output ← IO.Process.output (← AcornTrackedFiles.bootstrapProcess args)
   unless output.exitCode == 0 do
     throw (IO.userError s!"the bootstrap refused {args}: {output.stderr}")
   return output.stdout
