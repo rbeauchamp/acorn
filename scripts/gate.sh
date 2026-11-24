@@ -170,15 +170,16 @@ nc_admit_dur=0
 nc_admit_state='not reached'
 regula_dur=0
 regula_state='not reached'
-intent_dur=0
+intent_dur=''
 intent_state='not reached'
-frame_dur=0
+frame_dur=''
 frame_state='not reached'
-nc_exec_dur=0
+nc_exec_dur=''
 nc_state='not reached'
 post_wall_dur=0
 post_start=''
 post_mode='serial'
+post_checks_status=0
 nc_jobs=''
 nc_refusal=''
 verified=1
@@ -254,7 +255,25 @@ summary_phase_dur() {
     'not reached'|'skipped'|'skipped ('*|'interrupted / unfinished'|'status unavailable'|'refused ('*)
       printf '%s' '-' ;;
     *)
-      format_duration "$dur" ;;
+      if [[ "$dur" =~ ^[0-9]+$ ]]; then
+        format_duration "$dur"
+      else
+        printf '%s' 'unavailable'
+      fi ;;
+  esac
+}
+
+summary_phase_secs() {
+  local state="$1" dur="$2"
+  case "$state" in
+    'not reached'|'skipped'|'skipped ('*|'interrupted / unfinished'|'status unavailable'|'refused ('*)
+      printf '%s' '-' ;;
+    *)
+      if [[ "$dur" =~ ^[0-9]+$ ]]; then
+        printf '%s' "$dur"
+      else
+        printf '%s' 'unavailable'
+      fi ;;
   esac
 }
 
@@ -375,7 +394,7 @@ emit_gate_summary() {
     regula_over=1
     emit_budget_warning 'Regula audit' "$regula_dur" "$regula_budget_s"
   fi
-  if [[ "$nc_state" =~ ^[0-9]+$ ]] && (( nc_exec_dur > nc_budget_s )); then
+  if [[ "$nc_state" =~ ^[0-9]+$ && "$nc_exec_dur" =~ ^[0-9]+$ ]] && (( nc_exec_dur > nc_budget_s )); then
     nc_over=1
     emit_budget_warning 'no-comments check' "$nc_exec_dur" "$nc_budget_s"
   fi
@@ -399,8 +418,10 @@ emit_gate_summary() {
 
   if [[ "$early_abort" == 1 ]]; then
     gate_state='interrupted / failed early'
-  elif [[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 ]]; then
+  elif [[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 && "$post_checks_status" == 0 ]]; then
     gate_state='0'
+  elif [[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 && "$post_checks_status" != 0 ]]; then
+    gate_state="failed (background supervisor exit $post_checks_status)"
   else
     gate_state='1'
   fi
@@ -484,8 +505,12 @@ emit_gate_summary() {
     fi
   fi
 
-  printf 'gate: phase timings (s): provision=%d stage1=%d stage2=%d nc-admit=%d regula=%d intent=%d frame=%d no-comments=%d post-wall=%d (%s, nc-jobs=%s) total=%d\n' \
-    "$provision_dur" "$stage1_dur" "$stage2_dur" "$nc_admit_dur" "$regula_dur" "$intent_dur" "$frame_dur" "$nc_exec_dur" "$effective_post_wall" "$post_mode" "${nc_jobs:-none}" "$gate_total_dur"
+  printf 'gate: phase timings (s): provision=%d stage1=%d stage2=%d nc-admit=%d regula=%d intent=%s frame=%s no-comments=%s post-wall=%d (%s, nc-jobs=%s) total=%d\n' \
+    "$provision_dur" "$stage1_dur" "$stage2_dur" "$nc_admit_dur" "$regula_dur" \
+    "$(summary_phase_secs "$s_int" "$intent_dur")" \
+    "$(summary_phase_secs "$s_frm" "$frame_dur")" \
+    "$(summary_phase_secs "$s_nc" "$nc_exec_dur")" \
+    "$effective_post_wall" "$post_mode" "${nc_jobs:-none}" "$gate_total_dur"
 }
 
 # Invoked by the EXIT/INT/TERM traps; older ShellCheck does not trace trap callbacks.
@@ -535,19 +560,40 @@ trap 'cleanup_post_checks; exit 143' TERM
 
 gate_scratch=$(mktemp -d)
 post_logs="$gate_scratch/logs"
-mkdir -p "$post_logs" "$gate_scratch/prov-tmp" "$gate_scratch/admit-tmp" \
+mkdir -p "$post_logs" "$gate_scratch/prov-tmp" "$gate_scratch/stage1-tmp" \
+  "$gate_scratch/stage2-tmp" "$gate_scratch/admit-tmp" \
   "$gate_scratch/regula-tmp" "$gate_scratch/intent-tmp" \
   "$gate_scratch/frame-tmp" "$gate_scratch/nc-tmp"
 
-# Run a foreground command in its own process group with an interruptible wait so
+# Run a foreground bash function in its own process group with an interruptible wait so
 # INT/TERM traps reach and reap the active child group; always reap any surviving
-# group members before clearing fg_child_pid (e.g. if an external SIGKILL kills timeout).
+# group members before clearing fg_child_pid.
 run_fg_group() {
   local rc=0
   set -m
   (
     set +m
     "$@"
+  ) &
+  fg_child_pid=$!
+  set +m
+  wait "$fg_child_pid" || rc=$?
+  kill -KILL -- -"$fg_child_pid" 2>/dev/null || true
+  fg_child_pid=''
+  return "$rc"
+}
+
+# Run a foreground external command via exec in its own process group with isolated
+# TMPDIR so tools that exec GNU timeout (notably scripts/verify.sh) keep PID == PGID ==
+# fg_child_pid and cancellation signals reach and reap the timer and its descendants.
+run_fg_exec() {
+  local custom_tmpdir="$1"
+  shift
+  local rc=0
+  set -m
+  (
+    set +m
+    exec env TMPDIR="$custom_tmpdir" "$@"
   ) &
   fg_child_pid=$!
   set +m
@@ -632,8 +678,8 @@ provision_site_workspace() {
 provision_start="$SECONDS"
 step 'provisioning the pinned dependencies'
 run_fg_group provision_lean_workspace
-run_fg_group env TMPDIR="$gate_scratch/prov-tmp" ./scripts/lean.sh provision-status
-run_fg_group env TMPDIR="$gate_scratch/prov-tmp" ./scripts/tracked-files.sh admit-site --clean .
+run_fg_exec "$gate_scratch/prov-tmp" ./scripts/lean.sh provision-status
+run_fg_exec "$gate_scratch/prov-tmp" ./scripts/tracked-files.sh admit-site --clean .
 run_fg_group provision_site_workspace
 check_nc_cache_dirs allow-missing
 if [[ ! -L "$nc_bin" && -e "$nc_bin" && ! -f "$nc_bin" ]]; then
@@ -651,7 +697,7 @@ else
   fi
   nc_dl_dir="$gate_scratch/nc-download"
   mkdir -p "$nc_dl_dir"
-  run_fg_group curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+  run_fg_exec "$gate_scratch/prov-tmp" curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
     --connect-timeout 10 --max-time 180 --retry 2 --retry-delay 2 --retry-max-time 300 \
     --output "$nc_dl_dir/no-comments" \
     "https://github.com/rbeauchamp/lean-no-comments/releases/download/${nc_version}/no-comments-${nc_target}"
@@ -717,7 +763,7 @@ stage1_state='running'
 stage1_start="$SECONDS"
 step 'verification, stage one'
 stage1_rc=0
-run_fg_group ./scripts/verify.sh build-executing || stage1_rc=$?
+run_fg_exec "$gate_scratch/stage1-tmp" ./scripts/verify.sh build-executing || stage1_rc=$?
 stage1_dur=$((SECONDS - stage1_start))
 stage1_state="$stage1_rc"
 if [[ "$stage1_rc" == 0 ]]; then
@@ -725,7 +771,7 @@ if [[ "$stage1_rc" == 0 ]]; then
   stage2_start="$SECONDS"
   step 'verification, stage two'
   stage2_rc=0
-  run_fg_group ./scripts/verify.sh || stage2_rc=$?
+  run_fg_exec "$gate_scratch/stage2-tmp" ./scripts/verify.sh || stage2_rc=$?
   stage2_dur=$((SECONDS - stage2_start))
   stage2_state="$stage2_rc"
   verified="$stage2_rc"
@@ -824,10 +870,10 @@ if [[ "$verified" == 0 ]]; then
       kill -KILL -- -"$bg_child_pid" 2>/dev/null || true
       bg_child_pid=''
       rm -f "$post_logs/bg-child.pid"
-      printf '%d\n' "$rc" > "${prefix}.status.tmp"
-      mv -f "${prefix}.status.tmp" "${prefix}.status"
       printf '%d\n' $((SECONDS - t0)) > "${prefix}.dur.tmp"
       mv -f "${prefix}.dur.tmp" "${prefix}.dur"
+      printf '%d\n' "$rc" > "${prefix}.status.tmp"
+      mv -f "${prefix}.status.tmp" "${prefix}.status"
     }
 
     run_bg_bounded "$intent_timeout_s" "$gate_scratch/intent-tmp" "$post_logs/intent" \
@@ -934,5 +980,8 @@ fi
 post_wall_dur=$((SECONDS - post_start))
 
 emit_gate_summary 0
-[[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 ]] || exit 1
+if [[ "$post_checks_status" != 0 ]]; then
+  echo "gate: background post-check supervisor exited $post_checks_status" >&2
+fi
+[[ "$verified" == 0 && "$audited" == 0 && "$intended" == 0 && "$framed" == 0 && "$commented" == 0 && "$post_checks_status" == 0 ]] || exit 1
 step 'every merge check passed'

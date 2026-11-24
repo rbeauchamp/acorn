@@ -553,12 +553,15 @@ execution deadline), passing only when both runs, the audit and all four
 post-checks pass. Every post-verification deadline uses GNU coreutils timeout
 with process-group SIGKILL and no grace period, matching `scripts/verify.sh`
 (exit status `137` on deadline SIGKILL or external SIGKILL fails the check and
-the gate). `scripts/gate.sh` isolates every bounded phase's temporary directory
-under a parent-owned scratch directory removed on exit or cancellation, runs
-provisioning and checks in dedicated process groups with interruptible waits so
-SIGINT/SIGTERM cancellation signals and reaps active child groups (subject to
-POSIX Bash's normal launch-to-PID-recording boundary), and reaps any surviving
-group members after each wait returns.
+the gate). `scripts/gate.sh` isolates every phase's temporary directory (provisioning, both
+verification stages and every post-verification check) under a parent-owned
+scratch directory removed on exit or cancellation, runs provisioning functions
+and external phases in dedicated process groups with interruptible waits (using
+direct process replacement so `scripts/verify.sh`'s GNU timeout and its
+descendants share the recorded group) so SIGINT/SIGTERM cancellation signals
+and reaps active child groups (subject to POSIX Bash's normal
+launch-to-PID-recording boundary), and reaps any surviving group members after
+each wait returns.
 When ordinary verification passed, `scripts/gate.sh` first verifies
 `no-comments` cache containment, offline SHA-256 against `lean/no-comments.pin`
 (for `darwin-arm64` and `linux-x86_64`) and bounded tracked-file admission
@@ -569,7 +572,9 @@ Lake flags (refusing reconfiguring/rehashing flags such as `-R`,
 and Verso-scoped exclude prefixes alongside `lean/no-comments.pin` and both
 workspaces. It then runs the Regula audit in the foreground while lean-intent's
 two checks, the frame check and (when admitted) the `no-comments` check run one
-after another in a background subshell. Because ordinary verification has
+after another in a background subshell, passing only when every check and the
+background supervisor itself exit cleanly (recording missing timing data as
+unavailable rather than zero). Because ordinary verification has
 already built every module and executable and synchronized Lake's configuration
 cache, the generated override file and the tracked-module stamp inside
 `lean/.lake/`, those compiled and cached build artifacts stay unmodified across
@@ -739,9 +744,12 @@ dependencies current. Nothing is stored between runs: every run
 provisions everything from its pinned sources and builds from cold project
 outputs. A copy stored by an earlier head of a pull request, which controls its
 own workflow, could otherwise be restored and trusted by a later head whose own
-changes show nothing of it. The merge-gate step carries a 13-minute
+changes show nothing of it. The merge-gate step runs `exec ./scripts/gate.sh` (so runner cancellation
+signals reach the gate directly) under a 13-minute
 `timeout-minutes` limit and the workflow's gate job carries a 20-minute `timeout-minutes`
-limit, where the pipeline's Test step has none; each of verification's two stages
+limit, where the pipeline's Test step has none; a successful provisioning step
+requires its duration handoff to `$GITHUB_OUTPUT` to succeed, while cancellation
+reporting stays best effort; each of verification's two stages
 keeps its 360-second deadline, and `scripts/gate.sh` individually bounds
 `no-comments` admission (60 seconds), the Regula audit (360 seconds),
 lean-intent checks (180 seconds), frame check (120 seconds) and `no-comments`

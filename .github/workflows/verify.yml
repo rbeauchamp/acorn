@@ -141,8 +141,13 @@ jobs:
             [[ "$reported" == 0 ]] || return 0
             reported=1
             elapsed=$(( $(date +%s) - start_epoch ))
-            echo "seconds=$elapsed" >> "$GITHUB_OUTPUT" || true
-            echo "status=$rc" >> "$GITHUB_OUTPUT" || true
+            if [[ "$rc" == 0 ]]; then
+              echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
+              echo "status=$rc" >> "$GITHUB_OUTPUT"
+            else
+              echo "seconds=$elapsed" >> "$GITHUB_OUTPUT" || true
+              echo "status=$rc" >> "$GITHUB_OUTPUT" || true
+            fi
             if (( elapsed > 480 )); then
               printf '::warning title=Verify / gate budget::Provision took %dm %02ds (%d s) (target <= 8m 00s (480 s)).\n' \
                 $((elapsed / 60)) $((elapsed % 60)) "$elapsed"
@@ -205,4 +210,4 @@ jobs:
           ACORN_BASE_REF: refs/remotes/origin/${{ github.base_ref }}
           ACORN_PROVISION_SECONDS: ${{ steps.provision.outputs.seconds }}
           ACORN_JOB_START_EPOCH: ${{ steps.commit.outputs.start_epoch }}
-        run: ./scripts/gate.sh
+        run: exec ./scripts/gate.sh
