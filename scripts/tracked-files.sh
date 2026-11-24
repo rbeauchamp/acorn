@@ -185,7 +185,7 @@ admit_pkg_lake_containment() {
 }
 
 admit_lake_dirs() {
-  local root="$1" require_clean="$2" for_regula="$3" workspace="$4"
+  local root="$1" require_clean="$2" workspace="$3"
   verify_repo_root "$root" "$require_clean"
   case "$workspace" in
     lean)
@@ -198,10 +198,6 @@ admit_lake_dirs() {
     *)
       fail "unsupported workspace selector: $workspace" ;;
   esac
-  if [[ "$for_regula" == 1 ]]; then
-    [[ ! -e "$root/lean/lakefile.toml" && ! -L "$root/lean/lakefile.toml" ]] ||
-      fail "unexpected lean/lakefile.toml shadowing lean/lakefile.lean"
-  fi
 }
 
 validate_tracked_subtree() {
@@ -584,8 +580,9 @@ shift
 require_clean=0
 for_regula=0
 require_lean=0
+has_prefix=0
 expected_prefix=''
-workspace="lean"
+workspace=''
 while (( $# > 0 )); do
   case "$1" in
     --clean) require_clean=1; shift ;;
@@ -593,6 +590,7 @@ while (( $# > 0 )); do
     --require-lean) require_lean=1; shift ;;
     --prefix)
       (( $# >= 2 )) || fail "--prefix requires an argument"
+      has_prefix=1
       expected_prefix="$2"
       shift 2 ;;
     --workspace)
@@ -609,6 +607,8 @@ shift
 
 case "$cmd" in
   admit-file)
+    (( for_regula == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+      fail "unsupported option for admit-file"
     (( $# > 0 )) || fail "missing file path(s)"
     verify_repo_root "$root" "$require_clean"
     for rel in "$@"; do
@@ -616,19 +616,27 @@ case "$cmd" in
     done
     ;;
   list-tracked)
+    (( for_regula == 0 && has_prefix == 1 )) && [[ -z "$workspace" ]] ||
+      fail "list-tracked requires --prefix and rejects --for-regula/--workspace"
     (( $# == 0 )) || fail "unexpected extra arguments"
     verify_git_dir "$root" "$expected_prefix" "$require_clean"
     validate_tracked_subtree "$root" "${expected_prefix:-repo}" "" "$require_lean" 1
     ;;
   admit-lake-dirs)
+    (( for_regula == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -n "$workspace" ]] ||
+      fail "admit-lake-dirs requires --workspace and rejects --for-regula/--prefix/--require-lean"
     (( $# == 0 )) || fail "unexpected extra arguments"
-    admit_lake_dirs "$root" "$require_clean" "$for_regula" "$workspace"
+    admit_lake_dirs "$root" "$require_clean" "$workspace"
     ;;
   sync-config)
+    (( require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+      fail "unsupported option for sync-config"
     (( $# == 0 )) || fail "unexpected extra arguments"
     sync_config "$root" "$require_clean" "$for_regula"
     ;;
   admit-site)
+    (( for_regula == 0 && require_lean == 0 && has_prefix == 0 )) && [[ -z "$workspace" ]] ||
+      fail "unsupported option for admit-site"
     (( $# == 0 )) || fail "unexpected extra arguments"
     admit_site "$root" "$require_clean"
     ;;

@@ -157,7 +157,7 @@ private def splitFirstChar (s : String) (sep : Char) : String × Option String :
 
 private def longLakeOptsWithArg : Array String := #[
   "--package", "--service", "--scope", "--repo", "--platform", "--toolchain", "--rev",
-  "--max-revs", "--log-level", "--fail-level", "--packages", "--dir", "--file",
+  "--max-revs", "--log-level", "--fail-level",
   "--linters", "--lint-only", "--checks", "--only", "--add-downstream",
   "--add-public-downstream", "--config", "--from-export", "--challenge-from-export",
   "--solution-from-export"
@@ -170,13 +170,13 @@ private def scanLakeOptions : Nat → List String → Bool → IO Unit
     if arg.isEmpty then
       scanLakeOptions fuel rest stopAtPositional
     else if arg.length > 1 && arg.startsWith "-" then
-      if arg == "--" then
-        return
-      else if arg.startsWith "--" then
+      if arg.startsWith "--" then
         let (lhs, eqVal?) := splitFirstChar arg '='
         let afterEq := match eqVal? with | some v => v :: rest | none => rest
         let (optName, spVal?) := splitFirstChar lhs ' '
         let nextArgs := match spVal? with | some v => v :: afterEq | none => afterEq
+        if optName == "--" then
+          return
         if optName == "--file" || optName == "--dir" || optName == "--packages" then
           throw (IO.userError s!"disallowed Lake override option in bootstrap invocation: {optName}")
         let remaining := if longLakeOptsWithArg.contains optName then nextArgs.drop 1 else nextArgs
