@@ -1731,10 +1731,12 @@ the ranked core's executable file below: a closed state, the events the native
 actor `Acorn.Host.Viewer.Supervisor` hands it, and one step per event or per outcome of the call
 it waits for, which returns the next state and the effects to perform. The actor reads the
 world, performs the effects in order and then the call, and hands the call's outcome back before
-it reads anything else; it is effects, with no theorem of its own. Each turn reads, while nothing
-is pending: the identity a process reported, one queued command, the process slot, the identity
-again, so that a reaped process's last report is attributed before any launch or archival, and
-then a tick. The state the step returns is stored before its effects run, so a native error that
+it reads anything else; it is effects, with no theorem of its own. Each serving turn
+(`Acorn.Host.Viewer.Supervisor.step`) reads, while nothing is pending: the identity a
+process reported, at most one queued command, the process slot, the identity again, so that a
+reaped process's last report is attributed before any launch or archival, and then a tick; a
+closing turn (`Supervisor.closeTurn` in `lean/Acorn/Host/Viewer/Supervisor.lean`) takes no
+command from the queue and closes the command mailbox. The state the step returns is stored before its effects run, so a native error that
 stops the effects after it leaves that state, and the next turn goes on from it, as a restarted
 viewer goes on from the state file. A supervision is sealed by
 its run from its start, and every state a run reaches keeps one invariant
@@ -1888,12 +1890,13 @@ ends with one viewer, says nothing of a crash or of the viewer that comes after 
 The order at start-up is this. The viewer reads the state, builds its supervisor, binds its
 listener, and only then prints the ready line and submits. When the state is written depends on
 what the decoder (`Acorn.Host.Viewer.PersistedState.admit`) returns as its source. A state
-built with no file (`Acorn.Host.Viewer.StartSource.absent`), or read from a file of the
-current version with the intent that file records (`Acorn.Host.Viewer.StartSource.saved`),
+built with no file (`Acorn.Host.Viewer.StartSource.absent`), or read from a current-version
+file taken with the intent it records (`Acorn.Host.Viewer.StartSource.saved`),
 is written in the supervisor's construction, before the listener binds. An earlier version's
-file, whatever intent it records (`Acorn.Host.Viewer.StartSource.earlier`), and a file of
-the current version whose running intent was given for another child
-(`Acorn.Host.Viewer.StartSource.other`) are left exactly as they are
+file, whatever intent it records (`Acorn.Host.Viewer.StartSource.earlier`), and a
+current-version file with a running intent, when this launch lacks a child record (including a
+`--cmd` launch, whose own running file records `"child":null`) or its record does not match the
+file's (`Acorn.Host.Viewer.StartSource.other`), are left on disk exactly as they are
 (`Acorn.Host.Viewer.StartSource.kept`) until the listener is bound. The bootstrap then
 prints and flushes the line that says why the run is shown stopped, under the `--start` flag as
 well, and only then publishes the stopped state it started from, in the current schema with this
@@ -1902,7 +1905,8 @@ before it prints the ready line, before the `--start` flag submits its Start and
 command is processed. If the line cannot be written or flushed, the viewer exits before the
 publication and the file is still the original. So a start-up that fails before that publication, with or without the
 `--start` flag, leaves the next viewer the same file and the same reason, and such a file is read
-as an earlier version's, or as given for another child, once: in the first launch that publishes
+as an earlier version's (`Acorn.Host.Viewer.StartSource.earlier`), or as an unbound running
+intent (`Acorn.Host.Viewer.StartSource.other`), once: in the first launch that publishes
 the stopped state. That is the boundary, and no other: the reason is not lost by a failure before
 the publication, and after the publication it has been given, in that launch's first control
 record and in its log, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
@@ -1924,11 +1928,12 @@ line that says why (`Acorn.Host.Viewer.startAccount`) is in the reason of the fi
 record the supervisor publishes, under the `--start` flag too. A page that connects while that
 record is current shows the line; one that connects after a later transition has published its
 record is sent that record and shows that transition's reason. The viewer also prints the line on its standard output, at most once in a launch: for a file
-left as it is until the bind (an earlier version's, whatever intent it records, or one of the
-current version whose running intent was given for another child) the line is printed and flushed
-after the listener is bound and before the stopped state is published, under the `--start` flag
-as well; for no state file, or a file of the current version that says stopped, it is printed
-after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
+left as it is until the bind (`Acorn.Host.Viewer.StartSource.kept`: an earlier version's,
+whatever intent it records, or a current-version file with a running intent when this launch
+lacks a child record — including a `--cmd` launch — or its record does not match the file's)
+the line is printed and flushed after the listener is bound and before the stopped state is
+published, under the `--start` flag as well; for no state file, or a file of the current version
+that says stopped, it is printed after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
 turn of the actor. The viewer says nothing of this kind when the start state is running.
 
 The explicit-start statement above starts from a durable state that intends to stay stopped;
@@ -1988,7 +1993,13 @@ The boundary between these theorems and the host program is read from the code a
 temporary file and renames it over `state.json` under the run directory's stable-path
 assumption; neither the temporary file nor the directory is fsynced (power-loss durability is
 not claimed), and visibility of complete bytes without torn files rests on local-filesystem
-atomic rename semantics. Although `Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`
+atomic rename semantics. Stop durability likewise rests on Acorn's exclusive single-viewer
+run-directory ownership premise ([interrupted-launch recovery](#interrupted-launch-recovery) and
+UX-42 in [the viewer specification](viewer-ux.md)): `Acorn.Host.Viewer.RunDirectory.open`
+allocates fresh per-process IO mutexes on each open rather than an inter-process lock, so atomic
+local rename prevents torn writes from one viewer process but cannot prevent a second concurrent
+viewer that already read `desired = "running"` from publishing that stale state after the first
+viewer acknowledges Stop. Although `Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`
 models an ambiguous `state.json` rename failure (such as POSIX.1-2017 `rename` EIO
 or Linux NFS rename-despite-error) without weakening the stopped-disk or no-ack guarantees,
 `Acorn.Host.Viewer.RunDirectory.archive` (serialized with publication under the run
@@ -2403,8 +2414,10 @@ goes through `Acorn.Host.Viewer.RunDirectory.writeState` with the record of its 
 configuration's child. Publication uses an exclusively created temporary file under the run
 directory's IO mutex and renames it onto `state.json` after a complete write and flush: failures
 before the rename never replace the target, whereas an indeterminate rename error can leave
-either the original or the newly renamed entry. Filesystem stability and POSIX rename remain the
-run directory's trust boundary; no power-loss durability is claimed.
+either the original or the newly renamed entry. Exclusive single-viewer run-directory ownership
+(each `Acorn.Host.Viewer.RunDirectory.open` allocates fresh per-process IO mutexes),
+filesystem stability, and POSIX rename remain the run directory's trust boundary; no power-loss
+durability is claimed.
 
 The actor. What the actor compares before it starts the configuration's child is
 `Acorn.Host.Viewer.ChildProgram`. The bootstrap builds the constructor from the launch
@@ -2445,10 +2458,15 @@ failed call. The actor hands the step an operator's Start only for a Start queue
 and the bootstrap passes the state it built
 or read to `Acorn.Host.Viewer.Supervision.start`. The supervisor is constructed
 (`Acorn.Host.Viewer.Supervisor.new`) only after the bootstrap has admitted the initial
-state. A state built with no state file, or read from a file of the current version with the
-intent that file records, is published there, before the listener binds. A state read from an
-earlier version's file, whatever intent it records, or from a file of the current version whose
-running intent was given for another child, is not published there. A launch relies on no unpublished state either way, since the attempted launch
+state. A state built with no state file (`Acorn.Host.Viewer.StartSource.absent`), or read
+from a current-version file taken with the intent it records
+(`Acorn.Host.Viewer.StartSource.saved`), is published there, before the listener binds. A
+state read from an earlier version's file, whatever intent it records
+(`Acorn.Host.Viewer.StartSource.earlier`), or from a current-version file with a running
+intent when this launch lacks a child record (including a `--cmd` launch, whose own running file
+records `"child":null`) or its record does not match the file's
+(`Acorn.Host.Viewer.StartSource.other`), is not published there
+(`Acorn.Host.Viewer.StartSource.kept`). A launch relies on no unpublished state either way, since the attempted launch
 is saved before the spawn. The first control record is the start's.
 
 The bootstrap. The bootstrap admits configuration and durable state, binds loopback HTTP, then
