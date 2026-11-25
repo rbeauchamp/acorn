@@ -1,60 +1,14 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AgentAdmission
 import Acorn.Host.Runner
 import AcornVerif.CurrentAccounting
 import AcornVerif.CurrentGridWorld
 import AcornVerif.Visits
 
-/-!
-# The host's attempt loop and the kernel's closed loop
-
-`orderedAgent` is the executed agent's whole step at a step order as a kernel agent, and
-`orderedAgent_default` shows that at the default order it is `CurrentGridWorld.executedAgent`, the
-agent the kernel's bounds are stated for. `Simulates` is what a kernel agent must do to stand for a
-host's callbacks, and `construction_simulates` shows that the agent of a construction's step order
-does, with the relation that their learners are equal. `AcornVerif.CurrentVisits` relates the
-host's run of visits to it, and this module relates the attempt loop to it.
-
-- `attempt_closed_loop`: over every accepted pass of an attempt (`Host.Attempt.Reaches`), the
-  kernel's closed loop in the grid world, from the attempt's world and carried result, holds the
-  later world and carried result, its memory has the later agent's learners, and the last action
-  decodes the kernel's action at the preceding time. `attempt_each_action` states this at every
-  pass of a run, not only the last.
-- `campaignStep_closed_loop`: when a campaign boundary with a construction's callbacks returns a
-  next progress, the attempt it started reaches, in accepted passes within the step cap, an attempt
-  whose close returns the next run state, and each of these facts holds of that executed attempt.
-  So `Attempt.Reaches` is not a free hypothesis of a campaign's attempt:
-  `Host.campaignStep_attempt` gives the fold's value and `complete_reaches` its passes.
-
-Hypotheses and limits. Each statement is about one attempt, from that attempt's own start.
-
-- Goal installation is not a kernel step: `Host.Attempt.start` changes the world outside the kernel
-  world's transition, so a campaign is not one kernel loop, and each attempt has its own.
-- The campaign join is obligation 2 of `docs/mission-contract.md`. The loop that repeats a
-  boundary (`Host.runAdmittedCampaign`) iterates over `Acorn.Host.forever`, and nothing here says
-  that it hands one boundary's progress to the next, or that a campaign ends.
-- Learners, not whole memories, are related: the host's two accounting writes change the lifetime
-  observations and the kernel's memory does not receive them. The close keeps the world and the
-  carried result, and writes only the attempt's accounting (`close_run`); its final observation
-  reaches no decision. Nothing here relates the action fingerprint, the attempt's reward sum or a
-  terminal frame to the kernel.
-- A boundary that returned no next progress is outside `campaignStep_closed_loop`, a world's refusal
-  among them. `Host.Attempt.complete_learned` states what a refused action leaves, and a refused
-  observation produces no action.
-- That compiled code computes these definitions is assumed, as for every executing definition, with
-  the native loop read through `Host.campaignStep_attempt` and `Host.runAttempt_complete`.
--/
-
 namespace AcornVerif.CurrentHostLoop
 open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.CurrentGridWorld
 open AcornVerif.CurrentAccounting
 
-/-- The agent of a step order as a kernel agent. -/
 def orderedAgent {interface : Interface} {profile : FeatureProfile} {features : Features.Config}
     {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
     (order : StepOrder) (state : Agent interface profile features criterion dimension planning) :
@@ -64,7 +18,6 @@ def orderedAgent {interface : Interface} {profile : FeatureProfile} {features : 
   act := fun memory percept =>
     ((memory.actOrdered order percept).2.action, (memory.actOrdered order percept).1)
 
-/-- Under the default order this is the executed agent the kernel bounds are stated for. -/
 theorem orderedAgent_default {interface : Interface} {profile : FeatureProfile}
     {features : Features.Config} {criterion : Criterion} {dimension : Dimension}
     {planning : PlanningSelection}
@@ -80,22 +33,15 @@ section Simulation
 variable {order : StepOrder} {config : Host.WorldConfig} {α β : Type} {goal : Host.Goal}
   {cap : UInt64}
 
-/-- A kernel agent simulates a host's callbacks under a relation of their states: the host's whole
-step on an observation and a carried result takes the action of the kernel agent's decision on the
-grid percept of that observation and result and keeps the relation, and the host's two accounting
-writes keep it. -/
 structure Simulates (callbacks : Host.AgentCallbacks order α β) (mode : TaskFeatureMode)
     (agent : Kernel.Agent Grid.interface) (related : α → agent.Memory → Prop) : Prop where
-  /-- The whole step. -/
   act : ∀ state memory observation (result : Host.RawStepResult), related state memory →
     (callbacks.act state observation result).1 = Host.Action.fromIndex
         (agent.act memory (Grid.percept mode observation result.reward result.events.done)).1.val ∧
       related (callbacks.act state observation result).2
         (agent.act memory (Grid.percept mode observation result.reward result.events.done)).2
-  /-- The environment write. -/
   environment : ∀ state memory family reward, related state memory →
     related (callbacks.recordEnvironment state family reward) memory
-  /-- The attempt write. -/
   attempt : ∀ state memory family visit steps achieved, related state memory →
     related (callbacks.recordAttempt state family visit steps achieved) memory
 
@@ -143,13 +89,11 @@ theorem selectOwned_steps (callbacks : Host.AgentCallbacks order α β)
   rw [Host.DecisionInput.selectOwned_eq]
   rfl
 
-/-- The learners of a kernel memory and of a construction's state. -/
 abbrev sameLearners (construction : AgentConstruction) (state : construction.State)
     (host : construction.State)
     (memory : (orderedAgent construction.order state.agent).Memory) : Prop :=
   learners host.agent.control = learners memory.control
 
-/-- The executed agent of a construction simulates its callbacks, at every step order. -/
 theorem construction_simulates (construction : AgentConstruction) (state : construction.State) :
     Simulates construction.callbacks construction.profile.taskMode
       (orderedAgent construction.order state.agent) (sameLearners construction state) := by
@@ -172,9 +116,6 @@ theorem construction_simulates (construction : AgentConstruction) (state : const
   · intro host memory family visit steps achieved same
     exact same
 
-/-! ## Accepted passes of an attempt -/
-
-/-- An input a sense returned belongs to the attempt that sensed it. -/
 theorem sense_before {attempt : Host.Attempt config α goal cap}
     {input : Host.DecisionInput config α goal cap}
     (sensed : attempt.sense = .ok (some input)) : input.before = attempt := by
@@ -188,8 +129,6 @@ theorem sense_before {attempt : Host.Attempt config α goal cap}
         rfl
     · cases sensed
 
-/-- One accepted pass, under a simulation: the kernel's decision on the percept of the attempt's
-state takes the host's action, reaches the recorded state and keeps the relation. -/
 theorem pass_kernel {callbacks : Host.AgentCallbacks order α β} {mode : TaskFeatureMode}
     {agent : Kernel.Agent Grid.interface} {related : α → agent.Memory → Prop}
     (simulates : Simulates callbacks mode agent related)
@@ -227,8 +166,6 @@ theorem pass_kernel {callbacks : Host.AgentCallbacks order α β} {mode : TaskFe
     exact advance_ok ⟨input.before.run.world, input.before.run.carried⟩ _ next result taken
   · exact simulates.environment _ _ _ _ (learned ▸ sim.2)
 
-/-- The kernel's closed loop in the grid world, from a memory related to the attempt's agent, over
-the accepted passes of the attempt. -/
 theorem attempt_simulation {callbacks : Host.AgentCallbacks order α β} {mode : TaskFeatureMode}
     {agent : Kernel.Agent Grid.interface} {related : α → agent.Memory → Prop}
     (simulates : Simulates callbacks mode agent related)
@@ -270,7 +207,6 @@ theorem attempt_simulation {callbacks : Host.AgentCallbacks order α β} {mode :
         rw [Kernel.stateAt_add, Kernel.memoryAt_add, one]
         rfl
 
-/-- The fold of passes is a function: a number of passes from one attempt reaches one attempt. -/
 theorem reaches_unique {callbacks : Host.AgentCallbacks order α β} {passes : ℕ}
     {attempt reached other : Host.Attempt config α goal cap}
     (run : Host.Attempt.Reaches callbacks passes attempt reached)
@@ -288,7 +224,6 @@ theorem reaches_unique {callbacks : Host.AgentCallbacks order α β} {passes : �
       cases accepted'
       exact ih rest'
 
-/-- A run of passes splits at every number of its passes. -/
 theorem reaches_split {callbacks : Host.AgentCallbacks order α β} {total : ℕ}
     {attempt reached : Host.Attempt config α goal cap}
     (run : Host.Attempt.Reaches callbacks total attempt reached) (first later : ℕ)
@@ -313,8 +248,6 @@ theorem reaches_split {callbacks : Host.AgentCallbacks order α β} {total : ℕ
       exact ⟨middle, .pass first attempt middle input environment unfinished sensed accepted before,
         after⟩
 
-/-- **What a completed fold reached.** A value the fold returned without a refusal is the close of
-an attempt the fold reaches from the start in accepted passes within the fuel. -/
 theorem complete_reaches (callbacks : Host.AgentCallbacks order α β) (context : Host.GoalContext)
     (fuel : ℕ) (attempt : Host.Attempt config α goal cap)
     (value : Host.RunState config α × Host.GoalOutcome × Host.StepFrame β)
@@ -341,8 +274,6 @@ theorem complete_reaches (callbacks : Host.AgentCallbacks order α β) (context 
             .pass passes attempt reached input environment (Bool.eq_false_iff.mpr unfinished)
               sensed accepted reaches, closed⟩
 
-/-- What a close does to the run state: it keeps the world, the carried result and the action
-fingerprint, and writes the attempt's accounting to the agent. -/
 theorem close_run {callbacks : Host.AgentCallbacks order α β} {context : Host.GoalContext}
     {attempt : Host.Attempt config α goal cap} {run : Host.RunState config α}
     {outcome : Host.GoalOutcome} {frame : Host.StepFrame β}
@@ -357,10 +288,6 @@ theorem close_run {callbacks : Host.AgentCallbacks order α β} {context : Host.
     cases closed
     exact (Host.Attempt.finish_position callbacks context attempt _ _ _ finished).1
 
-/-- **A continuing campaign boundary ran passes of the fold.** For every curriculum, plan, callback
-record, observer, stop reader, progress record and world token: when the boundary returns the next
-progress, the attempt it started reaches, in accepted passes within the plan's step cap, an attempt
-whose close returns the next run state. -/
 theorem campaignStep_reaches (curriculum : Host.Curriculum)
     {plan : Host.CampaignPlan curriculum.size} (callbacks : Host.AgentCallbacks order α β)
     (observer : Host.StreamObserver β) (readStop : BaseIO Bool)
@@ -385,11 +312,6 @@ theorem campaignStep_reaches (curriculum : Host.Curriculum)
 
 end Simulation
 
-/-! ## The executed agent -/
-
-/-- Over every accepted pass of an attempt, the host's world and carried result are the kernel
-loop's state, the host's agent has the kernel memory's learners, and each action taken is the
-kernel's action. -/
 theorem attempt_closed_loop (construction : AgentConstruction) {config : Host.WorldConfig}
     {goal : Host.Goal} {cap : UInt64}
     (attempt reached : Host.Attempt config construction.State goal cap) (passes : Nat)
@@ -407,11 +329,6 @@ theorem attempt_closed_loop (construction : AgentConstruction) {config : Host.Wo
   exact attempt_simulation (construction_simulates construction attempt.run.agent) run
     attempt.run.agent.agent rfl
 
-/-- **Each action of an attempt is the kernel's.** At every pass of a run of accepted passes, the
-attempt that pass recorded lies on the run, the kernel's closed loop from the run's start holds its
-world and carried result, the kernel's memory has its agent's learners, and the action it took is
-the kernel's action at that time. That attempt is the only one so many passes reach
-(`reaches_unique`). -/
 theorem attempt_each_action (construction : AgentConstruction) {config : Host.WorldConfig}
     {goal : Host.Goal} {cap : UInt64}
     (attempt reached : Host.Attempt config construction.State goal cap) (passes : ℕ)
@@ -432,16 +349,6 @@ theorem attempt_each_action (construction : AgentConstruction) {config : Host.Wo
   obtain ⟨state, learned, action⟩ := attempt_closed_loop construction attempt middle _ before
   exact ⟨middle, before, after, state, learned, action time rfl⟩
 
-/-- **A continuing campaign boundary is the kernel's closed loop.** For every construction,
-curriculum, plan, observer, stop reader, progress record and world token: when the boundary, with
-the construction's callbacks, returns the next progress, the attempt it started reaches, in accepted
-passes within the plan's step cap, an attempt whose close returns the next run state, and that close
-keeps the world and the carried result and writes only the attempt's accounting. In the grid world,
-from the started attempt's world and carried result and from its agent at the construction's step
-order, the kernel's closed loop after those passes holds the next run state's world and carried
-result, its memory has the next agent's learners, and every action of the attempt is the kernel's
-at that time. The statement is about one boundary and its own kernel loop: installing the goal is
-not a kernel step, and the loop that repeats the boundary iterates over `Acorn.Host.forever`. -/
 theorem campaignStep_closed_loop (construction : AgentConstruction) {config : Host.WorldConfig}
     (curriculum : Host.Curriculum) {plan : Host.CampaignPlan curriculum.size}
     (observer : Host.StreamObserver (AgentObservation construction.config construction.dimension))

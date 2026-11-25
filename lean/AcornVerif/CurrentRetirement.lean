@@ -1,33 +1,7 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentLearner
 import AcornVerif.CurrentRetirementRounding
 import Acorn.FeatureLifecycle
 import Acorn.Sarsa
-
-/-!
-# Executing replacement safety
-
-A replaced unit enters with zero outgoing weight in every reader (Mahmood &
-Sutton, *Representation Search through Generate and Test*, AAAI 2013 workshop,
-p. 3: "The output weights wi of these new features are set to zero"; Dohare,
-Hernandez-Garcia, Rahman, Mahmood & Sutton, *Maintaining Plasticity in Deep
-Continual Learning*, arXiv:2306.13812v3 (2024), §6, p. 19: zero outgoing weights
-"ensures that the newly added hidden units do not affect the already learned
-function"). These
-contracts concern the executed `Lifecycle.replace` and SwiftTD's
-`NumericState.retireIndex` and `predict`: every reader's weight at the replaced
-slot is the positive-zero word, every other weight is unchanged, every
-prediction over an input without the slot is unchanged bit for bit, and adding
-the new unit's term preserves the numerical value of every finite partial sum
-under the pinned standard float model. Only the retired slot's own learner state
-changes: every learner keeps its shared previous prediction and weight-change
-aggregate, so its next TD error differs from the unreplaced one only through the
-retired slot's weight.
--/
 
 open Acorn Acorn.SwiftTd
 open Float.Model (Format UnpackedFloat)
@@ -36,7 +10,6 @@ open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder
 
 namespace AcornVerif.CurrentRetirement
 
-/-- Adding positive zero preserves every finite numerical value, including negative zero. -/
 theorem zero_add_numeric (word : Binary32) (finite : word.Finite) :
     (Binary32.zero.add word).Finite ∧
       numerical32 (Binary32.zero.add word) = numerical32 word := by
@@ -64,7 +37,6 @@ theorem zero_add_numeric (word : Binary32) (finite : word.Finite) :
     | zero sign => cases sign <;> rfl
     | _ => rfl
 
-/-- Adding positive zero preserves every finite numerical value, including negative zero. -/
 theorem add_zero_numeric (word : Binary32) (finite : word.Finite) :
     (word.add Binary32.zero).Finite ∧
       numerical32 (word.add Binary32.zero) = numerical32 word := by
@@ -92,7 +64,6 @@ theorem add_zero_numeric (word : Binary32) (finite : word.Finite) :
 
 variable {config : Config} {dimension : Dimension}
 
-/-- Retirement writes only the retired slot's weight. -/
 theorem retireIndex_weight_other (state : NumericState config dimension)
     (idx other : FeatIdx dimension) (different : other ≠ idx) :
     (state.retireIndex idx).weights.get other = state.weights.get other := by
@@ -106,7 +77,6 @@ theorem retireIndex_weight_other (state : NumericState config dimension)
     CurrentLearner.vector_get,
     Vector.getElem_set_ne _ _ distinct]
 
-/-- Every prediction over an input without the retired slot is unchanged, bit for bit. -/
 theorem retireIndex_predict (state : NumericState config dimension) (idx : FeatIdx dimension)
     (features : ActiveSet dimension) (absent : idx ∉ features.indices) :
     (state.retireIndex idx).predict features = state.predict features := by
@@ -117,8 +87,6 @@ theorem retireIndex_predict (state : NumericState config dimension) (idx : FeatI
   have different : other ≠ idx := fun same => absent (same ▸ member)
   rw [retireIndex_weight_other state idx other different]
 
-/-- A retired learner predicts every input as the unretired one would with only
-the retired slot's weight replaced by positive zero. -/
 theorem retireIndex_prediction (state : NumericState config dimension) (idx : FeatIdx dimension)
     (features : ActiveSet dimension) :
     (state.retireIndex idx).predict features = Binary32.sumFrom .zero
@@ -133,9 +101,6 @@ theorem retireIndex_prediction (state : NumericState config dimension) (idx : Fe
     simp [(CurrentLearner.retire_registers state other).2.1]
   · simp [same, retireIndex_weight_other state idx other same]
 
-/-- **Next TD error after a replacement.** The shared previous prediction is kept,
-so a retired learner's next TD error is the unretired error formula with only the
-retired slot's weight replaced by positive zero, for every input and reward. -/
 theorem retire_step_error (state : NumericState config dimension) (idx : FeatIdx dimension)
     (features : ActiveSet dimension) (reward : Binary32) :
     ((state.retireIndex idx).step config features reward).2.error =
@@ -152,7 +117,6 @@ theorem retire_step_error (state : NumericState config dimension) (idx : FeatIdx
   · simp only [CurrentLearner.step_observation, NumericState.predict_def,
       NumericState.linearPrediction_eq_sumFrom]
 
-/-- Without the retired slot in the input, the next TD error is unchanged bit for bit. -/
 theorem retire_step_error_absent (state : NumericState config dimension) (idx : FeatIdx dimension)
     (features : ActiveSet dimension) (reward : Binary32) (absent : idx ∉ features.indices) :
     ((state.retireIndex idx).step config features reward).2.error =
@@ -160,9 +124,6 @@ theorem retire_step_error_absent (state : NumericState config dimension) (idx : 
   simp only [CurrentLearner.step_observation, retireIndex_predict state idx features absent,
     (CurrentLearner.retire_registers state idx).2.2.2.1]
 
-/-- A controller replacement keeps its shared previous value and weight-change
-aggregate, and each action value differs only through the retired slot's weight, so
-the shared TD error `r + γ·q(a) − vOld` differs only through that weight. -/
 theorem controller_retire_values {actions : Nat}
     (controller : Features.Controller config dimension actions) (idx : FeatIdx dimension)
     (features : ActiveSet dimension) :
@@ -185,7 +146,6 @@ variable {shape : Features.PatchShape} {actions : Word.Count} {features : Featur
   {criterion : Features.Criterion}
   {discounts : List Discount}
 
-/-- A replaced unit enters with the positive-zero outgoing weight in every reader. -/
 theorem replace_zero
     (state : Features.Lifecycle shape actions features criterion dimension discounts)
     (unit : Fin features.units.count) :
@@ -199,8 +159,6 @@ theorem replace_zero
   exact (CurrentLearner.retire_registers prior.2.state
     (Features.unitFeature dimension features unit)).2.1
 
-/-- **Local safety.** Replacement leaves every reader's prediction unchanged, bit for
-bit, on every input in which the replaced slot is inactive. -/
 theorem replace_predictions
     (state : Features.Lifecycle shape actions features criterion dimension discounts)
     (unit : Fin features.units.count) (input : ActiveSet dimension)
@@ -212,8 +170,6 @@ theorem replace_predictions
   intro reader _
   exact retireIndex_predict reader.2.state _ input absent
 
-/-- Every reader keeps its shared previous prediction and weight-change aggregate
-across a replacement. -/
 theorem replace_aggregates
     (state : Features.Lifecycle shape actions features criterion dimension discounts)
     (unit : Fin features.units.count) :
@@ -230,8 +186,6 @@ theorem replace_aggregates
     Features.Managed.apply_state, Entry.apply_def]
   rw [kept.2.2.2.1, kept.2.2.2.2]
 
-/-- The new unit's term preserves the numerical value of every finite partial sum
-in every reader: its outgoing weight contributes nothing to any prediction. -/
 theorem replace_neutral
     (state : Features.Lifecycle shape actions features criterion dimension discounts)
     (unit : Fin features.units.count) (reader : Features.PackedLearner dimension)

@@ -1,91 +1,4 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentConcealedTargetRungChoice
-
-/-!
-# The first rung's agent repeats the action of a first success at the first visit's second step
-
-Question 3 of rbeauchamp/acorn#232 asks whether, after a first success, the greedy choice away
-from the route repeats one action.
-`AcornVerif.CurrentConcealedTargetRungChoice.rung_early_repeat` names the agent's first action
-after a first success on the first visit, under a hypothesis that compares how many slots its
-frames share. This module proves that hypothesis for a first success at the first visit's second
-step, and says which members have one: seven, with listed targets. After each of them the rung's
-agent, at its first decision after the step that learns the reward, takes again the action that
-met the target, a step south, where its explorer's action at that time is to eat
-(`second_step_repeats`, `second_step_codes`). It does not answer the question, which is of the
-decisions after that one.
-
-Times count the agent's decisions from zero. A tile is a pair of a column and a row, and a step
-south adds one to the row. A step's *frame* is the list of feature slots its percept turns on,
-and the step lays a trace on each of them.
-
-- **The first visit's walk.** Up to a first reward the agent's actions are its explorer's
-  (`AcornVerif.CurrentExplorer.cold_actions`), whose first four are to craft an axe, to step
-  south, to step east and to eat (`first_actions`). From the rung's start, where the body stands
-  on the tile (32, 32), the craft leaves the body there and the step south takes it to (32, 33)
-  (`first_walk`, which Lean's kernel evaluates over the executed world step).
-- **The members.** A member's target is met where the body is within three tiles of it in each
-  coordinate, and no member's target is within three tiles of the start. So a member has its
-  first success at the first visit's second step exactly when its target is within three tiles
-  of (32, 33) (`second_step_iff`): the walk meets such a target there, and a first success on the
-  first visit is at the second or the third step
-  (`AcornVerif.CurrentConcealedTargetRungChoice.rung_first_visit`). The tiles within three of
-  (32, 33) and not within three of the start are the seven of `rungSecondStep`, those of row 36
-  from column 29 to column 35 (`second_step_tiles`), and each is a target of
-  `AcornVerif.CurrentConcealedTargetRungFinds.rungFound` (`second_step_listed`).
-- **The first step keeps the frame.** A step's frame is decided by the words and the symbols of
-  its percept's frame, by the feature bank and by the predictions the agent stored on the step
-  before (`AcornVerif.CurrentFrameSlots.choose_features_congr`). The agent's first step changes
-  none of them.
-  - The percept. The craft at the start leaves the body where it stood
-    (`AcornVerif.CurrentStep.step_stays`), with what it held and with its energy in the same
-    bucket of the observation, which shows the energy in hundreds up to ten, and harvests no tile
-    (`craft_keeps`, `first_step_body`). The day stays in its first phase, the target stays unmet,
-    and the rung's world holds neither food nor deer. So after it the host shows the observation
-    it showed at the start (`first_step_sensed`, from
-    `AcornVerif.CurrentFrameSlots.observe_congr`). No tile's terrain is evaluated for this.
-  - The bank. Before a unit matures, a step of a profile with no hierarchy at the default step
-    order keeps the feature bank (`AcornVerif.CurrentFirstCredit.young_bank`).
-  - The stored predictions. The first step of a cold agent of a learning profile stores the
-    predictions its fresh prediction demons return, which are the ones it started with
-    (`AcornVerif.CurrentFirstCredit.cold_step_predictions`).
-
-  So a cold agent of a profile with no hierarchy, under a tester whose maturity threshold is
-  positive, lays at the time one the frame it laid at the time zero, wherever the two percepts'
-  frames carry the same words and symbols (`loop_frame_kept`). The rung's agent does so in every
-  member's visits (`rung_frame_kept`).
-- **The repeat.** `rung_early_repeat` asks that the frame the decision at the time three reads
-  hold at least as many slots of the frame laid at the time one as of the frame laid at the time
-  zero. Those two are one frame, so the two counts are equal (`rung_frame_counts`). So after a
-  first success at the first visit's second step, the agent's action at the time three is its
-  action at the time one (`second_step_repeat`). That action is the step south, and it is not the
-  explorer's action at the time three, which is to eat (`second_step_south`).
-
-What this does not say.
-
-- Anything of a decision after the time three, and so nothing of whether the agent goes on
-  repeating the step south. After the first reward the error of a later step need not be a zero
-  word, and nothing is proved of those steps.
-- Anything of a member first met at the first visit's third step. `rung_early_repeat` there
-  compares the frame at the time four with the frames at the times zero to two, and after the
-  step south the body sees other tiles: the comparison counts the slots two different frames
-  share, which no theorem does.
-- Anything of another seed, world, profile, criterion, rate policy or step order.
-
-Proof cost, and what breaks it. The kernel re-evaluates two world steps for `first_walk` and one
-for `craft_keeps` each time this module is rebuilt (`docs/roadmap.md` records the timing and the
-owner's decision to pay it). A change to the generator, to the world step or to the terrain can
-make `first_walk`, `first_codes` or `craft_keeps` fail; the walk's tiles are then `tileTrace` of
-the explorer's first two actions from the rung's world.
-
-Trust. The statements are about executed binary32 words. Lean's kernel, its model of binary32
-arithmetic and the agreement of the native operations with that model on finite operands remain
-trusted, as for every proof of executed words in this library.
--/
 
 namespace AcornVerif.CurrentConcealedTargetRungFirstVisit
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -99,22 +12,11 @@ open AcornVerif.CurrentCreditHorizon AcornVerif.CurrentExplorer AcornVerif.Curre
 open AcornVerif.CurrentFirstCredit AcornVerif.CurrentFrameSize AcornVerif.CurrentFrameSlots
 open AcornVerif.CurrentPreReward
 
-/-! ## A cold agent's first step keeps the frame -/
-
 section Cold
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension}
 
-/-- **A cold agent's first step keeps the frame, where the percept's frame is unchanged.** For a
-profile with no hierarchy, from cold initialization, under a tester whose maturity threshold is
-positive, in every world of the interface from every start: where the percepts at the times zero
-and one carry frames with the same words and the same symbols, the agent lays at the time one the
-frame it laid at the time zero. Its first step keeps the feature bank
-(`AcornVerif.CurrentFirstCredit.young_bank`) and stores the predictions it started with
-(`AcornVerif.CurrentFirstCredit.cold_step_predictions`). The two times are variables whose values
-are hypotheses, so that a use at a closed run compares no term at a literal time: Lean's
-elaborator would unfold the run to compare such terms. -/
 theorem loop_frame_kept (primitive : profile.usesHierarchy = false)
     (planning : PlanningSelection) (world : Kernel.World interface) (start : world.State)
     (young : 0 < config.tester.maturity) (early late : ℕ) (first : early = 0)
@@ -148,13 +50,6 @@ theorem loop_frame_kept (primitive : profile.usesHierarchy = false)
 
 end Cold
 
-/-! ## The first step changes nothing the host shows -/
-
-/-- **The craft at the rung's start changes nothing the body holds.** After one step of the
-rung's world from its start on the action to craft an axe, the body holds no wood, stone, food or
-gold and neither an axe nor a boat, as at the start; its energy is in the top bucket, as at the
-start; and no tile is harvested. Lean's kernel evaluates that one step over the executed world
-step, in the world with its goal removed (`AcornVerif.CurrentGridWorld.physical`). -/
 theorem craft_keeps :
     (physicalStep (physical witnessLive.world) (code .craftAxe)).map (fun world =>
         (world.body.inventory.wood, world.body.inventory.stone, world.body.inventory.food)) =
@@ -166,10 +61,6 @@ theorem craft_keeps :
         (min (world.body.energy.val / 100) 10, world.harvested.isEmpty)) = some (10, true) := by
   decide +kernel
 
-/-- In a member's world the same holds of the step from the start on an action whose code is
-that of crafting an axe: the step is not refused, and it leaves the body's inventory, the top
-bucket of its energy and the empty harvest log. The world's dynamics do not read the installed
-goal (`AcornVerif.CurrentGridWorld.advance_physical`). -/
 theorem first_step_body (target : Host.Position) (action : Kernel.Act Grid.interface)
     (crafts : Host.Action.fromIndex action.val = .craftAxe) :
     ∃ next, advance ⟨witnessLive.world.setGoal (.find target), witnessLive.carried⟩ action =
@@ -204,14 +95,6 @@ theorem first_step_body (target : Host.Position) (action : Kernel.Act Grid.inter
       subst wood stone food gold axe boat
       rfl
 
-/-- **The first step leaves the observation.** In the world of a member whose target is not met
-at the start, the step from the start on an action whose code is that of crafting an axe is not
-refused, and after it the host shows the observation it showed at the start. The body stands
-where it stood (`AcornVerif.CurrentStep.step_stays`) and holds what it held, its energy is in the
-same bucket, no tile is harvested so every tile shows its base terrain
-(`AcornVerif.CurrentFrameSlots.tileKind_unharvested`), the rung's world holds neither food nor
-deer (`AcornVerif.CurrentFrameSize.occupancy_empty`), the day is in its first phase before and
-after, and the target is unmet before and after. -/
 theorem first_step_sensed (target : Host.Position)
     (outside : ¬ InGoalBox target witnessLive.world.body.position.position)
     (action : Kernel.Act Grid.interface)
@@ -259,25 +142,17 @@ theorem first_step_sensed (target : Host.Position)
       inventory
   exact sensed_congr _ _ observed
 
-/-! ## The first step of the rung's agent keeps the frame -/
-
-/-- The first four codes that `rungRows` lists are those of crafting an axe, of a step south, of
-a step east and of eating. -/
 theorem first_codes : ∀ index, index < 4 →
     rungRows.flatten.getD index 0 =
       ([Host.Action.craftAxe, .south, .east, .eat].getD index .wait).index.val := by
   decide +kernel
 
-/-- The explorer's first four actions are to craft an axe, to step south, to step east and to
-eat. -/
 theorem first_actions (time : ℕ) (within : time < 4) :
     Host.Action.fromIndex (rungExplorer.actionAt time).val =
       [Host.Action.craftAxe, .south, .east, .eat].getD time .wait := by
   rw [rung_action time (by omega), first_codes time within]
   exact Host.Action.index_roundtrip _
 
-/-- The rung's agent takes its explorer's actions at the times zero and one: the percept at the
-time zero carries no reward. -/
 theorem rung_start_actions (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index) (time : ℕ) (early : time ≤ 1) :
@@ -294,11 +169,6 @@ theorem rung_start_actions (planning : PlanningSelection)
       rw [Nat.zero_mul] at start
       exact (congrArg Binary32.isZero start).trans (by decide))
 
-/-- **The rung's agent lays at the time one the frame it laid at the time zero.** In the visits of
-every member of the rung's class. The agent's first action is its explorer's, to craft an axe,
-which leaves the observation (`first_step_sensed`); so the percepts at the two times carry frames
-with the same words and symbols, and `loop_frame_kept` applies. The times are variables whose
-values are hypotheses, as there. -/
 theorem rung_frame_kept (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index) (early late : ℕ) (first : early = 0) (second : late = 1) :
@@ -359,9 +229,6 @@ theorem rung_frame_kept (planning : PlanningSelection)
       change 0 < 1000
       decide) early late first second wordsEq symbolsEq
 
-/-- Every frame holds as many slots of the frame the rung's agent laid at the time zero as of
-the frame it laid at the time one: they are one frame (`rung_frame_kept`). The times are
-variables whose values are hypotheses, as there. -/
 theorem rung_frame_counts (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index) (early late : ℕ) (first : early = 0) (second : late = 1)
@@ -374,12 +241,6 @@ theorem rung_frame_counts (planning : PlanningSelection)
         (rungOrigin planning index) late).features.indices) := by
   rw [rung_frame_kept planning index early late first second]
 
-/-- **After a first success at the first visit's second step, the agent takes again the action
-that met the target.** At a member's first success by the rung's agent at the second step of the
-first visit, the agent's action at the time three, the first it takes after the step that learns
-the reward, is the explorer's action at the time one, after which the target was met. This is
-`AcornVerif.CurrentConcealedTargetRungChoice.rung_early_repeat` with its hypothesis on the frames
-proved: the frames laid at the times zero and one are one frame (`rung_frame_counts`). -/
 theorem second_step_repeat (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index)
@@ -390,19 +251,11 @@ theorem second_step_repeat (planning : PlanningSelection)
     obtain rfl : earlier = 0 := by omega
     exact (rung_frame_counts planning index 0 1 rfl rfl _).le
 
-/-! ## The members first met at the second step -/
-
-/-- **The first visit's first two steps.** From the rung's start, the action to craft an axe
-leaves the body on the tile (32, 32) and the step south then takes it to (32, 33). Lean's kernel
-evaluates the two world steps over the executed world step, the terrain of the tile entered
-included. -/
 theorem first_walk :
     tileTrace (some (physical witnessLive.world)) [.craftAxe, .south] =
       [some (32, 32), some (32, 33)] := by
   decide +kernel
 
-/-- After the first two of the explorer's actions on the first visit, the body stands on the tile
-(32, 33), in the world with its goal removed. -/
 theorem first_walk_tile :
     (physicalPath (physical witnessLive.world)
         (fun step => rungExplorer.actionAt (0 * (7 + 1) + step)) (0 + 1 + 1)).map
@@ -427,8 +280,6 @@ theorem first_walk_tile :
   rw [start, first_walk] at traced
   exact (Option.some.inj traced).symm
 
-/-- While the rung's agent takes its explorer's actions, the state of a member's first visit is
-the state those actions drive the member's world to. -/
 theorem rung_early_state (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index) : ∀ time, time ≤ 7 →
@@ -447,13 +298,6 @@ theorem rung_early_state (planning : PlanningSelection)
       explored time (by omega)]
     rfl
 
-/-- **A member whose target is within three tiles of (32, 33) is first met at the first visit's
-second step.** The explorer's first two actions take the body to that tile (`first_walk_tile`),
-so the agent solves the member on the first visit
-(`AcornVerif.CurrentConcealedTargetFinding.cold_found_within`). A first success on the first
-visit is at the second or the third step
-(`AcornVerif.CurrentConcealedTargetRungChoice.rung_first_visit`), and it is not at the third:
-the agent's first two actions are the explorer's, so the target is met after the second. -/
 theorem second_step_success (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index)
@@ -497,9 +341,6 @@ theorem second_step_success (planning : PlanningSelection)
           rw [Nat.zero_mul, Nat.zero_add]]
     exact met
 
-/-- **A member first met at the first visit's second step has its target within three tiles of
-(32, 33).** The agent's first two actions are the explorer's, which leave the body on that tile
-(`first_walk_tile`), and a target is met where the body is within three tiles of it. -/
 theorem second_step_near (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index)
@@ -533,25 +374,17 @@ theorem second_step_near (planning : PlanningSelection)
   rw [here] at near
   exact near
 
-/-- **The members first met at the first visit's second step are those whose targets are within
-three tiles of (32, 33).** -/
 theorem second_step_iff (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index) :
     FirstSuccess planning index (rungAgent planning) 0 2 ↔ tile index.1.1 ∈ box 3 (32, 33) :=
   ⟨second_step_near planning index, second_step_success planning index⟩
 
-/-- The explorer's action at the time one is the step south, and its action at the time three is
-to eat. -/
 theorem second_step_codes :
     Host.Action.fromIndex (rungExplorer.actionAt 1).val = .south ∧
       Host.Action.fromIndex (rungExplorer.actionAt 3).val = .eat :=
   ⟨first_actions 1 (by omega), first_actions 3 (by omega)⟩
 
-/-- **After a first success at the first visit's second step, the agent steps south again, and
-its explorer does not.** The agent's action at the time three is the step south, the action
-after which the target was met (`second_step_repeat`), and it is not the explorer's action at
-the time three, which is to eat (`second_step_codes`). -/
 theorem second_step_south (planning : PlanningSelection)
     (index : (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode witnessLive
       7).Index)
@@ -569,31 +402,18 @@ theorem second_step_south (planning : PlanningSelection)
       (fun action : Kernel.Act Grid.interface => Host.Action.fromIndex action.val) same)).trans
         second_step_codes.2)⟩
 
-/-- The tiles within three of (32, 33) and more than three from the start: those of row 36 from
-column 29 to column 35. -/
 def rungSecondStep : List (ℤ × ℤ) :=
   [(29, 36), (30, 36), (31, 36), (32, 36), (33, 36), (34, 36), (35, 36)]
 
-/-- A tile is within three of (32, 33) and not within three of the start (32, 32) exactly when
-it is a tile of `rungSecondStep`. -/
 theorem second_step_tiles (point : ℤ × ℤ) :
     point ∈ box 3 (32, 33) ∧ point ∉ box 3 (32, 32) ↔ point ∈ rungSecondStep := by
   obtain ⟨column, row⟩ := point
   simp only [mem_box, rungSecondStep, List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq]
   omega
 
-/-- Each tile of `rungSecondStep` is a tile of
-`AcornVerif.CurrentConcealedTargetRungFinds.rungFound`. -/
 theorem second_step_listed : ∀ point ∈ rungSecondStep, point ∈ rungFound := by
   decide +kernel
 
-/-- **The members first met at the first visit's second step, and the agent's next action.**
-Exactly seven members of the rung's class have their first success by the rung's agent at the
-second step of the first visit: a list holds seven distinct members, with the targets of
-`rungSecondStep`, and a member is in the list exactly when it has such a success. After each,
-the agent's action at the time three is the step south, the action after which the target was
-met, and it is not the explorer's action at that time, which is to eat (`second_step_codes`).
-That action is the agent's first after the step that learns the reward. -/
 theorem second_step_repeats (planning : PlanningSelection) :
     ∃ counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
         witnessLive 7).Index,

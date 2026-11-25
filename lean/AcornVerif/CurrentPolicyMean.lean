@@ -1,33 +1,6 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentBackupBounds
 import AcornVerif.CurrentIntervals
 import AcornVerif.FloatLibBridge
-
-/-!
-# The executed nominal policy mean
-
-`Acorn.Features.PolicySnapshot.expected` is the value differential control compares:
-the mean of the action values under the nominal ε-greedy policy, whose greedy part
-averages every action within a tie window of the maximum. The tie set depends on the
-values, so the mean is not convex in them and no Jensen inequality holds for it.
-
-What holds is a sandwich. Let `C = (1 − ε) · max + ε · mean` be the convex combination
-with a single greedy action. `expected_sandwich` proves that the executed word lies
-between `C` less the tie window and the rounding of its threshold, and `C`, up to the
-rounding of the binary64 evaluation and of the narrowing to binary32. The hypotheses
-are at most eight finite action values of magnitude at most `8000 · 2^k`; the bounds
-are derived over the executed definition and scale with `2^k`.
-
-Each arithmetic fact is a rounding statement about the executed operation: binary64
-additions, products and quotients, the binary32 threshold subtraction and the
-narrowing through `Acorn.Conversion.narrow_finite_distance`. Every allowance scales
-with the magnitude: the lemmas hold at `2^13 · 2^k` for `k` up to 20, which reaches the
-largest prediction envelope a learner's state can have.
--/
 
 open Acorn Acorn.Features
 open Float.Model (Format UnpackedFloat)
@@ -39,10 +12,6 @@ open AcornVerif.CurrentLearner
 
 namespace AcornVerif.CurrentPolicyMean
 
-/-! ## Arithmetic at the magnitudes of the mean -/
-
-/-- Actual binary32 subtraction is finite and follows signed nearest rounding throughout
-the complete backup magnitude domain. -/
 theorem binary32_rounded_sub_wide (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left - numerical32 right| ≤ 8589934592) :
     (left.sub right).Finite ∧
@@ -82,8 +51,6 @@ theorem binary32_rounded_sub_wide (left right : Binary32) (hl : left.Finite) (hr
       rounded_add (decoded32 left) (UnpackedFloat.neg (decoded32 right)) ln
         (model_neg_normalized _ _ rn)
 
-/-- A finite binary32 difference of magnitude at most `2^7` is within `2^(-17)` of the
-exact difference. -/
 theorem binary32_sub_unit_error (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.sub right).Finite)
     (bound : |numerical32 left - numerical32 right| ≤ 128) :
@@ -95,18 +62,10 @@ theorem binary32_sub_unit_error (left right : Binary32) (leftFinite : left.Finit
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
-/-! ## Arithmetic at any magnitude up to `2^33`
-
-The allowances below scale with `2^k`: the same lemmas at magnitude `2^13 · 2^k` or
-`2^16 · 2^k`, for `k` up to 20, so that the contract of the mean holds at whatever
-magnitude the prediction envelopes give. -/
-
-/-- `2^(16 + k)` is `2^16` times `2^k`. -/
 theorem wide_limit (k : Nat) : (2 : ℚ) ^ ((16 : Int) + (k : Int)) = 65536 * (2 : ℚ) ^ k := by
   rw [zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0), zpow_natCast]
   norm_num
 
-/-- The binary64 rounding radius at magnitude `2^(16 + k)` is `2^(-37)` times `2^k`. -/
 theorem wide_radius (k : Nat) :
     (2 : ℚ) ^ (max ((16 : Int) + (k : Int) + 1 - Format.binary64.mantissaBits)
       Format.binary64.minExponent) / 2 = 1 / 137438953472 * (2 : ℚ) ^ k := by
@@ -120,8 +79,6 @@ theorem wide_radius (k : Nat) :
   norm_num
   ring
 
-/-- A binary64 result within the scaled radius of an exact value of magnitude at most
-`2^16 · 2^k` fits the format, for `k` up to 20. -/
 theorem wide_fits (value : UnpackedFloat) (exactValue : ℚ) (k : Nat) (small : k ≤ 20)
     (normal : ModelNormalized Format.binary64 value)
     (bound : |exactValue| ≤ 65536 * (2 : ℚ) ^ k)
@@ -143,8 +100,6 @@ theorem wide_fits (value : UnpackedFloat) (exactValue : ℚ) (k : Nat) (small : 
     rw [sub_add_cancel] at triangle
     linarith
 
-/-- Actual binary64 addition at magnitude at most `2^16 · 2^k`: finite and within
-`2^(-37) · 2^k` of the exact sum. -/
 theorem binary64_add_scaled (left right : Binary64) (k : Nat) (small : k ≤ 20)
     (leftFinite : left.Finite) (rightFinite : right.Finite)
     (bound : |numerical64 left + numerical64 right| ≤ 65536 * (2 : ℚ) ^ k) :
@@ -173,8 +128,6 @@ theorem binary64_add_scaled (left right : Binary64) (k : Nat) (small : k ≤ 20)
     exact model_normalized_finite _ _ localProof.1
   · simpa only [numerical64, exactDecoded] using error
 
-/-- Actual binary64 multiplication at magnitude at most `2^16 · 2^k`: finite and within
-`2^(-37) · 2^k` of the exact product. -/
 theorem binary64_mul_scaled (left right : Binary64) (k : Nat) (small : k ≤ 20)
     (leftFinite : left.Finite) (rightFinite : right.Finite)
     (bound : |numerical64 left * numerical64 right| ≤ 65536 * (2 : ℚ) ^ k) :
@@ -203,8 +156,6 @@ theorem binary64_mul_scaled (left right : Binary64) (k : Nat) (small : k ≤ 20)
     exact model_normalized_finite _ _ localProof.1
   · simpa only [numerical64, exactDecoded] using error
 
-/-- Actual binary64 division at quotient magnitude at most `2^16 · 2^k`: finite and
-within `2^(-35) · 2^k` of the exact quotient. -/
 theorem binary64_div_scaled (left right : Binary64) (k : Nat) (small : k ≤ 20)
     (leftFinite : left.Finite) (rightFinite : right.Finite) (nonzero : numerical64 right ≠ 0)
     (bound : |numerical64 left / numerical64 right| ≤ 65536 * (2 : ℚ) ^ k) :
@@ -236,8 +187,6 @@ theorem binary64_div_scaled (left right : Binary64) (k : Nat) (small : k ≤ 20)
     exact model_normalized_finite _ _ localProof.1
   · simpa only [numerical64, exactDecoded] using error
 
-/-- Actual binary32 subtraction at magnitude at most `2^13 · 2^k`: finite, a rounding of
-the exact difference, and within `2^(-11) · 2^k` of it. -/
 theorem binary32_sub_scaled (left right : Binary32) (k : Nat) (small : k ≤ 20)
     (leftFinite : left.Finite) (rightFinite : right.Finite)
     (bound : |numerical32 left - numerical32 right| ≤ 8192 * (2 : ℚ) ^ k) :
@@ -296,8 +245,6 @@ theorem binary32_sub_scaled (left right : Binary32) (k : Nat) (small : k ≤ 20)
   refine ⟨rounded.1, rounded.2, ?_⟩
   simpa only [numerical32, decoded] using error
 
-/-- Actual binary32 addition at magnitude below `2^13 · 2^k`: finite and within
-`2^(-12) · 2^k` of the exact sum, half the binary32 spacing below that magnitude. -/
 theorem binary32_add_scaled (left right : Binary32) (k : Nat) (small : k ≤ 20)
     (leftFinite : left.Finite) (rightFinite : right.Finite)
     (bound : |numerical32 left + numerical32 right| < 8192 * (2 : ℚ) ^ k) :
@@ -320,8 +267,6 @@ theorem binary32_add_scaled (left right : Binary32) (k : Nat) (small : k ≤ 20)
   exact ⟨sum.1, error⟩
 
 set_option exponentiation.threshold 1200 in
-/-- A finite binary64 value of magnitude at most `2^13 · 2^k` has biased exponent field
-at most `1036 + k`. -/
 theorem exponent_field (value : Binary64) (k : Nat) (finite : value.Finite)
     (bound : |numerical64 value| ≤ 8192 * (2 : ℚ) ^ k) :
     (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat ≤ 1036 + k := by
@@ -360,8 +305,6 @@ theorem exponent_field (value : Binary64) (k : Nat) (finite : value.Finite)
   linarith
 
 set_option exponentiation.threshold 1200 in
-/-- Narrowing a finite binary64 value of magnitude at most `2^13 · 2^k` gives a finite
-binary32 word within `2^(-11) · 2^k` of it: half the binary32 spacing at that magnitude. -/
 theorem narrow_scaled (value : Binary64) (k : Nat) (small : k ≤ 20) (finite : value.Finite)
     (bound : |numerical64 value| ≤ 8192 * (2 : ℚ) ^ k) :
     (Conversion.narrow value).Finite ∧
@@ -434,10 +377,6 @@ theorem narrow_scaled (value : Binary64) (k : Nat) (small : k ≤ 20) (finite : 
   rw [unitSign, one_mul]
   exact gap
 
-/-! ## The ordered maximum, the ordered minimum and saturation -/
-
-/-- A fold that keeps one of its two arguments at every step returns its start or a
-list element. -/
 theorem fold_choice_member {α : Type} (choose : α → α → α)
     (either : ∀ kept item, choose kept item = kept ∨ choose kept item = item)
     (items : List α) (first : α) : items.foldl choose first ∈ first :: items := by
@@ -454,7 +393,6 @@ theorem fold_choice_member {α : Type} (choose : α → α → α)
         simp
     · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ later)
 
-/-- The ordered maximum fold dominates its start and every finite list element. -/
 theorem fold_best_dominates (words : List Binary32) (first : Binary32)
     (finite : ∀ word ∈ first :: words, word.Finite) :
     ∀ word ∈ first :: words, numerical32 word ≤ numerical32
@@ -506,7 +444,6 @@ theorem fold_best_dominates (words : List Binary32) (first : Binary32)
 
 variable {count : Word.Count}
 
-/-- A snapshot's words are its first word followed by the rest. -/
 theorem snapshot_words (snapshot : PolicySnapshot count) :
     snapshot.values.toList =
       snapshot.values.get (firstAction count) :: snapshot.values.toList.drop 1 := by
@@ -518,7 +455,6 @@ theorem snapshot_words (snapshot : PolicySnapshot count) :
   rw [head]
   simp [firstAction, vector_get]
 
-/-- A word is one of a snapshot's words exactly when some action has it. -/
 theorem snapshot_member (snapshot : PolicySnapshot count) (word : Binary32) :
     word ∈ snapshot.values.toList ↔ ∃ action, word = snapshot.values.get action := by
   constructor
@@ -529,7 +465,6 @@ theorem snapshot_member (snapshot : PolicySnapshot count) (word : Binary32) :
   · rintro ⟨action, rfl⟩
     exact List.mem_iff_getElem.mpr ⟨action.val, by simp, by simp [vector_get]⟩
 
-/-- The ordered maximum of finite action values is one of them and dominates each. -/
 theorem best_spec (snapshot : PolicySnapshot count)
     (finite : ∀ action, (snapshot.values.get action).Finite) :
     (∃ action, snapshot.best = snapshot.values.get action) ∧
@@ -552,8 +487,6 @@ theorem best_spec (snapshot : PolicySnapshot count)
     (snapshot.values.get (firstAction count)) allFinite (snapshot.values.get action)
     (by rw [← words]; exact (snapshot_member snapshot _).mpr ⟨action, rfl⟩)
 
-/-- Saturation between two finite words is finite and no larger than the larger of
-them, for every input word including NaNs and infinities. -/
 theorem saturate_hull (value lower upper : Binary32) (lowerFinite : lower.Finite)
     (upperFinite : upper.Finite) :
     (value.saturate lower upper).Finite ∧
@@ -601,8 +534,6 @@ theorem saturate_hull (value lower upper : Binary32) (lowerFinite : lower.Finite
         have := le_max_right |numerical32 lower| |numerical32 upper|
         linarith
 
-/-- The nominal policy mean of finite, bounded action values is finite and within the
-same bound: the executed mean is saturated between two of the action values. -/
 theorem expected_bound (snapshot : PolicySnapshot count) (radius : ℚ)
     (bounded : ∀ action, (snapshot.values.get action).Finite ∧
       |numerical32 (snapshot.values.get action)| ≤ radius) :
@@ -630,9 +561,6 @@ theorem expected_bound (snapshot : PolicySnapshot count) (radius : ℚ)
   simp only [lowerSame, upperSame]
   exact hull _
 
-/-! ## The ordered minimum -/
-
-/-- The ordered minimum fold is at most its start and every finite list element. -/
 theorem fold_least_dominated (words : List Binary32) (first : Binary32)
     (finite : ∀ word ∈ first :: words, word.Finite) :
     ∀ word ∈ first :: words, numerical32
@@ -683,7 +611,6 @@ theorem fold_least_dominated (words : List Binary32) (first : Binary32)
         exact le_trans chosenBound headLe
       · exact tailBound word (List.mem_cons_of_mem _ inTail)
 
-/-- The ordered minimum of finite action values is one of them and at most each. -/
 theorem least_spec (snapshot : PolicySnapshot count)
     (finite : ∀ action, (snapshot.values.get action).Finite) :
     (∃ action, snapshot.values.toList.foldl (fun lo value : Binary32 =>
@@ -713,8 +640,6 @@ theorem least_spec (snapshot : PolicySnapshot count)
       allFinite (snapshot.values.get action)
       (List.mem_cons_of_mem _ ((snapshot_member snapshot _).mpr ⟨action, rfl⟩))
 
-/-- Saturation of a finite word between two ordered finite words is the exact
-projection of its value onto their interval: it selects a word and rounds nothing. -/
 theorem saturate_numeric (value lower upper : Binary32) (finite : value.Finite)
     (lowerFinite : lower.Finite) (upperFinite : upper.Finite)
     (ordered : numerical32 lower ≤ numerical32 upper) :
@@ -736,7 +661,6 @@ theorem saturate_numeric (value lower upper : Binary32) (finite : value.Finite)
       rw [min_eq_left (not_lt.mp notAbove)]
       exact (max_eq_left (not_lt.mp notBelow)).symm
 
-/-- Projecting onto an interval that contains a point moves no value away from it. -/
 theorem clamp_closer (value lower upper point : ℚ) (above : lower ≤ point)
     (below : point ≤ upper) :
     |max (min value upper) lower - point| ≤ |value - point| := by
@@ -759,14 +683,8 @@ theorem clamp_closer (value lower upper point : ℚ) (above : lower ≤ point)
       have cap := min_le_left value upper
       linarith
 
-/-! ## The executed accumulation -/
-
-/-- Rounding allowance of one binary64 addition, product or difference at magnitude
-at most `2^16`. -/
 def wideRadius : ℚ := 1 / 137438953472
 
-/-- A product of two approximations is within the summed scaled errors of the exact
-product. -/
 theorem product_error (first second firstExact secondExact firstError secondError
     secondSize firstSize : ℚ) (firstClose : |first - firstExact| ≤ firstError)
     (secondClose : |second - secondExact| ≤ secondError) (secondBound : |second| ≤ secondSize)
@@ -785,7 +703,6 @@ theorem product_error (first second firstExact secondExact firstError secondErro
     mul_le_mul firstBound secondClose (abs_nonneg _) (le_trans (abs_nonneg _) firstBound)
   linarith
 
-/-- A sum of values between two bounds lies between the bounds times the count. -/
 theorem sum_between (words : List Binary32) (lower upper : ℚ)
     (each : ∀ word ∈ words, lower ≤ numerical32 word ∧ numerical32 word ≤ upper) :
     (words.length : ℚ) * lower ≤ (words.map numerical32).sum ∧
@@ -798,12 +715,6 @@ theorem sum_between (words : List Binary32) (lower upper : ℚ)
     simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.cast_add, Nat.cast_one]
     constructor <;> linarith [tail.1, tail.2]
 
-/-- The executed accumulation of the mean over a list of finite action values of
-magnitude at most `8000 · 2^k`: started from totals within `terms` rounding allowances
-of exact sums of at most `terms` such values, with at most eight values in all, the
-running total of all values and of the values at or above the threshold stay finite and
-within one allowance per value of the exact sums, and the count of tied values is
-exact. One allowance is `wideRadius · 2^k`. -/
 theorem totals_spec (threshold : Binary32) (words : List Binary32) (k : Nat) (small : k ≤ 20)
     (bounded : ∀ word ∈ words, word.Finite ∧ |numerical32 word| ≤ 8000 * (2 : ℚ) ^ k) :
     ∀ (all tied : Binary64) (tiedCount terms : Nat) (allExact tiedExact : ℚ),
@@ -949,24 +860,14 @@ theorem totals_spec (threshold : Binary32) (words : List Binary32) (k : Nat) (sm
         rw [same]
         exact result.2.2.2.1
 
-/-! ## The closing arithmetic -/
-
-/-- The executed closing arithmetic of the mean, as a function of its accumulated
-totals: the two quotients, the convex combination in binary64, the narrowing and the
-saturation between the least and the greatest action value. -/
 def meanWord (lower upper : Binary32) (eps all tied : Binary64) (tiedCount : Nat)
     (actions : UInt64) : Binary32 :=
   (Conversion.narrow ((((Binary64.ofUInt64 1).sub eps).mul
     (tied.div (Binary64.ofUInt64 tiedCount.toUInt64))).add
       (eps.mul (all.div (Binary64.ofUInt64 actions))))).saturate lower upper
 
-/-- Rounding allowance of the executed mean against the exact tie-window mean at
-magnitude below `2^13`: half the binary32 spacing there, plus the binary64 evaluation.
-At magnitude `2^13 · 2^k` the allowance is `2^k` times this. -/
 def meanRadius : ℚ := 1 / 2048 + 1 / 16777216
 
-/-- A binary64 quotient of an accumulated total by a small positive count is finite and
-within eight addition allowances plus one quotient allowance of the exact mean. -/
 theorem quotient_spec (total denominator : Binary64) (count k : Nat) (sum mean : ℚ)
     (small : k ≤ 20) (totalFinite : total.Finite) (denominatorFinite : denominator.Finite)
     (denominatorValue : numerical64 denominator = (count : ℚ)) (positive : 1 ≤ count)
@@ -1007,21 +908,16 @@ theorem quotient_spec (total denominator : Binary64) (count k : Nat) (sum mean :
     rw [split] at outer
     linarith
 
-/-- A small machine word converts to a finite binary64 value. -/
 theorem small_word_finite (word : UInt64) (small : word.toNat < 2 ^ 53) :
     (Binary64.ofUInt64 word).Finite := by
   have bound := ofUInt64_word_bound word small
   change (Binary64.ofUInt64 word).bits.toNat &&& (2 ^ 63 - 1) < 0x7ff0000000000000
   exact Nat.lt_of_le_of_lt Nat.and_le_left bound
 
-/-- A natural number below `2^64` is its own machine word. -/
 theorem word_value (count : Nat) (small : count ≤ 8) : count.toUInt64.toNat = count := by
   change count % 2 ^ 64 = count
   exact Nat.mod_eq_of_lt (by omega)
 
-/-- A binary64 product of a factor of magnitude at most 2, close to an exact factor of
-magnitude at most 1, with a mean of magnitude at most `8001 · 2^k`: finite, and within
-the propagated errors plus one rounding allowance of the exact product. -/
 theorem scaled_product (factor mean : Binary64) (k : Nat) (small : k ≤ 20)
     (factorExact meanExact factorError meanError : ℚ) (factorFinite : factor.Finite)
     (meanFinite : mean.Finite) (factorClose : |numerical64 factor - factorExact| ≤ factorError)
@@ -1043,11 +939,6 @@ theorem scaled_product (factor mean : Binary64) (k : Nat) (small : k ≤ 20)
     (numerical64 factor * numerical64 mean) (factorExact * meanExact)
   exact ⟨product.1, by linarith [product.2]⟩
 
-/-- The closing arithmetic of the mean, from accumulated totals within eight addition
-allowances of exact sums: for a rate in `[0, 1]`, tied and overall means between the
-least and the greatest action value, both of magnitude at most `8000 · 2^k`, the
-binary64 convex combination is finite and within `2^(-24) · 2^k` of
-`(1 − ε) · tiedMean + ε · allMean`. -/
 theorem combination_spec (eps all tied : Binary64) (tiedCount k : Nat)
     (actions : UInt64) (allSum tiedSum : ℚ) (small : k ≤ 20) (epsFinite : eps.Finite)
     (rate : 0 ≤ numerical64 eps ∧ numerical64 eps ≤ 1) (allFinite : all.Finite)
@@ -1184,9 +1075,6 @@ theorem combination_spec (eps all tied : Binary64) (tiedCount k : Nat)
   have last := total.2
   linarith
 
-/-- The executed mean word from accumulated totals: finite and within
-`meanRadius · 2^k` of `(1 − ε) · tiedMean + ε · allMean`, under the hypotheses of
-`combination_spec` and with both means between the least and the greatest action value. -/
 theorem meanWord_spec (lower upper : Binary32) (eps all tied : Binary64) (tiedCount k : Nat)
     (actions : UInt64) (allSum tiedSum : ℚ) (small : k ≤ 20) (lowerFinite : lower.Finite)
     (upperFinite : upper.Finite) (lowerSize : |numerical32 lower| ≤ 8000 * (2 : ℚ) ^ k)
@@ -1267,22 +1155,13 @@ theorem meanWord_spec (lower upper : Binary32) (eps all tied : Binary64) (tiedCo
   unfold meanRadius
   linarith [narrowed.2, combination.2]
 
-/-! ## The sandwich -/
-
-/-- The convex combination the mean approximates: `(1 − ε)` times the greatest action
-value plus `ε` times the mean of all action values, in exact arithmetic over the
-stored words. It is convex in the action values. -/
 def greedyMean (snapshot : PolicySnapshot count) : ℚ :=
   (1 - numerical32 snapshot.epsilon.value) * numerical32 snapshot.best +
     numerical32 snapshot.epsilon.value *
       ((snapshot.values.toList.map numerical32).sum / (count.word.toNat : ℚ))
 
-/-- How far the tie-window mean can fall below `greedyMean` at magnitude below `2^13`:
-the tie window, at most `2^(-19)`, plus the rounding of the threshold subtraction, plus
-`meanRadius`. At magnitude `2^13 · 2^k` the allowance is `2^k` times this. -/
 def meanSlack : ℚ := 1 / 524288 + 1 / 2048 + meanRadius
 
-/-- The executed mean is the closing arithmetic of the executed accumulation. -/
 theorem expected_eq (snapshot : PolicySnapshot count) :
     snapshot.expected = meanWord
       (snapshot.values.toList.foldl (fun lo value : Binary32 =>
@@ -1311,12 +1190,6 @@ theorem expected_eq (snapshot : PolicySnapshot count) :
         (Binary64.ofUInt64 0, Binary64.ofUInt64 0, 0)).2.2
       count.word := rfl
 
-/-- The contract of the executed tie-window mean, at any magnitude up to `2^33`. For at
-most eight finite action values of magnitude at most `8000 · 2^k`, `k` up to 20, the
-executed nominal policy mean is finite and lies between `greedyMean` less
-`meanSlack · 2^k` and `greedyMean` plus `meanRadius · 2^k`. The lower side carries the
-tie window: the greedy part averages every action within the window of the maximum, so
-it can fall below the maximum by the window and by the rounding of its threshold. -/
 theorem expected_sandwich (snapshot : PolicySnapshot count) (k : Nat) (small : k ≤ 20)
     (few : count.word.toNat ≤ 8)
     (bounded : ∀ action, (snapshot.values.get action).Finite ∧

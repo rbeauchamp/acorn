@@ -1,69 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentPolicyMean
 import AcornVerif.CurrentRetirement
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.Group.MinMax
 import Mathlib.Data.Finset.Lattice.Fold
-
-/-!
-# Expectation-model planning contracts
-
-Sutton, Machado, Holland, Szepesvari, Timbers, Tanner and White,
-*Reward-Respecting Subtasks for Model-Based Reinforcement Learning*, Artificial
-Intelligence 324 (2023) 104001, arXiv:2202.03466v4, §5, equation (19), p. 16,
-backs up `r̂(x, o) + v̂(n̂(x, o), w)` with the current weights `w`. Wan, Abbas,
-White, White and Sutton, *Planning with Expectation Models*, IJCAI 2019,
-arXiv:1904.01191, §4, equations (1)–(2), show that a value function linear in the
-features loses nothing when the expected next feature vector replaces the
-distribution over next feature vectors.
-
-The first part is real arithmetic and concerns no executed definition.
-`expectation_linear` is Wan et al.'s equality for one linear value.
-Acorn's value function is the nominal value of several linear action values, so
-that equality holds for each action value and not for their maximum:
-`expectation_maximum_le` is the inequality that replaces it, and
-`expectation_maximum_eq` its equality case. The differential nominal value is a
-tie-window mean, which is not convex; `expectation_sandwiched` gives the same
-inequality up to the slack of `AcornVerif.CurrentPolicyMean.expected_sandwich`.
-`backup_propagation` is the dependence of a backed-up action value on the value
-weights.
-
-The second part concerns the executed definitions of `Acorn.Models`. The value of the
-predicted outcome is formed per meta action: the value weights at the predicted ranked
-features, plus the shared residual prediction, plus that action's deviation prediction.
-`ranked_value_rounding` and `outcome_value_rounding` bound the distance between each
-executed per-action value and the exact sum of the stored words;
-`outcome_value_propagation` is the dependence of the exact value on the value weights,
-and `outcome_decomposition` and `deterministic_outcome` show that the shared residual
-and the deviations lose nothing of an action's unranked share. `discounted_backup_rounding`
-and `differential_backup_rounding` bound the distance between the executed backed-up
-value and the same expression in exact arithmetic, for every model state.
-
-Each per-action total is accumulated in binary64 and narrowed once, so its rounding
-follows the magnitude of the total and not of its parts: a shared residual and a
-deviation that cancel lose nothing of the ranked part (`wide_total`). Every stored
-weight is inside its rule's domain, so the parts are inside their prediction envelopes
-for every learner state and the binary64 additions never leave their exact range.
-`discounted_backup_rounding` therefore has no hypothesis beyond the ranked width: a
-total beyond the prediction range projects to the same endpoint as its exact value
-(`outcome_value_clamped`). The differential continuation is a raw binary32 word with no
-range, so its allowance follows the magnitude of the values the backup returns:
-`differential_backup_rounding` carries a scale `2^k`, `k` up to 20, for exact
-per-action values at most `7000 · 2^k`, and `differential_backup_relative` states the
-same for every model state with the factor `max 1 (magnitude / 3500)`.
-Each binary32 product, sum and difference is the exact result rounded once to
-nearest-even; the horizon projections are exact. The rounding bounds assume at most 64
-ranked positions, which `default_width` shows for the 16 384-slot dimension.
-
-The last part states storage and work, what a change of subset keeps, the terminal
-target of a row and the reach of search control. Native primitive and compiler
-correspondence remain the arithmetic layer's declared trust boundary.
--/
 
 open Acorn Acorn.Features
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder AcornVerif.CurrentPrediction
@@ -73,15 +13,10 @@ open AcornVerif.CurrentPolicyMean
 
 namespace AcornVerif.CurrentPlanning
 
-/-! ## Real arithmetic -/
-
 section Identities
 variable {outcomes features actions : Type} [Fintype outcomes] [Fintype features]
   [Fintype actions]
 
-/-- Wan et al. (2019), §4, equations (1)–(2): for one linear value with weights
-`weight`, the expected value of the next feature vector equals the value of the
-expected next feature vector, for every finite distribution `mass` over outcomes. -/
 theorem expectation_linear (mass : outcomes → ℚ) (outcome : outcomes → features → ℚ)
     (weight : features → ℚ) :
     ∑ i, mass i * ∑ j, weight j * outcome i j =
@@ -90,9 +25,6 @@ theorem expectation_linear (mass : outcomes → ℚ) (outcome : outcomes → fea
   rw [Finset.sum_comm]
   exact Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun i _ => by ring
 
-/-- With several linear action values, the maximum over actions of the value of the
-expected feature vector is at most the expected maximum: an expectation model
-under a maximum never overestimates the distribution-model backup. -/
 theorem expectation_maximum_le [Nonempty actions] (mass : outcomes → ℚ)
     (nonnegative : ∀ i, 0 ≤ mass i) (outcome : outcomes → features → ℚ)
     (weight : actions → features → ℚ) :
@@ -109,8 +41,6 @@ theorem expectation_maximum_le [Nonempty actions] (mass : outcomes → ℚ)
     (Finset.le_sup' (fun a => ∑ j, weight a j * outcome i j) (Finset.mem_univ a))
     (nonnegative i)
 
-/-- The two agree when one action is maximal at every outcome, which includes every
-deterministic outcome: then the expectation model loses nothing under the maximum. -/
 theorem expectation_maximum_eq [Nonempty actions] (mass : outcomes → ℚ)
     (nonnegative : ∀ i, 0 ≤ mass i) (outcome : outcomes → features → ℚ)
     (weight : actions → features → ℚ) (best : actions)
@@ -134,13 +64,6 @@ theorem expectation_maximum_eq [Nonempty actions] (mass : outcomes → ℚ)
     _ ≤ _ := Finset.le_sup' (fun a => ∑ j, weight a j * ∑ i, mass i * outcome i j)
       (Finset.mem_univ best)
 
-/-- The nominal value differential control uses is a mean over a tie set that depends
-on the values, so it is not convex and no Jensen inequality holds for it. What holds:
-if the nominal value of the expected action values is at most the convex combination
-`(1 − rate) · max + rate · mean` plus `upper`, and the nominal value at each outcome is
-at least that combination less `lower`, then the value of the expected action values is
-at most the expected value plus both allowances, for every finite distribution.
-`expected_expectation` instantiates it with the executed mean. -/
 theorem expectation_sandwiched [Nonempty actions] (mass : outcomes → ℚ)
     (nonnegative : ∀ i, 0 ≤ mass i) (total : ∑ i, mass i = 1) (rate lower upper : ℚ)
     (rateHigh : rate ≤ 1) (value : outcomes → actions → ℚ) (mixed : ℚ)
@@ -183,9 +106,6 @@ theorem expectation_sandwiched [Nonempty actions] (mass : outcomes → ℚ)
   rw [expand, convex] at summed
   linarith
 
-/-- A change of the value weights changes one backed-up action value of a fixed
-predicted feature vector by exactly the weight change applied to that vector. A
-scalar continuation has no such term: its value does not read the weights. -/
 theorem backup_propagation (before after expected : features → ℚ) :
     ∑ j, after j * expected j - ∑ j, before j * expected j =
       ∑ j, (after j - before j) * expected j := by
@@ -194,18 +114,12 @@ theorem backup_propagation (before after expected : features → ℚ) :
 
 end Identities
 
-/-! ## Executed action values of a predicted feature vector -/
-
 variable {criterion : Criterion} {dimension : Dimension}
 
-/-- The numerical value of the zero word. -/
 theorem zero_numeric : numerical32 Binary32.zero = 0 := by decide
 
-/-- Rounding allowance of one term of an executed action value: one product rounded
-at magnitude at most `2^7` and one partial sum rounded at magnitude at most `2^13`. -/
 def termRadius : ℚ := 1 / 131072 + 1 / 2048
 
-/-- Every expected feature value is a finite word between zero and one. -/
 theorem expectation_numeric (value : Expectation) :
     value.value.Finite ∧ 0 ≤ numerical32 value.value ∧ numerical32 value.value ≤ 1 := by
   have bounds := CurrentModels.interval_numeric expectationRange value
@@ -216,9 +130,6 @@ theorem expectation_numeric (value : Expectation) :
   rw [lower, upper] at bounds
   exact ⟨value.legal.1, bounds.1, bounds.2⟩
 
-/-- One executed term of an action value: the product of a legal value weight and an
-expected feature value is finite, within `2^(-17)` of the exact product, and no
-larger than the weight bound. -/
 theorem term_bound {rule : ValueRule} (weight : Weight rule) (expected : Expectation) :
     (weight.value.mul expected.value).Finite ∧
       |numerical32 (weight.value.mul expected.value) -
@@ -243,9 +154,6 @@ theorem term_bound {rule : ValueRule} (weight : Weight rule) (expected : Expecta
   · exact Rounded.mono cap.neg rounded.2 (by linarith [(abs_le.mp product).1])
   · exact Rounded.mono rounded.2 cap (by linarith [(abs_le.mp product).2])
 
-/-- The executed left-to-right sum of term words stays finite, within the summed
-rounding allowance of the exact sum of the terms' exact values, and within the
-summed term bound, while its magnitude has room below `2^13`. -/
 theorem sum_rounding (terms : List (Binary32 × ℚ)) (initial : Binary32)
     (finite : initial.Finite)
     (room : |numerical32 initial| + 102 * (terms.length : ℚ) ≤ 8192)
@@ -305,8 +213,6 @@ theorem sum_rounding (terms : List (Binary32 × ℚ)) (initial : Binary32)
       (numerical32 term.1 - term.2)
     linarith [tail.2.1]
 
-/-- The executed product word and the exact product of one occupied position, for
-one meta action's value weights. -/
 def rankedTerm (value : ValueFunction criterion dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
     (action : Action metaCount.word.toNat) (entry : RankIdx dimension × FeatIdx dimension) :
@@ -316,16 +222,12 @@ def rankedTerm (value : ValueFunction criterion dimension)
     numerical32 ((value.controller.learners.get action).state.weights.get entry.2).value *
       numerical32 (expected.get entry.1).value)
 
-/-- The exact action value of an expected feature vector at the ranked slots: the dot
-product `Σ_j w_a[slot j] · n_j` of the stored words, in exact arithmetic. For a linear
-value function this is `v̂(n̂(x, o), w)` of equation (19). -/
 def exactRankedValue (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
     (action : Action metaCount.word.toNat) : ℚ :=
   ((ranked.occupied.map (rankedTerm value expected action)).map Prod.snd).sum
 
-/-- Each executed action value is the ordered sum of its executed term words. -/
 theorem rankedValues_get (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
@@ -336,7 +238,6 @@ theorem rankedValues_get (value : ValueFunction criterion dimension)
   simp [ValueFunction.rankedValues_def, Binary32.sumMap_eq, vector_get, rankedTerm,
     Function.comp_def]
 
-/-- Every executed term is finite, bounded and within `2^(-17)` of its exact product. -/
 theorem rankedTerm_close (value : ValueFunction criterion dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
     (action : Action metaCount.word.toNat) (entry : RankIdx dimension × FeatIdx dimension) :
@@ -348,10 +249,6 @@ theorem rankedTerm_close (value : ValueFunction criterion dimension)
     ((value.controller.learners.get action).state.weights.get entry.2) (expected.get entry.1)
   exact ⟨bound.1, bound.2.2, bound.2.1⟩
 
-/-- Backup identity with its rounding bound, per action value. For every value
-function, ranking and predicted feature vector with at most 64 ranked positions, the
-executed action value is finite and within one term allowance per occupied position
-of the exact dot product of the stored words. -/
 theorem ranked_value_rounding (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
@@ -377,8 +274,6 @@ theorem ranked_value_rounding (value : ValueFunction criterion dimension)
   rw [count, zero_numeric, abs_zero, zero_add, zero_add] at sum
   exact sum
 
-/-- For every dimension, every executed action value is finite and inside the
-ordered-sum envelope of its occupied positions. -/
 theorem ranked_value_bound (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
@@ -398,8 +293,6 @@ theorem ranked_value_bound (value : ValueFunction criterion dimension)
       exact ⟨close.1, close.2.1⟩)
   simpa only [List.length_map, Nat.zero_add] using sum
 
-/-- An action value reads the value weights at the occupied slots only: two value
-functions that agree there give the same word. -/
 theorem ranked_values_congr (first second : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
@@ -413,11 +306,6 @@ theorem ranked_values_congr (first second : ValueFunction criterion dimension)
   congr 2
   exact List.map_congr_left fun entry member => by simp only [rankedTerm, same entry member]
 
-/-- Dependence on the value weights, over the stored words: between two value
-functions the exact action value of a fixed predicted vector differs by the weight
-change at each occupied slot times that slot's predicted activity. This is the
-look-ahead term of one action, before the maximum or mean over actions, the range
-projections and rounding. -/
 theorem ranked_value_propagation (before after : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
@@ -437,8 +325,6 @@ theorem ranked_value_propagation (before after : ValueFunction criterion dimensi
     simp only [rankedTerm]
     ring
 
-/-- With no occupied position an action value is the zero word: the look-ahead then
-reads no value weight. -/
 theorem ranked_values_vacant (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity)
@@ -447,10 +333,6 @@ theorem ranked_values_vacant (value : ValueFunction criterion dimension)
   rw [rankedValues_get, vacant]
   rfl
 
-/-! ## The nominal value of the ranked action values -/
-
-/-- For every criterion and dimension, the executed nominal value of a predicted
-feature vector is finite and inside the ordered-sum envelope of the occupied positions. -/
 theorem ranked_nominal_bound (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity) :
@@ -472,16 +354,10 @@ theorem ranked_nominal_bound (value : ValueFunction criterion dimension)
     exact expected_bound
       (⟨value.rankedValues ranked expected, value.epsilon⟩ : PolicySnapshot metaCount) _ each
 
-/-! ## The value of the predicted outcome, per action -/
-
 variable {count : Word.Count}
 
-/-- A machine action space has an action, so a maximum over its actions exists. -/
 instance : Nonempty (Action count.word.toNat) := ⟨firstAction count⟩
 
-/-- The ordered maximum of action values, each finite and within `radius` of an exact
-value, is finite and within `radius` of the exact maximum: it selects a word and adds
-no rounding. -/
 theorem best_rounding (snapshot : PolicySnapshot count) (exact : Action count.word.toNat → ℚ)
     (radius : ℚ)
     (close : ∀ action, (snapshot.values.get action).Finite ∧
@@ -503,13 +379,10 @@ theorem best_rounding (snapshot : PolicySnapshot count) (exact : Action count.wo
     have near := (abs_le.mp (close chosen).2).2
     linarith
 
-/-- One deviation learner's prediction at a frame: its ordered weight sum over the
-active ranked positions and the bias. -/
 def deviationWord (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) (action : Action metaCount.word.toNat) : Binary32 :=
   (transition.deviations.get action).state.linearPrediction (transition.ranked.input features)
 
-/-- A deviation prediction is finite and inside the ordered-sum envelope of its input. -/
 theorem deviation_bound (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) (action : Action metaCount.word.toNat) :
     (deviationWord transition features action).Finite ∧
@@ -517,23 +390,18 @@ theorem deviation_bound (transition : Transition dimension criterion)
         predictionRadius (transition.ranked.input features).indices.length :=
   prediction_bound (transition.deviations.get action).state (transition.ranked.input features)
 
-/-- The exact value of the predicted outcome for one meta action: the dot product of
-the stored value weights with the stored predicted features, plus the stored shared
-residual prediction, plus the stored deviation prediction of that action. -/
 def exactOutcomeValue (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (action : Action metaCount.word.toNat) : ℚ :=
   exactRankedValue value transition.ranked (transition.expected features) action +
     numerical32 shared + numerical32 (deviationWord transition features action)
 
-/-- A ranked width is at most `2^15`. -/
 theorem rank_capacity (dimension : Dimension) : (rankDimension dimension).capacity ≤ 32768 := by
   have bound := rankExponentFrom_le dimension.capacity 15 0
   change rankWidth dimension ≤ 2 ^ 15
   rw [rankWidth_eq]
   exact Nat.pow_le_pow_right (by decide) (by unfold rankExponent; omega)
 
-/-- The ordered-sum envelope of the occupied positions is at most `2^23`. -/
 theorem ranked_radius (ranked : RankedFeatures dimension) :
     predictionRadius ranked.occupied.length ≤ 8388608 := by
   have width := le_trans ranked.occupied_length (rank_capacity dimension)
@@ -543,13 +411,11 @@ theorem ranked_radius (ranked : RankedFeatures dimension) :
     Nat.mul_le_mul_right 256 (le_trans small width)
   exact_mod_cast scaled
 
-/-- An ordered-sum envelope is at most `2^32`. -/
 theorem radius_cap (inputs : Nat) : predictionRadius inputs ≤ 4294967296 := by
   unfold predictionRadius
   have := Nat.min_le_right inputs (2 ^ 24)
   exact_mod_cast Nat.mul_le_mul_right 256 this
 
-/-- The envelope of a row input is at most `2^23`. -/
 theorem input_radius (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     predictionRadius (ranked.input features).indices.length ≤ 8388608 := by
@@ -560,13 +426,9 @@ theorem input_radius (ranked : RankedFeatures dimension)
     Nat.mul_le_mul_right 256 (le_trans small width)
   exact_mod_cast scaled
 
-/-- The binary64 total of one outcome value: the three words widened and added in
-order. -/
 def wideOutcome (ranked shared deviation : Binary32) : Binary64 :=
   ((Conversion.widen ranked).add (Conversion.widen shared)).add (Conversion.widen deviation)
 
-/-- Each executed outcome value is the binary64 total of the ranked action value, the
-shared residual and the action's deviation, narrowed once. -/
 theorem outcomeValues_get (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (action : Action metaCount.word.toNat) :
@@ -576,10 +438,6 @@ theorem outcomeValues_get (transition : Transition dimension criterion)
         shared (deviationWord transition features action)) := by
   simp [Transition.outcomeValues_def, Transition.expected, deviationWord, wideOutcome, vector_get]
 
-/-- The binary64 total of three finite words inside the prediction envelopes is finite,
-within `2^(-16)` of their exact sum, and no larger than their magnitudes allow.
-Widening is exact and each binary64 addition is rounded at magnitude at most `2^36`, so
-two parts that cancel lose nothing of the third. -/
 theorem wide_total (ranked shared deviation : Binary32)
     (rankedFinite : ranked.Finite) (sharedFinite : shared.Finite)
     (deviationFinite : deviation.Finite) (rankedBound : |numerical32 ranked| ≤ 8388608)
@@ -656,7 +514,6 @@ theorem wide_total (ranked shared deviation : Binary32)
   have inner := abs_add_le (numerical32 ranked + numerical32 shared) (numerical32 deviation)
   linarith
 
-/-- One term allowance per occupied position is below one for at most 64 positions. -/
 theorem allowance_small (ranked : RankedFeatures dimension)
     (narrow : (rankDimension dimension).capacity ≤ 64) :
     0 ≤ (ranked.occupied.length : ℚ) * termRadius ∧
@@ -669,10 +526,6 @@ theorem allowance_small (ranked : RankedFeatures dimension)
   · positivity
   · linarith
 
-/-- The binary64 total of one outcome value, for every model state: finite, within one
-term allowance per occupied position plus `2^(-16)` of the exact sum of the stored
-words, and below `2^33`. The hypothesis on the shared word is the cap every prediction
-envelope satisfies. -/
 theorem outcome_total (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (action : Action metaCount.word.toNat)
@@ -727,14 +580,6 @@ theorem outcome_total (transition : Transition dimension criterion)
         exactRankedValue value transition.ranked (transition.expected features) action)
   linarith [total.2.1, ranked.2.1]
 
-/-- Backup identity with its rounding bound, per action, at the magnitude of the value
-itself. For every transition part, value function and frame with at most 64 ranked
-positions, and any `k` up to 20 with the exact value at most `7000 · 2^k` in magnitude,
-the executed value of the predicted outcome for one action is finite, within one term
-allowance per occupied position plus `2^(-16) + 2^(-11) · 2^k` of the exact sum of the
-stored words, and at most `8000 · 2^k` in magnitude. `2^(-11) · 2^k` is the binary32
-spacing below `2^13 · 2^k`: the one narrowing rounds at the magnitude of the total, and
-the magnitudes of the shared and deviation parts do not enter. -/
 theorem outcome_value_rounding (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (action : Action metaCount.word.toNat) (k : Nat) (small : k ≤ 20)
@@ -760,13 +605,6 @@ theorem outcome_value_rounding (transition : Transition dimension criterion)
   exact ⟨narrowed.1, abs_le.mpr ⟨by linarith [reach.1, step.1], by linarith [reach.2, step.2]⟩,
     abs_le.mpr ⟨by linarith [reach.1, step.1, sizes.1], by linarith [reach.2, step.2, sizes.2]⟩⟩
 
-/-- Dependence on the value weights, over the executed definitions and for the complete
-per-action value: between two value functions, with the transition part and the shared
-prediction held fixed, the exact value of the predicted outcome for an action differs
-by the weight change at each occupied slot times that slot's predicted activity. The
-maximum or mean over actions is taken after, so no change at a ranked slot is hidden by
-another action's value. This is an identity between exact values, before rounding; the
-executed word is within the allowance of `outcome_value_rounding` of each. -/
 theorem outcome_value_propagation (transition : Transition dimension criterion)
     (before after : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (action : Action metaCount.word.toNat) :
@@ -781,21 +619,11 @@ theorem outcome_value_propagation (transition : Transition dimension criterion)
   unfold exactOutcomeValue
   ring
 
-/-- The shared residual and an action's deviation add up to that action's unranked
-share, in exact arithmetic: whatever the shared part is, nothing of the share is lost.
-`complete` is the action's value at the terminal frame, `ranked` its value at the
-frame's ranked slots, `residual` the shared residual and `discount` the terminal
-discount of `Transition.outcome`. -/
 theorem outcome_decomposition (discount complete ranked residual : ℚ) :
     discount * residual + discount * ((complete - ranked) - residual) =
       discount * (complete - ranked) := by
   ring
 
-/-- For a deterministic outcome reached with discount `discount`, the maximum over
-actions of the discounted ranked part plus the discounted shared residual plus the
-discounted deviation is the discounted maximum of the complete action values, whatever
-the shared residual is. With the ranked parts read from the current weights, a change
-at a ranked slot for any action therefore changes the exact backed-up value. -/
 theorem deterministic_outcome {actions : Type} [Fintype actions] [Nonempty actions]
     (discount : ℚ) (nonnegative : 0 ≤ discount) (complete ranked share : actions → ℚ)
     (residual : ℚ) (split : ∀ action, complete action = ranked action + share action) :
@@ -816,15 +644,11 @@ theorem deterministic_outcome {actions : Type} [Fintype actions] [Nonempty actio
     rw [attained]
     exact Finset.le_sup' (fun action => discount * complete action) (Finset.mem_univ best)
 
-/-- Envelope of one outcome value: the ordered-sum envelopes of the occupied positions,
-of the shared prediction's input and of the row input, plus machine-rounding slack. -/
 def outcomeRadius (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) (inputs : Nat) : ℚ :=
   predictionRadius transition.ranked.occupied.length + predictionRadius inputs +
     predictionRadius (transition.ranked.input features).indices.length + 513
 
-/-- For every criterion, dimension, state and frame, every executed outcome value is
-finite and inside its envelope, given a finite shared prediction inside its own. -/
 theorem outcome_value_bound (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (inputs : Nat) (action : Action metaCount.word.toNat)
@@ -859,22 +683,15 @@ theorem outcome_value_bound (transition : Transition dimension criterion)
   rw [sub_add_cancel] at triangle
   linarith [total.2.2]
 
-/-! ## The discounted backed-up value -/
-
-/-- The exact discounted value of the predicted outcome: the maximum over meta actions
-of the exact per-action values. -/
 def exactOutcomeBest (transition : Transition dimension .discounted)
     (value : ValueFunction .discounted dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) : ℚ :=
   Finset.univ.sup' Finset.univ_nonempty (exactOutcomeValue transition value features shared)
 
-/-- The discounted horizon as a rational. -/
 def horizon : ℚ := numerical32 Discount.g99.horizon
 
-/-- Projection onto the discounted prediction range, in exact arithmetic. -/
 def clamp (x : ℚ) : ℚ := max (min x horizon) 0
 
-/-- The horizon is nonnegative and at most the weight bound. -/
 theorem horizon_bounds : 0 ≤ horizon ∧ horizon ≤ 101 := by
   have finite : Discount.g99.horizon.Finite := Discount.g99.predictionRange.upperFinite
   have lower := (numerical32_order .zero Discount.g99.horizon (by decide) finite).mpr
@@ -888,18 +705,14 @@ theorem horizon_bounds : 0 ≤ horizon ∧ horizon ≤ 101 := by
   rw [capValue] at upper
   exact ⟨lower, upper⟩
 
-/-- The exact projection stays inside the prediction range. -/
 theorem clamp_range (x : ℚ) : 0 ≤ clamp x ∧ clamp x ≤ horizon :=
   ⟨le_max_right _ _, max_le (min_le_right _ _) horizon_bounds.1⟩
 
-/-- The exact projection is nonexpansive. -/
 theorem clamp_lipschitz (x y : ℚ) : |clamp x - clamp y| ≤ |x - y| := by
   unfold clamp
   exact le_trans (abs_max_sub_max_le_abs _ _ _)
     (le_trans (abs_min_sub_min_le_max _ _ _ _) (by simp))
 
-/-- The executing prediction projection of a finite word is the exact projection of
-its value: it selects a stored word and rounds nothing. -/
 theorem project_numeric (raw : Binary32) (finite : raw.Finite) :
     numerical32 (Prediction.project .g99 raw).value = clamp (numerical32 raw) := by
   have top : Discount.g99.horizon.Finite := Discount.g99.predictionRange.upperFinite
@@ -923,10 +736,6 @@ theorem project_numeric (raw : Binary32) (finite : raw.Finite) :
       rw [min_eq_left (not_lt.mp notAbove)]
       exact (max_eq_left (not_lt.mp notBelow)).symm
 
-/-- An executed addition followed by the prediction projection is within `2^(-17)` of
-the exact sum followed by the exact projection: outside the range both project to the
-same endpoint, because rounding is monotone and the endpoints are words, and inside it
-the sum is rounded at magnitude below `2^7`. -/
 theorem clamped_add (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite)
     (bound : |numerical32 left + numerical32 right| ≤ 8589934592) :
@@ -963,26 +772,17 @@ theorem clamped_add (left right : Binary32) (leftFinite : left.Finite)
       exact le_trans (clamp_lipschitz _ _)
         (binary32_add_unit_error left right leftFinite rightFinite sum.1 small)
 
-/-- The exact projection is monotone. -/
 theorem clamp_mono {x y : ℚ} (order : x ≤ y) : clamp x ≤ clamp y :=
   max_le_max (min_le_min order le_rfl) le_rfl
 
-/-- At or above the horizon the exact projection is the horizon. -/
 theorem clamp_above {x : ℚ} (above : horizon ≤ x) : clamp x = horizon := by
   unfold clamp
   rw [min_eq_right above, max_eq_left horizon_bounds.1]
 
-/-- At or below zero the exact projection is zero. -/
 theorem clamp_below {x : ℚ} (below : x ≤ 0) : clamp x = 0 := by
   unfold clamp
   exact max_eq_right (le_trans (min_le_left _ _) below)
 
-/-- The projected executed value of the predicted outcome for one action, for every
-model state: within one term allowance per occupied position plus
-`2^(-16) + 2^(-11)` of the projected exact sum of the stored words. Inside `2^13` the one
-narrowing is rounded at the total's magnitude; beyond it the narrowed word stays beyond
-the prediction range on the same side, where both projections are the same endpoint.
-No hypothesis is made on the stored shared or deviation predictions. -/
 theorem outcome_value_clamped (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (action : Action metaCount.word.toNat)
@@ -1027,10 +827,6 @@ theorem outcome_value_clamped (transition : Transition dimension criterion)
         sub_self, abs_zero]
       linarith [allowance.1]
 
-/-- The projected ordered maximum of action values, each finite and with projection
-within `radius` of the projection of an exact value, is finite and within `radius` of
-the projected exact maximum: the maximum selects a word and the projection is
-monotone. -/
 theorem best_clamped {count : Word.Count} (snapshot : PolicySnapshot count)
     (exact : Action count.word.toNat → ℚ) (radius : ℚ)
     (close : ∀ action, (snapshot.values.get action).Finite ∧
@@ -1051,11 +847,6 @@ theorem best_clamped {count : Word.Count} (snapshot : PolicySnapshot count)
     rw [same]
     linarith
 
-/-- The discounted backed-up value from per-action values that are each finite and
-whose projections are within `radius` of the projections of their exact values: the
-ordered maximum selects a word, both projections are exact, and the one remaining
-addition is rounded inside the prediction range, so the executed target is within
-`radius + 2^(-17)` of `clamp (r + clamp V)`. -/
 theorem discounted_backup_close
     (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
     (transition : Transition dimension .discounted)
@@ -1140,18 +931,6 @@ theorem discounted_backup_close
       radius := best.2
   linarith [outer.2]
 
-/-- Backup identity with its rounding bound, for the executed discounted backed-up
-value, for every model state. Let `V` be the exact maximum over meta actions of: the
-dot product of the stored value weights with the stored predicted features, plus the
-stored shared residual prediction, plus the stored deviation prediction of that
-action; and `r` the stored reward prediction. For every model, value function, frame
-and gain with at most 64 ranked positions, the executed target is within one term
-allowance per occupied position plus `2^(-16) + 2^(-11) + 2^(-17)` of
-`clamp (r + clamp V)`, where `clamp` is the exact projection onto the prediction range.
-The only hypothesis is the ranked width: none is made on the stored state or on the
-counts of active inputs, so the statement covers restored weights. Each per-action
-total is rounded once, at its own magnitude, and a total beyond the prediction range
-projects to the same endpoint as its exact value. -/
 theorem discounted_backup_rounding
     (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
     (transition : Transition dimension .discounted)
@@ -1173,9 +952,6 @@ theorem discounted_backup_rounding
       (continuation.state.linearPrediction (modelInput .discounted features age)) action narrow
       sharedBound.1 (le_trans sharedBound.2 (radius_cap _))
 
-/-! ## The differential backed-up value -/
-
-/-- The words of a vector summed in list order are the sum over its indices. -/
 theorem words_sum {size : Nat} (words : Vector Binary32 size) :
     (words.toList.map numerical32).sum = ∑ action : Fin size, numerical32 (words.get action) := by
   rw [← List.sum_ofFn]
@@ -1185,8 +961,6 @@ theorem words_sum {size : Nat} (words : Vector Binary32 size) :
   · intro index first second
     simp [vector_get]
 
-/-- The convex combination of action values within `radius` of exact values is within
-`radius` of the same combination of the exact values. -/
 theorem greedy_mean_close (snapshot : PolicySnapshot count)
     (exact : Action count.word.toNat → ℚ) (radius : ℚ)
     (close : ∀ action, (snapshot.values.get action).Finite ∧
@@ -1240,8 +1014,6 @@ theorem greedy_mean_close (snapshot : PolicySnapshot count)
   have second := mul_le_mul_of_nonneg_left mean rateBounds.1
   linarith
 
-/-- `greedyMean` of finite words, written over the action index: the greatest word is
-the maximum over actions and the list sum is the sum over actions. -/
 theorem greedyMean_eq (snapshot : PolicySnapshot count)
     (finite : ∀ action, (snapshot.values.get action).Finite) :
     greedyMean snapshot =
@@ -1259,12 +1031,6 @@ theorem greedyMean_eq (snapshot : PolicySnapshot count)
   unfold greedyMean
   rw [same, words_sum, Fintype.card_fin]
 
-/-- The expectation inequality for the executed nominal mean. Take finitely many
-outcomes with masses summing to one, each with at most eight finite action values of
-magnitude at most `8000 · 2^k`, and a vector of words whose values are the expected
-action values, all under one rate. Then the executed mean of the expected values is at
-most the expected executed mean plus `(meanSlack + meanRadius) · 2^k`: the tie window
-on the outcomes' side and the rounding on both. -/
 theorem expected_expectation {outcomes : Type} [Fintype outcomes] (mass : outcomes → ℚ)
     (nonnegative : ∀ i, 0 ≤ mass i) (total : ∑ i, mass i = 1) (rate : SwiftTd.ExploreRate)
     (values : outcomes → Vector Binary32 count.word.toNat)
@@ -1311,10 +1077,6 @@ theorem expected_expectation {outcomes : Type} [Fintype outcomes] (mass : outcom
     (meanSlack * (2 : ℚ) ^ k) (meanRadius * (2 : ℚ) ^ k) rateBounds.2
     (fun i action => numerical32 ((values i).get action)) _ _ above below
 
-/-- The exact differential value of the predicted outcome with one greedy action:
-`(1 − ε)` times the maximum over meta actions of the exact per-action values plus `ε`
-times their mean. The executed value averages the actions within the tie window of
-the maximum, so it can lie below this by the window. -/
 def exactOutcomeMean (transition : Transition dimension .differential)
     (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) : ℚ :=
@@ -1324,13 +1086,6 @@ def exactOutcomeMean (transition : Transition dimension .differential)
       ((∑ action, exactOutcomeValue transition value features shared action) /
         (metaCount.word.toNat : ℚ))
 
-/-- The executed differential value of the predicted outcome against the exact
-expression, at the magnitude of the per-action values. For every transition part, value
-function and frame with at most 64 ranked positions, and any `k` up to 20 with every
-exact per-action value at most `7000 · 2^k` in magnitude, the executed word is finite,
-at most `exactOutcomeMean` plus one term allowance per occupied position plus
-`2^(-16) + (2^(-11) + meanRadius) · 2^k`, at least `exactOutcomeMean` less the same with
-`meanSlack` in place of `meanRadius`, and at most `8000 · 2^k` in magnitude. -/
 theorem outcome_mean_rounding (transition : Transition dimension .differential)
     (value : ValueFunction .differential dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) (k : Nat) (small : k ≤ 20)
@@ -1375,19 +1130,6 @@ theorem outcome_mean_rounding (transition : Transition dimension .differential)
       shared, value.epsilon⟩ : PolicySnapshot metaCount)) ≤ _
     linarith [bounds.2]
 
-/-- Backup identity with its rounding bound, for the executed differential backed-up
-value, at the magnitude of the per-action values. Let `M` be `exactOutcomeMean` of the
-stored words, `r`, `d` the stored reward and duration predictions and `g` the gain. For
-every model, value function, frame and gain with at most 64 ranked positions, and any
-`k` up to 20 with every exact per-action value at most `7000 · 2^k` in magnitude, the
-executed target is finite and lies between `r − g · d + M` less one term allowance per
-occupied position, `2^(-15)` and `(3 · 2^(-12) + meanSlack) · 2^k`, and `r − g · d + M`
-plus the same with `meanRadius` in place of `meanSlack`. The lower side is wider by the
-tie window of the nominal mean. The centering `r − g · d` is rounded twice at magnitude
-at most `2^7` and the last addition once below `2^13 · 2^k`. The hypothesis is on the
-values the backup returns, not on the stored shared or deviation predictions: the
-differential continuation is a raw binary32 word, so its rounding follows its own
-magnitude. `differential_backup_relative` removes the hypothesis. -/
 theorem differential_backup_rounding
     (r c d : Managed (Criterion.config .differential .demon) dimension)
     (transition : Transition dimension .differential)
@@ -1483,8 +1225,6 @@ theorem differential_backup_rounding
   · linarith [outcome.2.1]
   · linarith [outcome.2.2.1]
 
-/-- A magnitude at most `7000 · 2^n` has a scale `2^k`, `k ≤ n`, that covers it and is
-at most `max 1 (magnitude / 3500)`: the least power of two that covers it. -/
 theorem scale_exists (magnitude : ℚ) (n : Nat) (cap : magnitude ≤ 7000 * (2 : ℚ) ^ n) :
     ∃ k, k ≤ n ∧ magnitude ≤ 7000 * (2 : ℚ) ^ k ∧
       (2 : ℚ) ^ k ≤ max 1 (magnitude / 3500) := by
@@ -1498,16 +1238,6 @@ theorem scale_exists (magnitude : ℚ) (n : Nat) (cap : magnitude ≤ 7000 * (2 
       rw [pow_succ, le_div_iff₀ (by norm_num)]
       linarith [not_le.mp fits]
 
-/-- The differential backup identity for every model state, with the allowance relative
-to the magnitude of the values the backup returns. For every model, value function,
-frame and gain with at most 64 ranked positions, and any `magnitude` bounding the exact
-per-action values, the executed target is finite and lies between `r − g · d + M` less
-one term allowance per occupied position, `2^(-15)` and
-`(3 · 2^(-12) + meanSlack) · max 1 (magnitude / 3500)`, and `r − g · d + M` plus the same
-with `meanRadius` in place of `meanSlack`. Such a `magnitude` always exists, so no
-hypothesis restricts the stored state; restored weights are covered. The factor is one
-while the per-action values stay within 3500 and grows in proportion beyond, which is
-the spacing of the binary32 words the backup returns. -/
 theorem differential_backup_relative
     (r c d : Managed (Criterion.config .differential .demon) dimension)
     (transition : Transition dimension .differential)
@@ -1570,11 +1300,6 @@ theorem differential_backup_relative
   exact ⟨result.1, le_trans (sub_le_sub_left lower _) result.2.1,
     le_trans result.2.2 (add_le_add le_rfl upper)⟩
 
-/-! ## The differential backed-up value stays finite -/
-
-/-- The differential value of the predicted outcome is finite and inside the outcome
-envelope, for every model state, value function and frame. The rational envelope
-includes machine-rounding slack; it is not a clip. -/
 theorem differential_continuation_bound
     (r c d : Managed (Criterion.config .differential .demon) dimension)
     (transition : Transition dimension .differential)
@@ -1594,8 +1319,6 @@ theorem differential_continuation_bound
       PolicySnapshot metaCount) _
     fun action => outcome_value_bound transition value features _ _ action shared.1 shared.2
 
-/-- The executed differential backed-up value is finite under the actual producer
-ranges, for every model state, value function, frame and gain. -/
 theorem differential_target_bound
     (r c d : Managed (Criterion.config .differential .demon) dimension)
     (transition : Transition dimension .differential)
@@ -1655,27 +1378,16 @@ theorem differential_target_bound
   rw [sub_add_cancel] at outer
   linarith [centered.2, continuation.2]
 
-/-! ## Storage and work -/
-
-/-- Retained logical slots of one transition part, summed over its row learners and
-its deviation learners. -/
 def transitionSlots (transition : Transition dimension criterion) : Nat :=
   (transition.rows.toList.map fun row => retainedSlots row.state).sum +
     (transition.deviations.toList.map fun learner => retainedSlots learner.state).sum
 
-/-- A transition part holds the ranked width times the ranked width plus the meta
-action count in weights: one row per position and one deviation learner per meta
-action, each over the ranked positions. -/
 theorem transition_weights (transition : Transition dimension criterion) :
     (transition.rows.toList.length + transition.deviations.toList.length) *
         (rankDimension dimension).capacity =
       (rankWidth dimension + Acorn.FeatureConstants.metaActionCount) * rankWidth dimension := by
   simp
 
-/-- The logical retained storage of a transition part's learners is quadratic in the
-ranked width, independently of stream length: each row and each deviation learner is a
-learner over the ranked positions. The part also holds the slot vector and the lookup
-table of `transition_table`. Native object headers and allocator reuse are separate. -/
 theorem transition_storage (transition : Transition dimension criterion) :
     transitionSlots transition ≤
       (rankWidth dimension + Acorn.FeatureConstants.metaActionCount) *
@@ -1697,17 +1409,11 @@ theorem transition_storage (transition : Transition dimension criterion) :
   rw [Nat.add_mul]
   exact Nat.add_le_add rows deviations
 
-/-- Beside its rows a transition part holds one lookup word per feature slot and one
-slot word per position: linear in the dimension, and outside the weight budget. -/
 theorem transition_table (transition : Transition dimension criterion) :
     transition.ranked.table.toList.length = dimension.capacity ∧
       transition.ranked.slots.toList.length = (rankDimension dimension).capacity := by
   simp
 
-/-- The width follows from a memory budget on the rows: the rows of all options'
-transition parts together hold at most one weight vector's worth of weights. The
-deviation learners are outside this statement; `complete_budget` and `default_budget`
-count them. -/
 theorem transition_budget (dimension : Dimension)
     (room : Acorn.FeatureConstants.skillCount ≤ dimension.capacity) :
     Acorn.FeatureConstants.skillCount *
@@ -1715,8 +1421,6 @@ theorem transition_budget (dimension : Dimension)
       dimension.capacity :=
   rankWidth_budget dimension room
 
-/-- A dimension of 16 384 feature slots has 64 ranked positions: 63 slots and the
-bias. -/
 theorem default_width (dimension : Dimension) (standard : dimension.capacity = 16384) :
     (rankDimension dimension).capacity = 64 := by
   change rankWidth dimension = 64
@@ -1725,10 +1429,6 @@ theorem default_width (dimension : Dimension) (standard : dimension.capacity = 1
   rw [standard]
   decide
 
-/-- The complete transition parts, rows and deviation learners, of all options hold
-`skillCount · k · (k + 4)` weights. That is within one weight vector whenever the
-dimension has at least 1024 slots; at 256 slots the width is 8 and the three parts hold
-288 weights, more than one weight vector, although their rows fit. -/
 theorem complete_budget (dimension : Dimension) (large : 1024 ≤ dimension.capacity) :
     Acorn.FeatureConstants.skillCount *
         (((rankDimension dimension).capacity + Acorn.FeatureConstants.metaActionCount) *
@@ -1775,8 +1475,6 @@ theorem complete_budget (dimension : Dimension) (large : 1024 ≤ dimension.capa
   rw [Nat.pow_add, ← square] at capacity
   linarith
 
-/-- For 16 384 feature slots the transition parts of all options, deviation learners
-included, hold 13 056 weights: within one weight vector. -/
 theorem default_budget (dimension : Dimension) (standard : dimension.capacity = 16384) :
     Acorn.FeatureConstants.skillCount *
         (((rankDimension dimension).capacity + Acorn.FeatureConstants.metaActionCount) *
@@ -1784,31 +1482,21 @@ theorem default_budget (dimension : Dimension) (standard : dimension.capacity = 
   rw [default_width dimension standard, standard]
   decide
 
-/-- A row's input has at most the ranked width of positions, and at most one more than
-the frame has active features, so one row's prediction reads at most that many weights. -/
 theorem ranked_input_work (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     (ranked.input features).indices.length ≤ (rankDimension dimension).capacity ∧
       (ranked.input features).indices.length ≤ features.indices.length + 1 :=
   ⟨active_cardinality _, ranked.input_length features⟩
 
-/-- Every row keeps an eligibility list within the ranked width, after every update. -/
 theorem row_work (transition : Transition dimension criterion) (position : RankIdx dimension) :
     (transition.rows.get position).state.eligibleCount ≤ (rankDimension dimension).capacity :=
   managed_capacity _
 
-/-- Every deviation learner keeps an eligibility list within the ranked width, after
-every update. -/
 theorem deviation_work (transition : Transition dimension criterion)
     (action : Action metaCount.word.toNat) :
     (transition.deviations.get action).state.eligibleCount ≤ (rankDimension dimension).capacity :=
   managed_capacity _
 
-/-- A change of ranking changes at most the ranked width of positions. Each retained
-row and each deviation learner then retires each changed position once, and one
-retirement searches that learner's eligibility list, at most the ranked width
-(`row_work`, `deviation_work`): the work of forgetting is at most the number of
-learners times the changed positions times the ranked width. -/
 theorem changed_work (before after : RankedFeatures dimension) :
     (before.changed after).length ≤ (rankDimension dimension).capacity := by
   have bound := List.length_filter_le
@@ -1816,14 +1504,10 @@ theorem changed_work (before after : RankedFeatures dimension) :
     (List.finRange (rankDimension dimension).capacity)
   simpa [RankedFeatures.changed] using bound
 
-/-- A planning boundary performs a fixed number of look-aheads: every option at the
-current and at one stored feature vector. -/
 theorem boundary_work :
     planningFrames * planningSlots.length = 2 * Acorn.FeatureConstants.skillCount := by
   simp [planningFrames, planning_work]
 
-/-- A look-ahead at a stored position that no frame has filled changes no learner
-state: the empty feature vector names no slot to write. -/
 theorem plan_empty {cfg : Acorn.Config} {actions : Nat}
     (controller : Controller cfg dimension actions) (action row : Action actions)
     (target : Binary32) :
@@ -1840,9 +1524,6 @@ theorem plan_empty {cfg : Acorn.Config} {actions : Nat}
     split <;> rfl
   · rw [CurrentModels.plan_other controller action row same]
 
-/-! ## A change of subset -/
-
-/-- Filling vacant positions keeps every held slot at its position. -/
 theorem fillVacant_held {α : Type} (slots : List (Option α)) (entrants : List α) (index : Nat)
     (held : α) (stored : slots[index]? = some (some held)) :
     (fillVacant slots entrants)[index]? = some (some held) := by
@@ -1863,7 +1544,6 @@ theorem fillVacant_held {α : Type} (slots : List (Option α)) (entrants : List 
         | nil => simpa [fillVacant] using ih [] index later
         | cons entrant more => simpa [fillVacant] using ih more index later
 
-/-- Every filled position holds a slot that was held or an entrant. -/
 theorem fillVacant_source {α : Type} (slots : List (Option α)) (entrants : List α) (slot : α)
     (member : some slot ∈ fillVacant slots entrants) : some slot ∈ slots ∨ slot ∈ entrants := by
   induction slots generalizing entrants with
@@ -1890,15 +1570,12 @@ theorem fillVacant_source {α : Type} (slots : List (Option α)) (entrants : Lis
         · exact (ih more later).elim (fun inside => Or.inl (List.mem_cons_of_mem _ inside))
             (fun inside => Or.inr (List.mem_cons_of_mem _ inside))
 
-/-- A change of subset keeps a held slot at its position whenever the slot is still
-ranked, for every held vector and every ranking. -/
 theorem mergeSlots_retained {α : Type} [BEq α] [LawfulBEq α] (held : List (Option α))
     (order : List α) (index : Nat) (slot : α) (stored : held[index]? = some (some slot))
     (ranked : slot ∈ order) : (mergeSlots held order)[index]? = some (some slot) := by
   apply fillVacant_held
   simp [stored, Option.filter, ranked]
 
-/-- After a change of subset every modeled slot is ranked. -/
 theorem mergeSlots_ranked {α : Type} [BEq α] [LawfulBEq α] (held : List (Option α))
     (order : List α) (slot : α) (member : some slot ∈ mergeSlots held order) : slot ∈ order := by
   rcases fillVacant_source _ _ slot member with kept | entrant
@@ -1911,7 +1588,6 @@ theorem mergeSlots_ranked {α : Type} [BEq α] [LawfulBEq α] (held : List (Opti
       exact both.1
   · exact (List.mem_filter.mp entrant).1
 
-/-- A position that holds a slot is not the bias position, which holds none. -/
 theorem held_inside (ranked : RankedFeatures dimension) (position : RankIdx dimension)
     (feature : FeatIdx dimension) (held : ranked.slots[position.val] = some feature) :
     position.val + 1 < (rankDimension dimension).capacity := by
@@ -1923,7 +1599,6 @@ theorem held_inside (ranked : RankedFeatures dimension) (position : RankIdx dime
     contradiction
   · omega
 
-/-- Installing a ranking keeps every held slot that is still ranked at its position. -/
 theorem rerank_retained (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
     (position : RankIdx dimension) (feature : FeatIdx dimension)
     (fresh : order.Nodup)
@@ -1948,7 +1623,6 @@ theorem rerank_retained (ranked : RankedFeatures dimension) (order : List (FeatI
   obtain ⟨_, same⟩ := List.getElem?_eq_some_iff.mp appended
   simpa [RankedFeatures.rerank_slots, RankedFeatures.merged] using same
 
-/-- After installing a ranking every modeled slot is ranked. -/
 theorem rerank_ranked (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
     (fresh : order.Nodup) (position : RankIdx dimension) (feature : FeatIdx dimension)
     (modeled : (ranked.rerank order fresh).slots[position.val] = some feature) :
@@ -1961,8 +1635,6 @@ theorem rerank_ranked (ranked : RankedFeatures dimension) (order : List (FeatIdx
   · exact mergeSlots_ranked ranked.slots.toList.dropLast order feature kept
   · simp at last
 
-/-- Retiring a slot leaves no position holding it, whether one position held it or
-several. -/
 theorem retire_vacated (transition : Transition dimension criterion)
     (feature : FeatIdx dimension) (position : RankIdx dimension) :
     (transition.retire feature).ranked.slots[position.val] ≠ some feature := by
@@ -1978,7 +1650,6 @@ theorem retire_vacated (transition : Transition dimension criterion)
     rw [← holding]
     exact transition.ranked.vacate_holding feature position
 
-/-- Retiring positions keeps a learner's weight from every other position. -/
 theorem retire_fold_other (retired : List (RankIdx dimension)) (column : RankIdx dimension) :
     ∀ learner : Managed (criterion.config .demon) (rankDimension dimension), column ∉ retired →
       (retired.foldl (fun current position => current.retire position)
@@ -1992,7 +1663,6 @@ theorem retire_fold_other (retired : List (RankIdx dimension)) (column : RankIdx
     rw [List.foldl_cons, ih (learner.retire head) rest]
     exact CurrentRetirement.retireIndex_weight_other learner.state head column different
 
-/-- Retiring positions zeroes a learner's weight from each of them. -/
 theorem retire_fold_column (retired : List (RankIdx dimension)) (column : RankIdx dimension) :
     ∀ learner : Managed (criterion.config .demon) (rankDimension dimension),
       (column ∈ retired ∨ (learner.state.weights.get column).value = Binary32.zero) →
@@ -2017,8 +1687,6 @@ theorem retire_fold_column (retired : List (RankIdx dimension)) (column : RankId
         have kept := CurrentRetirement.retireIndex_weight_other learner.state head column same
         exact (congrArg Weight.value kept).trans zero
 
-/-- Forgetting positions leaves every other row's weight from every other position
-bit-identical: only the forgotten rows and input columns lose what was learned. -/
 theorem forget_other
     (rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
       (rankDimension dimension).capacity)
@@ -2032,8 +1700,6 @@ theorem forget_other
     Bool.false_eq_true, ↓reduceIte]
   exact retire_fold_other positions column _ keptColumn
 
-/-- Forgetting a position zeroes every other row's weight from it: no row keeps what
-it learned about the slot that was there. -/
 theorem forget_column
     (rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
       (rankDimension dimension).capacity)
@@ -2047,7 +1713,6 @@ theorem forget_column
     Bool.false_eq_true, ↓reduceIte]
   exact retire_fold_column positions column _ (Or.inl forgotten)
 
-/-- Forgetting a position replaces its row by a fresh learner. -/
 theorem forget_row
     (rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
       (rankDimension dimension).capacity)
@@ -2055,7 +1720,6 @@ theorem forget_row
     (Transition.forget rows positions).get row = Managed.initial _ _ := by
   simp [Transition.forget, vector_get, forgotten]
 
-/-- A deviation learner keeps its weight from every position that is not forgotten. -/
 theorem forgetColumns_other {size : Nat}
     (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) size)
     (positions : List (RankIdx dimension)) (index : Fin size) (column : RankIdx dimension)
@@ -2065,7 +1729,6 @@ theorem forgetColumns_other {size : Nat}
   simp only [Transition.forgetColumns, vector_get, Vector.getElem_map]
   exact retire_fold_other positions column _ kept
 
-/-- A deviation learner's weight from a forgotten position is zero. -/
 theorem forgetColumns_column {size : Nat}
     (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) size)
     (positions : List (RankIdx dimension)) (index : Fin size) (column : RankIdx dimension)
@@ -2075,7 +1738,6 @@ theorem forgetColumns_column {size : Nat}
   simp only [Transition.forgetColumns, vector_get, Vector.getElem_map]
   exact retire_fold_column positions column _ (Or.inl forgotten)
 
-/-- A position whose slot stays ranked is not among the changed positions. -/
 theorem retained_unchanged (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
     (fresh : order.Nodup) (position : RankIdx dimension) (feature : FeatIdx dimension)
     (held : ranked.slots[position.val] = some feature) (still : feature ∈ order) :
@@ -2085,8 +1747,6 @@ theorem retained_unchanged (ranked : RankedFeatures dimension) (order : List (Fe
   rw [rerank_retained ranked order position feature fresh held still, held] at differs
   simp at differs
 
-/-- The bias position is never among the changed positions: it holds no slot before
-or after any ranking. -/
 theorem bias_unchanged (ranked : RankedFeatures dimension) (order : List (FeatIdx dimension))
     (fresh : order.Nodup) :
     RankedFeatures.bias dimension ∉ ranked.changed (ranked.rerank order fresh) := by
@@ -2095,9 +1755,6 @@ theorem bias_unchanged (ranked : RankedFeatures dimension) (order : List (FeatId
   rw [(ranked.rerank order fresh).bias_vacant, ranked.bias_vacant] at differs
   simp at differs
 
-/-- A change of subset keeps what was learned between retained slots: the weight a
-retained slot's row holds for another retained slot is bit-identical after the new
-ranking is installed. Weights from a changed position are zeroed (`forget_column`). -/
 theorem rerank_weights (transition : Transition dimension criterion)
     (order : List (FeatIdx dimension)) (fresh : order.Nodup) (row column : RankIdx dimension)
     (rowFeature columnFeature : FeatIdx dimension)
@@ -2111,7 +1768,6 @@ theorem rerank_weights (transition : Transition dimension criterion)
     (retained_unchanged transition.ranked order fresh row rowFeature rowHeld rowStill)
     (retained_unchanged transition.ranked order fresh column columnFeature columnHeld columnStill)
 
-/-- A change of subset keeps a retained slot's bias weight bit-identical. -/
 theorem rerank_bias (transition : Transition dimension criterion)
     (order : List (FeatIdx dimension)) (fresh : order.Nodup) (row : RankIdx dimension)
     (rowFeature : FeatIdx dimension)
@@ -2124,8 +1780,6 @@ theorem rerank_bias (transition : Transition dimension criterion)
     (retained_unchanged transition.ranked order fresh row rowFeature rowHeld rowStill)
     (bias_unchanged transition.ranked order fresh)
 
-/-- A change of subset keeps every deviation learner's weight from each retained slot
-and from the bias bit-identical. -/
 theorem rerank_deviations (transition : Transition dimension criterion)
     (order : List (FeatIdx dimension)) (fresh : order.Nodup)
     (action : Action metaCount.word.toNat) (column : RankIdx dimension)
@@ -2139,8 +1793,6 @@ theorem rerank_deviations (transition : Transition dimension criterion)
   · rw [bias]
     exact bias_unchanged transition.ranked order fresh
 
-/-- The bias position is never a predicted outcome: no occupied entry names it, so no
-action value reads it and no row at it is updated. -/
 theorem bias_unoccupied (ranked : RankedFeatures dimension)
     (entry : RankIdx dimension × FeatIdx dimension) (member : entry ∈ ranked.occupied) :
     entry.1 ≠ RankedFeatures.bias dimension := by
@@ -2156,9 +1808,6 @@ theorem bias_unoccupied (ranked : RankedFeatures dimension)
     have last : position.val = (rankDimension dimension).capacity - 1 := congrArg Fin.val same
     omega
 
-/-! ## The terminal target of a row -/
-
-/-- Setting the entries at a list of positions leaves every other entry as it was. -/
 theorem fold_present (positions : List (RankIdx dimension)) :
     ∀ (seen : Vector Expectation (rankDimension dimension).capacity)
       (position : RankIdx dimension),
@@ -2178,7 +1827,6 @@ theorem fold_present (positions : List (RankIdx dimension)) :
       · have different : head.val ≠ position.val := fun equal => same (Fin.ext equal.symm)
         simp [later, same, vector_get, Vector.getElem_set_ne _ _ different]
 
-/-- A slot is looked up at exactly the position that holds it. -/
 theorem position_exact (ranked : RankedFeatures dimension) (position : RankIdx dimension)
     (feature : FeatIdx dimension) (held : ranked.slots[position.val] = some feature) :
     ranked.position feature = some position := by
@@ -2186,9 +1834,6 @@ theorem position_exact (ranked : RankedFeatures dimension) (position : RankIdx d
   rw [located, ranked.slot_unique found position feature
     (ranked.position_slot feature found located) held]
 
-/-- The indicator of a frame is one at an occupied position exactly when that position's
-slot is active in the frame, and zero otherwise. With `Transition.terminal` this is the
-terminal target of every row: `γ` times its own slot's activity at the terminal frame. -/
 theorem indicator_exact (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) (position : RankIdx dimension)
     (feature : FeatIdx dimension) (held : ranked.slots[position.val] = some feature) :
@@ -2215,10 +1860,6 @@ theorem indicator_exact (ranked : RankedFeatures dimension)
       active (member.mp inside)
     simp [active, absent, vector_get]
 
-/-! ## Search control -/
-
-/-- The position search control reads after `count` boundaries: each boundary moves it
-one step against the write order. -/
 theorem sweep_position (count : Nat)
     (position : Fin Acorn.FeatureConstants.optionMaxDuration) :
     (Nat.iterate RecentFeatures.before count position).val =
@@ -2234,8 +1875,6 @@ theorem sweep_position (count : Nat)
     rw [ih (RecentFeatures.before position), step]
     omega
 
-/-- The sweep reaches every stored position within one pass: from any position, any
-target is read after fewer than the store's size of boundaries. -/
 theorem sweep_reaches (position target : Fin Acorn.FeatureConstants.optionMaxDuration) :
     Nat.iterate RecentFeatures.before ((position.val + 128 - target.val) % 128) position =
       target := by
@@ -2245,14 +1884,6 @@ theorem sweep_reaches (position target : Fin Acorn.FeatureConstants.optionMaxDur
   rw [sweep_position]
   omega
 
-/-! ## An option model's predictions are finite -/
-
-/-- An option model's continuation and duration predictions are finite, for every model state,
-value function, frame and age, under both criteria. A product of an infinite word with zero is
-not a zero word, so a claim that planning writes zero at a zero value needs this. The discounted
-continuation and the duration of either criterion are projected into finite ranges; the raw
-differential continuation is finite by `differential_continuation_bound`. Each learner's own
-prediction before the look-ahead and the projections is finite by `prediction_bound`. -/
 theorem model_predictions_finite {criterion : Criterion} {dimension : Dimension}
     (model : Model dimension criterion) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (age : ModelAge) :

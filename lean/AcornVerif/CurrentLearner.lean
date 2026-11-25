@@ -1,31 +1,8 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.SwiftTd
 import AcornVerif.CurrentPrediction
 import AcornVerif.CurrentState
 import AcornVerif.CurrentLearnerArithmetic
 import Mathlib.Data.Fintype.Card
-/-!
-# Contracts of the executing current learner
-
-These statements refer directly to `Acorn.NumericState` transitions. Knowledge
-legality and dimension preservation follow from the result types, including
-exceptional raw inputs. Process-local registers have a separate support
-invariant; no bound on their numerical magnitude follows from projection.
-
-Ordered machine operations remain ordered in every identity. The real-valued
-SwiftTD identities in `MetaGradient` apply to their mathematical domains, not
-to reassociated machine expressions here.
-
-The recurrence source is Javed, Sharifnassab & Sutton, *SwiftTD: A Fast and
-Robust Algorithm for Temporal Difference Learning*, Reinforcement Learning
-Journal 2 (2024), Algorithm 1 (p. 848) and equation (32) (printed p. 18).
-Native arithmetic, compiler/runtime,
-and ownership implementation are the declared execution trust boundaries.
--/
 
 open Acorn Acorn.SwiftTd
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder
@@ -36,30 +13,24 @@ namespace AcornVerif.CurrentLearner
 
 variable {config : Config} {dimension : Dimension}
 
-/-- Fin-indexed vector reads have the same elements as bounded Nat reads. -/
 theorem vector_get {α : Type} {capacity : Nat} (values : Vector α capacity) (idx : Fin capacity) :
     values.get idx = values[idx.val] := by
   simp only [Vector.get, Fin.val_cast, Vector.getElem_toArray]
 
-/-- Finite numeric equality identifies precisely equal order keys, including
-the two encodings of zero. -/
 theorem finite_equal (left right : Binary32) (hl : left.Finite) (hr : right.Finite) :
     left.numericallyEqual right = decide (left.key = right.key) := by
   simp [Binary32.numericallyEqual_eq_key, Binary32.finite_not_nan left hl,
     Binary32.finite_not_nan right hr]
 
-/-- The stored comparison has the exact rational ordering on finite inputs. -/
 theorem finite_lessOrEqual (left right : Binary32) (hl : left.Finite) (hr : right.Finite) :
     left.lessOrEqual right = decide (numerical32 left ≤ numerical32 right) := by
   simp [Binary32.lessOrEqual_eq_key, Binary32.finite_not_nan left hl,
     Binary32.finite_not_nan right hr, numerical32_order left right hl hr]
 
-/-- A zero encoding has zero order key; no finiteness premise is assumed. -/
 theorem zero_key (word : Binary32) (zero : word.isZero = true) : word.key = 0 := by
   rw [Binary32.isZero_eq_key] at zero
   exact of_decide_eq_true zero
 
-/-- A nonnegative non-NaN pruning threshold removes either zero encoding. -/
 theorem zero_pruned (word threshold : Binary32) (zero : word.isZero = true)
     (ordered : threshold.isNaN = false) (nonnegative : 0 ≤ threshold.key) :
     word.lessOrEqual threshold = true := by
@@ -71,34 +42,24 @@ theorem zero_pruned (word threshold : Binary32) (zero : word.isZero = true)
     simp [Binary32.isNaN_eq_magnitude, hm]
   simp [Binary32.lessOrEqual_eq_key, hn, ordered, zero_key word zero, nonnegative]
 
-/-- Every unique active-feature set fits the admitted dimension. -/
 theorem active_cardinality (features : ActiveSet dimension) :
     features.indices.length ≤ dimension.capacity := by
   simpa using features.nodup.length_le_card
 
-/-- The capacity is the greatest size of an active set: the set of every index fills the
-dimension. A bound at the capacity in place of an active set's length is therefore that bound at
-some active set. -/
 theorem active_cardinality_attained (dimension : Dimension) :
     ∃ features : ActiveSet dimension, features.indices.length = dimension.capacity :=
   ⟨⟨List.finRange dimension.capacity, List.nodup_finRange _⟩, List.length_finRange⟩
 
-/-- A unique eligible sequence fits the dimension; uniqueness is an explicit
-premise because standalone second-loop calls may append existing members. -/
 theorem eligible_cardinality (state : NumericState config dimension)
     (unique : state.transient.eligible.toList.Nodup) :
     state.eligibleCount ≤ dimension.capacity := by
   simpa [NumericState.eligibleCount] using unique.length_le_card
 
-/-- Every stored knowledge word is legal at every slot, for every state of
-the result type of every learner entry and restore boundary. -/
 theorem knowledge_legal (state : NumericState config dimension) (idx : FeatIdx dimension) :
     config.rule.domain.range.Contains (state.weights.get idx).value ∧
       state.rails.range.Contains (state.beta.get idx).value :=
   ⟨weight_legal (state.weights.get idx), (state.beta.get idx).legal⟩
 
-/-- The actual public prediction obeys the existing ordered-machine-sum
-envelope on all admitted configurations, dimensions, states and active sets. -/
 theorem prediction_bound (state : NumericState config dimension) (features : ActiveSet dimension) :
     (state.predict features).Finite ∧
       |numerical32 (state.predict features)| ≤ predictionRadius features.indices.length := by
@@ -107,22 +68,17 @@ theorem prediction_bound (state : NumericState config dimension) (features : Act
   simpa [NumericState.predict_def, NumericState.linearPrediction_eq_sumFrom,
     List.map_map, Function.comp_def] using bound
 
-/-- Clearing installs exact zero registers and an empty eligible sequence. -/
 theorem clear_transient (state : NumericState config dimension) :
     state.clearTransient.transient = TransientState.zero dimension := rfl
 
-/-- Clearing preserves all learned words and the receiver's derived rails. -/
 theorem clear_knowledge (state : NumericState config dimension) :
     state.clearTransient.weights = state.weights ∧
       state.clearTransient.rails = state.rails ∧
       state.clearTransient.beta = state.beta := ⟨rfl, rfl, rfl⟩
 
-/-- Initialization has no process-local selective-credit state. -/
 theorem initial_transient :
     (NumericState.initial config dimension).transient = TransientState.zero dimension := rfl
 
-/-- The full learner step returns the entry prediction and its ordered error,
-before the loops write the next knowledge state. -/
 theorem step_observation (state : NumericState config dimension) (features : ActiveSet dimension)
     (reward : Binary32) :
     (state.step config features reward).2 =
@@ -131,17 +87,13 @@ theorem step_observation (state : NumericState config dimension) (features : Act
           state.transient.vOld⟩ := by
   rfl
 
-/-- A terminal update clears every transient even when the raw target or
-error is nonfinite. -/
 theorem terminal_transient (state : NumericState config dimension) (target : Binary32) :
     (state.terminalStep config target).1.transient = TransientState.zero dimension := rfl
 
-/-- Swap-remove decrements the eligible size by one for every valid position. -/
 theorem swap_remove_size {α : Type} (items : Array α) (pos : Nat) (valid : pos < items.size) :
     (swapRemove items pos valid).size = items.size - 1 := by
   simp [swapRemove]
 
-/-- Array uniqueness is exactly injectivity of valid indexed reads. -/
 theorem array_nodup_iff {α : Type} (items : Array α) :
     items.toList.Nodup ↔
       ∀ (i j : Nat) (hi : i < items.size) (hj : j < items.size),
@@ -158,8 +110,6 @@ theorem array_nodup_iff {α : Type} (items : Array α) :
     exact injective i.val j.val (by simp) (by simp)
       (by simpa using equality)
 
-/-- Every surviving array position reads either its original element or the
-original last element moved into the removed position. -/
 theorem swap_remove_get {α : Type} (items : Array α) (pos : Nat) (valid : pos < items.size)
     (idx : Nat) (inside : idx < (swapRemove items pos valid).size) :
     (swapRemove items pos valid)[idx] =
@@ -167,7 +117,6 @@ theorem swap_remove_get {α : Type} (items : Array α) (pos : Nat) (valid : pos 
         rw [swap_remove_size] at inside; omega) := by
   simp [swapRemove, Array.getElem_set]
 
-/-- Swap-remove cannot introduce an index that was absent from its input. -/
 theorem swap_remove_subset {α : Type} (items : Array α) (pos : Nat) (valid : pos < items.size)
     (value : α) (member : value ∈ swapRemove items pos valid) : value ∈ items := by
   obtain ⟨idx, inside, equality⟩ := Array.mem_iff_getElem.mp member
@@ -176,8 +125,6 @@ theorem swap_remove_subset {α : Type} (items : Array α) (pos : Nat) (valid : p
   · exact equality ▸ Array.getElem_mem _
   · exact equality ▸ Array.getElem_mem _
 
-/-- Every value other than the removed value survives swap-remove, even when
-the input is a sequence with repeated members. -/
 theorem swap_remove_preserves_other {α : Type} (items : Array α) (pos : Nat)
     (valid : pos < items.size) (value : α) (different : value ≠ items[pos])
     (member : value ∈ items) : value ∈ swapRemove items pos valid := by
@@ -197,7 +144,6 @@ theorem swap_remove_preserves_other {α : Type} (items : Array α) (pos : Nat)
     rw [swap_remove_get, ite_eq_right notPos]
     exact equality
 
-/-- Unique eligible sequences stay unique through swap-remove. -/
 theorem swap_remove_nodup {α : Type} (items : Array α) (pos : Nat) (valid : pos < items.size)
     (unique : items.toList.Nodup) : (swapRemove items pos valid).toList.Nodup := by
   apply (array_nodup_iff _).mpr
@@ -213,7 +159,6 @@ theorem swap_remove_nodup {α : Type} (items : Array α) (pos : Nat) (valid : po
     omega
   · exact (array_nodup_iff items).mp unique _ _ _ _ equality
 
-/-- All nine per-index raw transient words, in their declared storage order. -/
 def registers (state : NumericState config dimension) (idx : FeatIdx dimension) :
     Vector Binary32 9 :=
   #v[(state.transient.z.get idx).value, (state.transient.zDelta.get idx).value,
@@ -222,31 +167,23 @@ def registers (state : NumericState config dimension) (idx : FeatIdx dimension) 
     (state.transient.hOld.get idx).value, (state.transient.hTemp.get idx).value,
     (state.transient.p.get idx).value]
 
-/-- The selective-credit support contract, separate from numerical bounds. -/
 def Supported (state : NumericState config dimension)
     (eligible : Array (FeatIdx dimension)) : Prop :=
   ∀ idx, idx ∉ eligible → registers state idx = Vector.replicate 9 Binary32.zero
 
-/-- The reference alone has a finite nonnegative numerical bound; other
-transient registers deliberately do not inherit it. -/
 def ReferenceLegal (word : Binary32) : Prop :=
   word.Finite ∧ 0 ≤ numerical32 word ∧ numerical32 word ≤ 5
 
-/-- Every pruning reference is legal, including dormant zero references. -/
 def ReferencesLegal (state : NumericState config dimension) : Prop :=
   ∀ idx, ReferenceLegal (state.transient.lastAlpha.get idx).value
 
-/-- The process-local invariant preserved without a caller scheduling premise. -/
 def CoreInv (state : NumericState config dimension) : Prop :=
   Supported state state.transient.eligible ∧ ReferencesLegal state
 
-/-- The condition needed immediately before an active-set admission: no
-duplicate eligible index and no eligible zero trace. -/
 def Ready (state : NumericState config dimension) : Prop :=
   state.transient.eligible.toList.Nodup ∧
     ∀ idx ∈ state.transient.eligible, (state.transient.z.get idx).value.isZero = false
 
-/-- Reset establishes the complete support and reference invariants. -/
 theorem clear_core (state : NumericState config dimension) : CoreInv state.clearTransient := by
   constructor
   · intro idx _
@@ -258,20 +195,15 @@ theorem clear_core (state : NumericState config dimension) : CoreInv state.clear
       vector_get, Vector.getElem_replicate]
     exact ⟨by decide, le_refl 0, by change (0:ℚ) ≤ 5; norm_num⟩
 
-/-- Reset also establishes the next admission's uniqueness and nonzero-trace
-premises by its empty eligible sequence. -/
 theorem clear_ready (state : NumericState config dimension) : Ready state.clearTransient := by
   simp [Ready, NumericState.clearTransient_def, TransientState.zero_def]
 
-/-- Initialization establishes the same invariants through its actual storage constructor. -/
 theorem initial_core : CoreInv (NumericState.initial config dimension) :=
   clear_core (NumericState.initial config dimension)
 
-/-- Initialization establishes the same admission readiness as reset. -/
 theorem initial_ready : Ready (NumericState.initial config dimension) :=
   clear_ready (NumericState.initial config dimension)
 
-/-- Clearing one feature zeros all nine of its own raw registers. -/
 theorem clear_feature_self (state : NumericState config dimension) (idx : FeatIdx dimension) :
     registers (state.clearFeatureRegisters idx) idx = Vector.replicate 9 Binary32.zero := by
   simp only [registers, NumericState.clearFeatureRegisters,
@@ -287,7 +219,6 @@ theorem clear_feature_self (state : NumericState config dimension) (idx : FeatId
       vector_get, Vector.getElem_set_self]
   rfl
 
-/-- Clearing one feature leaves every other feature's registers unchanged. -/
 theorem clear_feature_other (state : NumericState config dimension) (idx other : FeatIdx dimension)
     (different : idx ≠ other) :
     registers (state.clearFeatureRegisters idx) other = registers state other := by
@@ -304,8 +235,6 @@ theorem clear_feature_other (state : NumericState config dimension) (idx other :
       NumericState.writeP,
       vector_get, Vector.getElem_set, distinct, ite_false]
 
-/-- One first-loop visit cannot change another feature's knowledge or any of
-its nine registers, regardless of projection, exceptional inputs or pruning. -/
 theorem first_element_frame (state : NumericState config dimension) (idx other : FeatIdx dimension)
     (different : idx ≠ other) (delta vDelta decay : Binary32) :
     let next := (state.firstLoopElement idx delta vDelta decay).1
@@ -316,20 +245,16 @@ theorem first_element_frame (state : NumericState config dimension) (idx other :
   simp only [NumericState.firstLoopElement, registers, vector_get,
     Vector.getElem_set, distinct, ite_false, and_self]
 
-/-- A first-loop visit preserves the complete pruning-reference array. -/
 theorem first_element_reference (state : NumericState config dimension) (idx : FeatIdx dimension)
     (delta vDelta decay : Binary32) :
     (state.firstLoopElement idx delta vDelta decay).1.transient.lastAlpha =
       state.transient.lastAlpha := rfl
 
-/-- A first-loop visit preserves the eligible sequence until its enclosing
-traversal performs swap-remove. -/
 theorem first_element_eligible (state : NumericState config dimension) (idx : FeatIdx dimension)
     (delta vDelta decay : Binary32) :
     (state.firstLoopElement idx delta vDelta decay).1.transient.eligible =
       state.transient.eligible := rfl
 
-/-- The pruning decision reads the updated trace and its unchanged reference. -/
 theorem first_element_prune (state : NumericState config dimension) (idx : FeatIdx dimension)
     (delta vDelta decay : Binary32) :
     let result := state.firstLoopElement idx delta vDelta decay
@@ -337,9 +262,6 @@ theorem first_element_prune (state : NumericState config dimension) (idx : FeatI
       ((result.1.transient.lastAlpha.get idx).value.mul config.epsilon) := by
   simp only [NumericState.firstLoopElement, vector_get, Vector.getElem_set_self]
 
-/-- Projection binding re-anchors the actual first-loop registers before
-ordered adaptation and decay. Zero times a raw nonfinite decay is deliberately
-left as a machine expression, not incorrectly simplified to zero. -/
 theorem first_element_reanchor (state : NumericState config dimension) (idx : FeatIdx dimension)
     (delta vDelta decay : Binary32)
     (clipped : ((Weight.project config.rule
@@ -362,8 +284,6 @@ theorem first_element_reanchor (state : NumericState config dimension) (idx : Fe
   simp only [vector_get] at clipped
   simp [NumericState.firstLoopElement, vector_get, clipped]
 
-/-- Overshoot clears the three adaptation registers only after the trace
-increment reads the entry beta. The reference is that exact computed increment. -/
 theorem second_element_overshoot (state : NumericState config dimension) (idx : FeatIdx dimension)
     (denominator total vDelta : Binary32) :
     let next := (NumericState.secondLoopElement config true denominator total state vDelta idx).1
@@ -378,7 +298,6 @@ theorem second_element_overshoot (state : NumericState config dimension) (idx : 
   simp [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
     NumericState.writeBetaValue, vector_get]
 
-/-- One active visit cannot change another feature's knowledge or registers. -/
 theorem second_element_frame (state : NumericState config dimension)
     (idx other : FeatIdx dimension) (different : idx ≠ other)
     (overshoot : Bool) (denominator total vDelta : Binary32) :
@@ -393,7 +312,6 @@ theorem second_element_frame (state : NumericState config dimension)
       NumericState.writeBetaValue, registers,
       vector_get, Vector.getElem_set, distinct, ite_false, ite_true, Bool.false_eq_true, and_self]
 
-/-- The only eligible admission of an active visit reads the entry trace. -/
 theorem second_element_eligible (state : NumericState config dimension) (idx : FeatIdx dimension)
     (overshoot : Bool) (denominator total vDelta : Binary32) :
     let next :=
@@ -402,26 +320,22 @@ theorem second_element_eligible (state : NumericState config dimension) (idx : F
         state.transient.eligible.push idx else state.transient.eligible := by
   cases overshoot <;> rfl
 
-/-- The zero-vector support equation includes the actual trace read by admission. -/
 theorem registers_zero_trace (state : NumericState config dimension) (idx : FeatIdx dimension)
     (zero : registers state idx = Vector.replicate 9 Binary32.zero) :
     (state.transient.z.get idx).value = .zero := by
   have equation := congrArg (fun (words : Vector Binary32 9) => words[0]) zero
   simpa [registers] using equation
 
-/-- Equality of register snapshots includes the actual admission trace. -/
 theorem registers_trace_eq (left right : NumericState config dimension) (idx : FeatIdx dimension)
     (same : registers left idx = registers right idx) :
     (left.transient.z.get idx).value = (right.transient.z.get idx).value := by
   exact congrArg (fun (words : Vector Binary32 9) => words[0]) same
 
-/-- Equality of register snapshots includes the pruning reference. -/
 theorem registers_reference_eq (left right : NumericState config dimension)
     (idx : FeatIdx dimension) (same : registers left idx = registers right idx) :
     (left.transient.lastAlpha.get idx).value = (right.transient.lastAlpha.get idx).value := by
   exact congrArg (fun (words : Vector Binary32 9) => words[3]) same
 
-/-- Clearing preserves reference legality at the modified and untouched slots. -/
 theorem clear_feature_references (state : NumericState config dimension) (idx : FeatIdx dimension)
     (legal : ReferencesLegal state) : ReferencesLegal (state.clearFeatureRegisters idx) := by
   intro other
@@ -436,7 +350,6 @@ theorem clear_feature_references (state : NumericState config dimension) (idx : 
   · rw [registers_reference_eq _ _ other (clear_feature_other state idx other same)]
     exact legal other
 
-/-- A visit inside a work sequence leaves its off-sequence support invariant. -/
 theorem first_element_supported (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (idx : FeatIdx dimension) (member : idx ∈ work)
     (delta vDelta decay : Binary32) (support : Supported state work) :
@@ -446,8 +359,6 @@ theorem first_element_supported (state : NumericState config dimension)
   rw [(first_element_frame state idx other different delta vDelta decay).2.2]
   exact support other absent
 
-/-- A pruned feature's complete clear closes the support contract for the
-shortened work sequence; unrelated members survive the actual swap-remove. -/
 theorem prune_supported (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) (valid : pos < work.size)
     (support : Supported state work) :
@@ -461,8 +372,6 @@ theorem prune_supported (state : NumericState config dimension)
     intro member
     exact absent (swap_remove_preserves_other work pos valid other (Ne.symm same) member)
 
-/-- Every first-loop traversal preserves support and reference legality over
-all raw arguments and arbitrary eligible sequences, including duplicates. -/
 theorem first_loop_go_core (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) (delta vDelta decay : Binary32)
     (support : Supported state work) (references : ReferencesLegal state) :
@@ -500,14 +409,10 @@ theorem first_loop_go_core (state : NumericState config dimension)
     rw [NumericState.learnFirstLoopGo_def, dite_eq_right finished]
     exact ⟨support, references⟩
 
-/-- The public first loop preserves the core invariant with no scheduling or
-normal-stream restriction on its raw delta, shared accumulator or decay. -/
 theorem first_loop_core (state : NumericState config dimension) (delta vDelta decay : Binary32)
     (core : CoreInv state) : CoreInv (state.learnFirstLoop config delta vDelta decay) := by
   exact first_loop_go_core _ _ _ _ _ _ core.1 core.2
 
-/-- Every active visit records exactly its normalized increment as its
-pruning reference, before any overshoot beta decay. -/
 theorem second_element_reference (state : NumericState config dimension) (idx : FeatIdx dimension)
     (overshoot : Bool) (denominator total vDelta : Binary32) :
     let next :=
@@ -519,7 +424,6 @@ theorem second_element_reference (state : NumericState config dimension) (idx : 
       NumericState.writeBetaValue, vector_get,
       Vector.getElem_set_self, ite_false, ite_true, Bool.false_eq_true]
 
-/-- Existing eligible members survive an active visit in their existing order. -/
 theorem second_element_contains (state : NumericState config dimension)
     (idx other : FeatIdx dimension) (overshoot : Bool) (denominator total vDelta : Binary32)
     (member : other ∈ state.transient.eligible) :
@@ -532,8 +436,6 @@ theorem second_element_contains (state : NumericState config dimension)
   · exact Array.mem_push.mpr (Or.inl member)
   · exact member
 
-/-- Support makes the active slot eligible after its visit: either it was
-already eligible, or its dormant zero trace causes admission. -/
 theorem second_element_self (state : NumericState config dimension) (idx : FeatIdx dimension)
     (overshoot : Bool) (denominator total vDelta : Binary32)
     (support : Supported state state.transient.eligible) :
@@ -550,8 +452,6 @@ theorem second_element_self (state : NumericState config dimension) (idx : FeatI
     rw [zero] at nonzero
     exact nonzero rfl
 
-/-- An active visit preserves all dormant-zero support, even if the eligible
-sequence already has duplicates or the newly written trace becomes zero. -/
 theorem second_element_supported (state : NumericState config dimension) (idx : FeatIdx dimension)
     (overshoot : Bool) (denominator total vDelta : Binary32)
     (support : Supported state state.transient.eligible) :
@@ -568,8 +468,6 @@ theorem second_element_supported (state : NumericState config dimension) (idx : 
   intro member
   exact absent (second_element_contains state idx other overshoot denominator total vDelta member)
 
-/-- A normalized active visit preserves the core invariant, over all raw
-total-trace and shared-accumulator words. -/
 theorem second_element_core (state : NumericState config dimension) (idx : FeatIdx dimension)
     (rate total vDelta : Binary32) (finite : rate.Finite) (core : CoreInv state) :
     let overshoot := config.eta.less rate
@@ -586,9 +484,6 @@ theorem second_element_core (state : NumericState config dimension) (idx : FeatI
       (second_element_frame state idx other same _ _ _ _).2.2]
     exact core.2 other
 
-/-- Finite-prefix composition of the listed active fold preserves the core
-invariant; `NumericState.learnSecondLoop_eq_sumFrom` equates the executing
-traversal with it. No uniqueness premise is needed for this weaker guarantee. -/
 theorem second_fold_core (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (rate total vDelta : Binary32)
     (finite : rate.Finite) (core : CoreInv state) :
@@ -602,8 +497,6 @@ theorem second_fold_core (indices : List (FeatIdx dimension))
   | cons idx rest ih =>
     exact ih _ _ (second_element_core state idx rate total vDelta finite core)
 
-/-- The public second loop preserves the core invariant on every call,
-including consecutive standalone calls with arbitrary shared accumulators. -/
 theorem second_loop_core (state : NumericState config dimension) (features : ActiveSet dimension)
     (vDelta : Binary32) (core : CoreInv state) :
     CoreInv (state.learnSecondLoop config features vDelta).1 := by
@@ -612,9 +505,6 @@ theorem second_loop_core (state : NumericState config dimension) (features : Act
   rw [NumericState.learnSecondLoop_eq_sumFrom]
   exact second_fold_core features.indices state _ _ vDelta finite core
 
-/-- Exact eligible-sequence change of the listed fold over unique active
-indices. The filter reads the entry state because earlier distinct visits
-cannot alter a later feature's trace. -/
 theorem second_fold_eligible (indices : List (FeatIdx dimension)) (unique : indices.Nodup)
     (state : NumericState config dimension) (overshoot : Bool)
     (denominator total vDelta : Binary32) :
@@ -643,9 +533,6 @@ theorem second_fold_eligible (indices : List (FeatIdx dimension)) (unique : indi
     rw [unchanged, second_element_eligible]
     split <;> simp_all [List.append_assoc]
 
-/-- The public second loop appends exactly the active indices whose entry
-trace is zero. This identity covers every state, including arbitrary existing
-duplicates, signed zero and exceptional transient encodings. -/
 theorem second_loop_eligible (state : NumericState config dimension)
     (features : ActiveSet dimension)
     (vDelta : Binary32) :
@@ -655,8 +542,6 @@ theorem second_loop_eligible (state : NumericState config dimension)
   rw [NumericState.learnSecondLoop_eq_sumFrom]
   exact second_fold_eligible features.indices features.nodup state _ _ _ vDelta
 
-/-- The actual eligible count grows by precisely the number of zero-trace
-active admissions; repeated calls have no unconditional capacity bound. -/
 theorem second_loop_count (state : NumericState config dimension) (features : ActiveSet dimension)
     (vDelta : Binary32) :
     (state.learnSecondLoop config features vDelta).1.eligibleCount = state.eligibleCount +
@@ -664,8 +549,6 @@ theorem second_loop_count (state : NumericState config dimension) (features : Ac
   have equation := congrArg List.length (second_loop_eligible state features vDelta)
   simpa [NumericState.eligibleCount] using equation
 
-/-- One second loop adds at most the active-set cardinality, even for an
-undisciplined caller whose existing eligible sequence has duplicates. -/
 theorem second_loop_count_le (state : NumericState config dimension)
     (features : ActiveSet dimension) (vDelta : Binary32) :
     (state.learnSecondLoop config features vDelta).1.eligibleCount ≤
@@ -673,8 +556,6 @@ theorem second_loop_count_le (state : NumericState config dimension)
   rw [second_loop_count]
   exact Nat.add_le_add_left (List.length_filter_le _ _) _
 
-/-- A ready state admits no existing eligible member; active-set uniqueness
-then suffices for the resulting eligible sequence to remain unique. -/
 theorem second_loop_unique (state : NumericState config dimension) (features : ActiveSet dimension)
     (vDelta : Binary32) (ready : Ready state) :
     (state.learnSecondLoop config features vDelta).1.transient.eligible.toList.Nodup := by
@@ -687,8 +568,6 @@ theorem second_loop_unique (state : NumericState config dimension) (features : A
   rw [← same, nonzero] at zero
   contradiction
 
-/-- A retained first-loop visit cannot leave a zero trace: its legal
-reference makes either zero encoding satisfy the actual pruning comparison. -/
 theorem first_element_retained_nonzero (state : NumericState config dimension)
     (idx : FeatIdx dimension) (delta vDelta decay : Binary32)
     (references : ReferencesLegal state)
@@ -707,14 +586,11 @@ theorem first_element_retained_nonzero (state : NumericState config dimension)
   rw [← decision, retained] at prunes
   contradiction
 
-/-- Every processed position has a nonzero trace; the unprocessed suffix has
-no such premise. This follows the actual swap-remove cursor. -/
 def Processed (state : NumericState config dimension) (work : Array (FeatIdx dimension))
     (pos : Nat) : Prop :=
   ∀ (idx : Nat) (valid : idx < work.size), idx < pos →
     (state.transient.z.get work[idx]).value.isZero = false
 
-/-- Processing a distinct position leaves every earlier processed trace alone. -/
 theorem first_element_processed (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) (valid : pos < work.size)
     (delta vDelta decay : Binary32) (unique : work.toList.Nodup)
@@ -729,8 +605,6 @@ theorem first_element_processed (state : NumericState config dimension)
     (first_element_frame state work[pos] work[idx] different delta vDelta decay).2.2]
   exact processed idx inside before
 
-/-- Pruning does not move or clear an earlier processed feature in a unique
-work sequence. The moved tail occupies the current unprocessed position. -/
 theorem prune_processed (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) (valid : pos < work.size)
     (unique : work.toList.Nodup) (processed : Processed state work pos) :
@@ -747,9 +621,6 @@ theorem prune_processed (state : NumericState config dimension)
     (clear_feature_other state work[pos] work[idx] different)]
   exact processed idx original before
 
-/-- From unique entry eligibility, the first loop re-establishes admission
-readiness. Raw deltas and decays remain unrestricted; reference legality is
-the numerical premise that justifies the zero-pruning step. -/
 theorem first_loop_go_ready (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) (delta vDelta decay : Binary32)
     (unique : work.toList.Nodup) (references : ReferencesLegal state)
@@ -805,8 +676,6 @@ theorem first_loop_go_ready (state : NumericState config dimension)
     change j < work.size at inside
     exact processed j inside (by omega)
 
-/-- The public first loop makes a unique eligible state ready for the next
-second-loop admission. It does not manufacture uniqueness from a duplicate input. -/
 theorem first_loop_ready (state : NumericState config dimension) (delta vDelta decay : Binary32)
     (unique : state.transient.eligible.toList.Nodup) (references : ReferencesLegal state) :
     Ready (state.learnFirstLoop config delta vDelta decay) := by
@@ -817,15 +686,11 @@ theorem first_loop_ready (state : NumericState config dimension) (delta vDelta d
   · intro idx valid before
     omega
 
-/-- A finite trace decayed by zero is a zero encoding under the actual multiply. -/
 theorem zero_decay_trace (word : Binary32) (finite : word.Finite) :
     (word.mul .zero).isZero = true := by
   rw [Binary32.isZero_eq_key, mul32_zero word finite]
   rfl
 
-/-- From the head of a unique worklist, the first loop leaves nothing eligible when
-every listed trace decays to a zero encoding: each visit prunes, so the cursor
-never advances. Raw errors and accumulators remain unrestricted. -/
 theorem first_loop_go_empty (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) (delta vDelta decay : Binary32)
     (start : pos = 0) (unique : work.toList.Nodup) (references : ReferencesLegal state)
@@ -892,8 +757,6 @@ theorem first_loop_go_empty (state : NumericState config dimension)
     have empty : work.size = 0 := by omega
     exact Array.eq_empty_of_size_eq_zero empty
 
-/-- The public first loop leaves nothing eligible when every eligible trace decays
-to a zero encoding, for arbitrary raw error, accumulator and decay words. -/
 theorem first_loop_empty (state : NumericState config dimension) (delta vDelta decay : Binary32)
     (unique : state.transient.eligible.toList.Nodup) (references : ReferencesLegal state)
     (absorbed : ∀ idx ∈ state.transient.eligible,
@@ -907,11 +770,6 @@ theorem first_loop_empty (state : NumericState config dimension) (delta vDelta d
   · intro j valid
     exact absorbed _ (Array.getElem_mem valid)
 
-/-- At zero trace decay the first loop leaves nothing eligible whenever every
-eligible trace is finite, for arbitrary raw error and accumulator words. The
-actual binary32 multiply supplies the zero product
-(`AcornVerif.CurrentLearnerArithmetic.mul32_zero`). A nonfinite trace is outside
-this statement. -/
 theorem first_loop_stop (state : NumericState config dimension) (delta vDelta : Binary32)
     (unique : state.transient.eligible.toList.Nodup) (references : ReferencesLegal state)
     (finite : ∀ idx ∈ state.transient.eligible, (state.transient.z.get idx).value.Finite) :
@@ -919,20 +777,14 @@ theorem first_loop_stop (state : NumericState config dimension) (delta vDelta : 
   first_loop_empty state delta vDelta .zero unique references fun idx member =>
     zero_decay_trace _ (finite idx member)
 
-/-- Equal complete transient storage carries the same core invariant,
-independently of any legal weight or beta changes. -/
 theorem core_of_transient_eq (before after : NumericState config dimension)
     (same : after.transient = before.transient) (core : CoreInv before) : CoreInv after := by
   simpa only [CoreInv, Supported, ReferencesLegal, registers, same] using core
 
-/-- Equal complete transient storage carries the same admission readiness. -/
 theorem ready_of_transient_eq (before after : NumericState config dimension)
     (same : after.transient = before.transient) (ready : Ready before) : Ready after := by
   simpa only [Ready, same] using ready
 
-/-- The background weight fold that `NumericState.planStep_eq_foldl` equates
-the executing traversal with leaves every transient array, eligible element
-and aggregate word exactly unchanged. -/
 theorem plan_fold_transient (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (scale delta : Binary32) :
     (indices.foldl (fun s idx =>
@@ -943,8 +795,6 @@ theorem plan_fold_transient (indices : List (FeatIdx dimension))
   | nil => rfl
   | cons idx rest ih => exact ih _
 
-/-- Planning preserves exact process-local storage on both the no-update and
-update branches, for every raw target. -/
 theorem plan_transient (state : NumericState config dimension) (features : ActiveSet dimension)
     (target : Binary32) :
     (state.planStep config features target).1.transient = state.transient := by
@@ -954,25 +804,18 @@ theorem plan_transient (state : NumericState config dimension) (features : Activ
   · rfl
   · exact plan_fold_transient features.indices state _ _
 
-/-- Every complete TD step preserves the core invariant, including its two
-aggregate writes after the actual loops. -/
 theorem step_core (state : NumericState config dimension) (features : ActiveSet dimension)
     (reward : Binary32) (core : CoreInv state) :
     CoreInv (state.step config features reward).1 := by
   exact second_loop_core _ features .zero (first_loop_core state _ _ _ core)
 
-/-- Beginning a trajectory establishes the core invariant from any raw
-numeric state because it first clears every process-local register. -/
 theorem begin_core (state : NumericState config dimension) (features : ActiveSet dimension) :
     CoreInv (state.beginTrajectory config features) := by
   exact second_loop_core state.clearTransient features .zero (clear_core state)
 
-/-- Terminal update clears establish the core invariant independently of
-the entry transients and the raw target. -/
 theorem terminal_core (state : NumericState config dimension) (target : Binary32) :
     CoreInv (state.terminalStep config target).1 := clear_core _
 
-/-- Clearing one slot without removing eligibility preserves dormant support. -/
 theorem clear_feature_supported (state : NumericState config dimension) (idx : FeatIdx dimension)
     (support : Supported state state.transient.eligible) :
     Supported (state.clearFeatureRegisters idx) state.transient.eligible := by
@@ -983,8 +826,6 @@ theorem clear_feature_supported (state : NumericState config dimension) (idx : F
   · rw [clear_feature_other state idx other same]
     exact support other absent
 
-/-- Retirement preserves the core invariant, removing precisely the first
-matching eligible occurrence and zeroing the retired slot and aggregates. -/
 theorem retire_core (state : NumericState config dimension) (idx : FeatIdx dimension)
     (core : CoreInv state) : CoreInv (state.retireIndex idx) := by
   rw [NumericState.retireIndex_def]
@@ -997,8 +838,6 @@ theorem retire_core (state : NumericState config dimension) (idx : FeatIdx dimen
     exact ⟨support, clear_feature_references state idx core.2⟩
   · exact ⟨clear_feature_supported state idx core.1, clear_feature_references state idx core.2⟩
 
-/-- Clearing registers over any index list zeroes exactly the listed indices'
-registers and leaves every other index's registers alone. -/
 theorem clear_fold_registers (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (idx : FeatIdx dimension) :
     registers (indices.foldl (fun next i => next.clearFeatureRegisters i) state) idx =
@@ -1013,7 +852,6 @@ theorem clear_fold_registers (indices : List (FeatIdx dimension))
     · have other : idx ≠ head := fun equal => same equal.symm
       simp [other, clear_feature_other state head idx same]
 
-/-- Clearing registers over any index list keeps every pruning reference legal. -/
 theorem clear_fold_references (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (legal : ReferencesLegal state) :
     ReferencesLegal (indices.foldl (fun next i => next.clearFeatureRegisters i) state) := by
@@ -1023,8 +861,6 @@ theorem clear_fold_references (indices : List (FeatIdx dimension))
     rw [List.foldl_cons]
     exact ih (state.clearFeatureRegisters head) (clear_feature_references state head legal)
 
-/-- Clearing one index's registers writes process-local storage only: every
-weight and every step-size word is kept. -/
 theorem clear_feature_knowledge (state : NumericState config dimension)
     (idx other : FeatIdx dimension) :
     (state.clearFeatureRegisters idx).weights.get other = state.weights.get other ∧
@@ -1035,7 +871,6 @@ theorem clear_feature_knowledge (state : NumericState config dimension)
     NumericState.writeH, NumericState.writeHOld, NumericState.writeHTemp,
     NumericState.writeLastAlpha, and_self]
 
-/-- Clearing registers over any index list writes process-local storage only. -/
 theorem clear_fold_knowledge (indices : List (FeatIdx dimension))
     (state : NumericState config dimension) (other : FeatIdx dimension) :
     (indices.foldl (fun next i => next.clearFeatureRegisters i) state).weights.get other =
@@ -1050,11 +885,9 @@ theorem clear_fold_knowledge (indices : List (FeatIdx dimension))
     have one := clear_feature_knowledge state head other
     exact ⟨step.1.trans one.1, step.2.trans one.2⟩
 
-/-- Release leaves nothing eligible, for every state and every trace word. -/
 theorem release_empty (state : NumericState config dimension) :
     state.releaseEligible.eligibleCount = 0 := rfl
 
-/-- Release writes no knowledge: every weight and every step size is kept. -/
 theorem release_knowledge (state : NumericState config dimension) (idx : FeatIdx dimension) :
     state.releaseEligible.weights.get idx = state.weights.get idx ∧
       (state.releaseEligible.beta.get idx).value = (state.beta.get idx).value := by
@@ -1062,7 +895,6 @@ theorem release_knowledge (state : NumericState config dimension) (idx : FeatIdx
   rw [Array.foldl_toList] at fold
   exact fold
 
-/-- Release re-establishes the complete support and reference invariants. -/
 theorem release_core (state : NumericState config dimension) (core : CoreInv state) :
     CoreInv state.releaseEligible := by
   constructor
@@ -1081,12 +913,9 @@ theorem release_core (state : NumericState config dimension) (core : CoreInv sta
     rw [Array.foldl_toList] at legal
     exact legal
 
-/-- Release establishes the next admission's premises by its empty eligible sequence. -/
 theorem release_ready (state : NumericState config dimension) : Ready state.releaseEligible := by
   simp [Ready, NumericState.releaseEligible_def]
 
-/-- With nothing eligible, a first loop is the identity for arbitrary raw error,
-accumulator and decay words: it reads no trace and writes no weight. -/
 theorem first_loop_idle (state : NumericState config dimension) (delta vDelta decay : Binary32)
     (empty : state.transient.eligible = #[]) :
     state.learnFirstLoop config delta vDelta decay = state := by
@@ -1098,14 +927,10 @@ theorem first_loop_idle (state : NumericState config dimension) (delta vDelta de
     cases transient
     simp_all
 
-/-- After a release, the next first loop credits nothing: it is the identity,
-whatever its raw arguments and whatever the released traces were. -/
 theorem release_idle (state : NumericState config dimension) (delta vDelta decay : Binary32) :
     state.releaseEligible.learnFirstLoop config delta vDelta decay = state.releaseEligible :=
   first_loop_idle _ delta vDelta decay rfl
 
-/-- Every constructor of the complete public interface preserves the core
-invariant. The closed operation domain makes omissions a compiler error. -/
 theorem entry_core (entry : Entry dimension) (state : NumericState config dimension)
     (core : CoreInv state) : CoreInv (entry.apply state) := by
   cases entry with
@@ -1120,16 +945,12 @@ theorem entry_core (entry : Entry dimension) (state : NumericState config dimens
   | clear => exact clear_core state
   | release => exact release_core state core
 
-/-- All finite interface histories from a valid state preserve the core
-invariant, without a normal-stream or loop-scheduling restriction. -/
 theorem entries_core (entries : List (Entry dimension)) (state : NumericState config dimension)
     (core : CoreInv state) : CoreInv (entries.foldl (fun s entry => entry.apply s) state) := by
   induction entries generalizing state with
   | nil => exact core
   | cons entry rest ih => exact ih _ (entry_core entry state core)
 
-/-- Admission provenance proves the core invariant for every inhabitant of
-the executing learner type. No client-supplied invariant assumption is needed. -/
 theorem admitted_core (state : NumericState config dimension)
     (admitted : Admitted config dimension state) :
     CoreInv state := by
@@ -1137,15 +958,12 @@ theorem admitted_core (state : NumericState config dimension)
   | initial => exact initial_core
   | transition entry _ ih => exact entry_core entry _ ih
 
-/-- Every admitted learner has legal knowledge, dormant-zero support and
-legal pruning references through its actual construction/write boundary. -/
 theorem learner_invariant (learner : Learner config dimension) (idx : FeatIdx dimension) :
     config.rule.domain.range.Contains (learner.val.weights.get idx).value ∧
       learner.val.rails.range.Contains (learner.val.beta.get idx).value ∧ CoreInv learner.val :=
   ⟨(knowledge_legal learner.val idx).1, (knowledge_legal learner.val idx).2,
     admitted_core learner.val learner.property⟩
 
-/-- Removing a position from a unique sequence removes its value entirely. -/
 theorem swap_remove_absent {α : Type} (items : Array α) (pos : Nat) (valid : pos < items.size)
     (unique : items.toList.Nodup) : items[pos] ∉ swapRemove items pos valid := by
   intro member
@@ -1160,7 +978,6 @@ theorem swap_remove_absent {α : Type} (items : Array α) (pos : Nat) (valid : p
     have same := (array_nodup_iff items).mp unique _ _ _ _ equality
     omega
 
-/-- Retirement preserves eligible uniqueness when it holds at entry. -/
 theorem retire_unique (state : NumericState config dimension) (idx : FeatIdx dimension)
     (unique : state.transient.eligible.toList.Nodup) :
     (state.retireIndex idx).transient.eligible.toList.Nodup := by
@@ -1169,8 +986,6 @@ theorem retire_unique (state : NumericState config dimension) (idx : FeatIdx dim
   · exact swap_remove_nodup _ _ _ unique
   · exact unique
 
-/-- Retirement preserves admission readiness: its cleared slot is absent
-from the unique surviving sequence and every other trace is unchanged. -/
 theorem retire_ready (state : NumericState config dimension) (idx : FeatIdx dimension)
     (ready : Ready state) : Ready (state.retireIndex idx) := by
   refine ⟨retire_unique state idx ready.1, ?_⟩
@@ -1199,22 +1014,15 @@ theorem retire_ready (state : NumericState config dimension) (idx : FeatIdx dime
     rw [frame]
     exact ready.2 other member
 
-/-- The caller's phase after one operation. `true` means an immediately
-following standalone second loop has the required admission premises. -/
 abbrev nextReady (entry : Entry dimension) (before : Bool) : Bool :=
   SwiftTd.nextReady entry before
 
-/-- The sole scheduling restriction for the capacity bound. It is a premise
-of the stronger theorem, not a restriction on the public executing interface. -/
 abbrev Permitted (entry : Entry dimension) (ready : Bool) : Prop :=
   SwiftTd.Permitted entry ready
 
-/-- Phase-indexed resource invariant, separate from unrestricted core safety. -/
 def ScheduleInv (state : NumericState config dimension) (phase : Bool) : Prop :=
   CoreInv state ∧ state.transient.eligible.toList.Nodup ∧ (phase = true → Ready state)
 
-/-- Each permitted public operation preserves the stronger resource
-invariant under its derived next phase. -/
 theorem entry_schedule (entry : Entry dimension) (state : NumericState config dimension)
     (phase : Bool) (permitted : Permitted entry phase) (invariant : ScheduleInv state phase) :
     ScheduleInv (entry.apply state) (nextReady entry phase) := by
@@ -1246,18 +1054,13 @@ theorem entry_schedule (entry : Entry dimension) (state : NumericState config di
     exact ⟨retire_unique state idx invariant.2.1,
       fun hp => retire_ready state idx (invariant.2.2 hp)⟩
 
-/-- All finite histories obeying the phase discipline, including exposed
-loop, planning and retirement calls. -/
 def Scheduled : List (Entry dimension) → Bool → Prop
   | [], _ => True
   | entry :: rest, phase => Permitted entry phase ∧ Scheduled rest (nextReady entry phase)
 
-/-- Final scheduling phase, derived by folding the same closed operation domain. -/
 def finalPhase (entries : List (Entry dimension)) (phase : Bool) : Bool :=
   entries.foldl (fun before entry => nextReady entry before) phase
 
-/-- Universal finite-prefix resource preservation under the explicit phase
-discipline; the executing state fold is the same interface fold as core safety. -/
 theorem entries_schedule (entries : List (Entry dimension)) (state : NumericState config dimension)
     (phase : Bool) (scheduled : Scheduled entries phase) (invariant : ScheduleInv state phase) :
     ScheduleInv (entries.foldl (fun s entry => entry.apply s) state)
@@ -1267,8 +1070,6 @@ theorem entries_schedule (entries : List (Entry dimension)) (state : NumericStat
   | cons entry rest ih =>
     exact ih _ _ scheduled.2 (entry_schedule entry state phase scheduled.1 invariant)
 
-/-- Every disciplined finite history from initialization retains at most N
-eligible indices. The proof covers all admitted dimensions and configurations. -/
 theorem scheduled_capacity (entries : List (Entry dimension)) (scheduled : Scheduled entries true) :
     (entries.foldl (fun s entry => entry.apply s)
       (NumericState.initial config dimension)).eligibleCount ≤ dimension.capacity := by
@@ -1276,19 +1077,14 @@ theorem scheduled_capacity (entries : List (Entry dimension)) (scheduled : Sched
   exact (entries_schedule entries _ true scheduled
     ⟨initial_core, initial_ready.1, fun _ => initial_ready⟩).2.1
 
-/-- Each pruned recursive branch consumes exactly one position of remaining
-work, including removal of the final position. -/
 theorem prune_work_decreases {α : Type} (work : Array α) (pos : Nat) (valid : pos < work.size) :
     (swapRemove work pos valid).size - pos + 1 = work.size - pos := by
   rw [swap_remove_size]
   omega
 
-/-- Each retained recursive branch consumes exactly one position of remaining work. -/
 theorem retain_work_decreases {α : Type} (work : Array α) (pos : Nat) (valid : pos < work.size) :
     work.size - (pos + 1) + 1 = work.size - pos := by omega
 
-/-- First-loop traversal never increases eligible length, for any raw state
-or cursor and without a uniqueness premise. -/
 theorem first_loop_go_size (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) (delta vDelta decay : Binary32) :
     (NumericState.learnFirstLoopGo config delta vDelta decay state work pos).eligibleCount ≤
@@ -1308,10 +1104,6 @@ theorem first_loop_go_size (state : NumericState config dimension)
     rw [NumericState.learnFirstLoopGo_def, dite_eq_right finished]
     exact le_refl _
 
-/-- Logical retained slots are counted from every executing state vector,
-including the stored step sizes, the eligible array and both scalar aggregate
-registers. Object headers, boxed word representation, allocator capacity and
-sharing are separate native costs. -/
 def retainedSlots (state : NumericState config dimension) : Nat :=
   state.weights.toArray.size + state.beta.toArray.size + state.alpha.toArray.size +
     state.transient.z.toArray.size + state.transient.zDelta.toArray.size +
@@ -1320,15 +1112,11 @@ def retainedSlots (state : NumericState config dimension) : Nat :=
     state.transient.hOld.toArray.size + state.transient.hTemp.toArray.size +
     state.transient.p.toArray.size + state.transient.eligible.size + 2
 
-/-- The storage representation derives twelve dimension-sized arrays plus
-the current eligible sequence and two aggregates, for every raw state. -/
 theorem retained_slots_exact (state : NumericState config dimension) :
     retainedSlots state = 12 * dimension.capacity + state.eligibleCount + 2 := by
   simp only [retainedSlots, Vector.size_toArray, NumericState.eligibleCount]
   omega
 
-/-- Under eligible uniqueness the logical retained storage is at most
-`13N+2` slots, independently of the duration of the stream. -/
 theorem retained_slots_unique (state : NumericState config dimension)
     (unique : state.transient.eligible.toList.Nodup) :
     retainedSlots state ≤ 13 * dimension.capacity + 2 := by
@@ -1336,8 +1124,6 @@ theorem retained_slots_unique (state : NumericState config dimension)
   have bound := eligible_cardinality state unique
   omega
 
-/-- Every disciplined finite prefix from initialization has the same linear
-retained-storage bound; no operation log is part of the executing state. -/
 theorem scheduled_storage (entries : List (Entry dimension)) (scheduled : Scheduled entries true) :
     retainedSlots (entries.foldl (fun s entry => entry.apply s)
       (NumericState.initial config dimension)) ≤ 13 * dimension.capacity + 2 := by
@@ -1347,9 +1133,6 @@ theorem scheduled_storage (entries : List (Entry dimension)) (scheduled : Schedu
     scheduled_capacity entries scheduled
   omega
 
-/-- Retirement clears every register at the retired slot, restores fresh
-knowledge there and keeps both shared aggregate words, even for arbitrary raw
-pre-state. -/
 theorem retire_registers (state : NumericState config dimension) (idx : FeatIdx dimension) :
     registers (state.retireIndex idx) idx = Vector.replicate 9 Binary32.zero ∧
     ((state.retireIndex idx).weights.get idx).value = Binary32.zero ∧
@@ -1369,8 +1152,6 @@ theorem retire_registers (state : NumericState config dimension) (idx : FeatIdx 
       #[Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero,
         Binary32.zero, Binary32.zero, Binary32.zero, Binary32.zero] from rfl]
 
-/-- The normalized observer's count is the actual eligible length, including
-repeated members admitted by unrestricted standalone second loops. -/
 theorem normalized_count (state : NumericState config dimension) :
     state.normalizedStepSizeSum.2 = state.eligibleCount := by
   simp only [NumericState.normalizedStepSizeSum_def, NumericState.eligibleCount]
@@ -1379,13 +1160,10 @@ theorem normalized_count (state : NumericState config dimension) :
     simp_all
   · rfl
 
-/-- Clearing also resets the two eligible-set observers to their empty values. -/
 theorem clear_observers (state : NumericState config dimension) :
     state.clearTransient.activeAlpha = Binary32.zero ∧
     state.clearTransient.normalizedStepSizeSum = (Binary32.zero, 0) := ⟨rfl, rfl⟩
 
-/-- Exploration-rate legality is carried at storage for every raw producer,
-including NaN and either infinity. -/
 theorem exploration_legal (raw : Binary32) :
     exploreRange.Contains (ExploreRate.project raw).value :=
   (ExploreRate.project raw).legal

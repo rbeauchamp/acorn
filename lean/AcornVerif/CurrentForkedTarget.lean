@@ -1,47 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentConcealedTargetMission
 import AcornVerif.Turns
-
-/-!
-# Concealed targets in two situations of the executed grid world
-
-In `AcornVerif.CurrentConcealedTarget.feasibleFind` every visit of a member starts from one
-state, so nothing an agent perceives there is news: `AcornVerif.Kernel.FeedbackDriven.fork`
-names what is missing. This module builds, from the same executed step, observation and percept
-adapter, the class in which each visit starts in one of two situations.
-
-`forkedFind` takes two live states of one configuration, the two situations. A member is a pair
-of concealed targets, one for each situation, each of which some action sequence meets within a
-visit from its situation's start, such that no single action sequence meets both. In the first
-situation a visit starts from the first live state with the first target installed, and in the
-second from the second live state with the second target installed. The class is an
-`AcornVerif.Kernel.TurnClass`, so it has a member's world in turns for every order of the
-situations.
-
-For every configuration, mode, pair of live states and visit length:
-
-- every member is a fork, by how the class is indexed (`forked_apart`);
-- the first situation's class conceals its goals behind the first live state with the target
-  `nowhere` installed (`forked_conceals`), and one action sequence meets, from the first starts,
-  the goals of at most `49 + 7 length` members no two of which have one first target
-  (`forked_covered`);
-- where the two live states carry one result, the two situations give one reward word and one
-  achievement flag until the goal is met (`forked_mute`).
-
-So no agent whose actions depend on its clock, its reward words and its achievement flags masters
-(`forked_blind`), and no agent that keeps nothing masters above `49 + 7 length` (`forked_need`).
-
-A member's two targets are apart where meeting them asks for more moves than a visit has. An
-action moves the body at most one tile, and only in the direction it names (`step_heading`), so
-the body's tile after a number of steps is within, on each axis and in each sense, the number of
-actions so far that name that direction (`walk_reach`). A target met within a visit therefore
-asks for a number of actions of each direction (`met_takes`), and two actions of different
-directions are different actions (`taken_pair`).
--/
 
 namespace AcornVerif.CurrentForkedTarget
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -51,12 +9,6 @@ open AcornVerif.CurrentStep
 
 variable {config : Host.WorldConfig}
 
-/-! ## The class -/
-
-/-- The class of concealed targets in two situations. A member is a target for each situation,
-each of which a visit can meet from its situation's start, such that no single action sequence
-meets both within a visit. A visit starts from the situation's live state with the situation's
-target installed. -/
 def forkedFind (config : Host.WorldConfig) (mode : TaskFeatureMode) (first second : Live config)
     (length : ℕ) : Kernel.TurnClass Grid.interface where
   Index := { pair : (feasibleFind config mode first length).Index ×
@@ -70,26 +22,20 @@ def forkedFind (config : Host.WorldConfig) (mode : TaskFeatureMode) (first secon
     | false => member first pair.1.1.1.1
     | true => member second pair.1.2.1.1
 
-/-- The goal of every member in both situations: the installed target's completion. -/
 def forkedGoals (config : Host.WorldConfig) (mode : TaskFeatureMode) (first second : Live config)
     (length : ℕ) : (forkedFind config mode first second length).Goals :=
   fun _ => completion config mode length
 
-/-- A member's key: its target in the first situation. -/
 def firstTarget (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (pair : (forkedFind config mode first second length).Index) :
     (feasibleFind config mode first length).Index :=
   pair.1.1
 
-/-- **Every member is a fork**, by how the class is indexed: no single action sequence meets
-both of its targets, each from its situation's start, within a visit. -/
 theorem forked_apart (mode : TaskFeatureMode) (first second : Live config) (length : ℕ) :
     Kernel.Apart (forkedFind config mode first second length)
       (forkedGoals config mode first second length) length :=
   fun pair actions both => pair.2 actions both
 
-/-- The first situation's class conceals its goals behind the first live state with the target
-`nowhere` installed, as the concealed targets of that state do. -/
 theorem forked_conceals (mode : TaskFeatureMode) (first second : Live config) (length : ℕ) :
     Kernel.Conceals ((forkedFind config mode first second length).side false)
       (forkedGoals config mode first second length) (gridWorld config mode)
@@ -97,8 +43,6 @@ theorem forked_conceals (mode : TaskFeatureMode) (first second : Live config) (l
   fun pair actions time unmet =>
     find_conceals mode first length pair.1.1.1 actions time unmet
 
-/-- **The covering bound.** One action sequence meets, from the first situation's starts within
-a visit, the goals of at most `49 + 7 length` members no two of which have one first target. -/
 theorem forked_covered (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (actions : ℕ → Kernel.Act Grid.interface)
     (solved : Finset (forkedFind config mode first second length).Index)
@@ -117,8 +61,6 @@ theorem forked_covered (mode : TaskFeatureMode) (first second : Live config) (le
   obtain ⟨pair, picked, rfl⟩ := Finset.mem_image.mp chosen
   exact each pair picked
 
-/-- After a step that does not meet the installed goal, the percept's reward word is the zero
-word and its achievement flag is not set. -/
 theorem quiet_step (mode : TaskFeatureMode) (cap : ℕ) (state : Option (Live config))
     (action : Kernel.Act Grid.interface)
     (unmet : ¬ (completion config mode cap).satisfied
@@ -134,9 +76,6 @@ theorem quiet_step (mode : TaskFeatureMode) (cap : ℕ) (state : Option (Live co
   rw [reward_word_step, missed]
   rfl
 
-/-- **The two situations give one feedback until the goal is met.** Where the two live states
-carry one result, a member's percepts from its two starts have, along every action sequence, one
-reward word and one achievement flag at every time before which neither target has been met. -/
 theorem forked_mute (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (carried : first.carried = second.carried) :
     Kernel.Mute (fun percept : Percept Grid.interface => (percept.reward, percept.frame.achieved))
@@ -157,10 +96,6 @@ theorem forked_mute (mode : TaskFeatureMode) (first second : Live config) (lengt
       (actions time) (unmetSecond (time + 1) (Nat.succ_pos time) (Nat.le_refl _))
     exact Prod.ext (one.1.trans two.1.symm) (one.2.trans two.2.symm)
 
-/-- **No agent that goes by its clock, its reward words and its achievement flags masters.** In
-the class of two situations whose live states carry one result, an agent whose actions depend on
-its clock and on the reward words and achievement flags it has received masters at no bound, key
-and limit. -/
 theorem forked_blind (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (carried : first.carried = second.carried) {agent : Kernel.Agent Grid.interface}
     (blind : Kernel.FeedbackDriven
@@ -172,8 +107,6 @@ theorem forked_blind (mode : TaskFeatureMode) (first second : Live config) (leng
   blind.masters (forked_mute mode first second length carried)
     (forked_apart mode first second length) bound limit key
 
-/-- **No agent that keeps nothing masters above the covering bound.** An experience-free agent
-does not master at the bound `49 + 7 length`, with members counted by their first targets. -/
 theorem forked_need (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     {agent : Kernel.Agent Grid.interface} (free : Kernel.ExperienceFree agent) (limit : ℕ) :
     ¬ Kernel.MastersBy (forkedFind config mode first second length)
@@ -182,10 +115,6 @@ theorem forked_need (mode : TaskFeatureMode) (first second : Live config) (lengt
   Kernel.turns_need (forked_conceals mode first second length)
     (firstTarget mode first second length) (forked_covered mode first second length) free limit
 
-/-! ## What a target asks of the actions -/
-
-/-- A successful step leaves the body where it is, or moves it one tile in the direction its
-action names. -/
 theorem step_heading (world next : Host.World config) (action : Host.Action)
     (events : Host.StepResult) (h : world.step action = .ok (next, events)) :
     next.body.position = world.body.position ∨
@@ -212,8 +141,6 @@ theorem step_heading (world next : Host.World config) (action : Host.Action)
     | crafted tool inventory recipe result => left; rw [result]
     | ate meal result => left; rw [result]
 
-/-- A step of the dynamics without the goal leaves the body on its tile, or moves it by the
-displacement of the direction its action names. -/
 theorem physicalStep_heading (world next : Host.World config)
     (action : Kernel.Act Grid.interface) (h : physicalStep world action = some next) :
     tile next.body.position.position = tile world.body.position.position ∨
@@ -235,13 +162,11 @@ theorem physicalStep_heading (world next : Host.World config)
       obtain ⟨horizontal, vertical⟩ := CurrentCertificates.translate_some _ _ _ _ moved
       exact ⟨direction, heading, Prod.ext horizontal vertical⟩
 
-/-- The number of an action sequence's first actions that name a direction. -/
 def taken (actions : ℕ → Kernel.Act Grid.interface) (direction : Host.Direction) : ℕ → ℕ
   | 0 => 0
   | count + 1 => taken actions direction count +
       if (Host.Action.fromIndex (actions count).val).direction = some direction then 1 else 0
 
-/-- The count of the actions that name a direction does not fall. -/
 theorem taken_mono (actions : ℕ → Kernel.Act Grid.interface) (direction : Host.Direction)
     {count later : ℕ} (after : count ≤ later) :
     taken actions direction count ≤ taken actions direction later := by
@@ -252,8 +177,6 @@ theorem taken_mono (actions : ℕ → Kernel.Act Grid.interface) (direction : Ho
     · exact Nat.le_trans (ih (Nat.le_of_lt_succ sooner)) (Nat.le_add_right _ _)
     · rw [same]
 
-/-- Two different directions are named by different actions: among an action sequence's first
-actions, those that name the one and those that name the other number at most the actions. -/
 theorem taken_pair (actions : ℕ → Kernel.Act Grid.interface) (one two : Host.Direction)
     (differ : one ≠ two) (count : ℕ) :
     taken actions one count + taken actions two count ≤ count := by
@@ -273,9 +196,6 @@ theorem taken_pair (actions : ℕ → Kernel.Act Grid.interface) (one two : Host
     · rw [ite_eq_right first]
       split <;> omega
 
-/-- **The body goes no further in a direction than its actions name it.** Along the dynamics
-without the goal, the body's tile after a number of steps is, on each axis and in each sense, at
-most as far from the start's tile as the actions so far that name that direction. -/
 theorem walk_reach (start : Host.World config) (actions : ℕ → Kernel.Act Grid.interface)
     (count : ℕ) :
     (walk start actions count).1 ≤
@@ -331,10 +251,6 @@ theorem walk_reach (start : Host.World config) (actions : ℕ → Kernel.Act Gri
           rw [moved]
           cases direction <;> simp only [Host.Direction.delta] <;> omega
 
-/-- **A target met within a visit asks for actions of its direction.** Where an action sequence
-meets a concealed target within `cap` steps from a live state, its first `cap` actions name each
-direction at least as often as the target lies beyond three tiles of the start in that
-direction. -/
 theorem met_takes (mode : TaskFeatureMode) (live : Live config) (cap : ℕ)
     (actions : ℕ → Kernel.Act Grid.interface) (target : Host.Position)
     (met : (completion config mode cap).MetBy (member live target) actions) :

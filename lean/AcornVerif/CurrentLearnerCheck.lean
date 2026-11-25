@@ -1,41 +1,23 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentLearner
 import Acorn.FeatureConsumers
 
-/-!
-# The invariant check of a stored learner
-
-`NumericState.resumable` decides, on a learner's stored words, the schedule invariant of the
-learner's capacity theorem, `ScheduleInv` (`resumable_iff`). A learner read back from a
-checkpoint image is admitted by that check, so every learner that `ManagedAdmission` admits
-still satisfies the invariant (`CurrentFeatureConsumers.managed_schedule`): the provenance a
-managed learner carries gives core safety, unique eligibility and phase-specific readiness,
-whatever its origin.
--/
 namespace AcornVerif.CurrentLearnerCheck
 open Acorn Acorn.Features AcornVerif.CurrentLearner AcornVerif.CurrentArithmetic
 open AcornVerif.CurrentOrder
 
 variable {config : Acorn.Config} {dimension : Dimension}
 
-/-- A seen slot leaves the builder unchanged. -/
 theorem add_seen (builder : UniqueBuilder dimension) (index : FeatIdx dimension)
     (seen : index ∈ builder.reversed) : builder.add index = builder := by
   unfold UniqueBuilder.add
   rw [dite_eq_left (by simpa [builder.exact] using seen)]
 
-/-- An unseen slot is prepended. -/
 theorem add_unseen (builder : UniqueBuilder dimension) (index : FeatIdx dimension)
     (unseen : index ∉ builder.reversed) :
     (builder.add index).reversed = index :: builder.reversed := by
   unfold UniqueBuilder.add
   rw [dite_eq_right (by simpa [builder.exact] using unseen)]
 
-/-- A fold adds at most one slot per element. -/
 theorem fold_length_le : ∀ (indices : List (FeatIdx dimension)) (builder : UniqueBuilder dimension),
     (indices.foldl UniqueBuilder.add builder).reversed.length ≤
       builder.reversed.length + indices.length
@@ -52,7 +34,6 @@ theorem fold_length_le : ∀ (indices : List (FeatIdx dimension)) (builder : Uni
       simp only [List.length_cons] at tail ⊢
       omega
 
-/-- A fold keeps every element exactly when no element repeats and none was seen before. -/
 theorem fold_length : ∀ (indices : List (FeatIdx dimension)) (builder : UniqueBuilder dimension),
     (indices.foldl UniqueBuilder.add builder).reversed.length =
         builder.reversed.length + indices.length ↔
@@ -85,7 +66,6 @@ theorem fold_length : ∀ (indices : List (FeatIdx dimension)) (builder : Unique
         exact ⟨fresh, fun other member =>
           ⟨fun same => absent (same ▸ member), unseen other (.inr member)⟩⟩
 
-/-- The builder of a list keeps every element exactly when no element repeats. -/
 theorem presence_nodup (indices : List (FeatIdx dimension)) :
     (indices.foldl UniqueBuilder.add (UniqueBuilder.empty dimension)).reversed.length =
       indices.length ↔ indices.Nodup := by
@@ -94,7 +74,6 @@ theorem presence_nodup (indices : List (FeatIdx dimension)) :
     not_false_eq_true, implies_true, and_true] at kept
   exact kept
 
-/-- A slot is flagged by the builder of a list exactly when it is in the list. -/
 theorem presence_seen (indices : List (FeatIdx dimension)) (index : FeatIdx dimension) :
     (indices.foldl UniqueBuilder.add (UniqueBuilder.empty dimension)).seen[index.val] = true ↔
       index ∈ indices := by
@@ -103,7 +82,6 @@ theorem presence_seen (indices : List (FeatIdx dimension)) (index : FeatIdx dime
   simp only [unique_def, UniqueBuilder.finish_def, List.mem_reverse] at kept
   exact kept
 
-/-- The nine-word test is the zero register vector of the support invariant. -/
 theorem clearAt_iff (state : NumericState config dimension) (index : FeatIdx dimension) :
     state.clearAt index = true ↔ registers state index = Vector.replicate 9 Binary32.zero := by
   unfold NumericState.clearAt registers
@@ -119,15 +97,12 @@ theorem clearAt_iff (state : NumericState config dimension) (index : FeatIdx dim
       entry 3 (by decide)⟩, entry 4 (by decide)⟩, entry 5 (by decide)⟩, entry 6 (by decide)⟩,
       entry 7 (by decide)⟩, entry 8 (by decide)⟩
 
-/-- The stored word of five has the value five. -/
 theorem five_value : numerical32 (⟨0x40a00000⟩ : Binary32) = 5 := by
   change (1 : ℚ) * 10485760 * (2 : ℚ) ^ (-21 : Int) = 5
   norm_num
 
-/-- Positive zero has the value zero. -/
 theorem zero_value : numerical32 Binary32.zero = 0 := by decide
 
-/-- The interval of a reference word is the reference invariant. -/
 theorem reference_iff (word : Binary32) :
     referenceRange.Contains word ↔ ReferenceLegal word := by
   unfold Interval32.Contains ReferenceLegal
@@ -145,9 +120,6 @@ theorem reference_iff (word : Binary32) :
     · exact (numerical32_order word ⟨0x40a00000⟩ finite (by decide)).mp
         (by rw [five_value]; exact upper)
 
-/-- **The stored-word check is the schedule invariant.** For every learner state and phase,
-`NumericState.resumable` accepts exactly the states that satisfy `ScheduleInv`: support,
-legal pruning references, unique eligibility and, under a permitted second loop, readiness. -/
 theorem resumable_iff (state : NumericState config dimension) (phase : Bool) :
     state.resumable phase = true ↔ ScheduleInv state phase := by
   have eligible : ∀ index : FeatIdx dimension,

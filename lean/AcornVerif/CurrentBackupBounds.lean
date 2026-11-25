@@ -1,39 +1,13 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentModels
 import AcornVerif.CurrentRetirementRounding
 import Mathlib.Tactic.FieldSimp
 
-/-!
-# Machine rounding bounds for model backups
-
-The pinned Lean 4.36.0 standard model's `Unpacked/Round.lean` and
-`Unpacked/Operations/{Add,Mul,Sub}.lean` own these machine operations.
-Nearest-even monotonicity follows from quotient ordering on a common grid and
-separation of distinct binades, then extends through signed normalization.
-The `Rounded` relation is established from those executing operations before it
-is used to compare their outputs. Packing fits and finite-word correspondence
-are discharged at each binary32 wrapper; native compiler/runtime correspondence
-remains trusted. No real-arithmetic reassociation replaces a rounded operation.
-
-The final contracts retain the actual rounded endpoints of model backups.
-The TD-error input intervals are explicit admission contracts, not an assertion
-that arbitrary raw learner transients already inhabit those intervals.
-
-`binary32_sub_finite_strict_error` states the error of one executing difference
-below an admitted power of two, as
-`AcornVerif.CurrentPrediction.binary32_add_finite_strict_error` does of a sum.
--/
 open Acorn
 open Float.Model (Format UnpackedFloat totalExponent)
 open Float.Model.UnpackedFloat
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentPower
 namespace AcornVerif.CurrentBackupBounds
 
-/-- Nearest-even rounding preserves an integral upper endpoint on its output grid. -/
 theorem nearest_upper (mantissa denominator upper : Nat) (positive : 0 < denominator)
     (bound : mantissa ≤ upper * denominator) :
     Rounding.nearestEven mantissa denominator ≤ upper := by
@@ -43,7 +17,6 @@ theorem nearest_upper (mantissa denominator upper : Nat) (positive : 0 < denomin
   have scaled := Nat.mul_le_mul_right denominator greater
   nlinarith
 
-/-- Comparing dyadics on a common grid preserves the exact upper endpoint. -/
 theorem dyadic_upper (mantissa upper : Nat) (exponent upperExponent : Int)
     (order : exponent ≤ upperExponent)
     (bound : (mantissa : ℚ) * 2 ^ exponent ≤ (upper : ℚ) * 2 ^ upperExponent) :
@@ -57,8 +30,6 @@ theorem dyadic_upper (mantissa upper : Nat) (exponent upperExponent : Int)
   have reduced := (mul_le_mul_iff_left₀ (zpow_pos (by norm_num : (0 : ℚ) < 2) exponent)).mp bound
   exact_mod_cast reduced
 
-/-- Exact rounding preserves a normalized positive upper endpoint when no
-left normalization is needed. -/
 theorem round_grid_upper (mantissa upper : Nat) (exponent upperExponent : Int)
     (positive : 0 < mantissa) (upperPositive : 0 < upper)
     (normal : ModelNormalized Format.binary32 (.finite .positive upper upperExponent upperPositive))
@@ -97,7 +68,6 @@ theorem round_grid_upper (mantissa upper : Nat) (exponent upperExponent : Int)
   apply mul_le_mul_of_nonneg_right _ (le_of_lt (zpow_pos (by norm_num) _))
   exact_mod_cast rounded
 
-/-- Full positive binary32 rounding preserves each positive normalized upper endpoint. -/
 theorem round_upper (mantissa upper : Nat) (exponent upperExponent : Int)
     (upperPositive : 0 < upper)
     (normal : ModelNormalized Format.binary32 (.finite .positive upper upperExponent upperPositive))
@@ -126,7 +96,6 @@ theorem round_upper (mantissa upper : Nat) (exponent upperExponent : Int)
     (by rwa [total]) padded
   simpa only [UnpackedFloat.round, decreaseExponent, Nat.shiftLeft_eq] using result
 
-/-- The positive rounding branch is numerically nonnegative, including underflow to zero. -/
 theorem round_nonnegative (mantissa : Nat) (exponent : Int) :
     0 ≤ unpackedValue (UnpackedFloat.round Format.binary32 .positive mantissa exponent) := by
   simp only [UnpackedFloat.round, model_round_exact_value, signCoefficient, one_mul]
@@ -135,8 +104,6 @@ theorem round_nonnegative (mantissa : Nat) (exponent : Int) :
 open AcornVerif.CurrentFloat AcornVerif.CurrentLearnerArithmetic
 open AcornVerif.CurrentModelArithmetic AcornVerif.CurrentOperations
 
-/-- Nearest-even quotient rounding is monotone even when the two positive
-integer denominators differ. The tie decision uses the shared floor parity. -/
 theorem nearest_fraction_mono (left ld right rd : Nat) (ldPositive : 0 < ld)
     (rdPositive : 0 < rd) (ordered : (left : ℚ) / ld ≤ (right : ℚ) / rd) :
     Rounding.nearestEven left ld ≤ Rounding.nearestEven right rd := by
@@ -196,8 +163,6 @@ theorem nearest_fraction_mono (left ld right rd : Nat) (ldPositive : 0 < ld)
       omega
   · split <;> omega
 
-/-- Positive full rounding admits a common-grid quotient representation, with
-the exact input and rounded output sharing the same target unit. -/
 theorem round_grid_representation (mantissa : Nat) (exponent : Int) (positive : 0 < mantissa) :
     let target := Format.binary32.targetExponent (totalExponent mantissa exponent)
     ∃ numerator denominator : Nat, 0 < denominator ∧
@@ -236,8 +201,6 @@ theorem round_grid_representation (mantissa : Nat) (exponent : Int) (positive : 
     rw [power, Nat.cast_pow, Nat.cast_ofNat]
     field_simp
 
-/-- Full positive binary32 rounding is monotone for arbitrary positive dyadic
-inputs, including changes of binade and subnormal target grids. -/
 theorem round_positive_mono (left right : Nat) (le re : Int)
     (lp : 0 < left) (rp : 0 < right)
     (ordered : (left : ℚ) * 2 ^ le ≤ (right : ℚ) * 2 ^ re) :
@@ -292,17 +255,14 @@ theorem round_positive_mono (left right : Nat) (le re : Int)
       (AcornVerif.CurrentRetirementRounding.round_lower right 8388608 re rt rp
         (by decide) floor rightBound)
 
-/-- Zero signed mantissas have exactly zero numerical rounding. -/
 theorem normalize_zero (exponent : Int) (sign : Sign) :
     unpackedValue (normalize Format.binary32 0 exponent sign) = 0 := rfl
 
-/-- A strictly positive signed mantissa uses the positive nearest-rounding branch. -/
 theorem normalize_positive (mantissa exponent : Int) (sign : Sign) (positive : 0 < mantissa) :
     unpackedValue (normalize Format.binary32 mantissa exponent sign) =
       unpackedValue (UnpackedFloat.round Format.binary32 .positive mantissa.toNat exponent) := by
   rw [UnpackedFloat.normalize, Int.compare_eq_gt.mpr positive]
 
-/-- A strictly negative signed mantissa uses the negative nearest-rounding branch. -/
 theorem normalize_negative (mantissa exponent : Int) (sign : Sign)
     (negative : mantissa < 0) :
     unpackedValue (normalize Format.binary32 mantissa exponent sign) =
@@ -311,7 +271,6 @@ theorem normalize_negative (mantissa exponent : Int) (sign : Sign)
   rw [UnpackedFloat.normalize, Int.compare_eq_lt.mpr negative]
   exact AcornVerif.CurrentRetirementRounding.round_negative_value _ _
 
-/-- Signed normalization preserves a nonnegative input sign, including underflow. -/
 theorem normalize_nonnegative (mantissa exponent : Int) (sign : Sign) (h : 0 ≤ mantissa) :
     0 ≤ unpackedValue (normalize Format.binary32 mantissa exponent sign) := by
   rcases eq_or_lt_of_le h with zero | positive
@@ -319,7 +278,6 @@ theorem normalize_nonnegative (mantissa exponent : Int) (sign : Sign) (h : 0 ≤
   · rw [normalize_positive _ _ _ positive]
     exact round_nonnegative _ _
 
-/-- Signed normalization preserves a nonpositive input sign, including underflow. -/
 theorem normalize_nonpositive (mantissa exponent : Int) (sign : Sign) (h : mantissa ≤ 0) :
     unpackedValue (normalize Format.binary32 mantissa exponent sign) ≤ 0 := by
   rcases lt_or_eq_of_le h with negative | zero
@@ -327,8 +285,6 @@ theorem normalize_nonpositive (mantissa exponent : Int) (sign : Sign) (h : manti
     exact neg_nonpos.mpr (round_nonnegative _ _)
   · rw [zero, normalize_zero]
 
-/-- Signed full binary32 normalization is monotone across all dyadic inputs,
-including cancellation, either zero sign, subnormals and binade changes. -/
 theorem normalize_mono (left right le re : Int) (ls rs : Sign)
     (ordered : (left : ℚ) * 2 ^ le ≤ (right : ℚ) * 2 ^ re) :
     unpackedValue (normalize Format.binary32 left le ls) ≤
@@ -372,7 +328,6 @@ theorem normalize_mono (left right le re : Int) (ls rs : Sign)
     apply round_positive_mono _ _ _ _ (by omega) (by omega)
     rwa [leftCast, rightCast]
 
-/-- Signed normalization agrees numerically with the explicit sign constructor. -/
 theorem normalize_sign_value (sign : Sign) (mantissa : Nat) (exponent : Int)
     (positive : 0 < mantissa) :
     unpackedValue (normalize Format.binary32 (sign.apply mantissa) exponent .positive) =
@@ -386,7 +341,6 @@ theorem normalize_sign_value (sign : Sign) (mantissa : Nat) (exponent : Int)
   · rw [normalize_positive _ _ _ (by change (0 : Int) < mantissa; omega)]
     rfl
 
-/-- Already normalized finite components round to their exact numerical value. -/
 theorem round_normalized_value (sign : Sign) (mantissa : Nat) (exponent : Int)
     (positive : 0 < mantissa)
     (normal : ModelNormalized Format.binary32 (.finite sign mantissa exponent positive)) :
@@ -398,12 +352,10 @@ theorem round_normalized_value (sign : Sign) (mantissa : Nat) (exponent : Int)
   simp [model_round_exact_value, target, Rounding.nearestEven]
   norm_num [Nat.mod_one]
 
-/-- A dyadic source and its actual signed binary32 nearest-rounding result. -/
 def Rounded (source result : ℚ) : Prop :=
   ∃ mantissa exponent : Int, source = (mantissa : ℚ) * 2 ^ exponent ∧
     result = unpackedValue (normalize Format.binary32 mantissa exponent .positive)
 
-/-- Ordered exact dyadic sources have ordered rounded results. -/
 theorem Rounded.mono {left right lresult rresult : ℚ}
     (l : Rounded left lresult) (r : Rounded right rresult) (ordered : left ≤ right) :
     lresult ≤ rresult := by
@@ -413,7 +365,6 @@ theorem Rounded.mono {left right lresult rresult : ℚ}
   apply normalize_mono
   rwa [← lx, ← rx]
 
-/-- Every canonical finite model word is exactly its own rounded dyadic source. -/
 theorem rounded_normalized (value : UnpackedFloat)
     (normal : ModelNormalized Format.binary32 value) :
     Rounded (unpackedValue value) (unpackedValue value) := by
@@ -427,7 +378,6 @@ theorem rounded_normalized (value : UnpackedFloat)
     · rw [normalize_sign_value _ _ _ positive, round_normalized_value _ _ _ positive normal]
       rfl
 
-/-- Every actual model addition is the nearest rounding of its exact dyadic sum. -/
 theorem rounded_add (left right : UnpackedFloat)
     (leftNormal : ModelNormalized Format.binary32 left)
     (rightNormal : ModelNormalized Format.binary32 right) :
@@ -465,7 +415,6 @@ theorem rounded_add (left right : UnpackedFloat)
       rw [Int.cast_add, add_mul, hl, hr]
       rfl
 
-/-- Every actual model multiplication is the nearest rounding of its exact dyadic product. -/
 theorem rounded_mul (left right : UnpackedFloat)
     (leftNormal : ModelNormalized Format.binary32 left)
     (rightNormal : ModelNormalized Format.binary32 right) :
@@ -494,7 +443,6 @@ theorem rounded_mul (left right : UnpackedFloat)
         simp only [UnpackedFloat.mul]
         rw [← model_round_without_padding Format.binary32 _ _ _ ready]
 
-/-- Signed normalization commutes numerically with source negation. -/
 theorem normalize_neg_value (mantissa exponent : Int) :
     unpackedValue (normalize Format.binary32 (-mantissa) exponent .positive) =
       -unpackedValue (normalize Format.binary32 mantissa exponent .positive) := by
@@ -504,7 +452,6 @@ theorem normalize_neg_value (mantissa exponent : Int) :
     rw [neg_zero, normalize_zero, neg_zero]
   · rw [normalize_negative _ _ _ (by omega), normalize_positive _ _ _ positive, neg_neg]
 
-/-- Negating an exact dyadic source negates its rounded numerical result. -/
 theorem Rounded.neg {source result : ℚ} (rounded : Rounded source result) :
     Rounded (-source) (-result) := by
   obtain ⟨mantissa, exponent, exactValue, roundedValue⟩ := rounded
@@ -512,14 +459,11 @@ theorem Rounded.neg {source result : ℚ} (rounded : Rounded source result) :
   · rw [exactValue, Int.cast_neg, neg_mul]
   · rw [normalize_neg_value, roundedValue]
 
-/-- The actual finite binary32 word is exactly its own rounded dyadic source. -/
 theorem binary32_rounded_exact (value : Binary32) (finite : value.Finite) :
     Rounded (numerical32 value) (numerical32 value) :=
   rounded_normalized _ (model_unpack_format Format.binary32 (by decide) value.bits.toBitVec
     ((model_decoded32_finite value).mpr finite)).1
 
-/-- Actual binary32 addition is finite and follows signed nearest rounding
-throughout the complete backup magnitude domain. -/
 theorem binary32_rounded_add (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left + numerical32 right| ≤ 8589934592) :
     (left.add right).Finite ∧
@@ -552,7 +496,6 @@ theorem binary32_rounded_add (left right : Binary32) (hl : left.Finite) (hr : ri
     exact model_normalized_finite _ _ operation.1
   · simpa only [numerical32, decoded] using rounded_add (decoded32 left) (decoded32 right) ln rn
 
-/-- Actual small binary32 multiplication is finite and follows signed nearest rounding. -/
 theorem binary32_rounded_mul (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left * numerical32 right| ≤ 512) :
     (left.mul right).Finite ∧
@@ -572,7 +515,6 @@ theorem binary32_rounded_mul (left right : Binary32) (hl : left.Finite) (hr : ri
   refine ⟨(small_mul left right hl hr bound).1, ?_⟩
   simpa only [numerical32, decoded] using rounded_mul (decoded32 left) (decoded32 right) ln rn
 
-/-- Actual small binary32 subtraction is finite and follows signed nearest rounding. -/
 theorem binary32_rounded_sub (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left - numerical32 right| ≤ 512) :
     (left.sub right).Finite ∧
@@ -599,9 +541,6 @@ theorem binary32_rounded_sub (left right : Binary32) (hl : left.Finite) (hr : ri
     rounded_add (decoded32 left) (UnpackedFloat.neg (decoded32 right)) ln
       (model_neg_normalized _ _ rn)
 
-/-- Actual binary32 subtraction remains finite and inherits the strict rounding radius whenever
-the exact difference is below an admitted power of two, through exponent 33: the counterpart of
-`AcornVerif.CurrentPrediction.binary32_add_finite_strict_error`. -/
 theorem binary32_sub_finite_strict_error (left right : Binary32)
     (leftFinite : left.Finite) (rightFinite : right.Finite) (limit : Int) (range : limit ≤ 33)
     (bound : |numerical32 left - numerical32 right| < (2 : ℚ) ^ limit) :
@@ -654,10 +593,6 @@ theorem binary32_sub_finite_strict_error (left right : Binary32)
     exact model_normalized_finite _ _ operation.1
   · simpa only [numerical32, decoded] using operation.2
 
-/-- The executing centered model reward has exactly the capped magnitude bound.
-Wan, Naik and Sutton, *Average-Reward Learning and Planning with Options*,
-NeurIPS 34 (2021), section 5 equations (18)–(23).
-This concerns the rounded reward-minus-gain-times-duration prefix, before continuation. -/
 theorem centered_reward_bound (reward gain duration : Binary32)
     (rf : reward.Finite) (gf : gain.Finite) (df : duration.Finite)
     (rb : 0 ≤ numerical32 reward ∧ numerical32 reward ≤ 128)
@@ -683,11 +618,6 @@ theorem centered_reward_bound (reward gain duration : Binary32)
     ⟨Rounded.mono cap.neg difference.2 (by linarith [rb.1]),
       Rounded.mono difference.2 cap (by linarith [rb.2])⟩⟩
 
-/-- The complete raw differential backup obeys the actual rounded aggregate-plus-cap
-bound for every finite aggregate endpoint through 2^32. This includes every capacity
-endpoint and all nearest-even ties in its addition of 128.
-Wan, Naik and Sutton, *Average-Reward Learning and Planning with Options*,
-NeurIPS 34 (2021), section 5 equations (18)–(23). -/
 theorem differential_backup_bound (reward gain duration continuation bound : Binary32)
     (rf : reward.Finite) (gf : gain.Finite) (df : duration.Finite)
     (cf : continuation.Finite) (bf : bound.Finite)
@@ -716,8 +646,6 @@ theorem differential_backup_bound (reward gain duration continuation bound : Bin
     (by rw [cap]; exact (abs_le.mp exactBound).2)
   exact ⟨target.1, endpoint.1, abs_le.mpr ⟨lower, upper⟩⟩
 
-/-- The bound applies directly to the executing differential model target, with
-producer-owned reward, gain and duration ranges and a raw continuation assumption. -/
 theorem model_prediction_differential_bound
     (prediction : Acorn.Features.ModelPrediction .differential) (gain : RewardRate)
     (bound : Binary32) (bf : bound.Finite)
@@ -748,11 +676,8 @@ theorem model_prediction_differential_bound
     prediction.continuation bound prediction.reward.legal.1 gain.legal.1 prediction.duration.legal.1
     cf bf rb gb db bb cb
 
-/-- Numerical zero is exactly its own signed nearest rounding. -/
 theorem rounded_zero : Rounded 0 0 := ⟨0, 0, by norm_num, rfl⟩
 
-/-- Discount multiplication maps every admitted prediction to the interval
-between zero and the actual rounded gamma-times-horizon endpoint. -/
 theorem discounted_product_interval (gamma prediction horizon : Binary32)
     (gf : gamma.Finite) (pf : prediction.Finite) (hf : horizon.Finite)
     (gb : 0 ≤ numerical32 gamma ∧ numerical32 gamma ≤ 1)
@@ -777,8 +702,6 @@ theorem discounted_product_interval (gamma prediction horizon : Binary32)
     Rounded.mono rounded_zero horizonRound.2 (mul_nonneg gb.1 hb.1), ?_⟩
   exact Rounded.mono horizonRound.2 (binary32_rounded_exact horizon hf) (by nlinarith)
 
-/-- Subtraction of bounded nonnegative predictions retains both asymmetric
-representable endpoints through actual binary32 rounding. -/
 theorem prediction_difference_interval (target old horizon upper : Binary32)
     (tf : target.Finite) (of : old.Finite) (hf : horizon.Finite) (uf : upper.Finite)
     (tb : 0 ≤ numerical32 target ∧ numerical32 target ≤ numerical32 upper)
@@ -794,8 +717,6 @@ theorem prediction_difference_interval (target old horizon upper : Binary32)
     Rounded.mono (binary32_rounded_exact horizon hf).neg operation.2 (by linarith [tb.1, ob.2]),
     Rounded.mono operation.2 (binary32_rounded_exact upper uf) (by linarith [tb.2, ob.1])⟩
 
-/-- Every supported discount's actual generated gamma and computed horizon
-lie in the common finite arithmetic domain. The closed enum owns this exhaustion. -/
 theorem discount_arithmetic_domain (discount : Discount) :
     discount.gamma.Finite ∧ discount.horizon.Finite ∧
       (0 ≤ numerical32 discount.gamma ∧ numerical32 discount.gamma ≤ 1) ∧
@@ -822,7 +743,6 @@ theorem discount_arithmetic_domain (discount : Discount) :
   rw [cap] at hu
   exact ⟨gf, hf, ⟨gl, gu⟩, ⟨hl, hu⟩⟩
 
-/-- Reward-plus-continuation addition preserves its actual rounded endpoint. -/
 theorem reward_sum_interval (reward prediction upper : Binary32)
     (rf : reward.Finite) (pf : prediction.Finite) (uf : upper.Finite)
     (rb : 0 ≤ numerical32 reward ∧ numerical32 reward ≤ 1)
@@ -853,8 +773,6 @@ theorem reward_sum_interval (reward prediction upper : Binary32)
     Rounded.mono sum.2 endpoint.2 (by rw [one]; linarith [rb.2, pb.2]),
     lowerBound, upperBound⟩
 
-/-- Typed prediction admission denotes every finite nonnegative word below
-its actual machine horizon. -/
 theorem prediction_numeric_bounds (discount : Discount) (prediction : Prediction discount) :
     0 ≤ numerical32 prediction.value ∧
       numerical32 prediction.value ≤ numerical32 discount.horizon := by
@@ -862,14 +780,6 @@ theorem prediction_numeric_bounds (discount : Discount) (prediction : Prediction
   have zero : numerical32 Binary32.zero = 0 := by decide
   simpa only [Discount.predictionRange, zero] using result
 
-/-- Termination-conditional option TD errors obey the original asymmetric
-machine bounds over every supported discount and every admitted word.
-Sutton, Machado et al., *Reward-Respecting Subtasks for Model-Based Reinforcement
-Learning*, Artificial Intelligence 324 (2023), 104001, section 4 equations (15)–(17).
-These are arithmetic input contracts; raw learner transients do not inherit
-prediction admission merely because this conditional formula has a bound. The
-continuation formula takes a projected, non-negative terminal estimate; the terminal
-target `Acorn.Models` executes is a signed residual, which this theorem does not cover. -/
 theorem option_td_error_termination_conditional (discount : Discount) (terminal : Bool)
     (reward : RewardRate) (oldR oldC nextR nextC : Prediction discount) (estimate : Binary32) :
     let deltaR := if terminal then reward.value.sub oldR.value

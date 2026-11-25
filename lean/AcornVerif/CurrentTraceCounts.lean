@@ -1,93 +1,4 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentFirstChoice
-
-/-!
-# Trace totals of rows taken once
-
-After a first reward of one, the value of each action at a frame is its row's trace total there
-(`AcornVerif.CurrentFirstChoice.reward_values`), and the first decision after the reward compares
-those totals (`AcornVerif.CurrentFirstChoice.first_choice`). This module says what a total is for
-a row whose action was taken once before the reward: the ordered sum of one named word, taken
-once for each slot the frame shares with the frame the row laid. It then compares such totals
-under the discounted criterion.
-
-**A row taken once.** Take a controller whose rewards have all been zero. A row that holds no
-trace reads a zero word for the trace total of the frame it lays, so on a frame of at most 1999
-slots the laid increment is the whole stored step size: after the step, each slot of the frame
-holds `AcornVerif.CurrentCreditHorizon.stepWord` in that row, and no other slot is eligible
-(`fresh_laid`). Each later reward-free step that takes another action multiplies those traces by
-the trace decay, and prunes none while the decayed trace is above the pruning threshold
-(`fresh_after`), which it is for eighty such steps (`freshChain_above`). Call the stored step
-size decayed a number of times, as one executed word, the *fresh trace* of that age
-(`freshChain`), and call a row *fresh* at a frame and an age when each slot of the frame holds
-that word in the row and no other slot of the row holds a trace (`Fresh`). `fresh_laid`,
-`fresh_after` and `fresh_total` below are stated for either criterion.
-
-**Its total.** The trace total of a fresh row on any frame of at most 1999 slots reads the
-ordered sum of as many copies of the fresh trace as the frame holds slots of the laid frame
-(`fresh_total`): the frame's other slots hold positive zero in that row. The only fact of the
-two frames the total reads is that count. The sum is the executed one, added copy by copy. It is
-near the product of the count and the word (`repeatSum_near`); no theorem here says that it is
-the rounded product.
-
-**The comparison.** Under the discounted criterion, the ordered sum of at least one and at most
-1999 stored step sizes, less the tie window, is above the ordered sum of at most as many fresh
-traces of age one (`fresh_lead`). Its proof evaluates neither sum. It reads the stored step size
-as `13743900 · 2^(-38)` and the fresh trace of age one as `12245815 · 2^(-38)`
-(`AcornVerif.CurrentCreditHorizon.step_value`, `fresh_one_value`; that trace is one executed
-product, which the kernel evaluates in `fresh_one`). An ordered sum of copies of a word of at
-most `2^(-14)` is within `2^(-28)` of the exact multiple for each copy, half a unit in the last
-place of a sum below an eighth (`repeatSum_near`, from
-`AcornVerif.CurrentPrediction.binary32_add_finite_strict_error`). And the difference of the two
-words, about a ninth of the step size, is more than five times the tie window. So in a policy
-one of whose values is such a sum of step sizes, while every other value is at most a sum of at
-most as many fresh traces of age one, that value's action is the one near-maximum candidate
-(`counted_candidate`).
-
-**A kernel run.** For a profile with no hierarchy under per-step credit and the discounted
-criterion, before a unit of the feature bank matures: take a kernel run, from an agent state
-whose learners are at rest and whose primitive controller holds no trace, whose rewards are zero
-words and whose frames hold at most 1999 slots. A row whose action the run took at one time, and
-at no other from 119 steps before that time on, is fresh at the frame laid then, for eighty
-steps (`loop_fresh`). Where the actions before a time are pairwise different, every row that was
-taken is fresh and every other row holds no trace. So right before the step that learns a
-reward, on any frame of at most 1999 slots, the trace total of each action taken reads the
-ordered sum of as many copies of the fresh trace of the action's age as the frame holds slots of
-the frame laid at the action's step, and the total of an action not taken is a zero word
-(`loop_totals`). The comparison of two such actions is then a comparison of two counts and two
-named words.
-
-**The decision.** At a frame that holds a slot of the last frame laid before that time, and at
-least as many slots of it as of each earlier frame, the last action taken is the one candidate
-of the trace policy (`last_candidate`). With `AcornVerif.CurrentFirstChoice.first_choice`, under
-the declared rate at the default step order: when a first reward of one comes after pairwise
-different actions, and the frame of the next decision meets that condition, then outside a
-committed run, when the generator begins none, the agent's first decision after the reward takes
-again the last action it took before the reward (`first_choice_last`).
-
-What this does not say.
-
-- Anything of a row whose action was taken more than once before the reward. Its second laying
-  can read a total that is not zero, its slots can then hold more than one word, and an ordered
-  sum of different words depends on their order; this module says nothing of such a total.
-- How many slots two frames share. That is a fact of the frames: of the words of their percepts,
-  of the words the agent feeds back from its own predictions, of the units its percepts turn on,
-  and of which of those hash to one slot. So no theorem here says that the next decision's frame
-  holds at least as many slots of the last frame as of an earlier one.
-- Which action is the candidate where an earlier frame shares more slots with the decision's
-  frame than the last one does. `loop_totals` gives the two totals to compare, and `fresh_lead`
-  compares them only where the fresher one has at least as many copies.
-- Anything of a later decision, of a kernel run or a comparison under the differential
-  criterion, or of a run past the first maturing unit.
-
-Trust. The statements are about executed binary32 words. Lean's kernel, its model of binary32
-arithmetic and the agreement of the native operations with that model on finite operands remain
-trusted, as for every proof of executed words in this library.
--/
 
 namespace AcornVerif.CurrentTraceCounts
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -96,17 +7,12 @@ open AcornVerif.CurrentLearner AcornVerif.CurrentPreReward AcornVerif.CurrentFea
 open AcornVerif.CurrentControl AcornVerif.CurrentCreditHorizon AcornVerif.CurrentFirstChoice
 open SwiftTd (ActiveSet)
 
-/-! ## The trace of a slot laid once -/
-
 section Words
 
-/-- The trace a row holds on a slot it laid once, from no trace, `age` steps before: the stored
-step size, multiplied by the trace decay once for each later step. -/
 def freshChain (criterion : Criterion) : Nat → Binary32
   | 0 => stepWord
   | age + 1 => (freshChain criterion age).mul (decayOf criterion)
 
-/-- The fresh trace of every age is small, nonnegative and at most the step size. -/
 theorem freshChain_facts (criterion : Criterion) (age : Nat) :
     Small (freshChain criterion age) ∧ 0 ≤ numerical32 (freshChain criterion age) ∧
       numerical32 (freshChain criterion age) ≤ numerical32 stepWord := by
@@ -119,7 +25,6 @@ theorem freshChain_facts (criterion : Criterion) (age : Nat) :
     exact ⟨small_between product.1 small_zero ih.1 (by rw [zero_value]; exact lower) upper,
       lower, le_trans upper ih.2.2⟩
 
-/-- A fresh trace is at least the least laid trace of the same age. -/
 theorem low_le_fresh (criterion : Criterion) (age : Nat) :
     numerical32 (lowChain criterion age) ≤ numerical32 (freshChain criterion age) := by
   induction age with
@@ -131,12 +36,10 @@ theorem low_le_fresh (criterion : Criterion) (age : Nat) :
       (freshChain_facts criterion age).1 (small_decay criterion)
       (lowChain_facts criterion age).2.1 (decay_nonneg criterion) ih le_rfl
 
-/-- The fresh trace of an age of at most eighty is above the pruning threshold. -/
 theorem freshChain_above (criterion : Criterion) (age : Nat) (near : age ≤ 80) :
     numerical32 pruneWord < numerical32 (freshChain criterion age) :=
   lt_of_lt_of_le (lowChain_above criterion age near) (low_le_fresh criterion age)
 
-/-- A fresh trace does not grow with its age. -/
 theorem freshChain_antitone (criterion : Criterion) (age more : Nat) :
     numerical32 (freshChain criterion (age + more)) ≤ numerical32 (freshChain criterion age) := by
   induction more with
@@ -148,13 +51,8 @@ theorem freshChain_antitone (criterion : Criterion) (age more : Nat) :
 
 end Words
 
-/-! ## Ordered sums of one small word -/
-
 section Sums
 
-/-- **An ordered sum of a small word is near the exact multiple.** For a finite nonnegative word
-of at most `2^(-14)`, the ordered sum of at most 1999 copies is finite and within `2^(-28)` of
-the exact multiple for each copy: half a unit in the last place of a sum below an eighth. -/
 theorem repeatSum_near (word : Binary32) (finite : word.Finite)
     (nonneg : 0 ≤ numerical32 word) (small : numerical32 word ≤ (2 : ℚ) ^ (-14 : Int)) :
     ∀ count ≤ 1999, (repeatSum word count).Finite ∧
@@ -195,8 +93,6 @@ theorem repeatSum_near (word : Binary32) (finite : word.Finite)
     push_cast
     constructor <;> nlinarith [bounds.1, bounds.2, stepBounds.1, stepBounds.2]
 
-/-- Every ordered sum of at most 1999 copies of a finite nonnegative word of at most `2^(-14)`
-is small. -/
 theorem repeatSum_small (word : Binary32) (finite : word.Finite)
     (nonneg : 0 ≤ numerical32 word) (small : numerical32 word ≤ (2 : ℚ) ^ (-14 : Int))
     (count : Nat) (fits : count ≤ 1999) : Small (repeatSum word count) := by
@@ -213,13 +109,10 @@ theorem repeatSum_small (word : Binary32) (finite : word.Finite)
   rw [e28] at bounds
   refine ⟨sumFinite, abs_le.mpr ⟨?_, ?_⟩⟩ <;> nlinarith [bounds.1, bounds.2]
 
-/-- The stored step size is at most `2^(-14)`. -/
 theorem step_bound : numerical32 stepWord ≤ (2 : ℚ) ^ (-14 : Int) := by
   rw [step_value]
   norm_num
 
-/-- Every ordered sum of at most 1999 fresh traces of one age is small, nonnegative and at most
-the sum of as many stored step sizes. -/
 theorem freshSum_small (criterion : Criterion) (age count : Nat) (fits : count ≤ 1999) :
     Small (repeatSum (freshChain criterion age) count) ∧
       0 ≤ numerical32 (repeatSum (freshChain criterion age) count) ∧
@@ -237,8 +130,6 @@ theorem freshSum_small (criterion : Criterion) (age count : Nat) (fits : count �
   simp only [List.length_replicate, Nat.zero_add] at total
   exact total
 
-/-- An ordered sum of at most 1999 fresh traces of an age of at least one is at most the sum of
-as many fresh traces of age one. -/
 theorem freshSum_older (criterion : Criterion) (age count : Nat) (old : 1 ≤ age)
     (fits : count ≤ 1999) :
     numerical32 (repeatSum (freshChain criterion age) count) ≤
@@ -261,14 +152,10 @@ theorem freshSum_older (criterion : Criterion) (age count : Nat) (old : 1 ≤ ag
 
 end Sums
 
-/-! ## A row taken once -/
-
 section Rows
 
 variable {criterion : Criterion} {dimension : Dimension} {actions : Nat}
 
-/-- A row whose one laid frame, `age` steps before, is `frame`: every slot of the frame is
-eligible in the row with the fresh trace of that age, and no other slot is eligible. -/
 def Fresh (criterion : Criterion)
     (controller : Controller (criterion.config .control) dimension actions) (row : Fin actions)
     (frame : ActiveSet dimension) (age : Nat) : Prop :=
@@ -278,11 +165,6 @@ def Fresh (criterion : Criterion)
     ∀ slot, slot ∉ frame.indices →
       slot ∉ (controller.learners.get row).state.transient.eligible
 
-/-- **A row that holds no trace lays the stored step size.** From a quiet controller, a
-reward-free step at a row with no eligible slot, on a frame of at most 1999 slots, leaves each
-slot of the frame eligible in that row with the stored step size for its trace, and no other
-slot eligible: the trace total it reads is a zero word, so the laid increment is the whole step
-size. -/
 theorem fresh_laid {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
@@ -340,11 +222,6 @@ theorem fresh_laid {history : List (Laid dimension actions)}
     rw [pre.zero, one_sub_zero total]
     decide +kernel
 
-/-- **A reward-free step at another row decays a fresh trace once.** From a quiet controller, a
-reward-free step that does not take a row whose one laid frame is fresh leaves that frame fresh
-one step older, while the decayed trace stays above the pruning threshold: the first loop
-multiplies each of the frame's traces by the trace decay and prunes none, and the row's second
-loop does not run. -/
 theorem fresh_after {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
@@ -398,11 +275,6 @@ theorem fresh_after {history : List (Laid dimension actions)}
     rw [z, same]
     rfl
 
-/-- **The trace total of a fresh row sums the fresh trace over the shared slots.** On a quiet
-controller, a row whose one laid frame is fresh at some age has, on every frame of at most 1999
-slots, a trace total that reads the ordered sum of as many copies of the fresh trace of that age
-as the frame holds slots of the laid frame: each such slot holds that word, and every other slot
-holds positive zero. -/
 theorem fresh_total {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (row : Fin actions)
@@ -446,26 +318,17 @@ theorem fresh_total {history : List (Laid dimension actions)}
 
 end Rows
 
-/-! ## The freshest trace leads -/
-
 section Lead
 
-/-- Under the discounted criterion the fresh trace of age one is the word `0x383adb37`. -/
 theorem fresh_one : freshChain .discounted 1 = ⟨0x383adb37⟩ := by
   decide +kernel
 
-/-- Under the discounted criterion the fresh trace of age one reads `12245815 · 2^(-38)`. -/
 theorem fresh_one_value :
     numerical32 (freshChain .discounted 1) = 12245815 * (2 : ℚ) ^ (-38 : Int) := by
   rw [fresh_one]
   change (1 : ℚ) * 12245815 * (2 : ℚ) ^ (-38 : Int) = _
   ring
 
-/-- **The freshest trace leads by more than the tie window.** Under the discounted criterion, the
-ordered sum of `copies` stored step sizes, for at least one and at most 1999 copies, less the tie
-window, is above the ordered sum of at most as many fresh traces of age one. A step size exceeds
-a fresh trace of age one by about a ninth of itself, five times the tie window, and each sum is
-within its rounding errors of the exact multiple (`repeatSum_near`). -/
 theorem fresh_lead (fewer copies : Nat) (order : fewer ≤ copies) (positive : 1 ≤ copies)
     (fits : copies ≤ 1999) :
     (repeatSum (freshChain .discounted 1) fewer).key <
@@ -509,11 +372,6 @@ section Candidate
 
 variable {count : Word.Count}
 
-/-- **The freshest counted value is the one candidate.** Under the discounted criterion, take a
-policy of finite values in which one action's value reads the ordered sum of `copies` stored step
-sizes, for at least one and at most 1999 copies, and every other value reads at most the ordered
-sum of at most as many fresh traces of age one. That action is the one near-maximum candidate,
-and the greedy draw returns it whatever the generator. -/
 theorem counted_candidate (snapshot : PolicySnapshot count) (winner : Action count.word.toNat)
     (copies : Nat) (positive : 1 ≤ copies) (fits : copies ≤ 1999)
     (finite : ∀ action, (snapshot.values.get action).Finite)
@@ -547,8 +405,6 @@ theorem counted_candidate (snapshot : PolicySnapshot count) (winner : Action cou
 
 end Candidate
 
-/-! ## A kernel run -/
-
 section Run
 
 open AcornVerif.CurrentFirstCredit AcornVerif.CurrentExplorer AcornVerif.CurrentGridWorld
@@ -556,14 +412,6 @@ open AcornVerif.CurrentFirstCredit AcornVerif.CurrentExplorer AcornVerif.Current
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {dimension : Dimension} {planning : PlanningSelection}
 
-/-- **In a kernel run, the frame of an action taken once stays fresh.** For a profile with no
-hierarchy under per-step credit and the discounted criterion, from an agent state whose learners
-are at rest and whose primitive controller holds no trace: in a kernel run in which every reward
-word is the zero word, over frames of at most 1999 slots and before a unit of the feature bank
-matures, take a time whose action the run takes at none of the 119 times before it and at no
-time up to `gap` steps after it, for a `gap` of at most 80. Then `gap` steps after that step,
-the row of that action holds the fresh trace of age `gap` on every slot of the frame laid at
-that time, and no trace elsewhere. -/
 theorem loop_fresh (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -613,16 +461,6 @@ theorem loop_fresh (primitive : profile.usesHierarchy = false)
     rw [laidAt_row, laidAt_row]
     exact once (laid + 1 + gap) (by omega) (by omega) (by omega)
 
-/-- **In a run of pairwise different actions, every trace total sums one word over the shared
-slots.** For a profile with no hierarchy under per-step credit and the discounted criterion, from
-an agent state whose learners are at rest and whose primitive controller holds no trace: in a
-kernel run in which every reward word up to the time `last` is the zero word, over frames of at
-most 1999 slots and before a unit of the feature bank matures, suppose the actions at the times
-up to `last` are pairwise different. Then, right before the step at the time `last + 1`, on every
-frame of at most 1999 slots: the trace total of the action taken `age` steps before the time
-`last` reads the ordered sum of as many copies of the fresh trace of that age as the frame holds
-slots of the frame laid at that time; and the trace total of an action taken at none of those
-times is a zero word. -/
 theorem loop_totals (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -662,13 +500,6 @@ theorem loop_totals (primitive : profile.usesHierarchy = false)
       unlaid_window agent world start (last + 1) _ action held
         fun earlier early _ same => absurd same (untaken earlier early)
 
-/-- **Where the actions before a time are all different, the last one is the candidate where its
-frame shares most.** Under the hypotheses of `loop_totals`, take a frame of at most 1999 slots
-that holds a slot of the frame laid at the time `last`, and at least as many slots of it as of
-the frame laid at each earlier time. Then the action taken at the time `last` is the one
-near-maximum candidate of the trace policy at that frame, at any rate, and the greedy draw
-returns it whatever the generator: each total is an ordered sum of one fresh trace over the
-shared slots (`loop_totals`), and the freshest trace leads (`fresh_lead`). -/
 theorem last_candidate (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -725,17 +556,6 @@ theorem last_candidate (primitive : profile.usesHierarchy = false)
       rw [zero_reads (untaken action fun earlier early same => once ⟨earlier, early, same⟩),
         repeatSum_zero, zero_value]
 
-/-- **Outside a run, the first decision after a first reward that follows pairwise different
-actions takes the last of them again.** For a profile with no hierarchy under per-step credit,
-the declared rate and the discounted criterion, at the default step order, from an agent state
-whose learners are at rest and whose primitive controller holds no trace: in a kernel run in
-which every reward word up to the time `last` is the zero word and the next one is the word one,
-before a unit of the feature bank matures and over frames of at most 1999 slots, suppose the
-actions at the times up to `last` are pairwise different, and the frame the decision at the time
-`last + 2` reads holds a slot of the frame laid at the time `last`, and at least as many slots of
-it as of the frame laid at each earlier time. Then, when the explorer's state after `last + 2`
-decisions holds no committed run with a step left and its generator begins none at the declared
-rate, the action at the time `last + 2` is the action at the time `last`. -/
 theorem first_choice_last (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
     (agent : Agent interface profile config .discounted dimension planning)

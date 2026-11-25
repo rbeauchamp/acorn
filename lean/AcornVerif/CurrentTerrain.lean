@@ -1,73 +1,35 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.WorldState
 import AcornVerif.CurrentFloor
-
-/-!
-# Refusals of the terrain generator
-
-`Host.terrain` refuses a position exactly when the value noise of one of its two fields reaches
-a lattice coordinate with no successor among the signed 64-bit coordinates. The noise of an
-octave divides each coordinate of the position by the scale of the octave, takes the floor of
-the quotient and casts it to a coordinate. The coordinate after it is checked, and only the last
-coordinate `2 ^ 63 - 1` has none.
-
-`PastLast` states that condition on the quotient by its exact value, with no floor and no cast:
-the quotient is positive infinity, or a finite value that is not negative and is at least
-`2 ^ 63 - 1`. `LatticeAdmits` states its absence for both coordinates at the four octaves of a
-field, whose scales are the base scale doubled zero to three times. The two fields read one
-position at the same scales, and the seed enters no refusal. `terrain_isOk` is the
-characterization, and `tileKind_isOk` and `enterable_isOk` carry it to the two readers of the
-world.
-
-The statements name the binary32 quotient of a coordinate by an octave scale, which the generator
-also computes: the conversion of a coordinate, the division and the doubling of the scale are
-shared with it. The floor, the saturating cast and the checked successor are not: the statements
-replace them with a bound on the exact value of the quotient.
--/
 
 set_option exponentiation.threshold 2048
 
 namespace AcornVerif.CurrentTerrain
 open Acorn Acorn.Host
 
-/-- A quotient whose floor is at least the last coordinate `2 ^ 63 - 1`: positive infinity, or a
-finite word that is not negative with an exact value of at least `2 ^ 63 - 1`. The exact value of
-a finite word is `Conversion.magnitudeUnits32`, in units of `2 ^ -1074`. -/
 def PastLast (quotient : Binary32) : Prop :=
   quotient = ⟨0x7f800000⟩ ∨
     quotient.Finite ∧ ¬quotient.Negative ∧
       (2 ^ 63 - 1) * 2 ^ 1074 ≤ Conversion.magnitudeUnits32 quotient
 
-/-- Whether a quotient is past the last coordinate is decided by its word. -/
 instance (quotient : Binary32) : Decidable (PastLast quotient) :=
   inferInstanceAs (Decidable (quotient = ⟨0x7f800000⟩ ∨
     quotient.Finite ∧ ¬quotient.Negative ∧
       (2 ^ 63 - 1) * 2 ^ 1074 ≤ Conversion.magnitudeUnits32 quotient))
 
-/-- The scale of an octave: the base scale doubled once for each earlier octave, in the order of
-`Host.octaveLoop`. -/
 def octaveScale (scale : Binary32) : Nat → Binary32
   | 0 => scale
   | octave + 1 => octaveScale (scale.mul ⟨0x40000000⟩) octave
 
-/-- The value noise of the terrain admits a position at a base scale: at each of the four octaves,
-the quotient of neither coordinate by the scale of the octave is past the last coordinate. -/
 def LatticeAdmits (position : Position) (scale : Binary32) : Prop :=
   ∀ octave < 4,
     ¬PastLast ((coordinateFloat position.x).div (octaveScale scale octave)) ∧
       ¬PastLast ((coordinateFloat position.y).div (octaveScale scale octave))
 
-/-- Whether the noise admits a position is decided by its eight quotients. -/
 instance (position : Position) (scale : Binary32) : Decidable (LatticeAdmits position scale) :=
   inferInstanceAs (Decidable (∀ octave < 4,
     ¬PastLast ((coordinateFloat position.x).div (octaveScale scale octave)) ∧
       ¬PastLast ((coordinateFloat position.y).div (octaveScale scale octave))))
 
-/-- The sign test of a binary64 word reads its high bit. -/
 private theorem sign64_iff (word : UInt64) :
     (word &&& 0x8000000000000000 != 0) = true ↔ 2 ^ 63 ≤ word.toNat := by
   have bound := word.toNat_lt
@@ -84,15 +46,10 @@ private theorem sign64_iff (word : UInt64) :
   · intro high clear
     omega
 
-/-- The cast of a word reads its widening, or the quiet binary64 NaN for a NaN. -/
 private theorem cast_val (value : Binary32) : (coordinateCast value).val =
     Conversion.toI64 (if value.IsNaN then ⟨0x7ff8000000000000⟩ else Conversion.widen value) :=
   rfl
 
-/-- The cast of the floor of a quotient is the last coordinate exactly when the quotient is past
-the last coordinate. A NaN quotient casts to zero. An infinite quotient is its own floor and
-saturates by its sign. A finite quotient has an integral floor less than one below it, which
-reaches the last coordinate exactly when the quotient does. -/
 theorem cast_floor_last (quotient : Binary32) :
     (coordinateCast (floor32 quotient)).val = 2 ^ 63 - 1 ↔ PastLast quotient := by
   by_cases finite : quotient.Finite
@@ -166,7 +123,6 @@ theorem cast_floor_last (quotient : Binary32) :
         · rw [eta, bits]
           decide +kernel
 
-/-- The coordinate after a coordinate is checked, and only the last coordinate has none. -/
 private theorem successor_isSome (coordinate : Coordinate) :
     (Coordinate.checked (coordinate.val + 1)).isSome = true ↔
       ¬coordinate.val = 2 ^ 63 - 1 := by
@@ -178,8 +134,6 @@ private theorem successor_isSome (coordinate : Coordinate) :
   · intro notLast
     exact ⟨by omega, by omega⟩
 
-/-- The value noise of an octave admits a position exactly when the quotient of neither
-coordinate by the scale is past the last coordinate. -/
 theorem valueNoise_isOk (position : Position) (scale : Binary32) (seed : UInt64) :
     (valueNoise position scale seed).isOk = true ↔
       ¬PastLast ((coordinateFloat position.x).div scale) ∧
@@ -191,8 +145,6 @@ theorem valueNoise_isOk (position : Position) (scale : Binary32) (seed : UInt64)
       ((coordinateCast (floor32 ((coordinateFloat position.y).div scale))).val + 1) <;>
     simp [valueNoise, horizontal, vertical, Except.isOk, Except.toBool, pure, Except.pure]
 
-/-- The octave fold admits a position exactly when the noise of each of its octaves does, whatever
-the amplitude and the sum it starts from. -/
 theorem octaveLoop_isOk (count : Nat) (position : Position) (seed : UInt64)
     (scale amplitude sum : Binary32) :
     (octaveLoop count position seed scale amplitude sum).isOk = true ↔
@@ -224,15 +176,10 @@ theorem octaveLoop_isOk (count : Nat) (position : Position) (seed : UInt64)
       · intro all octave below
         exact all (octave + 1) (by omega)
 
-/-- A field of the terrain admits a position exactly when the value noise admits it at the base
-scale. -/
 theorem fbm_isOk (position : Position) (seed : UInt64) (scale : Binary32) :
     (fbm position seed scale).isOk = true ↔ LatticeAdmits position scale :=
   octaveLoop_isOk 4 position seed scale _ _
 
-/-- The terrain generator admits a position exactly when the value noise admits it at the base
-scale. The two fields read the same position at the same scales, and the seed enters no
-refusal. -/
 theorem terrain_isOk (position : Position) (seed : UInt64) (scale : Binary32) :
     (terrain position seed scale).isOk = true ↔ LatticeAdmits position scale := by
   have elevationOk := fbm_isOk position (seed ^^^ 0xe1e0e1e000000001) scale
@@ -242,8 +189,6 @@ theorem terrain_isOk (position : Position) (seed : UInt64) (scale : Binary32) :
     cases moisture : fbm position (seed ^^^ 0xe1e0e1e000000002) scale <;>
     simp_all [Except.isOk, Except.toBool, bind, Except.bind, pure, Except.pure]
 
-/-- The effective kind of a tile is refused exactly when the value noise refuses its position at
-the base scale of the world. -/
 theorem tileKind_isOk {config : WorldConfig} (world : World config) (position : Position) :
     (world.tileKind position).isOk = true ↔ LatticeAdmits position config.raw.baseScale := by
   rw [← terrain_isOk position config.raw.seed]
@@ -255,8 +200,6 @@ theorem tileKind_isOk {config : WorldConfig} (world : World config) (position : 
     repeat' split
     all_goals simp [Except.isOk, Except.toBool, pure, Except.pure]
 
-/-- An entry into a tile is refused exactly when the value noise refuses its position at the base
-scale of the world. -/
 theorem enterable_isOk {config : WorldConfig} (world : World config) (position : Position) :
     (world.enterable position).isOk = true ↔ LatticeAdmits position config.raw.baseScale := by
   rw [← tileKind_isOk world position]

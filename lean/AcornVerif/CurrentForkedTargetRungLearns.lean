@@ -1,64 +1,6 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentForkedTargetFrames
 import AcornVerif.CurrentForkedTargetRule
 import AcornVerif.CurrentForkedTargetRungBoth
-
-/-!
-# What mastery of a grid of targets by day and by night excludes and gives
-
-This module is about the promises a statement over the rung of targets by day and by night can
-be built from: mastery of a grid (`AcornVerif.Kernel.MastersGridBy`), keeping on admitted
-visits (`AcornVerif.Kernel.KeepsOn`), and the two clauses of
-`AcornVerif.CurrentForkedTargetRule`. It proves what they exclude, what follows from them, and
-that the two promises can be met. It states no target and proves none.
-
-**What mastery of a grid excludes**, at the rung's class and for every limit, horizon, returns
-and predicate:
-
-- an agent that keeps nothing of its experience, at the sharp covering bound 49
-  (`rung_grid_need`);
-- an agent whose actions depend on its clock, its reward words and its achievement flags, at
-  every bound (`rung_grid_blind`);
-- the kernel's chooser over that feedback, made to act otherwise only on percepts the class
-  never delivers (`rung_grid_hybrid`).
-
-**What mastery of a grid gives**, for every agent of the grid interface:
-
-- on some visit, from one memory at the visit's start, the agent's actions differ at some step
-  between the visit's two situations (`grid_reads`); the theorem gives one step, not the first;
-- under every second target of the grid, some first target is one the agent had already solved,
-  in that member's run, on an earlier visit of the first situation, and under every first
-  target some second target is one it had already solved on an earlier visit of the second
-  situation (`grid_experienced`). The count behind it: under one second target, the first
-  targets solved on the visit of mastery without such an earlier visit number at most 49
-  (`AcornVerif.CurrentForkedTargetBoth.grid_first_experience`).
-
-**What the rule adds**, for the executed agent of a construction that steps by the declared
-rule: on a calm visit of a member's run, each of the seven actions the world takes is the action
-of the greedy draw over the policy the primitive controller freezes at that decision's frame,
-from the generator the persistent draw leaves after its branch word (`calm_turn_greedy`). With
-mastery on a calm visit, the visit of mastery is solved by such draws.
-
-**That the two promises can be met.** `AcornVerif.CurrentForkedTargetRungBoth.gridWitness`, a
-kernel agent built for the purpose, masters a grid before visit 576 with 288 later occasions
-before visit 1728, under the predicate that admits every visit, and keeps on the visits of every
-predicate (`witness_promises`). It records the actions of a rewarded visit for each situation it
-reads and replays them. It is not an agent of the executed type: it has no draw, so it shows
-nothing about calm visits, and it does not step by the declared rule.
-
-**That the rule leaves the values room.** In every state of the rung's agent the frame laid at
-the first situation's start holds a slot that the frame laid at the second's does not
-(`AcornVerif.CurrentForkedTargetFrames.starts_differ`; `starts_perceived` reads it through the
-encoder the clause names), so at a visit's first decision the
-frozen policy can value the two situations differently.
-
-Not proved here or anywhere: that an agent of the executed type that steps by the declared rule
-meets either promise.
--/
 
 namespace AcornVerif.CurrentForkedTargetRungLearns
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -68,15 +10,9 @@ open AcornVerif.CurrentForkedTarget AcornVerif.CurrentForkedTargetRung
 open AcornVerif.CurrentForkedTargetBoth AcornVerif.CurrentForkedTargetRungBoth
 open AcornVerif.CurrentForkedTargetRule
 
-/-- What an agent that ignores its observation still reads of a percept: its reward word and its
-achievement flag. -/
 def rewardAndFlag (percept : Percept Grid.interface) : Binary32 × Bool :=
   (percept.reward, percept.frame.achieved)
 
-/-! ## What mastery of a grid excludes -/
-
-/-- **No agent that keeps nothing masters a grid at the sharp covering bound**, whatever the
-limit, the horizon, the returns and the predicate. -/
 theorem rung_grid_need (mode : TaskFeatureMode) {agent : Kernel.Agent Grid.interface}
     (free : Kernel.ExperienceFree agent) (limit horizon returns : ℕ)
     (admits : (rungForks mode).Index → (ℕ → Bool) → ℕ → Prop) :
@@ -85,8 +21,6 @@ theorem rung_grid_need (mode : TaskFeatureMode) {agent : Kernel.Agent Grid.inter
       limit horizon returns admits agent :=
   forked_need_grid mode witnessLive duskLive 7 free limit horizon returns admits
 
-/-- **No agent that goes by its clock, its reward words and its achievement flags masters a
-grid**, at any bound, keys, limit, horizon, returns and predicate. -/
 theorem rung_grid_blind (mode : TaskFeatureMode) {agent : Kernel.Agent Grid.interface}
     (blind : Kernel.FeedbackDriven rewardAndFlag agent) (bound limit horizon returns : ℕ)
     {κ μ : Type} (one : (rungForks mode).Index → κ) (two : (rungForks mode).Index → μ)
@@ -96,11 +30,6 @@ theorem rung_grid_blind (mode : TaskFeatureMode) {agent : Kernel.Agent Grid.inte
   forked_blind_grid mode witnessLive duskLive 7 dusk_carried blind bound limit horizon returns
     one two admits
 
-/-- **The chooser over that feedback, made to act otherwise only where the class never looks,
-masters no grid.** A chooser whose preference and memory read the percept through the reward
-word and the achievement flag, made to hold a resting preference on a set of percepts that no
-member of the rung's class delivers, masters no grid at any bound, keys, limit, horizon, returns
-and predicate. -/
 theorem rung_grid_hybrid (mode : TaskFeatureMode) {E Core V : Type}
     (select : E → V → Kernel.Act Grid.interface × E) (core : Core) (seed : E)
     (prefer : Core → Binary32 × Bool → V)
@@ -120,15 +49,9 @@ theorem rung_grid_hybrid (mode : TaskFeatureMode) {E Core V : Type}
     (fun _ state => never state) (forked_mute mode witnessLive duskLive 7 dusk_carried)
     (forked_apart mode witnessLive duskLive 7)
 
-/-! ## What mastery of a grid gives -/
-
 variable {mode : TaskFeatureMode} {agent : Kernel.Agent Grid.interface} {bound limit horizon
   returns : ℕ} {admits : (rungForks mode).Index → (ℕ → Bool) → ℕ → Prop}
 
-/-- **An agent that masters a grid reads what it perceives.** There are an order, a visit, a
-member and a step of that visit at which the agent's actions differ between the two runs that
-differ in that visit's situation alone, while its memory at the visit's start is the same in
-both. -/
 theorem grid_reads {κ μ : Type} {one : (rungForks mode).Index → κ}
     {two : (rungForks mode).Index → μ}
     (masters : Kernel.MastersGridBy (rungForks mode) (rungForkGoals mode) 7 bound one two limit
@@ -156,12 +79,6 @@ theorem grid_reads {κ μ : Type} {one : (rungForks mode).Index → κ}
     (Kernel.turnMemory_sides _ _ order 7 _ visit false).trans
       (Kernel.turnMemory_sides _ _ order 7 _ visit true).symm, differ⟩
 
-/-- **An agent that masters a grid has met both situations.** There are an order, a visit and a
-grid of more than 49 first targets and more than 49 second targets such that, under every second
-target of the grid, some first target of the grid is one the agent had already solved, in that
-member's run, on an earlier visit of the first situation; and under every first target, some
-second target is one it had already solved on an earlier visit of the second situation. What it
-met in one situation did not supply the other's answer. -/
 theorem grid_experienced
     (masters : Kernel.MastersGridBy (rungForks mode) (rungForkGoals mode) 7 49
       (firstTarget mode witnessLive duskLive 7) (secondTarget mode witnessLive duskLive 7)
@@ -200,13 +117,6 @@ theorem grid_experienced
           none ⟨pair, isOne, by rw [isTwo]; exact inSeconds, earlier, early, side, found⟩⟩)
     omega
 
-/-! ## What the rule adds -/
-
-/-- **On a calm visit the agent's actions are greedy draws over its frozen policy.** For a
-construction that steps by the declared rule: on a calm visit of a member's run under an order,
-each of the seven actions the world takes is the action of the greedy draw over the policy the
-primitive controller freezes from its weights at the active set of that decision's frame, at the
-declared rate, from the generator the persistent draw leaves after its branch word. -/
 theorem calm_turn_greedy (planning : PlanningSelection) (rule : StepsByRule planning)
     (pair : (rungForks (rungConstruction planning).profile.taskMode).Index) (order : ℕ → Bool)
     (visit : ℕ) (calm : TurnCalm planning pair order visit) (step : ℕ) (short : step < 7) :
@@ -252,14 +162,6 @@ theorem calm_turn_greedy (planning : PlanningSelection) (rule : StepsByRule plan
             (visit * (7 + 1) + step)).control).rng.nextF64.2).1 :=
   calm_action planning rule _ _ (calm step short)
 
-/-! ## That the rule leaves the values room -/
-
-/-- **The active sets of the two situations' starts differ, in every state of the agent.** For
-either planning selection, every state of the rung's agent and every pair of installed targets,
-the active set the declared step reads at the first situation's start holds a slot that the
-active set it reads at the second's does not. It is
-`AcornVerif.CurrentForkedTargetFrames.starts_differ`, read through the encoder the clause
-names. -/
 theorem starts_perceived (planning : PlanningSelection)
     (agent : Agent Grid.interface (rungConstruction planning).profile
       (rungConstruction planning).config (rungConstruction planning).criterion
@@ -274,13 +176,6 @@ theorem starts_perceived (planning : PlanningSelection)
           (member duskLive second)).frame).indices :=
   CurrentForkedTargetFrames.starts_differ planning agent first second
 
-/-! ## That the two promises can be met -/
-
-/-- **The witness meets both promises.** For every task mode, the agent
-`AcornVerif.CurrentForkedTargetRungBoth.gridWitness` masters a grid before visit 576 with 288
-later occasions before visit 1728, under the predicate that admits every visit, and keeps before
-visit 1728 on the visits of every predicate. It is a kernel agent built for the purpose, which
-records a rewarded visit's actions for each situation and replays them. -/
 theorem witness_promises (mode : TaskFeatureMode) :
     Kernel.MastersGridBy (rungForks mode) (rungForkGoals mode) 7 49
         (firstTarget mode witnessLive duskLive 7) (secondTarget mode witnessLive duskLive 7)

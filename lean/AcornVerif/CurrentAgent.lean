@@ -1,40 +1,23 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AgentAdmission
 import AcornVerif.CurrentLifetime
 import AcornVerif.CurrentModels
 
-/-!
-# Current full-agent finite-prefix contracts
-
-All constructed states carry source alignment, managed learner admission and
-activation/episode ownership. Lifetime totals use the proved machine arithmetic;
-representation identity and bounded history are supplied by their current owners.
-Every finite-prefix edge calls the same receiver-bound transition as the native
-consumer. The contracts cover finite-prefix safety, scheduling and observations.
--/
 namespace AcornVerif.CurrentAgent
 open Acorn Acorn.Features Acorn.Handcrafted
 open CurrentLifetime CurrentFeatureConsumers CurrentLearner
 
-/-- Every current channel's stored settled-error sum satisfies its own horizon invariant. -/
 def DemonSums : {discounts : List Discount} → Lifetime.DemonRecords discounts → Prop
   | [], .nil => True
   | discount :: _, .cons head tail => Lifetime.LegalSum (.squaredError discount)
     head.durable.squaredError.count
       head.durable.squaredError.sum ∧ DemonSums tail
 
-/-- Channel recursion derives legality from the actual horizon-indexed stored types. -/
 theorem demon_sums {discounts : List Discount} (state : Lifetime.DemonRecords discounts) :
   DemonSums state := by
   induction state with
   | nil => trivial
   | cons head tail ih => exact ⟨stored_sum_legal head.durable.squaredError, ih⟩
 
-/-- Complete lifetime numeric contract, including every family and history bucket. -/
 def LifetimeSums (state : Lifetime.Stats demonLayout) : Prop :=
   Lifetime.LegalSum .reward state.reward.count state.reward.sum ∧
   (∀ slot : Fin 4, Lifetime.LegalSum .reward state.rewardByFamily[slot.val].count
@@ -45,7 +28,6 @@ def LifetimeSums (state : Lifetime.Stats demonLayout) : Prop :=
   (∀ slot : Fin Acorn.FeatureConstants.historyBins, Lifetime.LegalSum (.squaredError .g99)
     state.errorHistory[slot.val].count state.errorHistory[slot.val].sum)
 
-/-- Every admitted lifetime state has numeric legality, independently of elapsed lifetime. -/
 theorem lifetime_sums (state : Lifetime.Stats demonLayout) : LifetimeSums state :=
   ⟨stored_sum_legal _, fun _ => stored_sum_legal _, fun _ => stored_sum_legal _,
     demon_sums _, fun _ => stored_sum_legal _⟩
@@ -53,26 +35,19 @@ theorem lifetime_sums (state : Lifetime.Stats demonLayout) : LifetimeSums state 
 variable {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {planning : PlanningSelection}
 
-/-- Decision-bearing state contracts over the actual composed storage. -/
 structure Invariant (state : Agent Grid.interface profile config criterion dimension planning) :
     Prop where
-  /-- All option objectives have their actual observation producer. -/
   sources : state.control.Aligned
-  /-- Completed episodes, duration and outstanding invocation agree. -/
   episodes : state.control.Episodes
-  /-- All reward and settled-error totals satisfy their count-indexed numeric bounds. -/
   sums : LifetimeSums state.control.lifetime
-  /-- No unit's birth and no latest replacement is later than the owned clock. -/
   history : (∀ unit : Fin config.units.count,
       (state.control.runtime.lifecycle.representation.progress.units[unit.val]).birth.toNat ≤
         state.clock.toNat) ∧
     Recent state.clock state.control.runtime.lifecycle.representation.progress.last
-  /-- Every current learner obeys its core numeric and phase-specific eligibility contract. -/
   learners : ∀ reader ∈ state.control.runtime.lifecycle.consumers.readers,
     ScheduleInv reader.2.state reader.2.phase ∧ reader.2.state.eligibleCount ≤
       dimension.capacity
 
-/-- State admission closes each component premise; no application-internal bridge is assumed. -/
 theorem invariant (state : Agent Grid.interface profile config criterion dimension planning) :
     Invariant state
   :=
@@ -81,13 +56,10 @@ theorem invariant (state : Agent Grid.interface profile config criterion dimensi
       state.control.runtime.lifecycle.representation.progress.recent⟩,
     fun reader _ => ⟨managed_schedule reader.2, managed_capacity reader.2⟩⟩
 
-/-- The actual cold constructor satisfies the complete state invariant in every admitted
-  configuration. -/
 theorem initialization (construction : AgentConstruction) :
     Invariant construction.initial.agent :=
   invariant _
 
-/-- Per-edge observations constrain actual action execution and non-action isolation. -/
 def EdgeContract (before : Agent Grid.interface profile config criterion dimension planning)
     (event : AgentInput config criterion dimension)
     (after : Agent Grid.interface profile config criterion dimension planning) : Prop :=
@@ -115,7 +87,6 @@ def EdgeContract (before : Agent Grid.interface profile config criterion dimensi
   | .clear => after = Agent.initial Grid.interface profile config criterion dimension planning
   | .stop => after = before
 
-/-- Every public input satisfies its algorithm and observation contract. -/
 theorem edge_contract
     (before after : Agent Grid.interface profile config criterion dimension planning)
     (event : AgentInput config criterion dimension) (stopped : Bool)
@@ -140,16 +111,12 @@ theorem edge_contract
   | clear => cases executed; rfl
   | stop => cases executed; rfl
 
-/-- Safety at every intermediate receiver, with actual action/observation relations on each
-  edge. -/
 inductive SafePath : Agent Grid.interface profile config criterion dimension planning →
     List (AgentInput config criterion dimension) →
       Agent Grid.interface profile config criterion dimension planning → Bool → Prop where
-  /-- Empty prefixes retain the complete current invariant. -/
   | nil (state : Agent Grid.interface profile config criterion dimension planning)
       (valid : Invariant state) :
       SafePath state [] state false
-  /-- Stop retains its exact boundary receiver and ignores the unconsumed suffix. -/
   | stopped (state next : Agent Grid.interface profile config criterion dimension planning)
       (event : AgentInput config criterion dimension) (rest : List (AgentInput config criterion
         dimension))
@@ -157,7 +124,6 @@ inductive SafePath : Agent Grid.interface profile config criterion dimension pla
         event next)
       (executed : state.input event = (next, true)) : SafePath state (event :: rest) next
         true
-  /-- Each actual continuing edge carries its algorithm relation into the next safe receiver. -/
   | continued (state next finalState : Agent Grid.interface profile config criterion dimension
         planning)
       (event : AgentInput config criterion dimension) (rest : List (AgentInput config criterion
@@ -167,8 +133,6 @@ inductive SafePath : Agent Grid.interface profile config criterion dimension pla
         stopped) :
       SafePath state (event :: rest) finalState stopped
 
-/-- Induction lifts the meaningful state and edge contracts through every intermediate prefix.
--/
 theorem path_safe {state finalState : Agent Grid.interface profile config criterion dimension
       planning}
     {events : List (AgentInput config criterion dimension)} {stopped : Bool}
@@ -183,9 +147,6 @@ theorem path_safe {state finalState : Agent Grid.interface profile config criter
     exact .continued state next finalState event rest stopped (invariant state)
       (edge_contract state next event false step) step ih
 
-/-- Native prefix execution has the same complete safety and observation contract at every
-edge. The prefix is that of a construction of the default step order: its action edge is
-`Agent.act`, and the statement is about the learner states and the agent's events. -/
 theorem native_prefix (admitted : DefaultConstruction)
     (events : List (AgentInput admitted.construction.config admitted.construction.criterion
       admitted.construction.dimension)) :
@@ -194,8 +155,6 @@ theorem native_prefix (admitted : DefaultConstruction)
       (AgentConstruction.execute admitted events).2 :=
   path_safe (admitted.construction.initial.agent.prefix_path events)
 
-/-- Aggregate learner eligibility storage is bounded by current readers and capacity,
-  independently of experience length. -/
 theorem learner_storage (state : Agent Grid.interface profile config criterion dimension planning) :
     (state.control.runtime.lifecycle.consumers.readers.map
       (fun reader => reader.2.state.eligibleCount)).sum ≤
