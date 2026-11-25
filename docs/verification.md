@@ -1995,23 +1995,49 @@ Across the host-viewer modules under `lean/Acorn/Host/Viewer/`, several operatio
 outside proved host theorems. HttpServer.lean sets viewerHttpConfig to bind `127.0.0.1` with
 maxConnections 32, maxRequests 1, enableKeepAlive false, generateDate false,
 serverName none, maxBodySize and maxChunkSize equal to controlBodyCapacity (1024 bytes),
-maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout; liveFrames uses
-EAsync.forIn (repeat via the ForIn instance over EAsync for Lean.Loop in Lean v4.36.0)
-rather than partial\_fixpoint because async task continuations admit no fixed point. ControlRequest.lean
+maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout; HttpViewer.events calls
+Broadcast.subscribe (returning HTTP `503` on capacity or sequence exhaustion) and owns one
+dedicated SSE `Body.stream` delivery task per subscription that sends the snapshot's initial
+control, map, and replay frames before handing off to liveFrames, which uses EAsync.forIn (repeat
+via the ForIn instance over EAsync for Lean.Loop in Lean v4.36.0) rather than partial\_fixpoint
+because async task continuations admit no fixed point and calls Subscription.poll directly (not
+Subscription.receive): waiting via Selectable.one on the payload-free wake task or 5000 ms
+keepalive timer and writing SSE frames (`sendLine` or `: keepalive`) to the browser occur only
+after Subscription.poll releases the broadcast mutex, so a slow browser cannot block publication;
+liveFrames exits on disconnect (`.closed`) or a dropped wake promise (`some none`), and stream
+exit (`finally`), context cancellation (`context.doneSelector`), and response `body.close` each
+call Subscription.close (also closing the stream on cancellation or `body.close`) to remove the
+subscriber queue and wake an idle producer. ControlRequest.lean
 mints control tokens from `/dev/urandom` (mintControlToken) and verifies them with tokenMatches
 using a source-level full-string scan (not a compiler or hardware constant-time guarantee). Broadcast.lean
-serializes subscriptions behind one mutex with connectionCapacity 16, sliding 500-frame replay
-history via Buffer.retain, IdentityWait overflow marking worldPartial, and per-subscriber FIFO
-queues of capacity 4096 (subscriberCapacity) with two overflow policies: Subscriber.enqueue
-delivers telemetry frames via Buffer.offer (refusing a new frame without disturbing queued items
-when full), whereas Subscriber.enqueueControl delivers control records (from Broadcast.settle and
-Broadcast.commitIdentity) and lifecycle notices (from Broadcast.notice, backing
-Broadcast.announceCleared and Broadcast.announceExit) via Buffer.retain without deduplicating,
-appending the new item and evicting the oldest queued item when full; Broadcast.settle separately
-suppresses a byte-identical repeat of the current control record before calling
-Subscriber.enqueueControl (whereas Broadcast.commitIdentity and Broadcast.notice do not
-deduplicate), sequence numbers refuse at saturation (`2^64 - 1`), and Subscription.receive loops
-forever without a break. Line.lean bounds LineDecoder lines at
+serializes replay publication, generation/identity admission, lifecycle settlement, notices,
+disconnect, dequeue/wake registration, and subscriber registration behind one mutex with
+connectionCapacity 16, sliding 500-frame replay history via Buffer.retain, IdentityWait overflow
+marking worldPartial, and per-subscriber FIFO queues of capacity 4096 (subscriberCapacity) with
+two overflow policies: Subscriber.enqueue delivers telemetry frames via Buffer.offer (refusing a
+new frame without disturbing queued items when full), whereas Subscriber.enqueueControl delivers
+control records (from Broadcast.settle and Broadcast.commitIdentity) and lifecycle notices (from
+Broadcast.notice, backing Broadcast.announceCleared and Broadcast.announceExit) via Buffer.retain
+without deduplicating, appending the new item and evicting the oldest queued item when full;
+Broadcast.settle separately suppresses a byte-identical repeat of the current control record
+before calling Subscriber.enqueueControl (whereas Broadcast.commitIdentity and Broadcast.notice do
+not deduplicate). Broadcast.subscribe performs subscriber registration and ReplaySnapshot capture
+(`identity`, `control`, `world`, and `frames`) under that same publication mutex, closing the
+replay-to-live handoff gap so a published frame or control record cannot slip between the captured
+replay snapshot and subsequent live-queue delivery, and refuses registration before retaining a
+queue on capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion. Each subscriber
+has one bounded queue and one payload-free wake promise (`IO.Promise Unit`), with one delivery
+task serving as each subscription's sole reader; publishers resolve collected wake promises only
+after releasing the mutex, so a publisher never waits for a network reader, and native
+mutex/promise scheduling and allocator overhead remain trusted infrastructure without a liveness
+guarantee. Subscription.close removes the subscriber queue under the mutex before resolving its
+wake promise outside the mutex; Subscription.poll performs one serialized dequeue (`.item`),
+closed check (`.closed`), or payload-free wake registration (`.wait`) under the mutex so waiting
+and network writes occur strictly outside it; and Subscription.receive (unused by
+liveFrames in HttpServer.lean, which calls Subscription.poll directly) wraps Subscription.poll in a
+`forever` loop with no `break` (ending only by returning), waiting on `.wait` outside the mutex
+via `IO.wait` and returning `none` on either explicit disconnect (`.closed`) or a dropped wake
+promise (`isNone`). Line.lean bounds LineDecoder lines at
 lineCapacity (1 MiB, discarding oversize suffixes through newline and refusing incomplete oversized
 EOF), and readLines reads one byte at a time (input.read 1) because Lean v4.36.0 Handle.read
 calls buffered C fread (Lean runtime `io.cpp` lines 593–615), where multi-byte reads can block past
