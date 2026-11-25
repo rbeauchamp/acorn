@@ -1874,7 +1874,7 @@ as an earlier version's ({decl}`Acorn.Host.Viewer.StartSource.earlier`), or as a
 intent ({decl}`Acorn.Host.Viewer.StartSource.other`), once: in the first launch that publishes
 the stopped state. That is the boundary, and no other: the reason is not lost by a failure before
 the publication, and after the publication it has been given, in that launch's first control
-record and in its log, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
+record and on standard output, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
 of the current version. A crash between the bind and the publication leaves the original file. A
 start-up that fails after the publication, when the ready line cannot be written for example,
 leaves a current-version stopped file, and the reason the next launch gives is that the saved
@@ -1960,11 +1960,12 @@ assumption; neither the temporary file nor the directory is fsynced (power-loss 
 not claimed), and visibility of complete bytes without torn files rests on local-filesystem
 atomic rename semantics. Stop durability likewise rests on Acorn's exclusive single-viewer
 run-directory ownership premise ([interrupted-launch recovery](#interrupted-launch-recovery) and
-UX-42 in [the viewer specification](viewer-ux.md)): {decl}`Acorn.Host.Viewer.RunDirectory.open`
-allocates fresh per-process IO mutexes on each open rather than an inter-process lock, so atomic
-local rename prevents torn writes from one viewer process but cannot prevent a second concurrent
-viewer that already read `desired = "running"` from publishing that stale state after the first
-viewer acknowledges Stop. Although {decl}`Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`
+UX-42 in [the viewer specification](viewer-ux.md)) alongside the run directory's stable-path and
+no-external-mutation assumptions: {decl}`Acorn.Host.Viewer.RunDirectory.open` allocates fresh
+per-process IO mutexes on each open rather than an inter-process lock, so atomic local rename
+prevents torn writes from one viewer process but cannot prevent a second concurrent viewer that
+already read `desired = "running"` — or an external writer replacing the path or mutating
+`state.json` — from publishing a stale state after the first viewer acknowledges Stop. Although {decl}`Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`
 models an ambiguous `state.json` rename failure (such as POSIX.1-2017 `rename` EIO
 or Linux NFS rename-despite-error) without weakening the stopped-disk or no-ack guarantees,
 {decl}`Acorn.Host.Viewer.RunDirectory.archive` (serialized with publication under the run

@@ -1028,7 +1028,7 @@ What each panel must show. How it draws it is the code's.
   So such a file is read as an earlier version's, or as an unbound running
   intent, once, in the first launch that publishes the stopped state, and
   whenever the file is replaced that launch has already given the reason, in
-  its first control record and in its log; it is not given again; a viewer of the earlier version started later on the
+  its first control record and on standard output; it is not given again; a viewer of the earlier version started later on the
   directory meets a file of the current version. A start-up that fails before
   that publication, such as on a port already in use, leaves the file as it
   was: the next viewer reads the same file and says the same. A start-up that
@@ -1094,21 +1094,25 @@ What each panel must show. How it draws it is the code's.
   connection or abrupt crash can yield no HTTP response. This durability
   guarantee also rests on Acorn's exclusive single-viewer run-directory
   ownership premise (stated above for manual viewer invocation and in
-  [interrupted-launch recovery](verification.md#interrupted-launch-recovery)):
+  [interrupted-launch recovery](verification.md#interrupted-launch-recovery))
+  and on the run directory's stable-path and no-external-mutation assumptions
+  (no external process replaces the run-directory path or mutates `state.json`):
   `RunDirectory.open` allocates fresh per-process IO mutexes on each open
   rather than an inter-process lock, so atomic local rename prevents torn
   writes within one viewer process but cannot prevent a second concurrent
-  viewer that already read `desired: "running"` from publishing that stale
-  state after the first viewer acknowledges Stop. The no-later-Start
-  condition is ordered in supervisor processing order starting from that
-  acknowledging resolution (not browser HTTP receipt time, so a concurrent
-  Start processed by the supervisor after that resolution — even before the
-  browser receives `202` — supersedes it): under exclusive single-viewer
-  run-directory ownership and with no later Start admitted by the supervisor
-  while open, a viewer process crash at any step leaves the on-disk state
-  stopped — or absent during a Clear archive before the replacement state is
-  written — and the next launch with the same child cannot resume running
-  without an explicit Start.
+  viewer that already read `desired: "running"` — or an external writer
+  replacing the path or mutating `state.json` — from overwriting `state.json`
+  after the first viewer acknowledges Stop. The no-later-Start condition is
+  ordered in supervisor processing order starting from that acknowledging
+  resolution (not browser HTTP receipt time, so a concurrent Start processed
+  by the supervisor after that resolution — even before the browser receives
+  `202` — supersedes it): under exclusive single-viewer run-directory
+  ownership, stable run-directory paths without external state-file mutation,
+  and with no later Start admitted by the supervisor while open, a viewer
+  process crash at any step leaves the on-disk state stopped — or absent
+  during a Clear archive before the replacement state is written — and the
+  next launch with the same child cannot resume running without an explicit
+  Start.
 
   When the supervisor does start the ranked core, it runs the executable
   `acorn-core` beside the viewer with the explicitly selected ranked research
