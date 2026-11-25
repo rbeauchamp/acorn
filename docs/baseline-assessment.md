@@ -65,8 +65,9 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   The off-policy questions, the learners that adapted no step size, were
   retired ([#169](https://github.com/rbeauchamp/acorn/issues/169),
   [PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued).
-  GVF predictions are fed back as features (argued from `Agent.grid_inputs`,
-  machine-checked for the grid instance, and `observationWords`), and nothing
+  GVF predictions are fed back as features (argued from `Agent.words_def`,
+  `feedbackWords` and `Agent.frame_def`, with `observationWords` and
+  machine-checked `Agent.grid_inputs` for the grid instance), and nothing
   is replayed (argued from `TemporalControl.step` and `RecentFeatures`, which
   stores feature vectors only—with no action, reward or successor—for planning
   backups rather than training replay).
@@ -138,7 +139,7 @@ Verdicts:
 |---|---|---|---|---|---|
 | IDBD → SwiftTD [[1]](#r1) [[2]](#r2) | Step 1; per-weight meta-learned step sizes | Every learner | **Faithful** | **Argued**; transcription **assumed** | `NumericState.step` and its two loops transcribe Algorithm 1 of [[2]](#r2), with corrections declared in PAR-1 (argued from the executed definitions; paper-equation transcription fidelity recorded in earlier reviews is assumed). The off-policy questions, which ran one prescribed step size per transition, were retired ([#169](https://github.com/rbeauchamp/acorn/issues/169), [PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued). |
 | Swift-Sarsa [[3]](#r3) | Step 4 (declared Sarsa in place of actor-critic) | Primitive, meta and option policies | **Faithful** | **Argued**; transcription **assumed** | `Controller.valuesStep`: per-action value vectors sharing one error (argued from `Controller.valuesStep` and `Ensemble`; transcription fidelity assumed). The actor-critic departure is declared (argued). |
-| Horde / GVFs [[4]](#r4) | Step 3 | 11 fixed on-policy GVFs whose bucketed predictions are re-encoded as features | **Adapted, partial** | **Argued** (from **machine-checked** `Agent.grid_inputs`) | Horde learns each prediction from the snippets of experience relevant to it, which "requires off-policy learning", and uses GQ(λ) ([[4]](#r4) §4). Acorn's questions are fixed and on-policy ([D5](learned-only-binding.md#d5--prediction-targets--step-2)) (argued). [#16](https://github.com/rbeauchamp/acorn/issues/16) added the same questions about each option's policy, learned off-policy; no decision read them, and [#169](https://github.com/rbeauchamp/acorn/issues/169) retired them ([PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued). Feeding predictions back is a genuine, limited predictive state (argued from `observationWords` and machine-checked `Agent.grid_inputs`). |
+| Horde / GVFs [[4]](#r4) | Step 3 | Fixed on-policy GVFs sized by each interface's `Interface.layout` (11 for the grid instance: Demon 0 plus ten grid signals; 5 for the Microduck instance: Demon 0 plus four additional signals) whose bucketed predictions are re-encoded as features | **Adapted, partial** | **Argued** (`Agent.grid_inputs` **machine-checked** for the grid instance) | Horde learns each prediction from the snippets of experience relevant to it, which "requires off-policy learning", and uses GQ(λ) ([[4]](#r4) §4). Acorn's questions are fixed per interface and on-policy ([D5](learned-only-binding.md#d5--prediction-targets--step-2); 11 in `Grid.interface` and 5 in `Microduck.interface`, argued from `Interface.layout`, `DemonBank.reader_count`, `Grid.interface_layout` and `Microduck.signals`). [#16](https://github.com/rbeauchamp/acorn/issues/16) added the same questions about each option's policy, learned off-policy; no decision read them, and [#169](https://github.com/rbeauchamp/acorn/issues/169) retired them ([PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued). Feeding bucketed predictions back is a genuine, limited predictive state across interfaces (argued from `Agent.words_def`, `feedbackWords` and `Agent.frame_def`, with `observationWords` and machine-checked `Agent.grid_inputs` for the grid instance). |
 | Generate and test: generator [[5]](#r5) | Step 2 | 512 random projections over the 11 × 11 tile-kind patch and the task words | **Adapted** (after U3) | **Argued** | Before U3 the generator read only the kind patch; it now also reads the task words (`observationPatch`, `taskContext`), so units can conjoin task and layout (argued). Inventory and energy are still excluded (F-D; argued). |
 | Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Contribution utility over every stored reader, a maturity age and a declared replacement rate | **Adapted** (after U3) | **Argued**; accrual and turnover **machine-checked** | U3 replaced the absolute, conjunctive guard with the published relative tester ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester), [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)) (argued); single-step accrual (`Lifecycle.test_accrual`) and turnover over eligible or mature cycles (`run_turnover`, `run_mature_turnover`, F-E) are machine-checked. Adaptations: eq. (2) without the mean correction, and the rate accrued per eligible unit as in the authors' released code (argued). |
 | Reward-respecting subtasks [[7]](#r7) | Step 10: highest-ranked features become subtasks | Three slots from the positive Demon-0 weights of imprint units, with held bonuses | **Adapted** (after U1) | **Argued** from **machine-checked** U1 theorems | U1 made candidates sign-correct, the bonus held, and identity the unit alone (argued from the executed definitions and machine-checked U1 theorems `Bonus.finite_positive`, `FreeDispatch.refresh_retains`, `FreeDispatch.refresh_distinct`). One deviation remains: subtasks are not restricted to features whose weight is sometimes high and sometimes low ([PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks)) (argued). |
@@ -183,7 +184,9 @@ Two links genuinely support the rest of the system (argued):
   assumed uniform hashing).
 - **Horde feedback and primitive credit on option steps (argued; single-step
   primitive update machine-checked).** Predictions become features (argued from
-  `observationWords` and machine-checked `Agent.grid_inputs`), and executed
+  `Agent.words_def`, `feedbackWords` and `Agent.frame_def`, with
+  `observationWords` and machine-checked `Agent.grid_inputs` for the grid
+  instance), and executed
   option steps train the primitive controller (PAR-9; argued, with single-step
   control update `TemporalControl.finish_credit` machine-checked).
 
@@ -323,10 +326,20 @@ PAR-10's derived rate remains a research-only selection through the native rate
 words, and the mutation-audit pins for the declared-rate and differential arms
 were re-recorded (argued). `TemporalControl.declared_rates` proves
 (machine-checked) that, under the declared rate policy, every consumer reads the
-declared word at every state, and `TemporalSupport.branch_exact` proves
-(machine-checked) that each exploration branch is an exact rational comparison
-with that word. `TemporalSupport.declared_branch_card` counts (machine-checked)
-exactly the source words that explore. Under an assumed uniform, independent
+declared word at every state, `TemporalSupport.branch_exact` proves
+(machine-checked) that each exploration branch comparison is an exact rational
+comparison with its rate word, and `TemporalSupport.declared_branch` proves
+(machine-checked) that at `Handcrafted.declaredRate` the executed comparison
+equals the arithmetic threshold `(rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23`
+(which machine-checked `TemporalSupport.select_declared` carries to every
+unserved decision of `TemporalControl.selectWithOperations` under the declared
+rate policy). Separately, `TemporalSupport.declared_branch_card` is a
+Lean-proved arithmetic count showing that exactly `10737418 * 2 ^ 34` 64-bit
+words in `Finset.range (2 ^ 64)` satisfy
+`(word.toUInt64 >>> 11).toNat < 10737418 * 2 ^ 23`; combining it with
+`TemporalSupport.declared_branch` and `TemporalSupport.select_declared` to count
+the source words on which the executed exploration branch explores is argued.
+Under an assumed uniform, independent
 draw, which the deterministic generator does not supply, `ez_duration_mean`
 gives a mean run length of H₁₂₈, and `declared_share_gt` and `declared_share_lt`
 bound the expected exploratory share of the behaviour's cycles between 4.6% and
@@ -1084,10 +1097,11 @@ All implementation characterizations in the alternatives below are argued.
   layout collision). None is machine-checked as stated. The repairs of F-A, F-B,
   F-C, F-E and F-F are argued from the machine-checked theorems above.
   Applications of `option_model_terminal_discount_correction`, the declared
-  parameter-budget model, U2's distributional model and the abstract U5 theorems
-  are argued from Lean-proved model results, as distinguished above. U2's
-  distributional results hold under the assumed uniform, independent draw listed
-  below.
+  parameter-budget model, U2's arithmetic word-count
+  (`TemporalSupport.declared_branch_card`) and distributional model, and the
+  abstract U5 theorems are argued from Lean-proved model results, as
+  distinguished above. U2's distributional results hold under the assumed
+  uniform, independent draw listed below.
 - **Assumed.**
   - An idealized uniform, independent random draw for the renewal fraction and
     for U2's distributional results; the deterministic generator does not
