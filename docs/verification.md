@@ -1409,13 +1409,22 @@ make no such check.
 **Axioms that a declaration depends on.** RG1003 refuses a constant of a claimed
 module with a transitive axiom outside propext, Quot.sound and Classical.choice,
 and RG1005 one whose axioms exceed the standard-logical profile. Both rules
-examine every constant: theorems, definitions and instances, and read what each
-constant mentions as Lean's kernel checks it, so an axiom that a claimed constant
-reaches only through an inductive type's block counts. The tools make no such
-check. The tool module AcornTools.AxiomPins still pins the exact axiom
-sets of selected theorems in the build, with message guards around
-`#print axioms`; it imports the proof library and lies outside the claim with the
-other tools.
+examine every public, private and generated constant—theorems, definitions and
+instances—and read what each constant mentions as Lean's kernel checks it, so
+an axiom that a claimed constant reaches only through an inductive type's block
+counts, and new declarations cannot bypass the audit through namespace aliases
+or source formatting. The tools make no such check across all claimed constants.
+To complement RG1003 and RG1005, the tool module `AcornTools.AxiomPins` pins
+the exact transitive axiom sets of selected theorems (`AcornTools.AxiomPins.pins`)
+during elaboration via a compile-time command-elaboration check
+(`AcornTools.AxiomPins.verifyPins`, backed by Lean's Lean.Elab.Command and
+Lean.collectAxioms) that fails the build if the pin table is empty, any pinned
+declaration is missing from the environment, any pinned declaration or expected
+axiom is duplicated, or a declaration's sorted transitive axiom set differs in
+either direction (extra unexpected axiom or missing expected axiom) from its
+pinned set. Verification builds every discovered module, `AcornTools.AxiomPins`
+included, so any drift in a pinned dependency set fails the build; the module
+imports the proof library and lies outside the Regula claim with the other tools.
 
 **Proof holes and compiler-trusting proofs.** RG1002 refuses a constant that
 depends on Lean's proof-hole axiom, directly or through an import, and RG1004 one

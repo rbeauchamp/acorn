@@ -1,8 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
+import Lean.Elab.Command
+import Lean.Util.CollectAxioms
 import Acorn.Host.Viewer.GoalAchievement
 import Acorn.Host.Viewer.ClockProgram
 import AcornVerif.AgreementLifecycle
@@ -72,4168 +69,2009 @@ import AcornVerif.CurrentOak
 import AcornVerif.CurrentAccounting
 import AcornVerif.Endurance
 
-/-!
-# Axiom audit
-
-A pass of the Regula audit, Regula's proof verdict on the claimed modules, means that no
-declaration of them depends on an axiom other than `propext`, `Classical.choice` and
-`Quot.sound`, on a project-owned axiom or on a native proof, for a project that places no file
-or code aimed at Regula's checker or Lean's toolchain: an assumption that Acorn makes of itself
-(`docs/verification.md`, "Regula audit"). Source admission refuses the words. The guards below
-pin the exact dependency sets of selected named theorems.
-
-The guards live in this tool module, outside the modules the Regula audit claims, with the
-other tools. Verification builds every discovered module, this one included, so a changed
-dependency set still fails the build.
-
-`#guard_msgs` makes it a build failure: if an `axiom` is introduced, or an
-import starts dragging one in, the message printed by `#print axioms` changes
-and this file stops compiling. These retained exact-set guards complement
-Regula's RG1003 and RG1005, which check the transitive axioms of every public,
-private and generated declaration of a claimed module against the same three names.
-New declarations cannot bypass that audit through namespace aliases or source formatting.
-
-A `sorry` is caught by a different mechanism: `warningAsError := true` in
-`lakefile.lean` turns "declaration uses `sorry`" into a build failure before
-this file is even elaborated. Credit where it is due — `#guard_msgs` covers
-axioms, the lakefile covers `sorry`.
-
-There are no unit tests in this project; the compiler is the whole safety net,
-and this is the compiler checking the soundness claim.
--/
-
-namespace AcornVerif
-
--- This file's entire purpose is `#print axioms`, so Mathlib's ban on
--- `#`-commands does not apply to it.
-set_option linter.hashCommand false
-
-/--
-info: 'Acorn.Host.Viewer.GoalAchievement.State.observe_resolution' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Viewer.GoalAchievement.State.observe_resolution
-
-/--
-info: 'Acorn.Host.Viewer.GoalAchievement.Pass.permille_precision' depends on axioms: [propext]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Viewer.GoalAchievement.Pass.permille_precision
-
-/--
-info: 'Acorn.Host.Viewer.ClockProgram.snapshotFollows_goal' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Viewer.ClockProgram.snapshotFollows_goal
-
-/--
-info: 'AcornVerif.AgreementLifecycle.observe_invariant' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.AgreementLifecycle.observe_invariant
-
-/--
-info: 'AcornVerif.AgreementLifecycle.settlement_available' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.AgreementLifecycle.settlement_available
-
-/--
-info: 'AcornVerif.CurrentAgreement.aggregateAll_value' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentAgreement.aggregateAll_value
-
-/--
-info: 'AcornVerif.AgreementPrecision.agreement_precision' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.AgreementPrecision.agreement_precision
-
-/--
-info: 'AcornVerif.AgreementInterpretation.conditional_mean_minimizes' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.AgreementInterpretation.conditional_mean_minimizes
-
-/--
-info: 'AcornVerif.AgreementTelemetryPrecision.precision_available' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.AgreementTelemetryPrecision.precision_available
-
-/-- info: 'Acorn.Binary32.finite_not_nan' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Binary32.finite_not_nan
-
-/-- info: 'Acorn.Binary32.less_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Binary32.less_finite
-
-/-- info: 'Acorn.Interval32.interval_admit_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Interval32.interval_admit_exact
-
-/-- info: 'Acorn.Interval32.interval_admit_refuses' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Interval32.interval_admit_refuses
-
-/-- info: 'Acorn.Interval32.finite_between' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Interval32.finite_between
-
-/-- info: 'Acorn.Interval32.saturate_contains' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Interval32.saturate_contains
-
-/-- info: 'Acorn.Interval32.saturate_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Interval32.saturate_identity
-
-/-- info: 'Acorn.Interval32.saturate_idempotent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Interval32.saturate_idempotent
-
-/-- info: 'Acorn.Bounded32.admit_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Bounded32.admit_exact
-
-/-- info: 'Acorn.Bounded32.admit_refuses' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Bounded32.admit_refuses
-
-/-- info: 'AcornVerif.differential_error_shift' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_error_shift
-
-/-- info: 'AcornVerif.differential_error_offset_mismatch' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_error_offset_mismatch
-
-/-- info: 'AcornVerif.differential_return_duration' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_return_duration
-
-/-- info: 'AcornVerif.differential_return_rate_change' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_return_rate_change
-
-/-- info: 'AcornVerif.two_state_differential_rate' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms two_state_differential_rate
-
-/-- info: 'AcornVerif.two_state_differential_span' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms two_state_differential_span
-
-/-- info: 'AcornVerif.two_state_centered_solution' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms two_state_centered_solution
-
-/-- info: 'AcornVerif.two_state_span_exceeds_budget' depends on axioms:
-[propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms two_state_span_exceeds_budget
-
-/-- info: 'AcornVerif.reward_rate_step_convex' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms reward_rate_step_convex
-
-/-- info: 'AcornVerif.reward_rate_step_bounded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms reward_rate_step_bounded
-
-/-- info: 'AcornVerif.reward_rate_constant_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms reward_rate_constant_error
-
-/-- info: 'AcornVerif.differential_model_gain_correction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_model_gain_correction
-
-/-- info: 'AcornVerif.differential_backup_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_backup_distance
-
-/-- info: 'AcornVerif.differential_policy_target_discrepancy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_policy_target_discrepancy
-
-/-- info: 'AcornVerif.differential_optimistic_backup_residual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_optimistic_backup_residual
-
-/-- info: 'AcornVerif.differential_optimistic_backup_positive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_optimistic_backup_positive
-
-/-- info: 'AcornVerif.differential_projected_backup_discrepancy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_projected_backup_discrepancy
-
-/-- info: 'AcornVerif.differential_projected_backup_agrees' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_projected_backup_agrees
-
-/-- info: 'AcornVerif.differential_projected_gain_discrepancy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_projected_gain_discrepancy
-
-/-- info: 'AcornVerif.differential_expected_duration_zero_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms differential_expected_duration_zero_iff
-
-/-- info: 'AcornVerif.option_model_terminal_discount_correction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms option_model_terminal_discount_correction
-
-/-- info: 'AcornVerif.horizon_covers_true_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms horizon_covers_true_bound
-
-/-- info: 'AcornVerif.gamma_is_contraction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms gamma_is_contraction
-
-/-- info: 'AcornVerif.project_nonexpansive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms project_nonexpansive
-
-/-- info: 'AcornVerif.project_mem_range' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms project_mem_range
-
-/-- info: 'AcornVerif.project_id_of_mem' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms project_id_of_mem
-
-/-- info: 'AcornVerif.next_below_in_range' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms next_below_in_range
-
-/-- info: 'AcornVerif.natCeilDiv_le_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms natCeilDiv_le_iff
-
-/-- info: 'AcornVerif.lt_natCeilDiv_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms lt_natCeilDiv_iff
-
-/-- info: 'AcornVerif.next_below_bin_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms next_below_bin_iff
-
-/-- info: 'AcornVerif.next_below_bin_eq_Ico' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms next_below_bin_eq_Ico
-
-/-- info: 'AcornVerif.next_below_bin_card' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms next_below_bin_card
-
-/-- info: 'AcornVerif.natCeilDiv_add_sub' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms natCeilDiv_add_sub
-
-/-- info: 'AcornVerif.next_below_bins_within_one' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms next_below_bins_within_one
-
-/-- info: 'AcornVerif.next_below_word_bins_within_one' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms next_below_word_bins_within_one
-
-/-- info: 'AcornVerif.step_size_pos_after_clip' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms step_size_pos_after_clip
-
-/-- info: 'AcornVerif.trace_geometric_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms trace_geometric_bound
-
-/-- info: 'AcornVerif.state_product_exceeds_parameter_count' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms state_product_exceeds_parameter_count
-
-/-- info: 'AcornVerif.agent_exceeds_terrain_description' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms agent_exceeds_terrain_description
-
-/-- info: 'AcornVerif.stepPaper_eq_eq32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms stepPaper_eq_eq32
-
-/-- info: 'AcornVerif.stepRef_hTemp_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms stepRef_hTemp_error
-
-/-- info: 'AcornVerif.metaTrace_lag' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms metaTrace_lag
-
-/-- info: 'AcornVerif.exhaustion_rate_at_build' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms exhaustion_rate_at_build
-
-/-- info: 'AcornVerif.constant_cumulant_fixed_point_unique' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms constant_cumulant_fixed_point_unique
-
-/-- info: 'AcornVerif.step_size_upper_after_clip' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms step_size_upper_after_clip
-
-/-- info: 'AcornVerif.step_size_lower_after_clip' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms step_size_lower_after_clip
-
-/-- info: 'AcornVerif.total_trace_increment_bounded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms total_trace_increment_bounded
-
-/-- info: 'AcornVerif.trace_increment_le_step_size' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms trace_increment_le_step_size
-
-/-- info: 'AcornVerif.decay_shrinks_step_size' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms decay_shrinks_step_size
-
-/-- info: 'AcornVerif.trace_decay_monotone' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms trace_decay_monotone
-
-/-- info: 'AcornVerif.pruning_implies_negligible' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms pruning_implies_negligible
-
-/-- info: 'AcornVerif.exhausted_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms exhausted_bound
-
-/-- info: 'AcornVerif.exhaustion_rate_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms exhaustion_rate_bound
-
-/-- info: 'AcornVerif.rest_pays_for_an_action' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms rest_pays_for_an_action
-
-/-- info: 'AcornVerif.every_action_costs' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms every_action_costs
-
-/-- info: 'AcornVerif.stepPaper_shifts_lags' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms stepPaper_shifts_lags
-
-/-- info: 'AcornVerif.stepRef_h_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms stepRef_h_error
-
-/-- info: 'AcornVerif.metaGain_at_floor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms metaGain_at_floor
-
-/-- info: 'AcornVerif.metaGain_strictAnti' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms metaGain_strictAnti
-
-/-- info: 'AcornVerif.metaGainStabilised_le' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms metaGainStabilised_le
-
-/-- info: 'AcornVerif.beta_floor_reachable' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms beta_floor_reachable
-
-/-- info: 'AcornVerif.beta_floor_absorbing' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms beta_floor_absorbing
-
-/-- info: 'AcornVerif.constant_cumulant_fixed_point' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms constant_cumulant_fixed_point
-
-/-- info: 'AcornVerif.run_realizes_eq32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms run_realizes_eq32
-
-/-- info: 'AcornVerif.one_le_floor_inv' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms one_le_floor_inv
-
-/-- info: 'AcornVerif.ez_duration_le_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms ez_duration_le_cap
-
-/-- info: 'AcornVerif.ez_duration_pos' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms ez_duration_pos
-
-/-- info: 'AcornVerif.ez_contains_epsilon_greedy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms ez_contains_epsilon_greedy
-
-/-- info: 'AcornVerif.ez_remaining_zero_at_cap_one' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms ez_remaining_zero_at_cap_one
-
-/-- info: 'AcornVerif.ez_duration_le_shipped_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms ez_duration_le_shipped_cap
-
-/-- info: 'AcornVerif.terminal_correction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms terminal_correction
-
-/-- info: 'AcornVerif.nonterminal_bellman_correction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms nonterminal_bellman_correction
-
-/-- info: 'AcornVerif.finite_activation_bootstrap_correction' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms finite_activation_bootstrap_correction
-
-/-- info: 'AcornVerif.subtask_returns_agree' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms subtask_returns_agree
-
-/-- info: 'AcornVerif.finite_activation_correction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms finite_activation_correction
-
-/-- info: 'AcornVerif.corrected_interruption_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms corrected_interruption_iff
-
-/-- info: 'AcornVerif.controller_discounts_match' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms controller_discounts_match
-
-/-- info: 'AcornVerif.gap_close_is_smdp_backup' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms gap_close_is_smdp_backup
-
-/-- info: 'AcornVerif.subtask_terminal_telescoping' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms subtask_terminal_telescoping
-
-/-- info: 'AcornVerif.subtask_potential_invariance' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms subtask_potential_invariance
-
-/-- info: 'AcornVerif.subtask_block_exclusivity' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms subtask_block_exclusivity
-
-/-- info: 'AcornVerif.option_model_scalar_continuation_equiv' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms option_model_scalar_continuation_equiv
-
-/-- info: 'AcornVerif.option_model_termination_telescoping' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms option_model_termination_telescoping
-
-/-- info: 'AcornVerif.stomp_planning_backup_contraction' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms stomp_planning_backup_contraction
-
-/-- info: 'AcornVerif.planning_weight_convex_step_bounded' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms planning_weight_convex_step_bounded
-
-/-- info: 'AcornVerif.reach_remaining_zero_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms reach_remaining_zero_iff
-
-/-- info: 'AcornVerif.collect_remaining_zero_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms collect_remaining_zero_iff
-
-/-- info: 'AcornVerif.craft_remaining_zero_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms craft_remaining_zero_iff
-
-/-- info: 'AcornVerif.survive_remaining_zero_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms survive_remaining_zero_iff
-
-/-- info: 'AcornVerif.goal_remaining_zero_iff_satisfied' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms goal_remaining_zero_iff_satisfied
-
-/-- info: 'AcornVerif.chebyshev_reduces_when_x_reduces' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms chebyshev_reduces_when_x_reduces
-
-/-- info: 'AcornVerif.capped_fold_invariant' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.capped_fold_invariant
-
-/-- info: 'AcornVerif.active_features_count_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.active_features_count_bound
-
-/-- info: 'AcornVerif.with_model_feature_nodup' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.with_model_feature_nodup
-
-/-- info: 'AcornVerif.with_model_feature_preserves' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.with_model_feature_preserves
-
-/-- info: 'AcornVerif.with_model_feature_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.with_model_feature_length
-
-/-- info: 'AcornVerif.ema_horizon_mean_age' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.ema_horizon_mean_age
-
-/-- info: 'AcornVerif.ema_horizon_squared_mass' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.ema_horizon_squared_mass
-
-/-- info: 'AcornVerif.Checkpoint.identity_accepted_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Checkpoint.identity_accepted_iff
-
-/-- info: 'AcornVerif.Checkpoint.identity_mismatch_refused' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Checkpoint.identity_mismatch_refused
-
-/-- info: 'AcornVerif.Checkpoint.appended_name_longer' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Checkpoint.appended_name_longer
-
-/-- info: 'AcornVerif.Checkpoint.appended_name_ne' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Checkpoint.appended_name_ne
-
-/-- info: 'AcornVerif.Checkpoint.writes_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Checkpoint.writes_iff
-
-/-- info: 'AcornVerif.Checkpoint.due_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Checkpoint.due_iff
-
-/-- info: 'AcornVerif.Checkpoint.refused_never_writes' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Checkpoint.refused_never_writes
-
-/-- info: 'AcornVerif.Checkpoint.load_only_never_writes' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Checkpoint.load_only_never_writes
-
-/-- info: 'AcornVerif.Checkpoint.stop_permission_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Checkpoint.stop_permission_iff
-
-/-- info: 'AcornVerif.Checkpoint.campaign_goals_exact' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Checkpoint.campaign_goals_exact
-
-/-- info: 'AcornVerif.Checkpoint.campaign_unbounded_nonempty' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Checkpoint.campaign_unbounded_nonempty
-
-/-- info: 'AcornVerif.Checkpoint.campaign_finite_accepted' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Checkpoint.campaign_finite_accepted
-
-/-- info: 'AcornVerif.Checkpoint.campaign_empty_accepted_iff' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Checkpoint.campaign_empty_accepted_iff
-
-/-- info: 'AcornVerif.Refresh.replacement_exact' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.replacement_exact
-
-/-- info: 'AcornVerif.Refresh.closing_owner_exact' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.closing_owner_exact
-
-/-- info: 'AcornVerif.Refresh.continuation_exact' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Refresh.continuation_exact
-
-/-- info: 'AcornVerif.Refresh.replaced_credit_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Refresh.replaced_credit_zero
-
-/-- info: 'AcornVerif.Refresh.unchanged_credit_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Refresh.unchanged_credit_exact
-
-/-- info: 'Acorn.Symmetric32.symmetric_project_contains' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Symmetric32.symmetric_project_contains
-
-/-- info: 'Acorn.Symmetric32.symmetric_project_identity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Symmetric32.symmetric_project_identity
-
-/-- info: 'Acorn.Symmetric32.symmetric_project_idempotent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Symmetric32.symmetric_project_idempotent
-
-/-- info: 'Acorn.Binary32.sumFrom_append' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Binary32.sumFrom_append
-
-/-- info: 'Acorn.Binary64.hornerFrom_append' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Binary64.hornerFrom_append
-
-/-- info: 'Acorn.Bounded32.addProjected_legal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Bounded32.addProjected_legal
-
-/-- info: 'Acorn.average_observe_legal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.average_observe_legal
-
-/-- info: 'Acorn.average_observe_append' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.average_observe_append
-
-/-- info: 'Acorn.Conversion.clampInt_bounds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.clampInt_bounds
-
-/-- info: 'Acorn.Conversion.signedCast_bounds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.signedCast_bounds
-
-/-- info: 'Acorn.Portable.exp_nan_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Portable.exp_nan_word
-
-/-- info: 'Acorn.Portable.powLoop_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Portable.powLoop_zero
-
-/-- info: 'Acorn.Portable.powLoop_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Portable.powLoop_step
-
-/-- info: 'Acorn.Rng.splitmix_two_offsets' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.splitmix_two_offsets
-
-/-- info: 'Acorn.Rng.nextBelow_transition' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.nextBelow_transition
-
-/-- info: 'Acorn.Rng.nextBelow_quotient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.nextBelow_quotient
-
-/-- info: 'Acorn.Rng.nextF64_transition' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.nextF64_transition
-
-/-- info: 'Acorn.Rng.prefix_length' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.prefix_length
-
-/-- info: 'Acorn.Rng.prefix_state' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.prefix_state
-
-/-- info: 'Acorn.Rng.prefix_append' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.prefix_append
-
-/-- info: 'Acorn.Rng.prefix_zero_state' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.prefix_zero_state
-
-/-- info: 'Acorn.Rng.fnvStep_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.fnvStep_injective
-
-/-- info: 'Acorn.Rng.fnv_append' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.fnv_append
-
-/-- info: 'Acorn.Rng.state_rotation_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.state_rotation_injective
-
-/-- info: 'Acorn.Rng.next_state_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.next_state_injective
-
-/-- info: 'Acorn.Rng.word_right_xor_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.word_right_xor_injective
-
-/-- info: 'Acorn.Rng.mixFinal_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.mixFinal_injective
-
-/-- info: 'Acorn.Rng.mix64_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.mix64_injective
-
-/-- info: 'Acorn.Rng.hash3_eq_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.hash3_eq_iff
-
-/-- info: 'Acorn.Rng.hash2_eq_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.hash2_eq_iff
-
-/-- info: 'Acorn.Rng.hash3_not_xor' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.hash3_not_xor
-
-/-- info: 'Acorn.Rng.hash2_not_xor' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.hash2_not_xor
-
-/-- info: 'Acorn.Rng.advance_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.advance_injective
-
-/-- info: 'Acorn.Rng.advance_nonzero' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.advance_nonzero
-
-/-- info: 'Acorn.Rng.seed_nonzero' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.seed_nonzero
-
-/-- info: 'Acorn.Rounding.nearestEven_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.nearestEven_distance
-
-/-- info: 'Acorn.Rounding.nearestEven_tie' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.nearestEven_tie
-
-/-- info: 'Acorn.Rounding.nearestEven_exact' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.nearestEven_exact
-
-/-- info: 'Acorn.Rounding.nearestEven_le_input' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.nearestEven_le_input
-
-/-- info: 'Acorn.Rounding.nearestEven_bracket' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.nearestEven_bracket
-
-/-- info: 'Acorn.Rounding.wordShift_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.wordShift_exact
-
-/-- info: 'Acorn.Rounding.wordShift_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.wordShift_distance
-
-/-- info: 'Acorn.Rounding.wordShift_carry_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.wordShift_carry_bound
-
-/-- info: 'Acorn.Rounding.wordShift_leading_bit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.wordShift_leading_bit
-
-/-- info: 'Acorn.Rng.countOfNat_exact' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.Rng.countOfNat_exact
-
-/-- info: 'Acorn.Rng.shuffleLoop_state' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.shuffleLoop_state
-
-/-- info: 'Acorn.Rng.shuffleLoop_permutation' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rng.shuffleLoop_permutation
-
-/-- info: 'Acorn.rails_admission_total' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.rails_admission_total
-
-/-- info: 'Acorn.feature_index_word_exact' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.feature_index_word_exact
-
-/-- info: 'Acorn.Word.multiplier_injective' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.Word.multiplier_injective
-
-/-- info: 'Acorn.Word.xor_word_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Word.xor_word_injective
-
-/-- info: 'Acorn.Word.product_fits' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Acorn.Word.product_fits
-
-/-- info: 'Acorn.Word.high_fits' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.Word.high_fits
-
-/-- info: 'Acorn.Word.multiplyHigh_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Word.multiplyHigh_exact
-
-/-- info: 'Acorn.Word.multiplyHigh_below' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Word.multiplyHigh_below
-
-/-- info: 'Acorn.Word.clock_advance_exact' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.Word.clock_advance_exact
-
-/-- info: 'Acorn.Word.clock_advance_refuses' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.Word.clock_advance_refuses
-
-/-- info: 'Acorn.Word.xor_shiftLeft_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Word.xor_shiftLeft_injective
-
-/-- info: 'Acorn.Word.rotate_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Word.rotate_injective
-
-/-- info: 'Acorn.Word.xor_shiftRight_injective' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Word.xor_shiftRight_injective
-
-/-- info: 'AcornVerif.current_range_bin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.current_range_bin
-
-/-- info: 'AcornVerif.current_range_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.current_range_word
-
-/-- info: 'AcornVerif.current_range_card' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.current_range_card
-
-/-- info: 'Acorn.Conversion.normalSignificand_bounds' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalSignificand_bounds
-
-/-- info: 'Acorn.Conversion.roundedNormal_bounds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.roundedNormal_bounds
-
-/-- info: 'Acorn.Conversion.normalizedNormal_bounds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalizedNormal_bounds
-
-/-- info: 'Acorn.Conversion.normalizedNormal_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalizedNormal_value
-
-/-- info: 'Acorn.Conversion.normalFraction_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalFraction_exact
-
-/-- info: 'Acorn.Conversion.normalFraction_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalFraction_distance
-
-/-- info: 'Acorn.Conversion.subnormalShift_lower' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalShift_lower
-
-/-- info: 'Acorn.Conversion.subnormalSignificand_upper' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalSignificand_upper
-
-/-- info: 'Acorn.Conversion.subnormalFraction_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalFraction_exact
-
-/-- info: 'Acorn.Conversion.subnormalFraction_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalFraction_distance
-
-/-- info: 'Acorn.Conversion.subnormalFraction_tie' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalFraction_tie
-
-/-- info: 'Acorn.Conversion.normalFields_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalFields_exact
-
-/-- info: 'Acorn.Conversion.narrowSign_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrowSign_exact
-
-/-- info: 'Acorn.Conversion.narrowSign_magnitude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrowSign_magnitude
-
-/-- info: 'Acorn.Conversion.normalExponent_bounds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalExponent_bounds
-
-/-- info: 'Acorn.Conversion.normalMagnitude_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalMagnitude_bound
-
-/-- info: 'Acorn.Conversion.narrow_finite_input_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_finite_input_bound
-
-/-- info: 'Acorn.Conversion.normalFraction_tie' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalFraction_tie
-
-/-- info: 'Acorn.Conversion.narrowSign_highBit' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrowSign_highBit
-
-/-- info: 'Acorn.Conversion.normalExponent_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalExponent_exact
-
-/-- info: 'Acorn.Conversion.normalMagnitude_finite_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalMagnitude_finite_iff
-
-/-- info: 'Acorn.Conversion.widenSubnormalFraction_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widenSubnormalFraction_exact
-
-/-- info: 'Acorn.Conversion.widenSubnormalFraction_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widenSubnormalFraction_value
-
-/-- info: 'Acorn.Conversion.widenSubnormalFraction_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widenSubnormalFraction_bound
-
-/-- info: 'Acorn.Conversion.widenFraction_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widenFraction_exact
-
-/-- info: 'Acorn.Conversion.wideFields_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.wideFields_exact
-
-/-- info: 'Acorn.Conversion.widenSign_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widenSign_exact
-
-/-- info: 'Acorn.Conversion.widenSign_magnitude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widenSign_magnitude
-
-/-- info: 'Acorn.Conversion.widenSign_highBit' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widenSign_highBit
-
-/-- info: 'Acorn.Conversion.fields32_decomposition' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.fields32_decomposition
-
-/-- info: 'Acorn.Conversion.fields32_bounds' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.fields32_bounds
-
-/-- info: 'Acorn.Conversion.fields32_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.fields32_units
-
-/-- info: 'Acorn.Conversion.wideFields_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.wideFields_units
-
-/-- info: 'Acorn.Conversion.wideFields_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.wideFields_finite
-
-/-- info: 'Acorn.Conversion.wideFields_sign' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.wideFields_sign
-
-/-- info: 'Acorn.Conversion.narrowFields_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrowFields_units
-
-/-- info: 'Acorn.Conversion.subnormalFields_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalFields_units
-
-/-- info: 'Acorn.Conversion.fields64_decomposition' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.fields64_decomposition
-
-/-- info: 'Acorn.Conversion.fraction64_bound' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.fraction64_bound
-
-/-- info: 'Acorn.Conversion.normalSignificand_value' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalSignificand_value
-
-/-- info: 'Acorn.Conversion.fields64_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.fields64_units
-
-/-- info: 'Acorn.Conversion.fields64_scaled_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.fields64_scaled_units
-
-/-- info: 'Acorn.Conversion.subnormalScale_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalScale_exact
-
-/-- info: 'Acorn.Conversion.normalMagnitude_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalMagnitude_units
-
-/-- info: 'Acorn.Conversion.normalExponent_scale' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalExponent_scale
-
-/-- info: 'Acorn.Conversion.normalMagnitude_rounded_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalMagnitude_rounded_units
-
-/-- info: 'Acorn.Conversion.normalMagnitude_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalMagnitude_distance
-
-/-- info: 'Acorn.Conversion.subnormalMagnitude_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalMagnitude_distance
-
-/-- info: 'Acorn.Conversion.widen_magnitude_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widen_magnitude_exact
-
-/-- info: 'Acorn.Conversion.widen_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widen_finite
-
-/-- info: 'Acorn.Conversion.narrow_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_sign
-
-/-- info: 'Acorn.Conversion.narrow_finite_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_finite_iff
-
-/-- info: 'Acorn.Conversion.narrow_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_distance
-
-/-- info: 'Acorn.Conversion.widen_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widen_sign
-
-/-- info: 'Acorn.Conversion.narrow_finite_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_finite_distance
-
-/-- info: 'Acorn.Conversion.trunc64_magnitude_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.trunc64_magnitude_exact
-
-/-- info: 'Acorn.Rounding.nearestEven_scaled_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.nearestEven_scaled_distance
-
-/-- info: 'Acorn.weight_legal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.weight_legal
-
-/-- info: 'Acorn.weight_admit_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.weight_admit_exact
-
-/-- info: 'Acorn.weight_admit_refuses' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.weight_admit_refuses
-
-/-- info: 'Acorn.feature_index_admit_exact' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Acorn.feature_index_admit_exact
-
-/-- info: 'Acorn.feature_index_admit_refuses' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.feature_index_admit_refuses
-
-/-- info: 'AcornVerif.CurrentFloat.model_mantissa_log' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_mantissa_log
-
-/-- info: 'AcornVerif.CurrentFloat.model_normal_target' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_normal_target
-
-/-- info: 'AcornVerif.CurrentFloat.model_round_fixed' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_round_fixed
-
-/-- info: 'AcornVerif.CurrentFloat.model_scaled_mantissa' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_scaled_mantissa
-
-/-- info: 'AcornVerif.CurrentFloat.model_round_small_nat' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_round_small_nat
-
-/-- info: 'AcornVerif.CurrentFloat.model_unpack_pack_normal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_unpack_pack_normal
-
-/-- info: 'AcornVerif.CurrentFloat.model_shift_exact' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_shift_exact
-
-/-- info: 'AcornVerif.CurrentFloat.model_log2_scaled' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_log2_scaled
-
-/-- info: 'AcornVerif.CurrentFloat.model_round_scaled_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_round_scaled_exact
-
-/-- info: 'AcornVerif.CurrentFloat.model_ofUInt64_small' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_ofUInt64_small
-
-/-- info: 'AcornVerif.CurrentFloat.model_reencode_normal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_reencode_normal
-
-/-- info: 'AcornVerif.CurrentFloat.model_mul_fraction_scale' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_mul_fraction_scale
-
-/-- info: 'AcornVerif.CurrentFloat.fraction_model_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.fraction_model_word
-
-/-- info: 'AcornVerif.CurrentFloat.model_pack_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_pack_word
-
-/-- info: 'AcornVerif.CurrentFloat.model_pack_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.model_pack_units
-
-/-- info: 'AcornVerif.CurrentFloat.fraction_value_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.fraction_value_exact
-
-/-- info: 'AcornVerif.CurrentFloat.fraction_word_lt_one' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.fraction_word_lt_one
-
-/-- info: 'AcornVerif.CurrentFloat.fraction_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.fraction_finite
-
-/-- info: 'AcornVerif.CurrentFloat.nextF64_value_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.nextF64_value_exact
-
-/-- info: 'AcornVerif.CurrentFloat.nextF64_word_lt_one' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.nextF64_word_lt_one
-
-/-- info: 'AcornVerif.CurrentPower.model_shift_mantissa' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_shift_mantissa
-
-/-- info: 'AcornVerif.CurrentPower.model_round_mantissa_ceiling' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_round_mantissa_ceiling
-
-/-- info: 'AcornVerif.CurrentPower.model_first_mantissa_bound' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_first_mantissa_bound
-
-/-- info: 'AcornVerif.CurrentPower.model_pack_below_one' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_pack_below_one
-
-/-- info: 'AcornVerif.CurrentPower.model_second_shift_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_second_shift_exact
-
-/-- info: 'AcornVerif.CurrentPower.model_round_product_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_round_product_unit
-
-/-- info: 'AcornVerif.CurrentPower.model_log2_scaled_positive' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_log2_scaled_positive
-
-/-- info: 'AcornVerif.CurrentPower.model_round_scaled_normalized' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_round_scaled_normalized
-
-/-- info: 'AcornVerif.CurrentPower.model_unpack_pack_subnormal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_unpack_pack_subnormal
-
-/-- info: 'AcornVerif.CurrentPower.model_unpack_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_unpack_unit
-
-/-- info: 'AcornVerif.CurrentPower.model_unit_round_target' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_unit_round_target
-
-/-- info: 'AcornVerif.CurrentPower.model_unit_unpack_pack' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_unit_unpack_pack
-
-/-- info: 'AcornVerif.CurrentPower.model_unit_pack_bound' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_unit_pack_bound
-
-/-- info: 'AcornVerif.CurrentPower.model_ofBits_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_ofBits_unit
-
-/-- info: 'AcornVerif.CurrentPower.model_mul_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_mul_unit
-
-/-- info: 'AcornVerif.CurrentPower.binary64_mul_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.binary64_mul_unit
-
-/-- info: 'AcornVerif.CurrentPower.powLoop_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.powLoop_unit
-
-/-- info: 'Acorn.Conversion.widen_magnitude_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widen_magnitude_unit
-
-/-- info: 'Acorn.Conversion.normalFraction_carry_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalFraction_carry_zero
-
-/-- info: 'Acorn.Conversion.roundedNormal_zero_fraction' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.roundedNormal_zero_fraction
-
-/-- info: 'Acorn.Conversion.normalMagnitude_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalMagnitude_unit
-
-/-- info: 'Acorn.Conversion.narrow_magnitude_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_magnitude_unit
-
-/-- info: 'Acorn.Conversion.widen_word_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widen_word_unit
-
-/-- info: 'Acorn.Conversion.narrow_word_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_word_unit
-
-/-- info: 'Acorn.Conversion.narrow_signed_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_signed_zero
-
-/-- info: 'Acorn.Conversion.wideFields_extract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.wideFields_extract
-
-/-- info: 'Acorn.Conversion.narrow_magnitude_cases' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_magnitude_cases
-
-/-- info: 'Acorn.Conversion.normalMagnitude_aligned' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalMagnitude_aligned
-
-/-- info: 'Acorn.Conversion.subnormalFraction_aligned' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.subnormalFraction_aligned
-
-/-- info: 'Acorn.Conversion.wideFields_significand' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.wideFields_significand
-
-/-- info: 'Acorn.Conversion.narrow_widen_magnitude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_widen_magnitude
-
-/-- info: 'Acorn.Conversion.narrow_widen_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_widen_finite
-
-/-- info: 'Acorn.Conversion.narrow_widen_nonNaN' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_widen_nonNaN
-
-/-- info: 'Acorn.Conversion.widen_normal_or_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.widen_normal_or_zero
-
-/-- info: 'Acorn.Conversion.trunc64_signed_magnitude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.trunc64_signed_magnitude
-
-/-- info: 'Acorn.Conversion.trunc64_signed_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.trunc64_signed_exact
-
-/-- info: 'Acorn.Conversion.signedCast_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.signedCast_finite
-
-/-- info: 'Acorn.Conversion.signedCast_finite_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.signedCast_finite_value
-
-/-- info: 'Acorn.Rounding.wordShift_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.wordShift_zero
-
-/-- info: 'AcornVerif.CurrentFloat.ofUInt64_value_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.ofUInt64_value_exact
-
-/-- info: 'AcornVerif.CurrentFloat.ofUInt64_word_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.ofUInt64_word_bound
-
-/-- info: 'AcornVerif.CurrentFloat.word64_sign_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.word64_sign_exact
-
-/-- info: 'AcornVerif.CurrentFloat.negate_magnitude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.negate_magnitude
-
-/-- info: 'AcornVerif.CurrentFloat.negate_magnitude_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.negate_magnitude_units
-
-/-- info: 'AcornVerif.CurrentFloat.ofInt_magnitude_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.ofInt_magnitude_exact
-
-/-- info: 'AcornVerif.CurrentFloat.ofInt_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.ofInt_finite
-
-/-- info: 'AcornVerif.CurrentFloat.ofInt_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.ofInt_sign
-
-/-- info: 'AcornVerif.CurrentFloat.trunc64_ofInt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.trunc64_ofInt
-
-/-- info: 'AcornVerif.CurrentFloat.toI32_ofInt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFloat.toI32_ofInt
-
-/-- info: 'AcornVerif.CurrentPower.pow_word_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.pow_word_unit
-
-/-- info: 'AcornVerif.CurrentPower.pow_zero_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.pow_zero_word
-
-/-- info: 'AcornVerif.CurrentPower.mul_signed_zeros' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.mul_signed_zeros
-
-/-- info: 'AcornVerif.CurrentPower.mul_one_signed_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.mul_one_signed_zero
-
-/-- info: 'AcornVerif.CurrentPower.powLoop_zero_accumulator' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.powLoop_zero_accumulator
-
-/-- info: 'AcornVerif.CurrentPower.powLoop_positive_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.powLoop_positive_zero
-
-/-- info: 'AcornVerif.CurrentPower.pow_negative_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.pow_negative_zero
-
-/-- info: 'AcornVerif.CurrentPower.key_unit_cases' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.key_unit_cases
-
-/-- info: 'AcornVerif.CurrentPower.pow_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.pow_unit
-
-/-- info: 'AcornVerif.CurrentPower.model_packComponents_unpack' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_packComponents_unpack
-
-/-- info: 'AcornVerif.CurrentPower.model_unpack_normal_fields' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_unpack_normal_fields
-
-/-- info: 'AcornVerif.CurrentPower.model_pack_unpack_normal_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_pack_unpack_normal_word
-
-/-- info: 'AcornVerif.CurrentPower.binary64_one_mul_normal_model' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.binary64_one_mul_normal_model
-
-/-- info: 'AcornVerif.CurrentPower.binary64_one_mul_normal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.binary64_one_mul_normal
-
-/-- info: 'AcornVerif.CurrentPower.model_exponent_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.model_exponent_word
-
-/-- info: 'AcornVerif.CurrentPower.binary64_one_mul_widen' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.binary64_one_mul_widen
-
-/-- info: 'AcornVerif.CurrentPower.pow_one_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPower.pow_one_word
-
-/-- info: 'AcornVerif.CurrentExponential.powerOfTwo_word' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.powerOfTwo_word
-
-/-- info: 'AcornVerif.CurrentExponential.powerOfTwo_model' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.powerOfTwo_model
-
-/-- info: 'AcornVerif.CurrentExponential.binary64_scale_normal_model' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.binary64_scale_normal_model
-
-/-- info: 'AcornVerif.CurrentExponential.model_positive_normal_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.model_positive_normal_word
-
-/-- info: 'AcornVerif.CurrentExponential.expScale_wide_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.expScale_wide_word
-
-/-- info: 'AcornVerif.CurrentExponential.expScale_wide_components' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.expScale_wide_components
-
-/-- info: 'AcornVerif.CurrentExponential.expScale_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.expScale_nonnegative
-
-/-- info: 'AcornVerif.CurrentExponential.expScale_negative_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.expScale_negative_unit
-
-/-- info: 'AcornVerif.CurrentExponential.expScale_zero_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.expScale_zero_unit
-
-/-- info: 'AcornVerif.CurrentExponential.normalExponent_no_carry' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.normalExponent_no_carry
-
-/-- info: 'AcornVerif.CurrentExponential.expScale_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.expScale_finite
-
-/-- info: 'AcornVerif.CurrentExponential.expSaturation_ends' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentExponential.expSaturation_ends
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_shift_residual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_shift_residual
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_shift_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_shift_exact
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_shift_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_shift_distance
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_first_mantissa_format' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_first_mantissa_format
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_second_shift_format' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_second_shift_format
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_exact_components' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_exact_components
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_exact_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_exact_value
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_exact_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_exact_error
-
-/-- info: 'AcornVerif.CurrentArithmetic.dyadic_padding_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.dyadic_padding_exact
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_roundWithAccuracy_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_roundWithAccuracy_zero
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_zero
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_error
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_rounded_not_below' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_rounded_not_below
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_accuracy_components' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_accuracy_components
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_first_normalized_lower' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_first_normalized_lower
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_accuracy_normalized' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_accuracy_normalized
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_normalized' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_normalized
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_format_min_bias' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_format_min_bias
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_unpack_sign_components' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_unpack_sign_components
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_unpack_components' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_unpack_components
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_unpack_pack_normalized' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_unpack_pack_normalized
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_unpack_format' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_unpack_format
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_finite_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_finite_abs
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_fits_of_value_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_fits_of_value_bound
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_normalized_finite' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_normalized_finite
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_positive_dyadic_window' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_positive_dyadic_window
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_totalExponent_mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_totalExponent_mono
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_normalized_target' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_normalized_target
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_uniform_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_uniform_error
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_sign_apply_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_sign_apply_value
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_sign_product_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_sign_product_value
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_signed_round_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_signed_round_value
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_format_min_nonpositive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_format_min_nonpositive
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_product_exponent_ready' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_product_exponent_ready
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_round_without_padding' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_round_without_padding
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_mul_dyadic_local' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_mul_dyadic_local
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_decrease_dyadic_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_decrease_dyadic_value
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_add_dyadic_local' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_add_dyadic_local
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_unpack_finite_exponent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_unpack_finite_exponent
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_decoded64_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_decoded64_finite
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_decoded32_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_decoded32_finite
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_ofBits64_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_ofBits64_decoded
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_ofBits32_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_ofBits32_decoded
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_add64_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_add64_decoded
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_mul64_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_mul64_decoded
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_add32_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_add32_decoded
-
-/-- info: 'AcornVerif.CurrentArithmetic.model_local64_fits' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.model_local64_fits
-
-/-- info: 'AcornVerif.CurrentArithmetic.binary64_add_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.binary64_add_finite_error
-
-/-- info: 'AcornVerif.CurrentArithmetic.binary64_mul_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentArithmetic.binary64_mul_finite_error
-
-/-- info: 'AcornVerif.CurrentOrder.fieldUnits_zero' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.fieldUnits_zero
-
-/-- info: 'AcornVerif.CurrentOrder.fieldUnits_strict' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.fieldUnits_strict
-
-/-- info: 'AcornVerif.CurrentOrder.fieldUnits_order' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.fieldUnits_order
-
-/-- info: 'AcornVerif.CurrentOrder.fieldUnits_positive' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.fieldUnits_positive
-
-/-- info: 'AcornVerif.CurrentOrder.model_finite_fields_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.model_finite_fields_value
-
-/-- info: 'AcornVerif.CurrentOrder.fieldUnits_fields' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.fieldUnits_fields
-
-/-- info: 'AcornVerif.CurrentOrder.model_finite_fieldUnits_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.model_finite_fieldUnits_value
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_fieldUnits' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_fieldUnits
-
-/-- info: 'AcornVerif.CurrentOrder.numerical32_fieldUnits' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical32_fieldUnits
-
-/-- info: 'AcornVerif.CurrentOrder.signedFieldUnits_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.signedFieldUnits_sign
-
-/-- info: 'AcornVerif.CurrentOrder.signedFieldUnits_strict' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.signedFieldUnits_strict
-
-/-- info: 'AcornVerif.CurrentOrder.signedFieldUnits_order' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.signedFieldUnits_order
-
-/-- info: 'AcornVerif.CurrentOrder.model_word64_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.model_word64_sign
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_key_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_key_units
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_order' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_order
-
-/-- info: 'AcornVerif.CurrentOrder.word32_sign_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.word32_sign_exact
-
-/-- info: 'AcornVerif.CurrentOrder.model_word32_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.model_word32_sign
-
-/-- info: 'AcornVerif.CurrentOrder.numerical32_key_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical32_key_units
-
-/-- info: 'AcornVerif.CurrentOrder.numerical32_order' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical32_order
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_strict_order' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_strict_order
-
-/-- info: 'AcornVerif.CurrentOrder.numerical32_strict_order' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical32_strict_order
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_less' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_less
-
-/-- info: 'AcornVerif.CurrentOrder.numerical32_less' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical32_less
-
-/-- info: 'AcornVerif.CurrentOrder.magnitudeUnits32_fieldUnits' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.magnitudeUnits32_fieldUnits
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_units
-
-/-- info: 'AcornVerif.CurrentOrder.numerical32_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical32_units
-
-/-- info: 'AcornVerif.CurrentOrder.numerical_widen_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical_widen_exact
-
-/-- info: 'AcornVerif.CurrentOrder.sign_dyadic_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.sign_dyadic_abs
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_abs_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_abs_units
-
-/-- info: 'AcornVerif.CurrentOrder.numerical32_abs_units' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical32_abs_units
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_magnitude_order' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_magnitude_order
-
-/-- info: 'AcornVerif.CurrentOrder.numerical32_magnitude_order' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical32_magnitude_order
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_ofInt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_ofInt
-
-/-- info: 'AcornVerif.CurrentOrder.numerical64_ofUInt64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOrder.numerical64_ofUInt64
-
-/-- info: 'AcornVerif.CurrentOperations.model_sign_neg_apply' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.model_sign_neg_apply
-
-/-- info: 'AcornVerif.CurrentOperations.model_sub_add_neg' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.model_sub_add_neg
-
-/-- info: 'AcornVerif.CurrentOperations.model_neg_normalized' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.model_neg_normalized
-
-/-- info: 'AcornVerif.CurrentOperations.model_neg_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.model_neg_value
-
-/-- info: 'AcornVerif.CurrentOperations.model_sub_dyadic_local' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.model_sub_dyadic_local
-
-/-- info: 'AcornVerif.CurrentOperations.model_sub64_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.model_sub64_decoded
-
-/-- info: 'AcornVerif.CurrentOperations.binary64_sub_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.binary64_sub_finite_error
-
-/-- info: 'AcornVerif.CurrentOperations.quotient_fraction_bracket' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.quotient_fraction_bracket
-
-/-- info: 'AcornVerif.CurrentOperations.numerical64_trunc_signed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.numerical64_trunc_signed
-
-/-- info: 'AcornVerif.CurrentOperations.numerical64_trunc_toward_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.numerical64_trunc_toward_zero
-
-/-- info: 'AcornVerif.CurrentOperations.numerical64_trunc_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.numerical64_trunc_abs
-
-/-- info: 'AcornVerif.CurrentOperations.numerical64_toI32_trunc' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOperations.numerical64_toI32_trunc
-
-/-- info: 'AcornVerif.CurrentDivision.model_round_accuracy_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_round_accuracy_value
-
-/-- info: 'AcornVerif.CurrentDivision.model_round_accuracy_distance' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_round_accuracy_distance
-
-/-- info: 'AcornVerif.CurrentDivision.model_ratio_positive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_ratio_positive
-
-/-- info: 'AcornVerif.CurrentDivision.model_ratio_window_lower' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_ratio_window_lower
-
-/-- info: 'AcornVerif.CurrentDivision.model_divCore_bracket' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_divCore_bracket
-
-/-- info: 'AcornVerif.CurrentDivision.model_round_accuracy_zero_normalized' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_round_accuracy_zero_normalized
-
-/-- info: 'AcornVerif.CurrentDivision.model_divCore_ready' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_divCore_ready
-
-/-- info: 'AcornVerif.CurrentDivision.model_divCore_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_divCore_error
-
-/-- info: 'AcornVerif.CurrentDivision.model_signed_ratio' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_signed_ratio
-
-/-- info: 'AcornVerif.CurrentDivision.model_div_dyadic_local' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_div_dyadic_local
-
-/-- info: 'AcornVerif.CurrentDivision.model_div64_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.model_div64_decoded
-
-/-- info: 'AcornVerif.CurrentDivision.binary64_div_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentDivision.binary64_div_finite_error
-
-/-- info: 'AcornVerif.FloatLibBridge.unpackedToReal_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.unpackedToReal_eq
-
-/-- info: 'AcornVerif.FloatLibBridge.toReal_ofModel_fits' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.toReal_ofModel_fits
-
-/-- info: 'AcornVerif.FloatLibBridge.mul_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.mul_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.add_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.add_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.neg_isFinite' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.neg_isFinite
-
-/-- info: 'AcornVerif.FloatLibBridge.neg_fits' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.neg_fits
-
-/-- info: 'AcornVerif.FloatLibBridge.unpackedToReal_neg' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.unpackedToReal_neg
-
-/-- info: 'AcornVerif.FloatLibBridge.sub_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.sub_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.div_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.div_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.format64' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.format64
-
-/-- info: 'AcornVerif.FloatLibBridge.toModel_model64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.toModel_model64
-
-/-- info: 'AcornVerif.FloatLibBridge.toReal_model64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.toReal_model64
-
-/-- info: 'AcornVerif.FloatLibBridge.isFinite_model64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.isFinite_model64
-
-/-- info: 'AcornVerif.FloatLibBridge.canonical64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.canonical64
-
-/-- info: 'AcornVerif.FloatLibBridge.model64_add' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.model64_add
-
-/-- info: 'AcornVerif.FloatLibBridge.model64_sub' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.model64_sub
-
-/-- info: 'AcornVerif.FloatLibBridge.model64_mul' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.model64_mul
-
-/-- info: 'AcornVerif.FloatLibBridge.model64_div' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.model64_div
-
-/-- info: 'AcornVerif.FloatLibBridge.binary64_add_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary64_add_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.binary64_sub_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary64_sub_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.binary64_mul_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary64_mul_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.binary64_div_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary64_div_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.format32' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.format32
-
-/-- info: 'AcornVerif.FloatLibBridge.toModel_model32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.toModel_model32
-
-/-- info: 'AcornVerif.FloatLibBridge.toReal_model32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.toReal_model32
-
-/-- info: 'AcornVerif.FloatLibBridge.isFinite_model32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.isFinite_model32
-
-/-- info: 'AcornVerif.FloatLibBridge.canonical32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.canonical32
-
-/-- info: 'AcornVerif.FloatLibBridge.model32_add' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.model32_add
-
-/-- info: 'AcornVerif.FloatLibBridge.model32_sub' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.model32_sub
-
-/-- info: 'AcornVerif.FloatLibBridge.model32_mul' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.model32_mul
-
-/-- info: 'AcornVerif.FloatLibBridge.model32_div' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.model32_div
-
-/-- info: 'AcornVerif.FloatLibBridge.binary32_add_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary32_add_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.binary32_sub_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary32_sub_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.binary32_mul_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary32_mul_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.binary32_div_roundAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary32_div_roundAt
-
-/-- info: 'AcornVerif.FloatLibBridge.roundAt64_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.roundAt64_error
-
-/-- info: 'AcornVerif.FloatLibBridge.binary64_div_half_unit_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.binary64_div_half_unit_error
-
-/-- info: 'AcornVerif.FloatLibBridge.nearestEven_eq_roundQuotientEven' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.nearestEven_eq_roundQuotientEven
-
-/-- info: 'AcornVerif.FloatLibBridge.nearest32' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.nearest32
-
-/-- info: 'AcornVerif.FloatLibBridge.band030_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.band030_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.band0335_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.band0335_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.band060_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.band060_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.band072_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.band072_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.band080_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.band080_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.moist040_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.moist040_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.gamma90_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.gamma90_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.gamma95_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.gamma95_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.gamma99_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.gamma99_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.alphaInit5e5_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.alphaInit5e5_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.alphaInit1e4_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.alphaInit1e4_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.epsilon1e5_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.epsilon1e5_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.eta01_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.eta01_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.eta025_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.eta025_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.etaMin1e10_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.etaMin1e10_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.decay0999_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.decay0999_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.meta1e3_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.meta1e3_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.meta3e2_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.meta3e2_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.tie1e6_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.tie1e6_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.epsStart_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.epsStart_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.epsMin_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.epsMin_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.epsDecay_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.epsDecay_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.optionEpsilon_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.optionEpsilon_nearest
-
-/-- info: 'AcornVerif.FloatLibBridge.exploreRate1e2_nearest' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.FloatLibBridge.exploreRate1e2_nearest
-
-/-- info: 'AcornVerif.CurrentIntervals.model_sub_positive_zero' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.model_sub_positive_zero
-
-/-- info: 'AcornVerif.CurrentIntervals.binary64_sub_zero_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.binary64_sub_zero_value
-
-/-- info: 'AcornVerif.CurrentIntervals.model_mul_nonpositive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.model_mul_nonpositive
-
-/-- info: 'AcornVerif.CurrentIntervals.binary64_mul_nonpositive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.binary64_mul_nonpositive
-
-/-- info: 'AcornVerif.CurrentIntervals.numerical64_above_one_gap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.numerical64_above_one_gap
-
-/-- info: 'AcornVerif.CurrentIntervals.binary64_add_unit_upper' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.binary64_add_unit_upper
-
-/-- info: 'AcornVerif.CurrentIntervals.binary64_key_nonnegative_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.binary64_key_nonnegative_word
-
-/-- info: 'AcornVerif.CurrentIntervals.binary64_positive_key_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.binary64_positive_key_word
-
-/-- info: 'AcornVerif.CurrentIntervals.narrow_finite_local' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentIntervals.narrow_finite_local
-
-/-- info: 'AcornVerif.CurrentReduction.reduction_constants' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentReduction.reduction_constants
-
-/-- info: 'AcornVerif.CurrentReduction.trunc_selection_band' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentReduction.trunc_selection_band
-
-/-- info: 'AcornVerif.CurrentReduction.expReduce_contract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentReduction.expReduce_contract
-
-/-- info: 'AcornVerif.CurrentReduction.expReduce_zero_remainder' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentReduction.expReduce_zero_remainder
-
-/-- info: 'AcornVerif.CurrentReduction.exp_admitted_reduction' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentReduction.exp_admitted_reduction
-
-/-- info: 'AcornVerif.CurrentSeries.hornerStep_finite_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentSeries.hornerStep_finite_error
-
-/-- info: 'AcornVerif.CurrentSeries.hornerFrom_envelope' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentSeries.hornerFrom_envelope
-
-/-- info: 'AcornVerif.CurrentSeries.reciprocal_coefficient_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentSeries.reciprocal_coefficient_bound
-
-/-- info: 'AcornVerif.CurrentSeries.expSeries_contract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentSeries.expSeries_contract
-
-/-- info: 'AcornVerif.CurrentPortable.exp_polynomial_words' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPortable.exp_polynomial_words
-
-/-- info: 'AcornVerif.CurrentPortable.exp_admitted_contract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPortable.exp_admitted_contract
-
-/-- info: 'AcornVerif.CurrentPortable.exp_nonNaN_word' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPortable.exp_nonNaN_word
-
-/-- info: 'AcornVerif.CurrentPortable.exp_nonpositive_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPortable.exp_nonpositive_unit
-
-/-- info: 'AcornVerif.CurrentLogarithm.approximation_magnitude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLogarithm.approximation_magnitude
-
-/-- info: 'AcornVerif.CurrentLogarithm.ln_mantissa_fields' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLogarithm.ln_mantissa_fields
-
-/-- info: 'AcornVerif.CurrentLogarithm.ln_body_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLogarithm.ln_body_finite
-
-/-- info: 'AcornVerif.CurrentLogarithm.ln_total_contract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLogarithm.ln_total_contract
-
-/-- info: 'AcornVerif.CurrentPrediction.model_round_uniform_error_strict' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.model_round_uniform_error_strict
-
-/-- info: 'AcornVerif.CurrentPrediction.model_signed_round_value_strict' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.model_signed_round_value_strict
-
-/-- info: 'AcornVerif.CurrentPrediction.model_add_dyadic_local_strict' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.model_add_dyadic_local_strict
-
-/-- info: 'AcornVerif.CurrentPrediction.binary32_add_finite_strict_error' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.binary32_add_finite_strict_error
-
-/-- info: 'AcornVerif.CurrentPrediction.weight_numerical_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.weight_numerical_bound
-
-/-- info: 'AcornVerif.CurrentPrediction.numerical32_prediction_cap_gap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.numerical32_prediction_cap_gap
-
-/-- info: 'AcornVerif.CurrentPrediction.prediction_sum_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.prediction_sum_cap
-
-/-- info: 'AcornVerif.CurrentPrediction.prediction_sum_step' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.prediction_sum_step
-
-/-- info: 'AcornVerif.CurrentPrediction.prediction_sumFrom_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.prediction_sumFrom_bound
-
-/-- info: 'AcornVerif.CurrentPrediction.legal_weight_sum_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentPrediction.legal_weight_sum_bound
-
-/-- info: 'AcornVerif.CurrentState.discount_numeric_contract' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentState.discount_numeric_contract
-
-/-- info: 'AcornVerif.CurrentState.config_log_rail_nonpositive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentState.config_log_rail_nonpositive
-
-/-- info: 'AcornVerif.CurrentState.log_step_alpha_unit' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentState.log_step_alpha_unit
-
-/-- info: 'Acorn.Rounding.nearestEven_word_large_shift' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Rounding.nearestEven_word_large_shift
-
-/-- info: 'Acorn.Conversion.normalMagnitude_components' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.normalMagnitude_components
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.mul32_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.mul32_decoded
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.div32_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.div32_decoded
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.local32_fits' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.local32_fits
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.round_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.round_nonnegative
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.finite_nonnegative_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.finite_nonnegative_sign
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.model_mul_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.model_mul_nonnegative
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.model_div_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.model_div_nonnegative
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.mul32_nonnegative_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.mul32_nonnegative_bound
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.div32_nonnegative_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.div32_nonnegative_bound
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.word_unit_interval' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.word_unit_interval
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.alpha_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.alpha_numeric
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.alpha_sum_finite' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.alpha_sum_finite
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.eta_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.eta_numeric
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.word_half_interval' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.word_half_interval
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.epsilon_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.epsilon_numeric
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.denominator_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.denominator_numeric
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.trace_increment_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.trace_increment_numeric
-
-/-- info: 'AcornVerif.CurrentLearnerArithmetic.pruning_threshold_numeric' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerArithmetic.pruning_threshold_numeric
-
-/-- info: 'AcornVerif.CurrentLearner.vector_get' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.vector_get
-
-/-- info: 'AcornVerif.CurrentLearner.finite_equal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.finite_equal
-
-/-- info: 'AcornVerif.CurrentLearner.finite_lessOrEqual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.finite_lessOrEqual
-
-/-- info: 'AcornVerif.CurrentLearner.zero_key' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.zero_key
-
-/-- info: 'AcornVerif.CurrentLearner.zero_pruned' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.zero_pruned
-
-/-- info: 'AcornVerif.CurrentLearner.active_cardinality' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.active_cardinality
-
-/-- info: 'AcornVerif.CurrentLearner.eligible_cardinality' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.eligible_cardinality
-
-/-- info: 'AcornVerif.CurrentLearner.knowledge_legal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.knowledge_legal
-
-/-- info: 'AcornVerif.CurrentLearner.prediction_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.prediction_bound
-
-/-- info: 'AcornVerif.CurrentLearner.clear_transient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_transient
-
-/-- info: 'AcornVerif.CurrentLearner.clear_knowledge' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_knowledge
-
-/-- info: 'AcornVerif.CurrentLearner.initial_transient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.initial_transient
-
-/-- info: 'AcornVerif.CurrentLearner.step_observation' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.step_observation
-
-/-- info: 'AcornVerif.CurrentLearner.terminal_transient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.terminal_transient
-
-/-- info: 'AcornVerif.CurrentLearner.swap_remove_size' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.swap_remove_size
-
-/-- info: 'AcornVerif.CurrentLearner.array_nodup_iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.array_nodup_iff
-
-/-- info: 'AcornVerif.CurrentLearner.swap_remove_get' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.swap_remove_get
-
-/-- info: 'AcornVerif.CurrentLearner.swap_remove_subset' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.swap_remove_subset
-
-/-- info: 'AcornVerif.CurrentLearner.swap_remove_preserves_other' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.swap_remove_preserves_other
-
-/-- info: 'AcornVerif.CurrentLearner.swap_remove_nodup' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.swap_remove_nodup
-
-/-- info: 'AcornVerif.CurrentLearner.clear_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_core
-
-/-- info: 'AcornVerif.CurrentLearner.clear_ready' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_ready
-
-/-- info: 'AcornVerif.CurrentLearner.initial_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.initial_core
-
-/-- info: 'AcornVerif.CurrentLearner.initial_ready' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.initial_ready
-
-/-- info: 'AcornVerif.CurrentLearner.clear_feature_self' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_feature_self
-
-/-- info: 'AcornVerif.CurrentLearner.clear_feature_other' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_feature_other
-
-/-- info: 'AcornVerif.CurrentLearner.first_element_frame' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_element_frame
-
-/-- info: 'AcornVerif.CurrentLearner.first_element_reference' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_element_reference
-
-/-- info: 'AcornVerif.CurrentLearner.first_element_eligible' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_element_eligible
-
-/-- info: 'AcornVerif.CurrentLearner.first_element_prune' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_element_prune
-
-/-- info: 'AcornVerif.CurrentLearner.second_element_frame' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_element_frame
-
-/-- info: 'AcornVerif.CurrentLearner.second_element_eligible' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_element_eligible
-
-/-- info: 'AcornVerif.CurrentLearner.registers_zero_trace' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.registers_zero_trace
-
-/-- info: 'AcornVerif.CurrentLearner.registers_trace_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.registers_trace_eq
-
-/-- info: 'AcornVerif.CurrentLearner.registers_reference_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.registers_reference_eq
-
-/-- info: 'AcornVerif.CurrentLearner.clear_feature_references' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_feature_references
-
-/-- info: 'AcornVerif.CurrentLearner.first_element_supported' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_element_supported
-
-/-- info: 'AcornVerif.CurrentLearner.prune_supported' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.prune_supported
-
-/-- info: 'AcornVerif.CurrentLearner.first_loop_go_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_loop_go_core
-
-/-- info: 'AcornVerif.CurrentLearner.first_loop_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_loop_core
-
-/-- info: 'AcornVerif.CurrentLearner.second_element_reference' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_element_reference
-
-/-- info: 'AcornVerif.CurrentLearner.second_element_contains' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_element_contains
-
-/-- info: 'AcornVerif.CurrentLearner.second_element_self' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_element_self
-
-/-- info: 'AcornVerif.CurrentLearner.second_element_supported' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_element_supported
-
-/-- info: 'AcornVerif.CurrentLearner.second_element_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_element_core
-
-/-- info: 'AcornVerif.CurrentLearner.second_fold_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_fold_core
-
-/-- info: 'AcornVerif.CurrentLearner.second_loop_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_loop_core
-
-/-- info: 'AcornVerif.CurrentLearner.second_fold_eligible' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_fold_eligible
-
-/-- info: 'AcornVerif.CurrentLearner.second_loop_eligible' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_loop_eligible
-
-/-- info: 'AcornVerif.CurrentLearner.second_loop_count' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_loop_count
-
-/-- info: 'AcornVerif.CurrentLearner.second_loop_count_le' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_loop_count_le
-
-/-- info: 'AcornVerif.CurrentLearner.second_loop_unique' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_loop_unique
-
-/-- info: 'AcornVerif.CurrentLearner.first_element_retained_nonzero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_element_retained_nonzero
-
-/-- info: 'AcornVerif.CurrentLearner.first_element_processed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_element_processed
-
-/-- info: 'AcornVerif.CurrentLearner.prune_processed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.prune_processed
-
-/-- info: 'AcornVerif.CurrentLearner.first_loop_go_ready' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_loop_go_ready
-
-/-- info: 'AcornVerif.CurrentLearner.first_loop_ready' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_loop_ready
-
-/-- info: 'AcornVerif.CurrentLearner.core_of_transient_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.core_of_transient_eq
-
-/-- info: 'AcornVerif.CurrentLearner.ready_of_transient_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.ready_of_transient_eq
-
-/-- info: 'AcornVerif.CurrentLearner.plan_fold_transient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.plan_fold_transient
-
-/-- info: 'AcornVerif.CurrentLearner.plan_transient' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.plan_transient
-
-/-- info: 'AcornVerif.CurrentLearner.step_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.step_core
-
-/-- info: 'AcornVerif.CurrentLearner.begin_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.begin_core
-
-/-- info: 'AcornVerif.CurrentLearner.terminal_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.terminal_core
-
-/-- info: 'AcornVerif.CurrentLearner.clear_feature_supported' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_feature_supported
-
-/-- info: 'AcornVerif.CurrentLearner.retire_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.retire_core
-
-/-- info: 'AcornVerif.CurrentLearner.entry_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.entry_core
-
-/-- info: 'AcornVerif.CurrentLearner.entries_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.entries_core
-
-/-- info: 'AcornVerif.CurrentLearner.admitted_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.admitted_core
-
-/-- info: 'AcornVerif.CurrentLearner.learner_invariant' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.learner_invariant
-
-/-- info: 'AcornVerif.CurrentLearner.swap_remove_absent' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.swap_remove_absent
-
-/-- info: 'AcornVerif.CurrentLearner.retire_unique' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.retire_unique
-
-/-- info: 'AcornVerif.CurrentLearner.retire_ready' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.retire_ready
-
-/-- info: 'AcornVerif.CurrentLearner.entry_schedule' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.entry_schedule
-
-/-- info: 'AcornVerif.CurrentLearner.entries_schedule' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.entries_schedule
-
-/-- info: 'AcornVerif.CurrentLearner.scheduled_capacity' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.scheduled_capacity
-
-/-- info: 'AcornVerif.CurrentLearner.prune_work_decreases' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.prune_work_decreases
-
-/-- info: 'AcornVerif.CurrentLearner.retain_work_decreases' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.retain_work_decreases
-
-/-- info: 'AcornVerif.CurrentLearner.first_loop_go_size' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_loop_go_size
-
-/-- info: 'AcornVerif.CurrentLearner.retained_slots_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.retained_slots_exact
-
-/-- info: 'AcornVerif.CurrentLearner.retained_slots_unique' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.retained_slots_unique
-
-/-- info: 'AcornVerif.CurrentLearner.scheduled_storage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.scheduled_storage
-
-/-- info: 'AcornVerif.CurrentLearner.retire_registers' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.retire_registers
-
-/-- info: 'AcornVerif.CurrentLearner.normalized_count' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.normalized_count
-
-/-- info: 'AcornVerif.CurrentLearner.clear_observers' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.clear_observers
-
-/-- info: 'AcornVerif.CurrentLearner.exploration_legal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.exploration_legal
-
-/-- info: 'AcornVerif.CurrentLearner.first_element_reanchor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.first_element_reanchor
-
-/-- info: 'AcornVerif.CurrentLearner.second_element_overshoot' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearner.second_element_overshoot
-
-/-- info: 'Acorn.Features.Skill.step_age' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Features.Skill.step_age
-
-/-- info: 'Acorn.Features.Skill.step_frozen' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Features.Skill.step_frozen
-
-/-- info: 'AcornVerif.CurrentTemporal.stored_mode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.stored_mode
-
-/-- info: 'AcornVerif.CurrentTemporal.served_preempts' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.served_preempts
-
-/-- info: 'AcornVerif.CurrentTemporal.service_prefix_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.service_prefix_exact
-
-/-- info: 'AcornVerif.TemporalSupport.action_composition' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.TemporalSupport.action_composition
-
-/-- info: 'AcornVerif.TemporalSupport.served_other_mass_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.TemporalSupport.served_other_mass_zero
-
-/-- info: 'AcornVerif.CurrentTemporal.persistent_draw' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.persistent_draw
-
-/-- info: 'AcornVerif.CurrentTemporal.select_persistent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.select_persistent
-
-/-- info: 'AcornVerif.TemporalSupport.select_declared' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.TemporalSupport.select_declared
-
-/-- info: 'AcornVerif.CurrentTemporal.serve_interrupts' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.serve_interrupts
-
-/-- info: 'AcornVerif.CurrentTemporal.handoff_model' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.handoff_model
-
-/-- info: 'AcornVerif.CurrentTemporal.handoff_policy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.handoff_policy
-
-/-- info: 'AcornVerif.declared_share_gt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.declared_share_gt
-
-/-- info: 'AcornVerif.explorationShare_ge' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.explorationShare_ge
-
-/-- info: 'AcornVerif.TemporalSupport.declared_direct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.TemporalSupport.declared_direct
-
-/-- info: 'AcornVerif.CurrentTemporal.serve_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.serve_run
-
-/-- info: 'AcornVerif.CurrentTemporal.handoff_stop' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.handoff_stop
-
-/-- info: 'AcornVerif.CurrentTemporal.takeover_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.takeover_value
-
-/-- info: 'AcornVerif.CurrentControl.close_step_idle' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentControl.close_step_idle
-
-/-- info: 'AcornVerif.interrupted_span_return' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.interrupted_span_return
-
-/-- info: 'AcornVerif.CurrentAgent.initialization' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentAgent.initialization
-
-/-- info: 'AcornVerif.CurrentAgent.native_prefix' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentAgent.native_prefix
-
-/-- info: 'AcornVerif.CurrentLifetime.stored_sum_legal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLifetime.stored_sum_legal
-
-/-- info: 'Acorn.Handcrafted.TemporalControl.step_episodes' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.TemporalControl.step_episodes
-
-/-- info: 'Acorn.Handcrafted.TemporalControl.step_total' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.TemporalControl.step_total
-
-/-- info: 'Acorn.Checkpoint.roundtrip' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.roundtrip
-
-/-- info: 'Acorn.Checkpoint.load_nonmutation' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.load_nonmutation
-
-/-- info: 'AcornVerif.CurrentCheckpoint.candidate_roundtrip' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.candidate_roundtrip
-
-/-- info: 'AcornVerif.CurrentCheckpoint.load_saved' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.load_saved
-
-/-- info: 'AcornVerif.CurrentCheckpoint.loader_reaches' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.loader_reaches
-
-/-- info: 'AcornVerif.CurrentCheckpoint.unresumable_unloaded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.unresumable_unloaded
-
-/--
-info: 'AcornVerif.CurrentCheckpoint.previous_generation_unloaded' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.previous_generation_unloaded
-
-/-- info: 'AcornVerif.CurrentImage.imageFormat_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentImage.imageFormat_exact
-
-/-- info: 'AcornVerif.CurrentLearnerCheck.resumable_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentLearnerCheck.resumable_iff
-
-/-- info: 'AcornVerif.CurrentFeatureConsumers.managed_resumable' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentFeatureConsumers.managed_resumable
-
-/-- info: 'Acorn.Handcrafted.Agent.restore_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.restore_exact
-
-/-- info: 'Acorn.Checkpoint.Format.natural_exact' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.Format.natural_exact
-
-/-- info: 'AcornVerif.CurrentCheckpoint.save_load' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.save_load
-
-/-- info: 'AcornVerif.CurrentCheckpointSize.snapshot_size_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpointSize.snapshot_size_bound
-
-/-- info: 'AcornVerif.CurrentConstants.discount_values' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConstants.discount_values
-
-/-- info: 'AcornVerif.CurrentConstants.numeric_values' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConstants.numeric_values
-
-/-- info: 'AcornVerif.CurrentConstants.dimensions' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConstants.dimensions
-
-/-- info: 'AcornVerif.CurrentRetirement.add_zero_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.add_zero_numeric
-
-/-- info: 'AcornVerif.CurrentRetirement.retireIndex_predict' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.retireIndex_predict
-
-/-- info: 'AcornVerif.CurrentRetirement.retire_step_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.retire_step_error
-
-/-- info: 'AcornVerif.CurrentRetirement.retire_step_error_absent' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.retire_step_error_absent
-
-/-- info: 'AcornVerif.CurrentRetirement.controller_retire_values' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.controller_retire_values
-
-/-- info: 'AcornVerif.CurrentRetirement.replace_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.replace_zero
-
-/-- info: 'AcornVerif.CurrentRetirement.replace_predictions' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.replace_predictions
-
-/-- info: 'AcornVerif.CurrentRetirement.replace_aggregates' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.replace_aggregates
-
-/-- info: 'AcornVerif.CurrentRetirement.replace_neutral' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.replace_neutral
-
-/-- info: 'AcornVerif.Retirement.run_replaced' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Retirement.run_replaced
-
-/-- info: 'AcornVerif.Retirement.run_turnover' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Retirement.run_turnover
-
-/-- info: 'AcornVerif.Retirement.run_mature_turnover' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Retirement.run_mature_turnover
-
-/-- info: 'AcornVerif.Retirement.run_young' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Retirement.run_young
-
-/-- info: 'AcornVerif.Retirement.run_immature' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Retirement.run_immature
-
-/-- info: 'AcornVerif.Retirement.maturity_bias' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Retirement.maturity_bias
-
-/-- info: 'Acorn.Features.Lifecycle.test_accrual' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Features.Lifecycle.test_accrual
-
-/-- info: 'Acorn.Features.Lifecycle.candidate_least' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Features.Lifecycle.candidate_least
-
-/-- info: 'Acorn.Features.Lifecycle.test_unheld' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Features.Lifecycle.test_unheld
-
-/-- info: 'Acorn.Features.FeatureRuntime.retire_occupied' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Features.FeatureRuntime.retire_occupied
-
-/-- info: 'AcornVerif.CurrentRetirement.zero_add_numeric' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirement.zero_add_numeric
-
-/-- info: 'AcornVerif.CurrentRetirementRounding.nearest_lower' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirementRounding.nearest_lower
-
-/-- info: 'AcornVerif.CurrentRetirementRounding.rounded_grid_lower' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirementRounding.rounded_grid_lower
-
-/-- info: 'AcornVerif.CurrentRetirementRounding.dyadic_lower' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirementRounding.dyadic_lower
-
-/-- info: 'AcornVerif.CurrentRetirementRounding.round_grid_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirementRounding.round_grid_bound
-
-/-- info: 'AcornVerif.CurrentRetirementRounding.round_lower' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirementRounding.round_lower
-
-/-- info: 'AcornVerif.CurrentRetirementRounding.round_negative_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirementRounding.round_negative_value
-
-/-- info: 'AcornVerif.CurrentRetirementRounding.normalize_negative_bound' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRetirementRounding.normalize_negative_bound
-
-/-- info: 'AcornVerif.CurrentTemporal.terminal_coordinate_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentTemporal.terminal_coordinate_exact
-
-/-- info: 'AcornVerif.CurrentBackupBounds.nearest_upper' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.nearest_upper
-
-/-- info: 'AcornVerif.CurrentBackupBounds.dyadic_upper' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.dyadic_upper
-
-/-- info: 'AcornVerif.CurrentBackupBounds.round_grid_upper' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.round_grid_upper
-
-/-- info: 'AcornVerif.CurrentBackupBounds.round_upper' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.round_upper
-
-/-- info: 'AcornVerif.CurrentBackupBounds.round_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.round_nonnegative
-
-/-- info: 'AcornVerif.CurrentBackupBounds.nearest_fraction_mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.nearest_fraction_mono
-
-/-- info: 'AcornVerif.CurrentBackupBounds.round_grid_representation' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.round_grid_representation
-
-/-- info: 'AcornVerif.CurrentBackupBounds.round_positive_mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.round_positive_mono
-
-/-- info: 'AcornVerif.CurrentBackupBounds.normalize_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.normalize_zero
-
-/-- info: 'AcornVerif.CurrentBackupBounds.normalize_positive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.normalize_positive
-
-/-- info: 'AcornVerif.CurrentBackupBounds.normalize_negative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.normalize_negative
-
-/-- info: 'AcornVerif.CurrentBackupBounds.normalize_nonnegative' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.normalize_nonnegative
-
-/-- info: 'AcornVerif.CurrentBackupBounds.normalize_nonpositive' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.normalize_nonpositive
-
-/-- info: 'AcornVerif.CurrentBackupBounds.normalize_mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.normalize_mono
-
-/-- info: 'AcornVerif.CurrentBackupBounds.normalize_sign_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.normalize_sign_value
-
-/-- info: 'AcornVerif.CurrentBackupBounds.round_normalized_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.round_normalized_value
-
-/-- info: 'AcornVerif.CurrentBackupBounds.Rounded.mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.Rounded.mono
-
-/-- info: 'AcornVerif.CurrentBackupBounds.rounded_normalized' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.rounded_normalized
-
-/-- info: 'AcornVerif.CurrentBackupBounds.rounded_add' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.rounded_add
-
-/-- info: 'AcornVerif.CurrentBackupBounds.rounded_mul' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.rounded_mul
-
-/-- info: 'AcornVerif.CurrentBackupBounds.normalize_neg_value' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.normalize_neg_value
-
-/-- info: 'AcornVerif.CurrentBackupBounds.Rounded.neg' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.Rounded.neg
-
-/-- info: 'AcornVerif.CurrentBackupBounds.binary32_rounded_exact' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.binary32_rounded_exact
-
-/-- info: 'AcornVerif.CurrentBackupBounds.binary32_rounded_add' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.binary32_rounded_add
-
-/-- info: 'AcornVerif.CurrentBackupBounds.binary32_rounded_mul' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.binary32_rounded_mul
-
-/-- info: 'AcornVerif.CurrentBackupBounds.binary32_rounded_sub' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.binary32_rounded_sub
-
-/-- info: 'AcornVerif.CurrentBackupBounds.centered_reward_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.centered_reward_bound
-
-/-- info: 'AcornVerif.CurrentBackupBounds.differential_backup_bound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.differential_backup_bound
-
-/-- info: 'AcornVerif.CurrentBackupBounds.model_prediction_differential_bound' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.model_prediction_differential_bound
-
-/-- info: 'AcornVerif.CurrentBackupBounds.rounded_zero' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.rounded_zero
-
-/-- info: 'AcornVerif.CurrentBackupBounds.discounted_product_interval' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.discounted_product_interval
-
-/-- info: 'AcornVerif.CurrentBackupBounds.prediction_difference_interval' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.prediction_difference_interval
-
-/-- info: 'AcornVerif.CurrentBackupBounds.discount_arithmetic_domain' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.discount_arithmetic_domain
-
-/-- info: 'AcornVerif.CurrentBackupBounds.reward_sum_interval' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.reward_sum_interval
-
-/-- info: 'AcornVerif.CurrentBackupBounds.prediction_numeric_bounds' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.prediction_numeric_bounds
-
-/-- info: 'AcornVerif.CurrentBackupBounds.option_td_error_termination_conditional' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentBackupBounds.option_td_error_termination_conditional
-
-/-- info: 'Acorn.Binary64.less_eq_key' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Binary64.less_eq_key
-
-/-- info: 'Acorn.Conversion.toI32_eq_signedCast' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.toI32_eq_signedCast
-
-/-- info: 'Acorn.Portable.powerOfTwoWord_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Portable.powerOfTwoWord_eq
-
-/-- info: 'Acorn.Portable.exp_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Portable.exp_eq_spec
-
-/-- info: 'AcornVerif.Resource.WordTree.exec_le_bound' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.Resource.WordTree.exec_le_bound
-
-/-- info: 'AcornVerif.Resource.BudgetedTree.exec_le_limit' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.Resource.BudgetedTree.exec_le_limit
-
-/-- info: 'Acorn.Conversion.narrow_def' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.narrow_def
-
-/-- info: 'Acorn.Conversion.toI64_eq_signedCast' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Conversion.toI64_eq_signedCast
-
-/-- info: 'Acorn.Host.floor32_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Host.floor32_eq_spec
-
-/-- info: 'AcornVerif.Resource.WordTree.costExec_le_cost' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.Resource.WordTree.costExec_le_cost
-
-/-- info: 'AcornVerif.Resource.InitExec.credit_bound' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Resource.InitExec.credit_bound
-
-/-- info: 'AcornVerif.Resource.HalvingExec.cost_bound' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Resource.HalvingExec.cost_bound
-
-/--
-info: 'AcornVerif.CurrentStep.step_retains' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentStep.step_retains
-
-/--
-info: 'AcornVerif.CurrentStep.trace_moves' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentStep.trace_moves
-
-/--
-info: 'AcornVerif.CurrentStep.enterable_static' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentStep.enterable_static
-
-/--
-info: 'AcornVerif.CurrentGoals.absorbing_revisit' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGoals.absorbing_revisit
-
-/--
-info: 'AcornVerif.CurrentGoals.survive_tick' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGoals.survive_tick
-
-/--
-info: 'AcornVerif.CurrentGoals.reach_satisfied_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGoals.reach_satisfied_iff
-
-/--
-info: 'AcornVerif.CurrentCurriculum.reach_targets' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCurriculum.reach_targets
-
-/--
-info: 'AcornVerif.CurrentCurriculum.coordinate_seed_count' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCurriculum.coordinate_seed_count
-
-/-- info: 'AcornVerif.CurrentHashes.unit_not_tiled' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentHashes.unit_not_tiled
-
-/-- info: 'AcornVerif.CurrentHashes.unit_tag_tiling' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentHashes.unit_tag_tiling
-
-/-- info: 'AcornVerif.CurrentHashes.wood_not_stone' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentHashes.wood_not_stone
-
-/-- info: 'AcornVerif.CurrentHashes.reach_not_find_cue' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentHashes.reach_not_find_cue
-
-/--
-info: 'AcornVerif.CurrentHashes.moisture_not_elevation' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentHashes.moisture_not_elevation
-
-/-- info: 'AcornVerif.CurrentHashes.tree_not_ore_draw' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentHashes.tree_not_ore_draw
-
-/-- info: 'AcornVerif.CurrentHashes.sample_not_xor' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentHashes.sample_not_xor
-
-/--
-info: 'AcornVerif.CurrentSpawn.selectSpawn_post' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentSpawn.selectSpawn_post
-
-/-- info: 'AcornVerif.Kernel.need_iff_infeasible' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.need_iff_infeasible
-
-/--
-info: 'AcornVerif.Kernel.covered_iff_need' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.covered_iff_need
-
-/--
-info: 'AcornVerif.Coverage.card_swept' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Coverage.card_swept
-
-/--
-info: 'AcornVerif.CurrentGridWorld.feasible_iff_replay' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGridWorld.feasible_iff_replay
-
-/--
-info: 'AcornVerif.CurrentGridWorld.feasible_iff_certificate' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGridWorld.feasible_iff_certificate
-
-/--
-info: 'AcornVerif.CurrentGridWorld.comparator_openLoop' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGridWorld.comparator_openLoop
-
-/--
-info: 'AcornVerif.CurrentGridWorld.step_physical' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGridWorld.step_physical
-
-/--
-info: 'AcornVerif.CurrentGridWorld.reach_covered' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGridWorld.reach_covered
-
-/--
-info: 'AcornVerif.CurrentGridWorld.far_window_unsolved' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGridWorld.far_window_unsolved
-
-/--
-info: 'AcornVerif.Kernel.Conceals.need' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.Conceals.need
-
-/--
-info: 'AcornVerif.Kernel.visits_need' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.visits_need
-
-/--
-info: 'AcornVerif.Kernel.visits_first_success' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.visits_first_success
-
-/--
-info: 'AcornVerif.Kernel.visits_ever' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.visits_ever
-
-/--
-info: 'AcornVerif.Kernel.replay_keeps' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.replay_keeps
-
-/--
-info: 'AcornVerif.Kernel.replay_solves' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.replay_solves
-
-/-- info: 'AcornVerif.Kernel.park_keeps' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.park_keeps
-
-/--
-info: 'AcornVerif.CurrentGoals.find_satisfied_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentGoals.find_satisfied_iff
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.find_conceals' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.find_conceals
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.find_covered' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.find_covered
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.find_need' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.find_need
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.find_visits_need' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.find_visits_need
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.find_visits_first_success' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.find_visits_first_success
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.achieved_decodes' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.achieved_decodes
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.find_replay' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.find_replay
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.far_window_visits' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.far_window_visits
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.witness_walk' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.witness_walk
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.witness_separation' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.witness_separation
-
-/--
-info: 'AcornVerif.Kernel.replay_explored' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.replay_explored
-
-/--
-info: 'AcornVerif.Kernel.replay_separates' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.replay_separates
-
-/-- info: 'AcornVerif.Kernel.replay_not_experienceFree' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.replay_not_experienceFree
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.find_replay_separates' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.find_replay_separates
-
-/--
-info: 'AcornVerif.CurrentConcealedTarget.find_replay_learns' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentConcealedTarget.find_replay_learns
-
-/-- info: 'AcornVerif.GridCorrespondence.initial_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.GridCorrespondence.initial_eq
-
-/-- info: 'AcornVerif.GridCorrespondence.act_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.GridCorrespondence.act_eq
-
-/-- info: 'AcornVerif.GridCorrespondence.callback_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.GridCorrespondence.callback_eq
-
-/-- info: 'Acorn.Handcrafted.Agent.grid_inputs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.grid_inputs
-
-/-- info: 'Acorn.Handcrafted.Agent.words_disjoint' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.words_disjoint
-
-/-- info: 'Acorn.Handcrafted.Agent.frame_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.frame_length
-
-/--
-info: 'AcornVerif.CurrentStep.step_adjacent' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentStep.step_adjacent
-
-/--
-info: 'AcornVerif.CurrentCertificates.replay_feasible' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCertificates.replay_feasible
-
-/--
-info: 'AcornVerif.CurrentCertificates.blocked_outside' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCertificates.blocked_outside
-
-/--
-info: 'AcornVerif.CurrentCertificates.blocked_infeasible' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCertificates.blocked_infeasible
-
-/--
-info: 'AcornVerif.CurrentCertificates.stance_enter' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCertificates.stance_enter
-
-/--
-info: 'AcornVerif.CurrentCertificates.stance_harvest' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCertificates.stance_harvest
-
-/-- info: 'AcornVerif.Oak.step_congr' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.Oak.step_congr
-
-/-- info: 'AcornVerif.Oak.Conforms.actions' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.Oak.Conforms.actions
-
-/-- info: 'AcornVerif.Oak.conforms_coarse' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.Oak.conforms_coarse
-
-/-- info: 'AcornVerif.Oak.Realizes.restores' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.Oak.Realizes.restores
-
-/--
-info: 'AcornVerif.CurrentOak.planningBoundary_models' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.planningBoundary_models
-
-/--
-info: 'AcornVerif.CurrentOak.planningBoundary_values' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.planningBoundary_values
-
-/--
-info: 'AcornVerif.CurrentOak.planFree_realizes' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.planFree_realizes
-
-/--
-info: 'AcornVerif.CurrentOak.planFree_writes' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.planFree_writes
-
-/--
-info: 'AcornVerif.CurrentOak.frame_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.frame_congr
-
-/--
-info: 'AcornVerif.CurrentOak.step_frame' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.step_frame
-
-/--
-info: 'AcornVerif.CurrentOak.act_extras' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.act_extras
-
-/-- info: 'AcornVerif.CurrentOak.extras_departures' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.extras_departures
-
-/--
-info: 'AcornVerif.CurrentOak.followTemporal_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.followTemporal_event
-
-/--
-info: 'AcornVerif.CurrentOak.step_event_primitive' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.step_event_primitive
-
-/--
-info: 'AcornVerif.CurrentAccounting.select_relabel' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentAccounting.select_relabel
-
-/--
-info: 'AcornVerif.CurrentAccounting.step_learners' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentAccounting.step_learners
-
-/--
-info: 'AcornVerif.CurrentAccounting.act_learners' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentAccounting.act_learners
-
-/--
-info: 'AcornVerif.CurrentAccounting.act_accounting' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentAccounting.act_accounting
-
-/--
-info: 'AcornVerif.CurrentAccounting.executed_actions' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentAccounting.executed_actions
-
-/-- info: 'AcornVerif.Oak.Realizes.writes' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.Oak.Realizes.writes
-
-/--
-info: 'AcornVerif.CurrentOak.planFree_planned' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.planFree_planned
-
-/--
-info: 'AcornVerif.CurrentOak.decideOption_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.decideOption_event
-
-/--
-info: 'AcornVerif.CurrentOak.continuation_cap' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.continuation_cap
-
-/--
-info: 'AcornVerif.CurrentOak.settleFollowing_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.settleFollowing_event
-
-/--
-info: 'AcornVerif.CurrentOak.followOptions_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.followOptions_event
-
-/--
-info: 'AcornVerif.CurrentOak.takeoverValue_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.takeoverValue_event
-
-/--
-info: 'AcornVerif.CurrentOak.dispatchMeta_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.dispatchMeta_event
-
-/--
-info: 'AcornVerif.CurrentOak.step_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.step_event
-
-/--
-info: 'AcornVerif.CurrentOak.closeOption_reason' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.closeOption_reason
-
-/--
-info: 'Acorn.Handcrafted.Agent.act_parts' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.act_parts
-
-/--
-info: 'Acorn.Handcrafted.Agent.choose_keeps' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.choose_keeps
-
-/--
-info: 'Acorn.Handcrafted.Chosen.learn_rng' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Chosen.learn_rng
-
-/--
-info: 'Acorn.Host.DecisionInput.chooseOwned_release' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.DecisionInput.chooseOwned_release
-
-/--
-info: 'Acorn.Host.runAttemptSteps_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.runAttemptSteps_complete
-
-/--
-info: 'Acorn.Host.runReleasedSteps_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.runReleasedSteps_complete
-
-/--
-info: 'Acorn.Host.Attempt.complete_learned' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Attempt.complete_learned
-
-/--
-info: 'Acorn.Handcrafted.TemporalControl.atBoundary_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.TemporalControl.atBoundary_unplanned
-
-/--
-info: 'Acorn.Handcrafted.Agent.actOrdered_undrawn' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.actOrdered_undrawn
-
-/--
-info: 'Acorn.Handcrafted.Agent.actOrdered_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.actOrdered_unplanned
-
-/--
-info: 'AcornVerif.StepParts.loop_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.StepParts.loop_unplanned
-
-/--
-info: 'Acorn.Features.Skill.optionStep_credit' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Features.Skill.optionStep_credit
-
-/--
-info: 'Acorn.Features.Skill.stepTemporal_credit' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Features.Skill.stepTemporal_credit
-
-/--
-info: 'Acorn.Features.Skill.startTemporal_step' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Features.Skill.startTemporal_step
-
-/--
-info: 'Acorn.Handcrafted.TemporalControl.settle_framed' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.TemporalControl.settle_framed
-
-/--
-info: 'Acorn.Handcrafted.TemporalControl.drawFirst_total' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.TemporalControl.drawFirst_total
-
-/--
-info: 'Acorn.Handcrafted.TemporalControl.drawFirst_keeps' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.TemporalControl.drawFirst_keeps
-
-/--
-info: 'Acorn.Handcrafted.Agent.choose_reward' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.choose_reward
-
-/--
-info: 'Acorn.Handcrafted.Agent.choose_drawn' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.Agent.choose_drawn
-
-/--
-info: 'AcornVerif.DrawFirst.selectWithOperations_settle' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.selectWithOperations_settle
-
-/--
-info: 'AcornVerif.DrawFirst.actThenLearn_planAfterAct' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.actThenLearn_planAfterAct
-
-/--
-info: 'AcornVerif.DrawFirst.drawBoundary_start' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.drawBoundary_start
-
-/--
-info: 'AcornVerif.DrawFirst.dispatchMeta_start' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.dispatchMeta_start
-
-/--
-info: 'AcornVerif.DrawFirst.atBoundary_form' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.atBoundary_form
-
-/--
-info: 'AcornVerif.DrawFirst.drawBoundary_form' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.drawBoundary_form
-
-/--
-info: 'AcornVerif.DrawFirst.selectWithOperations_form' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.selectWithOperations_form
-
-/--
-info: 'AcornVerif.DrawFirst.drawFirst_form' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.drawFirst_form
-
-/--
-info: 'AcornVerif.DrawFirst.boundaryForm_frozen' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.boundaryForm_frozen
-
-/--
-info: 'AcornVerif.DrawFirst.drawBoundary_meta' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.drawBoundary_meta
-
-/--
-info: 'AcornVerif.DrawFirst.drawBoundary_unplanned' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.drawBoundary_unplanned
-
-/--
-info: 'AcornVerif.DrawFirst.drawFirst_assigns' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.DrawFirst.drawFirst_assigns
-
-/--
-info: 'Acorn.Handcrafted.TemporalControl.settle_started' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.TemporalControl.settle_started
-
-/--
-info: 'AcornVerif.CurrentOak.startTemporal_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.startTemporal_event
-
-/--
-info: 'AcornVerif.CurrentOak.startOption_event' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.startOption_event
-
-/--
-info: 'AcornVerif.CurrentOak.settle_unstarted' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentOak.settle_unstarted
-
-/--
-info: 'Acorn.Rng.fnv_byte' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Rng.fnv_byte
-
-/-- info: 'AcornVerif.CurrentCheckpoint.order_edit_refused' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.order_edit_refused
-
-/--
-info: 'AcornVerif.CurrentCheckpoint.order_edit_unloaded' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.order_edit_unloaded
-
-/--
-info: 'AcornVerif.CurrentCheckpoint.relabeled_unloaded' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.relabeled_unloaded
-
-/--
-info: 'Acorn.Checkpoint.admitHeader_order' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.admitHeader_order
-
-/--
-info: 'Acorn.Checkpoint.loadCandidate_header' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.loadCandidate_header
-
-/--
-info: 'Acorn.Checkpoint.load_candidate' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.load_candidate
-
-/--
-info: 'AcornVerif.CurrentCheckpoint.saved_header' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.saved_header
-
-/--
-info: 'AcornVerif.CurrentCheckpoint.saved_admitted_order' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.saved_admitted_order
-
-/--
-info: 'Acorn.Host.campaignStep_attempt' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.campaignStep_attempt
-
-/--
-info: 'AcornVerif.CurrentRunner.complete_parts' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentRunner.complete_parts
-
-/--
-info: 'AcornVerif.CurrentCheckpoint.relabeled_payload' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.relabeled_payload
-
-/--
-info: 'AcornVerif.CurrentCheckpoint.relabeled_admitted' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.relabeled_admitted
-
-/--
-info: 'AcornVerif.CurrentCheckpoint.relabeled_loaded' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.CurrentCheckpoint.relabeled_loaded
-
-/--
-info: 'Acorn.Handcrafted.AgentConstruction.callbacks_act' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.AgentConstruction.callbacks_act
-
-/--
-info: 'Acorn.Handcrafted.DefaultConstruction.runPrefix_agent' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Handcrafted.DefaultConstruction.runPrefix_agent
-
-/--
-info: 'Acorn.StepOrder.parse_spelled' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.StepOrder.parse_spelled
-
-/--
-info: 'Acorn.StepOrder.parse_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.StepOrder.parse_refused
-
-/--
-info: 'Acorn.Host.Cli.stepOrderValue_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Cli.stepOrderValue_iff
-
-/--
-info: 'Acorn.Host.Cli.stepOrderValue_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Cli.stepOrderValue_refused
-
-/--
-info: 'Acorn.Host.Cli.stepOrder_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Cli.stepOrder_iff
-
-/--
-info: 'Acorn.Checkpoint.admitHeader_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.admitHeader_iff
-
-/--
-info: 'Acorn.Checkpoint.admitHeader_checks' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Checkpoint.admitHeader_checks
-
-/--
-info: 'Acorn.Host.Cli.value_absent' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Cli.value_absent
-
-/--
-info: 'Acorn.Host.Cli.value_follows' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Cli.value_follows
-
-/--
-info: 'Acorn.Host.Cli.value_missing' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Cli.value_missing
-
-/--
-info: 'Acorn.Host.Cli.stepOrder_refused' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Acorn.Host.Cli.stepOrder_refused
-
-/-- info: 'Acorn.StepOrder.tag_stored' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.StepOrder.tag_stored
-
-/-- info: 'Acorn.StepOrder.stored_injective' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms Acorn.StepOrder.stored_injective
-
-/-- info: 'AcornVerif.Kernel.memory_parts' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.memory_parts
-
-/-- info: 'AcornVerif.Kernel.Moving.loop_memory' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.Moving.loop_memory
-
-/-- info: 'AcornVerif.Kernel.Moving.loop_waits' does not depend on any axioms -/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.Moving.loop_waits
-
-/-- info: 'AcornVerif.Kernel.Moving.interact_commutes' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms AcornVerif.Kernel.Moving.interact_commutes
-
-/--
-info: 'AcornVerif.StepParts.executedParts_agent' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms AcornVerif.StepParts.executedParts_agent
-
-end AcornVerif
+namespace AcornTools.AxiomPins
+
+def verifyPins (pins : Array (Lean.Name × Array Lean.Name)) :
+    Lean.Elab.Command.CommandElabM Unit := do
+  if pins.isEmpty then
+    throwError "axiom pin table is empty"
+  let env ← Lean.getEnv
+  let checkedEnv := env.checked.get
+  let mut seenDecls : Lean.NameSet := {}
+  for (decl, expected) in pins do
+    if seenDecls.contains decl then
+      throwError "duplicate axiom pin for declaration '{decl}'"
+    seenDecls := seenDecls.insert decl
+    unless env.contains decl && (checkedEnv.find? decl).isSome do
+      throwError "pinned declaration '{decl}' is missing from the environment"
+    let mut seenExpected : Lean.NameSet := {}
+    for ax in expected do
+      if seenExpected.contains ax then
+        throwError "duplicate expected axiom '{ax}' in pin for '{decl}'"
+      seenExpected := seenExpected.insert ax
+    let rawActual ← Lean.collectAxioms decl
+    let actual :=
+      (rawActual.foldl (init := ({} : Lean.NameSet)) fun acc ax => acc.insert ax).toArray.qsort
+        Lean.Name.lt
+    let expectedSorted := expected.qsort Lean.Name.lt
+    if actual != expectedSorted then
+      let extra := actual.filter fun ax => !seenExpected.contains ax
+      let missing := expectedSorted.filter fun ax => !actual.contains ax
+      throwError
+        (m!"axiom pin mismatch for '{decl}': expected {expectedSorted.toList}, " ++
+          m!"got {actual.toList} (extra: {extra.toList}, missing: {missing.toList})")
+
+private def pins01 : Array (Lean.Name × Array Lean.Name) := #[
+  (`Acorn.Host.Viewer.GoalAchievement.State.observe_resolution,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Viewer.GoalAchievement.Pass.permille_precision,
+    #[`propext]),
+  (`Acorn.Host.Viewer.ClockProgram.snapshotFollows_goal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.AgreementLifecycle.observe_invariant,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.AgreementLifecycle.settlement_available,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentAgreement.aggregateAll_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.AgreementPrecision.agreement_precision,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.AgreementInterpretation.conditional_mean_minimizes,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.AgreementTelemetryPrecision.precision_available,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Binary32.finite_not_nan,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Binary32.less_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Interval32.interval_admit_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Interval32.interval_admit_refuses,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Interval32.finite_between,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Interval32.saturate_contains,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Interval32.saturate_identity,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Interval32.saturate_idempotent,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Bounded32.admit_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Bounded32.admit_refuses,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_error_shift,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_error_offset_mismatch,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_return_duration,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_return_rate_change,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.two_state_differential_rate,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.two_state_differential_span,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.two_state_centered_solution,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.two_state_span_exceeds_budget,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.reward_rate_step_convex,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.reward_rate_step_bounded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.reward_rate_constant_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_model_gain_correction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_backup_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_policy_target_discrepancy,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_optimistic_backup_residual,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_optimistic_backup_positive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_projected_backup_discrepancy,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_projected_backup_agrees,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_projected_gain_discrepancy,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.differential_expected_duration_zero_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.option_model_terminal_discount_correction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.horizon_covers_true_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.gamma_is_contraction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.project_nonexpansive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.project_mem_range,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.project_id_of_mem,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.next_below_in_range,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.natCeilDiv_le_iff,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.lt_natCeilDiv_iff,
+    #[`propext, `Quot.sound])
+]
+
+private def pins02 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.next_below_bin_iff,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.next_below_bin_eq_Ico,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.next_below_bin_card,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.natCeilDiv_add_sub,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.next_below_bins_within_one,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.next_below_word_bins_within_one,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.step_size_pos_after_clip,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.trace_geometric_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.state_product_exceeds_parameter_count,
+    #[`propext]),
+  (`AcornVerif.agent_exceeds_terrain_description,
+    #[`propext]),
+  (`AcornVerif.stepPaper_eq_eq32,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.stepRef_hTemp_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.metaTrace_lag,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.exhaustion_rate_at_build,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.constant_cumulant_fixed_point_unique,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.step_size_upper_after_clip,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.step_size_lower_after_clip,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.total_trace_increment_bounded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.trace_increment_le_step_size,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.decay_shrinks_step_size,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.trace_decay_monotone,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.pruning_implies_negligible,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.exhausted_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.exhaustion_rate_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.rest_pays_for_an_action,
+    #[`propext]),
+  (`AcornVerif.every_action_costs,
+    #[`propext]),
+  (`AcornVerif.stepPaper_shifts_lags,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.stepRef_h_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.metaGain_at_floor,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.metaGain_strictAnti,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.metaGainStabilised_le,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.beta_floor_reachable,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.beta_floor_absorbing,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.constant_cumulant_fixed_point,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.run_realizes_eq32,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.one_le_floor_inv,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.ez_duration_le_cap,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.ez_duration_pos,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.ez_contains_epsilon_greedy,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.ez_remaining_zero_at_cap_one,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.ez_duration_le_shipped_cap,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.terminal_correction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.nonterminal_bellman_correction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.finite_activation_bootstrap_correction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.subtask_returns_agree,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.finite_activation_correction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.corrected_interruption_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.controller_discounts_match,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins03 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.gap_close_is_smdp_backup,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.subtask_terminal_telescoping,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.subtask_potential_invariance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.subtask_block_exclusivity,
+    #[`propext]),
+  (`AcornVerif.option_model_scalar_continuation_equiv,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.option_model_termination_telescoping,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.stomp_planning_backup_contraction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.planning_weight_convex_step_bounded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.reach_remaining_zero_iff,
+    #[`propext]),
+  (`AcornVerif.collect_remaining_zero_iff,
+    #[`propext]),
+  (`AcornVerif.craft_remaining_zero_iff,
+    #[`propext]),
+  (`AcornVerif.survive_remaining_zero_iff,
+    #[`propext]),
+  (`AcornVerif.goal_remaining_zero_iff_satisfied,
+    #[`propext]),
+  (`AcornVerif.chebyshev_reduces_when_x_reduces,
+    #[`propext]),
+  (`AcornVerif.capped_fold_invariant,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.active_features_count_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.with_model_feature_nodup,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.with_model_feature_preserves,
+    #[`propext]),
+  (`AcornVerif.with_model_feature_length,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.ema_horizon_mean_age,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.ema_horizon_squared_mass,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Checkpoint.identity_accepted_iff,
+    #[`propext]),
+  (`AcornVerif.Checkpoint.identity_mismatch_refused,
+    #[`propext]),
+  (`AcornVerif.Checkpoint.appended_name_longer,
+    #[`propext]),
+  (`AcornVerif.Checkpoint.appended_name_ne,
+    #[`propext]),
+  (`AcornVerif.Checkpoint.writes_iff,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.Checkpoint.due_iff,
+    #[`propext]),
+  (`AcornVerif.Checkpoint.refused_never_writes,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.Checkpoint.load_only_never_writes,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.Checkpoint.stop_permission_iff,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.Checkpoint.campaign_goals_exact,
+    #[]),
+  (`AcornVerif.Checkpoint.campaign_unbounded_nonempty,
+    #[]),
+  (`AcornVerif.Checkpoint.campaign_finite_accepted,
+    #[]),
+  (`AcornVerif.Checkpoint.campaign_empty_accepted_iff,
+    #[`propext]),
+  (`AcornVerif.Refresh.replacement_exact,
+    #[]),
+  (`AcornVerif.Refresh.closing_owner_exact,
+    #[]),
+  (`AcornVerif.Refresh.continuation_exact,
+    #[]),
+  (`AcornVerif.Refresh.replaced_credit_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Refresh.unchanged_credit_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Symmetric32.symmetric_project_contains,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Symmetric32.symmetric_project_identity,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Symmetric32.symmetric_project_idempotent,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Binary32.sumFrom_append,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Binary64.hornerFrom_append,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Bounded32.addProjected_legal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.average_observe_legal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.average_observe_append,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.clampInt_bounds,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins04 : Array (Lean.Name × Array Lean.Name) := #[
+  (`Acorn.Conversion.signedCast_bounds,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Portable.exp_nan_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Portable.powLoop_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Portable.powLoop_step,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rng.splitmix_two_offsets,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.nextBelow_transition,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rng.nextBelow_quotient,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rng.nextF64_transition,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rng.prefix_length,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.prefix_state,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.prefix_append,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.prefix_zero_state,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.fnvStep_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.fnv_append,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.state_rotation_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.next_state_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.word_right_xor_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.mixFinal_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.mix64_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.hash3_eq_iff,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.hash2_eq_iff,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.hash3_not_xor,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.hash2_not_xor,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.advance_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.advance_nonzero,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rng.seed_nonzero,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rounding.nearestEven_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.nearestEven_tie,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.nearestEven_exact,
+    #[`propext]),
+  (`Acorn.Rounding.nearestEven_le_input,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Rounding.nearestEven_bracket,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.wordShift_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.wordShift_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.wordShift_carry_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.wordShift_leading_bit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rng.countOfNat_exact,
+    #[`propext]),
+  (`Acorn.Rng.shuffleLoop_state,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rng.shuffleLoop_permutation,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.rails_admission_total,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.feature_index_word_exact,
+    #[`propext]),
+  (`Acorn.Word.multiplier_injective,
+    #[`propext]),
+  (`Acorn.Word.xor_word_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Word.product_fits,
+    #[]),
+  (`Acorn.Word.high_fits,
+    #[`propext]),
+  (`Acorn.Word.multiplyHigh_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Word.multiplyHigh_below,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Word.clock_advance_exact,
+    #[`propext]),
+  (`Acorn.Word.clock_advance_refuses,
+    #[`propext])
+]
+
+private def pins05 : Array (Lean.Name × Array Lean.Name) := #[
+  (`Acorn.Word.xor_shiftLeft_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Word.rotate_injective,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Word.xor_shiftRight_injective,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.current_range_bin,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.current_range_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.current_range_card,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalSignificand_bounds,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.roundedNormal_bounds,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalizedNormal_bounds,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalizedNormal_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalFraction_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalFraction_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.subnormalShift_lower,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.subnormalSignificand_upper,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.subnormalFraction_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.subnormalFraction_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.subnormalFraction_tie,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalFields_exact,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.narrowSign_exact,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.narrowSign_magnitude,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalExponent_bounds,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalMagnitude_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_finite_input_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalFraction_tie,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrowSign_highBit,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.normalExponent_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalMagnitude_finite_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widenSubnormalFraction_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widenSubnormalFraction_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widenSubnormalFraction_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widenFraction_exact,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.wideFields_exact,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.widenSign_exact,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.widenSign_magnitude,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widenSign_highBit,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.fields32_decomposition,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.fields32_bounds,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.fields32_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.wideFields_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.wideFields_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.wideFields_sign,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.narrowFields_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.subnormalFields_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.fields64_decomposition,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.fraction64_bound,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.normalSignificand_value,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.fields64_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.fields64_scaled_units,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins06 : Array (Lean.Name × Array Lean.Name) := #[
+  (`Acorn.Conversion.subnormalScale_exact,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.normalMagnitude_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalExponent_scale,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalMagnitude_rounded_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalMagnitude_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.subnormalMagnitude_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widen_magnitude_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widen_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_sign,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_finite_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widen_sign,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_finite_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.trunc64_magnitude_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.nearestEven_scaled_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.weight_legal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.weight_admit_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.weight_admit_refuses,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.feature_index_admit_exact,
+    #[]),
+  (`Acorn.feature_index_admit_refuses,
+    #[`propext]),
+  (`AcornVerif.CurrentFloat.model_mantissa_log,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_normal_target,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_round_fixed,
+    #[`propext]),
+  (`AcornVerif.CurrentFloat.model_scaled_mantissa,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_round_small_nat,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_unpack_pack_normal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_shift_exact,
+    #[`propext]),
+  (`AcornVerif.CurrentFloat.model_log2_scaled,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_round_scaled_exact,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_ofUInt64_small,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_reencode_normal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_mul_fraction_scale,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.fraction_model_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_pack_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.model_pack_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.fraction_value_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.fraction_word_lt_one,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.fraction_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.nextF64_value_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.nextF64_word_lt_one,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_shift_mantissa,
+    #[`propext]),
+  (`AcornVerif.CurrentPower.model_round_mantissa_ceiling,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_first_mantissa_bound,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_pack_below_one,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_second_shift_exact,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_round_product_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_log2_scaled_positive,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_round_scaled_normalized,
+    #[`propext, `Quot.sound])
+]
+
+private def pins07 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentPower.model_unpack_pack_subnormal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_unpack_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_unit_round_target,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_unit_unpack_pack,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_unit_pack_bound,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_ofBits_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_mul_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.binary64_mul_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.powLoop_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widen_magnitude_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalFraction_carry_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.roundedNormal_zero_fraction,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.normalMagnitude_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_magnitude_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widen_word_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_word_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_signed_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.wideFields_extract,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_magnitude_cases,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.normalMagnitude_aligned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.subnormalFraction_aligned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.wideFields_significand,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_widen_magnitude,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_widen_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.narrow_widen_nonNaN,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.widen_normal_or_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.trunc64_signed_magnitude,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.trunc64_signed_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.signedCast_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.signedCast_finite_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.wordShift_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.ofUInt64_value_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.ofUInt64_word_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.word64_sign_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.negate_magnitude,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.negate_magnitude_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.ofInt_magnitude_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.ofInt_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.ofInt_sign,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.trunc64_ofInt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFloat.toI32_ofInt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.pow_word_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.pow_zero_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.mul_signed_zeros,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.mul_one_signed_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.powLoop_zero_accumulator,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.powLoop_positive_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.pow_negative_zero,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins08 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentPower.key_unit_cases,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.pow_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_packComponents_unpack,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_unpack_normal_fields,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_pack_unpack_normal_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.binary64_one_mul_normal_model,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.binary64_one_mul_normal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.model_exponent_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.binary64_one_mul_widen,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPower.pow_one_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.powerOfTwo_word,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.powerOfTwo_model,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.binary64_scale_normal_model,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.model_positive_normal_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.expScale_wide_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.expScale_wide_components,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.expScale_nonnegative,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.expScale_negative_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.expScale_zero_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.normalExponent_no_carry,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.expScale_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentExponential.expSaturation_ends,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_shift_residual,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_shift_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_shift_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_first_mantissa_format,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_second_shift_format,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_exact_components,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_exact_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_exact_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.dyadic_padding_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_roundWithAccuracy_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_rounded_not_below,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_accuracy_components,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_first_normalized_lower,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_accuracy_normalized,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_normalized,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_format_min_bias,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_unpack_sign_components,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_unpack_components,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_unpack_pack_normalized,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_unpack_format,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_finite_abs,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_fits_of_value_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_normalized_finite,
+    #[`propext]),
+  (`AcornVerif.CurrentArithmetic.model_positive_dyadic_window,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins09 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentArithmetic.model_totalExponent_mono,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_normalized_target,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_uniform_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_sign_apply_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_sign_product_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_signed_round_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_format_min_nonpositive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_product_exponent_ready,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_round_without_padding,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_mul_dyadic_local,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_decrease_dyadic_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_add_dyadic_local,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_unpack_finite_exponent,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_decoded64_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_decoded32_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_ofBits64_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_ofBits32_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_add64_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_mul64_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_add32_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.model_local64_fits,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.binary64_add_finite_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentArithmetic.binary64_mul_finite_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.fieldUnits_zero,
+    #[`propext]),
+  (`AcornVerif.CurrentOrder.fieldUnits_strict,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.fieldUnits_order,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.fieldUnits_positive,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.model_finite_fields_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.fieldUnits_fields,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.model_finite_fieldUnits_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_fieldUnits,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical32_fieldUnits,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.signedFieldUnits_sign,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.signedFieldUnits_strict,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.signedFieldUnits_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.model_word64_sign,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_key_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.word32_sign_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.model_word32_sign,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical32_key_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical32_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_strict_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical32_strict_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_less,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical32_less,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.magnitudeUnits32_fieldUnits,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_units,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins10 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentOrder.numerical32_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical_widen_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.sign_dyadic_abs,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_abs_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical32_abs_units,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_magnitude_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical32_magnitude_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_ofInt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOrder.numerical64_ofUInt64,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.model_sign_neg_apply,
+    #[`propext]),
+  (`AcornVerif.CurrentOperations.model_sub_add_neg,
+    #[`propext]),
+  (`AcornVerif.CurrentOperations.model_neg_normalized,
+    #[`propext]),
+  (`AcornVerif.CurrentOperations.model_neg_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.model_sub_dyadic_local,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.model_sub64_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.binary64_sub_finite_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.quotient_fraction_bracket,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.numerical64_trunc_signed,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.numerical64_trunc_toward_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.numerical64_trunc_abs,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOperations.numerical64_toI32_trunc,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_round_accuracy_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_round_accuracy_distance,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_ratio_positive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_ratio_window_lower,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_divCore_bracket,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_round_accuracy_zero_normalized,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_divCore_ready,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_divCore_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_signed_ratio,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_div_dyadic_local,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.model_div64_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentDivision.binary64_div_finite_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.unpackedToReal_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.toReal_ofModel_fits,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.mul_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.add_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.neg_isFinite,
+    #[]),
+  (`AcornVerif.FloatLibBridge.neg_fits,
+    #[`propext]),
+  (`AcornVerif.FloatLibBridge.unpackedToReal_neg,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.sub_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.div_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.format64,
+    #[]),
+  (`AcornVerif.FloatLibBridge.toModel_model64,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.toReal_model64,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.isFinite_model64,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.canonical64,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.model64_add,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins11 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.FloatLibBridge.model64_sub,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.model64_mul,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.model64_div,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary64_add_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary64_sub_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary64_mul_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary64_div_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.format32,
+    #[]),
+  (`AcornVerif.FloatLibBridge.toModel_model32,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.toReal_model32,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.isFinite_model32,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.canonical32,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.model32_add,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.model32_sub,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.model32_mul,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.model32_div,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary32_add_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary32_sub_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary32_mul_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary32_div_roundAt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.roundAt64_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.binary64_div_half_unit_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.nearestEven_eq_roundQuotientEven,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.nearest32,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.band030_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.band0335_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.band060_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.band072_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.band080_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.moist040_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.gamma90_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.gamma95_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.gamma99_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.alphaInit5e5_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.alphaInit1e4_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.epsilon1e5_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.eta01_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.eta025_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.etaMin1e10_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.decay0999_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.meta1e3_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.meta3e2_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.tie1e6_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.epsStart_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.epsMin_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.epsDecay_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.optionEpsilon_nearest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.FloatLibBridge.exploreRate1e2_nearest,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins12 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentIntervals.model_sub_positive_zero,
+    #[`propext]),
+  (`AcornVerif.CurrentIntervals.binary64_sub_zero_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentIntervals.model_mul_nonpositive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentIntervals.binary64_mul_nonpositive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentIntervals.numerical64_above_one_gap,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentIntervals.binary64_add_unit_upper,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentIntervals.binary64_key_nonnegative_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentIntervals.binary64_positive_key_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentIntervals.narrow_finite_local,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentReduction.reduction_constants,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentReduction.trunc_selection_band,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentReduction.expReduce_contract,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentReduction.expReduce_zero_remainder,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentReduction.exp_admitted_reduction,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentSeries.hornerStep_finite_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentSeries.hornerFrom_envelope,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentSeries.reciprocal_coefficient_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentSeries.expSeries_contract,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPortable.exp_polynomial_words,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPortable.exp_admitted_contract,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPortable.exp_nonNaN_word,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPortable.exp_nonpositive_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLogarithm.approximation_magnitude,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLogarithm.ln_mantissa_fields,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLogarithm.ln_body_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLogarithm.ln_total_contract,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.model_round_uniform_error_strict,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.model_signed_round_value_strict,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.model_add_dyadic_local_strict,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.binary32_add_finite_strict_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.weight_numerical_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.numerical32_prediction_cap_gap,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.prediction_sum_cap,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.prediction_sum_step,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.prediction_sumFrom_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentPrediction.legal_weight_sum_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentState.discount_numeric_contract,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentState.config_log_rail_nonpositive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentState.log_step_alpha_unit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rounding.nearestEven_word_large_shift,
+    #[`propext, `Quot.sound]),
+  (`Acorn.Conversion.normalMagnitude_components,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.mul32_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.div32_decoded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.local32_fits,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.round_nonnegative,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.finite_nonnegative_sign,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.model_mul_nonnegative,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.model_div_nonnegative,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins13 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentLearnerArithmetic.mul32_nonnegative_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.div32_nonnegative_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.word_unit_interval,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.alpha_numeric,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.alpha_sum_finite,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.eta_numeric,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.word_half_interval,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.epsilon_numeric,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.denominator_numeric,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.trace_increment_numeric,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerArithmetic.pruning_threshold_numeric,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.vector_get,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.finite_equal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.finite_lessOrEqual,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.zero_key,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.zero_pruned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.active_cardinality,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.eligible_cardinality,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.knowledge_legal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.prediction_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_transient,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_knowledge,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.initial_transient,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.step_observation,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.terminal_transient,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.swap_remove_size,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.array_nodup_iff,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.swap_remove_get,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.swap_remove_subset,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.swap_remove_preserves_other,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.swap_remove_nodup,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_ready,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.initial_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.initial_ready,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_feature_self,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_feature_other,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_element_frame,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_element_reference,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_element_eligible,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_element_prune,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_element_frame,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_element_eligible,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.registers_zero_trace,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.registers_trace_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.registers_reference_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_feature_references,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_element_supported,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins14 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentLearner.prune_supported,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_loop_go_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_loop_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_element_reference,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_element_contains,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_element_self,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_element_supported,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_element_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_fold_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_loop_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_fold_eligible,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_loop_eligible,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_loop_count,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_loop_count_le,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_loop_unique,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_element_retained_nonzero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_element_processed,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.prune_processed,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_loop_go_ready,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_loop_ready,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.core_of_transient_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.ready_of_transient_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.plan_fold_transient,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.plan_transient,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.step_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.begin_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.terminal_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_feature_supported,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.retire_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.entry_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.entries_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.admitted_core,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.learner_invariant,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.swap_remove_absent,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.retire_unique,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.retire_ready,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.entry_schedule,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.entries_schedule,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.scheduled_capacity,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.prune_work_decreases,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.retain_work_decreases,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_loop_go_size,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.retained_slots_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.retained_slots_unique,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.scheduled_storage,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.retire_registers,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.normalized_count,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.clear_observers,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins15 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentLearner.exploration_legal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.first_element_reanchor,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearner.second_element_overshoot,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.Skill.step_age,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.Skill.step_frozen,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.stored_mode,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.served_preempts,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.service_prefix_exact,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.TemporalSupport.action_composition,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.TemporalSupport.served_other_mass_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.persistent_draw,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.select_persistent,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.TemporalSupport.select_declared,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.serve_interrupts,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.handoff_model,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.handoff_policy,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.declared_share_gt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.explorationShare_ge,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.TemporalSupport.declared_direct,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.serve_run,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.handoff_stop,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.takeover_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentControl.close_step_idle,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.interrupted_span_return,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentAgent.initialization,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentAgent.native_prefix,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLifetime.stored_sum_legal,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.TemporalControl.step_episodes,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.TemporalControl.step_total,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Checkpoint.roundtrip,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Checkpoint.load_nonmutation,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.candidate_roundtrip,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.load_saved,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.loader_reaches,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.unresumable_unloaded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.previous_generation_unloaded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentImage.imageFormat_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentLearnerCheck.resumable_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentFeatureConsumers.managed_resumable,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.restore_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Checkpoint.Format.natural_exact,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.save_load,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpointSize.snapshot_size_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConstants.discount_values,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConstants.numeric_values,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConstants.dimensions,
+    #[]),
+  (`AcornVerif.CurrentRetirement.add_zero_numeric,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirement.retireIndex_predict,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins16 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentRetirement.retire_step_error,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirement.retire_step_error_absent,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirement.controller_retire_values,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirement.replace_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirement.replace_predictions,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirement.replace_aggregates,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirement.replace_neutral,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Retirement.run_replaced,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Retirement.run_turnover,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Retirement.run_mature_turnover,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Retirement.run_young,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Retirement.run_immature,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Retirement.maturity_bias,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.Lifecycle.test_accrual,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.Lifecycle.candidate_least,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.Lifecycle.test_unheld,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.FeatureRuntime.retire_occupied,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirement.zero_add_numeric,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirementRounding.nearest_lower,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirementRounding.rounded_grid_lower,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirementRounding.dyadic_lower,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirementRounding.round_grid_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirementRounding.round_lower,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirementRounding.round_negative_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRetirementRounding.normalize_negative_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentTemporal.terminal_coordinate_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.nearest_upper,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.dyadic_upper,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.round_grid_upper,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.round_upper,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.round_nonnegative,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.nearest_fraction_mono,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.round_grid_representation,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.round_positive_mono,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.normalize_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.normalize_positive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.normalize_negative,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.normalize_nonnegative,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.normalize_nonpositive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.normalize_mono,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.normalize_sign_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.round_normalized_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.Rounded.mono,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.rounded_normalized,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.rounded_add,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.rounded_mul,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.normalize_neg_value,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.Rounded.neg,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins17 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentBackupBounds.binary32_rounded_exact,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.binary32_rounded_add,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.binary32_rounded_mul,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.binary32_rounded_sub,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.centered_reward_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.differential_backup_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.model_prediction_differential_bound,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.rounded_zero,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.discounted_product_interval,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.prediction_difference_interval,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.discount_arithmetic_domain,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.reward_sum_interval,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.prediction_numeric_bounds,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentBackupBounds.option_td_error_termination_conditional,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Binary64.less_eq_key,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.toI32_eq_signedCast,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Portable.powerOfTwoWord_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Portable.exp_eq_spec,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Resource.WordTree.exec_le_bound,
+    #[`propext]),
+  (`AcornVerif.Resource.BudgetedTree.exec_le_limit,
+    #[`propext]),
+  (`Acorn.Conversion.narrow_def,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Conversion.toI64_eq_signedCast,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.floor32_eq_spec,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Resource.WordTree.costExec_le_cost,
+    #[`propext]),
+  (`AcornVerif.Resource.InitExec.credit_bound,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.Resource.HalvingExec.cost_bound,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentStep.step_retains,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentStep.trace_moves,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentStep.enterable_static,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentGoals.absorbing_revisit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentGoals.survive_tick,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentGoals.reach_satisfied_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCurriculum.reach_targets,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCurriculum.coordinate_seed_count,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentHashes.unit_not_tiled,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentHashes.unit_tag_tiling,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentHashes.wood_not_stone,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentHashes.reach_not_find_cue,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentHashes.moisture_not_elevation,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentHashes.tree_not_ore_draw,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentHashes.sample_not_xor,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentSpawn.selectSpawn_post,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.need_iff_infeasible,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.Kernel.covered_iff_need,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Coverage.card_swept,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentGridWorld.feasible_iff_replay,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentGridWorld.feasible_iff_certificate,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentGridWorld.comparator_openLoop,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins18 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentGridWorld.step_physical,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentGridWorld.reach_covered,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentGridWorld.far_window_unsolved,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.Conceals.need,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.visits_need,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.visits_first_success,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.visits_ever,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.replay_keeps,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.replay_solves,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.park_keeps,
+    #[]),
+  (`AcornVerif.CurrentGoals.find_satisfied_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.find_conceals,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.find_covered,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.find_need,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.find_visits_need,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.find_visits_first_success,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.achieved_decodes,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.find_replay,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.far_window_visits,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.witness_walk,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.witness_separation,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.replay_explored,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.replay_separates,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Kernel.replay_not_experienceFree,
+    #[`propext]),
+  (`AcornVerif.CurrentConcealedTarget.find_replay_separates,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentConcealedTarget.find_replay_learns,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.GridCorrespondence.initial_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.GridCorrespondence.act_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.GridCorrespondence.callback_eq,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.grid_inputs,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.words_disjoint,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.frame_length,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentStep.step_adjacent,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCertificates.replay_feasible,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCertificates.blocked_outside,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCertificates.blocked_infeasible,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCertificates.stance_enter,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCertificates.stance_harvest,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Oak.step_congr,
+    #[`propext]),
+  (`AcornVerif.Oak.Conforms.actions,
+    #[]),
+  (`AcornVerif.Oak.conforms_coarse,
+    #[]),
+  (`AcornVerif.Oak.Realizes.restores,
+    #[]),
+  (`AcornVerif.CurrentOak.planningBoundary_models,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.planningBoundary_values,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.planFree_realizes,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.planFree_writes,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.frame_congr,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.step_frame,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins19 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.CurrentOak.act_extras,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.extras_departures,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.followTemporal_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.step_event_primitive,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentAccounting.select_relabel,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentAccounting.step_learners,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentAccounting.act_learners,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentAccounting.act_accounting,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentAccounting.executed_actions,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.Oak.Realizes.writes,
+    #[]),
+  (`AcornVerif.CurrentOak.planFree_planned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.decideOption_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.continuation_cap,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.settleFollowing_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.followOptions_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.takeoverValue_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.dispatchMeta_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.step_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.closeOption_reason,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.act_parts,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.choose_keeps,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Chosen.learn_rng,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.DecisionInput.chooseOwned_release,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.runAttemptSteps_complete,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.runReleasedSteps_complete,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Attempt.complete_learned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.TemporalControl.atBoundary_unplanned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.actOrdered_undrawn,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.actOrdered_unplanned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.StepParts.loop_unplanned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.Skill.optionStep_credit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.Skill.stepTemporal_credit,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Features.Skill.startTemporal_step,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.TemporalControl.settle_framed,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.TemporalControl.drawFirst_total,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.TemporalControl.drawFirst_keeps,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.choose_reward,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.Agent.choose_drawn,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.selectWithOperations_settle,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.actThenLearn_planAfterAct,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.drawBoundary_start,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.dispatchMeta_start,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.atBoundary_form,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.drawBoundary_form,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.selectWithOperations_form,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.drawFirst_form,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.boundaryForm_frozen,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.drawBoundary_meta,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+private def pins20 : Array (Lean.Name × Array Lean.Name) := #[
+  (`AcornVerif.DrawFirst.drawBoundary_unplanned,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.DrawFirst.drawFirst_assigns,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.TemporalControl.settle_started,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.startTemporal_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.startOption_event,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentOak.settle_unstarted,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Rng.fnv_byte,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.order_edit_refused,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.order_edit_unloaded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.relabeled_unloaded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Checkpoint.admitHeader_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Checkpoint.loadCandidate_header,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Checkpoint.load_candidate,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.saved_header,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.saved_admitted_order,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.campaignStep_attempt,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentRunner.complete_parts,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.relabeled_payload,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.relabeled_admitted,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`AcornVerif.CurrentCheckpoint.relabeled_loaded,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.AgentConstruction.callbacks_act,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Handcrafted.DefaultConstruction.runPrefix_agent,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.StepOrder.parse_spelled,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.StepOrder.parse_refused,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Cli.stepOrderValue_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Cli.stepOrderValue_refused,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Cli.stepOrder_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Checkpoint.admitHeader_iff,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Checkpoint.admitHeader_checks,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Cli.value_absent,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Cli.value_follows,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Cli.value_missing,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.Host.Cli.stepOrder_refused,
+    #[`propext, `Classical.choice, `Quot.sound]),
+  (`Acorn.StepOrder.tag_stored,
+    #[`propext]),
+  (`Acorn.StepOrder.stored_injective,
+    #[`propext]),
+  (`AcornVerif.Kernel.memory_parts,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.Kernel.Moving.loop_memory,
+    #[`propext, `Quot.sound]),
+  (`AcornVerif.Kernel.Moving.loop_waits,
+    #[]),
+  (`AcornVerif.Kernel.Moving.interact_commutes,
+    #[`propext]),
+  (`AcornVerif.StepParts.executedParts_agent,
+    #[`propext, `Classical.choice, `Quot.sound])
+]
+
+def pins : Array (Lean.Name × Array Lean.Name) := #[
+  pins01, pins02, pins03, pins04, pins05,
+  pins06, pins07, pins08, pins09, pins10,
+  pins11, pins12, pins13, pins14, pins15,
+  pins16, pins17, pins18, pins19, pins20
+].flatten
+
+run_cmd verifyPins pins
+
+end AcornTools.AxiomPins
