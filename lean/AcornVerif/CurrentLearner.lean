@@ -275,14 +275,28 @@ theorem first_element_reanchor (state : NumericState config dimension) (idx : Fe
     (next.transient.deltaWeight.get idx).value = Binary32.zero ∧
     (next.transient.hOld.get idx).value = Binary32.zero ∧
     (next.transient.h.get idx).value = Binary32.zero ∧
+    (next.transient.hTemp.get idx).value = Binary32.zero ∧
     (next.transient.p.get idx).value = Binary32.zero.mul decay ∧
     (next.transient.zBar.get idx).value = Binary32.zero.mul decay ∧
-    (next.beta.get idx).value =
-      (LogStepSize.project state.rails (state.rails.initial.value.add
-        (((config.metaStep.div state.rails.initial.alpha).mul (delta.sub vDelta)).mul
-          Binary32.zero))).value := by
+    (next.beta.get idx).value = state.rails.initial.value ∧
+    next.alpha.get idx = state.rails.initial.alpha := by
   simp only [vector_get] at clipped
-  simp [NumericState.firstLoopElement, vector_get, clipped]
+  simp [NumericState.firstLoopElement, vector_get, clipped, LogStepSize.alphaAfter]
+
+theorem weight_project_nonfinite_clipped (rule : ValueRule) (raw : Binary32)
+    (nonfinite : ¬raw.Finite) :
+    (Weight.project rule raw).value.numericallyEqual raw = false := by
+  rw [Binary32.numericallyEqual_eq_key]
+  by_cases hnan : raw.isNaN = true
+  · simp [hnan]
+  · have hproj : (Weight.project rule raw).value.Finite := (weight_legal _).1
+    have hneq : (Weight.project rule raw).value.key ≠ raw.key := by
+      intro hkey
+      have hmag : (Weight.project rule raw).value.magnitude = raw.magnitude := by
+        simp only [Binary32.key_eq_negative] at hkey
+        split at hkey <;> split at hkey <;> omega
+      exact nonfinite (by unfold Binary32.Finite at hproj ⊢; omega)
+    simp [hneq]
 
 theorem second_element_overshoot (state : NumericState config dimension) (idx : FeatIdx dimension)
     (denominator total vDelta : Binary32) :
