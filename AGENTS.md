@@ -92,8 +92,7 @@ and proofs must identify author, work, venue/year and exact equation, section or
 theorem in Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`,
 all checked by `corpus-audit` via `AcornCorpus.prose`, or
 `site/AcornDocs/Verification.lean`, checked through `docs/verification.md`),
-rather than adding comments in Lean files (while legacy in-source citations drain
-via `comment-ratchet.json`). Reproduce derivations
+rather than adding comments in Lean files. Reproduce derivations
 and explain material adaptations, their rationale, semantic consequences and
 composition compatibility there. Fix defects found in prior art, with a characterization theorem or identity and
 present-tense explanation. Do not replicate a known error for fidelity.
@@ -130,10 +129,10 @@ contributor interfaces.
 Lean source files across `lean/` (including `lean/lakefile.lean`) and `site/`
 code (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
 `site/AcornDocs.lean` and `site/AcornDocs/` Verso `#doc` prose) are governed by
-the ratcheted `no-comments` ban
-(`.no-comments.json`, `comment-ratchet.json`, pinned in `lean/no-comments.pin`):
-do not add `--`, `/- -/`, `/-- -/`, or `/-! -/` comments to scoped `.lean`
-files, and drain legacy comments monotonically toward `[]`. Record new and migrated semantics, decision records, and rationale in `docs/`
+the `no-comments` ban
+(`.no-comments.json`, `comment-ratchet.json` empty at `[]`, pinned in
+`lean/no-comments.pin`): do not add `--`, `/- -/`, `/-- -/`, or `/-! -/`
+comments to scoped `.lean` files. Record semantics, decision records, and rationale in `docs/`
 (`docs/design.md`, `docs/prior-art-review.md`, automatically
 checked by `corpus-audit` via `AcornCorpus.prose`, or
 `site/AcornDocs/Verification.lean`, checked via `docs/verification.md`) rather
