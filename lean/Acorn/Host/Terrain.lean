@@ -1,103 +1,64 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Geometry
 import Acorn.Rng
 
-/-!
-# Current procedural terrain
-
-The executing recipe retains the four ordered binary32 octaves, two fields,
-hash dithering and current threshold words. Lattice-neighbor addition is checked
-after the saturating signed cast, including raw zero/exceptional scales. No
-unproved native floor primitive or historical world implementation is imported.
--/
 namespace Acorn.Host
 
-/-- The complete terrain vocabulary. -/
 inductive TileKind where
-  /-- Water. -/
   | water
-  /-- Sand. -/
   | sand
-  /-- Grass. -/
   | grass
-  /-- Forest floor. -/
   | forest
-  /-- Harvestable tree. -/
   | tree
-  /-- Mountain. -/
   | mountain
-  /-- Stone. -/
   | stone
-  /-- Ore. -/
   | ore
   deriving DecidableEq
 
-/-- Stable channel encoding, exhaustive over the actual terrain type. -/
 def TileKind.code : TileKind → UInt8
   | .water => 0 | .sand => 1 | .grass => 2 | .forest => 3
   | .tree => 4 | .mountain => 5 | .stone => 6 | .ore => 7
 
-/-- Total legacy byte admission, including the ore fallback. -/
 def TileKind.fromCode (code : UInt8) : TileKind :=
   if code == 0 then .water else if code == 1 then .sand
   else if code == 2 then .grass else if code == 3 then .forest
   else if code == 4 then .tree else if code == 5 then .mountain
   else if code == 6 then .stone else .ore
 
-/-- Closed terrain admission and observation agree for every kind. -/
 theorem TileKind.code_roundtrip (kind : TileKind) : fromCode kind.code = kind := by
   cases kind <;> rfl
 
-/-- Every produced kind byte fits the declared eight-channel domain. -/
 theorem TileKind.code_bound (kind : TileKind) : kind.code.toNat < 8 := by
   cases kind <;> decide
 
-/-- Enterability without a boat. -/
 def TileKind.walkable : TileKind → Bool
   | .water | .mountain => false
   | .sand | .grass | .forest | .tree | .stone | .ore => true
 
-/-- Terrain that a body with no boat may enter: neither water nor a mountain. -/
 def TileKind.Walkable (kind : TileKind) : Prop := kind ≠ .water ∧ kind ≠ .mountain
 
-/-- The enterability table accepts exactly the terrain that a body with no boat may enter. -/
 theorem TileKind.walkable_iff (kind : TileKind) : kind.walkable = true ↔ kind.Walkable := by
   cases kind <;> simp [TileKind.walkable, TileKind.Walkable]
 
-/-- The enterability table decides `Walkable`, so a function that decides it reads that
-table. -/
 instance (kind : TileKind) : Decidable kind.Walkable := decidable_of_iff _ kind.walkable_iff
 
-/-- The decision of `Walkable` is the entry of the enterability table. -/
 theorem TileKind.decide_walkable (kind : TileKind) : decide kind.Walkable = kind.walkable := by
   cases kind <;> rfl
 
-/-- The complete terrain harvest table. -/
 def TileKind.harvestYield : TileKind → Option Item
   | .tree => some .wood | .stone => some .stone | .ore => some .gold
   | .water | .sand | .grass | .forest | .mountain => none
 
 inductive WorldError where
-  /-- A signed coordinate operation has no representable result. -/
   | coordinateOverflow
   | inadmissibleConfig
   deriving DecidableEq
 
-/-- Assemble raw fields using exact bounded integer arithmetic.
-The floor caller permits a fraction equal to 2^23, carrying into the exponent. -/
 def assemble32 (negative : Bool) (exponent fraction : Nat) : Binary32 :=
   ⟨((if negative then 2 ^ 31 else 0) + exponent * 2 ^ 23 + fraction).toUInt32⟩
 
-/-- Round a fraction to an integral-value lattice, upward only for a negative remainder. -/
 def floorFraction (negative : Bool) (fraction divisor : Nat) : Nat :=
   (fraction / divisor + if negative && fraction % divisor != 0 then 1 else 0) * divisor
 
-/-- Exact raw binary32 floor, preserving both zero signs and every exceptional word.
-The middle branch's single possible exponent carry is part of integer assembly. -/
 def floor32Spec (value : Binary32) : Binary32 :=
   let exponent := value.magnitude / 2 ^ 23
   let fraction := value.magnitude % 2 ^ 23
@@ -110,11 +71,9 @@ def floor32Spec (value : Binary32) : Binary32 :=
     assemble32 value.negative exponent
       (floorFraction value.negative fraction (2 ^ (150 - exponent)))
 
-/-- Fixed-word rounding to an integral lattice retains the possible fraction carry. -/
 def floorFractionWord (negative : Bool) (fraction divisor : UInt64) : UInt64 :=
   (fraction / divisor + if negative && fraction % divisor != 0 then 1 else 0) * divisor
 
-/-- The bounded fraction calculation agrees with its unbounded specification. -/
 theorem floorFractionWord_exact (negative : Bool) (fraction divisor : UInt64)
     (hf : fraction.toNat < 2^23) (hd : divisor.toNat ≤ 2^23) :
     (floorFractionWord negative fraction divisor).toNat =
@@ -136,13 +95,11 @@ theorem floorFractionWord_exact (negative : Bool) (fraction divisor : UInt64)
     rw [Nat.mod_eq_of_lt (by omega : fraction.toNat / divisor.toNat < 2^64)]
     exact Nat.mod_eq_of_lt (by omega)
 
-/-- The floor lattice is a power of two, so its quotient and remainder use bits. -/
 def floorFractionShift (negative : Bool) (fraction shift : UInt64) : UInt64 :=
   let divisor := (1 : UInt64) <<< shift
   ((fraction >>> shift) +
     if negative && fraction &&& (divisor - 1) != 0 then 1 else 0) * divisor
 
-/-- The shift recipe preserves the full fraction and carry specification. -/
 theorem floorFractionShift_exact (negative : Bool) (fraction shift : UInt64)
     (bounded : shift.toNat < 64) :
     floorFractionShift negative fraction shift =
@@ -151,18 +108,14 @@ theorem floorFractionShift_exact (negative : Bool) (fraction shift : UInt64)
     Rounding.shiftQuotient_exact fraction shift bounded,
     Rounding.maskRemainder_exact fraction shift bounded]
 
-/-- Word field assembly has exactly the general assembly's modular semantics. -/
 def assemble32Word (negative : Bool) (exponent fraction : UInt64) : Binary32 :=
   ⟨((if negative then 0x80000000 else 0) + exponent * 0x800000 + fraction).toUInt32⟩
 
-/-- The word assembly bridge includes the permitted carry into the exponent. -/
 theorem assemble32Word_exact (negative : Bool) (exponent fraction : UInt64) :
     assemble32Word negative exponent fraction = assemble32 negative exponent.toNat fraction.toNat := by
   cases negative <;> apply congrArg Binary32.mk <;> apply UInt32.toNat.inj <;>
     simp [UInt64.toNat_toUInt32, Nat.add_mod, Nat.mul_mod]
 
-/-- Exact raw floor uses bounded field operations, preserving every exceptional
-encoding and both zero signs. The rounded fraction may carry into the exponent. -/
 def floor32 (value : Binary32) : Binary32 :=
   let magnitude := (value.bits &&& 0x7fffffff).toUInt64
   let exponent := magnitude / 0x800000
@@ -175,7 +128,6 @@ def floor32 (value : Binary32) : Binary32 :=
     assemble32Word (decide value.Negative) exponent
       (floorFractionShift (decide value.Negative) fraction (150 - exponent))
 
-/-- Every raw input follows the field-level floor specification. -/
 theorem floor32_eq_spec (value : Binary32) : floor32 value = floor32Spec value := by
   have hm : ((value.bits &&& 0x7fffffff).toUInt64).toNat = value.magnitude := by
     rw [UInt32.toNat_toUInt64]
@@ -212,29 +164,20 @@ theorem floor32_eq_spec (value : Binary32) : floor32 value = floor32Spec value :
     · rw [hd]
       exact Nat.pow_le_pow_right (by decide) shiftBound
 
-/-- All NaN payload/sign words and infinities retain their exact encoding at floor. -/
 theorem floor32_exceptional (value : Binary32)
     (h : value.magnitude / 2 ^ 23 = 255) : floor32 value = value := by rw [floor32_eq_spec]; simp [floor32Spec, h]
 
-/-- The binary64 word that the coordinate cast converts: the widening of a word that is not a
-NaN, and the quiet NaN `0x7ff8000000000000` for a NaN, which the conversion maps to zero. The
-widening of a NaN is the native cast `Conversion.widenNaN`, which has no model in the logic. The
-word is not inlined into the cast, so the compiler does not fold the conversion of the NaN into a
-cached integer: the native resource audit admits an integer only from the conversion call. -/
 @[noinline] def castWord (value : Binary32) : Binary64 :=
   if value.IsNaN then ⟨0x7ff8000000000000⟩ else Conversion.widen value
 
-/-- Saturating binary32-to-i64 conversion has an explicit complete raw-word domain. -/
 def coordinateCast (value : Binary32) : Coordinate :=
   ⟨Conversion.toI64 (castWord value), by
     rw [Conversion.toI64_eq_signedCast]
     exact Conversion.signedCast_bounds 63 _⟩
 
-/-- Hash input uses the signed coordinate's exact two's-complement residue. -/
 def coordinateWord (coordinate : Coordinate) : UInt64 :=
   (Int64.ofInt coordinate.val).toUInt64
 
-/-- Native signed ingress retains the exact two's-complement hash residue. -/
 theorem coordinateWord_eq (coordinate : Coordinate) : coordinateWord coordinate =
     (coordinate.val % (2 ^ 64 : Int)).toNat.toUInt64 := by
   apply UInt64.toNat.inj
@@ -243,17 +186,13 @@ theorem coordinateWord_eq (coordinate : Coordinate) : coordinateWord coordinate 
   have bound := Int.emod_lt_of_pos coordinate.val (show (0 : Int) < 2^64 by decide)
   omega
 
-/-- Smooth interpolation uses two distinct products and one subtraction. -/
 def smooth (value : Binary32) : Binary32 :=
   (value.mul value).mul ((⟨0x40400000⟩ : Binary32).sub ((⟨0x40000000⟩ : Binary32).mul value))
 
-/-- Upper hash word converted to binary32 then scaled by 2^-32.
-Rounding can produce one; no strict upper bound below one is claimed. -/
 def lattice (x y : Coordinate) (seed : UInt64) : Binary32 :=
   (Binary32.ofUInt64 (Rng.hash2 (coordinateWord x) (coordinateWord y) seed >>> 32)).mul
     ⟨0x2f800000⟩
 
-/-- Checked value-noise evaluation retains the ordered machine interpolation. -/
 def valueNoise (position : Position) (scale : Binary32) (seed : UInt64) :
     Except WorldError Binary32 := do
   let fx := (coordinateFloat position.x).div scale
@@ -274,7 +213,6 @@ def valueNoise (position : Position) (scale : Binary32) (seed : UInt64) :
   let bot := h01.add ((h11.sub h01).mul tx)
   return top.add ((bot.sub top).mul ty)
 
-/-- Ordered octave fold, retaining the actual per-octave rounding and refusal. -/
 def octaveLoop : Nat → Position → UInt64 → Binary32 → Binary32 → Binary32 →
     Except WorldError Binary32
   | 0, _, _, _, _, sum => .ok sum
@@ -283,11 +221,9 @@ def octaveLoop : Nat → Position → UInt64 → Binary32 → Binary32 → Binar
     octaveLoop count position seed (scale.mul ⟨0x40000000⟩)
       (amplitude.mul ⟨0x3f000000⟩) (sum.add (amplitude.mul noise))
 
-/-- The current four-octave terrain field. -/
 def fbm (position : Position) (seed : UInt64) (baseScale : Binary32) :
     Except WorldError Binary32 := octaveLoop 4 position seed baseScale ⟨0x3f000000⟩ ⟨0⟩
 
-/-- The actual band and dither decision, total for arbitrary machine field words. -/
 def classifyTerrain (position : Position) (seed : UInt64) (elevation moisture : Binary32) : TileKind :=
   if elevation.Less ⟨Acorn.Constants.band030Bits⟩ then .water
   else if elevation.Less ⟨Acorn.Constants.band0335Bits⟩ then .sand
@@ -301,7 +237,6 @@ def classifyTerrain (position : Position) (seed : UInt64) (elevation moisture : 
     then .ore else .stone
   else .mountain
 
-/-- Complete current terrain generation, with explicit signed-overflow refusal. -/
 def terrain (position : Position) (seed : UInt64) (baseScale : Binary32) :
     Except WorldError TileKind := do
   let elevation ← fbm position (seed ^^^ 0xe1e0e1e000000001) baseScale

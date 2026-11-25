@@ -1659,9 +1659,11 @@ learner through the check of its invariant and the agent's two invariants. An in
 image is refused and writes to that file are disabled. Loading the bytes that a save of a
 state writes returns that state, for every state of the resumable construction
 (`AcornVerif.CurrentCheckpoint.load_saved`). The world restarts, and the host begins a
-new session of the predictive-agreement evaluator. Filesystem persistence relies on the
-narrow C file-sync helper, native IO and the operating system; `lean/Acorn/Host/Checkpoint/IO.lean`
-states what a saved report establishes on each platform and what stays accepted risk.
+new session of the predictive-agreement evaluator. Filesystem persistence relies on the narrow C file-sync helper (`lean/os/checkpoint-sync.c`), native IO, and the operating system (`Acorn.Checkpoint.Store.save` in `lean/Acorn/Host/Checkpoint/IO.lean`). `Store.save` admits only supported profiles within `maximumBytes`, reserves an exclusive temporary file `.oak-{pid}-{seq}.tmp` up to 64 retries via mutex-serialized sequence numbers (assuming stable parent directories and temporary names against external mutation, with concurrent writers resolving last-rename-wins and no compare-and-swap guarantee), writes and flushes the buffer, and reports success only after three steps in order: invoking `checkpoint-sync file` on the complete temporary file, renaming it onto the destination (failures before or during rename trigger best-effort removal of the reserved temporary file without replacing the original error and rethrow without inspecting or restoring the destination: failures before rename never touch the destination under the stable-path assumption, whereas a rename error leaves the destination untouched only where the filesystem guarantees that the failed rename did not take effect, because a filesystem can report an error after performing the rename; cleanup ends once rename succeeds, after which the temporary path no longer names this writer's file, so directory-sync failure attempts no temporary removal), and invoking `checkpoint-sync directory` on `destination.parent.getD "."` (since `Acorn.Checkpoint.temporaryPath` extends the destination filename, the rename's entry lies in the destination's parent, or in the inherited working directory when the destination has no separator). Where each sync reaches permanent storage, ordering temporary-file sync before rename keeps an image whose bytes are not yet there from being named by the destination and ordering directory sync before the report keeps the report from preceding the entry, so a power loss at any earlier point leaves no report and leaves the destination naming either the previous image or the new complete one.
+
+Each sync establishes what the platform's own documentation says of the call `checkpoint-sync` makes, and only that. On Apple platforms, the build requires F\_FULLFSYNC in `<fcntl.h>`. macOS fsync(2) states that fsync moves data from the host to the drive, which may hold it and lose it on power loss, whereas fcntl(2) states that F\_FULLFSYNC does the same as fsync and "then asks the drive to flush all buffered data to the permanent storage device" (naming HFS, MS-DOS (FAT), UDF, and APFS as implementing it and listing no error for it). A successful save establishes only that those flush requests succeeded when F\_FULLFSYNC actually succeeded for both the file and the directory, not proof that the drive persisted the bytes to permanent storage; moreover, because `checkpoint-sync` ignores warning-write failures and requestSync suppresses stderr-forwarding errors, a silent fallback to fsync can succeed without a visible warning, so absence of stderr output does not identify which sync path ran. Moreover, the macOS manuals do not discuss directories apart from files; that a directory sync covers its entries is inferred from fsync(2)'s "all modified data and attributes". On a macOS filesystem lacking F\_FULLFSYNC, `lean/os/checkpoint-sync.c` falls back to fsync on ENOTTY, ENOTSUP, or EINVAL and prints a stderr warning forwarded by requestSync (failing to print the warning does not change that success); in XNU (`bsd/kern/kern_descrip.c`, `xnu-12377.121.6`, lines 3978–3987, error-code check at lines 3982–3983), that same error-code triple promotes F\_BARRIERFSYNC to F\_FULLFSYNC rather than failing unsupported filesystems directly. A success then establishes only what fsync(2) states—that the data reached the drive, which can lose it or write it out of order on power loss—and losing both this save and the replaced image is accepted risk on such a filesystem in exchange for keeping a save that a refusal would discard; every other F\_FULLFSYNC error, EIO included, fails the save. On every other platform, `checkpoint-sync` invokes fsync directly and fails on any error. Linux fsync(2) states that the transfer "includes writing through or flushing a disk cache if present", that the directory entry requires an explicit fsync of the directory, and that older kernels and lesser-used filesystems do not know how to flush disk caches. POSIX leaves the nature of the fsync transfer implementation-defined, so elsewhere a successful fsync establishes only what that operating system documents, and a filesystem whose fsync does not flush the disk cache stops at the drive as below.
+
+Where a sync stops at the drive (the macOS fsync fallback, or a Linux or other filesystem that does not flush the disk cache) or a drive ignores or misreports a flush (fcntl(2) notes certain FireWire drives, which no software here can detect), the sync order does not order what reaches permanent storage: macOS fsync(2) states that the drive "may also re-order the data so that later writes may be present, while earlier writes are not", so a power loss before or after a successful report can leave the destination naming an incomplete image with the replaced image gone (losing both the previous save and this one), and not every incomplete image need raise a load error because frame checksums detect accidental mutation only and body completeness rests on image admission (`lean/Acorn/Host/Checkpoint/Frame.lean`). A failed directory sync fails the save after rename has already pointed the destination at the new complete image with durability unconfirmed. No report covers these accepted risks: non-flushing filesystems and drives that ignore or misreport a flush; entries of parent directories above the destination's parent directory, which are not synced so power loss soon after creating them can lose them and the checkpoint with them; and crash-atomic rename, which is assumed of the filesystem. On the read side, readChunks in `Acorn.Checkpoint.readBounded` reads `min (remaining + 1) 65536` bytes per call up to `maximumBytes + 1` (continuing short reads to EOF and failing oversized inputs without trusting a file-supplied length), `Acorn.Checkpoint.loadFile` invokes `Acorn.Checkpoint.resume`, and `Acorn.Checkpoint.Store.hooks` maps `.noFileOrDirectory` to `.missing` and every other load error to `.refused` (disabling writes through `Acorn.Host.WritableCheckpoint.admit` while save errors remain visible to the runner's failure counter).
 
 ## Viewer ownership boundaries
 
@@ -1939,10 +1941,37 @@ not claimed), and visibility of complete bytes without torn files rests on local
 atomic rename semantics. Although `Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`
 models an ambiguous `state.json` rename failure (such as POSIX.1-2017 `rename` EIO
 or Linux NFS rename-despite-error) without weakening the stopped-disk or no-ack guarantees,
-`Acorn.Host.Viewer.RunDirectory.archive` classifies any caught filesystem rename error as
-`Acorn.Host.Viewer.ArchiveResult.unchanged` without re-inspecting the filesystem, so
-archival assumes on the failure side that a failed directory rename leaves the run directory
-at its original path. Mapping `Acorn.Host.Viewer.Follow.ackStop` to HTTP `202` and
+`Acorn.Host.Viewer.RunDirectory.archive` (serialized with publication under the run
+directory's IO mutex) moves the entire run directory — including files unknown to the current
+version — onto an exclusively reserved empty destination
+`<parent>/<run-name>.archive/<stamp>-<attempt>` under the sibling archive root
+`<parent>/<run-name>.archive` derived by
+`Acorn.Host.Viewer.RunDirectory.open` (assuming stable run and archive parents on the same
+filesystem, and never replacing an existing archive). Clear does not fsync the archive root,
+archive destination, or run parent directory entries, so power-loss durability is not claimed for
+archival or replacement creation. Its result separates a failure before or during rename from a
+failure after rename: any caught error while reserving the archive or renaming the run directory
+(attempting best-effort removal of the reserved empty directory if rename throws) is classified as
+`Acorn.Host.Viewer.ArchiveResult.unchanged` without re-inspecting the filesystem (assuming
+on the failure side that a failed directory rename leaves the run directory at its original path),
+which leaves the existing run in place and keeps the directory owner active (`Supervision.lean`
+reports `Clear failed; old run remains: ...`). Once rename succeeds,
+`Acorn.Host.Viewer.RunDirectory.archive` permanently retires that directory owner before
+returning either `Acorn.Host.Viewer.ArchiveResult.ready` or
+`Acorn.Host.Viewer.ArchiveResult.moved`, so queued publications on the old owner cannot
+write into the replacement root. If creating the fresh replacement directory then fails
+(`Acorn.Host.Viewer.ArchiveResult.moved`), or if opening a fresh owner for the replacement
+directory fails (`Acorn.Host.Viewer.Pending.reopen`), the old run is already in the archive
+and the supervisor permanently retires the previous owner (`owner := .retired`, leaving it
+untouched thereafter by `Acorn.Host.Viewer.Supervision.retired_untouched`) rather than
+leaving the old run in place; the operator can recover the archived run under the sibling archive
+layout `<parent>/<run-name>.archive/<stamp>-<attempt>`. Both replacement-failure branches emit a
+supervisor failure diagnostic naming the archive path
+(`old run archived at <archive>; replacement directory unavailable: ...` or
+`... replacement owner unavailable: ...`), but pass it through
+`Acorn.Host.Viewer.Core.report` and `Acorn.Host.Viewer.controlDiagnostic`, which retain
+only the first 1,024 characters and append `" [truncated]"` when longer, so a long archive path can
+be truncated and lose its identifying `<stamp>-<attempt>` suffix in the diagnostic. Mapping `Acorn.Host.Viewer.Follow.ackStop` to HTTP `202` and
 definite pre-execution refusals (`Acorn.Host.Viewer.ControlResult.refused`, `busy`,
 `unavailable`) versus unconfirmed Stop outcomes
 (`Acorn.Host.Viewer.ControlResult.unconfirmed`, serialized with `"unconfirmed":true`,
@@ -1960,7 +1989,98 @@ whereas server cancellation during shutdown can also yield an empty `503` or clo
 without a JSON body; the browser treats both fail-closed as unconfirmed/unknown. Exiting without
 starting a core on a parse or schema refusal from
 `Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean` is likewise
-read from the code. Nor does the theorem say who may
+read from the code.
+
+Across the host-viewer modules under `lean/Acorn/Host/Viewer/`, several operational boundaries sit
+outside proved host theorems. HttpServer.lean sets viewerHttpConfig to bind `127.0.0.1` with
+maxConnections 32, maxRequests 1, enableKeepAlive false, generateDate false,
+serverName none, maxBodySize and maxChunkSize equal to controlBodyCapacity (1024 bytes),
+maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout; HttpViewer.events calls
+Broadcast.subscribe (returning HTTP `503` on capacity or sequence exhaustion) and owns one
+dedicated SSE Body.stream delivery task per subscription that sends the snapshot's initial
+control, map, and replay frames before handing off to liveFrames, which uses EAsync.forIn (repeat
+via the ForIn instance over EAsync for Lean.Loop in Lean v4.36.0) rather than partial\_fixpoint
+because async task continuations admit no fixed point and calls Subscription.poll directly (not
+Subscription.receive): waiting via Selectable.one on the payload-free wake task or 5000 ms
+keepalive timer and writing SSE frames (`sendLine` or `: keepalive`) to the browser occur only
+after Subscription.poll releases the broadcast mutex, so a slow browser cannot block publication;
+liveFrames exits on disconnect (`.closed`) or a dropped wake promise (`some none`), and stream
+exit (finally), context cancellation (context.doneSelector), and response body.close each
+call Subscription.close (also closing the stream on cancellation or body.close) to remove the
+subscriber queue and wake an idle producer. RunDirectory.lean
+(`lean/Acorn/Host/Viewer/RunDirectory.lean`) owns control-token minting through
+`Acorn.Host.Viewer.mintControlToken`, which reads 16 bytes from the fixed OS entropy device
+`/dev/urandom` in read mode via entropyBytes (failing on premature EOF or over-read, with no
+caller-supplied path, mode, token value, or predictable fallback) and encodes them as 32 lowercase
+hex characters; `Acorn.Host.Viewer.HttpViewer.new` in HttpServer.lean
+(`lean/Acorn/Host/Viewer/HttpServer.lean`) calls `Acorn.Host.Viewer.mintControlToken` at
+startup, so viewer startup requires OS entropy with no predictable token fallback.
+ControlRequest.lean (`lean/Acorn/Host/Viewer/ControlRequest.lean`) owns token comparison and
+control-request authorization: `Acorn.Host.Viewer.tokenMatches` rejects unequal UTF-8 byte
+sizes and otherwise scans every byte before equality can succeed (a source-level work pattern, not
+a compiler or hardware constant-time guarantee), `Acorn.Host.Viewer.ControlHeaders.authorizes`
+combines header authorization (POST method, `application/json` media type, non-empty matching
+token) with exact framing (Content-Length equal to the bounded body size), and
+`Acorn.Host.Viewer.authorizeCommand` enforces that admission predicate before JSON decoding. Broadcast.lean
+serializes replay publication, generation/identity admission, lifecycle settlement, notices,
+disconnect, dequeue/wake registration, and subscriber registration behind one mutex with
+connectionCapacity 16, sliding 500-frame replay history via Buffer.retain, IdentityWait overflow
+marking worldPartial, and per-subscriber FIFO queues of capacity 4096 (subscriberCapacity) with
+two overflow policies: Subscriber.enqueue delivers telemetry frames via Buffer.offer (refusing a
+new frame without disturbing queued items when full), whereas Subscriber.enqueueControl delivers
+control records (from Broadcast.settle and Broadcast.commitIdentity) and lifecycle notices (from
+Broadcast.notice, backing Broadcast.announceCleared and Broadcast.announceExit) via Buffer.retain
+without deduplicating, appending the new item and evicting the oldest queued item when full;
+Broadcast.settle separately suppresses a byte-identical repeat of the current control record
+before calling Subscriber.enqueueControl (whereas Broadcast.commitIdentity and Broadcast.notice do
+not deduplicate). Broadcast.subscribe performs subscriber registration and ReplaySnapshot capture
+(`identity`, `control`, `world`, and `frames`) under that same publication mutex, closing the
+replay-to-live handoff gap so a published frame or control record cannot slip between the captured
+replay snapshot and subsequent live-queue delivery, and refuses registration before retaining a
+queue on capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion. Each subscriber
+has one bounded queue and one payload-free wake promise (`IO.Promise Unit`), with one delivery
+task serving as each subscription's sole reader; publishers resolve collected wake promises only
+after releasing the mutex, so a publisher never waits for a network reader, and native
+mutex/promise scheduling and allocator overhead remain trusted infrastructure without a liveness
+guarantee. Subscription.close removes the subscriber queue under the mutex before resolving its
+wake promise outside the mutex; Subscription.poll performs one serialized dequeue (`.item`),
+closed check (`.closed`), or payload-free wake registration (`.wait`) under the mutex so waiting
+and network writes occur strictly outside it; and Subscription.receive (unused by
+liveFrames in HttpServer.lean, which calls Subscription.poll directly) wraps Subscription.poll in a
+`forever` loop without a break (ending only by returning), waiting on `.wait` outside the mutex
+via IO.wait and returning `none` on either explicit disconnect (`.closed`) or a dropped wake
+promise (isNone). Line.lean bounds LineDecoder lines at
+lineCapacity (1 MiB, discarding oversize suffixes through newline and refusing incomplete oversized
+EOF), and readLines reads one byte at a time (input.read 1) because Lean v4.36.0 Handle.read
+calls buffered C fread (Lean runtime `io.cpp` lines 593–615), where multi-byte reads can block past
+newline waiting for a full request or EOF; callbacks must enqueue locally and IO errors propagate
+instead of synthesizing EOF. PipePump.lean filters stdout lines starting with `{`, surfaces
+`"writing disabled this run"` alongside checkpointRefusalNotice, and waits for inherited-descriptor
+EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
+ProcessOwner.lean consumes lastGeneration before IO.Process.spawn to avoid generation reuse on
+failed spawns, relies on Lean refcounting in ProcessOwner.windUp to close stdin on drop even after
+write error (no kill or wall-clock deadline), and in ProcessOwner.poll saturates uptime in Nat
+and retains ownership on failed tryWait. SupervisedProcess.poll lazily attaches PipePump if
+attach was skipped after spawn, and descendant processes holding pipe descriptors can delay EOF
+and archival without a join deadline. RunDirectory.appendLog rotates `core.log` (logCapacity,
+4 MiB) to `core.log.1` and refuses writes on rotation failure (bounding size to
+logCapacity + lineCapacity under stable-path single-writer assumptions), while reserveTemporary
+and reserveArchive retry exclusive creation up to 64 times. Supervisor.lean caps synchronous call
+chains per drive turn at callChainBound (8) and keeps Supervisor.shutdown advancing across turn
+errors; Supervision.lean sets mapInterval to 10000 ms and handles Core.command while a
+replacement awaits by refusing Clear, recording `.replacement next true` on Stop, and updating
+replacement.desired in memory on Start. NativeCore.lean defaults streaming to `.discounted`
+rather than profile promotion and applies AgentConstruction.State.censorObservations before
+final-frame emission; NativeContext.lean fixes first CheckpointAdmission via Option.or
+(treating refused like missing) and saturates timestamps and uptime at `2^64 - 1`;
+NativeResources.lean polls `/bin/ps` (`-o rss= -p <pid>`) every 256th non-terminal clock (requiring
+kib × 1024 \< 2^64, returning none on error, and reusing terminal readings); CoreTelemetry.lean
+pins telemetrySchemaVersion 10 and telemetry\_drops 0; Admission.receive advances
+newestTimestamp without shifting previous on `.rewound` current-identity captures (when the timestamp strictly exceeds newestTimestamp), whereas `.skipped` captures (both stale or duplicate current-identity captures and wrong-identity captures) keep previous and newestTimestamp unchanged;
+and WorldMemory.seen counts non-`255` entries via countP directly from ByteArray while
+WorldMemory.restore marks incomplete true.
+
+Nor does the theorem say who may
 submit a Start: the viewer serves its page on the loopback interface to whoever loads it. And that
 a Start was given is a property of the program: it is separate from the owner's authorization for
 a run of a learner, which [running a program](../CONTRIBUTING.md#running-a-program) governs.
@@ -2293,14 +2413,5 @@ when the file could not be read or the state file cannot hold those words. Wheth
 leaves the state file as it is until its listener is bound is
 `Acorn.Host.Viewer.StartSource.kept`. The one line that says why the run a viewer starts
 with is shown stopped, and nothing when it is not, is `Acorn.Host.Viewer.startAccount`,
-so a person who finds the run stopped is told why and what starts it. The relay of standard
-input under `--control-stdin` is `/bin/cat` (`Acorn.Host.StopFlag.withCommands`).
-In `lean/NativeApp/Viewer.lean`, pollBrowser clears the child handle once tryWait
-consumes the exit status so the child is never waited on again; desktop browser
-opening (openBrowser, spawned in a new session with setsid enabled) never holds a
-worker or blocks viewer exit and is polled once more at shutdown so a
-still-running detached opener survives process exit; the main `NativeApp.runViewer`
-loop over `Acorn.Host.forever` has no break and exits only by returning or
-throwing; and in its cleanup block, supervisor shutdown runs while HTTP remains
-alive during wind-up before the server shutdown wait releases the server's sole
-shutdown waiter.
+so a person who finds the run stopped is told why and what starts it. The relay of standard input under `--control-stdin` is `/bin/cat` (`Acorn.Host.StopFlag.withCommands` in `lean/Acorn/Host/Control.lean`), where `Acorn.Host.controlWhitespace` trims exact Unicode White\_Space codepoints (`9..13`, `32`, `133`, `160`, `5760`, `8192..8202`, `8232`, `8233`, `8239`, `8287`, `12288`) before matching case-sensitive `"stop"`, spawning `/bin/cat` with inherited stdin, piped stdout, and null stderr (keeping core stdout/stderr uninherited, checking IO.checkCanceled around getLine, absorbing stderr write errors, and cancelling/reaping `/bin/cat` on exit without waiting on an external stdin owner); cleanup via closeCommandSource (shared by `lean/NativeApp/Core.lean` and `lean/NativeApp/Viewer.lean`) proves no shutdown deadline and no progress guarantee after native IO failure (propagating any tryWait or kill error before reaping the relay or joining the reader, and waiting without a deadline if child.wait blocks). Unbounded host loops use `Acorn.Host.forever` (`Acorn.Host.forIn_io` and `Acorn.Host.forIn_baseIO` in `lean/Acorn/Host/Forever.lean`), which defines iteration via partial\_fixpoint rather than repeat (whose toolchain partial core violates Regula rule RG1006) and specializes directly to `IO` and BaseIO (requiring Nonempty on BaseIO) so Lean v4.36.0 inlines bind and emits C self tail-jumps (`Lean/Compiler/LCNF/EmitC.lean`, lines 527–531 and 725–747) without stack growth, making no termination claim for non-exiting loop bodies.
+In `lean/NativeApp/Viewer.lean`, pollBrowser clears the child handle once tryWait consumes the exit status so the child is never waited on again; desktop browser opening (openBrowser, spawned in a new session with setsid enabled) never holds a worker or blocks viewer exit and is polled once more at shutdown so a still-running detached opener survives process exit; the main `NativeApp.runViewer` loop over `Acorn.Host.forever` has no break and exits only by returning or throwing; and in its cleanup block, supervisor shutdown runs while HTTP remains alive during wind-up before the server shutdown wait releases the server's sole shutdown waiter.

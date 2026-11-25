@@ -1,84 +1,31 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.BrowserRecord
 import Acorn.Host.Viewer.WorldMemory
 
-/-!
-# Page constants and frame store derived from the browser schema
-
-The page constants that `BrowserConstant` represents are emitted from Lean: each dimension
-from its Lean owner, and the capacities, windows and durations of the page that Appendix A of
-the viewer specification quotes as literals declared here. The frame ring
-is one table of columns, each reading one record field: allocation, the write
-of a record into a slot and the view that reads a slot back are all emitted
-from that table, and no two of its properties share a name
-(`browserColumns_distinct`), so an encoding and its inverse cannot differ. The
-binding of a store to its capacity, with the slot of a frame id, is emitted too.
-Each column's key is a schema key whose record value its encoding is defined
-for, and each symbolic stride equals the schema's array width.
-
-Typed-array assignment and this structural emitter remain trusted execution
-boundaries. The page's painters index the array columns with the same named
-dimensions; that use is hand-written.
--/
 namespace Acorn.Host.Viewer
 
-/-- A named page constant: a dimension emitted from its Lean owner, or a capacity, window or
-duration of the page with no other owner, declared here. -/
 inductive BrowserConstant where
-  /-- Telemetry schema version this page reads. -/
   | schema
-  /-- Byte of a map cell never sensed. The stream's absent-option code is the same
-  value (`BrowserConstant.unseen_admitted`), and the page compares option slots with
-  this name too. -/
   | unseen
-  /-- Largest world side the viewer server retains a map for. -/
   | mapSide
-  /-- Terrain kinds. -/
   | tileKinds
-  /-- Prediction questions (demons). -/
   | demons
-  /-- Primitive actions. -/
   | primitives
-  /-- Meta-controller actions: the primitive hand-off and one per option slot. -/
   | metaActions
-  /-- Tiles of the sensed patch. -/
   | patch
-  /-- Option slots. -/
   | skills
-  /-- Option ending reasons. -/
   | optionEnds
-  /-- Goal families. -/
   | goalFamilies
-  /-- Learned model heads per option slot. -/
   | modelHeads
-  /-- Lifetime history bins. -/
   | historyBins
-  /-- Curriculum-cycle bins. -/
   | cycleBins
-  /-- Curriculum cycles that own an exact bin. -/
   | exactCycles
-  /-- Milliseconds at least between two redraws of the text readouts while the cursor moves or
-  frames arrive. The readouts redraw at once when the cursor lands, and on every frame the cursor
-  reaches while replay runs at 10 frames per second or slower (UX-8). -/
   | readPace
-  /-- Buffered frames, ending at the cursor, over which the readouts take their means and shares
-  while the cursor moves faster than a reader can follow. -/
   | statsWindow
-  /-- Frames the page's ring retains: the store allocates each column for this many frames, and
-  the valid frame ids are the last this many accepted. -/
   | frameCapacity
-  /-- Buffered frames the options ribbon shows. -/
   | ribbonSpan
-  /-- Milliseconds with no new frame after which the stream is stale. -/
   | staleAfter
-  /-- Logical pixels per tile on the stage (UX-28). -/
   | tilePixels
 
-/-- The JavaScript name the page reads. -/
 def BrowserConstant.name : BrowserConstant → String
   | .schema => "SCHEMA" | .unseen => "UNSEEN" | .mapSide => "MAX_MAP_SIDE"
   | .tileKinds => "N_KIND" | .demons => "N_DEM" | .primitives => "N_CTL"
@@ -89,10 +36,6 @@ def BrowserConstant.name : BrowserConstant → String
   | .readPace => "READ_MS" | .statsWindow => "WIN" | .frameCapacity => "CAP"
   | .ribbonSpan => "RIBBON_SPAN" | .staleAfter => "STALE_MS" | .tilePixels => "Z"
 
-/-- The owner's value. Three literal dimensions (`optionEnds`, `goalFamilies` and
-`modelHeads`) are held to the schema's array widths by `browserColumns_live`, and the
-kind count to admission by `BrowserConstant.tileKinds_admitted`. The page's own capacities,
-windows and durations, from `readPace` to `tilePixels`, are literals that only the page reads. -/
 def BrowserConstant.value : BrowserConstant → Nat
   | .schema => telemetrySchemaVersion
   | .unseen => (MapCell.byte none).toNat
@@ -116,107 +59,77 @@ def BrowserConstant.value : BrowserConstant → Nat
   | .staleAfter => 8000
   | .tilePixels => 4
 
-/-- Every named constant, in emission order. -/
 def BrowserConstant.all : List BrowserConstant :=
   [.schema, .unseen, .mapSide, .tileKinds, .demons, .primitives, .metaActions, .patch,
    .skills, .optionEnds, .goalFamilies, .modelHeads, .historyBins, .cycleBins, .exactCycles,
    .readPace, .statsWindow, .frameCapacity, .ribbonSpan, .staleAfter, .tilePixels]
 
-/-- No named constant is left undeclared on the page. -/
 theorem BrowserConstant.all_complete (constant : BrowserConstant) :
     constant ∈ BrowserConstant.all := by
   cases constant <;> simp [BrowserConstant.all]
 
-/-- A meta action is the primitive hand-off or exactly one option slot. -/
 theorem BrowserConstant.metaActions_skills :
     BrowserConstant.metaActions.value = BrowserConstant.skills.value + 1 := by
   decide
 
-/-- No two named constants share a JavaScript name, so the one declaration below binds each. -/
 theorem BrowserConstant.names_distinct : (BrowserConstant.all.map (·.name)).Nodup := by
   decide
 
-/-- The page's named constants, declared once. -/
 def browserConstantsJavascript : String :=
   "const " ++ String.intercalate "," (BrowserConstant.all.map fun constant =>
     constant.name ++ "=" ++ toString constant.value) ++ ";\n"
 
-/-- The width a symbolic stride denotes. -/
 def BrowserConstant.product (stride : List BrowserConstant) : Nat :=
   stride.foldl (fun width constant => width * constant.value) 1
 
-/-- Closed spellings admission holds a text field to; empty when it declares none. -/
 def browserTags (key : String) : List String :=
   (browserRules.findSome? fun (name, rule) =>
     match rule with
     | .tags values => if name = key then some values else none
     | _ => none).getD []
 
-/-- Exclusive bound admission places on each element of an array field. -/
 def browserElementBound (key : String) : Option Nat :=
   browserRules.findSome? fun (name, rule) =>
     match rule with
     | .each (.range upper) => if name = key then some upper else none
     | _ => none
 
-/-- The emitted kind count is the bound admission holds every sensed tile below. -/
 theorem BrowserConstant.tileKinds_admitted :
     browserElementBound "tiles" = some BrowserConstant.tileKinds.value := by
   decide +kernel
 
-/-- Each field admission lets carry an index or one code for "none", with that code. -/
 def browserAbsentCodes : List (String × Nat) :=
   browserRules.filterMap fun (key, rule) =>
     match rule with
     | .either _ (.exact code) => some (key, code)
     | _ => none
 
-/-- The fields admitted with an absent code are the option fields, and the code of
-each is the emitted unseen byte. -/
 theorem BrowserConstant.unseen_admitted :
     browserAbsentCodes =
       ["skill", "option_start", "option_end_skill", "option_end_reason", "meta_action"].map
         fun key => (key, BrowserConstant.unseen.value) := by
   decide +kernel
 
-/-- How a ring column holds one record field. -/
 inductive BrowserEncoding where
-  /-- One number per frame. -/
   | number
-  /-- A flag as 0 or 1, read back as a boolean. -/
   | flag
-  /-- A closed spelling as its index in the admitted vocabulary, read back as the
-  spelling. -/
   | tag
-  /-- The ordered sum of a numeric array. -/
   | sum
-  /-- A text value, kept as it is. -/
   | text
-  /-- A numeric array at a symbolic stride. -/
   | values (stride : List BrowserConstant)
-  /-- An array of admitted bytes at a symbolic stride. -/
   | bytes (stride : List BrowserConstant)
-  /-- Per goal family, the lifetime bin of the frame's own curriculum cycle. -/
   | cycleBin
 
-/-- One column of the frame ring. -/
 structure BrowserColumn where
-  /-- Property of the store, and of the frame view for a scalar encoding. -/
   name : String
-  /-- How the column holds its record field. -/
   encoding : BrowserEncoding
 
-/-- The record field whose bin selects a `cycleBin` column's values. -/
 def browserCycleKey : String := "cycle"
 
-/-- The cycle whose bin is stored is itself an admitted natural. -/
 theorem browserCycleKey_admitted :
     (browserCycleKey, TelemetryShape.natural) ∈ browserSchema := by
   decide +kernel
 
-/-- The record values an encoding is defined for: a number, a flag, a text with a
-declared vocabulary, or a numeric array whose length is the symbolic stride. A byte
-column additionally needs admission to bound each element by a byte. -/
 def BrowserColumn.fits (key : String) (column : BrowserColumn) (shape : TelemetryShape) :
     Bool :=
   let conversion := browserConversion key shape
@@ -249,7 +162,6 @@ private def ring (key name : String) (encoding : BrowserEncoding) :
     String × BrowserColumn :=
   (key, ⟨name, encoding⟩)
 
-/-- The frame ring, by wire key in schema order. -/
 def browserColumns : List (String × BrowserColumn) :=
   [ring "run_id" "runId" .text, ring "agent_epoch" "agentEpoch" .number,
    ring "origin" "origin" .tag, ring "update_us" "updateUs" .number,
@@ -322,19 +234,13 @@ def browserColumns : List (String × BrowserColumn) :=
    ring "subtask_bonus" "subtaskBonus" (.values [.skills]),
    ring "demons" "dem" (.values [.demons]), ring "cums" "cum" (.values [.demons])]
 
-/-- Number columns that frame intake writes after the record, outside this table. -/
 def browserIntakeColumns : List String := ["runStart"]
 
-/-- Every ring column reads a schema key whose record value its encoding is defined
-for. In particular each symbolic stride equals the schema's array width, each tagged
-field has a declared vocabulary and each byte column holds admitted bytes. -/
 theorem browserColumns_live :
     ∀ entry ∈ browserColumns, ∃ shape,
       (entry.1, shape) ∈ browserSchema ∧ BrowserColumn.fits entry.1 entry.2 shape = true :=
   schemaCovers_sound BrowserColumn.fits browserColumns browserSchema (by decide +kernel)
 
-/-- No two properties of the store or of the frame view share a name, so each column's
-allocation, write and view address storage of its own. -/
 theorem browserColumns_distinct :
     (browserColumns.map (·.2.name) ++ browserIntakeColumns ++ ["id", "i"]).Nodup :=
   nodup_of_distinct_keys stringSortKey
@@ -347,8 +253,6 @@ private def scaled (base : String) (stride : List BrowserConstant) : String :=
 private def tagList (key : String) : String :=
   "[" ++ String.intercalate "," ((browserTags key).map telemetryString) ++ "]"
 
-/-- One property of the store object: every number column has the single binary64
-representation, which holds each safe integer and widened binary32 value exactly. -/
 def BrowserColumn.allocation (column : BrowserColumn) : String :=
   let storage := match column.encoding with
     | .number | .flag | .tag | .sum => "new Float64Array(CAP)"
@@ -358,7 +262,6 @@ def BrowserColumn.allocation (column : BrowserColumn) : String :=
     | .cycleBin => "new Float64Array(" ++ scaled "CAP" [.goalFamilies] ++ ")"
   "  " ++ column.name ++ ":" ++ storage ++ ",\n"
 
-/-- The write of record `f` into slot `i` of store `S`. -/
 def BrowserColumn.write (key : String) (column : BrowserColumn) : String :=
   let value := "f[" ++ telemetryString key ++ "]"
   let cell := "S." ++ column.name ++ "[i]"
@@ -375,7 +278,6 @@ def BrowserColumn.write (key : String) (column : BrowserColumn) : String :=
         "+k]=" ++ value ++ "[k*" ++ BrowserConstant.cycleBins.name ++ "+b];"
   statement ++ "\n"
 
-/-- The frame-view property that reads slot `i` back, for a scalar encoding. -/
 def BrowserColumn.view (key : String) (column : BrowserColumn) : Option String :=
   let cell := "S." ++ column.name ++ "[i]"
   match column.encoding with
@@ -384,11 +286,6 @@ def BrowserColumn.view (key : String) (column : BrowserColumn) : Option String :
   | .tag => some (column.name ++ ":" ++ tagList key ++ "[" ++ cell ++ "]")
   | .values _ | .bytes _ | .cycleBin => none
 
-/-- Allocation, record write and frame view of the ring, from the one column table.
-The write stores the lifetime bin of the frame's own cycle, selected by the generated
-`observerCycleBucket`; `observerSum` is the page's adapter over the generated sum.
-`observerRing` binds one store to its capacity: its `store` and `frame` are the
-generated write and view at `slot(id)`. -/
 def browserStoreJavascript : String :=
   "function observerFrameStore(CAP){return {\n" ++
   String.join (browserColumns.map fun (_, column) => column.allocation) ++

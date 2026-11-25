@@ -1,31 +1,14 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.Wire
 
-/-!
-# Local HTTP control admission
-
-Control requests have one closed command field, a byte bound, the POST method,
-the JSON media type and the current viewer-start token. The native HTTP owner
-supplies parsed header values and the exact bounded body. No body contains a
-core action: admitted commands address only the viewer's process lifecycle.
--/
 namespace Acorn.Host.Viewer
 
-/-- Immutable maximum body size for local lifecycle requests. -/
 def controlBodyCapacity : Nat := 1024
 
-/-- Body bytes are bounded before retention or JSON parsing. -/
 abbrev ControlBody := {bytes : ByteArray // bytes.size ≤ controlBodyCapacity}
 
-/-- Only complete bodies within the declared bound enter the control decoder. -/
 def controlBody (bytes : ByteArray) : Option ControlBody :=
   if h : bytes.size ≤ controlBodyCapacity then some ⟨bytes, h⟩ else none
 
-/-- The sole control-body schema has one closed command word. -/
 def controlCommand (body : ControlBody) : Except String Command := do
   let some text := String.fromUTF8? body.val | throw "invalid control UTF-8"
   let value ← Json.parse text
@@ -34,30 +17,17 @@ def controlCommand (body : ControlBody) : Except String Command := do
     let some command := Command.parse word | throw "unknown lifecycle command"
     return command
 
-/-- A control body that spells a lifecycle command, stated with no executed function: the
-UTF-8 encoding of a JSON text of RFC 8259 (`Json.Grammar.Text`) that the grammar gives an object with
-one member, named `cmd`, whose value is a string that spells the command
-(`Command.Spelled`). The text can hold white space and escapes. `control_command` in
-`Acorn.Decisions` proves that `controlCommand` accepts only such bodies, and
-`control_command_value` that the command it returns is one that they spell. -/
 def ControlSpelled (bytes : ByteArray) (command : Command) : Prop :=
   ∃ (text word : String), bytes = text.toUTF8 ∧
     Json.Grammar.Text text.toList (.object [("cmd", .string word)]) ∧
     Command.Spelled word command
 
-/-- Parsed header facts needed to authorize local control, before body decoding. -/
 structure ControlHeaders where
-  /-- Exact parsed HTTP method. -/
   method : String
-  /-- Parsed media type, without parameters. -/
   mediaType : String
-  /-- Complete control token header. -/
   token : String
-  /-- Content-Length is required and must equal the complete admitted body. -/
   length : Option Nat
 
-/-- Equal-length tokens scan every byte before equality can succeed.
-This source-level work pattern is not a claim about compiler or hardware timing. -/
 def tokenMatches (received expected : String) : Bool :=
   if received.utf8ByteSize != expected.utf8ByteSize then false
   else
@@ -66,23 +36,16 @@ def tokenMatches (received expected : String) : Bool :=
       difference ||| (pair.1 ^^^ pair.2)) 0
     difference == 0 && received == expected
 
-/-- Header authorization and exact framing derive one admission predicate. -/
 def ControlHeaders.authorizes (headers : ControlHeaders) (token : String) (body : ControlBody) : Bool :=
   headers.method == "POST" && headers.mediaType == "application/json" &&
     !token.isEmpty && tokenMatches headers.token token && headers.length == some body.val.size
 
-/-- An accepted command carries its actual authorization and decoding relations. -/
 structure AuthorizedCommand (headers : ControlHeaders) (token : String) where
-  /-- Bounded bytes actually received. -/
   body : ControlBody
-  /-- Lifecycle request admitted from those bytes. -/
   command : Command
-  /-- Header, token and framing checks refer to this exact body. -/
   authorized : headers.authorizes token body = true
-  /-- The strict body decoder supplied this command. -/
   decoded : controlCommand body = .ok command
 
-/-- Authentication precedes JSON decoding and construction of an enqueueable command. -/
 def authorizeCommand (headers : ControlHeaders) (token : String) (body : ControlBody) :
     Except String (AuthorizedCommand headers token) :=
   if authorized : headers.authorizes token body = true then
@@ -91,7 +54,6 @@ def authorizeCommand (headers : ControlHeaders) (token : String) (body : Control
     | .ok command => .ok ⟨body, command, authorized, decoded⟩
   else .error "control request refused"
 
-/-- An accepted request necessarily has the POST method, regardless of its body. -/
 theorem AuthorizedCommand.post {headers : ControlHeaders} {token : String}
     (command : AuthorizedCommand headers token) : headers.method = "POST" := by
   have := command.authorized

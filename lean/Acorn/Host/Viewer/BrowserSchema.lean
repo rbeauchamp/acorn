@@ -1,26 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.CoreTelemetry
 import Acorn.Host.Viewer.ControlTelemetry
 
-/-!
-# Browser schema linked to the executing emitter
-
-The kernel checks the schema against every native capture, independently of
-configuration, state and terminal status. The executable schema is retained as
-closed data so the browser requires no initialized agent or world. Whole-frame,
-envelope, control and map admission are emitted from it and from the closed
-refinements below; `Acorn.Host.Viewer.BrowserRecord` and
-`Acorn.Host.Viewer.BrowserStore` derive the page's record and frame store from
-the same list.
--/
 namespace Acorn.Host.Viewer
 open Features Handcrafted
 
-/-- Closed protocol schema; the universal equality below guards all names and shapes. -/
 def browserSchema : List (String × TelemetryShape) :=
   [("schema_version", TelemetryShape.natural), ("source_sha256", TelemetryShape.text),
   ("build_sha256", TelemetryShape.text), ("audit_digest", TelemetryShape.text), ("run_id", TelemetryShape.text),
@@ -145,8 +128,6 @@ def browserSchema : List (String × TelemetryShape) :=
   ("demon_gamma", TelemetryShape.array 11 TelemetryShape.binary32),
   ("demon_horizon", TelemetryShape.array 11 TelemetryShape.binary32)]
 
-/-- Natural-number hash of a string's UTF-8 bytes; soundness uses no injectivity assumption,
-because distinct images under any function imply distinct preimages. -/
 def stringSortKey (s : String) : Nat :=
   s.toByteArray.data.toList.foldl (fun acc b => (acc * 131 + b.toNat + 1) % 4294967291) 0
 
@@ -204,7 +185,6 @@ private theorem NatTree.insertFresh_spec : ∀ {t t' : NatTree} {x : Nat},
           · rename_i hyr; simp only [hyr, ↓reduceIte]
       · simp [hlt, hgt] at h
 
-/-- Structural distinctness checker on natural numbers via a binary search tree. -/
 def natListDistinct (xs : List Nat) : Bool :=
   go xs .leaf
 where
@@ -240,13 +220,11 @@ private theorem nodup_of_map {α β : Type} (f : α → β) : ∀ {xs : List α}
     exact List.nodup_cons.mpr
       ⟨fun hmem => h.1 (List.mem_map.mpr ⟨x, hmem, rfl⟩), nodup_of_map f h.2⟩
 
-/-- A list whose natural-number keys are accepted by `natListDistinct` has no duplicates. -/
 theorem nodup_of_distinct_keys {α : Type} (key : α → Nat) (xs : List α)
     (distinct : natListDistinct (xs.map key) = true) :
     xs.Nodup :=
   nodup_of_map key (natListDistinct_go_spec distinct).1
 
-/-- In an association list with distinct keys, equal keys carry equal values. -/
 theorem eq_of_mem_of_nodup_fst {α β : Type} : ∀ {l : List (α × β)} {k : α} {v₁ v₂ : β},
     (l.map Prod.fst).Nodup → (k, v₁) ∈ l → (k, v₂) ∈ l → v₁ = v₂
   | [], _, _, _, _, h₁, _ => by cases h₁
@@ -260,19 +238,15 @@ theorem eq_of_mem_of_nodup_fst {α β : Type} : ∀ {l : List (α × β)} {k : �
       exact absurd (List.mem_map.mpr ⟨(_, v₁), m₁, rfl⟩) hnd.1
     · exact eq_of_mem_of_nodup_fst hnd.2 m₁ m₂
 
-/-- Every key in `browserSchema` is distinct, so each wire key names a unique shape. -/
 theorem browserSchema_distinct : (browserSchema.map Prod.fst).Nodup :=
   nodup_of_distinct_keys stringSortKey (browserSchema.map Prod.fst) (by decide +kernel)
 
 set_option maxRecDepth 4096 in
-/-- Every emitted capture has precisely the browser's admitted structural schema. -/
 theorem browserSchema_execution {config : Features.Config} {dimension : Dimension}
     (context : TelemetryContext) (frame : StepFrame (AgentObservation config dimension))
     (terminal : Bool) : telemetrySchema (coreTelemetry context frame terminal) = browserSchema := by
   rfl
 
-/-- Structural backend for one wire shape. JavaScript parsing, binary64 numeric
-admission and array iteration are the declared browser runtime primitives. -/
 def TelemetryShape.browserPredicate : TelemetryShape → String → String
   | .natural, x => s!"(Number.isSafeInteger({x})&&{x}>=0)"
   | .goalKind, x =>
@@ -294,38 +268,22 @@ def TelemetryShape.browserPredicate : TelemetryShape → String → String
   | .sequence element, x =>
     s!"(Array.isArray({x})&&{x}.every(v=>" ++ element.browserPredicate "v" ++ "))"
 
-/-- Closed refinements beyond structural JSON shapes. -/
 inductive BrowserRule where
-  /-- A structural wire value. -/
   | shape (value : TelemetryShape)
-  /-- Equality to a declared integer protocol constant. -/
   | exact (value : Nat)
-  /-- One of the owner's closed spellings. -/
   | tags (values : List String)
-  /-- Fixed-width lowercase hexadecimal. -/
   | hex (width : Nat)
-  /-- Present indices are strictly below the named dimension. -/
   | belowField (field : String)
-  /-- Present counters do not exceed the named clock. -/
   | atMost (field : String)
-  /-- Sequence length equals the admitted population field. -/
   | lengthField (field : String)
-  /-- Apply a refinement to every array element. -/
   | each (rule : BrowserRule)
-  /-- Closed half-open numeric range. -/
   | range (upper : Nat)
-  /-- Explicit null absence is permitted. -/
   | nullable (rule : BrowserRule)
-  /-- Bounded variable-length list. -/
   | list (maximum : Nat) (element : BrowserRule)
-  /-- Union of two admitted refinements. -/
   | either (left right : BrowserRule)
-  /-- Strict positivity after structural numeric admission. -/
   | positive
-  /-- Canonical decimal text retains an exact bounded counter beyond binary64 integers. -/
   | decimal (maximum : Nat)
 
-/-- Structural refinement backend; field keys and tag values are JSON-escaped. -/
 def BrowserRule.javascript : BrowserRule → String → String
   | .shape schemaValue, x => schemaValue.browserPredicate x
   | .exact value, x => s!"({x}==={value})"
@@ -346,7 +304,6 @@ def BrowserRule.javascript : BrowserRule → String → String
     s!"(typeof {x}==='string'&&{x}.length<={toString maximum |>.length}&&" ++
       s!"/^(0|[1-9][0-9]*)$/.test({x})&&BigInt({x})<=BigInt('{maximum}'))"
 
-/-- Refinements retain current protocol constants and state-relative index bounds. -/
 def browserRules : List (String × BrowserRule) :=
   [("curriculum_names", .lengthField "goal_count"),
    ("curriculum_failed_attempts", .lengthField "goal_count"),
@@ -402,13 +359,10 @@ def browserRules : List (String × BrowserRule) :=
    ("retire_unit", .belowField "imprint_units"), ("retire_step", .atMost "lifetime_step"),
    ("tiles", .each (.range 8)), ("tile_extra", .each (.range 256))]
 
-/-- Semantic goal fields cannot acquire a second, independently narrowed domain.
-Changing the refinement list must preserve this compiler-checked separation. -/
 theorem browserRules_goal_separation :
     ∀ entry ∈ browserRules, entry.1 ≠ "gkind" ∧ entry.1 ≠ "gitem" := by
   decide
 
-/-- Item labels are generated from the same exhaustive semantic vocabulary as admission. -/
 def browserGoalLabelsJavascript : String :=
   "function observerGoalItemLabel(code,count=1){const labels=({" ++
     String.intercalate "," (goalItems.map fun item =>
@@ -423,39 +377,29 @@ private def goalTextExpression : GoalKind → String
   | some .craft => "'Own '+observerGoalItemLabel(gitem)"
   | some .survive => "'Continue for '+gn+' world steps in this attempt'"
 
-/-- Goal text dispatch is exhaustive over the same family vocabulary as emission. -/
 def browserGoalTextJavascript : String :=
   "function observerGoalText(gkind,gitem,gx,gy,gn){switch(gkind){" ++
     String.join (goalKinds.map fun kind =>
       "case " ++ toString kind.code ++ ":return " ++ goalTextExpression kind ++ ";") ++
     "default:return '—';}}\n"
 
-/-- Why the page refuses a whole frame: a closed set, each member with one page counter
-and one remedy in the stream-health readout. -/
 inductive BrowserRefusal where
   | schema
   | cardinality
-  /-- A required key is absent: a source defect that rebuilding does not fix. -/
   | missingField
-  /-- A key is present without the value its schema promises: the emitter or the
-  transport is wrong. -/
   | malformed
 
-/-- Wire spelling of a refusal, also the page's counter key. -/
 def BrowserRefusal.tag : BrowserRefusal → String
   | .schema => "schema" | .cardinality => "cardinality"
   | .missingField => "missingField" | .malformed => "malformed"
 
-/-- Every refusal reason; the page keeps one counter per member. -/
 def BrowserRefusal.all : List BrowserRefusal :=
   [.schema, .cardinality, .missingField, .malformed]
 
-/-- No refusal reason lacks a page counter. -/
 theorem BrowserRefusal.all_complete (refusal : BrowserRefusal) :
     refusal ∈ BrowserRefusal.all := by
   cases refusal <;> simp [BrowserRefusal.all]
 
-/-- The page's refusal vocabulary, emitted from the reasons admission returns. -/
 def browserRefusalJavascript : String :=
   "const Reject=Object.freeze({" ++
     String.intercalate "," (BrowserRefusal.all.map fun refusal =>
@@ -464,9 +408,6 @@ def browserRefusalJavascript : String :=
 private def refuse (why : BrowserRefusal) (key : String) : String :=
   "return {why:" ++ telemetryString why.tag ++ ",key:" ++ telemetryString key ++ "};\n"
 
-/-- Generated whole-record admission returns the refused wire key and reason.
-The native emitter/schema equality owns structural coverage; refinements own
-the browser projection domain. Unknown fields remain forward-compatible. -/
 def browserAdmissionJavascript : String :=
   "function observerAdmission(f){\nif(!f||typeof f!=='object'||Array.isArray(f))" ++
     refuse .malformed "frame" ++
@@ -491,14 +432,11 @@ private def rulesFunction (name : String) (rules : List (String × BrowserRule))
       "Object.hasOwn(f," ++ telemetryString key ++ ")&&" ++
         rule.javascript ("f[" ++ telemetryString key ++ "]")) ++ ";}\n"
 
-/-- Health envelope can be admitted independently when complete frame data is refused. -/
 def browserEnvelopeRules : List (String × BrowserRule) :=
   [("run_id", .hex 16), ("agent_epoch", .shape .natural),
    ("timestamp_ms", .shape .natural), ("lifetime_step", .shape .natural),
    ("world_step", .shape .natural)]
 
-/-- Required control-plane fields; optional new presentation metadata remains compatible
-with the native supervisor. The control source owns lifecycle transitions. -/
 def browserControlRules : List (String × BrowserRule) :=
   [("runId", .hex 16), ("agentEpoch", .shape .natural),
    ("transition", .tags ["initialized", "start_requested", "stop_requested", "clear_requested",
@@ -510,12 +448,10 @@ def browserControlRules : List (String × BrowserRule) :=
    ("terminalWarning", .shape (.optional .text)),
    ("tail", .list 6 (.shape .text))]
 
-/-- Retained map header admission precedes browser storage or painting. -/
 def browserMapRules : List (String × BrowserRule) :=
   [("runId", .hex 16), ("side", .shape .natural), ("side", .positive), ("side", .range 4097),
    ("seed", .shape .natural), ("kinds", .shape .text), ("partial", .shape .flag)]
 
-/-- Envelope, control and map admission, each independent of whole-frame admission. -/
 def browserRulesJavascript : String :=
   rulesFunction "observerEnvelope" browserEnvelopeRules ++
     rulesFunction "observerControl" browserControlRules ++

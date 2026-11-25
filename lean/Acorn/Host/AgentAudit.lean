@@ -1,31 +1,14 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AgentAdmission
 
-/-!
-# Current agent mutation checksum
-
-The checksum reads learner knowledge, gain for differential control, planning count, seed,
-clock, bank, generator and every unit's tester state.
-Transient credit, predictions, exploration state and observational lifetime
-records are outside this checksum. A changed hash identifies a change in the selected fields.
--/
 namespace Acorn.Host
 open Features Handcrafted
 
-/-- Fold controller learners once each in their stored action order. -/
 def controllerChecksum {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) : UInt64 :=
   controller.learners.foldl (fun hash learner =>
     (hash ^^^ Rng.rotateLeft learner.state.stateChecksum 7) * NumericState.checksumMultiplier)
     Rng.fnvOffset
 
-/-- Transition checksum folds every ranked slot word, every row's knowledge in position
-order and every deviation learner's knowledge in action order; a vacant position folds
-the all-ones word, which is no slot. -/
 def transitionChecksum {dimension : Dimension} {criterion : Criterion}
     (transition : Transition dimension criterion) : UInt64 :=
   let slots := transition.ranked.slots.foldl (fun hash slot =>
@@ -37,8 +20,6 @@ def transitionChecksum {dimension : Dimension} {criterion : Criterion}
   transition.deviations.foldl (fun hash learner =>
     (hash ^^^ Rng.rotateLeft learner.state.stateChecksum 11) * NumericState.checksumMultiplier) rows
 
-/-- Model checksum traverses the actual stored criterion-dependent learners and the
-transition part. -/
 def modelChecksum {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : UInt64 :=
   match model with
@@ -50,20 +31,16 @@ def modelChecksum {dimension : Dimension} {criterion : Criterion}
       Rng.rotateLeft duration.state.stateChecksum 17 ^^^
       Rng.rotateLeft (transitionChecksum transition) 29
 
-/-- Every demon contributes once in horizon order. -/
 def demonChecksum {dimension : Dimension} {discounts : List Discount}
     (demons : DemonBank dimension discounts) (hash : UInt64) : UInt64 :=
   match demons with
   | .nil => hash
   | .cons learner rest => demonChecksum rest (hash ^^^ Rng.rotateLeft learner.state.stateChecksum 17)
 
-/-- Fold the specified low bytes of a word in little-endian order. -/
 def checksumBytes (hash word : UInt64) (count : Nat) : UInt64 :=
   (List.range count).foldl (fun hash index =>
     Rng.fnvStep hash ((word >>> (8 * index).toUInt64).toUInt8)) hash
 
-/-- Distinct absolute weight words among the actual hashed unit slots.
-Hash aliases and equal magnitudes contribute one value, as required by the census. -/
 def imprintCensus {config : Features.Config} {dimension : Dimension} {discounts : List Discount}
     (demons : DemonBank dimension discounts) : Vector Nat discounts.length :=
   match demons with
@@ -73,7 +50,6 @@ def imprintCensus {config : Features.Config} {dimension : Dimension} {discounts 
       (learner.state.weights.get (unitFeature dimension config unit)).value.magnitude
     (#v[words.eraseDups.length] ++ imprintCensus (config := config) rest).cast (by simp [Nat.add_comm])
 
-/-- The complete mutation receipt is a read of this receiver's current owners. -/
 def agentChecksum {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {planning : PlanningSelection}
     (agent : Agent Grid.interface profile config criterion dimension planning) : UInt64 := Id.run do

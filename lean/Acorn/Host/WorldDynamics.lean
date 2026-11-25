@@ -1,18 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.WorldGeneration
 
-/-!
-# Current world transition
-
-Active changes and passive dynamics have separate result types. Neither can
-write a goal or its origin, and only the assembled step advances the physical
-clock. Refusal returns no successor; callers retain the original state. Deer
-wander in signed-coordinate space rather than being clamped to the body box.
--/
 namespace Acorn.Host
 
 def wanderDeer {config : WorldConfig} (world : World config) (position : Position)
@@ -29,7 +16,6 @@ def wanderDeer {config : WorldConfig} (world : World config) (position : Positio
       return (if kind.Walkable then candidate else position, rng)
   else return (position, rng)
 
-/-- Vector traversal retains deer order and exactly preserves population length. -/
 def wanderPopulation {config : WorldConfig} (world : World config) :
     Except WorldError (Population Position config.raw.deerCap.toNat × Rng.Xoshiro256) := do
   let input : Vector Position world.deer.entries.size := ⟨world.deer.entries, rfl⟩
@@ -38,7 +24,6 @@ def wanderPopulation {config : WorldConfig} (world : World config) :
   let (moved, rng) ← (input.mapM operation).run world.rng
   return (⟨moved.toArray, by simpa using world.deer.bounded⟩, rng)
 
-/-- Up to the requested number of food-placement attempts, stopping on first grass. -/
 def foodTrials {config : WorldConfig} (world : World config) : Nat →
     Rng.Xoshiro256 → Except WorldError (Option (BoxPosition config) × Rng.Xoshiro256)
   | 0, rng => .ok (none, rng)
@@ -48,16 +33,12 @@ def foodTrials {config : WorldConfig} (world : World config) : Nat →
     if kind == .grass then return (some position, rng)
     else foodTrials world count rng
 
-/-- The unsigned source's multiple-of-zero rule holds only at time zero. -/
 def foodDue (time interval : UInt64) : Bool :=
   if interval == 0 then time == 0 else time.toNat % interval.toNat == 0
 
-/-- Food is due: at the interval zero only at the time zero, and otherwise when the interval
-divides the time. -/
 def FoodDue (time interval : UInt64) : Prop :=
   (interval = 0 ∧ time = 0) ∨ (interval ≠ 0 ∧ time.toNat % interval.toNat = 0)
 
-/-- The food schedule accepts exactly a time at which food is due. -/
 theorem foodDue_iff (time interval : UInt64) :
     foodDue time interval = true ↔ FoodDue time interval := by
   unfold foodDue FoodDue
@@ -65,11 +46,9 @@ theorem foodDue_iff (time interval : UInt64) :
   · simp [zero]
   · simp [zero]
 
-/-- The food schedule decides `FoodDue`. -/
 instance (time interval : UInt64) : Decidable (FoodDue time interval) :=
   decidable_of_iff _ (foodDue_iff time interval)
 
-/-- Capacity is checked before any spawn RNG draw, preserving stream consumption. -/
 def spawnFood {config : WorldConfig} (world : World config) (rng : Rng.Xoshiro256) :
     Except WorldError (Population (BoxPosition config) config.raw.foodCap.toNat × Rng.Xoshiro256) := do
   if decide (FoodDue world.time config.raw.foodInterval) &&
@@ -78,22 +57,15 @@ def spawnFood {config : WorldConfig} (world : World config) (rng : Rng.Xoshiro25
     return (match position with | none => world.food | some position => world.food.push position, rng)
   else return (world.food, rng)
 
-/-- Active actions cannot change time, goal identity, deer, or the RNG. -/
 structure ActionChange (config : WorldConfig) where
-  /-- Updated body. -/
   body : Body config
-  /-- Updated harvest log. -/
   harvested : Std.TreeMap (HarvestKey config) UInt64
-  /-- Updated food after movement pickup. -/
   food : Population (BoxPosition config) config.raw.foodCap.toNat
-  /-- Events before passive time and goal completion. -/
   events : StepResult
 
-/-- Identity active change, used for blocked moves and failed recipes. -/
 def ActionChange.unchanged {config : WorldConfig} (world : World config) : ActionChange config :=
   ⟨world.body, world.harvested, world.food, {}⟩
 
-/-- Complete paid action semantics, including harvest outside the campaign box. -/
 def performAction {config : WorldConfig} (world : World config) (action : Action) :
     Except WorldError (ActionChange config) := do
   let unchanged := ActionChange.unchanged world
@@ -134,7 +106,6 @@ def performAction {config : WorldConfig} (world : World config) (action : Action
       else return unchanged
     | .wait | .north | .south | .east | .west => return unchanged
 
-/-- Insufficient energy performs only the declared recovery, never the requested action. -/
 def payAndAct {config : WorldConfig} (world : World config) (action : Action) :
     Except WorldError (ActionChange config) :=
   match world.body.energy.spend (action.energyCost (world.dayPhase.val ≥ 4)) with
@@ -143,34 +114,25 @@ def payAndAct {config : WorldConfig} (world : World config) (action : Action) :
       events := { exhausted := true } }
   | some energy => performAction { world with body := { world.body with energy := energy } } action
 
-/-- Passive effects cannot change body, harvest, goal, or either clock field. -/
 structure PassiveChange (config : WorldConfig) where
-  /-- Deer after ordered wandering. -/
   deer : Population Position config.raw.deerCap.toNat
-  /-- Food after the optional placement. -/
   food : Population (BoxPosition config) config.raw.foodCap.toNat
-  /-- RNG after all passive draws. -/
   rng : Rng.Xoshiro256
 
-/-- Deer precede food and share the same deterministic environment stream. -/
 def passiveChange {config : WorldConfig} (world : World config) :
     Except WorldError (PassiveChange config) := do
   let (deer, rng) ← wanderPopulation world
   let (food, rng) ← spawnFood world rng
   return ⟨deer, food, rng⟩
 
-/-- Apply active state without admitting a write to unrelated world fields. -/
 def World.applyActive {config : WorldConfig} (world : World config) (active : ActionChange config) :
     World config :=
   { world with body := active.body, harvested := active.harvested, food := active.food }
 
-/-- Apply passive state while deriving exactly one wrapping clock increment. -/
 def World.applyPassive {config : WorldConfig} (world : World config) (passive : PassiveChange config) :
     World config :=
   { world with time := world.time + 1, deer := passive.deer, food := passive.food, rng := passive.rng }
 
-/-- Complete executing world step. The passive lookup sees the advanced clock;
-the returned state's clock is advanced exactly once from the original active state. -/
 def World.step {config : WorldConfig} (world : World config) (action : Action) :
     Except WorldError (World config × StepResult) := do
   let active ← payAndAct world action
@@ -179,7 +141,6 @@ def World.step {config : WorldConfig} (world : World config) (action : Action) :
   let next := acted.applyPassive passive
   return (next, { active.events with done := decide next.GoalSatisfied })
 
-/-- Every successful step advances exactly one wrapping physical tick. -/
 theorem World.step_clock {config : WorldConfig} (world next : World config) (action : Action)
     (events : StepResult) (h : world.step action = .ok (next, events)) :
     next.time = world.time + 1 := by
@@ -195,7 +156,6 @@ theorem World.step_clock {config : WorldConfig} (world next : World config) (act
       rw [← h.1]
       rfl
 
-/-- World dynamics cannot change the installed task or its clock origin. -/
 theorem World.step_goal {config : WorldConfig} (world next : World config) (action : Action)
     (events : StepResult) (h : world.step action = .ok (next, events)) :
     next.goal = world.goal ∧ next.goalStart = world.goalStart := by
@@ -211,7 +171,6 @@ theorem World.step_goal {config : WorldConfig} (world next : World config) (acti
       rw [← h.1]
       exact ⟨rfl, rfl⟩
 
-/-- The returned completion event reads the actual successor's task relation. -/
 theorem World.step_completion {config : WorldConfig} (world next : World config) (action : Action)
     (events : StepResult) (h : world.step action = .ok (next, events)) :
     events.done = next.goalSatisfied := by
@@ -226,7 +185,6 @@ theorem World.step_completion {config : WorldConfig} (world next : World config)
       simp only [hp, pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
       rw [← h.1, ← h.2, World.decide_goalSatisfied]
 
-/-- Execute a finite action stream through the same world transition, retaining no history. -/
 def World.advanceActions {config : WorldConfig} : World config → List Action →
     Except WorldError (World config)
   | world, [] => .ok world
@@ -234,7 +192,6 @@ def World.advanceActions {config : WorldConfig} : World config → List Action �
     let (next, _) ← world.step action
     next.advanceActions rest
 
-/-- Every successful finite action stream advances exactly its length, modulo 2^64. -/
 theorem World.advanceActions_clock {config : WorldConfig} (world next : World config)
     (actions : List Action) (h : world.advanceActions actions = .ok next) :
     next.time = world.time + actions.length.toUInt64 := by
@@ -249,7 +206,6 @@ theorem World.advanceActions_clock {config : WorldConfig} (world next : World co
       rw [ih pair.1 h, World.step_clock world pair.1 action pair.2 hs]
       simp [UInt64.add_assoc, UInt64.add_comm]
 
-/-- No finite action stream can replace its installed task or its clock origin. -/
 theorem World.advanceActions_goal {config : WorldConfig} (world next : World config)
     (actions : List Action) (h : world.advanceActions actions = .ok next) :
     next.goal = world.goal ∧ next.goalStart = world.goalStart := by

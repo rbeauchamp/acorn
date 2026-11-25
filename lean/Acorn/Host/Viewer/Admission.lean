@@ -1,58 +1,32 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.Lifecycle
 import Acorn.Host.Viewer.ClockProgram
 
-/-!
-# Observer identity and ordering admission
-
-Durable identity, capture ordering and frame ordering are independent checks.
-The current browser contract admits one repeated lifetime clock only for the
-terminal capture following its nonterminal predecessor. A newer timestamp on
-an older lifetime clock is an explicit rewind, not fresh learning. No rejected
-record mutates the retained-frame watermark. The maximum valid-frame timestamp
-is independent and may advance when a newer capture reports a rewind.
--/
 namespace Acorn.Host.Viewer
 
-/-- Exact source counters, before any browser number conversion. -/
 structure Capture where
-  /-- Durable run identifier. -/
   run : UInt64
-  /-- Durable logical agent epoch. -/
   epoch : UInt64
-  /-- Capture time in milliseconds. -/
   timestamp : UInt64
-  /-- Checkpoint-persistent agent clock. -/
   lifetime : UInt64
-  /-- Process/world clock. -/
   world : UInt64
-  /-- A final capture after the environment committed the last action. -/
   terminal : Bool
   deriving DecidableEq, BEq
 
-/-- A record must name the identity currently published by the supervisor. -/
 def Capture.matches (capture : Capture) (identity : Identity) : Bool :=
   capture.run == identity.run && capture.epoch == identity.agentEpoch
 
-/-- Strict lexicographic capture order, without arithmetic overflow. -/
 def Capture.after (next previous : Capture) : Bool :=
   ClockProgram.after.eval fun i =>
     match i.val with
     | 0 => next.timestamp.toNat | 1 => next.lifetime.toNat | 2 => next.world.toNat
     | 3 => previous.timestamp.toNat | 4 => previous.lifetime.toNat | _ => previous.world.toNat
 
-/-- The one legal repeated lifetime clock derives from the terminal capture schedule. -/
 def Capture.follows (next previous : Capture) : Bool :=
   ClockProgram.follows.eval fun i =>
     match i.val with
     | 0 => next.lifetime.toNat | 1 => next.world.toNat | 2 => if next.terminal then 1 else 0
     | 3 => previous.lifetime.toNat | 4 => previous.world.toNat | _ => if previous.terminal then 1 else 0
 
-/-- No capture can refresh health by repeating itself. -/
 theorem Capture.after_irreflexive (capture : Capture) : capture.after capture = false := by
   change (decide (capture.timestamp.toNat < capture.timestamp.toNat) ||
     ((capture.timestamp.toNat == capture.timestamp.toNat) &&
@@ -61,7 +35,6 @@ theorem Capture.after_irreflexive (capture : Capture) : capture.after capture = 
           decide (capture.world.toNat < capture.world.toNat))))) = false
   simp
 
-/-- Equal lifetime clocks require precisely the terminal successor-world capture. -/
 theorem Capture.follows_equal_lifetime (next previous : Capture)
     (same : next.lifetime = previous.lifetime) :
     next.follows previous =
@@ -74,36 +47,25 @@ theorem Capture.follows_equal_lifetime (next previous : Capture)
   cases hn : next.terminal <;> cases hp : previous.terminal <;>
     simp_all
 
-/-- Every outcome states whether a complete frame entered retained history. -/
 inductive Intake where
-  /-- A complete current record was retained. -/
   | stored
-  /-- Wrong identity or duplicate/older capture. -/
   | skipped
-  /-- Newer physical capture with a backwards or repeated agent clock. -/
   | rewound
   deriving DecidableEq, BEq
 
-/-- A retained watermark names the same durable identity as its containing state. -/
 structure Admission (identity : Identity) where
-  /-- Last accepted capture, absent before the first frame. -/
   previous : Option Capture
-  /-- Neither restore nor direct construction can mix agent identities. -/
   identityBound : ∀ capture, previous = some capture → capture.matches identity = true
-  /-- Maximum timestamp of a schema-valid current-identity frame, including rewinds. -/
   newestTimestamp : Option UInt64 := none
 
-/-- A new durable identity begins without an inherited watermark. -/
 def Admission.empty (identity : Identity) : Admission identity := ⟨none, by simp, none⟩
 
-/-- Timestamp health is independent of whether a frame enters retained history. -/
 def Admission.noteTimestamp {identity : Identity} (state : Admission identity) (timestamp : UInt64) :
     Admission identity :=
   { state with newestTimestamp := some (match state.newestTimestamp with
       | none => timestamp
       | some previous => max previous timestamp) }
 
-/-- Whole-record admission preserves the browser's distinct history and timestamp rules. -/
 def Admission.receive {identity : Identity} (state : Admission identity) (capture : Capture) :
     Intake × Admission identity :=
   if same : capture.matches identity = true then
@@ -118,12 +80,10 @@ def Admission.receive {identity : Identity} (state : Admission identity) (captur
       else if fresh then (.rewound, stamped) else (.skipped, stamped)
   else (.skipped, state)
 
-/-- Wrong-identity input preserves both retained-frame and timestamp state. -/
 theorem Admission.wrong_identity {identity : Identity} (state : Admission identity) (capture : Capture)
     (wrong : capture.matches identity = false) :
     state.receive capture = (.skipped, state) := by simp [receive, wrong]
 
-/-- Refused or skipped frames cannot move the retained-frame watermark. -/
 theorem Admission.rejected_preserves_history {identity : Identity} (state : Admission identity)
     (capture : Capture) (rejected : (state.receive capture).1 ≠ .stored) :
     (state.receive capture).2.previous = state.previous := by
@@ -137,7 +97,6 @@ theorem Admission.rejected_preserves_history {identity : Identity} (state : Admi
         split <;> simp [noteTimestamp, previous]
   · simp [receive, same]
 
-/-- A stored frame installs exactly its own complete capture as the history watermark. -/
 theorem Admission.stored_capture {identity : Identity} (state : Admission identity) (capture : Capture)
     (stored : (state.receive capture).1 = .stored) :
     (state.receive capture).2.previous = some capture := by
@@ -151,17 +110,12 @@ theorem Admission.stored_capture {identity : Identity} (state : Admission identi
         split at stored <;> contradiction
   · simp [receive, same] at stored
 
-/-- Envelope freshness is checked before full schema/ring admission, independently. -/
 structure HealthAdmission (identity : Identity) where
-  /-- Last current-identity envelope that advanced the capture order. -/
   previous : Option Capture
-  /-- An envelope watermark cannot belong to another logical agent. -/
   identityBound : ∀ capture, previous = some capture → capture.matches identity = true
 
-/-- A new identity starts with no asserted stream progress. -/
 def HealthAdmission.empty (identity : Identity) : HealthAdmission identity := ⟨none, by simp⟩
 
-/-- Even a frame with a refused scientific field can report fresh capture activity. -/
 def HealthAdmission.receive {identity : Identity} (state : HealthAdmission identity) (capture : Capture) :
     Bool × HealthAdmission identity :=
   if same : capture.matches identity = true then
@@ -170,7 +124,6 @@ def HealthAdmission.receive {identity : Identity} (state : HealthAdmission ident
     else (false, state)
   else (false, state)
 
-/-- Stale or wrong-identity envelopes cannot assert stream freshness. -/
 theorem HealthAdmission.rejected_preserves {identity : Identity} (state : HealthAdmission identity)
     (capture : Capture) (rejected : (state.receive capture).1 = false) :
     (state.receive capture).2 = state := by
