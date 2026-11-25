@@ -384,14 +384,16 @@ they add no conjunctions. Until
 robustness to some collisions: the slot hash read a tiling's salt and a word's
 channel only through their XOR, so two words with one value on channels whose
 XOR is below 8, such as the wood and stone buckets or energy and the day phase,
-had the same eight slots for every seed (argued). The slot hash now mixes the
-salt before the channel enters (`Rng.hash3_eq_iff`, machine-checked), so whether
-two words share a slot depends on the seed (argued): wood and stone words with
-equal values do not universally share all eight tiling slots across 8-tiling
-configurations (`CurrentHashes.wood_not_stone`, machine-checked, proved via the
-standard configuration at seed 0 where the wood word's tiling-0 slot matches
-none of the stone word's tilings; argued for that witness description). The U6
-and U7 runs had the aliased pairs (argued).
+had the same eight slots for every seed (argued). The slot hash now feeds the
+tiling salt (`config.seed ^^^ tiling.toUInt64`) as the first argument to
+`Rng.hash3` (`tiledFeatures_def`, machine-checked), which mixes its first
+argument before its second enters (`Rng.hash3_eq_iff`, machine-checked), so
+whether two words share a slot depends on the seed (argued): wood and stone
+words with equal values do not universally share all eight tiling slots across
+8-tiling configurations (`CurrentHashes.wood_not_stone`, machine-checked, proved
+via the standard configuration at seed 0 where the wood word's tiling-0 slot
+matches none of the stone word's tilings; argued for that witness description).
+The U6 and U7 runs had the aliased pairs (argued).
 
 **Lemma.** Suppose that in s and s′ no active slot is shared between a tile or
 imprint feature and a task, inventory, energy, day or prediction word. Then
@@ -639,27 +641,31 @@ F-E left its feature-construction end inert until U3.
   (`rerankModels`; argued). The
   subtask ranking now runs at every free dispatch and reads no host event
   (argued from `TemporalControl.selectWithOperations` and the machine-checked
-  theorems below). A free dispatch is a decision that draws a meta decision. A
-  hierarchical agent draws one whenever it serves no committed exploration run
-  and no option is active (`TemporalControl.select_drawn`, machine-checked). The
-  decision at which an active option ends is also a free dispatch, by the
-  definition of `TemporalControl.selectWithOperations` (argued), and every free
-  dispatch records its meta decision (`TemporalControl.atBoundary_interest`,
-  machine-checked).
-  The decision is then taken with the slots holding
-  exactly the ranked candidates' units, one slot per candidate, for the Demon-0
-  weights the decision started from (`TemporalControl.select_assigns`,
-  `TemporalControl.select_occupancy`, machine-checked for profiles with
-  `ranksSubtasks = true`). Three limits remain (argued, with
-  `TemporalControl.primitive_undrawn` machine-checked). The ranking does not run
-  on a step that continues an option or serves an exploration run (argued).
-  Selection runs before the reward delivered with a decision is learned, so a
-  candidate that reward creates is installed at the next free dispatch, not at
-  that decision (argued). A primitive-only profile draws no meta decision
-  (`TemporalControl.primitive_undrawn`, machine-checked). Its selection returns
-  before the refresh, so it assigns no subtask; that is argued from the
-  definition of `TemporalControl.selectWithOperations` and is not a stated
-  theorem.
+  theorems below). A free dispatch is a decision that draws a meta decision.
+  Whenever `TemporalControl.selectWithOperations` returns a decision for a
+  hierarchical profile with no served committed exploration run and no active
+  option, it draws a meta decision (`TemporalControl.select_drawn`,
+  machine-checked). The decision at which an active option ends is also a free
+  dispatch, by the definition of `TemporalControl.selectWithOperations`
+  (argued), and every successful boundary call records its meta decision
+  (`TemporalControl.atBoundary_interest`, machine-checked). Whenever
+  `TemporalControl.selectWithOperations` returns a post-selection state with a
+  drawn meta decision for a profile with `ranksSubtasks = true`, that resulting
+  state's slots hold exactly the ranked candidates' units, one slot per
+  candidate, for the Demon-0 weights the decision started from
+  (`TemporalControl.select_assigns`, `TemporalControl.select_occupancy`,
+  machine-checked; that the meta decision inside that boundary reads those
+  refreshed slots is argued from `TemporalControl.selectWithOperations`). Three
+  limits remain (argued, with `TemporalControl.primitive_undrawn`
+  machine-checked). The ranking does not run on a step that continues an option
+  or serves an exploration run (argued). Selection runs before the reward
+  delivered with a decision is learned, so a candidate that reward creates is
+  installed at the next free dispatch, not at that decision (argued). Whenever
+  `TemporalControl.selectWithOperations` returns a decision for a primitive-only
+  profile, it draws no meta decision (`TemporalControl.primitive_undrawn`,
+  machine-checked). Its selection returns before the refresh, so it assigns no
+  subtask; that is argued from the definition of
+  `TemporalControl.selectWithOperations` and is not a stated theorem.
 - **The route to representation search (argued).** Swift-Sarsa is presented as
   opening the door to learning representations "by searching over hundreds of
   millions of features in parallel" [[3]](#r3), leaning on step-size credit
@@ -806,9 +812,10 @@ The implementation summary below is argued from the executed definitions and the
 machine-checked theorems listed at the end of this subsection.
 
 - **Sign.** Only units whose signed Demon-0 weight is positive are candidates, and
-  that positive word is both score and bonus (`candidateOfWeight`). The `Bonus`
-  type makes every selected bonus positive and finite at ranking, checkpoint
-  admission and the diagnostic driver (`Bonus.finite_positive`, machine-checked).
+  that positive word is both score and bonus (`candidateOfWeight`). Every value
+  of type `Bonus` is positive and finite (`Bonus.finite_positive`,
+  machine-checked); ranking, checkpoint admission and the diagnostic driver
+  construct and pass values of that type (argued).
 - **Identity.** Objective identity is the unit alone (`Assignment.same`).
 - **Held bonus.** The bonus is held from selection and, while the unit stays
   ranked, raised at each refresh to the current weight when that is larger: a
@@ -817,25 +824,29 @@ machine-checked theorems listed at the end of this subsection.
   only slots whose unit left the ranking are reinstalled (`rankAssignments`;
   retention of the first matching slot is machine-checked by
   `FreeDispatch.refresh_retains`).
-- **Retirement.** A held unit is retired only at a free boundary, where every
-  slot holding it is released to the neutral objective
-  (`FeatureRuntime.retire_releases`, `FeatureRuntime.retire_occupied`,
-  machine-checked).
+- **Retirement.** A held unit is retired only at a free boundary: away from a
+  free boundary, retirement updates only `lifecycle` with `free = false` and
+  `recent` (`FeatureRuntime.retire_occupied`, machine-checked), and `test false`
+  replaces no held unit (`Lifecycle.test_unheld`, machine-checked); when units
+  are retired, every slot holding a retired unit is released to the neutral
+  objective (`FeatureRuntime.retire_releases`, machine-checked).
 - **Distinct units.** No two slots hold the same unit, from admission on:
   every refresh leaves them distinct whatever it starts from
   (`FreeDispatch.refresh_distinct`, machine-checked), and the initial state and
-  every step carry distinctness within alignment (`TemporalControl.initial_aligned`,
-  `TemporalControl.step_total`, machine-checked); checkpoint admission refuses
+  every step from an aligned state carry distinctness within alignment
+  (`TemporalControl.initial_aligned`, `TemporalControl.step_total`,
+  machine-checked); checkpoint admission refuses
   an image whose slots repeat one (argued). U1's checkpoint format 15 added the
   held bonus word and refused earlier generations (argued; current format is 21).
 
 Machine-checked: `FreeDispatch.refresh_retains`, `FreeDispatch.refresh_distinct`,
 `Bonus.finite_positive`, `CurrentTemporal.attained_stopping` (the executed attained
 stopping value is at least the estimate for finite estimates within the
-prediction cap), `Assignment.words_roundtrip`, `FeatureRuntime.retire_releases`,
-`FeatureRuntime.retire_occupied`, `TemporalControl.initial_aligned`,
-`TemporalControl.step_total`, and the unchanged
-`FreeDispatch.install_closing_owner` and `FreeDispatch.install_retains_owner`.
+prediction cap), `Assignment.words_roundtrip`, `Lifecycle.test_unheld`,
+`FeatureRuntime.retire_releases`, `FeatureRuntime.retire_occupied`,
+`TemporalControl.initial_aligned`, `TemporalControl.step_total`, and the
+unchanged `FreeDispatch.install_closing_owner` and
+`FreeDispatch.install_retains_owner`.
 U1 does not establish that options now learn useful behaviour (UNKNOWN), how
 often units leave the ranking (UNKNOWN), or that a hashed-slot weight is a good
 attainment target (open).
@@ -907,10 +918,16 @@ machine-checked theorems listed at the end of this subsection.
   identity applied to the executed update by hand: argued).
 - **Ranked subset.** The slots are those of the ranked score blocks of positive
   Demon-0 weight, the subtask ranking continued from 3 entries to 63
-  ([[20]](#r20) Step 8(d), p. 9). The width of 64 positions follows from a
-  memory budget: the largest power of two for which the rows of all three
-  transition parts fit in one weight vector (`rankWidth_budget`,
-  `rankWidth_maximal`, machine-checked). The last position is the constant input.
+  ([[20]](#r20) Step 8(d), p. 9). At the standard capacity of 16,384 slots, the
+  width is 64 positions (`CurrentPlanning.default_width`, machine-checked). That
+  width follows from the memory budget: whenever the dimension's capacity is at
+  least `Acorn.FeatureConstants.skillCount`, `rankWidth` is the largest power of
+  two whose squared count across all three skills fits within that capacity
+  (`rankWidth_budget`, `rankWidth_maximal`, machine-checked), and
+  `CurrentPlanning.transition_storage` and `CurrentPlanning.transition_budget`
+  (machine-checked) tie transition-part storage to that budget (with the
+  one-weight-vector framing argued from those bounds). The last position is the
+  constant input.
 - **Residual.** The value function reads every active feature, so for each meta
   action the model also predicts that action's value at the outcome's unranked
   slots. It does so in two parts that add up exactly: a shared residual, which
@@ -1038,14 +1055,14 @@ All implementation characterizations in the alternatives below are argued.
   `GridCorrespondence.initial_eq`, `GridCorrespondence.act_eq`,
   `GridCorrespondence.callback_eq`, `CurrentCheckpoint.load_saved`,
   `Grid.interface_timing`, `Microduck.interface_timing`, `runAttempt_complete`,
-  `frame_congr`, `act_learners`, `Rng.hash3_eq_iff`,
+  `frame_congr`, `act_learners`, `tiledFeatures_def`, `Rng.hash3_eq_iff`,
   `CurrentHashes.wood_not_stone`, `TemporalControl.finish_credit`,
   `TemporalControl.select_drawn`, `TemporalControl.atBoundary_interest`,
   `TemporalControl.select_assigns`, `TemporalControl.select_occupancy`,
   `TemporalControl.primitive_undrawn`, `CurrentTemporal.select_persistent`,
-  `Lifecycle.test_accrual`, `run_turnover`, `run_mature_turnover`,
-  `rankWidth_budget` and `rankWidth_maximal`). All are compiled by
-  `./scripts/verify.sh` on the current head.
+  `Lifecycle.test_accrual`, `Lifecycle.test_unheld`, `run_turnover`,
+  `run_mature_turnover`, `rankWidth_budget` and `rankWidth_maximal`). All are
+  compiled by `./scripts/verify.sh` on the current head.
 - **Argued.** All implementation descriptions, scorecard verdicts and counts,
   wiring and no-replay statements, U1 to U5 narrative summaries, and F-A to F-F,
   including F-C's initial derived rate, E[D] = H₁₂₈, the renewal fraction of
