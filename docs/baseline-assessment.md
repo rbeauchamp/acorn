@@ -48,14 +48,17 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 **Partly.**
 
 - **Learners: met (argued; paper-equation transcription fidelity assumed).**
-  Every one of Acorn's full-width stored learners (57 under the discounted
-  criterion; 60 under differential control, which adds one duration learner per
-  skill), and every row and deviation learner of the option models' transition
+  Every one of Acorn's full-width stored learners (for the grid instance, 57
+  under the discounted criterion and 60 under differential control, which adds
+  one duration learner per skill; for the Microduck instance, 55 and 58 under
+  the same storage layout, with ten actions and four additional prediction
+  signals), and every row and deviation learner of the option models' transition
   parts, is SwiftTD or Swift-Sarsa, transcribed with declared corrections
   ([PAR-1](prior-art-review.md#par-1--swifttd),
-  [PAR-2](prior-art-review.md#par-2--swift-sarsa)) (argued from `Ensemble`,
-  `Model.storage_count`, `Transition`, `NumericState.step`, and
-  `Controller.valuesStep`; faithful transcription of the paper equations
+  [PAR-2](prior-art-review.md#par-2--swift-sarsa)) (argued from
+  `Ensemble.stored`, `Model.storage_count`, `Interface.layout`,
+  `Grid.interface`, `Microduck.interface`, `Transition`, `NumericState.step`,
+  and `Controller.valuesStep`; faithful transcription of the paper equations
   recorded in earlier reviews is assumed). This matches OaK's
   requirement that each learned weight has its own meta-learned step size
   (argued).
@@ -108,8 +111,8 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   update does on a stated model is a mathematical question that stays open.
   Both runs were measured before
   [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature,
-  cue and terrain hashes; they describe the code before that change, and the
-  current code has not been run on their protocol.
+  cue and terrain hashes (argued from commit a56d707); they describe the code
+  before that change, and the current code has not been run on their protocol.
 
 The defects survived for an instructive reason (argued). Acorn's proofs state
 safety and admission properties, such as "the stored state stays legal" or "this
@@ -147,7 +150,7 @@ Verdicts:
 | Search control [[11]](#r11) | Step 9 | A sweep over the 128 most recent earlier feature vectors, one per decision boundary, against the order they were written in | **Adapted, minimal** (after U5) | **Argued**; priorities **open** | Before U5 planning happened only at the current state (argued). The store holds feature vectors only (argued from `RecentFeatures` and `planningBoundary`). Priorities and other strategies are open ([#15](https://github.com/rbeauchamp/acorn/issues/15)). |
 | εz-greedy [[12]](#r12) | Step 9 exploration | Capped 1/n-tail duration ([D3](learned-only-binding.md#d3--exploration-duration--step-9)) and, since U2, a declared rate ε = 0.01 ([D6](learned-only-binding.md#d6--exploration-rate--step-9)); a persistent run may start at every decision, whichever layer acts | **Adapted** (after U2) | **Argued** from **machine-checked** U2 and `#58` theorems | The duration law is a tail-equivalent surrogate for the published zeta law (argued). At 86ce779 the rate was a local derivation with no published source, starting near 0.63 (F-C; argued); U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)) replaced it with a declared 0.01 (argued from machine-checked `TemporalControl.declared_rates`). That is the source's CartPole setting (Appendix A, p. 14). Its Rainbow-based Atari agents reach 0.01 only at the end of a schedule: ε "follows a linear decay schedule 1.0 to 0.01 over the course of the first 4M frames" (Appendix B.3, p. 15; Table 2, p. 16). D6 keeps the constant and removes the decay (argued). Counting one step as one frame, ε on that schedule is still about 0.99 after the 34 000 steps a first pass can take, so a whole first pass lies inside the phase D6 removed (argued). The source's Algorithm 1 (p. 14) applies the persistent draw to the agent's one behaviour policy. Acorn's primitive control and executing options both make that draw, and a run an option begins interrupts it (argued from machine-checked `CurrentTemporal.select_persistent`); until [#58](https://github.com/rbeauchamp/acorn/issues/58) only primitive control did, so while the meta-controller held options the mechanism rarely ran ([first-pass consequences](#f-c--the-derived-exploration-rate-started-near-063)) (argued). |
 | Average reward [[13]](#r13) | Steps 5 to 7 | Selectable differential control, demoted; gain updated from the reward residual | **Adapted, partial** | **Argued** | Differential Q-learning updates the average-reward estimate with the TD error ([PAR-15](prior-art-review.md#par-15--differential-control)); average-reward GVFs are absent (argued from the executed definitions). |
-| Reward centering [[14]](#r14) | Steps 5 and 6 | — | **Missing** | **Argued** | A cheap, general fix for discounted methods with discount near 1. Acorn uses γ = 0.99 for control, options and Demon 0, and γ = 0.95 or 0.90 for Demons 1 to 10 (argued from the executed discount configuration and `demonDiscount`). |
+| Reward centering [[14]](#r14) | Steps 5 and 6 | — | **Missing** | **Argued** | A cheap, general fix for discounted methods with discount near 1. Under the discounted criterion Acorn uses γ = 0.99 for control and options, whereas under differential control the shared criterion maps control and options to γ = 1; Demon 0 uses γ = 0.99 across interfaces, and in the grid instance Demons 1 to 10 use γ = 0.95 or 0.90 (argued from `Criterion.rule`, `ValueRule.gamma`, `Ensemble`, `Interface.layout`, and `demonDiscount`). |
 | Learned agent state [[15]](#r15) | Perception | Only the fed-back GVF buckets | **Missing** | **Argued** | Severe partial observability (an 11 × 11 view of a 1024 × 1024 world) with no learned memory (argued from `observationWords` and `Acorn.Host.WorldConfig.standard`). |
 | Off-policy learning [[4]](#r4) [[7]](#r7) | Steps 3 and 10 | Options only | **Adapted, partial** (after U4) | **Argued** from **machine-checked** U4 theorems | Option policies learn by tree backup [[21]](#r21) and option models along frames whose action was selected with the option's own distribution ([[9]](#r9) §5) (argued from the executed definitions and machine-checked U4 theorems). The option models learn semi-gradient along those frames, without a gradient-TD correction (argued). The questions about each option's policy that learned along the same frames with one were retired ([#169](https://github.com/rbeauchamp/acorn/issues/169), [PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued). |
 | Utility feedback [[20]](#r20) | Step 11: feedback that assesses the utility of every element and replaces the least useful | — | **Missing (declared)** | **Argued** | The complete OaK loop is outside the implementation ([design](design.md#implementation-scope)) (argued). |
@@ -216,8 +219,8 @@ U1 made identity the unit alone (`Assignment.same`) and made refresh slot-stable
 every Demon-0 weight array, that the first slot holding a still-ranked unit
 keeps its policy, model, cached prediction and meta-controller row, and that its
 held bonus never decreases. A slot is now reinstalled only when its unit leaves
-the ranking or is retired (argued from `rankAssignments` and machine-checked
-`FeatureRuntime.retire_releases`). How often that happens is UNKNOWN: it depends
+the ranking or is retired (argued from `rankAssignments`, `Ensemble.release`,
+`Ensemble.releaseAll` and machine-checked `FeatureRuntime.retire_releases`). How often that happens is UNKNOWN: it depends
 on the stream. Since [#57](https://github.com/rbeauchamp/acorn/issues/57) the
 refresh runs at every free dispatch, so a unit that leaves the three ranked
 score blocks is replaced at the next free dispatch rather than after the next
@@ -355,7 +358,8 @@ conformance with the source; the second was repaired:
   recorded seeds (16265277883658242538 and 8789851314873071931) with per-step
   telemetry; they are diagnostics, observed on those two seeds before the
   repair and before [#155](https://github.com/rbeauchamp/acorn/issues/155)
-  changed the feature, cue and terrain hashes, and not study evidence. An
+  changed the feature, cue and terrain hashes (argued from commit a56d707), and
+  not study evidence. An
   executing option now makes the persistent draw too, and a run it begins
   interrupts it
   ([D3](learned-only-binding.md#d3--exploration-duration--step-9),
@@ -720,8 +724,8 @@ executed definitions and labelled inline.
 | U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **Landed** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
-| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
-| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Run: refuted at this horizon** ([result](studies/repeated-visits-vs-chance/results.md), [protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). Authorized and run on 2026-10-04 as revision 2 at commit 96e3f6b, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes. Of 20 seeds: W 0, losses 1, ties 19, M 0; 95% interval for the fraction of wins 0.000 to 0.169 |
+| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes (argued from commit a56d707). Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
+| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Run: refuted at this horizon** ([result](studies/repeated-visits-vs-chance/results.md), [protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). Authorized and run on 2026-10-04 as revision 2 at commit 96e3f6b, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes (argued from commit a56d707). Of 20 seeds: W 0, losses 1, ties 19, M 0; 95% interval for the fraction of wins 0.000 to 0.169 |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
 published one makes turnover reachable by construction (argued from the
@@ -736,7 +740,7 @@ random-policy diagnostic was a matched comparator when it was written (argued). 
 owner authorized revision 1 on 2026-10-03, and it was run that day at commit
 6ac4eec, the commit that registered it, before
 [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue
-and terrain hashes. The [result](studies/first-pass-vs-chance/results.md) is
+and terrain hashes (argued from commit a56d707). The [result](studies/first-pass-vs-chance/results.md) is
 **refuted at this horizon**: in most worlds the agent does not achieve more
 goals than chance in its first pass. Of 20 seeds, all with a valid outcome, the
 agent achieved at least one more goal than the comparator on 4 (W), fewer on 9
@@ -777,7 +781,7 @@ goals need continual learning.
 The owner authorized execution after issue 58 landed, as revision 2 at its
 registering commit, and it was run on 2026-10-04 at commit 96e3f6b, the commit
 that registered it, before [#155](https://github.com/rbeauchamp/acorn/issues/155)
-changed the feature, cue and terrain hashes. The [result](studies/repeated-visits-vs-chance/results.md)
+changed the feature, cue and terrain hashes (argued from commit a56d707). The [result](studies/repeated-visits-vs-chance/results.md)
 is **refuted at this horizon**: in most worlds the agent's reach attempts do
 not shorten over repeated visits by at least 300 steps per attempt and by at
 least 300 more than chance's. Of 20 seeds, all with a valid outcome, none is a
@@ -834,8 +838,11 @@ machine-checked theorems listed at the end of this subsection.
   free boundary, retirement updates only `lifecycle` with `free = false` and
   `recent` (`FeatureRuntime.retire_occupied`, machine-checked), and `test false`
   replaces no held unit (`Lifecycle.test_unheld`, machine-checked); when units
-  are retired, every slot holding a retired unit is released to the neutral
-  objective (`FeatureRuntime.retire_releases`, machine-checked).
+  are retired, no slot still holds any retired unit
+  (`FeatureRuntime.retire_releases`, machine-checked), and each slot holding a
+  retired unit is replaced with a fresh skill at the neutral objective
+  (argued from `Ensemble.release` and the `Ensemble.releaseAll` fold in
+  `FeatureRuntime.retire`).
 - **Distinct units.** No two slots hold the same unit, from admission on:
   every refresh leaves them distinct whatever it starts from
   (`FreeDispatch.refresh_distinct`, machine-checked), and the initial state and
