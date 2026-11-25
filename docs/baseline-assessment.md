@@ -98,9 +98,10 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   attempt more than chance's do (U7). Each compares the whole agent, learning
   throughout, with a comparator that is not an ablation of it, so even a win
   would not separate learning from authored behavioural structure such as
-  exploration duration (U6), or from what persists differently in the two
+  exploration duration (argued; U6), or from what persists differently in the two
   worlds, since each arm carries its own position and inventory into the next
-  cycle and these can differ (U7). Neither observation shows that the agent
+  cycle (argued from `World.setGoal`, `Attempt.start` and
+  `BaselineAttempt.start`) and these can differ (U7). Neither observation shows that the agent
   cannot learn. Whether it learns on goals it does achieve, or over a longer
   horizon, these comparisons do not settle: U7's per-goal counts are
   exploratory and cannot say what learning caused, and what its executed
@@ -498,7 +499,8 @@ F-E left its feature-construction end inert until U3.
     credit assignment (argued from `TemporalControl.step`, `NumericState.step`,
     and `RecentFeatures`, which stores feature vectors only—with no action,
     reward or successor—for planning backups rather than training replay).
-- **Agent and world size.** "The big world hypothesis says that in many
+- **Agent and world size (argued; parameter-budget counts Lean-proved over
+  declared model inputs).** "The big world hypothesis says that in many
   decision-making problems the agent is orders of magnitude smaller than the
   environment" [[19]](#r19). Acorn's standard setting does not have that
   relation in bits: about 1.9 million learned parameters hold 59.8 million
@@ -708,7 +710,8 @@ its source says, cheapest decisive fix first. Each unit is justified by
 derivation, not measurement. Implementation summaries in U1 to U5 below are
 argued from the executed definitions and the machine-checked theorems cited
 under each unit; U6 and U7 report observed registered-study outcomes and
-decisions.
+decisions, with implementation explanations in their prose argued from the
+executed definitions and labelled inline.
 
 | Unit | Change | Source | Size | Decisive because | Status |
 |---|---|---|---|---|---|
@@ -729,7 +732,7 @@ started, and its branch and in-progress evidence are kept.
 
 U6's [protocol](studies/first-pass-vs-chance/protocol.md) compares the two over
 one pass of the curriculum, the longest horizon on which the core's
-random-policy diagnostic was a matched comparator when it was written. The
+random-policy diagnostic was a matched comparator when it was written (argued). The
 owner authorized revision 1 on 2026-10-03, and it was run that day at commit
 6ac4eec, the commit that registered it, before
 [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue
@@ -750,7 +753,9 @@ them get shorter, and by more than those of that policy. The comparator now
 follows the agent's whole campaign: the same
 admitted plan and attempt-boundary function, in a second copy of the initial
 world carried from attempt to attempt
-([outcome CSV](design.md#outcome-csv)). Because inventory and tools persist, an
+([outcome CSV](design.md#outcome-csv); argued from `runRandomBaseline` and
+`runBaselineCampaign`). Because inventory and tools persist (argued from
+`World.setGoal`, `Attempt.start` and `BaselineAttempt.start`), an
 arm can achieve more goals in a later cycle on what it kept, without anything
 being learned, so the protocol compares the steps of each arm's first two
 visits to the two reach goals with those of its next two, over four cycles and
@@ -782,7 +787,8 @@ Almost no reach attempt reached its target: of 160 reach visits the agent
 achieved one, on its first visit to the near target on one seed, and the
 comparator none, so on 19 seeds every cost is the cap and both improvements
 are 0. The result does not show that the agent cannot learn the reach goals.
-It is rewarded for a goal only on achieving it, so with one achievement it
+It is rewarded for a goal only on achieving it (argued from
+`StepResult.reward` and `World.step`), so with one achievement it
 received almost nothing to learn them from, and what its attempts do once it
 reaches targets was not observed. It does not show that the agent does worse
 than chance: the interval for the fraction of losses is 0.001 to 0.249. And it
@@ -1064,7 +1070,8 @@ All implementation characterizations in the alternatives below are argued.
   `run_mature_turnover`, `rankWidth_budget` and `rankWidth_maximal`). All are
   compiled by `./scripts/verify.sh` on the current head.
 - **Argued.** All implementation descriptions, scorecard verdicts and counts,
-  wiring and no-replay statements, U1 to U5 narrative summaries, and F-A to F-F,
+  wiring and no-replay statements, U1 to U5 narrative summaries, U6 and U7
+  implementation explanations, and F-A to F-F,
   including F-C's initial derived rate, E[D] = H₁₂₈, the renewal fraction of
   about 0.90, and F-D's lemma (conditional on equal prediction buckets and no
   layout collision). None is machine-checked as stated. The repairs of F-A, F-B,
