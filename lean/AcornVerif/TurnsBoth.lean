@@ -1,55 +1,4 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.TurnsKeeping
-
-/-!
-# Mastery of a grid of members
-
-`AcornVerif.Kernel.MastersBy` counts the members an agent solves in both situations of one visit
-by one key, a member's part in the first situation. Where a member is a pair of problems, one for
-each situation, that count lets the solved set be chosen so that what the agent meets in one
-situation tells it the other's answer: a set in which each second problem goes with one region
-of first problems is solved from experience of the second situation alone.
-
-`MastersGridBy` closes that. A member has two keys, its part in each situation. The agent
-masters a *grid*: a set of more than `bound` first keys and a set of more than `bound` second
-keys such that, for every first key and every second key of the two sets, the class has a member
-with those keys and the agent solves it on one common visit in both situations. Under one second
-key the first keys of the grid are then more than the bound, and nothing met in the second
-situation tells them apart; so what the agent does in the first situation has to come from the
-first situation. `AcornVerif.CurrentForkedTargetBoth` proves that consequence for concealed
-targets.
-
-The definition asks two more things of each of the two runs of each member of the grid, through
-a predicate `admits` on a member, an order and a visit, to be read as "the agent takes no
-exploratory action on that visit":
-
-- the predicate admits the visit of mastery itself, so the member is solved there by what the
-  agent does when it is not exploring;
-- at least `returns` later visits before the visit `horizon` bring that run's situation of the
-  visit of mastery and are admitted, so there are that many later occasions on which keeping is
-  put to the proof.
-
-What mastery of a grid gives, for every class in turns:
-
-- some member is solved on one visit in both situations (`MastersGridBy.solves`), so no agent
-  driven by a feedback for which the class is mute and apart masters a grid
-  (`FeedbackDriven.mastersGrid`), nor does an agent in the states of one
-  (`MastersGridBy.of_states`, `aloof_mastersGrid`);
-- no agent that keeps nothing masters a grid above a covering bound of the first situation
-  (`turns_need_grid`);
-- with keeping on the admitted visits, each member of the grid is solved again, in each of its
-  two runs, on at least `returns` later visits before the horizon that bring the same situation
-  (`MastersGridBy.kept`).
-
-Degenerate instances, read for what they say. With `returns = 0` the last conjunct asks nothing,
-and with the predicate that admits every visit the definition asks only for the solved grid;
-`MastersGridBy.kept` then gives nothing beyond it. With the predicate that admits no visit no
-agent masters a grid (`mastersGrid_of_never`).
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
@@ -57,12 +6,6 @@ open Acorn.Features
 variable {interface : Interface} {family : TurnClass interface} {goals : family.Goals}
   {length : ℕ}
 
-/-- **Mastery of a grid, on a visit the predicate admits, with later occasions.** Under one
-order, on one visit before the visit `limit`, there are a set of more than `bound` first keys and
-a set of more than `bound` second keys such that for every first key and every second key of the
-two sets the class has a member with those keys for which, in both situations of that visit: the
-agent solves the member on that visit; the predicate admits that visit; and at least `returns`
-later visits before the visit `horizon` bring that situation again and are admitted. -/
 def MastersGridBy (family : TurnClass interface) (goals : family.Goals) (length bound : ℕ)
     {κ μ : Type} (first : family.Index → κ) (second : family.Index → μ)
     (limit horizon returns : ℕ) (admits : family.Index → (ℕ → Bool) → ℕ → Prop)
@@ -83,7 +26,6 @@ variable {κ μ : Type} {first : family.Index → κ} {second : family.Index →
   {bound limit horizon returns : ℕ} {admits : family.Index → (ℕ → Bool) → ℕ → Prop}
   {agent : Agent interface}
 
-/-- An agent that masters a grid before a visit masters it before every later one. -/
 theorem MastersGridBy.mono {later : ℕ} (within : limit ≤ later)
     (masters : MastersGridBy family goals length bound first second limit horizon returns admits
       agent) :
@@ -91,7 +33,6 @@ theorem MastersGridBy.mono {later : ℕ} (within : limit ≤ later)
   obtain ⟨order, visit, firsts, seconds, before, rest⟩ := masters
   exact ⟨order, visit, firsts, seconds, Nat.lt_of_lt_of_le before within, rest⟩
 
-/-- An agent that masters a grid solves some member on one visit in both situations. -/
 theorem MastersGridBy.solves
     (masters : MastersGridBy family goals length bound first second limit horizon returns admits
       agent) :
@@ -106,9 +47,6 @@ theorem MastersGridBy.solves
   obtain ⟨index, -, -, solved⟩ := each one inFirsts two inSeconds
   exact ⟨order, visit, index, before, fun situation => (solved situation).1⟩
 
-/-- **No feedback-driven agent masters a grid**, at any bound, keys, limit, horizon, returns and
-predicate, in a class whose members are forks and whose situations give one feedback until the
-goal is met. -/
 theorem FeedbackDriven.mastersGrid {Φ : Type} {feedback : Percept interface → Φ}
     (blind : FeedbackDriven feedback agent) (mute : Mute feedback family goals)
     (apart : Apart family goals length) :
@@ -118,7 +56,6 @@ theorem FeedbackDriven.mastersGrid {Φ : Type} {feedback : Percept interface →
   obtain ⟨order, visit, index, -, solved⟩ := masters.solves
   exact blind.turn mute apart order visit index solved
 
-/-- An agent in the states of an agent that masters a grid, masters it. -/
 theorem MastersGridBy.of_states {other : Agent interface}
     (same : ∀ (index : family.Index) (order : ℕ → Bool) (time : ℕ),
       stateAt (turns (family.world index) (family.start index) order length) agent
@@ -135,9 +72,6 @@ theorem MastersGridBy.of_states {other : Agent interface}
   exact ⟨index, isOne, isTwo, fun situation =>
     ⟨(solvesTurn_of_states same _ visit index).mp (solved situation).1, (solved situation).2⟩⟩
 
-/-- **An agent that is feedback-driven on everything a class shows it masters no grid.** The
-chooser of `aloof_masters`, made aloof on a set of percepts no member of the class delivers,
-masters no grid: in every member's world in turns its closed loop is the plain chooser's. -/
 theorem aloof_mastersGrid {Φ E Core V : Type} {feedback : Percept interface → Φ}
     (select : E → V → Act interface × E) (core : Core) (seed : E) (prefer : Core → Φ → V)
     (advance : Core → Φ → Act interface → Core)
@@ -156,11 +90,6 @@ theorem aloof_mastersGrid {Φ E Core V : Type} {feedback : Percept interface →
     (turns (family.world index) (family.start index) order length) _
     (fun state => never index state.1) time)
 
-/-- **No agent that keeps nothing masters a grid above a covering bound.** Take a class in turns
-whose first situation's class conceals its goals behind a reference, and a bound such that one
-action sequence meets, from their first starts within a visit, the goals of at most `bound`
-members no two of which have one first key. Then no experience-free agent masters a grid at that
-bound. -/
 theorem turns_need_grid {reference : World interface} {origin : reference.State}
     (hidden : Conceals (family.side false) goals reference origin)
     (covered : ∀ (actions : ℕ → Act interface) (solved : Finset family.Index),
@@ -196,10 +125,6 @@ theorem turns_need_grid {reference : World interface} {origin : reference.State}
     rw [experienceFree_memoryAt law] at solves
     exact ((hidden.withLength length).solves_iff _ _).mp solves
 
-/-- **The grid is kept on the later occasions.** An agent that masters a grid and keeps on the
-admitted visits solves each member of the grid again, in each of the two runs of the visit of
-mastery, on at least `returns` later visits before the horizon that bring that run's situation
-of that visit. -/
 theorem MastersGridBy.kept
     (masters : MastersGridBy family goals length bound first second limit horizon returns admits
       agent)
@@ -224,8 +149,6 @@ theorem MastersGridBy.kept
     keeps index (Function.update order visit situation) visit other after within
       (same.trans (Function.update_self visit situation order).symm) once admitted⟩
 
-/-- Where a predicate admits no visit, no agent masters a grid: mastery asks that the visit of
-mastery is admitted. -/
 theorem mastersGrid_of_never (family : TurnClass interface) (goals : family.Goals)
     (length bound : ℕ) {κ μ : Type} (first : family.Index → κ) (second : family.Index → μ)
     (limit horizon returns : ℕ) (agent : Agent interface) :

@@ -1,22 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Endurance
 import AcornVerif.CurrentState
 
-/-! # Endurance reduction contracts
-
-Horizon selection uses small closed rational bounds and an analytic power
-identity, not replay or native reflection. The invariant is a truncation bound
-for unit-bounded cumulants on the frame stream; native binary64 rounding and the
-telemetry callback schedule remain separate implementation assumptions.
--/
 namespace AcornVerif.Endurance
 open Acorn Acorn.Host.Endurance AcornVerif.CurrentArithmetic
 
-/-- Exact numerical values of the complete discount domain. -/
 theorem gamma_values (discount : Discount) : numerical32 discount.gamma =
     match discount with
     | .g90 => 7549747 / 8388608
@@ -30,15 +17,12 @@ theorem gamma_values (discount : Discount) : numerical32 discount.gamma =
   · change (1:ℚ) * 16609444 * (2:ℚ)^(-24:Int) = _
     norm_num
 
-/-- Grouping powers into a short block avoids full-horizon re-execution. -/
 theorem block_power (gamma bound : ℚ) (block repetitions : Nat)
     (hg : 0 ≤ gamma) (h : gamma ^ block ≤ bound) :
     gamma ^ (block * repetitions) ≤ bound ^ repetitions := by
   rw [pow_mul]
   exact pow_le_pow_left₀ (pow_nonneg hg _) h _
 
-/-- Every closed horizon meets the geometric truncation bound on its exact
-binary32 discount. This does not bound accumulated binary64 rounding error. -/
 theorem horizon_tail (discount : Discount) :
     numerical32 discount.gamma ^ horizon discount / (1 - numerical32 discount.gamma) <
       (2 / 10000000 : ℚ) := by
@@ -62,19 +46,15 @@ theorem horizon_tail (discount : Discount) :
     have grouped := block_power (4152361 / 4194304) (367 / 1000) 100 20 (by norm_num) bound
     exact lt_of_le_of_lt grouped (by norm_num)
 
-/-- Every input frame contributes exactly one count, irrespective of sample timing. -/
 theorem ingest_count (r : Reduction) (f : Frame) : (r.ingest f).frames = r.frames + 1 := rfl
 
-/-- Window closure changes neither stream population nor return history. -/
 theorem close_preserves (r : Reduction) :
     r.closeWindow.frames = r.frames ∧ r.closeWindow.history = r.history := ⟨rfl, rfl⟩
 
-/-- Every write preserves the history's fixed storage size and bounded retained count. -/
 theorem history_bounded (h : History) (f : Channels) :
     (h.push f).slots.size = historyCapacity ∧ (h.push f).count.val ≤ historyCapacity :=
   ⟨by simp, Nat.le_of_lt_succ (h.push f).count.isLt⟩
 
-/-- Rank selection is a first crossing for arbitrary histograms and natural counts. -/
 theorem rankIndex_spec (target denominator seen : Nat) (counts : List Nat) (i : Nat)
     (h : rankIndex target denominator seen counts = some i) :
     target ≤ denominator * (seen + (counts.take (i + 1)).sum) ∧

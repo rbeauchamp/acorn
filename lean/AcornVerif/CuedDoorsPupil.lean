@@ -1,28 +1,10 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CuedDoors
-
-/-!
-# A learner that reads its situation meets the cued doors
-
-`pupil` keeps one door for each situation. At a visit's start it reads the situation from its
-percept and tries that situation's door; shown no success, it changes that door. It solves every
-cued door on its second and third visits (`pupil_solves`), so it separates at bound 3 before
-visit 2 and retains before visit 3 with no lapse, which no agent driven by the success signal does
-(`cued_summary`). The cued doors do not conceal their goals in the full percept behind any one
-reference world (`cued_reveals`), so contract 2 (b) as `Conceals` states it excludes them.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-- The pupil: whether its next percept is an outcome, the situation it last read, and the door it
-holds for each of the two situations. -/
 def pupil (four : 4 ≤ interface.actions.word.toNat) (signal sees : Percept interface → Bool) :
     Agent interface where
   Memory := Bool × Bool × Bool × Bool
@@ -37,7 +19,6 @@ def pupil (four : 4 ≤ interface.actions.word.toNat) (signal sees : Percept int
         (false, seen, (bif signal percept || seen then first else !first),
           (bif signal percept || !seen then second else !second)))
 
-/-- At a visit's start the pupil reads the situation and tries the door it holds for it. -/
 theorem pupil_ask (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (signal sees : Percept interface → Bool)
     (reads : ∀ situation, sees (quiet situation) = situation)
@@ -58,8 +39,6 @@ theorem pupil_ask (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → 
   rw [read]
   rfl
 
-/-- Shown the outcome, the pupil keeps its doors after a success and changes the door of the
-situation it read after a miss; the world returns to its start. -/
 theorem pupil_tell (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (signal sees : Percept interface → Bool) (won : signal win = true)
     (hush : ∀ situation, signal (quiet situation) = false)
@@ -83,8 +62,6 @@ theorem pupil_tell (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool →
   rw [told]
   rfl
 
-/-- In every member the pupil's world is at the met outcome after the one step of its second visit
-and of its third. -/
 theorem pupil_run (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (signal sees : Percept interface → Bool) (won : signal win = true)
     (hush : ∀ situation, signal (quiet situation) = false)
@@ -119,7 +96,6 @@ theorem pupil_run (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → 
   rw [three, five]
   cases situation <;> cases door <;> exact ⟨rfl, rfl⟩
 
-/-- **The pupil solves every cued door on its second visit and on its third.** -/
 theorem pupil_solves (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (signal sees : Percept interface → Bool) (won : signal win = true)
     (hush : ∀ situation, signal (quiet situation) = false)
@@ -134,15 +110,8 @@ theorem pupil_solves (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool �
   · subst second
     exact ⟨1, Nat.le_refl 1, Nat.le_refl 1, run.2⟩
 
-/-- There are more than three cued doors. -/
 theorem cuedAll_card : 3 < cuedAll.toFinset.card := by decide
 
-/-- **The cued doors: who separates and who cannot.** Over an interface with four actions, where
-a feedback does not tell the situations apart, a signal shows on the winning percept and on no
-situation's percept, and a reading tells the two situations' percepts apart: no agent driven by
-that feedback solves more than three members on one of
-its first two visits; every experience-free agent solves at most two on any visit; and the pupil
-solves all four on its second visit and retains them before visit 3 with no lapse. -/
 theorem cued_summary {Φ : Type} (feedback : Percept interface → Φ)
     (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (canon : Percept interface → Percept interface)
@@ -171,9 +140,6 @@ theorem cued_summary {Φ : Type} (feedback : Percept interface → Φ)
     refine ⟨∅, Nat.le_of_eq Finset.card_empty, fun visit later after before _ _ => ?_⟩
     exact pupil_solves four quiet win signal sees won hush reads index later (by omega)
 
-/-- **Contract 2 (b) excludes the cued doors.** Where the two situations' percepts differ, no one
-reference world conceals the cued doors' goals in the full percept: at the start, before any goal
-is met, members of the two situations already show different percepts. -/
 theorem cued_reveals (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (differ : quiet false ≠ quiet true) (reference : World interface)
     (origin : reference.State) :

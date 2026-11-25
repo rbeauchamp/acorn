@@ -1,76 +1,27 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Visits
-
-/-!
-# An agent that replays what met the goal
-
-`replay` is one agent for a whole class of worlds in visits. It records the actions of the
-current visit, takes stored actions where it holds some and an exploring action otherwise,
-and at the first percept after a step at which its signal shows, it stores the current
-visit's actions. What it stores depends on its percepts, so with a signal that shows on some
-percept and not on another it is not experience-free (`replay_not_experienceFree`); with a
-constant signal its memory reads no percept.
-
-`ReplayInvariant` is its bookkeeping in a world in visits, and holds at every time
-(`replay_invariant`): its step count is the visit's, the state is the fold of the visit's
-actions from the start, and stored actions lead from the start, in one to `length` steps, to
-a state that satisfies the goal. Once stored, actions stay stored (`replay_stored_keeps`),
-and every visit begins in the same state, so on every later visit the agent takes the
-stored actions (`replay_follows`) and reaches that state again. Where the percept after
-every step shows the signal exactly when that step satisfies the goal, the agent solves on
-every later visit each member it has solved on one visit (`replay_keeps`, `replay_solves`).
-Where its exploration of a visit meets a member's goal from the member's start within the
-visit, it solves that member on that visit (`replay_explored`, `replay_solves_explored`):
-it replays stored actions, or perceives the goal met earlier in the visit, or takes the
-exploring actions up to the step that meets it.
-
-The separation is a theorem under an explicit hypothesis of exploration and feasibility
-(`replay_separates`). On a class that conceals its goals, if the agent's explorations of the
-visits up to one visit meet the goals of more members than the covering bound, then on that
-visit it solves all of them, while on every visit every experience-free agent solves at most
-the covering bound (`visits_need`). Without that hypothesis nothing here says it solves more
-than the bound: an exploration that meets few members leaves it with few.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-- What the replaying agent keeps: the steps taken in the current visit, that visit's actions
-so far, the visits completed, and the actions of the visit on which it first perceived the
-goal met. -/
 structure ReplayMemory (interface : Interface) where
-  /-- Steps taken in the current visit. -/
   step : ℕ
-  /-- The current visit's actions, the latest first. -/
   taken : List (Act interface)
-  /-- Visits completed. -/
   count : ℕ
-  /-- The actions, in order, of the visit on which the goal was first perceived met. -/
   stored : Option (List (Act interface))
 
-/-- The stored actions after a percept: those already stored, or else, after a step at which
-the signal shows, the current visit's actions. -/
 def ReplayMemory.record (memory : ReplayMemory interface) (shown : Bool) :
     Option (List (Act interface)) :=
   match memory.stored with
   | some actions => some actions
   | none => if 1 ≤ memory.step ∧ shown = true then some memory.taken.reverse else none
 
-/-- The action the replaying agent takes: the stored action at the current step where it holds
-one, and otherwise the exploring action of the visit and step. -/
 def ReplayMemory.choose (memory : ReplayMemory interface)
     (stored : Option (List (Act interface))) (explore : ℕ → ℕ → Act interface) :
     Act interface :=
   (stored.getD []).getD memory.step (explore memory.count memory.step)
 
-/-- The replaying agent for visits of a length, with a signal read from each percept and an
-exploring action for each visit and step. -/
 def replay (interface : Interface) (length : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) : Agent interface where
   Memory := ReplayMemory interface
@@ -82,14 +33,12 @@ def replay (interface : Interface) (length : ℕ) (signal : Percept interface �
           memory.count, memory.record (signal percept)⟩
       else ⟨0, [], memory.count + 1, memory.record (signal percept)⟩)
 
-/-- Stored actions stay stored. -/
 theorem ReplayMemory.record_kept (memory : ReplayMemory interface) (shown : Bool)
     (actions : List (Act interface)) (kept : memory.stored = some actions) :
     memory.record shown = some actions := by
   unfold ReplayMemory.record
   rw [kept]
 
-/-- After a step at which the signal shows, some actions are stored. -/
 theorem ReplayMemory.record_shown (memory : ReplayMemory interface) (positive : 1 ≤ memory.step) :
     ∃ actions, memory.record true = some actions := by
   obtain ⟨step, taken, count, stored⟩ := memory
@@ -100,14 +49,12 @@ theorem ReplayMemory.record_shown (memory : ReplayMemory interface) (positive : 
     change (if 1 ≤ step ∧ true = true then some taken.reverse else none) = some taken.reverse
     rw [ite_eq_left ⟨positive, rfl⟩]
 
-/-- The replaying agent's action is its choice on the actions stored after the percept. -/
 theorem replay_action (length : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (memory : ReplayMemory interface)
     (percept : Percept interface) :
     ((replay interface length signal explore).act memory percept).1 =
       memory.choose (memory.record (signal percept)) explore := rfl
 
-/-- After a decision the replaying agent holds the actions stored after the percept. -/
 theorem replay_stored (length : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (memory : ReplayMemory interface)
     (percept : Percept interface) :
@@ -116,8 +63,6 @@ theorem replay_stored (length : ℕ) (signal : Percept interface → Bool)
   dsimp only [replay]
   split <;> rfl
 
-/-- Within a visit, a decision of the replaying agent adds its action to the visit's
-actions. -/
 theorem replay_taken (length : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (memory : ReplayMemory interface)
     (percept : Percept interface) (short : memory.step < length) :
@@ -126,7 +71,6 @@ theorem replay_taken (length : ℕ) (signal : Percept interface → Bool)
   dsimp only [replay]
   rw [ite_eq_left short]
 
-/-- Within a visit, a decision of the replaying agent keeps its count of completed visits. -/
 theorem replay_count_within (length : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (memory : ReplayMemory interface)
     (percept : Percept interface) (short : memory.step < length) :
@@ -134,8 +78,6 @@ theorem replay_count_within (length : ℕ) (signal : Percept interface → Bool)
   dsimp only [replay]
   rw [ite_eq_left short]
 
-/-- At a visit's last state, a decision of the replaying agent counts one more completed
-visit. -/
 theorem replay_count_last (length : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (memory : ReplayMemory interface)
     (percept : Percept interface) (last : ¬ memory.step < length) :
@@ -143,9 +85,6 @@ theorem replay_count_last (length : ℕ) (signal : Percept interface → Bool)
   dsimp only [replay]
   rw [ite_eq_right last]
 
-/-- With a signal that shows on one percept and not on another, the replaying agent is not
-experience-free: what it stores after a step depends on whether its percept shows the
-signal. With a constant signal its memory reads no percept. -/
 theorem replay_not_experienceFree (length : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (shown hidden : Percept interface)
     (shows : signal shown = true) (hides : signal hidden = false) :
@@ -158,11 +97,6 @@ theorem replay_not_experienceFree (length : ℕ) (signal : Percept interface →
   rw [shows, hides] at stored
   simp [ReplayMemory.record] at stored
 
-/-! ## Bookkeeping -/
-
-/-- The replaying agent's bookkeeping in a world in visits: its step count is the visit's, the
-state is the fold of the visit's actions from the start, and stored actions lead from the
-start, in one to `length` steps, to a state that satisfies the goal. -/
 def ReplayInvariant (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (state : (visits world start length).State)
     (memory : ReplayMemory interface) : Prop :=
@@ -172,8 +106,6 @@ def ReplayInvariant (world : World interface) (start : world.State) (length : �
       1 ≤ actions.length ∧ actions.length ≤ length ∧
         satisfied (actions.foldl world.step start)
 
-/-- One decision of the replaying agent keeps its bookkeeping, in a world whose percept after a
-step shows the signal only where that step satisfies the goal. -/
 theorem replay_invariant_step (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
@@ -238,8 +170,6 @@ theorem replay_invariant_step (world : World interface) (start : world.State) (l
     simp only [visits, replay, dite_eq_right short, ite_eq_right memoryLong]
     exact ⟨rfl, rfl, rfl, recordOk⟩
 
-/-- The replaying agent's bookkeeping holds at every time in a world in visits whose percept
-after a step shows the signal only where that step satisfies the goal. -/
 theorem replay_invariant (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
@@ -261,7 +191,6 @@ theorem replay_invariant (world : World interface) (start : world.State) (length
       (memoryAt (visits world start length) (replay interface length signal explore)
         (visitStart world start length) time) ih
 
-/-- Once stored, the replaying agent's actions stay stored. -/
 theorem replay_stored_keeps (world : World interface) (start : world.State) (length : ℕ)
     (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface)
     (time later : ℕ)
@@ -281,8 +210,6 @@ theorem replay_stored_keeps (world : World interface) (start : world.State) (len
     exact (replay_stored length signal explore _ _).trans
       (ReplayMemory.record_kept _ _ actions ih)
 
-/-- After a step at which the goal is met, in a world whose percept after a step shows the
-signal wherever that step satisfies the goal, the replaying agent holds stored actions. -/
 theorem replay_records (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
@@ -330,8 +257,6 @@ theorem replay_records (world : World interface) (start : world.State) (length :
   rw [shown]
   exact recorded
 
-/-- On a visit that begins with stored actions of at most `length` steps, the replaying agent
-takes the stored actions: after `step` of them its visit's actions are their first `step`. -/
 theorem replay_follows (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
@@ -376,8 +301,6 @@ theorem replay_follows (world : World interface) (start : world.State) (length :
       List.getD_eq_getElem?_getD, List.getElem?_eq_getElem below, Option.getD_some,
       ← List.take_concat_get below, List.concat_eq_append]
 
-/-- On a visit that begins with stored actions, the replaying agent meets the goal: it replays
-the stored actions and reaches the state they lead to. -/
 theorem replay_stored_solves (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
@@ -399,8 +322,6 @@ theorem replay_stored_solves (world : World interface) (start : world.State) (le
     fits actions.length (Nat.le_refl _), List.take_length]
   exact lands
 
-/-- The replaying agent's step count within a visit: after `step` decisions of a visit it is
-`step`. -/
 theorem replay_step_visit (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
@@ -411,7 +332,6 @@ theorem replay_step_visit (world : World interface) (start : world.State) (lengt
   (replay_invariant world start length satisfied signal sound explore _).1.trans
     (visits_counter world start length _ count step within)
 
-/-- Throughout visit `count`, the replaying agent's count of completed visits is `count`. -/
 theorem replay_count_visit (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
@@ -452,9 +372,6 @@ theorem replay_count_visit (world : World interface) (start : world.State) (leng
         (congrArg (· + 1) last)
     | succ step ihStep => exact within (count + 1) step bounded (ihStep (Nat.le_of_succ_le bounded))
 
-/-- Where the replaying agent's exploration of a visit meets the goal from the start within the
-visit, the agent meets the goal on that visit: it replays stored actions, or perceives the goal
-met earlier in the visit, or takes the exploring actions up to the step that meets it. -/
 theorem replay_explored (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (sound : ∀ state action, signal (world.percept (world.step state action)) = true →
@@ -555,8 +472,6 @@ theorem replay_explored (world : World interface) (start : world.State) (length 
       rw [innerEq, taken, ← path_eq_foldl]
       exact met
 
-/-- The replaying agent solves on every later visit what it has solved on one visit, in a world
-whose percept after every step shows the signal exactly where that step satisfies the goal. -/
 theorem replay_keeps (world : World interface) (start : world.State) (length : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (decodes : ∀ state action, signal (world.percept (world.step state action)) = true ↔
@@ -585,9 +500,6 @@ theorem replay_keeps (world : World interface) (start : world.State) (length : �
   rw [← split] at kept
   exact replay_stored_solves world start length satisfied signal sound explore later actions kept
 
-/-- In a class of worlds in visits, the replaying agent, one agent for the whole class, solves
-on every later visit each member it has solved on one visit, where the member's percept after
-every step shows the signal exactly when that step satisfies the member's goal. -/
 theorem replay_solves (family : WorldClass interface) (goals : family.Goals) (length : ℕ)
     (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface)
     (index : family.Index)
@@ -601,10 +513,6 @@ theorem replay_solves (family : WorldClass interface) (goals : family.Goals) (le
   replay_keeps (family.world index) (family.start index) length (goals index).satisfied signal
     decodes explore count later after solved
 
-/-- In a class of worlds in visits, the replaying agent solves a member on a visit whose
-exploration meets that member's goal from its start within the visit, and on every later
-visit, where the member's percept after every step shows the signal exactly when that step
-satisfies its goal. -/
 theorem replay_solves_explored (family : WorldClass interface) (goals : family.Goals)
     (length : ℕ) (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface)
     (index : family.Index)
@@ -627,12 +535,6 @@ theorem replay_solves_explored (family : WorldClass interface) (goals : family.G
 variable {family : WorldClass interface} {goals : family.Goals}
   {reference : World interface} {origin : reference.State}
 
-/-- The separation. In a class that conceals its goals, with a covering bound for one visit's
-length, suppose the replaying agent's explorations of the visits up to `last` meet, from each
-member's start within a visit, the goals of a set of members larger than the bound, and each
-member's percept after a step shows the signal exactly when that step meets its goal. Then on
-visit `last` the replaying agent solves every member of the set, and on every visit every
-experience-free agent solves fewer members than the set has. -/
 theorem replay_separates (hidden : Conceals family goals reference origin) {length bound : ℕ}
     (covered : Covered family (visitGoals goals length) bound)
     (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface)

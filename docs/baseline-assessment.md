@@ -459,7 +459,35 @@ F-E left its feature-construction end inert until U3.
   facing, energy, day phase and craft flags would need at least 140,000 times
   the agent's parameters. The agent senses the world through an 11 × 11 window.
   The [parameter-budget proofs](../lean/AcornVerif/ParameterBudget.lean) own
-  the parameter count, that margin and the derivation of the bit bound.
+  the parameter count (`agentParameters = 1,867,777`, `agent_parameters_value`;
+  `agentBits = 1,867,777 × 32 = 59,768,864`, `agent_bits_value`), that tabular
+  margin (`state_quotient_value = 143,791`, `minStateMargin = 140,000`,
+  `state_margin_largest`, asserting neither reachability nor generalization),
+  the packed-terrain ratio (`minTerrainRatio = 19`,
+  `agent_exceeds_terrain_description`, `terrain_ratio_largest`), and the sum
+  check for the unchanged Lean model constant (`worldStateBits = 67,646,087`,
+  `world_state_bits_value`, `world_state_exceeds_agent_bits`, which retains the
+  earlier `129`-bit four-constructor goal term). Counting the live fields of
+  `Acorn.Host.World` under `Acorn.Host.WorldConfig.standard` at side `1024`,
+  where a field with at most `2^b` values counts as `b` bits (individual field
+  counts are argued while `world_state_bits_value` checks only the unchanged
+  model sum; terrain is a deterministic function of seed and scale, so it is
+  configuration rather than state, and native object overhead and complete
+  checkpoint size sit outside the model), yields: `time` (`64`), `goalStart`
+  (`64`), `body` (`163`: `20` for two `Fin 1024` coordinates, `2` for four
+  facings, `11` for energy in `Fin 2001`, and `130` for inventory of four
+  32-bit counts and two flags), `goal` (`130`: `Goal` has five constructors,
+  including both `Goal.reach` and `Goal.find` each carrying a 128-bit
+  `Position`, and `World.setGoal` admits every `Goal`, so the five constructors
+  plus the absent goal have
+  `2 * 2^128 + 4 * 2^32 + 2 + 2^64 + 1 = 2^129 + 2^64 + 4 * 2^32 + 3 < 2^130`
+  values), `harvested` (`67,371,265`: maps from `Fin (1026 * 1026)` to 64-bit
+  words number `(2^64 + 1)^1052676 < 2^(64 * 1052676 + 1)`), `deer` (`262,145`:
+  at most `1024 * 1024 / 512 = 2,048` 128-bit positions, fewer than
+  `2^(128 * 2048 + 1)`), `food` (`12,001`: at most `600` 20-bit in-box
+  positions), and `rng` (`256`), summing to `67,646,088` bits (one bit above
+  the unchanged `worldStateBits = 67,646,087` model sum in
+  `AcornVerif.ParameterBudget`).
 - **The agent and its world.** The composed agent is written against an
   interface, not against the grid world
   ([design](design.md#the-interface-between-the-agent-and-a-world)). A world fixes

@@ -1,36 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Perceiving
 import AcornVerif.SituatedClass
-
-/-!
-# A class in which perceiving is needed, with a learner that meets it
-
-The cued doors: four members, a situation and a door each. A member shows its situation at every
-state but the one that meets its goal, and its goal is met by the one action that is the key of
-its situation and door. The feedback (a success signal) is the same in every member until the
-goal is met; the observation is not. Over any interface with four actions and three percepts
-that the signal and a reading of the situation tell apart:
-
-* `cuedNeeded`: the class meets `PerceptNeeded` at bound 3 and limit 2 for every feedback in
-  which the situations do not differ, so no agent driven by that feedback solves more than three
-  members on one of its first two visits.
-* `cued_summary`, in the module after this one: an agent that reads its situation and learns
-  one door for each solves all four members on its second visit and on its third.
-* `cuedSituated`, `cued_need`: the class is situated, with two situations and a cover of one
-  each, so every experience-free agent solves at most two of the four on any visit, and the class
-  still asks for learning.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-- The key of a situation and a door: four different actions. -/
 def key (four : 4 ≤ interface.actions.word.toNat) (situation door : Bool) : Act interface :=
   match situation, door with
   | false, false => ⟨0, by omega⟩
@@ -38,15 +13,11 @@ def key (four : 4 ≤ interface.actions.word.toNat) (situation door : Bool) : Ac
   | true, false => ⟨2, by omega⟩
   | true, true => ⟨3, by omega⟩
 
-/-- Different situations or doors have different keys. -/
 theorem key_inj (four : 4 ≤ interface.actions.word.toNat) {situation door other gate : Bool}
     (same : (key four situation door).val = (key four other gate).val) :
     situation = other ∧ door = gate := by
   cases situation <;> cases door <;> cases other <;> cases gate <;> simp [key] at same ⊢
 
-/-- One member of the cued doors. From its start any action leads to an outcome, which is kept:
-met when the action was the member's key, and missed otherwise. It shows its situation at the start
-and after a miss, and the winning percept once met. -/
 def cued (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (situation door : Bool) : World interface where
   State := Option Bool
@@ -59,7 +30,6 @@ def cued (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept i
     | some true => win
     | _ => quiet situation
 
-/-- A member shows its situation at every state but the one that meets its goal. -/
 theorem cued_quiet (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (situation door : Bool) (state : Option Bool)
     (unmet : state ≠ some true) :
@@ -69,20 +39,16 @@ theorem cued_quiet (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool →
   | some false, _ => rfl
   | some true, wrong => exact absurd rfl wrong
 
-/-- The cued doors: one member for each situation and door, each from its start. -/
 abbrev cuedDoors (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) : WorldClass interface where
   Index := Bool × Bool
   world := fun index => cued four quiet win index.1 index.2
   start := fun _ => (none : Option Bool)
 
-/-- Each member's goal: its met outcome, within one step. -/
 def cuedGoals (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) : (cuedDoors four quiet win).Goals :=
   fun _ => ⟨fun (state : Option Bool) => state = some true, 1⟩
 
-/-- A member's goal is met by an action sequence within a visit of one step exactly when its first
-action is the member's key. -/
 theorem cued_met (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (index : Bool × Bool) (actions : ℕ → Act interface)
     (met : (visitGoals (cuedGoals four quiet win) 1 index).MetBy
@@ -95,7 +61,6 @@ theorem cued_met (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → P
     reached
   exact of_decide_eq_true (Option.some.inj outcome)
 
-/-- One action sequence meets at most one member's goal within a visit. -/
 theorem cued_covered (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) :
     Covered (cuedDoors four quiet win) (visitGoals (cuedGoals four quiet win) 1) 1 := by
@@ -106,8 +71,6 @@ theorem cued_covered (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool �
   obtain ⟨situation, door⟩ := key_inj four (keyFirst.symm.trans keySecond)
   exact Prod.ext situation door
 
-/-- Behind a projection of percepts that sends every situation's percept to one percept, the cued
-doors conceal their goals: every member shows that one percept until its goal is met. -/
 theorem cued_conceals (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (canon : Percept interface → Percept interface)
     (flat : ∀ situation, canon (quiet situation) = canon (quiet false)) :
@@ -131,9 +94,6 @@ theorem cued_conceals (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool 
     ((cued four quiet win index.1 index.2).percept state)) same).trans
       ((congrArg canon shown).trans (flat index.1))
 
-/-- **The cued doors meet `PerceptNeeded`** at bound 3 and limit 2, for every feedback that a
-projection of percepts keeps while it sends every situation's percept to one percept: the
-situations differ in nothing the feedback reads. -/
 def cuedNeeded {Φ : Type} (feedback : Percept interface → Φ)
     (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) (canon : Percept interface → Percept interface)
@@ -149,22 +109,14 @@ def cuedNeeded {Φ : Type} (feedback : Percept interface → Φ)
   covered := cued_covered four quiet win
   short := by decide
 
-/-! ## The share an agent that keeps nothing of its experience solves -/
-
-/-- The four cued doors. -/
 def cuedAll : List (Bool × Bool) := [(false, false), (false, true), (true, false), (true, true)]
 
-/-- Every cued door is listed. -/
 theorem cuedAll_mem (index : Bool × Bool) : index ∈ cuedAll := by
   obtain ⟨situation, door⟩ := index
   cases situation <;> cases door <;> decide
 
-/-- The four cued doors outnumber one door for each of the two situations. -/
 theorem cuedAll_large : ∑ _situation : Bool, 1 < cuedAll.toFinset.card := by decide
 
-/-- **The cued doors are situated**: two situations, each concealing its two doors behind the
-world that shows that situation's percept, and one action meets one door; the four doors outnumber
-the two that the covers add up to. -/
 def cuedSituated (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) :
     SituatedClass (cuedDoors four quiet win) (cuedGoals four quiet win) 1 Bool where
@@ -195,8 +147,6 @@ def cuedSituated (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → P
   members := cuedAll.toFinset
   large := cuedAll_large
 
-/-- In the cued doors an agent that keeps nothing solves at most two members on any visit, by the
-situated bound. -/
 theorem cued_need (four : 4 ≤ interface.actions.word.toNat) (quiet : Bool → Percept interface)
     (win : Percept interface) {agent : Agent interface} (free : ExperienceFree agent)
     (visit : ℕ) (solved : Finset (Bool × Bool))
