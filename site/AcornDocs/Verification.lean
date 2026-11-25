@@ -457,7 +457,41 @@ declared exploration rate denotes the rational those proofs use:
 Each theorem's actual type owns its domain, hypotheses and guarantee. Binary32
 and Binary64 proofs concern admitted finite words or explicitly stated conversion
 semantics; real/rational identities do not automatically establish machine
-rounding equivalence. Universal program properties are limited to their checked
+rounding equivalence. Across the executing floating-point proof modules,
+`AcornVerif.CurrentArithmetic`, `AcornVerif.CurrentOrder`, `AcornVerif.CurrentFloat`,
+`AcornVerif.CurrentOperations`, `AcornVerif.CurrentDivision`, `AcornVerif.CurrentPower`,
+`AcornVerif.CurrentBackupBounds`, `AcornVerif.CurrentModelArithmetic`,
+`AcornVerif.CurrentRetirementRounding`, and `AcornVerif.CurrentLifetimeArithmetic`
+unfold Lean v4.36.0's logical floating-point model
+(`Init/Data/Float/Model/{Float,Unpacked/Round,Unpacked/Pack/Basic}.lean` and
+`Unpacked/Operations/{OfNat,Add,Sub,Mul,Div}.lean`) directly against Acorn's wrappers,
+keeping `AcornVerif.CurrentArithmetic.unpackedValue` total on exceptional words (which
+require separate classification), excluding 1-bit exponent formats in
+`AcornVerif.CurrentArithmetic.model_unpack_format`, proving `AcornVerif.CurrentFloor.floor32_spec`
+algebraically in binary64-subnormal units without native reflection, input enumeration, or a
+trusted floor primitive (preserving zero signs, with exceptional words handled separately),
+preserving negative upper bounds even across packing exponent overflow in
+`AcornVerif.CurrentRetirementRounding.normalize_negative_bound`, establishing a conservative
+`2^-35` enclosing-quotient bound for binary64 division in
+`AcornVerif.CurrentDivision.binary64_div_finite_error` (without claiming the tight half-unit
+bound proved separately via FloatLib in `AcornVerif.FloatLibBridge.binary64_div_half_unit_error`),
+establishing subtraction error `≤ 2^-37` for `|diff| ≤ 2^16`, truncation toward zero, and
+inactive 32-bit clamping for `|x| ≤ 2^16` in `AcornVerif.CurrentOperations`
+(`binary64_sub_finite_error`, `numerical64_trunc_toward_zero`, `numerical64_toI32_trunc`),
+quantifying unit-interval power and negative-zero parity over every natural and `UInt32` exponent
+in `AcornVerif.CurrentPower` (`powLoop_unit`, `pow_unit`, `pow_negative_zero`), and handling full
+unsigned `UInt64` lifetime counts beyond exact `2^53` integer conversion in
+`AcornVerif.CurrentLifetimeArithmetic` (`count_model`, `count_relative`, `mul_positive_relative`,
+`add_nonnegative`). For portable functions and state rails, `AcornVerif.CurrentReduction`
+(`expReduce_contract` mapping `[-104, 89]` into exponents `[-151, 129]` and remainder
+`|r| ≤ 0.349`, `expReduce_zero_remainder` preserving finite inputs including `-0.0` at exponent 0,
+and `exp_admitted_reduction`), `AcornVerif.CurrentExponential`, `AcornVerif.CurrentSeries`,
+`AcornVerif.CurrentIntervals`, `AcornVerif.CurrentPortable`, `AcornVerif.CurrentLogarithm`
+(`ln_total_contract` returning exact exceptional words `0x7fc00000`, `0xff800000`, and `0x7f800000`),
+`AcornVerif.CurrentPrediction`, and `AcornVerif.CurrentState` establish machine-domain range,
+monotonicity, and exception contracts rather than ideal transcendental approximation accuracy,
+and `AcornVerif.CurrentState`'s projected-state contracts give no bound on raw transient
+registers. Universal program properties are limited to their checked
 implementation linkage. Compiler/native runtime, filesystem stability, the
 reviewed build/gate tools, cryptographic tools and OS remain trusted boundaries,
 and the Regula audit's pass rests on the assumption about Acorn that the
