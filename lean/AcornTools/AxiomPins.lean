@@ -89,10 +89,7 @@ def verifyPins (pins : Array (Lean.Name × Array Lean.Name)) :
       if seenExpected.contains ax then
         throwError "duplicate expected axiom '{ax}' in pin for '{decl}'"
       seenExpected := seenExpected.insert ax
-    let rawActual ← Lean.collectAxioms decl
-    let actual :=
-      (rawActual.foldl (init := ({} : Lean.NameSet)) fun acc ax => acc.insert ax).toArray.qsort
-        Lean.Name.lt
+    let actual ← Lean.collectAxioms decl
     let expectedSorted := expected.qsort Lean.Name.lt
     if actual != expectedSorted then
       let extra := actual.filter fun ax => !seenExpected.contains ax
