@@ -537,9 +537,9 @@ bound proved separately via FloatLib in `AcornVerif.FloatLibBridge.binary64_div_
 establishing subtraction error `≤ 2^-37` for `|diff| ≤ 2^16`, truncation toward zero, and
 inactive 32-bit clamping for `|x| ≤ 2^16` in `AcornVerif.CurrentOperations`
 (`binary64_sub_finite_error`, `numerical64_trunc_toward_zero`, `numerical64_toI32_trunc`),
-quantifying unit-interval power and negative-zero parity over every natural and `UInt32` exponent
+quantifying unit-interval power and negative-zero parity over every natural and 32-bit unsigned exponent
 in `AcornVerif.CurrentPower` (`powLoop_unit`, `pow_unit`, `pow_negative_zero`), and handling full
-unsigned `UInt64` lifetime counts beyond exact `2^53` integer conversion in
+64-bit unsigned lifetime counts beyond exact `2^53` integer conversion in
 `AcornVerif.CurrentLifetimeArithmetic` (`count_model`, `count_relative`, `mul_positive_relative`,
 `add_nonnegative`). For portable functions and state rails, `AcornVerif.CurrentReduction`
 (`expReduce_contract` mapping `[-104, 89]` into exponents `[-151, 129]` and remainder
