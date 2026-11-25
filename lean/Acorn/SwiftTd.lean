@@ -253,9 +253,9 @@ def firstLoopElement (state : NumericState config dimension) (idx : FeatIdx dime
   let hTemp := if clipped then Binary32.zero else (state.transient.hTemp.get idx).value
   let stepped := beta.value.add
     (((config.metaStep.div alpha).mul (delta.sub vDelta)).mul p)
-  let adapted := LogStepSize.project state.rails stepped
-  let nextH := (hTemp.add (delta.mul zBar)).sub
-    ((state.transient.zDelta.get idx).value.mul vDelta)
+  let adapted := if clipped then state.rails.initial else LogStepSize.project state.rails stepped
+  let nextH := if clipped then Binary32.zero else
+    (hTemp.add (delta.mul zBar)).sub ((state.transient.zDelta.get idx).value.mul vDelta)
   let z := (state.transient.z.get idx).value.mul traceDecay
   let next : NumericState config dimension := {
     state with
@@ -292,8 +292,9 @@ theorem firstLoopElement_eq (state : NumericState config dimension) (idx : FeatI
       let hTemp := if clipped then Binary32.zero else (state.transient.hTemp.get idx).value
       let stepped := beta.value.add
         (((config.metaStep.div beta.alpha).mul (delta.sub vDelta)).mul p)
-      let nextH := (hTemp.add (delta.mul zBar)).sub
-        ((state.transient.zDelta.get idx).value.mul vDelta)
+      let adapted := if clipped then state.rails.initial else LogStepSize.project state.rails stepped
+      let nextH := if clipped then Binary32.zero else
+        (hTemp.add (delta.mul zBar)).sub ((state.transient.zDelta.get idx).value.mul vDelta)
       let z := (state.transient.z.get idx).value.mul traceDecay
       let next : NumericState config dimension := {
         state with
@@ -309,7 +310,7 @@ theorem firstLoopElement_eq (state : NumericState config dimension) (idx : FeatI
           hTemp := state.transient.hTemp.set idx.val ⟨nextH⟩ idx.isLt
           deltaWeight := state.transient.deltaWeight.set idx.val
             ⟨if clipped then .zero else dw⟩ idx.isLt } }
-      (next.writeBetaValue idx (LogStepSize.project state.rails stepped),
+      (next.writeBetaValue idx adapted,
         z.lessOrEqual ((state.transient.lastAlpha.get idx).value.mul config.epsilon)) := by
   simp only [firstLoopElement, anchor_stepSize, LogStepSize.alphaAfter_self, writeBetaValue]
 
