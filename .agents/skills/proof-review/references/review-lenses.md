@@ -59,8 +59,8 @@ surface cannot exercise it; do not audit unrelated repository code.
    Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`,
    all checked by `corpus-audit`, or `site/AcornDocs/Verification.lean`, checked
    via `docs/verification.md`) stating the work, authors, venue/year, and specific
-   equation/section/theorem number (never new Lean comments under `no-comments`;
-   legacy in-source citations drain under `comment-ratchet.json`). If the code or
+   equation/section/theorem number (never Lean comments in scoped files under
+   `no-comments`; `comment-ratchet.json` is empty `[]`). If the code or
    proof repairs an issue, degenerate case, or defect in published prior art, the
    fix must be documented both in those documents and as a formal characterization
    theorem or identity (the `stepRef_hTemp_error` model).
