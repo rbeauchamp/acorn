@@ -2000,11 +2000,18 @@ EAsync.forIn (repeat via the ForIn instance over EAsync for Lean.Loop in Lean v4
 rather than partial\_fixpoint because async task continuations admit no fixed point. ControlRequest.lean
 mints control tokens from `/dev/urandom` (mintControlToken) and verifies them with tokenMatches
 using a source-level full-string scan (not a compiler or hardware constant-time guarantee). Broadcast.lean
-serializes subscriptions behind one mutex with connectionCapacity 16, subscriber FIFO queue
-capacity 4096 via Buffer.offer (refusing on overflow), sliding 500-frame full-frame history via
-Buffer.retain, and IdentityWait overflow marking worldPartial; Broadcast.settle deduplicates
-control records via Subscriber.enqueueControl, sequence numbers refuse at saturation (`2^64 - 1`),
-and Subscription.receive loops forever without a break. Line.lean bounds LineDecoder lines at
+serializes subscriptions behind one mutex with connectionCapacity 16, sliding 500-frame replay
+history via Buffer.retain, IdentityWait overflow marking worldPartial, and per-subscriber FIFO
+queues of capacity 4096 (subscriberCapacity) with two overflow policies: Subscriber.enqueue
+delivers telemetry frames via Buffer.offer (refusing a new frame without disturbing queued items
+when full), whereas Subscriber.enqueueControl delivers control records (from Broadcast.settle and
+Broadcast.commitIdentity) and lifecycle notices (from Broadcast.notice, backing
+Broadcast.announceCleared and Broadcast.announceExit) via Buffer.retain without deduplicating,
+appending the new item and evicting the oldest queued item when full; Broadcast.settle separately
+suppresses a byte-identical repeat of the current control record before calling
+Subscriber.enqueueControl (whereas Broadcast.commitIdentity and Broadcast.notice do not
+deduplicate), sequence numbers refuse at saturation (`2^64 - 1`), and Subscription.receive loops
+forever without a break. Line.lean bounds LineDecoder lines at
 lineCapacity (1 MiB, discarding oversize suffixes through newline and refusing incomplete oversized
 EOF), and readLines reads one byte at a time (input.read 1) because Lean v4.36.0 Handle.read
 calls buffered C fread (Lean runtime `io.cpp` lines 593–615), where multi-byte reads can block past
