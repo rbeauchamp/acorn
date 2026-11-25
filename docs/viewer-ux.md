@@ -1013,21 +1013,22 @@ What each panel must show. How it draws it is the code's.
   follows a failed start).
 
   A state built with no state file, or read from a file of the current schema
-  with the intent that file records, is written as the supervisor is built,
-  before the listener binds. An earlier version's file, whatever intent it
-  records, and a file of the current schema whose running intent was given
-  for another child are left on disk exactly as they are until the listener is
-  bound. The viewer then prints and flushes the line that says why the run is
-  shown stopped, under `--start` as well, and only then publishes the stopped
-  state it started from, in the
-  current schema with this launch's child, before it prints its ready line,
-  before `--start` submits its Start and before any command is processed. If
-  the line cannot be written or flushed, the viewer exits before the
-  publication and the file is still the original.
-  So such a file is read as an earlier version's, or as given for another
-  child, once, in the first launch that publishes the stopped state, and
+  taken with the intent that file records, is written as the supervisor is
+  built, before the listener binds. An earlier version's file, whatever intent
+  it records, and a file of the current schema with a running intent, when
+  this launch lacks a child record (including a `--cmd` launch, whose own
+  running file records `"child":null`) or its record does not match the
+  file's, are left on disk exactly as they are until the listener is bound.
+  The viewer then prints and flushes the line that says why the run is shown
+  stopped, under `--start` as well, and only then publishes the stopped state
+  it started from, in the current schema with this launch's child, before it
+  prints its ready line, before `--start` submits its Start and before any
+  command is processed. If the line cannot be written or flushed, the viewer
+  exits before the publication and the file is still the original.
+  So such a file is read as an earlier version's, or as an unbound running
+  intent, once, in the first launch that publishes the stopped state, and
   whenever the file is replaced that launch has already given the reason, in
-  its first control record and in its log; it is not given again; a viewer of the earlier version started later on the
+  its first control record and on standard output; it is not given again; a viewer of the earlier version started later on the
   directory meets a file of the current version. A start-up that fails before
   that publication, such as on a port already in use, leaves the file as it
   was: the next viewer reads the same file and says the same. A start-up that
@@ -1052,50 +1053,66 @@ What each panel must show. How it draws it is the code's.
   run as before.
 
   Whenever the state a viewer starts with is stopped (no state file, a saved
-  stopped state, an earlier version's file, or a running intent given for
-  another child), the viewer says why in one line, for example "Run: stopped
-  because the run directory holds no saved state; it starts only on a Start on
-  the viewer's control endpoint, which the page's Start button sends, or the
-  --start flag". The line, without the `Run: ` it is printed with, is in the
-  reason of the first control record it publishes, after `viewer initialized; `,
-  under `--start` as well. The page shows the reason of the control record
-  that is current when it connects, in the hover text of the state word
-  (UX-21): a page that connects while that first record is current shows the
-  line, and one that connects after a later transition has published its
-  record shows that transition's reason. The
-  viewer also prints it on its standard output, at most once in a launch: for
-  a file left as it is until the bind (an earlier version's, whatever intent
-  it records, or one of the current schema whose running intent was given for
-  another child) the line is printed and flushed after the listener is bound
-  and before the stopped state is published, under `--start` as well; for no
-  state file, or a file of the current schema that says stopped, it is printed
-  after the ready line and not under `--start`. Under `--start` the Start is submitted once the listener is
-  bound. The viewer announces nothing of this kind when the state it starts
-  with is running. Browser Stop (`POST /control` with `{"cmd":"stop"}`) returns
-  HTTP `202` only after `state.json` has been written, flushed and renamed on
-  disk with `desired: "stopped"` — confirming that earlier publication — and
-  returns HTTP `503` without acknowledging if refused before admission (queue
-  full, unavailable, or mailbox already closing) or if persistence is
-  unconfirmed (writing fails, or the 10-second HTTP wait times out, which ends
-  only the HTTP wait without cancelling the Stop; HTTP error responses carry
-  fixed public strings rather than raw OS errors or local paths, while detailed
-  native diagnostics stay in the supervisor's failure diagnostics and stderr).
-  When viewer shutdown interrupts an admitted Stop, the supervisor resolves the
-  waiter as `.unconfirmed` so HTTP returns `503`
+  stopped state, an earlier version's file, or a current-schema running intent
+  when this launch lacks a child record — including a `--cmd` launch — or its
+  record does not match the file's), the viewer says why in one line, for
+  example "Run: stopped because the run directory holds no saved state; it
+  starts only on a Start on the viewer's control endpoint, which the page's
+  Start button sends, or the --start flag". The line, without the `Run: ` it
+  is printed with, is in the reason of the first control record it publishes,
+  after `viewer initialized; `, under `--start` as well. The page shows the
+  reason of the control record that is current when it connects, in the hover
+  text of the state word (UX-21): a page that connects while that first record
+  is current shows the line, and one that connects after a later transition
+  has published its record shows that transition's reason. The viewer also
+  prints it on its standard output, at most once in a launch: for a file left
+  as it is until the bind (an earlier version's, whatever intent it records,
+  or a current-schema file with a running intent when this launch lacks a
+  child record — including a `--cmd` launch — or its record does not match the
+  file's) the line is printed and flushed after the listener is bound and
+  before the stopped state is published, under `--start` as well; for no state
+  file, or a file of the current schema that says stopped, it is printed after
+  the ready line and not under `--start`. Under `--start` the Start is
+  submitted once the listener is bound. The viewer announces nothing of this
+  kind when the state it starts with is running. Browser Stop (`POST /control`
+  with `{"cmd":"stop"}`) returns HTTP `202` only after `state.json` has been
+  written, flushed and renamed on disk with `desired: "stopped"` — confirming
+  that earlier publication — and returns HTTP `503` without acknowledging if
+  refused before admission (queue full, unavailable, or mailbox already
+  closing) or if persistence is unconfirmed (writing fails, or the 10-second
+  HTTP wait times out, which ends only the HTTP wait without cancelling the
+  Stop; HTTP error responses carry fixed public strings rather than raw OS
+  errors or local paths, while detailed native diagnostics stay in the
+  supervisor's failure diagnostics and stderr). When viewer shutdown
+  interrupts an admitted Stop, the supervisor resolves the waiter as
+  `.unconfirmed` so HTTP returns `503`
   (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes
   before server teardown, whereas server cancellation during shutdown can also
   yield an empty `503` or closed connection without a JSON body; both are
   treated fail-closed by the browser as unconfirmed/unknown. Directory entries
   are not fsynced, so power-loss durability is not claimed, and a lost
-  connection or abrupt crash can yield no HTTP response. The no-later-Start
-  condition is ordered in supervisor processing order starting from that
-  acknowledging resolution (not browser HTTP receipt time, so a concurrent Start
-  processed by the supervisor after that resolution — even before the browser
-  receives `202` — supersedes it): with no later Start admitted by the
-  supervisor while open, a viewer process crash at any step leaves the on-disk
-  state stopped — or absent during a Clear archive before the replacement state
-  is written — and the next launch with the same child cannot resume running
-  without an explicit Start.
+  connection or abrupt crash can yield no HTTP response. This durability
+  guarantee also rests on Acorn's exclusive single-viewer run-directory
+  ownership premise (stated above for manual viewer invocation and in
+  [interrupted-launch recovery](verification.md#interrupted-launch-recovery))
+  and on the run directory's stable-path and no-external-mutation assumptions
+  (no external process replaces the run-directory path or mutates `state.json`):
+  `RunDirectory.open` allocates fresh per-process IO mutexes on each open
+  rather than an inter-process lock, so atomic local rename prevents torn
+  writes within one viewer process but cannot prevent a second concurrent
+  viewer that already read `desired: "running"` — or an external writer
+  replacing the path or mutating `state.json` — from overwriting `state.json`
+  after the first viewer acknowledges Stop. The no-later-Start condition is
+  ordered in supervisor processing order starting from that acknowledging
+  resolution (not browser HTTP receipt time, so a concurrent Start processed
+  by the supervisor after that resolution — even before the browser receives
+  `202` — supersedes it): under exclusive single-viewer run-directory
+  ownership, stable run-directory paths without external state-file mutation,
+  and with no later Start admitted by the supervisor while open, a viewer
+  process crash at any step leaves the on-disk state stopped — or absent
+  during a Clear archive before the replacement state is written — and the
+  next launch with the same child cannot resume running without an explicit
+  Start.
 
   When the supervisor does start the ranked core, it runs the executable
   `acorn-core` beside the viewer with the explicitly selected ranked research

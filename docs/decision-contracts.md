@@ -144,8 +144,11 @@ kinds proved in `AcornVerif.Decisions` include:
   `Host.fbm`, `Host.terrain`, `Host.World.tileKind`, and `Host.World.enterable`
   (two-way kinds characterizing successful sampling, using
   `CurrentTerrain.PastLast` and `CurrentTerrain.LatticeAdmits`, with
-  `terrain_read`, `tile_kind`, and `world_enterable` stating accepted values
-  beside them); and `Host.walkableTile` (`terrain_walkable`, a two-way kind
+  `world_enterable` stating enterability beside `world_enterable_lattice`,
+  `terrain_read` stating enterability and movement-step terrain constraints
+  beside `terrain_lattice`, and `tile_kind` stating exact terrain refusal
+  preservation beside `tile_kind_lattice` rather than the kind of an accepted
+  tile); and `Host.walkableTile` (`terrain_walkable`, a two-way kind
   accepting a tile exactly when every world of the configuration can enter it).
   The walkability check rejects water and mountain even when the terrain lookup
   succeeds.

@@ -16,9 +16,11 @@ surface cannot exercise it; do not audit unrelated repository code.
    call order avoids them. Describe the enforced boundary instead of rating it.
 3. **Claim accuracy** — every comment and doc line must say what is true now
    and *why* it is that way. Verify each claim against the code: a confidently
-   wrong comment is worse than none. Check the pinned digest is consistent
-   across README, `docs/`, `AGENTS.md`, and that every documented flag
-   exists.
+   wrong comment is worse than none. Read every sentence saying what a theorem
+   shows beside the theorem's actual statement, binders and hypotheses
+   included: a wider quantifier or a dropped hypothesis in the sentence is a
+   finding. Check the pinned digest is consistent across README, `docs/`,
+   `AGENTS.md`, and that every documented flag exists.
 
    **Rationale yes, changelog no.** Git holds the history. A file must not
    narrate what was broken, what was fixed, or what a previous version did.
