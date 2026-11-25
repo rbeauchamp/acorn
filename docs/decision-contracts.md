@@ -181,7 +181,9 @@ definitions shared by specifications):
 - **Round-trip payload specifications that reach reader tests:**
   `Checkpoint.admitPayload` and `Checkpoint.loadCandidate` (`payload_admit`,
   `candidate_load`, with `payload_admit_value` and `candidate_load_value` beside
-  them; kinds are remaining work of
+  them; kinds are excluded because `imagePayload` and agent-image invariants
+  reach ten tests run by admission, including `NumericState.resumable`,
+  `Binary32.isNaN`, and `Binary32.less`, remaining work of
   [#105](https://github.com/rbeauchamp/acorn/issues/105)).
 - **Witness acceptance statements beside kindless attempt transitions:**
   `Host.Attempt.finish` (`attempt_finish_accepts`) and `Host.Attempt.complete`
@@ -194,13 +196,42 @@ definitions shared by specifications):
   `admissible_step_isOk`), while these statements quantify over arbitrary
   `WorldConfig` values and bound unfinished termination on admitted plans.
 - **Input invariant reaching tests:** `NumericState.resumable`
-  (`learner_resumable`; remaining work of
-  [#105](https://github.com/rbeauchamp/acorn/issues/105)).
+  (`learner_resumable`, checking `CurrentLearner.ScheduleInv`: zero
+  non-eligible registers, finite `[0, 5]` pruning references, duplicate-free
+  eligible indices, and nonzero eligible traces when a standalone second loop
+  is permitted; excluded from a kind because `NumericState`'s type invariant
+  reaches `Binary32.isNaN` and `Binary32.less` via `Portable.ln`, remaining
+  work of [#105](https://github.com/rbeauchamp/acorn/issues/105)).
 - **Dependent pair results whose verdict component is not an optional or error
-  result:** `Features.beginExploration` (`exploration_begins`),
-  `Lifetime.DemonStats.advanceSlot` (`slot_settles`),
-  `NumericState.firstLoopElement` (`first_loop_prune`), and
+  result:** `Features.beginExploration` (`exploration_begins`, specifying the
+  53-bit top fraction of xoshiro256** directly in bit-vector operations after
+  David Blackman and Sebastiano Vigna, xoshiro256** reference implementation,
+  2018, *next*, `https://prng.di.unimi.it/xoshiro256starstar.c`, without
+  claiming the resulting run or post-draw generator state),
+  `Lifetime.DemonStats.advanceSlot` (`slot_settles`, where the
+  `FeatureConstants.maxSettlement` age cap leaves settlement verdicts unchanged
+  because `settleAfter ≤ maxSettlement`, without claiming the reported
+  settlement or post-visit slot state owned by
+  `AgreementLifecycle.advanceSlot_selected`), `NumericState.firstLoopElement`
+  (`first_loop_prune`, where zero decay prunes any finite trace via
+  `CurrentControl.stop_prunes`, without claiming updated weight, log-step-size,
+  or register values owned by `NumericState.firstLoopElement_eq`), and
   `Checkpoint.loadKeeping` (`load_keeping`).
+
+Notable scope notes for registered and helper statements in
+`AcornVerif.Decisions`: `AcornVerif.Decisions.fresh` duplicates
+`Acorn.Decisions.fresh` locally because no module may import `Acorn.Decisions`;
+`spawn_count` (`Host.countKindNear`) has no early exit and reads every tile of
+its `(2r + 1)²` square (`SquareAdmits`); `task_satisfied` (DecidesCompletely)
+claims no soundness outside observations produced by `Goal.observe`;
+`rank_index` (DecidesSoundly) claims no completeness; `precision_admit`
+(DecidesCompletely) claims no soundness (`AgreementTelemetryPrecision.precision_fields`
+states accepted fields); `squared_admit_exact` checks exact rational discrepancy
+in least positive binary32 subnormal units (`2^-149`); `maximum_sum` applies
+Lean core's 64-bit unsigned-to-float conversion, which is exact for counts
+below `2^53` (`CurrentOrder.numerical64_ofUInt64`); `discount_gamma` relies on
+binary32 spacing `2^-24` on `[1/2, 1)` making `≤ 2^-25` nearest; and
+`discount_horizon` bounds `horizon * (1 - 2^-23) ≤ 1/(1 - γ) ≤ horizon`.
 
 ## Tests that a specification does not share
 

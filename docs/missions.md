@@ -146,7 +146,7 @@ Then record each target you proved in [the record of proved targets](../lean/Aco
 ⟨``Targets.StateEntry.arm_letter, ``StateEntry.arm_letter, @StateEntry.arm_letter⟩
 ```
 
-Lean accepts an entry only when the theorem proves the statement the registry holds under that name, whichever way you stated it, so the record is how the repository knows a target is proved, and a statement written out wrongly fails there. Change nothing under `lean/AcornVerif/Targets/`, and do not change a definition that a target names: together they are the contract.
+Lean accepts an entry only when the theorem proves the statement the registry holds under that name (`Targets.Landing.proves`), whichever way you stated it, so the record is how the repository knows a target is proved, and a statement written out wrongly fails there. Nothing checks that the entry's recorded theorem name matches the proof term it carries; that name is display-only for readers. Change nothing under `lean/AcornVerif/Targets/`, and do not change a definition that a target names: together they are the contract.
 
 ### Step 6: commit
 
@@ -216,7 +216,7 @@ gh api graphql --paginate --slurp -f query="$query" > "$dir/second.json"
 ./scripts/lean.sh env lean --run "$dir/run.lean" render "$(date -u +%FT%TZ)" "$dir/first.json" "$dir/second.json" ../docs/mission-board
 ```
 
-It reads GitHub twice and writes nothing unless both reads are complete and identical, so a failed page, a rate limit or a label changed between the reads leaves the existing board in place.
+It reads GitHub twice and writes nothing unless both reads are complete and identical (`agree_both`), so a failed page, a rate limit or a label changed between the reads leaves the existing board in place (though a label removed and restored between the two reads goes unseen). `AcornVerif.MissionBoard` defines no root `main` because `ownership-audit` imports every non-executable module together (hence the one-line wrapper above). In generated Markdown, `escape_inert` neutralizes Markdown and HTML `active` characters in untrusted titles, target names, and theorem names, while `targetFile` derives a target's path purely from its Lean declaration-name prefix (under `lean/` with the `.lean` extension) by convention without checking disk placement.
 The targets and their landings are those of the checkout the commands run in, so run them on the current main branch.
 
 A pull request that changes what the board reads from GitHub or what it writes, which is a change to `lean/AcornVerif/MissionBoard.lean`, regenerates the board with these commands on its own head, and its author reads both files against GitHub before it merges. Pages made up to try the change hold only what their author expected GitHub to answer, so they cannot show a case GitHub records differently. A session that cannot reach GitHub's GraphQL interface hands the regeneration to one that can, and the change waits for it.

@@ -396,6 +396,10 @@ saturated to the bounds of the scale:
 
 {statement AcornVerif.Decimal.read_nearest}
 
+Both {decl}`AcornVerif.Decimal.ofNumeral_value` and {decl}`AcornVerif.Decimal.read_nearest` apply to
+formed numerals only (`Acorn.Json.Numeral.Formed`): for a character that is not a decimal digit,
+{decl}`AcornVerif.Decimal.digit` returns zero while {decl}`Acorn.Host.Microduck.spelled` subtracts
+48 from the character code, so no claim is made about unformed numerals.
 No theorem states that every number of a parsed text is read: it follows from
 {decl}`Acorn.Json.parse_sound`, whose grammar spells each number of an accepted text as an
 {decl}`Acorn.Json.Grammar.Number`, with {decl}`Acorn.Json.Grammar.number_iff` and
@@ -752,7 +756,7 @@ intent record of contract 1 of the mission contract, the interface every world
 meets, whose proof rbeauchamp/acorn#213 tracks, and the deliverable of the intent
 record of contract 3, the invariants of learning from one stream, whose proof
 rbeauchamp/acorn#215 tracks; it was decided on the owner's
-behalf by the agent supervising Acorn's research, since the intent-first method
+behalf by the agent supervising Acorn's research on 2026-11-03, since the intent-first method
 confirms a record before its implementation exists, and it remains until the
 listed deliverables migrate to lean-intent's awaiting-implementation
 declaration (rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
@@ -2272,9 +2276,13 @@ next), where {decl}`Acorn.Rng.SplitMix64.next` intentionally adds {decl}`Acorn.R
 advancing state and inside {decl}`Acorn.Rng.mix64` ({decl}`Acorn.Rng.splitmix_two_offsets`) and raw all-zero
 {decl}`Acorn.Rng.Xoshiro256` state remains admitted ({decl}`Acorn.Rng.Xoshiro256.zero`); these total
 deterministic functions establish no IID or uniform-seed hypothesis, and RNG distribution results
-depend on separate source-word hypotheses in `AcornVerif.CurrentRng` (for example,
-{decl}`Acorn.Rng.Xoshiro256.nextBelow` uses multiply-high scaling, leaving 7 of the 9 grid actions
-with one extra preimage because `2^64 % 9 = 7`). What a viewer reads of the file of the program its
+depend on separate source-word hypotheses in `AcornVerif.CurrentRng` and `AcornVerif.Rng` (for
+example, {decl}`Acorn.Rng.Xoshiro256.nextBelow` uses multiply-high scaling without rejection,
+leaving 7 of the 9 grid actions with one extra preimage because `2^64 % 9 = 7`;
+`AcornVerif.next_below_bin_card`, `next_below_bins_within_one`, and
+`next_below_word_bins_within_one` (in `AcornVerif.Rng`) prove the exact preimage count `⌈(k+1)·W/n⌉ − ⌈k·W/n⌉` and
+within-one bin bound generalized over word size `W` to avoid computing with `2^64`, yielding
+`(2^64 + 2)/3` vs `(2^64 − 1)/3` preimages at `n = 3`). What a viewer reads of the file of the program its
 supervisor would start ({decl}`Acorn.Host.Viewer.ProgramReading`) is the length of the file in
 bytes and the digest of every byte of the file, in order. It is a function of the bytes read
 alone, so it does not depend on what the state file can hold;
