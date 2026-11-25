@@ -99,8 +99,12 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
   seeds are wins: in most worlds the agent achieves at least one more goal than
   chance in its first pass (U6), or its reach attempts shorten over repeated
   visits by at least 300 steps per attempt, and by at least 300 steps per
-  attempt more than chance's do (U7). Each compares the whole agent, learning
-  throughout, with a comparator that is not an ablation of it, so even a win
+  attempt more than chance's do (U7). Each compares the whole agent, with online
+  updates enabled throughout under the registered
+  [U6](studies/first-pass-vs-chance/protocol.md) and
+  [U7](studies/repeated-visits-vs-chance/protocol.md) protocols (argued from
+  those protocols; a configuration fact separate from whether learning
+  occurred), with a comparator that is not an ablation of it, so even a win
   would not separate learning from authored behavioural structure such as
   exploration duration (argued; U6), or from what persists differently in the two
   worlds, since each arm carries its own position and inventory into the next
@@ -218,10 +222,12 @@ that an option can be learned in preparation for the times at which it is high"
 
 U1 made identity the unit alone (`Assignment.same`) and made refresh slot-stable
 (argued).
-`FreeDispatch.refresh_retains` proves (machine-checked), for every state and
-every Demon-0 weight array, that the first slot holding a still-ranked unit
-keeps its policy, model, cached prediction and meta-controller row, and that its
-held bonus never decreases. A slot is now reinstalled only when its unit leaves
+`FreeDispatch.refresh_retains` proves (machine-checked), for every `FreeDispatch`
+state and every slot holding a learned selected unit with a held bonus where
+that unit remains ranked under that state's own Demon-0 ranking weights and no
+earlier slot holds it, that `FreeDispatch.refreshRanked` keeps that slot's
+policy, model, cached prediction and meta-controller row, and keeps the unit
+selected with a bonus word at least as large. A slot is now reinstalled only when its unit leaves
 the ranking or is retired (argued from `rankAssignments`, `Ensemble.release`,
 `Ensemble.releaseAll` and machine-checked `FeatureRuntime.retire_releases`). How often that happens is UNKNOWN: it depends
 on the stream. Since [#57](https://github.com/rbeauchamp/acorn/issues/57) the
@@ -568,9 +574,12 @@ F-E left its feature-construction end inert until U3.
   count, a word bound, the first channel of the agent's prediction feedback
   words and its timing, and delivers one percept per step: a frame and the reward
   of the preceding transition (argued). The grid world is one instance
-  (`Grid.interface`; argued), and `Agent.grid_inputs` states (machine-checked)
-  what that instance feeds each learner in terms of the host's own channel,
-  signal and potential definitions. The
+  (`Grid.interface`; argued): `Agent.grid_inputs` proves (machine-checked)
+  equalities for the grid percept (`Grid.percept`), `Agent.words`
+  (`observationWords` with feedback predictions), frame symbols
+  (`observationPatch`), `signalValues` (`evaluateCumulants`), declared spatial
+  potentials (`spatialPotentials`) and the achievement flag, while how those
+  inputs reach each learner is argued from the executed step definitions. The
   [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show
   (machine-checked) the host's step under the default step order and
   construction equal to a frozen composition over host observations (`act_eq`,
@@ -603,8 +612,12 @@ F-E left its feature-construction end inert until U3.
   are inside the agent's own modules, which import no world (argued, enforced by
   the boundary audit): the lifetime accounting records reward and attempts under
   the grid curriculum's four task families and attempt cycles
-  (`Agent.recordEnvironment`, `Agent.recordAttempt`; argued), as observations no
-  decision reads (`act_learners`, machine-checked), and the evaluation mode
+  (`Agent.recordEnvironment`, `Agent.recordAttempt`; argued), where
+  `act_learners` proves (machine-checked) that two `Agent` states with equal
+  learner state (`AcornVerif.CurrentAccounting.learners`) given the same percept
+  produce equal `Agent.act` decisions and equal resulting learner state, from
+  which it is argued that no decision reads lifetime accounting, and the
+  evaluation mode
   `withoutReachRelation` is named for the grid world's reach relation, which only
   the grid adapter omits from its frame words (argued). A second world, the
   [Microduck](https://github.com/pollen-robotics/microduck), has an instance of
@@ -845,7 +858,8 @@ machine-checked theorems listed at the end of this subsection.
   running maximum of the weights seen at refreshes (`Assignment.retain`).
 - **Slot stability.** A still-ranked unit keeps its slot and its learned state;
   only slots whose unit left the ranking are reinstalled (`rankAssignments`;
-  retention of the first matching slot is machine-checked by
+  retention of the first slot holding a still-ranked learned unit under the
+  state's own Demon-0 ranking weights is machine-checked by
   `FreeDispatch.refresh_retains`).
 - **Retirement.** A held unit is retired only at a free boundary: away from a
   free boundary, retirement updates only `lifecycle` with `free = false` and
