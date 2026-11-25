@@ -2637,13 +2637,19 @@ Core calls select an explicit research profile. The [prior-art register](prior-a
 records qualification decisions. Each proof states its hypotheses, including
 conditions on policies, value projection and models. In particular,
 `AcornVerif.Projection` (`constant_cumulant_fixed_point`,
-`constant_cumulant_fixed_point_unique`) shows that `c / (1 - γ)` is the unique
-TD fixed point of a constant cumulant `c` (`100` for `c = 1` and `γ = 0.99`),
-explaining why projecting onto `Discount.horizon` discards nothing reachable
-for unit-bounded cumulants (while `project_nonexpansive` assumes the target
-lies inside the rail, and `ModelConstants.discounts` correspondence with
-machine-word totality, NaNs, and infinities stays in `AcornVerif.CurrentConstants`
-and executable admission contracts); `AcornVerif.Traces` separates pure decay
+`constant_cumulant_fixed_point_unique`, `horizon_covers_true_bound`) shows
+that `c / (1 - γ)` is the unique TD fixed point of a constant cumulant `c`
+(`100` for `c = 1` and `γ = 0.99`) and that for the stated discounts in
+`ModelConstants.discounts`, exact discounted returns for cumulants in `[0, 1]`
+lie within `[0, 1 / (1 - γ)]` and inside `Discount.horizon`; this establishes
+exact-return containment only and is not a guarantee about raw learned
+estimates (active-weight sums sent to `Prediction.project`) or individual
+weight coefficients staying inside the rail without clamping (while
+`project_nonexpansive` assumes the target lies inside the rail and establishes
+non-increasing distance rather than strict contraction, convergence, or
+per-coefficient rail admissibility, and correspondence with machine-word
+totality, NaNs, and infinities stays in `AcornVerif.CurrentConstants` and
+executable admission contracts); `AcornVerif.Traces` separates pure decay
 (`trace_decay_monotone` and `trace_geometric_bound` apply to `z_{n+1} = c · z_n`
 alone, not to overall SwiftTD trace growth where active-loop `traceIncrement`
 lives in `AcornVerif.StepSize`) and `pruning_implies_negligible` discards `ε`
