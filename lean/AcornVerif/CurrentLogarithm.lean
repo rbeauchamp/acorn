@@ -1,26 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentReduction
 import AcornVerif.CurrentSeries
-/-!
-# Executing logarithm totality
-
-Raw mantissa construction fixes its exponent, independently of input history.
-That interval supplies a positive denominator and a contracting polynomial
-argument. A structural Horner envelope and local arithmetic bounds establish
-finiteness before the final narrowing. Classification gives the exact exceptional
-words. No ideal-logarithm error or native compiler/runtime correctness is inferred.
--/
 open Acorn
 open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmetic
 open AcornVerif.CurrentOrder AcornVerif.CurrentOperations AcornVerif.CurrentDivision
 open AcornVerif.CurrentIntervals AcornVerif.CurrentReduction AcornVerif.CurrentSeries
 namespace AcornVerif.CurrentLogarithm
 
-/-- An absolute approximation error and an exact-value bound compose additively. -/
 theorem approximation_magnitude (actual expected bound error : ℚ)
     (close : |actual - expected| ≤ error) (bounded : |expected| ≤ bound) :
     |actual| ≤ bound + error := by
@@ -28,7 +13,6 @@ theorem approximation_magnitude (actual expected bound error : ℚ)
   rw [sub_add_cancel] at triangle
   linarith only [triangle,close,bounded]
 
-/-- The actual mantissa field construction is finite and belongs to [1,2] for every raw word. -/
 theorem ln_mantissa_fields (bits : UInt64) :
     let mantissa : Binary64 :=
       ⟨(bits &&& (0xfffffffffffff : UInt64)) ||| ((1023 : UInt64) <<< 52)⟩
@@ -63,8 +47,6 @@ theorem ln_mantissa_fields (bits : UInt64) :
     (by rw [twoKey,key]; omega)
   exact ⟨finite,by simpa only [oneValue] using lower,by simpa only [twoValue] using upper⟩
 
-/-- Every raw word supplies finite logarithm arithmetic after the classification stage. The
-mantissa and exponent are constructed by the actual expression, with every rounding retained. -/
 theorem ln_body_finite (bits : UInt64) :
     let exponent₀ := Conversion.ofInt ((((bits >>> 52) &&& 0x7ff).toNat : Int) - 1023)
     let mantissa₀ : Binary64 :=
@@ -247,8 +229,6 @@ theorem ln_body_finite (bits : UInt64) :
     le_trans (approximation_magnitude _ _ _ _ resultProof.2 resultExact) (by norm_num)
   exact narrow_finite_local result resultProof.1 (le_trans resultBound (by norm_num))
 
-/-- The executing logarithm returns the prescribed exceptional words and a finite result on
-every remaining input, including all positive finite subnormals. -/
 theorem ln_total_contract (value : Binary32) :
     if value.isNaN || value.less .zero then Portable.ln value = ⟨0x7fc00000⟩
     else if value.magnitude == 0 then Portable.ln value = ⟨0xff800000⟩

@@ -32,8 +32,14 @@ prerequisites, which changes the machine's package manager state, so an agent
 runs it only where the person it works for has agreed to that, and it
 provisions the pinned Lean, Mathlib, FloatLib and lean-intent dependencies;
 repeat launches use the offline bootstrap when those dependencies are already
-available. The bootstrap status that decides this builds nothing, writes only the
-launcher's own override file and asks Lake whether the FloatLib modules the proof
+available. The bootstrap status that decides this admits the Lean package's
+configuration, tracked sources and `.lake` containment (including
+`lean/.lake/packages` and Lake's numeric package configuration cache directories
+and files), writes only the launcher's own
+override file and tracked-module stamp atomically through exclusive temporary
+files (clearing only Acorn's confirmed cached configuration traces when tracked
+Lean modules change) without building any Lean or C target, and asks Lake
+whether the FloatLib modules the proof
 bridge imports, the lean-intent modules that the intent bridge and the gate's
 lean-intent checker `lean/AcornTools/Intent.lean` import, the native objects of the
 lean-intent modules that checker links, and the Regula modules the decision
@@ -49,8 +55,9 @@ reopened and at every push to it, and at no other time, on GitHub's standard
 `ubuntu-24.04` x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
 elan from a release pinned by the SHA-256 of its archive. Every workflow step
-that reaches the network before the gate has its own time limit, so a stalled
-download fails that step. The workflow keeps no cache: each run provisions the
+that reaches the network before the gate, the merge-gate step itself and the
+overall job each carry an explicit time limit, so a stalled download or a
+duration regression fails promptly. The workflow keeps no cache: each run provisions the
 dependencies from their pinned sources. Automatic local setup supports macOS and
 Ubuntu/Debian Linux.
 
@@ -128,17 +135,29 @@ run as a pass. Run the complete command to check all verification owners.
 
 ## Compiler and execution boundary
 
-Every discovered Lean source must be a module of the libraries Acorn,
-AcornVerif, NativeApp, AcornDocument or Entry, which Lake's globs assign, or a
-listed tool module. The [Regula audit](#regula-audit) claims the first four with
-Bootstrap; Entry holds the executables' roots. Every retained native target is
-built and checked against Lake's evaluated targets and compiled entry owners;
-each executable root must be a maintained module. Ownership admission refuses a facet-qualified build key in the root
-package's Lake configuration. The [Lake configuration](../lean/lakefile.lean)
-documents the restriction and its pinned-Lake rationale. Before any Lake
-command, `Bootstrap.lean` must elaborate with no message, and Lake runs with
-`--wfail`, so any warning, including a header-time warning such as a deprecated
-import, fails the build. Source/compiled admission checks imports, capability
+Every Git-tracked Lean source below `lean/` must be a regular file and a module
+of the libraries Acorn, AcornVerif, NativeApp, AcornDocument or Entry, which
+[the Lake configuration](../lean/lakefile.lean) assigns only from tracked
+modules, or a listed tool module. The [Regula audit](#regula-audit) claims the
+first four with Bootstrap; Entry holds the executables' roots. Every retained
+native target is built and checked against Lake's evaluated targets and compiled
+entry owners; each executable root must be a maintained module. Ownership
+admission refuses a facet-qualified build key in the root package's Lake
+configuration. In Lake of Lean v4.36.0 (Lake/Build/Target/Fetch.lean, lines 54 to 67;
+leanprover/lean4#15435), PartialBuildKey.fetchInCoreAux fetches a facet-qualified key
+from an asynchronous bindM continuation, which races other fetches on the unsynchronized
+build store so a second job can run on the same output file; a facetless key is resolved
+through its package and fetched synchronously, so it is the form admitted. Before any Lake command, `Bootstrap.lean` must elaborate with no message,
+reject `-f`/`--file`/`-d`/`--dir`/`--packages` overrides on build and query
+(and as leading Lake options on exe and env, while preserving `-K`
+configuration settings and executable or command arguments), and run Lake
+explicitly against the tracked configuration (`-f lakefile.lean`, while
+documentation site commands pass `-f lakefile.toml` directly) with `--wfail`, so any warning,
+including a header-time warning such as a deprecated import, fails the build
+(while `scripts/regula.sh` preserves Regula's default `lake build --wfail` and
+`lake lint` invocation after verifying `lean/lakefile.lean` and refusing any
+`lakefile.toml` shadow inside `lean/`). Source/compiled admission checks
+imports, capability
 owners, artifact origins and native routes. The Regula audit, not ordinary
 verification, checks the axioms that each declaration of the claimed libraries
 depends on. The theorem inventory counts the theorem declarations and refuses a
@@ -429,6 +448,10 @@ theorem AcornVerif.Decimal.read_nearest (scale : Acorn.Host.Microduck.Scale) (js
               max scale.low (min scale.high nearest)
 ```
 
+Both `AcornVerif.Decimal.ofNumeral_value` and `AcornVerif.Decimal.read_nearest` apply to
+formed numerals only (`Acorn.Json.Numeral.Formed`): for a character that is not a decimal digit,
+`AcornVerif.Decimal.digit` returns zero while `Acorn.Host.Microduck.spelled` subtracts
+48 from the character code, so no claim is made about unformed numerals.
 No theorem states that every number of a parsed text is read: it follows from
 `Acorn.Json.parse_sound`, whose grammar spells each number of an accepted text as an
 `Acorn.Json.Grammar.Number`, with `Acorn.Json.Grammar.number_iff` and
@@ -440,8 +463,10 @@ that a reading is paired with. A parsed JSON value is read into these types by
 frame is read exactly when it is what the value writes, member by member
 (`Acorn.Host.Microduck.State.read_iff`, `Acorn.Host.Microduck.Depth.read_iff`).
 A whole parsed line is read by `Acorn.Host.Microduck.Line.read` as exactly one case
-of declared criteria, which are taken from JSON-RPC 2.0 and are not the whole of it: a
-notification, as a frame of its stream or as a notice
+of declared criteria, which are taken from JSON-RPC 2.0 (JSON-RPC Working Group,
+**JSON-RPC 2.0 Specification**, 2010, updated 2013, sections 4, 4.1, 5, and 5.1) and are not
+the whole of it (for example, notification params can be any value and extra members are
+not refused): a notification, as a frame of its stream or as a notice
 (`Acorn.Host.Microduck.Line.read_state`, `Acorn.Host.Microduck.Line.read_depth`),
 a response with a result or with an error (`Acorn.Host.Microduck.Line.read_result`,
 `Acorn.Host.Microduck.Line.read_fault`), and invalid for every other value
@@ -459,9 +484,20 @@ So for every identifier and command the parser reads the line of a send as the r
 that send (`Acorn.Host.Microduck.Command.line_asked`). A second theorem states what every
 text that the parser accepts is: a JSON text of the grammar of RFC 8259,
 `Acorn.Json.Grammar.Text`, with a derivation that gives the value that the parser returns
-(`Acorn.Json.parse_sound`). So a line of a daemon that the parser accepts is read as a value
-that the grammar gives its text. No theorem states that the parser accepts every text of the
-grammar, and none is about what a daemon sends or accepts.
+(`Acorn.Json.parse_sound`), using RFC 5234 DIGIT (`%x30-39`) and case-insensitive HEXDIG
+(2008, section 2.3 and appendix B.1), host UTF-8 decoding before parsing (RFC 8259 §8.1),
+lone-surrogate rejection because Lean Char holds Unicode scalar values (RFC 8259 §8.2),
+distinct object-member names rejecting duplicate decoded keys before object construction
+(RFC 8259 §4), and a zero-based value-depth nesting limit of 128 (RFC 8259 §9: a top-level
+value starts at depth 0, empty arrays and objects return at their own depth so 129 nested
+arrays are accepted when the innermost array is empty at depth 128, and placing any value
+inside it reaches depth 129 and is refused); `Acorn.Json.unicodeWhitespace` matches Unicode
+White\_Space for manifest `Acorn.Json.Value.text` admission rather than RFC 8259's four
+whitespace characters (`Acorn.Json.Grammar.Space`). So a line of a daemon that the parser accepts
+is read as a value that the grammar gives its text. No theorem states that the parser accepts
+every text of the grammar (and grammar-value uniqueness follows from the completeness theorem
+tracked in [issue 163](https://github.com/rbeauchamp/acorn/issues/163)), and none is about what a
+daemon sends or accepts.
 
 Acorn's executable definitions and their state invariants are under lean/Acorn.
 AcornVerif contains contracts importing those definitions and supporting
@@ -480,7 +516,44 @@ theorem AcornVerif.CurrentConstants.explore_rate_value :
 Each theorem's actual type owns its domain, hypotheses and guarantee. Binary32
 and Binary64 proofs concern admitted finite words or explicitly stated conversion
 semantics; real/rational identities do not automatically establish machine
-rounding equivalence. Universal program properties are limited to their checked
+rounding equivalence. Across the executing floating-point proof modules,
+`AcornVerif.CurrentArithmetic`, `AcornVerif.CurrentOrder`, `AcornVerif.CurrentFloat`,
+`AcornVerif.CurrentOperations`, `AcornVerif.CurrentDivision`, `AcornVerif.CurrentPower`,
+`AcornVerif.CurrentBackupBounds`, `AcornVerif.CurrentModelArithmetic`,
+`AcornVerif.CurrentRetirementRounding`, and `AcornVerif.CurrentLifetimeArithmetic`
+unfold Lean v4.36.0's logical floating-point model
+(`Init/Data/Float/Model/{Float,Unpacked/Round,Unpacked/Pack/Basic}.lean` and
+`Unpacked/Operations/{OfNat,Add,Sub,Mul,Div}.lean`) directly against Acorn's wrappers,
+keeping `AcornVerif.CurrentArithmetic.unpackedValue` total on exceptional words (which
+require separate classification), excluding 1-bit exponent formats in
+`AcornVerif.CurrentArithmetic.model_unpack_format`, proving `AcornVerif.CurrentFloor.floor32_spec`
+algebraically in binary64-subnormal units without native reflection, input enumeration, or a
+trusted floor primitive (preserving zero signs, with exceptional words handled separately),
+preserving negative normal representable upper bounds even across packing exponent overflow in
+`AcornVerif.CurrentRetirementRounding.normalize_negative_bound`, establishing a finite result
+and conservative `2^-35` enclosing-quotient error bound for binary64 division on finite operands
+with a nonzero divisor and exact quotient magnitude `|left / right| ≤ 2^16` in
+`AcornVerif.CurrentDivision.binary64_div_finite_error` (without claiming the tight half-unit
+bound proved separately via FloatLib in `AcornVerif.FloatLibBridge.binary64_div_half_unit_error`),
+establishing a finite result and subtraction error `≤ 2^-37` on finite operands with
+`|diff| ≤ 2^16`, truncation toward zero on finite inputs, and inactive 32-bit clamping for finite
+`|x| ≤ 2^16` in `AcornVerif.CurrentOperations`
+(`binary64_sub_finite_error`, `numerical64_trunc_toward_zero`, `numerical64_toI32_trunc`),
+quantifying unit-interval power and negative-zero parity over every natural and 32-bit unsigned exponent
+in `AcornVerif.CurrentPower` (`powLoop_unit`, `pow_unit`, `pow_negative_zero`), and handling full
+64-bit unsigned lifetime counts beyond exact `2^53` integer conversion in
+`AcornVerif.CurrentLifetimeArithmetic` (`count_model`, `count_relative`, `mul_positive_relative`,
+`add_nonnegative`). For portable functions and state rails, `AcornVerif.CurrentReduction`
+(`expReduce_contract` mapping `[-104, 89]` into exponents `[-151, 129]` and remainder
+`|r| ≤ 0.349`, `expReduce_zero_remainder` preserving finite inputs' numerical values including
+`-0.0` at exponent 0,
+and `exp_admitted_reduction`), `AcornVerif.CurrentExponential`, `AcornVerif.CurrentSeries`,
+`AcornVerif.CurrentIntervals`, `AcornVerif.CurrentPortable`, `AcornVerif.CurrentLogarithm`
+(`ln_total_contract` returning exact exceptional words `0x7fc00000`, `0xff800000`, and `0x7f800000`),
+`AcornVerif.CurrentPrediction`, and `AcornVerif.CurrentState` establish machine-domain range,
+monotonicity, and exception contracts rather than ideal transcendental approximation accuracy,
+and `AcornVerif.CurrentState`'s projected-state contracts give no bound on raw transient
+registers. Universal program properties are limited to their checked
 implementation linkage. Compiler/native runtime, filesystem stability, the
 reviewed build/gate tools, cryptographic tools and OS remain trusted boundaries,
 and the Regula audit's pass rests on the assumption about Acorn that the
@@ -488,19 +561,183 @@ and the Regula audit's pass rests on the assumption about Acorn that the
 
 ## Build and source inventory
 
-The build tools discover every Lean source below lean and check explicit
-inventories of the tool modules and of the native entries. Runtime `--research-profile` selects
-agent mechanisms; it does not change verification. Resource, route and compiler
-flag admission, browser byte generation, corpus and declaration checks always
-run. Missing files fail admission.
+The build tools enumerate Git-tracked files through `git ls-files --stage -z`
+(stage `0`, mode `100644`/`100755`) and require every tracked path and ancestor
+directory to be regular, ignoring untracked working-copy files and run
+directories while failing closed on an empty or non-Git tree, unmerged stages,
+or any tracked symbolic link or non-regular entry, and check explicit
+inventories of the tool modules and of the native entries. Each shell launcher
+(`scripts/gate.sh`, `scripts/verify.sh`, `scripts/lean.sh`, `scripts/regula.sh`),
+`lean/Bootstrap.lean`, `lean/lakefile.lean` and `lean/AcornTools/TrackedFiles.lean`
+admit `scripts/tracked-files.sh` directly against Git before executing it,
+`lean/AcornTools/TrackedFiles.lean` admits `lean/Bootstrap.lean` and
+`lean/lean-toolchain` before compiled tools invoke them, and `scripts/gate.sh`
+admits its child scripts before launching them. Before any shell or Lake consumer reads them,
+`scripts/tracked-files.sh` admits manifests (`lean/lake-manifest.json`,
+`site/lake-manifest.json`), toolchains (`lean/lean-toolchain`,
+`site/lean-toolchain`), Lake configurations (`lean/lakefile.lean`,
+`site/lakefile.toml`), `lean/Bootstrap.lean`, the verified shell scripts,
+`lean/no-comments.pin`, `.no-comments.json`, and `comment-ratchet.json`. On
+both cache-stamp hits and misses, it validates every tracked source under
+`lean/` (and under `site/` for site commands) on disk as a current non-symlink
+regular file beneath non-symlink directories, enforces real workspace-owned
+non-symlink containment across `.lake`, `lean/.lake/packages` (and each
+manifest-named dependency checkout directory, its git metadata, configuration
+file and manifest file when present), `.lake/config`, Lake's numeric package
+configuration cache directories, and `lakefile.olean`, trace and
+`lakefile.olean.lock` destinations (ignoring unrelated untracked entries such as
+`.DS_Store`, refusing ambient `package-overrides.json` in any active workspace,
+and refusing an untracked `lakefile.toml` inside `lean/` on the
+`scripts/regula.sh` route that uses Lake's default resolution), and decodes
+`lean/lake-manifest.json` through Lake's manifest loader before the first Lake
+workspace load in `scripts/gate.sh` and `scripts/regula.sh`.
+Repository-relative document path references, browser assets, Lake manifests
+and native inputs likewise require tracked regular entries (with `lean/.lake`
+and `lean/.lake/packages` admitted only as directory references in
+documentation), and `native-audit` derives its `.c` and compile-trace artifact
+paths directly from the current admitted native module inventory rather than
+walking compiler output directories. When tracked Lean files change,
+`scripts/tracked-files.sh` deletes only cached `lakefile.olean` and trace files
+whose parsed trace confirms Acorn ownership (leaving missing, malformed and
+other packages' traces untouched) and writes the tracked-module stamp
+atomically through an exclusive temporary file (while `lean/Bootstrap.lean` and
+`lean/AcornTools/Gate.lean` write their override files the same way) before invoking Lake
+(`-f lakefile.lean` through `Bootstrap.lean`, `-f lakefile.toml` under `site/`,
+and default workspace resolution after shadow-config refusal for
+`scripts/regula.sh`), while `scripts/verify.sh` invokes
+`SHELLCHECK_OPTS='' shellcheck --norc` so ambient configuration cannot alter
+script checks. The checks take their file lists from Git's stage-0 tracked
+regular-file index without materializing a separate HEAD checkout or hashing
+every tracked file independently against HEAD; verdict-producing commands
+(`./scripts/gate.sh`, `./scripts/verify.sh` outside `site write` and
+diagnostics, `./scripts/regula.sh`, and the compiled audit executables
+`acorn-gates` outside `site write` and diagnostics, `lean-boundary-audit`,
+`native-audit`, `ownership-audit`, `corpus-audit`, `theorem-count`,
+`intent-check`, and `frame-check` outside `frame-check print`) additionally
+check via Git that the index and working tree report no staged or unstaged
+changes against HEAD and no assume-unchanged or skip-worktree index flags
+(hosted CI and validation runs already execute on fresh checkouts of the exact
+commit), while keeping `git diff --check` and `no-comments`'s internal index
+lookup intact. Direct development builds, non-verdict executables (such as
+`world-certificates`), `frame-check print`, `./scripts/verify.sh diagnostics`
+and `./scripts/verify.sh site write` enforce stage-0 regular-file tracked
+admission while permitting uncommitted edits to tracked files. Runtime
+`--research-profile` selects agent mechanisms; it does not change verification.
+Resource, route and compiler flag admission, browser byte generation, corpus and
+declaration checks always run. Missing or untracked referenced files fail
+admission. In `lean/Bootstrap.lean`, `AcornBootstrap.overrides` inspects every
+locked manifest dependency entry even when an earlier dependency is absent, so
+missing provisioning cannot hide a later schema or filesystem refusal; both
+`AcornBootstrap.packageDir` and `lean/AcornTools/Gate.lean` resolve each locked
+dependency directory as Lake of Lean v4.36.0 does (reading the name with
+String.toName and mapping it via Name.toString with escape disabled, matching
+PackageEntry.dirName), so escaped manifest names such as `«lean-intent»` resolve
+to `lean-intent`. `AcornDocument.external` (`lean/AcornDocument.lean`) admits
+external prose names strictly by exact equality with
+`AcornDocument.externalSymbols` (after normalizing `::` to `.`), so listing a
+namespace or type admits no other member of its namespace (every qualified
+external name must be listed in full), and the module imports only Lean's
+prelude so the Regula proof claim covers it and `AcornDocument.external_listed`.
+In `lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.code` conservatively
+strips JavaScript comments, strings, and regex literals and fails closed on
+unterminated constructs; its specification table check requires a unique line
+containing the Appendix A title with exact heading
+`## Appendix A · Constants this document quotes`, then scans from that heading
+to the end of `docs/viewer-ux.md` (without stopping at a later heading),
+requiring the generated constants table to appear consecutively once and
+rejecting any other line containing `|` after that heading.
 
 Numerical proofs use the executing Lean definitions. Native admission checks
-their compiler IR, primitive calls, resource contracts and compiler flags.
-Primitive IEEE interpretation remains a native assumption.
+their compiler IR, primitive calls, resource contracts and compiler flags. In `lean/AcornTools/Native/Audit.lean`, definition scanning matches `static` rather
+than `"LEAN_EXPORT"` for compiler-hoisted `_init_…` constant initializers, and compile
+flag admission permits `-fPIC` supplied on Linux because it does not authorize
+floating-point reassociation. `AcornVerif.Resource.WordKernel`
+(`lean/AcornVerif/Resource/WordKernel.lean`) is a control and resource
+abstraction of admitted compiler IR rather than a second implementation of
+numerical functions: `lean/AcornTools/Native/Resources.lean` extracts formal
+`WordTree` values from typed compiler IR (Lean.IR.FnBody) for finite scalar
+operations and the checked u32 halving recurrence (`Acorn.Portable.powLoopWord`,
+33 body visits via `AcornNativeResourceAudit.checkHalving` and
+`AcornNativeResourceAudit.extractHalving`), plus startup and first-use once-cell
+and eager-initializer closures (at most 68 distinct cached initializers and unit
+startup/first-use credit at most 575). Weighted costs retain primitive and callee
+identities (`CostModel`); the unit interpretation is only a structural regression
+budget (no unit denotes seconds, bytes, energy, or a hardware instruction, and
+`WordTree.costExec_le_cost` does not assert that an assignment describes a
+physical machine without a justified external platform model). Ordinary roots
+exclude heap operations except explicit bounded integer egress, startup admits
+reviewed constructors (`InitExec`, deduplicated by compiler identity
+`InitCell.name`), unknown calls and cycles are rejected with the separately
+checked halving loop (`HalvingExec`), and extraction, compiler lowering, and
+reviewed native primitives remain trusted boundaries. Because Lean's closed-term
+cache is not persistent across imports, `AcornNativeResourceAudit.readOnceSymbols`
+reads emitted C under `.lake/build/ir/` using the pinned compiler's symbol
+mangling (matching a `static lean_once_cell_t` initializer line with a
+corresponding `static` scalar or object declaration) and re-checks scalar types
+against IR; the `4096` extraction fuel bounds the extractor only and never serves
+as a claimed program execution bound. Primitive IEEE interpretation remains a native assumption.
+
+Native build provenance embeds source, toolchain, and audit identifiers into
+`NativeApp` (`lean/NativeApp/Build.lean`), which is a build/OS bootstrap
+boundary outside the core algorithm library `Acorn`. In `lean/lakefile.lean`,
+the `NativeApp` library and the `acorn-core` and `acorn-viewer` executables
+declare Lake's nativeProvenance target (alongside checkpointSync) in
+extraDepTargets, so provenanceJob runs before `NativeApp` compiles and
+contributes its trace to `NativeApp.Build`. provenanceJob admits
+`lean/Acorn/Host/AuditPins.lean` and `viewer/static/index.html` as Git-tracked
+regular files, collects tracked regular entries under `lean/` via nativeSources
+(every `.lean` and `.c` file, including `lean/Acorn/Host/AuditPins.lean` and
+`lean/os/checkpoint-sync.c`, plus `lean/lean-toolchain` and
+`lean/lake-manifest.json`), appends `viewer/static/index.html`, resolves real
+paths, and sorts them. nativeDigests (shared by singleton hashing in
+nativeDigest) rejects paths containing newlines, hashes the list in one
+`openssl dgst -sha256 -r` invocation, and requires one lowercase
+64-hex-character SHA-256 digest per input in order with the matching path.
+provenanceJob requires every resolved real path to lie beneath the repository
+root, writes the sorted repository-relative inventory (`acorn-lean-source-v2`)
+to `.lake/build/native-source-inventory.txt`, and hashes it to produce the
+64-hex-character source digest. It also queries `lean --version`,
+`leanc --version`, and `cc --version` (refusing any non-zero exit), writes those
+outputs together with the shared strict floating-point flags nativeFloatFlags
+(`-ffp-contract=off`, `-fno-fast-math`), the `checkpoint-sync` C compiler flags
+checkpointFlags, and the `source=` digest line (`acorn-lean-build-v1`) to
+`.lake/build/native-build-identity.txt`, and hashes that file to produce the
+64-hex-character build digest. Finally, it reads
+`lean/Acorn/Host/AuditPins.lean` (the single owner of
+`Acorn.Host.AuditPins.declaredDigest`), requires a unique
+`def declaredDigest : UInt64 := 0x` literal with 16 lowercase hexadecimal digits
+followed by a newline, and writes the source, build, and audit lines to
+`.lake/build/native-provenance.txt`, keying Lake's dependency trace on the
+binary contents of all collected sources together with the compiler/flag
+settings and sorted source paths. `lean/NativeApp/Build.lean` embeds those three
+files at compile time through `include_str`: the private provenance triple,
+`NativeApp.sourceInventory` (the source framing for explicitly requested
+scientific execution), and `NativeApp.buildRecord` (the compiler settings
+recorded beside the source identity). `NativeApp.decodeBuildIdentity` admits the
+embedded provenance into `Acorn.Host.Viewer.TelemetryBuild` only when it
+consists of exactly three newline-terminated lowercase hexadecimal strings of
+lengths 64, 64, and 16; `NativeApp.buildIdentity` supplies that decoded record
+to shared telemetry and execution, and `NativeApp.runCore`'s streaming campaign
+path (`lean/NativeApp/Core.lean`) and `NativeApp.executeMutationAudit`
+(`lean/NativeApp/MutationAudit.lean`) refuse to run when
+`NativeApp.buildIdentity` fails admission. Compiler, native toolchain, OpenSSL
+hashing, and Lake build orchestration (including trace freshness and that the
+build files read by `include_str` correspond to the compiled binary) remain
+trusted boundaries: Lean code does not verify that a supplied or embedded build
+digest identifies the executing binary
+(`lean/Acorn/Host/Viewer/CoreTelemetry.lean`). These digests establish raw byte
+identity and mutation detection only; they never supply cryptographic
+authenticity, tamper resistance against an untrusted build environment, or a
+correctness theorem.
 
 The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
-validates, in a checkout that holds only tracked files. GitHub runs the same
+validates, and every gate check enumerates only Git-tracked stage-0 regular
+files so untracked working-copy entries do not enter checks or change the
+verdict, apart from the deliberate refusals of ambient `package-overrides.json`
+in an active workspace, non-regular or symlinked entries in checked `.lake`
+destinations, and an untracked `lakefile.toml` inside `lean/` during
+`scripts/regula.sh`. GitHub runs the same
 script at each event that gives a pull request its head, within the limits
 described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
@@ -510,7 +747,7 @@ library `AcornVerif` except `AcornTools.AxiomPins`, and every executable. It bui
 these targets and their dependencies, with native objects where applicable, and
 admits nothing after the build. The axiom pins import the proof library, so they
 remain in the second stage despite belonging to the tools. The second is the
-identical complete command, which selects every discovered module: Lake
+identical complete command, which selects every tracked module: Lake
 reuses an output of the first only where its trace matches the checked-out
 source, toolchain and options, and builds the rest. So in the gate the cold
 build and the checks no longer share one deadline: the first bounds the build of
@@ -518,30 +755,76 @@ the executing library, the tools except the axiom pins, and their dependencies;
 the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
-[Regula audit](#regula-audit), lean-intent's two checks and the frame
-check on the same commit (each also when an earlier step failed), and serially
-after them (only when ordinary verification succeeded, so un-admitted sources
-are never elaborated) the pinned `no-comments`
-check (`.no-comments.json`, `comment-ratchet.json`, `lean/no-comments.pin`),
-passing only when both runs, the audit and all four post-checks pass. When
-ordinary verification passed,
-lean-intent's two checks and the frame check run one after another in a
-background subshell beside the Regula audit, because every module and executable
-is already built and all three read the finished build without writing to
-`lean/.lake/`; when verification failed, all three run one after another, and the
-`no-comments` check is refused without executing the binary. Otherwise, once
-verification succeeded, the `no-comments` check runs serially afterward so its
-workers never overlap with the Regula audit's memory peak, offline-verifying the
-binary's SHA-256
-from `lean/no-comments.pin` (for `darwin-arm64` and `linux-x86_64`) before
-executing and checking all scoped `.lean`
+[Regula audit](#regula-audit) (360-second deadline), lean-intent's two checks
+(180-second deadline) and the frame check (120-second deadline) on the same
+commit (each also when an earlier step failed), and, only when ordinary
+verification succeeded (so un-admitted sources are never elaborated), the pinned
+`no-comments` check (`.no-comments.json`, `comment-ratchet.json`,
+`lean/no-comments.pin`, 60-second tracked-file admission deadline and 300-second
+execution deadline), passing only when both runs, the audit and all four
+post-checks pass. Every post-verification deadline uses GNU coreutils timeout
+with process-group SIGKILL and no grace period, matching `scripts/verify.sh`
+(exit status `137` on deadline SIGKILL or external SIGKILL fails the check and
+the gate). `scripts/gate.sh` isolates every phase's temporary directory (provisioning, both
+verification stages and every post-verification check) under a parent-owned
+scratch directory removed on exit or cancellation, runs provisioning functions
+and external phases in dedicated process groups with interruptible waits (using
+direct process replacement so `scripts/verify.sh`'s GNU timeout and its
+descendants share the recorded group) so SIGINT/SIGTERM cancellation signals
+and reaps active child groups (subject to POSIX Bash's normal
+launch-to-PID-recording boundary), and reaps any surviving group members after
+each wait returns.
+When ordinary verification passed, `scripts/gate.sh` first verifies
+`no-comments` cache containment, offline SHA-256 against `lean/no-comments.pin`
+(for `darwin-arm64` and `linux-x86_64`) and bounded tracked-file admission
+(`admit-no-comments`, timed and bounded separately under its 60-second deadline)
+of `.no-comments.json` and its configured ratchet path, workspace directories,
+Lake flags (refusing reconfiguring/rehashing flags such as `-R`,
+`--reconfigure`, `--rehash` and `--old`), empty tool/workspace-exclude prefixes
+and Verso-scoped exclude prefixes alongside `lean/no-comments.pin` and both
+workspaces. It then runs the Regula audit in the foreground while lean-intent's
+two checks, the frame check and (when admitted) the `no-comments` check run one
+after another in a background subshell, passing only when every check and the
+background supervisor itself exit cleanly (recording missing timing data as
+unavailable rather than zero). Because ordinary verification has
+already built every module and executable and synchronized Lake's configuration
+cache, the generated override file and the tracked-module stamp inside
+`lean/.lake/`, those compiled and cached build artifacts stay unmodified across
+the overlapped phase: `sync-config` writes its comparison file inside temporary
+storage and creates no files under `lean/.lake/` on a stamp hit (writing an
+exclusive staging file beside the stamp only on a stamp miss),
+`.no-comments.json` admission forbids Lake reconfiguring flags, and each
+bounded phase writes temporary/staging files inside its isolated parent-owned
+scratch directory. In that overlapped phase
+`no-comments` runs with `--jobs` set to one less than the host CPU count,
+clamped between `1` and `6` (3 workers on a four-processor runner and 6 on
+larger hosts), leaving a core for Regula's single-threaded kernel replay and
+limiting concurrent worker parallelism; the worker cap is a concurrency bound
+and does not enforce a hard combined-memory ceiling (measured on macOS arm64,
+the overlapped post-verification phase peaked at 6.31 GiB physical footprint at
+`--jobs 3` and 6.95 GiB at `--jobs 6`, while Ubuntu runner memory headroom
+rests on the 16 GiB runner image). When verification failed, Regula,
+lean-intent and the frame check run one after another under their individual
+deadlines, and the `no-comments` check is refused without executing the binary.
+When executed, `no-comments` checks all scoped `.lean`
 files across `lean/` (including `lean/lakefile.lean`) and `site/` code
 (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
-`site/AcornDocs.lean` and `site/AcornDocs/` Verso prose)
-against `comment-ratchet.json` for exact head sync, plus unconditional
-monotonic non-growth against the merge-base ratchet alongside rejecting newly
-excluded files that still hold comments at the merge base (tracked files with
-zero comments carry no ratchet entry).
+`site/AcornDocs.lean` and `site/AcornDocs/` Verso prose), using explicit
+`-f lakefile.lean` and `-f lakefile.toml` workspace configuration flags in
+`.no-comments.json`, against `comment-ratchet.json` for exact head sync, plus
+unconditional monotonic non-growth against the merge-base ratchet alongside
+rejecting newly excluded files that still hold comments at the merge base
+(tracked files with zero comments carry no ratchet entry). The pinned
+`lean-no-comments` v0.3.1 release batches Lake workspace setup and reuses a
+persistent worker process across files sharing an identical import header and
+environment (spawning fresh processes across distinct headers); while exact
+inventory agreement with v0.2.0 is verified on the repository tree and governed
+executing/proof modules are barred from defining unsafe or native-plugin
+initializers by `lean-boundary-audit`, process reuse across matching-header
+files (including tooling modules, site code and imported libraries) rests on
+the upstream tool's documented trust assumption that elaborated commands and
+imported plugins or initializers do not depend on per-file isolation of
+process-global mutable state within a batch.
 
 The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
 modules from Lake: the libraries among the default targets, through the Lake
@@ -566,12 +849,16 @@ intent record of contract 1 of the mission contract, the interface every world
 meets, whose proof rbeauchamp/acorn#213 tracks, and the deliverable of the intent
 record of contract 3, the invariants of learning from one stream, whose proof
 rbeauchamp/acorn#215 tracks; it was decided on the owner's
-behalf by the agent supervising Acorn's research, since the intent-first method
+behalf by the agent supervising Acorn's research on 2026-11-03, since the intent-first method
 confirms a record before its implementation exists, and it remains until the
 listed deliverables migrate to lean-intent's awaiting-implementation
 declaration (rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
 package, and that the constant an implementation names is what an executable runs,
-are trusted.
+are trusted. Each check runs under a `2,000,000` heartbeat budget in Lean's unit
+of a thousand (ten times Lean's `200,000` per-declaration default) because
+confirmation renders each record and every definition its answers' predicates
+reach; the runner is `unsafe` solely so Lean executes module initializers to load
+environment extensions when importing compiled modules.
 
 The frame check runs from `lean/AcornTools/Frame.lean`. A target's file freezes
 the target's text. A pin file beside it, a regular file ending in `.frame` in
@@ -579,9 +866,27 @@ the target's text. A pin file beside it, a regular file ending in `.frame` in
 names a submission may change, the names kept and not followed, and, for every
 other declaration of the project that the target reaches through types and
 definitions, the SHA-256 digest of its printed kind, universe parameters, type and
-value. The check lists that directory and admits only regular files ending in
-`.lean` and regular files ending in `.frame`; any other entry, a subdirectory or
-a symbolic link included, fails it and is named. The check reads declarations
+value. The checker implements SHA-256 directly over UTF-8 bytes
+(AcornFrameCheck.roundConstants, AcornFrameCheck.initialHash,
+AcornFrameCheck.padded, AcornFrameCheck.compress, and AcornFrameCheck.sha256)
+following NIST's
+[FIPS 180-4](https://doi.org/10.6028/NIST.FIPS.180-4)
+(Secure Hash Standard, August 2015, §4.1.2, §4.2.2, §5.1.1, §5.3.3, and §6.2).
+Before AcornFrameCheck.run reads any pin file, AcornFrameCheck.vectorsHold
+checks three published digests: the empty message (zero bytes, NIST CAVP
+[SHA-256 byte-oriented test vectors](https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure-hashing),
+SHA256ShortMsg.rsp, Len = 0), "abc", which pads to one 64-byte block, and a
+56-byte message, which pads to two 64-byte blocks (both from NIST's published
+[SHA-256 examples](https://csrc.nist.gov/csrc/media/projects/cryptographic-standards-and-guidelines/documents/examples/sha256.pdf),
+one-block and two-block message samples); passing those three digests is a
+startup self-check rather than a proof of FIPS 180-4 equivalence. The check
+enumerates Git-tracked regular files under
+`lean/AcornVerif/Targets/` (refusing an empty targets set), admits only regular
+files ending in `.lean` and regular files ending in `.frame`, and accepts a
+non-empty tracked targets directory with zero `.frame` files; any other tracked
+entry under that directory, a subdirectory or a symbolic link included, fails
+it and is named, while untracked working-copy entries are ignored. The check
+reads declarations
 from compiled modules, never from sources, and running it builds the checking
 program and no module that program reads. So for each pin file it first
 requires the module the file names to be, under exactly that name, one of the
@@ -598,14 +903,20 @@ not hold the module, when Lake does not report the module and every module of
 the workspace it imports current, when Lake reads the module's source from
 another place, and when Lean finds the module's compiled
 file elsewhere. A module of a dependency or of the documentation package is
-refused as no source of this package, and an entry below the package directory
-that is neither a directory nor a regular file fails the inventory and the
-check with it. The command that prints a pin file requires the same things
+refused as no source of this package, and any tracked entry below the package
+directory that is neither a regular file nor below regular directories fails
+the inventory and the check with it. The command that prints a pin file requires
+the same things
 before it reads a module. So a compiled file that an earlier build left
 behind is not read in
 place of the tree's source, as far as Lake's record of what is current is
 right: that record, and that nothing but Lake has written the compiled files
-since, are trusted. The check relies besides, as every check of the gate does,
+since, are trusted. Because AcornFrameCheck.current compares real paths for the
+named root module alone before AcornFrameCheck.imported loads its dependency
+closure (a boundary shared by verification and `frame-check print`), Lean's
+search path, which the bootstrap's `lake exe` sets with the workspace's own
+library directories first, is also trusted to resolve the pinned module's
+imports to the compiled artifacts Lake checked. The check relies besides, as every check of the gate does,
 on the stability of the file system while it runs, which the
 [compiler and execution boundary](#compiler-and-execution-boundary) lists among
 the trusted boundaries. The check then computes
@@ -662,18 +973,45 @@ relies on the owner re-running `./scripts/gate.sh` against main before merge.
 The arrangement on GitHub differs from the pipeline's as follows. A step of
 the workflow downloads elan's pinned release in every run and installs it only
 after the archive's SHA-256 matches. The script's provisioning runs in a step
-of its own, whose 27-minute limit bounds a stalled download and is no check's
+of its own, whose 12-minute limit bounds a stalled download and is no check's
 deadline, and the script's provisioning in the last step then finds the
 dependencies current. Nothing is stored between runs: every run
 provisions everything from its pinned sources and builds from cold project
 outputs. A copy stored by an earlier head of a pull request, which controls its
 own workflow, could otherwise be restored and trusted by a later head whose own
-changes show nothing of it. The job has a 60-minute limit, where the
-pipeline's Test step has none. That limit is the sum of the limits of the two
-jobs that ran these checks side by side before 2026-10-28; no check's own
-deadline changed, and each of verification's two stages keeps its 360-second
-deadline. This shape, slower than two jobs with stored dependencies, was decided
-on the owner's behalf by the agent supervising Acorn's research.
+changes show nothing of it. The merge-gate step runs `exec ./scripts/gate.sh` (so runner cancellation
+signals reach the gate directly) under a 13-minute
+`timeout-minutes` limit and the workflow's gate job carries a 20-minute `timeout-minutes`
+limit, where the pipeline's Test step has none; a successful provisioning step
+requires its duration handoff to `$GITHUB_OUTPUT` to succeed, while cancellation
+reporting stays best effort; each of verification's two stages
+keeps its 360-second deadline, and `scripts/gate.sh` individually bounds
+`no-comments` admission (60 seconds), the Regula audit (360 seconds),
+lean-intent checks (180 seconds), frame check (120 seconds) and `no-comments`
+execution (300 seconds). On every run that reaches the provisioning or merge-gate step (including
+provisioning failure/cancellation and gate failure/cancellation after
+`scripts/gate.sh`'s pre-execution admission and trap setup, while the runner
+can still publish step outputs; failures in earlier workflow steps such as
+commit check, checkout, package admission or elan provisioning, or pre-trap
+startup admission, exit without writing a phase table), the workflow and
+`scripts/gate.sh` print a per-phase timing summary line, write a per-phase
+duration table (provisioning, dependency re-check, verification stages 1 and 2,
+`no-comments` admission, Regula, lean-intent, frame, `no-comments` execution,
+post-verification wall time, merge-gate total and workflow elapsed time from
+commit identification through gate completion, excluding runner setup and
+post-job checkout cleanup, recording actual phase starts and completions and
+marking unreached or interrupted phases explicitly) to `$GITHUB_STEP_SUMMARY`
+when set to a non-symlink regular file path (failing a normal gate run if
+writing that summary fails), and emit GitHub Actions `::warning::` budget
+annotations when a phase or total exceeds its early-warning target
+(provisioning over 8 minutes, verification stages 1 and 2 combined over 6
+minutes, Regula over 4 minutes, `no-comments` execution over 3 minutes, merge
+gate over 10 minutes, or workflow elapsed time over 15 minutes) so slowdowns
+surface before hitting the hard ceilings. Warnings surface creeping duration
+regressions without loosening any check; hitting a per-check, step or job hard
+limit fails the check or job. This cold-provisioned single-job shape, slower
+than two jobs with stored dependencies, was decided on the owner's behalf by the
+agent supervising Acorn's research.
 
 A pull request's run is started by GitHub's ordinary event for pull requests,
 never the privileged one that runs with the base repository's rights, so the run
@@ -739,25 +1077,32 @@ runs, in the `gate:` lines that the head's own script prints there. Each of
 these lines ends with the time of day and the seconds since the script started.
 The script of this revision prints `gate: verification, stage one` before its
 first check and then reports each check's exit status on its own line:
-`gate: verification exited 0; Regula audit beside lean-intent and frame checks`
-(or `gate: verification exited N; Regula audit` when verification exited
+`gate: verification exited 0; Regula audit beside lean-intent, frame and no-comments checks`
+(or `gate: verification exited 0; Regula audit beside lean-intent and frame checks`
+when `no-comments` fails pre-execution integrity or admission checks, or
+`gate: verification exited N; Regula audit` when verification exited
 non-zero) for verification's two stages together,
 `gate: Regula audit exited N; lean-intent checks`,
 `gate: lean-intent checks exited N; frame check`,
 `gate: frame check exited N; no-comments check` and
 `gate: no-comments check exited N` (or
 `gate: no-comments check refused (integrity check failed)` when the cached
-binary fails cache-containment or offline SHA-256 verification before starting, or
+binary fails cache-containment or offline SHA-256 verification before starting,
+`gate: no-comments check refused (admission check failed, exit N)` when
+`admit-no-comments` fails before starting the binary, or
 `gate: no-comments check refused (verification failed)` when either stage of
-ordinary verification failed); when verification passed,
-`gate: verification exited 0; Regula audit beside lean-intent and frame checks`
-prints before either starts, while
-`gate: Regula audit exited N; lean-intent checks`,
-`gate: lean-intent checks exited N; frame check` and
-`gate: frame check exited N; no-comments check` wait until both the Regula
-audit and the background subshell finish.
-It prints `gate: every merge check passed` last, and only when every status
-is 0. A head that holds another revision of the script runs that revision's
+ordinary verification failed); if the background supervisor exits without
+producing an observed integer status for a check, the script reports
+`status unavailable (background supervisor exited N)` for that check rather
+than synthesizing an exit status, and fails the gate. A check terminated by its
+hard process-group SIGKILL deadline or by an external SIGKILL reports exit
+status `137`. When verification passed, the
+verification-exited line prints before the overlapped post-verification checks
+start, while the Regula, lean-intent, frame and `no-comments` status lines wait
+until both the Regula audit and the background subshell finish. Before the final
+exit check it prints `gate: phase timings (s): ...` with each phase's measured
+duration, and it prints `gate: every merge check passed` last, and only when
+every status is 0. A head that holds another revision of the script runs that revision's
 checks and prints that revision's lines, which the head's own `scripts/gate.sh`
 gives: a revision from before the `no-comments` check or frame check prints no
 line for it.
@@ -769,9 +1114,11 @@ every check of the head's script passed is the line
 `gate: every merge check passed`. Each attempt of a run is read by its own log.
 In the attempt being read, a check with no line that reports its exit status has
 no verdict (including when the script prints
-`gate: no-comments check refused (integrity check failed)` or
+`gate: no-comments check refused (integrity check failed)`,
+`gate: no-comments check refused (admission check failed, exit N)` or
 `gate: no-comments check refused (verification failed)` before starting the
-binary, which still fails the gate), and an attempt without the passing line is
+binary, or reports `status unavailable` when the background supervisor fails to
+record a child exit status, each of which still fails the gate), and an attempt without the passing line is
 no pass of the gate. So an
 attempt gives no check a verdict when GitHub marked it failed before a runner
 started, as when an approval was never given; when a step before the last
@@ -789,10 +1136,22 @@ latest commit (GitHub's documentation, Troubleshooting required status checks).
 
 Ordinary verification shares a compiler environment for ownership, the theorem
 inventory and document-symbol admission. Executable entries retain isolated `main` owners
-and reuse loaded dependency regions. Each IR reference must belong to that
+and reuse loaded dependency regions (`lean/AcornTools/OwnershipAudit.lean` keeps
+importModulesCore shared dependency regions alive with leakEnv set until the
+bounded audit process exits so sibling environments do not free shared regions).
+Each IR reference must belong to that
 entry's actual compiled import closure; data loaded for another entry cannot
 satisfy this check. Shared regions live only for the audit process, and no prior
-acceptance result is cached. Source, boundary, native-route and browser checks
+acceptance result is cached. In `lean/AcornTools/Boundary/Audit.lean`,
+`AcornBoundaryAudit.flushOLeanCache` evicts compacted-region Name keys from Lean
+v4.36.0's oleanRootCacheRef (Lean/Util/Path.lean, lines 134 to 147) before
+withImportModules unmaps `.olean` regions by calling findOLean on the static
+literal Init under two distinct search paths and then restoring searchPathRef;
+`AcornBoundaryAudit.command` runs compiled admission before source admission
+because source admission keeps its parser environment mapped until exit and an
+already-mapped module cannot be mapped again (later environments would read and
+relocate it in full), and every import resets initializer execution so
+initializers run only for the trusted parser environment. Source, boundary, native-route and browser checks
 remain required. Standalone ownership, theorem and corpus commands remain
 available for focused diagnostics.
 
@@ -801,16 +1160,28 @@ with Lake's target inventory before the project build, and compiled boundary,
 native, browser-kernel and ownership admission after it. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
 before a failure is reported. The site check runs after these admissions, also
-when one of them fails, because building the documents can rebuild this
-package's modules into the build directory that the admissions read. The build
-requests modules first and executables after them. An executable whose Lake
-configuration names a target it needs is held back with its root module: both
-are requested after every other module and executable, because Lake waits for
-that target before it reads the next request, so every other job is scheduled
-first.
-Each compiler process of the build uses at most two threads, where the default
-is one for each processor; this limits how far the processes Lake runs at once
-compete for the same processors.
+when one of them fails, because `site/lakefile.toml` requires `../lean` by path
+and building the documents can rebuild this package's modules into the build
+directory under `lean/.lake` that the admissions read. The build
+requests library modules first, ordinary executables next, and executables whose
+Lake configuration names a target in needs together with their root modules last:
+Lake resolves the build graph on one thread in request order and waits for needs
+before reading the next request (Module.recFetchPreSetup, Lake of Lean v4.36.0),
+and a root-module request resolves to its executable (Package.findTargetModule?),
+so every other job is scheduled first.
+In `lean/lakefile.lean`, passing `-j2` through weakLeanArgs bounds each compiler
+process to two threads, where the default is one for each processor, as a weak
+trace-neutral flag that changes no module elaboration; debug.skipKernelTC stays
+at its default (false), so the build kernel-checks every proof term alongside
+Regula's `lake lint` replay; `AcornVerif` sets allowNonModules to true solely to
+suppress Lake's requiresModuleSystem warning from Mathlib because `AcornVerif`
+imports non-module `Acorn` files (refused inside module files), changing no
+elaboration; and the generator-only `world-certificates` executable excludes
+agent composition, the campaign runner and the random-policy comparator from its
+import closure (`AcornBoundaryAudit.generatorOnly`,
+`AcornBoundaryAudit.generatorExcluded`), though its closure holds the attempt
+protocol and campaign admission through the curriculum and no audit enforces that
+the tool starts no attempt.
 
 ## Regula audit
 
@@ -937,7 +1308,7 @@ a value, with the value forgotten. A statement of the value of an accepted
 result stands beside such a kind as a requirement with no kind. A function keeps
 a requirement with no kind where no kind is true of it or where the rule for
 specifications below excludes the kind, and the ownership audit requires the
-contract by name. The module documentation of `lean/Acorn/Decisions.lean` gives
+contract by name. `docs/decision-contracts.md` gives
 the four reasons: a function that accepts every input or whose accepted inputs
 no theorem states; a specification that reads a part of the input, such as the
 state of a learner, whose type declares an invariant that names tests that the
@@ -975,12 +1346,10 @@ those two, such as `Binary32.key` or `Host.terrain`. Review admits such a
 function where something other than the kind fixes it: a primitive operation of
 a number type that Lean's library defines, or a definition with a statement of
 its own against a reading that does not apply it, such as the slot map of the
-feature bank, stated as SplitMix64 on Lean core's bit vectors. The module
-documentation of `lean/Acorn/Decisions.lean` names those statements, the groups
+feature bank, stated as SplitMix64 on Lean core's bit vectors. `docs/decision-contracts.md` names those statements, the groups
 of shared definitions that have none yet, and each proposition with its theorem.
 
-No check of Acorn finds a decision function that is not registered. The module
-documentation of `lean/Acorn/Decisions.lean` lists the groups of definitions with
+No check of Acorn finds a decision function that is not registered. `docs/decision-contracts.md` lists the groups of definitions with
 a `Bool`, `Option`, `Except` or `Decidable` result that carry no contract, with
 the reason for each group. That list has no check of completeness: a new
 definition with such a result can arrive with no contract and no entry. No kind
@@ -1000,8 +1369,7 @@ its action list: it accepts exactly an action list of at least one and at most
 the cap actions whose run of the executed world step, from the world with the
 goal installed, ends in a world in which the goal is attained. The world step
 decides propositions in the place of its tests, so that specification shares no
-test with the checker. The module documentation of
-`lean/AcornVerif/Decisions.lean` lists the functions of that module that keep no
+test with the checker. `docs/decision-contracts.md` lists the functions of `lean/AcornVerif/Decisions.lean` that keep no
 kind, with the reason for each and which of them are also remaining work of
 issue 105.
 
@@ -1009,7 +1377,8 @@ The audit is a second check of the merge gate and is not part of
 `./scripts/verify.sh`. It builds the claimed modules again where Lake's traces
 differ and runs Regula's checker, whose replay of the claim's cone does not fit
 beside the ordinary checks inside the 360-second deadline. The gate runs it
-after ordinary verification and requires both before a merge. A pass is Regula's
+after ordinary verification, under its own 360-second deadline, and requires
+both before a merge. A pass is Regula's
 proof verdict, with the meaning and the assumption that the section above
 states; it does not replace review.
 
@@ -1040,13 +1409,22 @@ make no such check.
 **Axioms that a declaration depends on.** RG1003 refuses a constant of a claimed
 module with a transitive axiom outside propext, Quot.sound and Classical.choice,
 and RG1005 one whose axioms exceed the standard-logical profile. Both rules
-examine every constant: theorems, definitions and instances, and read what each
-constant mentions as Lean's kernel checks it, so an axiom that a claimed constant
-reaches only through an inductive type's block counts. The tools make no such
-check. The tool module AcornTools.AxiomPins still pins the exact axiom
-sets of selected theorems in the build, with message guards around
-`#print axioms`; it imports the proof library and lies outside the claim with the
-other tools.
+examine every public, private and generated constant—theorems, definitions and
+instances—and read what each constant mentions as Lean's kernel checks it, so
+an axiom that a claimed constant reaches only through an inductive type's block
+counts, and new declarations cannot bypass the audit through namespace aliases
+or source formatting. The tools make no such check across all claimed constants.
+To complement RG1003 and RG1005, the tool module `AcornTools.AxiomPins` pins
+the exact transitive axiom sets of selected theorems (`AcornTools.AxiomPins.pins`)
+during elaboration via a compile-time command-elaboration check
+(`AcornTools.AxiomPins.verifyPins`, backed by Lean's Lean.Elab.Command and
+Lean.collectAxioms) that fails the build if the pin table is empty, any pinned
+declaration is missing from the environment, any pinned declaration or expected
+axiom is duplicated, or a declaration's sorted transitive axiom set differs in
+either direction (extra unexpected axiom or missing expected axiom) from its
+pinned set. Verification builds every discovered module, `AcornTools.AxiomPins`
+included, so any drift in a pinned dependency set fails the build; the module
+imports the proof library and lies outside the Regula claim with the other tools.
 
 **Proof holes and compiler-trusting proofs.** RG1002 refuses a constant that
 depends on Lean's proof-hole axiom, directly or through an import, and RG1004 one
@@ -1082,8 +1460,10 @@ that carries a replacement attribute or an extern attribute, whatever reaches it
 and whatever is proved about it, except a verified compiler-generated
 constructor-index replacement that Lean v4.36.0 emits for every safe, non-Prop,
 non-builtin inductive type whose constructor count is not one
-(`AcornTheoremCount.isCompilerCtorIdx`, matching Regula v0.13.1's structural
-check on the pair and its toolchain constructor-tag helper). The Regula audit
+(`AcornTheoremCount.isCompilerCtorIdx`, matching Lean v4.36.0's
+Lean/Meta/Constructions/CtorIdx.lean, lines 40 to 141, and Regula v0.13.1's
+structural check Regula.Load.ctorIdxFormOf and Regula.Closed.Tables.ctorIdxPair
+on the pair and its toolchain constructor-tag helper). The Regula audit
 reads replacement and extern attributes only to qualify RG1006's exempted forms
 (recursion helpers and constructor-index pairs) and has no general rule refusing
 them on safe declarations: a pass says nothing about what a compiled program
@@ -1100,14 +1480,21 @@ module on the way, and requires that the entry reaches each definition that
 `entryUses` lists for it, the claimed entry function first. Regula examines no
 compiled code.
 
-**Module inventory: the tools refuse more.** Lake's glob decides which library has
-a source. A new source below Acorn, AcornVerif or NativeApp is therefore a module
-of that library, the claim covers it, and Acorn's boundary predicates class it by
-its name. The tools keep no written list of these modules. A new source below
+**Module inventory: the tools refuse more.** The Lake configuration sets
+`roots := #[]` on its libraries, constructs explicit per-module globs solely
+from Git-tracked regular `.lean` files below `lean/`, and admits every declared
+executable's root module against that same tracked regular-file inventory
+during configuration elaboration and target discovery. A new tracked source
+below Acorn, AcornVerif or NativeApp is therefore a module of that library, the
+claim covers it, and Acorn's boundary predicates class it by its name;
+untracked files on disk are neither assigned to libraries nor buildable as
+library modules or executable roots. The tools keep no written
+list of those application modules. A new tracked source below
 `lean/AcornTools` is a module of a tool library outside the claim: ownership
-admission requires each discovered source outside the five libraries that Lake's
-globs assign to be an entry of `toolingModules`, and each entry to be a source. A
-source below lean that no library has is outside the claim unless a claimed
+admission enumerates tracked regular `.lean` files from Git and requires each
+tracked source outside the five libraries assigned from tracked modules to be an
+entry of `toolingModules`, and each entry to be a tracked source. A tracked
+source below `lean/` that no library has is outside the claim unless a claimed
 module imports it: the same requirement refuses it, and Lake refuses the build
 request for a module that no library has.
 
@@ -1121,13 +1508,15 @@ executable names that the build order and this document read.
 **Decision registrations.** The ownership audit requires a contract with a kind for
 each registered decision function whose result is not `Decidable`, as stated
 above, and counts only a contract about the whole function whose condition
-applies its kind to that function. Its subject is the function applied to
-nothing but the arguments its type takes implicitly, so a contract about one
-application does not count. Its condition is the kind with every argument but
-the last, which the contract supplies with the function, or a function of the
-contract's subject whose body is the kind with a last argument that mentions the
-bound variable; any other form, such as a condition that ignores its argument
-and decides the identity function, does not count. Regula reads no
+applies its kind to that function (`lean/AcornTools/OwnershipAudit.lean`). Its
+subject (wholeFunction) must be a constant instantiated solely with the arguments
+its type takes implicitly, rejecting explicit applications such as `f x₀`. Its
+condition (appliesKind) accepts only two closed forms for Regula.Decides,
+Regula.DecidesSoundly and Regula.DecidesCompletely: `K accepts spec` lacking the
+final explicit argument (which the contract supplies with the implementation), or
+`fun g => K accepts spec t` whose final explicit argument mentions the bound
+variable; any other form, such as `fun _ => K accepts spec id`, which ignores its
+argument and decides the identity function, does not count. Regula reads no
 registration.
 
 Regula has no rule for the import layers of the learned-only boundary, the
@@ -1235,17 +1624,34 @@ and requires `docs/verification.md` to equal the Markdown rendering of this
 document; `./scripts/verify.sh site write` writes that file. The Markdown file is
 kept so that existing links and readers on GitHub are served, and so that the
 document and pin checks of verification, which read Markdown, still cover this
-guide. The rendered pages stay in the working copy; nothing is published.
+guide. Rendering in `site/AcornSite/Markdown.lean` is total and fails closed by
+refusing unrendered Verso constructs (unordered, ordered and definition lists,
+block quotations, mathematics, footnotes, images and unrecognized extensions) by
+name rather than dropping or approximating them. The rendered pages stay in the working copy; nothing is published.
 
 The step maps each locked dependency of the site to its provisioned checkout, so
 Lake fetches nothing, and refuses to run until Lake reports pinned Verso built.
 The renderer runs in Lean's interpreter: a linked executable would compile the
 native code of every proof module a document imports. If the site check stops
 fitting the verification deadline, it becomes a separate check of the merge
-gate with its own bound; the deadline is not raised. Verification also admits the site's source
-inventory and requires `site/lake-manifest.json` to lock every dependency of
-`lean/lake-manifest.json` to the same revision, because both packages share one
-set of dependency checkouts.
+gate with its own bound; the deadline is not raised. At the shared site entry of `lean/AcornTools/Gate.lean` (covering
+`./scripts/verify.sh site`, `./scripts/verify.sh site write` and full
+verification) and before site provisioning in `scripts/gate.sh`,
+`scripts/tracked-files.sh` parses `site/lakefile.toml` and both lock manifests
+through Lake itself (deriving the site's path-override manifest directly from
+Lake's decoded manifest entries), requires `roots = []` and closed single-module
+globs whose effective module set together with `site/Main.lean` equals the
+Git-tracked regular `.lean` files under `site/` (and `AcornOwnership.siteModules`),
+admits `site/lakefile.toml`, `site/lake-manifest.json`, `site/lean-toolchain`,
+`site/Main.lean`, `docs/verification.md`, and `.lake` containment (without
+refusing unrelated `lakefile.lean` files under `site/`, since every site
+invocation passes `-f lakefile.toml`), synchronizes `lean/` tracked-module
+configuration traces, enforces unique decoded package names and checkout
+directories, requires the exact Acorn path requirement and manifest entry
+(`../lean` without copy), and requires every shared Git dependency of
+`lean/lake-manifest.json` to match in URL, revision, subdirectory (none),
+configuration file and manifest file, because both packages share one set of
+dependency checkouts.
 
 The site package is documentation tooling outside the Regula claim.
 [Verso](https://github.com/leanprover/verso), pinned in `site/lakefile.toml`, and
@@ -1268,7 +1674,11 @@ The expected digest has one form, `0x` and exactly sixteen lowercase hexadecimal
 it is a hash identifier, not a number, so it is not read as a command-line number and
 digit-only text such as `10` is refused.
 Paired checksum `68e84d568d55f8ad`. The deployed arm runs the ranked profile
-with the declared D6 exploration rate. The optional ./scripts/verify.sh diagnostics
+with the declared D6 exploration rate. `NativeApp.AuditArm.executeCampaign` runs
+the `annealed` incumbent arm with `NativeApp.AuditArm.construction`'s
+spatial-subtask profile via `AgentConstruction.runCampaign` without telemetry or
+checkpoint authority, while the declared and differential arms traverse the
+ordinary public native campaign. The optional ./scripts/verify.sh diagnostics
 command runs all three fixed arms under the same deadline. All three pins record
 the published generate-and-test tester and task-reading generator (PAR-11, D7),
 off-policy option learning (PAR-17) and option expectation models with planning under
@@ -1299,9 +1709,11 @@ learner through the check of its invariant and the agent's two invariants. An in
 image is refused and writes to that file are disabled. Loading the bytes that a save of a
 state writes returns that state, for every state of the resumable construction
 (`AcornVerif.CurrentCheckpoint.load_saved`). The world restarts, and the host begins a
-new session of the predictive-agreement evaluator. Filesystem persistence relies on the
-narrow C file-sync helper, native IO and the operating system; `lean/Acorn/Host/Checkpoint/IO.lean`
-states what a saved report establishes on each platform and what stays accepted risk.
+new session of the predictive-agreement evaluator. Filesystem persistence relies on the narrow C file-sync helper (`lean/os/checkpoint-sync.c`), native IO, and the operating system (`Acorn.Checkpoint.Store.save` in `lean/Acorn/Host/Checkpoint/IO.lean`). `Store.save` admits only supported profiles within `maximumBytes`, reserves an exclusive temporary file `.oak-{pid}-{seq}.tmp` up to 64 retries via mutex-serialized sequence numbers (assuming stable parent directories and temporary names against external mutation, with concurrent writers resolving last-rename-wins and no compare-and-swap guarantee), writes and flushes the buffer, and reports success only after three steps in order: invoking `checkpoint-sync file` on the complete temporary file, renaming it onto the destination (failures before or during rename trigger best-effort removal of the reserved temporary file without replacing the original error and rethrow without inspecting or restoring the destination: failures before rename never touch the destination under the stable-path assumption, whereas a rename error leaves the destination untouched only where the filesystem guarantees that the failed rename did not take effect, because a filesystem can report an error after performing the rename; cleanup ends once rename succeeds, after which the temporary path no longer names this writer's file, so directory-sync failure attempts no temporary removal), and invoking `checkpoint-sync directory` on `destination.parent.getD "."` (since `Acorn.Checkpoint.temporaryPath` extends the destination filename, the rename's entry lies in the destination's parent, or in the inherited working directory when the destination has no separator). Where each sync reaches permanent storage, ordering temporary-file sync before rename keeps an image whose bytes are not yet there from being named by the destination and ordering directory sync before the report keeps the report from preceding the entry, so a power loss at any earlier point leaves no report and leaves the destination naming either the previous image or the new complete one.
+
+Each sync establishes what the platform's own documentation says of the call `checkpoint-sync` makes, and only that. On Apple platforms, the build requires F\_FULLFSYNC in `<fcntl.h>`. macOS fsync(2) states that fsync moves data from the host to the drive, which may hold it and lose it on power loss, whereas fcntl(2) states that F\_FULLFSYNC does the same as fsync and "then asks the drive to flush all buffered data to the permanent storage device" (naming HFS, MS-DOS (FAT), UDF, and APFS as implementing it and listing no error for it). A successful save establishes only that those flush requests succeeded when F\_FULLFSYNC actually succeeded for both the file and the directory, not proof that the drive persisted the bytes to permanent storage; moreover, because `checkpoint-sync` ignores warning-write failures and requestSync suppresses stderr-forwarding errors, a silent fallback to fsync can succeed without a visible warning, so absence of stderr output does not identify which sync path ran. Moreover, the macOS manuals do not discuss directories apart from files; that a directory sync covers its entries is inferred from fsync(2)'s "all modified data and attributes". On a macOS filesystem lacking F\_FULLFSYNC, `lean/os/checkpoint-sync.c` falls back to fsync on ENOTTY, ENOTSUP, or EINVAL and prints a stderr warning forwarded by requestSync (failing to print the warning does not change that success); in XNU (`bsd/kern/kern_descrip.c`, `xnu-12377.121.6`, lines 3978–3987, error-code check at lines 3982–3983), that same error-code triple promotes F\_BARRIERFSYNC to F\_FULLFSYNC rather than failing unsupported filesystems directly. A success then establishes only what fsync(2) states—that the data reached the drive, which can lose it or write it out of order on power loss—and losing both this save and the replaced image is accepted risk on such a filesystem in exchange for keeping a save that a refusal would discard; every other F\_FULLFSYNC error, EIO included, fails the save. On every other platform, `checkpoint-sync` invokes fsync directly and fails on any error. Linux fsync(2) states that the transfer "includes writing through or flushing a disk cache if present", that the directory entry requires an explicit fsync of the directory, and that older kernels and lesser-used filesystems do not know how to flush disk caches. POSIX leaves the nature of the fsync transfer implementation-defined, so elsewhere a successful fsync establishes only what that operating system documents, and a filesystem whose fsync does not flush the disk cache stops at the drive as below.
+
+Where a sync stops at the drive (the macOS fsync fallback, or a Linux or other filesystem that does not flush the disk cache) or a drive ignores or misreports a flush (fcntl(2) notes certain FireWire drives, which no software here can detect), the sync order does not order what reaches permanent storage: macOS fsync(2) states that the drive "may also re-order the data so that later writes may be present, while earlier writes are not", so a power loss before or after a successful report can leave the destination naming an incomplete image with the replaced image gone (losing both the previous save and this one), and not every incomplete image need raise a load error because frame checksums detect accidental mutation only and body completeness rests on image admission (`lean/Acorn/Host/Checkpoint/Frame.lean`). A failed directory sync fails the save after rename has already pointed the destination at the new complete image with durability unconfirmed. No report covers these accepted risks: non-flushing filesystems and drives that ignore or misreport a flush; entries of parent directories above the destination's parent directory, which are not synced so power loss soon after creating them can lose them and the checkpoint with them; and crash-atomic rename, which is assumed of the filesystem. On the read side, readChunks in `Acorn.Checkpoint.readBounded` reads `min (remaining + 1) 65536` bytes per call up to `maximumBytes + 1` (continuing short reads to EOF and failing oversized inputs without trusting a file-supplied length), `Acorn.Checkpoint.loadFile` invokes `Acorn.Checkpoint.resume`, and `Acorn.Checkpoint.Store.hooks` maps `.noFileOrDirectory` to `.missing` and every other load error to `.refused` (disabling writes through `Acorn.Host.WritableCheckpoint.admit` while save errors remain visible to the runner's failure counter).
 
 ## Viewer ownership boundaries
 
@@ -1319,10 +1731,12 @@ the ranked core's executable file below: a closed state, the events the native
 actor `Acorn.Host.Viewer.Supervisor` hands it, and one step per event or per outcome of the call
 it waits for, which returns the next state and the effects to perform. The actor reads the
 world, performs the effects in order and then the call, and hands the call's outcome back before
-it reads anything else; it is effects, with no theorem of its own. Each turn reads, while nothing
-is pending: the identity a process reported, one queued command, the process slot, the identity
-again, so that a reaped process's last report is attributed before any launch or archival, and
-then a tick. The state the step returns is stored before its effects run, so a native error that
+it reads anything else; it is effects, with no theorem of its own. Each serving turn
+(`Acorn.Host.Viewer.Supervisor.step`) reads, while nothing is pending: the identity a
+process reported, at most one queued command, the process slot, the identity again, so that a
+reaped process's last report is attributed before any launch or archival, and then a tick; a
+closing turn (`Supervisor.closeTurn` in `lean/Acorn/Host/Viewer/Supervisor.lean`) takes no
+command from the queue and closes the command mailbox. The state the step returns is stored before its effects run, so a native error that
 stops the effects after it leaves that state, and the next turn goes on from it, as a restarted
 viewer goes on from the state file. A supervision is sealed by
 its run from its start, and every state a run reaches keeps one invariant
@@ -1476,12 +1890,13 @@ ends with one viewer, says nothing of a crash or of the viewer that comes after 
 The order at start-up is this. The viewer reads the state, builds its supervisor, binds its
 listener, and only then prints the ready line and submits. When the state is written depends on
 what the decoder (`Acorn.Host.Viewer.PersistedState.admit`) returns as its source. A state
-built with no file (`Acorn.Host.Viewer.StartSource.absent`), or read from a file of the
-current version with the intent that file records (`Acorn.Host.Viewer.StartSource.saved`),
+built with no file (`Acorn.Host.Viewer.StartSource.absent`), or read from a current-version
+file taken with the intent it records (`Acorn.Host.Viewer.StartSource.saved`),
 is written in the supervisor's construction, before the listener binds. An earlier version's
-file, whatever intent it records (`Acorn.Host.Viewer.StartSource.earlier`), and a file of
-the current version whose running intent was given for another child
-(`Acorn.Host.Viewer.StartSource.other`) are left exactly as they are
+file, whatever intent it records (`Acorn.Host.Viewer.StartSource.earlier`), and a
+current-version file with a running intent, when this launch lacks a child record (including a
+`--cmd` launch, whose own running file records `"child":null`) or its record does not match the
+file's (`Acorn.Host.Viewer.StartSource.other`), are left on disk exactly as they are
 (`Acorn.Host.Viewer.StartSource.kept`) until the listener is bound. The bootstrap then
 prints and flushes the line that says why the run is shown stopped, under the `--start` flag as
 well, and only then publishes the stopped state it started from, in the current schema with this
@@ -1490,18 +1905,22 @@ before it prints the ready line, before the `--start` flag submits its Start and
 command is processed. If the line cannot be written or flushed, the viewer exits before the
 publication and the file is still the original. So a start-up that fails before that publication, with or without the
 `--start` flag, leaves the next viewer the same file and the same reason, and such a file is read
-as an earlier version's, or as given for another child, once: in the first launch that publishes
+as an earlier version's (`Acorn.Host.Viewer.StartSource.earlier`), or as an unbound running
+intent (`Acorn.Host.Viewer.StartSource.other`), once: in the first launch that publishes
 the stopped state. That is the boundary, and no other: the reason is not lost by a failure before
 the publication, and after the publication it has been given, in that launch's first control
-record and in its log, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
+record and on standard output, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
 of the current version. A crash between the bind and the publication leaves the original file. A
 start-up that fails after the publication, when the ready line cannot be written for example,
 leaves a current-version stopped file, and the reason the next launch gives is that the saved
 state says stopped. A Start that reaches the control endpoint before the publication is only
 queued; it is handled at a later turn of the actor if the start-up goes on, and is lost with the
 viewer if the start-up fails after the publication. If the publication fails, the viewer exits
-with that error before it prints the ready line, and the file, which is replaced only by a rename
-after a complete write, is still the original. A viewer that fails once its listener is bound
+with that error before it prints the ready line: a failure before the rename leaves the original
+file intact, whereas an indeterminate rename error (such as POSIX.1-2017 `rename` EIO or Linux
+NFS rename-despite-error) can leave either the original file or the newly renamed current-version
+stopped file on disk, so the next launch reads whichever entry is present and gives that entry's
+reason. A viewer that fails once its listener is bound
 ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
 turn on that path takes a command from the queue, so nothing is started from the intent the file
 records and a Start queued by then is not handled. Whenever the start state is stopped, the one
@@ -1509,18 +1928,221 @@ line that says why (`Acorn.Host.Viewer.startAccount`) is in the reason of the fi
 record the supervisor publishes, under the `--start` flag too. A page that connects while that
 record is current shows the line; one that connects after a later transition has published its
 record is sent that record and shows that transition's reason. The viewer also prints the line on its standard output, at most once in a launch: for a file
-left as it is until the bind (an earlier version's, whatever intent it records, or one of the
-current version whose running intent was given for another child) the line is printed and flushed
-after the listener is bound and before the stopped state is published, under the `--start` flag
-as well; for no state file, or a file of the current version that says stopped, it is printed
-after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
+left as it is until the bind (`Acorn.Host.Viewer.StartSource.kept`: an earlier version's,
+whatever intent it records, or a current-version file with a running intent when this launch
+lacks a child record — including a `--cmd` launch — or its record does not match the file's)
+the line is printed and flushed after the listener is bound and before the stopped state is
+published, under the `--start` flag as well; for no state file, or a file of the current version
+that says stopped, it is printed after the ready line and not under the flag. Under the flag the Start is submitted after the listener binds and is handled at a later
 turn of the actor. The viewer says nothing of this kind when the start state is running.
 
-The statement starts from a durable state that intends to stay stopped, so it does not cover a
-Stop that the viewer has acknowledged but not yet written to its state file when the viewer
-crashes, or whose write failed: the file then still says running, by the earlier Start, and the
-next viewer with the same child resumes it. Holding the acknowledgement of a Stop until it is
-written would close that window and is a change to the control interface. Nor does it say who may
+The explicit-start statement above starts from a durable state that intends to stay stopped;
+browser Stop persistence closes the crash window between acknowledging a browser Stop and
+writing `desired = .stopped` to `state.json`. In the control endpoint
+(`lean/Acorn/Host/Viewer/HttpServer.lean`) and supervisor actor
+(`lean/Acorn/Host/Viewer/Supervisor.lean`), `Acorn.Host.Viewer.Supervisor.submitControl`
+holds an admitted `stop` request behind a promise until the supervisor actor completes the
+state-file write rather than replying on queue admission alone (and
+`Acorn.Host.Viewer.Supervisor.submit` refuses `.stop` so callers cannot bypass durable
+dispatch). For the pure supervisor step,
+`Acorn.Host.Viewer.Core.step_no_ackStop` shows no step emits
+`Acorn.Host.Viewer.Follow.ackStop`; `Acorn.Host.Viewer.Core.resolve_ackStop_spec`
+and `Acorn.Host.Viewer.Core.resume_ackStop_spec` establish that
+`Acorn.Host.Viewer.Follow.ackStop` is emitted only upon a successful write
+whose written `Acorn.Host.Viewer.PersistedState` has `desired = .stopped`,
+and `Acorn.Host.Viewer.Core.resume_error_no_ackStop` ensures every
+write-error outcome omits `Acorn.Host.Viewer.Follow.ackStop`.
+`Acorn.Host.Viewer.Core.stop_acknowledges_or_refuses` covers every supervisor state
+(idle or busy, open or closing/closed, current or retired owner, with or without a waiting
+replacement): stepping `.command .stop` either refuses immediately via
+`Acorn.Host.Viewer.Follow.refuseStop` without emitting
+`Acorn.Host.Viewer.Follow.ackStop`, or schedules a `.writeState` of a stopped
+`Acorn.Host.Viewer.PersistedState` (without acknowledging on the step) whose resolution
+emits `Acorn.Host.Viewer.Follow.ackStop` on write success and
+`Acorn.Host.Viewer.Follow.refuseStop` without `Acorn.Host.Viewer.Follow.ackStop`
+on write error. Under an interleaving state machine over disk updates (including indeterminate state-write
+rename errors via `Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`), crashes between
+any two steps, and reboots (including optional startup state write-back and arbitrary Clear
+configurations) (`Acorn.Host.Viewer.CrashState`, `Acorn.Host.Viewer.CrashStep`,
+`Acorn.Host.Viewer.CrashReached`, `Acorn.Host.Viewer.CrashState.Invariant`,
+`Acorn.Host.Viewer.CrashReached.invariant`),
+`Acorn.Host.Viewer.PersistedState.encode_decode_stopped`,
+`Acorn.Host.Viewer.CrashReached.crashed_disk_stopped` and
+`Acorn.Host.Viewer.CrashReached.startup_cannot_resume_running` prove that
+once `Acorn.Host.Viewer.Follow.ackStop` has been observed in supervisor processing order
+with no later Start admitted by an idle, open supervisor (ordered at the actor's acknowledging
+resolution rather than browser HTTP receipt time, so a concurrent Start processed after that
+resolution supersedes it), a crash at any point leaves the on-disk state
+stopped (or absent mid-Clear archive), so whenever a reboot loads the state via
+`Acorn.Host.Viewer.DiskState.BootState` (covering both missing-file startup and any
+successful parse and decode), the loaded state has `desired = .stopped` and never resumes
+running without a later explicit Start, while
+`Acorn.Host.Viewer.CrashReached.stop_never_acked_on_write_error` proves that a failed
+write step — whether the failure leaves the previous disk entry untouched
+(`Acorn.Host.Viewer.CrashStep.writeFail`) or publishes the temporary file despite
+reporting an error (`Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`) — leaves
+`ackedStop` unchanged without emitting `Acorn.Host.Viewer.Follow.ackStop`.
+`Acorn.Host.Viewer.exists_stop_crash_restart_witness` constructs a
+`stop -> write -> ack -> crash` trace from every running persisted state with a conditional
+boot extension for every admissible `Acorn.Host.Viewer.DiskState.BootState`, and
+`Acorn.Host.Viewer.exists_stop_crash_reboot_populated` unconditionally inhabits the full
+`stop -> write -> ack -> crash -> boot` trace by proving `Json.parse` and
+`Acorn.Host.Viewer.PersistedState.decode` succeed on the published stopped file.
+The boundary between these theorems and the host program is read from the code and not proved:
+`Acorn.Host.Viewer.RunDirectory.writeState` writes and flushes an exclusively created
+temporary file and renames it over `state.json` under the run directory's stable-path
+assumption; neither the temporary file nor the directory is fsynced (power-loss durability is
+not claimed), and visibility of complete bytes without torn files rests on local-filesystem
+atomic rename semantics. Stop durability likewise rests on Acorn's exclusive single-viewer
+run-directory ownership premise ([interrupted-launch recovery](#interrupted-launch-recovery) and
+UX-42 in [the viewer specification](viewer-ux.md)) alongside the run directory's stable-path and
+no-external-mutation assumptions: `Acorn.Host.Viewer.RunDirectory.open` allocates fresh
+per-process IO mutexes on each open rather than an inter-process lock, so atomic local rename
+prevents torn writes from one viewer process but cannot prevent a second concurrent viewer that
+already read `desired = "running"` — or an external writer replacing the path or mutating
+`state.json` — from publishing a stale state after the first viewer acknowledges Stop. Although `Acorn.Host.Viewer.CrashStep.writeFailIndeterminate`
+models an ambiguous `state.json` rename failure (such as POSIX.1-2017 `rename` EIO
+or Linux NFS rename-despite-error) without weakening the stopped-disk or no-ack guarantees,
+`Acorn.Host.Viewer.RunDirectory.archive` (serialized with publication under the run
+directory's IO mutex) moves the entire run directory — including files unknown to the current
+version — onto an exclusively reserved empty destination
+`<parent>/<run-name>.archive/<stamp>-<attempt>` under the sibling archive root
+`<parent>/<run-name>.archive` derived by
+`Acorn.Host.Viewer.RunDirectory.open` (assuming stable run and archive parents on the same
+filesystem, and never replacing an existing archive). Clear does not fsync the archive root,
+archive destination, or run parent directory entries, so power-loss durability is not claimed for
+archival or replacement creation. Its result separates a failure before or during rename from a
+failure after rename: any caught error while reserving the archive or renaming the run directory
+(attempting best-effort removal of the reserved empty directory if rename throws) is classified as
+`Acorn.Host.Viewer.ArchiveResult.unchanged` without re-inspecting the filesystem (assuming
+on the failure side that a failed directory rename leaves the run directory at its original path),
+which leaves the existing run in place and keeps the directory owner active (`Supervision.lean`
+reports `Clear failed; old run remains: ...`). Once rename succeeds,
+`Acorn.Host.Viewer.RunDirectory.archive` permanently retires that directory owner before
+returning either `Acorn.Host.Viewer.ArchiveResult.ready` or
+`Acorn.Host.Viewer.ArchiveResult.moved`, so queued publications on the old owner cannot
+write into the replacement root. If creating the fresh replacement directory then fails
+(`Acorn.Host.Viewer.ArchiveResult.moved`), or if opening a fresh owner for the replacement
+directory fails (`Acorn.Host.Viewer.Pending.reopen`), the old run is already in the archive
+and the supervisor permanently retires the previous owner (`owner := .retired`, leaving it
+untouched thereafter by `Acorn.Host.Viewer.Supervision.retired_untouched`) rather than
+leaving the old run in place; the operator can recover the archived run under the sibling archive
+layout `<parent>/<run-name>.archive/<stamp>-<attempt>`. Both replacement-failure branches emit a
+supervisor failure diagnostic naming the archive path
+(`old run archived at <archive>; replacement directory unavailable: ...` or
+`... replacement owner unavailable: ...`), but pass it through
+`Acorn.Host.Viewer.Core.report` and `Acorn.Host.Viewer.controlDiagnostic`, which retain
+only the first 1,024 characters and append `" [truncated]"` when longer, so a long archive path can
+be truncated and lose its identifying `<stamp>-<attempt>` suffix in the diagnostic. Mapping `Acorn.Host.Viewer.Follow.ackStop` to HTTP `202` and
+definite pre-execution refusals (`Acorn.Host.Viewer.ControlResult.refused`, `busy`,
+`unavailable`) versus unconfirmed Stop outcomes
+(`Acorn.Host.Viewer.ControlResult.unconfirmed`, serialized with `"unconfirmed":true`,
+including write errors that may still request child wind-up and the 10-second `awaitControl`
+timeout that ends only the HTTP wait without cancelling the Stop) to HTTP `503` in
+`HttpServer.lean` and `Supervisor.lean` — where `Supervisor.performInActor` maps
+`Acorn.Host.Viewer.Follow.refuseStop` to a fixed public
+`Acorn.Host.Viewer.ControlResult.unconfirmed` string so HTTP `/control` JSON responses
+never expose raw operating-system error messages or local run-directory/archive paths (detailed native
+diagnostics remain in `Supervision.lean`'s `core.report .failed` diagnostic path and stderr) —
+is likewise read from the code. On viewer shutdown interrupting an admitted Stop, the supervisor
+resolves the waiter as `Acorn.Host.Viewer.ControlResult.unconfirmed` so HTTP returns `503`
+(`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes before server teardown,
+whereas server cancellation during shutdown can also yield an empty `503` or closed connection
+without a JSON body; the browser treats both fail-closed as unconfirmed/unknown. Exiting without
+starting a core on a parse or schema refusal from
+`Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean` is likewise
+read from the code.
+
+Across the host-viewer modules under `lean/Acorn/Host/Viewer/`, several operational boundaries sit
+outside proved host theorems. HttpServer.lean sets viewerHttpConfig to bind `127.0.0.1` with
+maxConnections 32, maxRequests 1, enableKeepAlive false, generateDate false,
+serverName none, maxBodySize and maxChunkSize equal to controlBodyCapacity (1024 bytes),
+maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout; HttpViewer.events calls
+Broadcast.subscribe (returning HTTP `503` on capacity or sequence exhaustion) and owns one
+dedicated SSE Body.stream delivery task per subscription that sends the snapshot's initial
+control, map, and replay frames before handing off to liveFrames, which uses EAsync.forIn (repeat
+via the ForIn instance over EAsync for Lean.Loop in Lean v4.36.0) rather than partial\_fixpoint
+because async task continuations admit no fixed point and calls Subscription.poll directly (not
+Subscription.receive): waiting via Selectable.one on the payload-free wake task or 5000 ms
+keepalive timer and writing SSE frames (`sendLine` or `: keepalive`) to the browser occur only
+after Subscription.poll releases the broadcast mutex, so a slow browser cannot block publication;
+liveFrames exits on disconnect (`.closed`) or a dropped wake promise (`some none`), and stream
+exit (finally), context cancellation (context.doneSelector), and response body.close each
+call Subscription.close (also closing the stream on cancellation or body.close) to remove the
+subscriber queue and wake an idle producer. RunDirectory.lean
+(`lean/Acorn/Host/Viewer/RunDirectory.lean`) owns control-token minting through
+`Acorn.Host.Viewer.mintControlToken`, which reads 16 bytes from the fixed OS entropy device
+`/dev/urandom` in read mode via entropyBytes (failing on premature EOF or over-read, with no
+caller-supplied path, mode, token value, or predictable fallback) and encodes them as 32 lowercase
+hex characters; `Acorn.Host.Viewer.HttpViewer.new` in HttpServer.lean
+(`lean/Acorn/Host/Viewer/HttpServer.lean`) calls `Acorn.Host.Viewer.mintControlToken` at
+startup, so viewer startup requires OS entropy with no predictable token fallback.
+ControlRequest.lean (`lean/Acorn/Host/Viewer/ControlRequest.lean`) owns token comparison and
+control-request authorization: `Acorn.Host.Viewer.tokenMatches` rejects unequal UTF-8 byte
+sizes and otherwise scans every byte before equality can succeed (a source-level work pattern, not
+a compiler or hardware constant-time guarantee), `Acorn.Host.Viewer.ControlHeaders.authorizes`
+combines header authorization (POST method, `application/json` media type, non-empty matching
+token) with exact framing (Content-Length equal to the bounded body size), and
+`Acorn.Host.Viewer.authorizeCommand` enforces that admission predicate before JSON decoding. Broadcast.lean
+serializes replay publication, generation/identity admission, lifecycle settlement, notices,
+disconnect, dequeue/wake registration, and subscriber registration behind one mutex with
+connectionCapacity 16, sliding 500-frame replay history via Buffer.retain, IdentityWait overflow
+marking worldPartial, and per-subscriber FIFO queues of capacity 4096 (subscriberCapacity) with
+two overflow policies: Subscriber.enqueue delivers telemetry frames via Buffer.offer (refusing a
+new frame without disturbing queued items when full), whereas Subscriber.enqueueControl delivers
+control records (from Broadcast.settle and Broadcast.commitIdentity) and lifecycle notices (from
+Broadcast.notice, backing Broadcast.announceCleared and Broadcast.announceExit) via Buffer.retain
+without deduplicating, appending the new item and evicting the oldest queued item when full;
+Broadcast.settle separately suppresses a byte-identical repeat of the current control record
+before calling Subscriber.enqueueControl (whereas Broadcast.commitIdentity and Broadcast.notice do
+not deduplicate). Broadcast.subscribe performs subscriber registration and ReplaySnapshot capture
+(`identity`, `control`, `world`, and `frames`) under that same publication mutex, closing the
+replay-to-live handoff gap so a published frame or control record cannot slip between the captured
+replay snapshot and subsequent live-queue delivery, and refuses registration before retaining a
+queue on capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion. Each subscriber
+has one bounded queue and one payload-free wake promise (`IO.Promise Unit`), with one delivery
+task serving as each subscription's sole reader; publishers resolve collected wake promises only
+after releasing the mutex, so a publisher never waits for a network reader, and native
+mutex/promise scheduling and allocator overhead remain trusted infrastructure without a liveness
+guarantee. Subscription.close removes the subscriber queue under the mutex before resolving its
+wake promise outside the mutex; Subscription.poll performs one serialized dequeue (`.item`),
+closed check (`.closed`), or payload-free wake registration (`.wait`) under the mutex so waiting
+and network writes occur strictly outside it; and Subscription.receive (unused by
+liveFrames in HttpServer.lean, which calls Subscription.poll directly) wraps Subscription.poll in a
+`forever` loop without a break (ending only by returning), waiting on `.wait` outside the mutex
+via IO.wait and returning `none` on either explicit disconnect (`.closed`) or a dropped wake
+promise (isNone). Line.lean bounds LineDecoder lines at
+lineCapacity (1 MiB, discarding oversize suffixes through newline and refusing incomplete oversized
+EOF), and readLines reads one byte at a time (input.read 1) because Lean v4.36.0 Handle.read
+calls buffered C fread (Lean runtime `io.cpp` lines 593–615), where multi-byte reads can block past
+newline waiting for a full request or EOF; callbacks must enqueue locally and IO errors propagate
+instead of synthesizing EOF. PipePump.lean filters stdout lines starting with `{`, surfaces
+`"writing disabled this run"` alongside checkpointRefusalNotice, and waits for inherited-descriptor
+EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
+ProcessOwner.lean consumes lastGeneration before IO.Process.spawn to avoid generation reuse on
+failed spawns, relies on Lean refcounting in ProcessOwner.windUp to close stdin on drop even after
+write error (no kill or wall-clock deadline), and in ProcessOwner.poll saturates uptime in Nat
+and retains ownership on failed tryWait. SupervisedProcess.poll lazily attaches PipePump if
+attach was skipped after spawn, and descendant processes holding pipe descriptors can delay EOF
+and archival without a join deadline. RunDirectory.appendLog rotates `core.log` (logCapacity,
+4 MiB) to `core.log.1` and refuses writes on rotation failure (bounding size to
+logCapacity + lineCapacity under stable-path single-writer assumptions), while reserveTemporary
+and reserveArchive retry exclusive creation up to 64 times. Supervisor.lean caps synchronous call
+chains per drive turn at callChainBound (8) and keeps Supervisor.shutdown advancing across turn
+errors; Supervision.lean sets mapInterval to 10000 ms and handles Core.command while a
+replacement awaits by refusing Clear, recording `.replacement next true` on Stop, and updating
+replacement.desired in memory on Start. NativeCore.lean defaults streaming to `.discounted`
+rather than profile promotion and applies AgentConstruction.State.censorObservations before
+final-frame emission; NativeContext.lean fixes first CheckpointAdmission via Option.or
+(treating refused like missing) and saturates timestamps and uptime at `2^64 - 1`;
+NativeResources.lean polls `/bin/ps` (`-o rss= -p <pid>`) every 256th non-terminal clock (requiring
+kib × 1024 \< 2^64, returning none on error, and reusing terminal readings); CoreTelemetry.lean
+pins telemetrySchemaVersion 10 and telemetry\_drops 0; Admission.receive advances
+newestTimestamp without shifting previous on `.rewound` current-identity captures (when the timestamp strictly exceeds newestTimestamp), whereas `.skipped` captures (both stale or duplicate current-identity captures and wrong-identity captures) keep previous and newestTimestamp unchanged;
+and WorldMemory.seen counts non-`255` entries via countP directly from ByteArray while
+WorldMemory.restore marks incomplete true.
+
+Nor does the theorem say who may
 submit a Start: the viewer serves its page on the loopback interface to whoever loads it. And that
 a Start was given is a property of the program: it is separate from the owner's authorization for
 a run of a learner, which [running a program](../CONTRIBUTING.md#running-a-program) governs.
@@ -1655,9 +2277,20 @@ new run of a fresh agent that intends to stay stopped, so the absence of a file 
 supervisor no running intent; its second argument records that a stray checkpoint of an earlier
 layout was adopted into the run. The version a state file names
 (`Acorn.Host.Viewer.stateVersion`) is nothing when the member is absent or is not a number
-spelled in decimal digits alone, which `Acorn.Digits.read` reads. The rule is about
-spelling: a string, `null`, and a number spelled with a sign, a fraction or an exponent are all
-read as no readable version. The child record a state file names
+spelled in decimal digits alone, which `Acorn.Digits.read` reads. `Acorn.Digits`
+(`lean/Acorn/Digits.lean`) separates `Acorn.Digits.natural` (unsigned CLI flags and native
+driver arguments), `Acorn.Digits.read` (viewer request lengths, ps RSS,
+`Acorn.Json.Value.natural`, and corpus-audit line numbers), and `Acorn.Digits.integer`
+(arbitrary signed integer digits mapping `-0` to `0` with no bit-width bound—for example,
+`9223372036854775808` succeeds—while `WorldDriver.coordinate` in `lean/Acorn/WorldDriver.lean`
+and `Host.Cli.requiredCoordinate` in `lean/Acorn/Host/Cli.lean` enforce signed 64-bit
+coordinate admission through `Acorn.Host.Coordinate.checked`) rather than calling Lean
+core's String.toNat?, because at Lean v4.36.0 (`Std/Data/String/ToNat.lean`, String.isNat\_iff and
+String.toNat?\_eq\_some\_ofDigitChars) String.toNat? accepts and strips `_` digit separators
+(`"4_2".toNat? = some 42`), whereas review (not an automated gate check) keeps String.toNat? out
+of the executing library; Microduck JSON numbers instead use `Acorn.Json`'s RFC 8259 §6 scanner,
+where leading zeros are refused. The rule is about spelling: a string, `null`, and a number
+spelled with a sign, a fraction or an exponent are all read as no readable version. The child record a state file names
 (`Acorn.Host.Viewer.stateChild`) is the words of its `child` member when that is a JSON
 array of strings, and nothing when the member is absent or has any other form. Admission of the
 version a state file names is decided once (`Acorn.Host.Viewer.admitVersion`): a natural
@@ -1725,9 +2358,24 @@ with three more for each word's quotation marks and comma
 word, every word admitted, within the budget (`Acorn.Host.Viewer.childAdmitted`). The
 digest of a file's content (`Acorn.Host.Viewer.fileDigest`) is 64-bit FNV-1a over every
 byte, in order, a function of the bytes alone: Landon Curt Noll, Kiem-Phong Vo, Donald Eastlake
-3rd and Tony Hansen, The FNV Non-Cryptographic Hash Algorithm, RFC 9923 (2026), sections 2 and
-5; the step and the offset basis are those of `lean/Acorn/Rng.lean`. It tells two files apart
-against accident and not against forgery. What a viewer reads of the file of the program its
+3rd and Tony Hansen, The FNV Non-Cryptographic Hash Algorithm, RFC 9923 (2026), sections 2,
+5, and 8.2.2 (`https://www.rfc-editor.org/rfc/rfc9923.html`); the step and the offset basis are
+those of `lean/Acorn/Rng.lean` (with `Acorn.Rng.fnv_byte` separating two byte strings differing in a
+single byte). It tells two files apart against accident and not against forgery.
+`Acorn.Rng` also implements seeded word streams after Sebastiano Vigna's SplitMix64
+reference (`https://prng.di.unimi.it/splitmix64.c`, 2015, next) and David Blackman and Sebastiano
+Vigna's xoshiro256\*\* reference (`https://prng.di.unimi.it/xoshiro256starstar.c`, 2018, rotl and
+next), where `Acorn.Rng.SplitMix64.next` intentionally adds `Acorn.Rng.increment` both when
+advancing state and inside `Acorn.Rng.mix64` (`Acorn.Rng.splitmix_two_offsets`) and raw all-zero
+`Acorn.Rng.Xoshiro256` state remains admitted (`Acorn.Rng.Xoshiro256.zero`); these total
+deterministic functions establish no IID or uniform-seed hypothesis, and RNG distribution results
+depend on separate source-word hypotheses in `AcornVerif.CurrentRng` and `AcornVerif.Rng` (for
+example, `Acorn.Rng.Xoshiro256.nextBelow` uses multiply-high scaling without rejection,
+leaving 7 of the 9 grid actions with one extra preimage because `2^64 % 9 = 7`;
+`AcornVerif.next_below_bin_card`, `next_below_bins_within_one`, and
+`next_below_word_bins_within_one` (in `AcornVerif.Rng`) prove the exact preimage count `⌈(k+1)·W/n⌉ − ⌈k·W/n⌉` and
+within-one bin bound generalized over word size `W` to avoid computing with `2^64`, yielding
+`(2^64 + 2)/3` vs `(2^64 − 1)/3` preimages at `n = 3`). What a viewer reads of the file of the program its
 supervisor would start (`Acorn.Host.Viewer.ProgramReading`) is the length of the file in
 bytes and the digest of every byte of the file, in order. It is a function of the bytes read
 alone, so it does not depend on what the state file can hold;
@@ -1764,9 +2412,13 @@ or a device, is refused before it is opened, so the read never waits on an entry
 supply a finite document. The two looks and the open are separate calls, so this rests on the
 run directory's stable-path assumption like the rest of the reader. Every state the actor writes
 goes through `Acorn.Host.Viewer.RunDirectory.writeState` with the record of its own
-configuration's child. Publication uses an exclusively created temporary file and a rename after
-a complete write and flush. Filesystem stability and POSIX rename remain the run directory's
-trust boundary; no power-loss durability is claimed.
+configuration's child. Publication uses an exclusively created temporary file under the run
+directory's IO mutex and renames it onto `state.json` after a complete write and flush: failures
+before the rename never replace the target, whereas an indeterminate rename error can leave
+either the original or the newly renamed entry. Exclusive single-viewer run-directory ownership
+(each `Acorn.Host.Viewer.RunDirectory.open` allocates fresh per-process IO mutexes),
+filesystem stability, and POSIX rename remain the run directory's trust boundary; no power-loss
+durability is claimed.
 
 The actor. What the actor compares before it starts the configuration's child is
 `Acorn.Host.Viewer.ChildProgram`. The bootstrap builds the constructor from the launch
@@ -1801,14 +2453,21 @@ write is the one that marks a launch as attempted (`Acorn.Host.Viewer.Pending.la
 refusal there writes nothing and spawns nothing: the call's result is the write's error with the
 reason, which the step treats as a launch that could not be recorded, so the run stops. Every
 refusal is printed on standard error and reported in the page by the step, as the reason of the
-failed call. The actor hands the step an operator's Start only for a Start that
-`Acorn.Host.Viewer.Supervisor.submit` queued, and the bootstrap passes the state it built
+failed call. The actor hands the step an operator's Start only for a Start queued by
+`Acorn.Host.Viewer.Supervisor.submit` (the `--start` flag) or
+`Acorn.Host.Viewer.Supervisor.submitControl` (the HTTP control endpoint),
+and the bootstrap passes the state it built
 or read to `Acorn.Host.Viewer.Supervision.start`. The supervisor is constructed
 (`Acorn.Host.Viewer.Supervisor.new`) only after the bootstrap has admitted the initial
-state. A state built with no state file, or read from a file of the current version with the
-intent that file records, is published there, before the listener binds. A state read from an
-earlier version's file, whatever intent it records, or from a file of the current version whose
-running intent was given for another child, is not published there. A launch relies on no unpublished state either way, since the attempted launch
+state. A state built with no state file (`Acorn.Host.Viewer.StartSource.absent`), or read
+from a current-version file taken with the intent it records
+(`Acorn.Host.Viewer.StartSource.saved`), is published there, before the listener binds. A
+state read from an earlier version's file, whatever intent it records
+(`Acorn.Host.Viewer.StartSource.earlier`), or from a current-version file with a running
+intent when this launch lacks a child record (including a `--cmd` launch, whose own running file
+records `"child":null`) or its record does not match the file's
+(`Acorn.Host.Viewer.StartSource.other`), is not published there
+(`Acorn.Host.Viewer.StartSource.kept`). A launch relies on no unpublished state either way, since the attempted launch
 is saved before the spawn. The first control record is the start's.
 
 The bootstrap. The bootstrap admits configuration and durable state, binds loopback HTTP, then
@@ -1827,5 +2486,5 @@ when the file could not be read or the state file cannot hold those words. Wheth
 leaves the state file as it is until its listener is bound is
 `Acorn.Host.Viewer.StartSource.kept`. The one line that says why the run a viewer starts
 with is shown stopped, and nothing when it is not, is `Acorn.Host.Viewer.startAccount`,
-so a person who finds the run stopped is told why and what starts it. The relay of standard
-input under `--control-stdin` is `/bin/cat` (`Acorn.Host.StopFlag.withCommands`).
+so a person who finds the run stopped is told why and what starts it. The relay of standard input under `--control-stdin` is `/bin/cat` (`Acorn.Host.StopFlag.withCommands` in `lean/Acorn/Host/Control.lean`), where `Acorn.Host.controlWhitespace` trims exact Unicode White\_Space codepoints (`9..13`, `32`, `133`, `160`, `5760`, `8192..8202`, `8232`, `8233`, `8239`, `8287`, `12288`) before matching case-sensitive `"stop"`, spawning `/bin/cat` with inherited stdin, piped stdout, and null stderr (keeping core stdout/stderr uninherited, checking IO.checkCanceled around getLine, absorbing stderr write errors, and cancelling/reaping `/bin/cat` on exit without waiting on an external stdin owner); cleanup via closeCommandSource (shared by `lean/NativeApp/Core.lean` and `lean/NativeApp/Viewer.lean`) proves no shutdown deadline and no progress guarantee after native IO failure (propagating any tryWait or kill error before reaping the relay or joining the reader, and waiting without a deadline if child.wait blocks). Unbounded host loops use `Acorn.Host.forever` (`Acorn.Host.forIn_io` and `Acorn.Host.forIn_baseIO` in `lean/Acorn/Host/Forever.lean`), which defines iteration via partial\_fixpoint rather than repeat (whose toolchain partial core violates Regula rule RG1006) and specializes directly to `IO` and BaseIO (requiring Nonempty on BaseIO) so Lean v4.36.0 inlines bind and emits C self tail-jumps (`Lean/Compiler/LCNF/EmitC.lean`, lines 527–531 and 725–747) without stack growth, making no termination claim for non-exiting loop bodies.
+In `lean/NativeApp/Viewer.lean`, pollBrowser clears the child handle once tryWait consumes the exit status so the child is never waited on again; desktop browser opening (openBrowser, spawned in a new session with setsid enabled) never holds a worker or blocks viewer exit and is polled once more at shutdown so a still-running detached opener survives process exit; the main `NativeApp.runViewer` loop over `Acorn.Host.forever` has no break and exits only by returning or throwing; and in its cleanup block, supervisor shutdown runs while HTTP remains alive during wind-up before the server shutdown wait releases the server's sole shutdown waiter.

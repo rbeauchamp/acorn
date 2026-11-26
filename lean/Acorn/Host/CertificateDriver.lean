@@ -1,63 +1,19 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Digits
 import Acorn.Host.CertificateSearch
 import Acorn.Host.Curriculum
 
-/-!
-# Native certificate tool
-
-For each listed seed the tool generates the standard world, proposes
-certificates with `Acorn.Host.CertificateSearch` and prints those the checkers of
-`Acorn.Host.Certificate` accepted. For each of the two reach goals it proposes a
-replay from the spawn and, when none is accepted, a blocked region of at most
-`regionBudget` tiles; for wood, stone and gold it proposes a stance and a replay
-that collects one item from the spawn. A line for which no proposal was accepted
-reads `uncertified`.
-
-A printed `feasible`, `blocked` or `certified` verdict is rendered from a
-certificate value, which exists only when its checker accepted it;
-`AcornVerif.CurrentCertificates` states what that establishes. `uncertified`
-establishes nothing. Every certificate concerns the generated world at its spawn,
-before any step: it is not a statement about the world a campaign leaves at the
-start of a later attempt.
-
-The boundary audit refuses an import, direct or transitive, of the agent
-composition (`Acorn.Handcrafted`), the campaign runner or the random-policy
-comparator by the tool's modules, so the tool cannot construct or run any of
-them. Its import closure does hold the attempt protocol and campaign admission,
-through `Acorn.Host.Curriculum`; `execute` starts no attempt, and no audit
-enforces that. Its only world steps replay candidate action lists: each candidate
-once while it is settled, and at most once more by the replay checker. A
-candidate the checker rejects, for instance one longer than the cap, has been
-replayed and is not printed. Its counts are over the listed seeds and do not
-estimate a fraction of the 2^64 seeds.
--/
 namespace Acorn.Host.CertificateDriver
 open CertificateSearch
 
-/-- The most tiles a proposed blocked region may hold. The checker's work is quadratic
-in the region size. -/
 def regionBudget : Nat := 4096
 
-/-- What the tool established about one reach goal from a world. A `feasible` or
-`blocked` value holds a certificate its checker accepted. -/
 inductive ReachFinding {config : WorldConfig} (world : World config) (target : Position)
     (cap : Nat) where
-  /-- A replay certificate: the goal box is reached within the cap. -/
   | feasible (certificate : ReplayCertificate world (.reach target) cap)
-  /-- A blocked certificate, for any body when `boat` is true and otherwise for a body
-  that owns no boat. -/
   | blocked (boat : Bool)
       (certificate : BlockedCertificate config boat target world.body.position.position)
-  /-- No proposed certificate was accepted. -/
   | uncertified
 
-/-- Propose and check certificates for one reach goal: a replay of the searched path,
-then a region of mountains alone, then a region of mountains and water. -/
 def certifyReach {config : WorldConfig} (world : World config) (target : Position) (cap : Nat)
     (path : Option (List Action)) : ReachFinding world target cap :=
   let goal := Goal.reach target
@@ -77,18 +33,11 @@ def certifyReach {config : WorldConfig} (world : World config) (target : Positio
       | some certificate => .blocked false certificate
       | none => .uncertified
 
-/-- What the tool established about one harvested item from a world: a stance, and a
-replay that collects one item. Each present value holds a certificate its checker
-accepted. -/
 structure ItemFinding {config : WorldConfig} (world : World config) (item : Item)
     (cap : Nat) where
-  /-- A stance facing a tile that yields the item. -/
   stance : Option (StanceCertificate config item)
-  /-- A replay from the world that ends holding one item. -/
   obtained : Option (ReplayCertificate world (.collect item 1) cap)
 
-/-- Propose and check the stance one move from a searched approach tile, and the replay
-of the path to it followed by that move and a harvest. -/
 def certifyItem {config : WorldConfig} (world : World config) (arrival : Array UInt8)
     (item : Item) (cap : Nat) (approach : Option (BoxPosition config × Direction)) :
     ItemFinding world item cap :=
@@ -101,29 +50,21 @@ def certifyItem {config : WorldConfig} (world : World config) (arrival : Array U
         StanceCertificate.check config item stance direction,
       ReplayCertificate.check world goal cap (settle (world.setGoal goal) planned)⟩
 
-/-- An action list as one digit per action, the action's index. -/
 def actionText (actions : List Action) : String :=
   String.join (actions.map fun action => toString action.index.val)
 
-/-- A tile as its two signed coordinates. -/
 def positionText (tile : Position) : String := s!"{tile.x.val},{tile.y.val}"
 
-/-- Direction names. -/
 def directionText : Direction → String
   | .north => "north" | .south => "south" | .east => "east" | .west => "west"
 
-/-- Item names. -/
 def itemText : Item → String
   | .wood => "wood" | .stone => "stone" | .food => "food" | .gold => "gold"
 
-/-- One seed's output lines, and the verdict labels the summary counts. -/
 structure Report where
-  /-- Lines in print order. -/
   lines : List String
-  /-- One label per verdict. -/
   labels : List String
 
-/-- The line and label of a reach finding. -/
 def reachLine {config : WorldConfig} {world : World config} {target : Position} {cap : Nat}
     (seed : UInt64) (goal : Nat) (finding : ReachFinding world target cap) : String × String :=
   let head := s!"reach seed={seed} goal={goal} target={positionText target}"
@@ -137,7 +78,6 @@ def reachLine {config : WorldConfig} {world : World config} {target : Position} 
       ";".intercalate (certificate.cells.map positionText), s!"reach{goal}=blocked-{scope}")
   | .uncertified => (s!"{head} verdict=uncertified", s!"reach{goal}=uncertified")
 
-/-- The lines and labels of an item finding. -/
 def itemLines {config : WorldConfig} {world : World config} {item : Item} {cap : Nat}
     (seed : UInt64) (finding : ItemFinding world item cap) : List String × List String :=
   let name := itemText item
@@ -157,9 +97,6 @@ def itemLines {config : WorldConfig} {world : World config} {item : Item} {cap :
         s!"obtain-{name}=uncertified")
   ([stance.1, obtained.1], [stance.2, obtained.2])
 
-/-- Generate one seed's standard world, search it once and check every proposal. No
-agent, comparator or attempt is constructed: the boundary audit excludes the agent
-composition and the comparator, and only this definition excludes an attempt. -/
 @[noinline] def execute (seed : UInt64) (side : Coordinate) (cap : Nat) :
     Except String Report := do
   let config ← (WorldConfig.standard seed side).mapError fun _ => "world configuration refused"
@@ -183,14 +120,11 @@ composition and the comparator, and only this definition excludes an attempt. -/
       wood.1 ++ stone.1 ++ gold.1
     labels := [nearLine.2, farLine.2] ++ wood.2 ++ stone.2 ++ gold.2 }
 
-/-- Add one to a label's count, keeping first-seen order. -/
 def count (tally : List (String × Nat)) (label : String) : List (String × Nat) :=
   if tally.any (·.1 == label) then
     tally.map fun entry => if entry.1 == label then (entry.1, entry.2 + 1) else entry
   else tally ++ [(label, 1)]
 
-/-- Admit every argument before generating any world, then print each seed's lines as
-they are produced and the counts over the list. -/
 def dispatch (arguments : List String) : IO UInt32 := do
   let usage := s!"usage: world-certificates SIDE CAP SEED [SEED ...]\n{Digits.usage}"
   let sideText :: capText :: seedTexts := arguments | throw (IO.userError usage)
@@ -223,7 +157,6 @@ def dispatch (arguments : List String) : IO UInt32 := do
 
 end Acorn.Host.CertificateDriver
 
-/-- Native admission failure produces a failing exit status. -/
 def _root_.Acorn.Host.CertificateDriver.main (arguments : List String) : IO UInt32 := do
   try Acorn.Host.CertificateDriver.dispatch arguments
   catch error =>

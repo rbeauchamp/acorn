@@ -1,128 +1,15 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Microduck.Session
 import Acorn.Handcrafted.StepParts
 
-/-!
-# The executing loop of a Microduck host: its pure core
-
-A host of the Microduck's world runs a continuing loop: it hears the lines of two daemons,
-reads its clock, senses a percept when a cycle is due, gives the percept to the agent,
-releases the action the agent chose and lets the agent learn, while the world goes on. This
-module is the loop's core, with no effect: a state, the events a driver hands it, each with
-a reading of the clock, and one step for each event, which returns the next state and the
-lines to send. The driver that reads a clock and sockets and runs the loop is
-`Acorn.Host.Microduck.Driver`, over the transport of `Acorn.Host.Microduck.Transport`.
-
-**The stages make the illegal states unrepresentable.** A loop is in one of four stages
-(`Stage`): `ready`, with no percept awaiting and the agent free to take one; `choosing`, with
-a percept awaiting while the agent computes the first part of its step; `released`, with the
-action released and its lines to be sent, and the second part not started; `learning`, with
-those lines sent while the agent computes the second part. A percept awaits exactly while the
-agent chooses, since `choosing` is the only stage that holds an `Awaiting`, and no percept is
-sensed while the agent chooses, is released or learns, since sensing happens only in `ready`.
-So the agent takes one step at a time, in the order of its two parts, and the second part
-starts only after the action is sent to the world, the order `actThenLearn`
-(`Stage.step_learning`).
-
-**A loop is sealed by its run.** A `Loop` holds a stage, its counts and the instant of its
-last step, with a derivation (`Ran`) from its start by steps at instants that do not go back,
-for its stepper and its starting agent. There is no other way to a value, so the task of a
-choosing loop computes the stepper's choice on the percept its host awaits, and a learning
-loop follows a release (`Loop.agent`). `Loop.step` takes the instant of a step to be the
-later of the clock's reading and the instant of the last step (`Loop.at_later`), so the
-instants of a loop do not go back, whatever a driver reads. The transitions of a stage
-(`Stage.step`) are what `Ran` and `Loop.step` are made of; a driver holds a `Loop`.
-
-**The agent's work is a pure task.** The two parts are a `Stepper`: a choice from a percept,
-the action of a choice, and the agent that learning a choice gives. The loop holds each part
-as `Task.spawn` of that function on its inputs, so the runtime computes it apart from the
-loop while the loop goes on hearing lines and reading the clock, and its value is the
-function's value: the action released for a percept is the stepper's action of its choice on
-that percept (`Stage.step_sense`, `Loop.step_release`). A step runs each transition once, so
-it spawns each task once, and it returns the percept it sensed. The release spawns no task:
-the learning task is spawned by the event `Event.sent`, which says the lines of the release
-were sent (`Stage.step_sent`). A driver only says that a task
-has finished, with `Event.chosen` or `Event.learned`, and its contract is to say so only once
-`IO.hasFinished` holds of the task, with the reading of the clock taken after that, since the
-step releases at the instant of its reading. A step told early reads the task's value all the
-same, but records the earlier reading as the instant of the release, so its lateness and the
-hold and cycle times that follow are not meaningful. Observed, not proved, against the
-simulator: told early, 59 releases waited 550 to 758 ms for the choice, all reached the daemon
-after their deadline and none was counted late (run `live-early`); told after `IO.hasFinished`,
-all 36 releases that reached the daemon after their deadline were counted late, and the late
-flag equalled "instant at or after the deadline" on every release (run `live-slow`; its other
-5 releases were told early by injected events). `Stepper.ofAgent` is the agent of this
-repository under the step order `actThenLearn`, whose two parts compose to `Agent.actOrdered` (`Stepper.ofAgent_step`).
-
-**Every event goes through the host's own transitions.** A line goes through `Idle.hear` or
-`Awaiting.hear`, after `Line.read` of the value that `Json.parse` gives its text, read once
-for the host and the counts; a text that does not parse is the line `invalid`. A tick of the
-clock goes through `Idle.tick` or `Awaiting.tick` in every stage, so the velocity of the last
-release is sent again while the agent computes (`Stage.step_tick`). A finished choice goes
-through `Awaiting.release` for the awaited cycle (`Stage.step_release`). After every event in
-`ready`, `Idle.sense` at the step's instant starts a choice when a percept is due
-(`Stage.step_sense`). The instant of a loop's step is never before its host's origin, since a
-loop starts at the origin and its instants do not go back, so `Idle.sense` is the only test
-of sensing.
-
-**The pace is the world's.** A loop starts only with the proof that the Microduck's
-interface declares, in its timing, the pace its host starts at (`Loop.start`), and the host of
-every stage holds that pace (`Stage.declared`). So no loop runs the world at a pace other than
-the one the interface declares.
-
-**What is sent.** At the start, the three opening requests: the subscription to the state
-stream on the state connection, the subscription to the depth stream on the depth connection
-and the command that enables the policy on the control connection, with the identifiers 0,
-1 and 2 (`Loop.start`). After the start, exactly the lines of the commands that the host's
-tick and release return, each `Command.line` of its identifier and command on the control
-connection (`Stage.step_sends`), each with an identifier of at least `opening`, so none
-reuses the identifier of an opening request (`Stage.step_fresh`). The type of a command has
-no relax, no shutdown and no disable.
-
-**A refused frame.** A notification of a stream whose frame a reader refuses is counted for
-its stream, and an invalid line is counted, and neither changes anything else
-(`Stage.react_refused`). So a stream that sends only frames the host cannot read shows in the
-counts; nothing repairs it.
-
-**A run.** Of every loop: the agent it holds, or its task computes, is the fold of the
-stepper's two parts over the percepts sensed, in order (`Loop.agent`); the step of a finished
-choice releases the stepper's action of it, since the release of the awaited cycle is
-admitted at every instant from the last step on (`Loop.step_release`); and the counts hold one
-percept for each percept sensed and a release for each but the one a choosing loop awaits
-(`Ran.counts`).
-
-**Trusted, and not stated.** That a driver hands the events in the order they happened, with
-readings of one monotonic clock, each `Event.chosen` and `Event.learned` only once its task
-has finished and with a reading taken after that, and `Event.sent` only after it has sent the
-lines that the release returned; that the runtime computes a task's value;
-when a task finishes; and every effect of sending a line. A reading before the instant of the last step
-is taken as that instant, so the statements here hold of every sequence of readings, and only
-the timing of the world depends on the clock. The loop counts late releases; how many a run
-has is a measurement.
--/
 namespace Acorn.Host.Microduck
 
 variable {State Choice : Type}
 
-/-! ## The agent's two parts -/
-
-/-- The two parts of the agent's step, as the loop calls them: the first part, a choice from
-the agent and a percept; the action of a choice; and the second part, the agent after it
-learns from a choice. -/
 structure Stepper (State Choice : Type) where
-  /-- The first part of a step. -/
   choose : State → Features.Percept Handcrafted.Microduck.interface → Choice
-  /-- The action of a choice. -/
   action : Choice → Action
-  /-- The second part of a step. -/
   learn : Choice → State
 
-/-- The agent of this repository under the step order `actThenLearn`: the first part of its
-step, the action of the action table at the index of its decision, and the second part. -/
 def Stepper.ofAgent (profile : Handcrafted.FeatureProfile) (config : Features.Config)
     (criterion : Features.Criterion) (dimension : Dimension)
     (planning : Features.PlanningSelection) :
@@ -136,9 +23,6 @@ def Stepper.ofAgent (profile : Handcrafted.FeatureProfile) (config : Features.Co
     Action.named (Fin.cast Handcrafted.Microduck.interface_actions chosen.decision.action)
   learn := Handcrafted.Chosen.learn
 
-/-- **The two parts of the bound agent are its whole step.** For every agent and percept:
-learning from the choice gives the agent of `Agent.actOrdered` under `actThenLearn`, and the
-action of the choice is the action at the index of its decision. -/
 theorem Stepper.ofAgent_step (profile : Handcrafted.FeatureProfile) (config : Features.Config)
     (criterion : Features.Criterion) (dimension : Dimension)
     (planning : Features.PlanningSelection)
@@ -154,64 +38,38 @@ theorem Stepper.ofAgent_step (profile : Handcrafted.FeatureProfile) (config : Fe
           (agent.actOrdered .actThenLearn percept).2.action) :=
   ⟨rfl, rfl⟩
 
-/-- The agent after both parts of a step on each percept, in order. -/
 def Stepper.after (stepper : Stepper State Choice) (agent : State)
     (percepts : List (Features.Percept Handcrafted.Microduck.interface)) : State :=
   percepts.foldl (fun agent percept => stepper.learn (stepper.choose agent percept)) agent
 
-/-! ## Lines in and out -/
-
-/-- The connection a line travels on: the control connection of the state daemon, which
-carries the commands and their answers; the subscription to the state stream; and the
-subscription to the depth stream, of the depth daemon. -/
 inductive Link where
-  /-- Commands and their answers. -/
   | control
-  /-- The state stream. -/
   | state
-  /-- The depth stream. -/
   | depth
   deriving DecidableEq
 
-/-- A line to send, and the connection it goes on. -/
 structure Send where
-  /-- The connection. -/
   link : Link
-  /-- The text of the line, without its line break. -/
   text : String
 
-/-- The line of a text of a daemon: the case that `Line.read` gives the value its text
-parses to, and `invalid` for a text that does not parse. -/
 def Line.ofText (text : String) : Line :=
   match Json.parse text with
   | .ok json => Line.read json
   | .error _ => .invalid
 
-/-- The lines of commands, each on the control connection with its identifier. -/
 def commandLines (commands : List (Nat × Command)) : List Send :=
   commands.map fun pair => ⟨.control, Command.line pair.1 pair.2⟩
 
-/-- What a host counts while it runs. -/
 structure Counts where
-  /-- Notifications of the state stream whose frame was refused. -/
   unreadState : Nat
-  /-- Notifications of the depth stream whose frame was refused. -/
   unreadDepth : Nat
-  /-- Lines that are no notification and no response by the criteria of `Line.read`, and
-  texts that do not parse. -/
   invalid : Nat
-  /-- Percepts sensed. -/
   sensed : Nat
-  /-- Actions released. -/
   released : Nat
-  /-- Actions released at or after their deadline. -/
   late : Nat
 
-/-- Nothing counted. -/
 def Counts.zero : Counts := ⟨0, 0, 0, 0, 0, 0⟩
 
-/-- A line is counted: a refused frame for its stream, an invalid line as invalid, and
-nothing for any other line. -/
 def Counts.hear (counts : Counts) : Line → Counts
   | .unread .state => { counts with unreadState := counts.unreadState + 1 }
   | .unread .depth => { counts with unreadDepth := counts.unreadDepth + 1 }
@@ -222,39 +80,24 @@ def Counts.hear (counts : Counts) : Line → Counts
   | .result _ _ => counts
   | .fault _ => counts
 
-/-- Counting a line counts no percept and no release. -/
 theorem Counts.hear_keeps (counts : Counts) (line : Line) :
     (counts.hear line).sensed = counts.sensed ∧ (counts.hear line).released = counts.released := by
   cases line with
   | unread stream => cases stream <;> exact ⟨rfl, rfl⟩
   | state _ | depth _ | notice | result _ _ | fault _ | invalid => exact ⟨rfl, rfl⟩
 
-/-! ## The stages and their step -/
-
-/-- What the loop is doing. -/
 inductive Stage (State Choice : Type) where
-  /-- No percept awaits, and the agent can take one. -/
   | ready (idle : Idle) (agent : State)
-  /-- A percept awaits, and the agent computes the first part of its step. -/
   | choosing (awaiting : Awaiting) (choice : Task Choice)
-  /-- The action is released and its lines are to be sent; the agent has not started the
-  second part of its step. -/
   | released (idle : Idle) (choice : Task Choice)
-  /-- The lines of the release were sent, and the agent computes the second part of its
-  step. -/
   | learning (idle : Idle) (agent : Task State)
 
-/-- The pace of the host that a stage holds. -/
 def Stage.pace : Stage State Choice → Pace
   | .ready idle _ => idle.calm.pace
   | .choosing awaiting _ => awaiting.poised.pace
   | .released idle _ => idle.calm.pace
   | .learning idle _ => idle.calm.pace
 
-/-- **A loop runs at the pace its world declares.** For every stage, and so for the stage of
-every loop: the Microduck's interface declares a wall clock with the pace of the host that the
-stage holds. A step of a loop senses, ticks and releases only through that host's
-transitions, which read its pace. -/
 theorem Stage.declared (stage : Stage State Choice) :
     Handcrafted.Microduck.interface.timing = .wallClock stage.pace := by
   cases stage with
@@ -263,28 +106,17 @@ theorem Stage.declared (stage : Stage State Choice) :
   | released idle _ => exact idle.declared
   | learning idle _ => exact idle.declared
 
-/-- What a driver hands the loop. -/
 inductive Event where
-  /-- A daemon wrote a line, with this text. -/
   | heard (text : String)
-  /-- The clock was read. -/
   | tick
-  /-- The agent's choice has finished. -/
   | chosen
-  /-- The lines of the release have been sent. -/
   | sent
-  /-- The agent's learning has finished. -/
   | learned
 
-/-- The three opening requests: the subscription to the state stream, the subscription to
-the depth stream and the command that enables the policy, with the identifiers 0, 1 and 2,
-each on its connection. -/
 def opening.lines : List Send :=
   [⟨.state, Stream.line 0 .state⟩, ⟨.depth, Stream.line 1 .depth⟩,
     ⟨.control, Command.line 2 .enable⟩]
 
-/-- In `ready`, a percept is sensed at the instant when one is due, and the agent's choice on
-it starts; the percept is returned. Every other stage is as it was, and senses nothing. -/
 def Stage.attend (stepper : Stepper State Choice) (now : Instant) (stage : Stage State Choice)
     (counts : Counts) :
     Stage State Choice × Counts × Option (Features.Percept Handcrafted.Microduck.interface) :=
@@ -299,20 +131,12 @@ def Stage.attend (stepper : Stepper State Choice) (now : Instant) (stage : Stage
   | .released idle choice => (.released idle choice, counts, none)
   | .learning idle agent => (.learning idle agent, counts, none)
 
-/-- A line is heard in a stage: the host the stage holds hears it, and the agent's task is
-kept. -/
 def Stage.hear (line : Line) : Stage State Choice → Stage State Choice
   | .ready idle agent => .ready (idle.hear line) agent
   | .choosing awaiting choice => .choosing (awaiting.hear line) choice
   | .released idle choice => .released (idle.hear line) choice
   | .learning idle agent => .learning (idle.hear line) agent
 
-/-- What an event makes of a stage, before a percept is sensed: the next stage, the counts
-and the lines to send. A text heard is read once, and its line goes to the host and to the
-counts. A finished choice releases its action and returns the lines of the release, and the
-second part of the agent's step starts only at the event that says those lines were sent. A
-release that the host refuses leaves the stage as it was; no loop meets one
-(`Loop.step_release`). -/
 def Stage.react (stepper : Stepper State Choice) (now : Instant) :
     Event → Stage State Choice → Counts → Stage State Choice × Counts × List Send
   | .heard text, stage, counts =>
@@ -348,34 +172,18 @@ def Stage.react (stepper : Stepper State Choice) (now : Instant) :
   | .learned, .choosing awaiting choice, counts => (.choosing awaiting choice, counts, [])
   | .learned, .released idle choice, counts => (.released idle choice, counts, [])
 
-/-- What one step makes of a stage and its counts. -/
 structure Stepped (State Choice : Type) where
-  /-- The next stage. -/
   stage : Stage State Choice
-  /-- The next counts. -/
   counts : Counts
-  /-- The lines to send. -/
   sends : List Send
-  /-- The percept sensed, if one was. -/
   sensed : Option (Features.Percept Handcrafted.Microduck.interface)
 
-/-- One step of a stage: the event at the instant through the host's transitions, then, in
-`ready`, a percept sensed when one is due. The lines to send are those of the event. Each
-transition runs once, so each task is spawned once. -/
 def Stage.step (stepper : Stepper State Choice) (now : Instant) (event : Event)
     (stage : Stage State Choice) (counts : Counts) : Stepped State Choice :=
   let reacted := Stage.react stepper now event stage counts
   let attended := Stage.attend stepper now reacted.1 reacted.2.1
   ⟨attended.1, attended.2.1, reacted.2.2, attended.2.2⟩
 
-/-! ## One step of a stage -/
-
-/-- **After the start, a step sends only lines of commands that the host's transitions
-returned.** For every stage, counts, instant and event: every line sent is on the control
-connection, and it is the line of a command with its identifier, among those that the host's
-tick returned when the event is a tick, and those that the host's release returned when the
-event is a finished choice. No other event sends a line. `Stage.step_tick` and
-`Stage.step_release` state that the lines sent are exactly those. -/
 theorem Stage.step_sends (stepper : Stepper State Choice) (now : Instant) (event : Event)
     (stage : Stage State Choice) (counts : Counts) (send : Send)
     (sent : send ∈ (Stage.step stepper now event stage counts).sends) :
@@ -445,11 +253,6 @@ theorem Stage.step_sends (stepper : Stepper State Choice) (now : Instant) (event
   | sent => cases stage <;> simp [Stage.react] at sent
   | learned => cases stage <;> simp [Stage.react] at sent
 
-/-- **A percept due at the step's instant starts the stepper's choice on it.** For every step
-whose event leaves the stage ready with a host that senses a percept at the instant: after the
-step the stage chooses, with the host that sensing returned and the task of the stepper's
-choice by the ready agent on the percept, the step returns that percept, and it counts one
-percept more. -/
 theorem Stage.step_sense (stepper : Stepper State Choice) (now : Instant) (event : Event)
     (stage : Stage State Choice) (counts : Counts) (idle : Idle) (agent : State)
     (awaiting : Awaiting) (sensed : Sensed)
@@ -463,10 +266,6 @@ theorem Stage.step_sense (stepper : Stepper State Choice) (now : Instant) (event
   refine ⟨Task.spawn fun _ => stepper.choose agent sensed.percept, ?_, rfl, ?_, ?_⟩ <;>
     simp only [Stage.step, ready, Stage.attend, found]
 
-/-- **A refused frame and an invalid line change nothing but their count.** For every stage,
-counts and instant: a line heard whose text reads as a notification of a stream with a
-refused frame, or as an invalid line, leaves the stage as it was, counts the line, and sends
-nothing. The step may still sense a percept at the instant, as after any event. -/
 theorem Stage.react_refused (stepper : Stepper State Choice) (now : Instant) (text : String)
     (stage : Stage State Choice) (counts : Counts)
     (refused : (∃ stream, Line.ofText text = .unread stream) ∨ Line.ofText text = .invalid) :
@@ -496,12 +295,6 @@ theorem Stage.react_refused (stepper : Stepper State Choice) (now : Instant) (te
     show (Stage.learning (idle.hear (Line.ofText text)) agent, _, _) = _
     rw [idled idle]
 
-/-- **A finished choice releases the stepper's action of it, and starts no learning.** For
-every choosing stage and every instant at which the host admits the release of the awaited
-cycle with that action: after the step the stage is released, with the host that the release
-returned and the same choice, the step sends the lines of the commands of the release and
-senses nothing, and it counts one release more, and one late release more when the release is
-late. No task of the agent's second part exists after this step (`Stage.step_learning`). -/
 theorem Stage.step_release (stepper : Stepper State Choice) (now : Instant)
     (awaiting : Awaiting) (choice : Task Choice) (counts : Counts) (idle : Idle)
     (commands : List (Nat × Command))
@@ -518,9 +311,6 @@ theorem Stage.step_release (stepper : Stepper State Choice) (now : Instant)
         counts.late + if idle.calm.late then 1 else 0 := by
   refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> simp only [Stage.step, Stage.react, released, Stage.attend]
 
-/-- **The agent learns from the released choice once its lines are sent.** For every released
-stage: the event that says the lines of the release were sent starts the task of the stepper's
-learning from the same choice, sends nothing, senses nothing and counts nothing. -/
 theorem Stage.step_sent (stepper : Stepper State Choice) (now : Instant) (idle : Idle)
     (choice : Task Choice) (counts : Counts) :
     ∃ agent, (Stage.step stepper now .sent (.released idle choice) counts).stage =
@@ -531,7 +321,6 @@ theorem Stage.step_sent (stepper : Stepper State Choice) (now : Instant) (idle :
       (Stage.step stepper now .sent (.released idle choice) counts).counts = counts :=
   ⟨Task.spawn fun _ => stepper.learn choice.get, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- Sensing never leads to a learning stage that was not there before it. -/
 private theorem attend_learning (stepper : Stepper State Choice) (now : Instant)
     (stage : Stage State Choice) (counts : Counts) (idle : Idle) (agent : Task State)
     (entered : (Stage.attend stepper now stage counts).1 = .learning idle agent) :
@@ -544,12 +333,6 @@ private theorem attend_learning (stepper : Stepper State Choice) (now : Instant)
   | released host choice => simp [Stage.attend] at entered
   | learning host task => simpa [Stage.attend] using entered
 
-/-- **The second part of the agent's step starts only after the lines of its release were
-sent.** For every step that leads to a learning stage from a stage that was not learning: the
-event is the one that says the lines of the release were sent, the stage before it was released
-with the same host, and the task computes the stepper's learning from the released choice. With
-`Stage.step_release`, the lines of a release are returned by an earlier step than the one that
-starts the learning; a driver hands `Event.sent` after it has sent them. -/
 theorem Stage.step_learning (stepper : Stepper State Choice) (now : Instant) (event : Event)
     (stage : Stage State Choice) (counts : Counts) (idle : Idle) (agent : Task State)
     (entered : (Stage.step stepper now event stage counts).stage = .learning idle agent)
@@ -587,11 +370,6 @@ theorem Stage.step_learning (stepper : Stepper State Choice) (now : Instant) (ev
     | learning host task => exact absurd rfl (fresh host task)
     | _ => simp [Stage.react] at reacted
 
-/-- **A tick reaches the host in every stage.** For every instant and counts: in a choosing,
-released or learning stage the host after a tick is the host's own tick, the task is kept, and the lines
-sent are those of the command the tick returned; in a ready stage the same holds of the stage
-before a percept is sensed. So the velocity of the last release is sent again while the agent
-computes. -/
 theorem Stage.step_tick (stepper : Stepper State Choice) (now : Instant) (counts : Counts) :
     (∀ awaiting choice,
       (Stage.step stepper now .tick (.choosing awaiting choice) counts).stage =
@@ -615,7 +393,6 @@ theorem Stage.step_tick (stepper : Stepper State Choice) (now : Instant) (counts
             commandLines (idle.tick now).2.toList) :=
   ⟨fun _ _ => ⟨rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩⟩
 
-/-- The command a tick of an idle host sends has the host's next unused identifier. -/
 private theorem idle_tick_fresh (idle : Idle) (now : Instant) (id : Nat) (command : Command)
     (sent : (idle.tick now).2 = some (id, command)) : opening ≤ id := by
   rw [(Idle.tick_keeps now idle).1] at sent
@@ -624,7 +401,6 @@ private theorem idle_tick_fresh (idle : Idle) (now : Instant) (id : Nat) (comman
   cases same
   exact idle.identifiers.1
 
-/-- The command a tick of an awaiting host sends has the host's next unused identifier. -/
 private theorem awaiting_tick_fresh (awaiting : Awaiting) (now : Instant) (id : Nat)
     (command : Command) (sent : (awaiting.tick now).2 = some (id, command)) : opening ≤ id := by
   rw [(Awaiting.tick_keeps now awaiting).1] at sent
@@ -634,10 +410,6 @@ private theorem awaiting_tick_fresh (awaiting : Awaiting) (now : Instant) (id : 
   obtain ⟨_, _, reached⟩ := awaiting.reached
   exact reached.identifiers.1
 
-/-- **No command after the start reuses the identifier of an opening request.** For every
-step: every line sent is the line of a command whose identifier is at least `opening`, so
-none is 0, 1 or 2, the identifiers of the subscriptions and of the enabling command, and an
-answer to an opening request is never attributed to a command. -/
 theorem Stage.step_fresh (stepper : Stepper State Choice) (now : Instant) (event : Event)
     (stage : Stage State Choice) (counts : Counts) (send : Send)
     (sent : send ∈ (Stage.step stepper now event stage counts).sends) :
@@ -656,20 +428,13 @@ theorem Stage.step_fresh (stepper : Stepper State Choice) (now : Instant) (event
     exact ((Awaiting.release_fresh _ now _ awaiting idle commands released readings issued
       reached).2 (id, command) member).2.1
 
-/-! ## A run -/
-
-/-- A stage and its counts are reached from the start with an agent by steps at instants that
-do not go back, with the percepts sensed on the way, in order, and the instant of the last
-step (the origin at the start). One constructor for each way to a stage. -/
 inductive Ran (stepper : Stepper State Choice) (initial : State) :
     List (Features.Percept Handcrafted.Microduck.interface) → Instant → Stage State Choice →
       Counts → Prop where
-  /-- The loop starts, at the pace that the Microduck's interface declares. -/
   | start {pace : Pace} (declared : Handcrafted.Microduck.interface.timing = .wallClock pace)
       (keep : Keep) (origin : Instant) :
       Ran stepper initial [] origin (.ready (Idle.start declared keep origin) initial)
         Counts.zero
-  /-- The loop takes a step at an instant not before the last one. -/
   | step {percepts : List (Features.Percept Handcrafted.Microduck.interface)} {last : Instant}
       {stage : Stage State Choice} {counts : Counts}
       (ran : Ran stepper initial percepts last stage counts) (now : Instant)
@@ -678,7 +443,6 @@ inductive Ran (stepper : Stepper State Choice) (initial : State) :
         now (Stage.step stepper now event stage counts).stage
         (Stage.step stepper now event stage counts).counts
 
-/-- What a reached stage holds, for the percepts sensed and the instant of its last step. -/
 def Held (stepper : Stepper State Choice) (initial : State)
     (percepts : List (Features.Percept Handcrafted.Microduck.interface)) (last : Instant) :
     Stage State Choice → Counts → Prop
@@ -700,7 +464,6 @@ def Held (stepper : Stepper State Choice) (initial : State)
     agent.get = stepper.after initial percepts ∧ counts.sensed = percepts.length ∧
       counts.released = percepts.length ∧ idle.calm.origin.nanoseconds ≤ last.nanoseconds
 
-/-- What a reached stage holds at its last instant it holds at every later one. -/
 private theorem Held.later {stepper : Stepper State Choice} {initial : State}
     {percepts : List (Features.Percept Handcrafted.Microduck.interface)} {last now : Instant}
     {stage : Stage State Choice} {counts : Counts}
@@ -721,13 +484,10 @@ private theorem Held.later {stepper : Stepper State Choice} {initial : State}
     obtain ⟨agreed, sensed, released, begun⟩ := held
     exact ⟨agreed, sensed, released, Nat.le_trans begun later⟩
 
-/-- The origin of a host is not after the start of any of its cycles. -/
 private theorem origin_le_boundary (pace : Pace) (origin : Instant) (index : Nat) :
     origin.nanoseconds ≤ (pace.boundary origin index).nanoseconds :=
   Nat.le_add_right _ _
 
-/-- A percept sensed at an instant not before the host's origin awaits a cycle that has
-started at that instant. -/
 private theorem sense_started (idle : Idle) (now : Instant) (awaiting : Awaiting)
     (sensed : Sensed) (found : idle.sense now = some (awaiting, sensed))
     (started : idle.calm.origin.nanoseconds ≤ now.nanoseconds) :
@@ -738,8 +498,6 @@ private theorem sense_started (idle : Idle) (now : Instant) (awaiting : Awaiting
   exact (idle.calm.pace.boundary_le idle.calm.origin
     (idle.calm.pace.index idle.calm.origin now) now).mpr ⟨started, Nat.le_refl _⟩
 
-/-- An event keeps what a reached stage holds, at a later instant. A finished choice is
-released, since its cycle had started by the last step and so by this one. -/
 private theorem react_held (stepper : Stepper State Choice) (initial : State)
     (percepts : List (Features.Percept Handcrafted.Microduck.interface)) (last now : Instant)
     (later : last.nanoseconds ≤ now.nanoseconds) (event : Event) (stage : Stage State Choice)
@@ -851,7 +609,6 @@ private theorem react_held (stepper : Stepper State Choice) (initial : State)
     | choosing awaiting choice => exact held.later later
     | released idle choice => exact held.later later
 
-/-- Sensing keeps what a reached stage holds, with the percept sensed appended. -/
 private theorem attend_held (stepper : Stepper State Choice) (initial : State)
     (percepts : List (Features.Percept Handcrafted.Microduck.interface)) (now : Instant)
     (stage : Stage State Choice) (counts : Counts)
@@ -884,14 +641,6 @@ private theorem attend_held (stepper : Stepper State Choice) (initial : State)
     simp only [Stage.attend, Option.toList_none, List.append_nil]
     exact held
 
-/-- **What every reached stage holds.** For every stage reached from the start with an agent,
-with the percepts sensed and the instant of its last step: a ready stage holds the agent after
-both parts of a step on each percept sensed, in order; a choosing stage computes the stepper's
-choice on the last percept sensed, by the agent after the percepts before it, for a cycle that
-had started by its last step; a learning stage computes the agent after every percept sensed;
-the host of a ready or learning stage has its origin by the last step; and the counts hold one
-percept for each percept sensed and one release for each, but the one a choosing stage
-awaits. -/
 theorem Ran.held {stepper : Stepper State Choice} {initial : State}
     {percepts : List (Features.Percept Handcrafted.Microduck.interface)} {last : Instant}
     {stage : Stage State Choice} {counts : Counts}
@@ -903,11 +652,6 @@ theorem Ran.held {stepper : Stepper State Choice} {initial : State}
     exact attend_held stepper initial percepts now _ _
       (react_held stepper initial percepts last now later event stage counts hold)
 
-/-- **The agent of a reached stage is the agent after its whole steps on the percepts
-sensed.** For every reached stage: when ready, the agent it holds is the fold of the
-stepper's two parts over the percepts sensed, in order, from the starting agent; when
-learning, its task computes that agent; and when choosing or released, its choice computes the
-stepper's choice on the last percept by the agent after the ones before. -/
 theorem Ran.agent {stepper : Stepper State Choice} {initial : State}
     {percepts : List (Features.Percept Handcrafted.Microduck.interface)} {last : Instant}
     {stage : Stage State Choice} {counts : Counts}
@@ -929,8 +673,6 @@ theorem Ran.agent {stepper : Stepper State Choice} {initial : State}
   · exact held.1
   · exact held.1
 
-/-- **A reached stage that chooses has its release admitted at every instant from its last
-step on.** -/
 theorem Ran.release {stepper : Stepper State Choice} {initial : State}
     {percepts : List (Features.Percept Handcrafted.Microduck.interface)} {last : Instant}
     {stage : Stage State Choice} {counts : Counts}
@@ -944,9 +686,6 @@ theorem Ran.release {stepper : Stepper State Choice} {initial : State}
   exact (Awaiting.release_admitted awaiting.poised.index now action awaiting).mpr
     ⟨rfl, Nat.le_trans begun later⟩
 
-/-- **The counts of a reached stage.** One percept counted for each percept sensed; the
-releases are those percepts but the one a choosing stage awaits, so never more and at most
-one fewer. -/
 theorem Ran.counts {stepper : Stepper State Choice} {initial : State}
     {percepts : List (Features.Percept Handcrafted.Microduck.interface)} {last : Instant}
     {stage : Stage State Choice} {counts : Counts}
@@ -968,25 +707,12 @@ theorem Ran.counts {stepper : Stepper State Choice} {initial : State}
     obtain ⟨_, sensed, released, _⟩ := held
     exact ⟨sensed, by omega, by omega⟩
 
-/-! ## The loop -/
-
-/-- A loop: its stage, its counts and the instant of its last step, with a derivation from
-its start for its stepper and its starting agent. Every value is reached by `Loop.start` and
-`Loop.step`, so its tasks compute the stepper's parts on what the loop sensed. -/
 structure Loop (stepper : Stepper State Choice) (initial : State) where
-  /-- The stage. -/
   stage : Stage State Choice
-  /-- The counts. -/
   counts : Counts
-  /-- The instant of the last step, and the origin at the start. -/
   last : Instant
-  /-- The loop is reached from its start, with the percepts sensed on the way. -/
   reached : ∃ percepts, Ran stepper initial percepts last stage counts
 
-/-- The loop at its start: ready, with a host that has heard nothing and the starting agent,
-nothing counted, the origin as the instant of its last step, and the opening requests to
-send. The pace is the one of the proof that the Microduck's interface declares it, so a loop
-runs at no other pace (`Stage.declared`). -/
 def Loop.start (stepper : Stepper State Choice) (initial : State) {pace : Pace}
     (declared : Handcrafted.Microduck.interface.timing = .wallClock pace) (keep : Keep)
     (origin : Instant) : Loop stepper initial × List Send :=
@@ -994,15 +720,10 @@ def Loop.start (stepper : Stepper State Choice) (initial : State) {pace : Pace}
       [], .start declared keep origin⟩,
     opening.lines)
 
-/-- The instant of a step at a reading of the clock: the reading, or the instant of the last
-step when the reading is before it. -/
 def Loop.at {stepper : Stepper State Choice} {initial : State} (loop : Loop stepper initial)
     (reading : Instant) : Instant :=
   ⟨max loop.last.nanoseconds reading.nanoseconds⟩
 
-/-- **The instants of a loop do not go back.** For every loop and reading of the clock: the
-instant of the step is not before the instant of the last step, and it is the reading when
-the reading is not before it. -/
 theorem Loop.at_later {stepper : Stepper State Choice} {initial : State}
     (loop : Loop stepper initial) (reading : Instant) :
     loop.last.nanoseconds ≤ (loop.at reading).nanoseconds ∧
@@ -1011,9 +732,6 @@ theorem Loop.at_later {stepper : Stepper State Choice} {initial : State}
   unfold Loop.at
   rw [Nat.max_eq_right later]
 
-/-- One step of the loop at a reading of the clock: the step of its stage at the instant that
-`Loop.at` gives, which becomes the instant of its last step. The lines to send are those of
-the step. -/
 def Loop.step {stepper : Stepper State Choice} {initial : State} (loop : Loop stepper initial)
     (reading : Instant) (event : Event) : Loop stepper initial × List Send :=
   let now := loop.at reading
@@ -1022,12 +740,6 @@ def Loop.step {stepper : Stepper State Choice} {initial : State} (loop : Loop st
       loop.reached.elim fun _ ran => ⟨_, ran.step now (loop.at_later reading).1 event⟩⟩,
     stepped.sends)
 
-/-- **The step of a finished choice releases the stepper's action of it.** For every loop that
-chooses and every reading of the clock: the host admits the release of the awaited cycle with
-the stepper's action of the choice at the step's instant, and after the step the loop is
-released, with the host that the release returned and the same choice, and it sends the lines
-of the commands of the release. The agent's learning from that choice starts at the event that
-says those lines were sent (`Stage.step_sent`), and at no other (`Stage.step_learning`). -/
 theorem Loop.step_release {stepper : Stepper State Choice} {initial : State}
     (loop : Loop stepper initial) (reading : Instant) (awaiting : Awaiting)
     (choice : Task Choice) (choosing : loop.stage = .choosing awaiting choice) :
@@ -1051,12 +763,6 @@ theorem Loop.step_release {stepper : Stepper State Choice} {initial : State}
     rw [choosing]
     exact sends
 
-/-- **The agent a loop holds is the agent after its whole steps on the percepts it sensed.**
-For every loop there are the percepts of a run from its start to it, as many as it counted,
-such that: when ready, the agent it holds is the fold of the stepper's two parts over them,
-in order, from the starting agent; when learning, its task computes that agent; and when
-choosing or released, its choice computes the stepper's choice on the last of them by the
-agent after the ones before. -/
 theorem Loop.agent {stepper : Stepper State Choice} {initial : State}
     (loop : Loop stepper initial) :
     ∃ percepts, Ran stepper initial percepts loop.last loop.stage loop.counts ∧

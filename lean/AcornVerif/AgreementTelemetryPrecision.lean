@@ -1,23 +1,10 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.AgreementReturn
 import AcornVerif.AgreementPrecision
 
-/-!
-# Precision of the emitted process-session instrument
-
-Exact integer allowances are interpreted in the same least-subnormal coordinate
-as executed forecasts and returns. Rational admission, maximum and ceiling
-projection preserve conservative bounds without floating arithmetic.
--/
 namespace AcornVerif.AgreementTelemetryPrecision
 open Acorn Acorn.Agreement AcornVerif.CurrentAgreement AcornVerif.AgreementReturn
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder
 
-/-- Successful ratio admission retains its exact numerator and denominator. -/
 theorem admit_fields (n d : Nat) (ratio : Ratio) (admitted : Ratio.admit n d = some ratio) :
     ratio.numerator = n ∧ ratio.denominator = d := by
   unfold Ratio.admit at admitted
@@ -27,20 +14,17 @@ theorem admit_fields (n d : Nat) (ratio : Ratio) (admitted : Ratio.admit n d = s
     · contradiction
   · contradiction
 
-/-- The executable return allowance is exactly the proved binary32 error radius. -/
 theorem return_units (steps : Nat) :
     (returnRoundingUnits steps : ℚ) / 2^unitExponent = returnRadius steps := by
   norm_num [returnRoundingUnits, returnRadius, unitExponent, Nat.cast_add, Nat.cast_mul,
     Nat.cast_pow]
   ring
 
-/-- The executable power allowance is exactly the per-multiplication error sum. -/
 theorem power_units (steps : Nat) :
     (powerRoundingUnits steps : ℚ) / 2^unitExponent = (steps : ℚ) / 8388608 := by
   norm_num [powerRoundingUnits, unitExponent, Nat.cast_mul]
   ring
 
-/-- Maximum merging retains a bound for both included populations. -/
 theorem maximum_bounds (left right : Ratio) :
     (left.numerator : ℚ) / left.denominator ≤
       ((left.maximum right).numerator : ℚ) / (left.maximum right).denominator ∧
@@ -60,7 +44,6 @@ theorem maximum_bounds (left right : Ratio) :
       rename_i h
       exact_mod_cast Nat.le_of_lt (Nat.lt_of_not_ge h)
 
-/-- Ceiling projection never understates an exact allowance. -/
 theorem upperUnits_bound (ratio : Ratio) :
     (ratio.numerator : ℚ) / ratio.denominator ≤ (ratio.upperUnits : ℚ) / displayScale := by
   have denominator : (0 : ℚ) < ratio.denominator := by exact_mod_cast ratio.positive
@@ -78,7 +61,6 @@ theorem upperUnits_bound (ratio : Ratio) :
     omega
   exact_mod_cast bound
 
-/-- Native precision admission preserves both exact integer fractions. -/
 theorem precision_fields (discount : Discount) (steps : Nat) (power : Binary32)
     (value : Precision) (admitted : precision discount steps power = some value) :
     value.rounding.numerator = returnRoundingUnits steps ∧
@@ -103,37 +85,31 @@ theorem precision_fields (discount : Discount) (steps : Nat) (power : Binary32)
         obtain ⟨tnum, tden⟩ := admit_fields _ _ _ tailEquation
         exact ⟨rnum, rden, tnum, tden⟩
 
-/-- Unsigned word coordinates denote the absolute numerical operand. -/
 theorem magnitude_value (word : Binary32) (finite : word.Finite) :
     (magnitudeUnits word : ℚ) / 2^unitExponent = |numerical32 word| := by
   rw [numerical32_abs_units word finite, ← magnitudeUnits_exact]
   norm_num [unitExponent]
   ring
 
-/-- The admitted envelope is strictly positive in the actual word interpretation. -/
 theorem envelope_positive (discount : Discount) : 0 < numerical32 (errorEnvelope discount) := by
   rw [(envelope_twice discount).2]
   have domain := geometric_domain discount
   linarith [domain.2.2.2.2.1]
 
-/-- Envelope coordinates use the same positive scale as the actual error bound. -/
 theorem envelope_value (discount : Discount) :
     (envelopeUnits discount : ℚ) / 2^unitExponent = numerical32 (errorEnvelope discount) := by
   rw [envelopeUnits, magnitude_value _ (envelope_twice discount).1,
     abs_of_pos (envelope_positive discount)]
 
-/-- The decoded discount is strictly below one whole dyadic unit. -/
 theorem gamma_coordinate (discount : Discount) :
     magnitudeUnits discount.gamma < 2^unitExponent := by
   cases discount <;> decide
 
-/-- Executed discount coordinates retain their exact rational interpretation. -/
 theorem gamma_value (discount : Discount) :
     (magnitudeUnits discount.gamma : ℚ) / 2^unitExponent = numerical32 discount.gamma := by
   rw [magnitude_value _ (geometric_domain discount).1,
     abs_of_nonneg (geometric_domain discount).2.1]
 
-/-- Positive envelope coordinates follow from their numerical interpretation. -/
 theorem envelope_coordinate_positive (discount : Discount) : 0 < envelopeUnits discount := by
   have value := envelope_positive discount
   rw [← envelope_value] at value
@@ -141,7 +117,6 @@ theorem envelope_coordinate_positive (discount : Discount) : 0 < envelopeUnits d
   have := (div_pos_iff_of_pos_right scale).mp value
   exact_mod_cast this
 
-/-- Raw arithmetic coordinates already have the analytic interpretation before admission. -/
 theorem rounding_fraction (discount : Discount) (steps : Nat) :
     (returnRoundingUnits steps : ℚ) / envelopeUnits discount =
       returnRadius steps / numerical32 (errorEnvelope discount) := by
@@ -149,7 +124,6 @@ theorem rounding_fraction (discount : Discount) (steps : Nat) :
   norm_num [unitExponent]
   ring
 
-/-- Raw tail coordinates already have the analytic interpretation before admission. -/
 theorem tail_fraction (discount : Discount) (steps : Nat) (power : Binary32)
     (finite : power.Finite) :
     (((magnitudeUnits power + powerRoundingUnits steps) * 2^unitExponent : Nat) : ℚ) /
@@ -163,7 +137,6 @@ theorem tail_fraction (discount : Discount) (steps : Nat) (power : Binary32)
   have scale : (2 : ℚ)^unitExponent ≠ 0 := by positivity
   field_simp
 
-/-- Twice the rounded horizon leaves a strict margin above the initial geometric tail. -/
 theorem tail_margin (discount : Discount) :
     (3 : ℚ)/2 < (1 - numerical32 discount.gamma) * numerical32 (errorEnvelope discount) := by
   have domain := geometric_domain discount
@@ -172,7 +145,6 @@ theorem tail_margin (discount : Discount) :
   rw [(envelope_twice discount).2]
   nlinarith [domain.2.1]
 
-/-- Every tracked legal prefix passes both exact precision receivers without clipping. -/
 theorem precision_available (discount : Discount) (sample : Lifetime.PendingPrediction discount)
     (steps : Nat) (returned power : ℚ) (room : steps ≤ FeatureConstants.maxSettlement)
     (tracked : Tracks sample steps returned power)
@@ -216,7 +188,6 @@ theorem precision_available (discount : Discount) (sample : Lifetime.PendingPred
   simp [precision, Ratio.admit, tracked.2.1, Nat.not_lt.mpr room, tp, ep,
     roundingBound, tailBound]
 
-/-- The emitted arithmetic ratio equals the proved return radius divided by its envelope. -/
 theorem rounding_value (discount : Discount) (steps : Nat) (power : Binary32)
     (value : Precision) (admitted : precision discount steps power = some value) :
     (value.rounding.numerator : ℚ) / value.rounding.denominator =
@@ -226,7 +197,6 @@ theorem rounding_value (discount : Discount) (steps : Nat) (power : Binary32)
   norm_num [unitExponent]
   ring
 
-/-- The emitted tail ratio uses the rounded power plus its full analytic allowance. -/
 theorem tail_value (discount : Discount) (steps : Nat) (power : Binary32)
     (finite : power.Finite) (value : Precision)
     (admitted : precision discount steps power = some value) :
@@ -251,7 +221,6 @@ theorem tail_value (discount : Discount) (steps : Nat) (power : Binary32)
   have scale : (2 : ℚ)^unitExponent ≠ 0 := by positivity
   field_simp
 
-/-- A tracked finite prefix is covered by the exact emitted arithmetic ratio. -/
 theorem tracked_rounding (discount : Discount) (sample : Lifetime.PendingPrediction discount)
     (steps : Nat) (returned power : ℚ) (tracked : Tracks sample steps returned power)
     (value : Precision)
@@ -261,7 +230,6 @@ theorem tracked_rounding (discount : Discount) (sample : Lifetime.PendingPredict
   rw [rounding_value _ _ _ _ admitted]
   exact div_le_div_of_nonneg_right tracked.2.2.2.1 (envelope_positive discount).le
 
-/-- A tracked power bounds the ideal omitted geometric mass by the emitted tail ratio. -/
 theorem tracked_tail (discount : Discount) (sample : Lifetime.PendingPrediction discount)
     (steps : Nat) (returned power : ℚ) (tracked : Tracks sample steps returned power)
     (value : Precision)

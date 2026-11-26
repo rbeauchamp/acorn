@@ -1,20 +1,8 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Lifetime
 import AcornVerif.CurrentLearnerArithmetic
 import AcornVerif.CurrentConstants
 import AcornVerif.CurrentAgreement
 
-/-!
-# Rounded finite-return arithmetic
-
-Local error bounds apply to the executed binary32 operations through the pinned
-standard unpack/round/pack model. They are deterministic arithmetic allowances,
-not statistical uncertainty, a noise floor, or evidence of predictive usefulness.
--/
 namespace AcornVerif.AgreementReturn
 open Acorn
 open Float.Model (Format UnpackedFloat)
@@ -22,7 +10,6 @@ open Float.Model.UnpackedFloat
 open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmetic
 open AcornVerif.CurrentLearnerArithmetic
 
-/-- Normalized results within the finite-return working envelope fit binary32. -/
 theorem return_fits (value : UnpackedFloat) (exactValue : ℚ)
     (normal : ModelNormalized Format.binary32 value) (bound : |exactValue| ≤ 1024)
     (error : |unpackedValue value - exactValue| ≤ 1) : ModelFits Format.binary32 value := by
@@ -33,7 +20,6 @@ theorem return_fits (value : UnpackedFloat) (exactValue : ℚ)
   norm_num
   linarith only [triangle, bound, error]
 
-/-- A return-addition working magnitude of 1024 gives a 2^-14 local rounding allowance. -/
 theorem return_add (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left + numerical32 right| ≤ 1024) :
     (left.add right).Finite ∧
@@ -56,7 +42,6 @@ theorem return_add (left right : Binary32) (hl : left.Finite) (hr : right.Finite
     exact model_normalized_finite _ _ operation.1
   · simpa only [numerical32, decoded] using error
 
-/-- A product magnitude of two gives a 2^-23 local rounding allowance. -/
 theorem return_mul (left right : Binary32) (hl : left.Finite) (hr : right.Finite)
     (bound : |numerical32 left * numerical32 right| ≤ 2) :
     (left.mul right).Finite ∧
@@ -80,17 +65,14 @@ theorem return_mul (left right : Binary32) (hl : left.Finite) (hr : right.Finite
     exact model_normalized_finite _ _ operation.1
   · simpa only [numerical32, decoded] using error
 
-/-- Accumulated allowance for ordered multiply/add return accounting. -/
 def returnRadius (steps : Nat) : ℚ :=
   steps / 16384 + (steps : ℚ) * (steps + 1) / (2 * 8388608)
 
-/-- The radius is the sum of one addition allowance and the growing power allowance. -/
 theorem returnRadius_succ (steps : Nat) :
     returnRadius (steps + 1) = returnRadius steps + 1/16384 + ((steps : ℚ) + 1)/8388608 := by
   simp only [returnRadius, Nat.cast_add, Nat.cast_one]
   ring
 
-/-- The fixed pending horizon keeps all rounding allowances strictly below one. -/
 theorem returnRadius_small (steps : Nat) (bounded : steps ≤ Acorn.FeatureConstants.maxSettlement) :
     0 ≤ returnRadius steps ∧ returnRadius steps < 1 ∧ (steps : ℚ)/8388608 < 1 := by
   have bound : (steps : ℚ) ≤ 600 := by exact_mod_cast bounded
@@ -100,8 +82,6 @@ theorem returnRadius_small (steps : Nat) (bounded : steps ≤ Acorn.FeatureConst
   · positivity
   constructor <;> nlinarith
 
-/-- Every immutable current discount has a true geometric horizon below 101.
-Its rounded forecast rail exceeds nine; constants come from their checked owner. -/
 theorem geometric_domain (discount : Discount) :
     discount.gamma.Finite ∧ 0 ≤ numerical32 discount.gamma ∧ numerical32 discount.gamma < 1 ∧
     1 / (1 - numerical32 discount.gamma) ≤ 101 ∧ 9 < numerical32 discount.horizon ∧
@@ -116,14 +96,10 @@ theorem geometric_domain (discount : Discount) :
     norm_num [ModelConstants.gammaG90, ModelConstants.gammaG95, ModelConstants.gammaG99,
       ModelConstants.horizonG90, ModelConstants.horizonG95, ModelConstants.horizonG99]
 
-/-- Exact discounted reference state: remaining mass times the geometric horizon
-plus accumulated return cannot exceed that horizon. -/
 def IdealBound (gamma returned power : ℚ) : Prop :=
   0 ≤ returned ∧ 0 ≤ power ∧ power ≤ 1 ∧
     returned + power / (1 - gamma) ≤ 1 / (1 - gamma)
 
-/-- A new indicator preserves the geometric budget by the identity
-`1 + gamma/(1-gamma) = 1/(1-gamma)`. -/
 theorem ideal_step (gamma returned power cumulant : ℚ)
     (gammaLower : 0 ≤ gamma) (gammaUpper : gamma < 1)
     (prior : IdealBound gamma returned power) (signal : 0 ≤ cumulant ∧ cumulant ≤ 1) :
@@ -143,13 +119,11 @@ theorem ideal_step (gamma returned power cumulant : ℚ)
       div_mul_cancel₀ _ (ne_of_gt denominator)
     nlinarith [mul_nonneg (mul_nonneg powerLower (sub_nonneg.mpr signal.2)) denominator.le]
 
-/-- The budget bounds the accumulated reference sum independently of stream length. -/
 theorem ideal_return_bound (gamma returned power : ℚ) (gammaUpper : gamma < 1)
     (prior : IdealBound gamma returned power) : returned ≤ 1 / (1 - gamma) := by
   have nonnegative : 0 ≤ power / (1 - gamma) := div_nonneg prior.2.1 (by linarith)
   linarith [prior.2.2.2]
 
-/-- Multiplication by a unit signal carries the preceding power error and one rounding allowance. -/
 theorem tracked_mul (word signal : Binary32) (expected budget : ℚ)
     (wordFinite : word.Finite) (signalFinite : signal.Finite)
     (expectedBounds : 0 ≤ expected ∧ expected ≤ 1)
@@ -184,14 +158,12 @@ theorem tracked_mul (word signal : Binary32) (expected budget : ℚ)
         _ ≤ budget := by simpa using tracked)
     _ = budget + 1/8388608 := add_comm _ _
 
-/-- Correspondence invariant for the actual pending-return state after a finite prefix. -/
 def Tracks {discount : Discount} (sample : Lifetime.PendingPrediction discount)
     (steps : Nat) (returned power : ℚ) : Prop :=
   sample.returnSum.Finite ∧ sample.discountPower.Finite ∧ sample.age.val = steps ∧
     |numerical32 sample.returnSum - returned| ≤ returnRadius steps ∧
     |numerical32 sample.discountPower - power| ≤ (steps : ℚ)/8388608
 
-/-- Initial capture is the empty reference sum, before any evaluated future. -/
 theorem initial_tracks (discount : Discount) (clock : UInt64) (prediction : Prediction discount) :
     Tracks (Lifetime.PendingPrediction.initial clock prediction) 0 0 1 := by
   simp only [Tracks, Lifetime.PendingPrediction.initial]
@@ -201,7 +173,6 @@ theorem initial_tracks (discount : Discount) (clock : UInt64) (prediction : Pred
   · change |((1 : ℚ) * 8388608 * 2^(-23 : Int)) - 1| ≤ 0/8388608
     norm_num
 
-/-- Every executed advance preserves the reference correspondence and its analytic allowance. -/
 theorem advance_tracks {discount : Discount} (sample : Lifetime.PendingPrediction discount)
     (steps : Nat) (returned power : ℚ) (cumulant : Binary32)
     (stepsBound : steps < Acorn.FeatureConstants.maxSettlement)
@@ -240,7 +211,6 @@ theorem advance_tracks {discount : Discount} (sample : Lifetime.PendingPredictio
   · change |numerical32 (sample.discountPower.mul discount.gamma) - _| ≤ _
     simpa only [Nat.cast_add, Nat.cast_one, add_div, one_div] using nextPower.2
 
-/-- The closed envelope's multiplication by two is exact for all current horizons. -/
 theorem envelope_twice (discount : Discount) :
     (Agreement.errorEnvelope discount).Finite ∧
     numerical32 (Agreement.errorEnvelope discount) = 2 * numerical32 discount.horizon := by
@@ -257,9 +227,6 @@ theorem envelope_twice (discount : Discount) :
       change (1 : ℚ) * 13107213 * 2^(-16 : Int) = 2 * ((1 : ℚ) * 13107213 * 2^(-17 : Int))
       norm_num
 
-/-- A forecast and the rounded finite continuation fit the existing envelope.
-The allowance is derived from actual nonnegative prediction and indicator owners;
-no discrepancy projection appears in the statistic. -/
 theorem admitted_error_bound {discount : Discount} (sample : Lifetime.PendingPrediction discount)
     (steps : Nat) (returned power : ℚ)
     (stepsBound : steps ≤ Acorn.FeatureConstants.maxSettlement)
@@ -281,12 +248,9 @@ theorem admitted_error_bound {discount : Discount} (sample : Lifetime.PendingPre
   rw [(envelope_twice discount).2, abs_le]
   constructor <;> linarith [domain.2.2.2.2.1, domain.2.2.2.2.2, ideal.1]
 
-/-- Mathematical reference update for correspondence, never retained by the agent. -/
 def referenceAdvance (discount : Discount) (state : ℚ × ℚ) (cumulant : Binary32) : ℚ × ℚ :=
   (state.1 + state.2 * numerical32 cumulant, state.2 * numerical32 discount.gamma)
 
-/-- Induction links an arbitrary admitted future prefix to the actual executed fold.
-The quantified list is proof data, not an application trajectory buffer. -/
 theorem fold_tracks {discount : Discount} (inputs : List Binary32)
     (sample : Lifetime.PendingPrediction discount) (steps : Nat) (returned power : ℚ)
     (room : steps + inputs.length ≤ Acorn.FeatureConstants.maxSettlement)
@@ -315,7 +279,6 @@ theorem fold_tracks {discount : Discount} (inputs : List Binary32)
     simpa only [List.foldl_cons, referenceAdvance, List.length_cons,
       Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using rest
 
-/-- Every admitted finite prefix from a real capture satisfies the discrepancy envelope. -/
 theorem captured_return_bound (discount : Discount) (clock : UInt64)
     (prediction : Prediction discount) (inputs : List Binary32)
     (room : inputs.length ≤ Acorn.FeatureConstants.maxSettlement)
@@ -329,7 +292,6 @@ theorem captured_return_bound (discount : Discount) (clock : UInt64)
     (by simpa using room) signals (initial_tracks discount clock prediction) (by simp [IdealBound])
   exact ⟨tracked.1.1, admitted_error_bound _ _ _ _ (by simpa using room) tracked.1 tracked.2⟩
 
-/-- The linked reference fold is exactly the finite discounted sum in start order. -/
 theorem reference_formula (discount : Discount) (stream : Nat → Binary32) (count : Nat) :
     ((List.range count).map stream).foldl (referenceAdvance discount) (0, 1) =
       (∑ i ∈ Finset.range count, numerical32 discount.gamma ^ i * numerical32 (stream i),
@@ -341,7 +303,6 @@ theorem reference_formula (discount : Discount) (stream : Nat → Binary32) (cou
       List.foldl_append, List.foldl_cons, List.foldl_nil, ih, referenceAdvance,
       Finset.sum_range_succ, pow_succ]
 
-/-- Captured legal prefixes are available to the executed exact-square receiver. -/
 theorem captured_admission (discount : Discount) (clock : UInt64)
     (prediction : Prediction discount) (inputs : List Binary32)
     (room : inputs.length ≤ Acorn.FeatureConstants.maxSettlement)

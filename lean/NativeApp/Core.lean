@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import NativeApp.Build
 import Acorn.Host.Viewer.NativeCore
 import Acorn.Host.Ansi
@@ -12,13 +7,6 @@ import Acorn.Host.Visits
 import NativeApp.Report
 import NativeApp.MutationAudit
 
-/-!
-# Native core entry
-
-The viewer launches the streaming process; ANSI uses its separate admitted loop.
-Unsupported output modes are refused before execution.
-The stdin reader owns only the monotone attempt-boundary stop capability.
--/
 namespace NativeApp
 open Acorn.Host Acorn.Host.Viewer
 
@@ -60,10 +48,6 @@ private def renderAnsi (provenance : String) {config : WorldConfig}
   IO.println s!"t={frame.steps} goal={frame.goalIndex} @({position.x.val},{position.y.val}) energy={body.energy.val / 10}% inv w{inventory.wood} s{inventory.stone} f{inventory.food} g{inventory.gold} axe{if inventory.axe then 1 else 0} boat{if inventory.boat then 1 else 0}"
   IO.println s!"action={actionText frame.action} reward={binary32Text frame.result.reward}"
 
-/-- ANSI uses the same full-agent constructor as streaming with its admitted
-discounted criterion, and the distinct observation schedule owned by `runAnsi`. Its loop
-runs both parts of a step before the world's transition, so its order is
-learn-then-act; command admission refuses `--step-order` with `--view`. -/
 def runAnsiDemo (common : Cli.Common) (period : Acorn.Word.Count) : IO UInt32 := do
   let construction := Acorn.Handcrafted.AgentConstruction.standard common.world.raw.seed
     ⟨common.profile, .discounted⟩ common.planning .learnThenAct
@@ -81,7 +65,6 @@ def runAnsiDemo (common : Cli.Common) (period : Acorn.Word.Count) : IO UInt32 :=
     return 0
   | .error error => throw (IO.userError (runnerError error))
 
-/-- Admit the streaming demo command before spawning a control reader or constructing an agent. -/
 def streamingOptions (arguments : List String) : IO Cli.Streaming := do
   unless (← match Cli.command arguments with
       | .ok .demo => pure true
@@ -93,7 +76,6 @@ def streamingOptions (arguments : List String) : IO Cli.Streaming := do
   | .ok (.streaming options) =>
     return options
 
-/-- What a run of visits leaves on the standard streams: a value the loop returned, or a refusal. -/
 private def reportVisits {config : WorldConfig} {α : Type} {goal : Goal} {cap : UInt64} :
     Except (Refusal config α goal cap) (VisitsResult config α goal cap) → IO UInt32
   | .error _ => throw (IO.userError "world refused an observation or a step")
@@ -103,11 +85,6 @@ private def reportVisits {config : WorldConfig} {α : Type} {goal : Goal} {cap :
     IO.eprintln result.resources.checkpointStatus.line
     return 0
 
-/-- One run of visits of one target: `Host.runVisitDecisions` from the admitted world, for the
-construction the command selects or for the comparator's stream. It refuses a target whose box holds
-the body, which is no member of the class of concealed targets, before it builds an agent. Each
-visit's outcome is printed in `outcomeCsv`'s fields, with the visit's index as the attempt. No
-theorem relates this entry to the loop. -/
 def runVisits (arguments : List String) : IO UInt32 := do
   let options ← match Cli.visits arguments with
     | .error error => throw (IO.userError error.message)
@@ -143,7 +120,6 @@ def runVisits (arguments : List String) : IO UInt32 := do
       construction.initial checkpoint
     reportVisits result
 
-/-- Run the actual full-agent stream with compiled provenance and receiver-bound persistence. -/
 def runCore (arguments : List String) : IO UInt32 := do
   match Cli.dispatch arguments with
   | .error error => throw (IO.userError error.message)
@@ -207,8 +183,6 @@ def runCore (arguments : List String) : IO UInt32 := do
         IO.eprintln s!"control: stopped on request after {result.totalSteps} steps"
       let curriculum := standardCurriculum options.common.world options.common.world.raw.seed
       let count := min options.common.goals.toNat curriculum.size
-      -- The comparator is a function of the command alone and takes its own copy of
-      -- the initial world, so evaluating it here lets its rows precede the footer.
       let comparator := if options.baseline then
         some (runRandomBaseline options.common.world options.common.world.raw.seed options.campaign)
       else none

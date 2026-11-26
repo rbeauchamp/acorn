@@ -1,24 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentConcealedTargetRungLearns
 import AcornVerif.Twin
-
-/-!
-# On the first rung every agent has a twin that reads only the reward word
-
-In a member of the class of concealed targets, the percept at a state is a function of the
-reference world's state along the same actions and of the percept's own reward word: the dynamics
-do not read the goal, the observation reads it only through whether the target is met, a step's
-completion is whether the target is met after it, and the reward word is one exactly on
-completion. So every kernel agent has a twin, stepped by the reward word alone, that solves each
-member of the rung's class on exactly the visits on which the agent solves it, and the two clauses
-of the frozen target hold of an agent exactly when they hold of its twin (`rung_twin`).
-No statement about what happens in the rung's runs tells an agent from one whose step reads
-nothing of its percept but the reward word.
--/
 
 namespace AcornVerif.CurrentConcealedTargetTwin
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -27,10 +8,6 @@ open AcornVerif.CurrentConcealedTargetRung
 
 variable {config : Host.WorldConfig}
 
-/-- A member's state and the reference's state along one action sequence: both refused, or both
-live with worlds that differ only in their goals, where the reference carries a result with no
-completion and a zero reward word, and the member carries the reference's result, with the
-completion set and the reward word of one when its target is met. -/
 def Shadowed (target : Host.Position) (state shadow : Option (Live config)) : Prop :=
   (state = none ∧ shadow = none) ∨
   ∃ found base, state = some found ∧ shadow = some base ∧
@@ -41,9 +18,6 @@ def Shadowed (target : Host.Position) (state shadow : Option (Live config)) : Pr
     (found.world.goalSatisfied = true →
       found.carried = ⟨{ base.carried.events with done := true }, ⟨0x3f800000⟩⟩)
 
-/-- The percept of a member rebuilt from the reference's state and the member's reward word: the
-reference's own percept, unless the reward word is one, and then the percept of the reference's
-world with a target at the body's own tile, carrying that reward and the completion. -/
 def rebuilt (mode : TaskFeatureMode) (shadow : Option (Live config)) (reward : Binary32) :
     Percept Grid.interface :=
   match shadow with
@@ -55,8 +29,6 @@ def rebuilt (mode : TaskFeatureMode) (shadow : Option (Live config)) (reward : B
         ⟨0x3f800000⟩ true
     else percept mode (some base)
 
-/-- The starts of a member and of the reference are related, where the start carries no
-completion and a zero reward word. -/
 theorem shadowed_start (live : Live config) (target : Host.Position)
     (outside : ¬ InGoalBox target live.world.body.position.position)
     (calm : live.carried.events.done = false) (unpaid : live.carried.reward = ⟨0⟩) :
@@ -69,7 +41,6 @@ theorem shadowed_start (live : Live config) (target : Host.Position)
     ⟨live.world.setGoal (.find nowhere), live.carried⟩, rfl, rfl, rfl, rfl, rfl, calm, unpaid,
     fun _ => rfl, fun met => absurd (unmet.symm.trans met) Bool.false_ne_true⟩
 
-/-- One step of the grid world keeps the relation, whatever the action. -/
 theorem shadowed_step (mode : TaskFeatureMode) (target : Host.Position)
     (state shadow : Option (Live config)) (action : Kernel.Act Grid.interface)
     (held : Shadowed target state shadow) :
@@ -131,13 +102,11 @@ theorem shadowed_step (mode : TaskFeatureMode) (target : Host.Position)
           subst flagged
           rfl
 
-/-- A tile is in its own goal box. -/
 theorem inGoalBox_self (position : Host.Position) : InGoalBox position position := by
   unfold InGoalBox
   simp only [Int.sub_self, Int.natAbs_zero]
   exact ⟨Nat.zero_le _, Nat.zero_le _⟩
 
-/-- **A member's percept is rebuilt from the reference's state and its own reward word.** -/
 theorem shadowed_percept (mode : TaskFeatureMode) (target : Host.Position)
     (state shadow : Option (Live config)) (held : Shadowed target state shadow) :
     (gridWorld config mode).percept state =
@@ -175,10 +144,6 @@ theorem shadowed_percept (mode : TaskFeatureMode) (target : Host.Position)
       dsimp only
       rfl
 
-/-- **On the first rung every agent has a twin stepped by the reward word.** For every kernel
-agent over the grid's interface there is an agent whose step reads its percept through the reward
-word alone and that solves each member of the rung's class on exactly the visits on which the
-agent solves it. -/
 theorem rung_twin (mode : TaskFeatureMode) (agent : Kernel.Agent Grid.interface) :
     ∃ twin : Kernel.Agent Grid.interface,
       Kernel.Stepped (fun percept : Percept Grid.interface => percept.reward) twin ∧
@@ -221,9 +186,6 @@ theorem rung_twin (mode : TaskFeatureMode) (agent : Kernel.Agent Grid.interface)
       (fun index state shadow held => shadowed_percept mode index.1.1 state shadow held)
       bound limit horizon lapses counted
 
-/-- **From any proof of the frozen target, an agent that reads only the reward word meets both of
-its clauses.** The target's two promises, as they are frozen, hold of an agent whose step reads
-its percept through the reward word alone, with the same planning selection and the same list. -/
 theorem learns_twin (learns : Targets.CurrentConcealedTargetRung.rung_learns) :
     ∃ (planning : PlanningSelection)
       (counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode

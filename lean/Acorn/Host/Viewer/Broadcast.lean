@@ -1,33 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.Sensed
 import Acorn.Host.Viewer.IdentityHandshake
 import Acorn.Host.Viewer.ControlTelemetry
 import Std.Sync.Mutex
 import Acorn.Host.Forever
 
-/-!
-# Serialized observer delivery
-
-Replay publication, generation admission and subscriber registration share one
-mutex. A publisher never waits for a network reader. Each subscriber has a
-bounded application queue and one wake promise; promises carry no frame payload.
-One delivery task owns each subscription. Native mutex/promise scheduling and
-allocator overhead remain trusted infrastructure, without a liveness guarantee.
-
-The broadcaster decides nothing about the process lifecycle. It holds a copy of the
-lifecycle that the supervisor's step decided (`Acorn.Host.Viewer.Supervision`), which
-the supervisor installs, with the observer changes that go with it, in one serialized
-operation (`Broadcast.settle`); frame admission reads that copy. The step's state is
-authoritative, and the copy lags it only between a step and the settlement that the
-actor performs next.
--/
 namespace Acorn.Host.Viewer
 
-/-- Bound on simultaneous retained subscriber queues. -/
 def connectionCapacity : Nat := 16
 
 private structure Subscriber where
@@ -42,18 +20,11 @@ private structure IdentityWait where
   frames : Buffer WireText replayCapacity := .empty
   dropped : Nat := 0
 
-/-- An observer change that a supervisor transition installs together with its lifecycle. -/
 inductive Change where
-  /-- The retiring process's buffered output may be lost: mark the retained map partial. -/
   | loseTail
-  /-- A new process: hold its output until its identity is persisted; it has refused no
-  checkpoint yet. -/
   | await (generation : UInt64)
-  /-- Refuse the identity the waiting process reported, with every output it holds. -/
   | refuseIdentity (generation : UInt64)
-  /-- The joined stderr of the last process reported a refused checkpoint. -/
   | refuseCheckpoint
-  /-- A new run: drop the old run's replay, map, queued frames, pending identity and control. -/
   | newRun
 
 private structure BroadcastState where
@@ -69,12 +40,10 @@ private structure BroadcastState where
   subscribers : Buffer Subscriber connectionCapacity := .empty
   sequence : UInt64 := 0
 
-/-- Native observation capability; callers cannot replace its queue or generation state. -/
 structure Broadcast where
   private mk ::
   private state : Std.Mutex BroadcastState
 
-/-- Each supervisor owns an independent serialized observer domain. -/
 def Broadcast.new (identity : Identity) (desired : Desired) (historyMayBeMissing : Bool := false) : BaseIO Broadcast := do
   return ⟨← Std.Mutex.new { lifecycle := .initial identity desired, worldPartial := historyMayBeMissing }⟩
 
@@ -98,22 +67,18 @@ private def BroadcastState.loseWorldTail (state : BroadcastState) : BroadcastSta
   { state.withWorld (state.world.map fun ⟨key, memory⟩ => ⟨key, memory.markPartial⟩) with
     worldPartial := true }
 
-/-- Read-only lifecycle snapshot, without an observer-state write capability. -/
 def Broadcast.lifecycle (broadcast : Broadcast) : BaseIO Lifecycle :=
   broadcast.state.atomically do return (← get).lifecycle
 
-/-- Read a complete map under the publication lock for later atomic disk publication. -/
 def Broadcast.world (broadcast : Broadcast) : BaseIO (Option ((key : MapKey) × WorldMemory key)) :=
   broadcast.state.atomically do return (← get).world
 
-/-- Map contents and their mutation revision are captured together, before asynchronous disk IO. -/
 def Broadcast.worldForWrite (broadcast : Broadcast) :
     BaseIO (Nat × Option ((key : MapKey) × WorldMemory key)) :=
   broadcast.state.atomically do
     let state ← get
     return (state.worldRevision, state.world)
 
-/-- Startup restore cannot replace an observed map or attach a foreign identity. -/
 def Broadcast.restoreWorld (broadcast : Broadcast) {key : MapKey} (memory : WorldMemory key) :
     BaseIO Bool :=
   broadcast.state.atomically do
@@ -124,8 +89,6 @@ def Broadcast.restoreWorld (broadcast : Broadcast) {key : MapKey} (memory : Worl
     set { state.withWorld (some ⟨key, memory.markPartial⟩) with worldPartial := true }
     return true
 
-/-- The current process may complete attribution while its readers drain,
-without restoring that reaped process's observation rights. -/
 def Broadcast.pendingIdentity (broadcast : Broadcast) : BaseIO (Option (UInt64 × CoreIdentity)) :=
   broadcast.state.atomically do
     let state ← get
@@ -133,7 +96,6 @@ def Broadcast.pendingIdentity (broadcast : Broadcast) : BaseIO (Option (UInt64 �
     if waiting.refused || !state.lifecycle.ownsIdentity waiting.generation then return none
     return waiting.candidate.map (waiting.generation, ·)
 
-/-- A checkpoint-refusal diagnostic is admitted under its actual process generation. -/
 def Broadcast.refuseCheckpoint (broadcast : Broadcast) (generation : UInt64) : BaseIO Unit :=
   broadcast.state.atomically (modify fun state =>
     if state.lifecycle.phaseValue.accepts generation then { state with checkpointRefused := true }
@@ -167,12 +129,6 @@ private def BroadcastState.observe (state : BroadcastState) (text : WireText) : 
 private def BroadcastState.observation (state : BroadcastState) : ControlObservation :=
   ⟨state.checkpointRefused, state.worldPartial⟩
 
-/-- The actor calls this only after publishing the selected identity to state.json.
-The candidate, active generation, identity update, control update, queued suffix
-and subscriber wakeups share one serialization boundary. The lifecycle installed is the one
-the supervisor's step decided, with the identity adopted, and the control record encodes it
-with the step's detail. Pending overflow is reported to the caller and conservatively marks
-any retained map partial. -/
 def Broadcast.commitIdentity (broadcast : Broadcast) (generation : UInt64) (actual : CoreIdentity)
     (lifecycle : Lifecycle) (detail : ControlDetail) : BaseIO (Except String Nat) := do
   let result : Except String (Nat × List (IO.Promise Unit)) ← broadcast.state.atomically do
@@ -230,11 +186,6 @@ private def BroadcastState.change (state : BroadcastState) : Change → Broadcas
       checkpointRefused := false
       subscribers := ⟨subscribers, by simpa [subscribers] using state.subscribers.bounded⟩ }
 
-/-- Install the lifecycle the supervisor's step decided, apply the observer changes that go
-with it, in order, and publish the control record of that lifecycle with the step's detail,
-all in one serialized operation. Supervisor records bypass process-generation admission while
-retaining the same serialized subscriber boundary. They have a dedicated current snapshot and
-do not consume process replay slots; an unchanged record is not sent again. -/
 def Broadcast.settle (broadcast : Broadcast) (lifecycle : Lifecycle) (changes : List Change)
     (detail : ControlDetail) : BaseIO (Except String Unit) := do
   let result : Except String (List (IO.Promise Unit)) ← broadcast.state.atomically do
@@ -270,18 +221,14 @@ private def Broadcast.notice (broadcast : Broadcast) (fields : Lifecycle → Lis
     for wake in wakes do wake.resolve ()
     return .ok ()
 
-/-- The Clear acknowledgement names the already-installed world and never enters replay. -/
 def Broadcast.announceCleared (broadcast : Broadcast) : BaseIO (Except String Unit) :=
   broadcast.notice fun lifecycle =>
     [⟨"cleared", .flag, true⟩, ⟨"seed", .natural, lifecycle.identityValue.seed.toNat⟩]
 
-/-- An observed process exit supplies the existing browser fault surface, without adding a replay frame. -/
 def Broadcast.announceExit (broadcast : Broadcast) (reason : String) : BaseIO (Except String Unit) :=
   broadcast.notice fun _ =>
     [⟨"eos", .flag, true⟩, ⟨"kind", .text, "exit"⟩, ⟨"reason", .text, controlDiagnostic reason⟩]
 
-/-- Admit generation and mutate all queues in one serialized operation.
-Every slow subscriber keeps its queued prefix and refuses the new frame. -/
 def Broadcast.publish (broadcast : Broadcast) (generation : UInt64) (text : WireText) : BaseIO Bool := do
   let identity := (coreIdentity text).toOption
   let wakes ← broadcast.state.atomically do
@@ -308,25 +255,17 @@ def Broadcast.publish (broadcast : Broadcast) (generation : UInt64) (text : Wire
     for wake in wakes do wake.resolve ()
     return true
 
-/-- A subscription is bound to its creating broadcast instance and nonreused sequence. -/
 structure Subscription where
   private mk ::
   private broadcast : Broadcast
   private id : UInt64
 
-/-- Replay and map snapshot are captured at the same serialized stream position. -/
 structure ReplaySnapshot where
-  /-- Current durable identity at registration. -/
   identity : Identity
-  /-- Last supervisor record at this same registration boundary. -/
   control : Option WireText
-  /-- Run-owned sensed observations, independent of the browser's history ring. -/
   world : Option ((key : MapKey) × WorldMemory key)
-  /-- Bounded replay preceding all subsequently queued live frames. -/
   frames : Buffer WireText replayCapacity
 
-/-- Registration and replay snapshot share the publication mutex, closing their handover gap.
-Capacity or sequence exhaustion refuses registration before it retains a queue. -/
 def Broadcast.subscribe (broadcast : Broadcast) : BaseIO (Option (Subscription × ReplaySnapshot)) := do
   let wake ← IO.Promise.new
   broadcast.state.atomically do
@@ -340,7 +279,6 @@ def Broadcast.subscribe (broadcast : Broadcast) : BaseIO (Option (Subscription �
       set { state with subscribers, sequence := id }
       return some (⟨broadcast, id⟩, ⟨state.lifecycle.identityValue, state.control, state.world, state.replay⟩)
 
-/-- Disconnect removes the queue before waking any blocked delivery task. -/
 def Subscription.close (subscription : Subscription) : BaseIO Unit := do
   let wake ← subscription.broadcast.state.atomically do
     let state ← get
@@ -351,16 +289,11 @@ def Subscription.close (subscription : Subscription) : BaseIO Unit := do
     return wake
   if let some wake := wake then wake.resolve ()
 
-/-- A subscriber read either consumes one bounded frame or supplies a payload-free wake task. -/
 inductive SubscriptionRead where
-  /-- The registration no longer exists. -/
   | closed
-  /-- Exactly one queued frame was consumed. -/
   | item (text : WireText)
-  /-- Wait outside the publication lock, then poll again. -/
   | wait (task : Task (Option Unit))
 
-/-- One serialized dequeue or wake registration for the subscription's sole reader. -/
 def Subscription.poll (subscription : Subscription) : BaseIO SubscriptionRead := do
   let wake ← IO.Promise.new
   subscription.broadcast.state.atomically do
@@ -374,8 +307,6 @@ def Subscription.poll (subscription : Subscription) : BaseIO SubscriptionRead :=
     set { state with subscribers := ⟨subscribers, by simpa [subscribers] using state.subscribers.bounded⟩ }
     return result
 
-/-- Wait outside the publication lock; only the subscriber delivery task can block here.
-Dropped promises and explicit disconnect both terminate this subscription reader. -/
 def Subscription.receive (subscription : Subscription) : BaseIO (Option WireText) := do
   for _ in forever do
     match ← subscription.poll with
@@ -383,7 +314,6 @@ def Subscription.receive (subscription : Subscription) : BaseIO (Option WireText
     | .item text => return some text
     | .wait task =>
       if (← IO.wait task).isNone then return none
-  -- The loop has no `break`, so it ends only by returning.
   return none
 
 end Acorn.Host.Viewer

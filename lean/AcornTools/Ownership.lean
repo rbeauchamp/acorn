@@ -1,35 +1,13 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Init
 
-/-! # Maintained ownership obligations
-
-The executable inventory is compared with Lake's evaluated configuration and
-compiled module owners. A module of the libraries `Acorn`, `AcornVerif`, `NativeApp`,
-`AcornDocument` and `Entry` has no entry here: Lake's glob assigns each source below a
-library root to that library, and the Regula audit claims every module of the first
-four, the default targets. Each other source is a tool listed in `AcornTools.ModuleInventory` or a
-module of the documentation site listed below. This routing information does not
-assert semantic completeness. Runtime sources receive source/compiled boundary
-admission; the Regula audit checks the axioms of every claimed declaration.
-Tooling is the explicit trust boundary listed in `AcornTools.ModuleInventory`,
-never an application escape hatch.
--/
 namespace AcornOwnership
 open Lean
 
-/-- The reviewed modules of the documentation site, the separate Lake package in `site/`;
-filesystem discovery rejects missing or extra owners. The site is documentation tooling over
-pinned Verso, a trust boundary outside the application's proof claim. -/
 def siteModules : Array Name := #[
   `AcornDocs, `AcornDocs.Verification, `AcornSite, `AcornSite.Markdown, `AcornSite.Owners,
   `AcornSite.Reference, `Main
 ]
 
-/-- Native entry points, checked against both evaluated Lake targets and compiled `main`. -/
 def executables : Array (String × Name) := #[
   ("swifttd-native", `Entry.SwiftTdNative),
   ("feature-native", `Entry.FeatureNative),
@@ -53,11 +31,6 @@ def executables : Array (String × Name) := #[
   ("frame-check", `AcornTools.Frame)
 ]
 
-/-- Required statements about executing definitions must retain their actual execution
-references. The entries are the critical entry and transition obligations, the decision
-contracts of `Acorn.Decisions` and `AcornVerif.Decisions` that no registration requires,
-and the theorem `AcornDocument.external_listed`. The list is not a
-quota or a claim that all mathematical properties are exhausted by the inventory. -/
 def anchors : Array (Name × Name × Name) := #[
   (`Acorn.Host.AgentConstruction, `Acorn.Handcrafted.AgentConstruction.admit_iff,
     `Acorn.Handcrafted.AgentConstruction.admit),
@@ -565,6 +538,7 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Features.Assignment.identity),
   (`Acorn.Decisions, `Acorn.Decisions.total_observe_value, `Acorn.Agreement.Total.observe),
   (`Acorn.Decisions, `Acorn.Decisions.world_step, `Acorn.Host.World.step),
+  (`AcornVerif.Decisions, `AcornVerif.Decisions.world_step_accepts, `Acorn.Host.World.step),
   (`Acorn.Decisions, `Acorn.Decisions.lifecycle_prefer, `Acorn.Features.Lifecycle.prefer),
   (`Acorn.Decisions, `Acorn.Decisions.episode_end_value,
     `Acorn.Features.TemporalDecision.episodeEnd),
@@ -712,6 +686,38 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.Viewer.Core.start),
   (`Acorn.Host.Viewer.ExplicitStart, `Acorn.Host.Viewer.Core.start_control,
     `Acorn.Host.Viewer.controlTelemetry),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.PersistedState.encode_decode_stopped,
+    `Acorn.Host.Viewer.PersistedState.encode),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.PersistedState.encode_decode_stopped,
+    `Acorn.Host.Viewer.PersistedState.decode),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.Core.step_no_ackStop,
+    `Acorn.Host.Viewer.Core.step),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.Core.resolve_ackStop_spec,
+    `Acorn.Host.Viewer.Core.resolve),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.Core.resume_ackStop_spec,
+    `Acorn.Host.Viewer.Core.resume),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.Core.resume_error_no_ackStop,
+    `Acorn.Host.Viewer.Core.resume),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.Core.stop_acknowledges_or_refuses,
+    `Acorn.Host.Viewer.Core.step),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.Core.stop_acknowledges_or_refuses,
+    `Acorn.Host.Viewer.Core.resume),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.Core.resume_ackStop_stopGuard,
+    `Acorn.Host.Viewer.Core.resume),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.CrashReached.startup_cannot_resume_running,
+    `Acorn.Host.Viewer.Core.start),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.CrashReached.stop_never_acked_on_write_error,
+    `Acorn.Host.Viewer.Core.resume),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.CrashReached.stop_never_acked_on_write_error,
+    `Acorn.Host.Viewer.PersistedState.encode),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.exists_stop_crash_restart_witness,
+    `Acorn.Host.Viewer.Core.start),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.exists_stop_crash_restart_witness,
+    `Acorn.Host.Viewer.PersistedState.encode),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.exists_stop_crash_reboot_populated,
+    `Acorn.Host.Viewer.PersistedState.encode),
+  (`Acorn.Host.Viewer.StopDurability, `Acorn.Host.Viewer.exists_stop_crash_reboot_populated,
+    `Acorn.Host.Viewer.Core.start),
   (`Acorn.Host.Viewer.BrowserSchema, `Acorn.Host.Viewer.browserSchema_execution,
     `Acorn.Host.Viewer.coreTelemetry),
   (`Acorn.Host.Viewer.BrowserRecord, `Acorn.Host.Viewer.browserRecord_keys,
@@ -728,11 +734,6 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.stanceCertified)
 ]
 
-/-- Required native entry dependencies after proof erasure. These are routing
-obligations; the IR graph alone does not prove control-flow or argument semantics.
-Each root's `main` applies its claimed module's entry function, the first one listed.
-Erased ANSI, checksum and timing-proof parameters select the compiler's reduced-arity
-owners. -/
 def entryUses : Array (Name × Array Name) := #[
   (`Entry.AcornCore, #[`NativeApp.Main.main, `NativeApp.streamingOptions,
     `Acorn.Host.Viewer.runNativeCampaign,

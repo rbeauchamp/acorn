@@ -1,34 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Intent.WorldInterfaceConsequences
-
-/-!
-# The blind cases reading of contract 1, with the record's verdicts
-
-The second, blind reading of contract 1's eight sentences that OpenAI's gpt-6-astra made for
-concrete cases with verdicts, after the record `AcornVerif.Intent.WorldInterface.worldInterface`
-was sealed at commit f6c9c73. It is no deliverable and no part of the owner's intent: it is a
-second model's reading of the owner's words. Each of its 34 cases is stated here as a system, and
-the theorems `c1` to `c34` prove the record's verdict on each: that its system meets the record,
-or that it does not. How each verdict compares with the cases reading's is in the record's
-confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`.
-
-States 0 and 1 are `false` and `true`; `flip` and `advance` are `true`, `hold` and `reset` are
-`false`; `run` and `stop` are `false` and `true`, except in cases 31 and 32.
--/
 
 namespace AcornVerif.Intent.WorldInterface.Cases
 
 open LeanIntent AcornVerif.Intent.WorldInterface
 
-/-- Whether a system meets the record. -/
 abbrev M := worldInterface.Meets
 
-/-- A world of two states that the action `true` flips and `false` keeps, starting at `st`, with
-the available actions `avail`, the observation `obs` and reward 0. -/
 def wFlip (avail : Bool → Bool → Prop) (obs : Bool → Bool) (st : Bool := false) : World where
   State := Bool
   Obs := Bool
@@ -39,8 +16,6 @@ def wFlip (avail : Bool → Bool → Prop) (obs : Bool → Bool) (st : Bool := f
   available := avail
   step s a := cond a (!s) s
 
-/-- A world of two states that every action moves to `false`, starting at `st` and showing its
-state, with the available actions `avail` and reward 0. -/
 def wStill (avail : Bool → Bool → Prop) (st : Bool) : World where
   State := Bool
   Obs := Bool
@@ -51,19 +26,16 @@ def wStill (avail : Bool → Bool → Prop) (st : Bool) : World where
   available := avail
   step _ _ := false
 
-/-- An agent that always answers `true` and counts its steps from `init`. -/
 def flipper (init : Nat := 0) : Agent Bool Bool where
   Memory := Nat
   initial := init
   act m _ := (true, m + 1)
 
-/-- An agent that always answers `false` and counts its steps. -/
 def holder : Agent Bool Bool where
   Memory := Nat
   initial := 0
   act m _ := (false, m + 1)
 
-/-- The world `wFlip` with both actions available everywhere, showing its state. -/
 def w1 : World := wFlip (fun _ _ => True) id
 
 theorem c1 : M (couple w1 (flipper)) := couple_meets _ _ (fun _ _ _ => Iff.rfl) fun _ _ _ => trivial
@@ -87,8 +59,6 @@ theorem c5 : ¬ M (couple (wFlip (fun _ _ => False) id) (flipper)) := fun h =>
 theorem c6 : M (couple (wFlip (fun _ _ => True) (fun _ => false)) (flipper)) :=
   couple_meets _ _ (fun _ _ _ => Iff.rfl) fun _ _ _ => trivial
 
-/-- Case 7's system: the run of `wFlip` with an observation that is always `false` and `flipper`,
-which gives the agent the world's state in place of its observation. -/
 def s7 : System :=
   runOf (wFlip (fun _ _ => True) (fun _ => false)) (flipper) (fun _ _ e => !e) (fun s _ _ => (s, 0))
     (fun _ _ _ a => a) (fun s _ _ a => cond a (!s) s) (fun _ _ _ m => m)
@@ -98,13 +68,9 @@ theorem c7 : ¬ M s7 := fun h => by
   change true = false at this
   exact Bool.noConfusion this
 
-/-- -1/2, written as a reduced fraction. -/
 def minusHalf : Rat := ⟨-1, 2, by decide, by decide⟩
-/-- 3/2, written as a reduced fraction. -/
 def threeHalves : Rat := ⟨3, 2, by decide, by decide⟩
 
-/-- A world of two states that the action `true` flips, showing nothing, whose reward is 3/2 at
-the state `true` and -1/2 at `false`, with both actions available everywhere. -/
 def w8 : World where
   State := Bool
   Obs := Unit
@@ -115,7 +81,6 @@ def w8 : World where
   available _ _ := True
   step s a := cond a (!s) s
 
-/-- An agent that always answers `true` and keeps the sum of the rewards it is given. -/
 def ratAgent : Agent Unit Bool where
   Memory := Rat
   initial := 0
@@ -129,8 +94,6 @@ theorem c9 : ¬ M (runOf w8 ratAgent (fun _ _ e => !e) (fun _ m _ => ((), m)) (f
   change (0 : Rat) = minusHalf at this
   exact absurd this (by decide)
 
-/-- A world of two states that the action `true` flips, whose observation `obs` is a pair of
-signals, with reward 0 and both actions available everywhere. -/
 def w10 (obs : Bool → Bool × Bool) : World where
   State := Bool
   Obs := Bool × Bool
@@ -141,8 +104,6 @@ def w10 (obs : Bool → Bool × Bool) : World where
   available _ _ := True
   step s a := cond a (!s) s
 
-/-- An agent that answers the negation of its observation's second signal and counts its
-steps. -/
 def task : Agent (Bool × Bool) Bool where
   Memory := Nat
   initial := 0
@@ -151,8 +112,6 @@ def task : Agent (Bool × Bool) Bool where
 theorem c10 : M (couple (w10 fun s => (false, s)) task) :=
   couple_meets _ _ (fun _ _ _ => Iff.rfl) fun _ _ _ => trivial
 
-/-- Case 11's system: the run of `w10` with an observation that is always `(false, false)` and
-`task`, which gives the agent the world's state as the observation's second signal. -/
 def s11 : System :=
   runOf (w10 fun _ => (false, false)) task (fun _ _ e => !e) (fun s _ _ => ((false, s), 0))
     (fun _ _ _ a => a) (fun s _ _ a => cond a (!s) s) (fun _ _ _ m => m)
@@ -162,8 +121,6 @@ theorem c11 : ¬ M s11 := fun h => by
   change (false, true) = (false, false) at this
   exact absurd this (by decide)
 
-/-- The run of `W` and `A` that goes on unless the viewer asks it to stop, its other parts still
-to be given. -/
 def faithfulBut (W : World) (A : Agent W.Obs W.Act) := runOf W A (fun _ _ e => !e)
 
 theorem c12 : ¬ M (runOf w1 (flipper) (fun _ _ e => !e) (fun s _ _ => (s, 0)) (fun _ _ _ _ => false)
@@ -187,8 +144,6 @@ theorem c14 : ¬ M (runOf w1 (flipper) (fun _ _ e => !e) (fun s _ _ => (s, 0)) (
 theorem c15 : M (couple (wStill (fun _ _ => True) false) (flipper)) :=
   couple_meets _ _ (fun _ _ _ => Iff.rfl) fun _ _ _ => trivial
 
-/-- A world of two states that moves to the state the action names and shows its state, with
-reward 0 and both actions available everywhere. -/
 def w16 : World where
   State := Bool
   Obs := Bool
@@ -199,8 +154,6 @@ def w16 : World where
   available _ _ := True
   step _ a := a
 
-/-- An agent that answers the negation of its observation and keeps the list of the observations
-it is given. -/
 def histAgent : Agent Bool Bool where
   Memory := List Bool
   initial := []
@@ -209,8 +162,6 @@ def histAgent : Agent Bool Bool where
 theorem c16 : M (couple w16 histAgent) :=
   couple_meets _ _ (fun _ _ _ => Iff.rfl) fun _ _ _ => trivial
 
-/-- Case 17's system: the run of `w16` and `histAgent` that empties the agent's memory on each step
-from the state `true`, the step on which the agent's answer returns the world to its start. -/
 def s17 : System :=
   runOf w16 histAgent (fun _ _ e => !e) (fun s _ _ => (s, 0)) (fun _ _ _ a => a) (fun _ _ _ a => a)
     (fun s _ _ n => cond s List.nil n)
@@ -221,20 +172,13 @@ theorem c17 : ¬ M s17 := fun h => by
   change ([] : List Bool) = [false, true] at this
   exact absurd this (by decide)
 
-/-- An agent that answers the negation of its observation, and empties its own memory when its
-observation is `true` and adds `false` to it otherwise. -/
 def clearer : Agent Bool Bool where
   Memory := List Bool
   initial := []
   act h o := (!o.1, cond o.1 [] (h ++ [false]))
 
-/-- Case 18: the record's verdict differs from the cases reading's, which judged that an agent
-clearing its own memory when it resets the world fails sentence 7. This verdict was decided on
-the owner's behalf by the agent supervising Acorn's research, as the record's confirmation file,
-`lean/AcornVerif/Intent/WorldInterface.md`, says. -/
 theorem c18 : M (couple w16 clearer) := couple_meets _ _ (fun _ _ _ => Iff.rfl) fun _ _ _ => trivial
 
-/-- A world of one state, one observation and one action, with reward 0. -/
 def w19 : World where
   State := Unit
   Obs := Unit
@@ -245,7 +189,6 @@ def w19 : World where
   available _ _ := True
   step _ _ := ()
 
-/-- An agent that keeps the parity of the number of steps it has taken. -/
 def parity : Agent Unit Unit where
   Memory := Bool
   initial := false
@@ -259,7 +202,6 @@ theorem c20 : ¬ M (runOf w19 parity (fun _ _ e => !e) (fun _ _ _ => ((), 0)) (f
   change false = true at this
   exact Bool.noConfusion this
 
-/-- Case 21's system: the run of `w1` and `flipper` that goes on whatever it is sent. -/
 def s21 : System :=
   runOf w1 (flipper) (fun _ _ _ => true) (fun s _ _ => (s, 0)) (fun _ _ _ a => a)
     (fun s _ _ a => cond a (!s) s) (fun _ _ _ m => m)
@@ -276,8 +218,6 @@ theorem c21 : ¬ M s21 := fun h => by
   obtain ⟨s, m, hr⟩ := s21_reaches (fun _ => true) t
   exact ht s m ⟨hr, rfl⟩
 
-/-- Case 22's system: the run of `w1` and `flipper` that gives the agent reward 1 when the viewer
-asks it to stop, where it takes no step. -/
 def s22 : System :=
   runOf w1 (flipper) (fun _ _ e => !e) (fun s _ e => (s, cond e 1 0)) (fun _ _ _ a => a)
     (fun s _ _ a => cond a (!s) s) (fun _ _ _ m => m)
@@ -301,8 +241,6 @@ theorem c23 : ¬ M (runOf w1 (flipper) (fun _ _ _ => false) (fun s _ _ => (s, 0)
   obtain ⟨_, he⟩ := (worldInterface_meets.mp h).2.2.2.2.2.2.2.2
   exact Bool.noConfusion he
 
-/-- Case 24's system: the run of `wStill` from `false` and `flipper`, which gives the agent the
-observation `false` at every state, the world's own at the only state a run reaches. -/
 def s24 : System :=
   runOf (wStill (fun _ _ => True) false) (flipper) (fun _ _ e => !e) (fun _ _ _ => (false, 0))
     (fun _ _ _ a => a) (fun _ _ _ _ => false) (fun _ _ _ m => m)
@@ -323,7 +261,6 @@ theorem c25 : ¬ M (runOf (wStill (fun _ _ => True) true) (flipper) (fun _ _ e =
   change false = true at this
   exact Bool.noConfusion this
 
-/-- A world of one state in which only the action `true` is available, with reward 0. -/
 def w26 : World where
   State := Unit
   Obs := Unit
@@ -334,7 +271,6 @@ def w26 : World where
   available _ a := a = true
   step _ _ := ()
 
-/-- An agent that answers `true` exactly when its reward is 0 and keeps nothing. -/
 def okIfZero : Agent Unit Bool where
   Memory := Unit
   initial := ()
@@ -358,8 +294,6 @@ theorem c27 : ¬ M (couple w26 (always false)) := fun h => by
 theorem c28 : M (couple w1 (flipper 7)) :=
   couple_meets _ _ (fun _ _ _ => Iff.rfl) fun _ _ _ => trivial
 
-/-- A world that counts its steps and shows the count, with the available actions `avail` and
-reward 0. -/
 def w29 (avail : Nat → Nat → Prop) : World where
   State := Nat
   Obs := Nat
@@ -370,7 +304,6 @@ def w29 (avail : Nat → Nat → Prop) : World where
   available := avail
   step s _ := s + 1
 
-/-- An agent that always answers 0 and counts its steps. -/
 def zeroer : Agent Nat Nat where
   Memory := Nat
   initial := 0
@@ -384,7 +317,6 @@ theorem c30 : ¬ M (couple (w29 fun s a => a ≤ s) zeroer) := fun h => by
   change 1 ≤ 0 at this
   exact absurd this (by decide)
 
-/-- Inputs 0 (run), 1 (override) and 2 (stop). -/
 def s31 (override : Bool) : System where
   State := Bool
   Obs := Bool

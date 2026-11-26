@@ -1,57 +1,6 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AgentPrefix
 import AcornVerif.CurrentGridWorld
 import AcornVerif.Oak
-
-/-!
-# Host accounting does not reach a learner
-
-Between decisions a host reports the reward of a task family, the outcome of an attempt
-and process exit to the agent, through `Agent.recordEnvironment`, `Agent.recordAttempt`
-and `Agent.censorObservations`. Each writes the agent's lifetime observations and
-nothing else (`recordEnvironment_learners`, `recordAttempt_learners`,
-`censor_learners`), in every world interface.
-
-That is half of the claim that such a report reaches no learner. The other half is that
-no decision reads the lifetime observations. `learners` is everything of a local state
-but those observations: the composed storage of representation, learners and
-references, the primitive credit, the reward rate and the rate schedule.
-`step_learners` shows that the executed local transition, from two states with the same
-learners, returns the same decision and next states with the same learners, and
-`act_learners` shows the same of the full decision `Agent.act`, encoding and tester
-included. `actOrdered_learners` shows it of the whole step under each of the three step
-orders. `act_accounting` concludes that a host operation that keeps the learners
-changes neither the next decision nor the learners after it.
-
-The proof follows the executed step. Every operation of selection commutes with a change
-of the lifetime observations (`select_relabel` and the lemmas before it); the completion
-boundary `TemporalControl.finish` is the one operation that reads them, and it reads
-them only to write them (`finish_learners`). The orders other than the default place the
-deferred planning, the draw-first selection and the owed writes around it, and each of those
-commutes with a change of the observations as well (`deferred_relabel`, `drawFirst_relabel`,
-`settle_relabel`).
-
-The achievement event of a frame does reach a learner. It is departure D8.
-`AcornVerif.CurrentOak` states, for seven operations that take it, that the operation's
-results agree under two events where the outcomes of the stopping decisions it consults
-agree: `Skill.settleFollowing`, `Skill.settleTemporal`, `Skill.followTemporal`,
-`followSlot`, `TemporalControl.followOptions`, `TemporalControl.takeoverValue` and
-`TemporalControl.dispatchMeta`. Selection (`TemporalControl.selectWithOperations`) also
-takes the event: it consults the executing option's stopping decision and hands the
-event to `TemporalControl.atBoundary`. No such theorem covers those two.
-
-`executed_actions` carries the result to the closed loop of the kernel: from two agent
-states with the same learners, the executed agent takes the same action at every time,
-in every world over its interface. The other theorems concern single decisions. No
-theorem here composes them along a run of the host: the kernel instance of
-`AcornVerif.CurrentGridWorld` does not model the host's reports between decisions.
-`AcornVerif.CurrentVisits` composes them along a run of visits, and
-`AcornVerif.CurrentHostLoop` along each attempt of a campaign.
--/
 
 namespace AcornVerif.CurrentAccounting
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -59,21 +8,14 @@ open Acorn Acorn.Features Acorn.Handcrafted
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
 
-/-! ## The learners of a state -/
-
-/-- Everything of a local state but its lifetime observations: the composed storage of
-representation, learners and references, the primitive credit, the reward rate and the
-rate schedule. -/
 def learners (state : TemporalControl interface profile config criterion dimension) :=
   (state.runtime, state.credit, state.average, state.rate)
 
-/-- A local state with its lifetime observations replaced. -/
 def relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     TemporalControl interface profile config criterion dimension :=
   { state with lifetime := lifetime }
 
-/-- A selected state and decision, with the state's lifetime observations replaced. -/
 def relabelResult (lifetime : Lifetime.Stats interface.layout)
     (result : TemporalControl interface profile config criterion dimension ×
       TemporalDecision interface.actions) :
@@ -81,14 +23,10 @@ def relabelResult (lifetime : Lifetime.Stats interface.layout)
       TemporalDecision interface.actions :=
   (relabel result.1 lifetime, result.2)
 
-/-- What a transition returns apart from the lifetime observations: the learners of the
-next state, and the decision. -/
 def outcome (result : TemporalControl interface profile config criterion dimension ×
     TemporalDecision interface.actions) :=
   (learners result.1, result.2)
 
-/-- Two local states with the same learners differ in their lifetime observations
-only. -/
 theorem relabel_of_learners
     (first second : TemporalControl interface profile config criterion dimension)
     (same : learners first = learners second) : second = relabel first second.lifetime := by
@@ -101,46 +39,37 @@ theorem relabel_of_learners
       subst sameRuntime sameCredit sameAverage sameRate
       rfl
 
-/-- Replacing the lifetime observations keeps the learners. -/
 theorem learners_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     learners (relabel state lifetime) = learners state :=
   rfl
 
-/-- The composed storage does not hold the lifetime observations. -/
 theorem relabel_runtime (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     (relabel state lifetime).runtime = state.runtime :=
   rfl
 
-/-- The meta-controller's rate does not read the lifetime observations. -/
 theorem relabel_metaRate (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     (relabel state lifetime).metaRate = state.metaRate :=
   rfl
 
-/-- The options' rate source does not read the lifetime observations. -/
 theorem relabel_skillRate (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     (relabel state lifetime).skillRate = state.skillRate :=
   rfl
 
-/-- The current value function does not read the lifetime observations. -/
 theorem relabel_valueFunction
     (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     (relabel state lifetime).valueFunction = state.valueFunction :=
   rfl
 
-/-- The reward rate does not read the lifetime observations. -/
 theorem relabel_average (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     (relabel state lifetime).average = state.average :=
   rfl
 
-/-! ## The operations of selection -/
-
-/-- Writing the occupancy commutes with a change of the lifetime observations. -/
 theorem withPhase_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout)
     (phase : Occupancy (OptionActivation (profile.mode != .frozen))
@@ -148,7 +77,6 @@ theorem withPhase_relabel (state : TemporalControl interface profile config crit
     (relabel state lifetime).withPhase phase = relabel (state.withPhase phase) lifetime :=
   rfl
 
-/-- Replacing an option commutes with a change of the lifetime observations. -/
 theorem withSkill_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (slot : Fin Acorn.FeatureConstants.skillCount)
     (skill : Skill interface.actions config criterion dimension interface.layout) :
@@ -156,22 +84,18 @@ theorem withSkill_relabel (state : TemporalControl interface profile config crit
       relabel (state.withSkill slot skill) lifetime :=
   rfl
 
-/-- Clearing the planning errors commutes with a change of the lifetime observations. -/
 theorem withoutPlanning_relabel
     (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     (relabel state lifetime).withoutPlanning = relabel state.withoutPlanning lifetime :=
   rfl
 
-/-- Advancing the deferred meta clock commutes with a change of the lifetime
-observations. -/
 theorem skipMeta_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) :
     (relabel state lifetime).skipMeta = relabel state.skipMeta lifetime := by
   unfold TemporalControl.skipMeta
   split <;> rfl
 
-/-- Preparation commutes with a change of the lifetime observations. -/
 theorem prepare_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (reward : Binary32) :
@@ -180,7 +104,6 @@ theorem prepare_relabel (state : TemporalControl interface profile config criter
   unfold TemporalControl.prepareSelection
   split <;> split <;> rfl
 
-/-- A primitive choice commutes with a change of the lifetime observations. -/
 theorem choosePrimitive_relabel
     (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension)
@@ -190,7 +113,6 @@ theorem choosePrimitive_relabel
       relabelResult lifetime (state.choosePrimitive features metaValues metaDecision ended) :=
   rfl
 
-/-- Interrupting a held option commutes with a change of the lifetime observations. -/
 theorem interrupt_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout)
     (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
@@ -204,8 +126,6 @@ theorem interrupt_relabel (state : TemporalControl interface profile config crit
     dsimp only
     split <;> rfl
 
-/-- A served step of a committed run commutes with a change of the lifetime
-observations. -/
 theorem serve_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension) :
     (relabel state lifetime).serve features =
@@ -224,7 +144,6 @@ theorem serve_relabel (state : TemporalControl interface profile config criterio
       split <;> split <;>
         simp only [skipMeta_relabel, withoutPlanning_relabel, relabel_runtime, relabelResult]
 
-/-- An option step commutes with a change of the lifetime observations. -/
 theorem stepOption_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -240,7 +159,6 @@ theorem stepOption_relabel (state : TemporalControl interface profile config cri
   rw [TemporalControl.stepOption_eq, TemporalControl.stepOption_eq]
   rfl
 
-/-- Terminal credit of an option commutes with a change of the lifetime observations. -/
 theorem closeOption_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension)
@@ -254,7 +172,6 @@ theorem closeOption_relabel (state : TemporalControl interface profile config cr
   dsimp only
   split <;> rfl
 
-/-- The free-boundary refresh commutes with a change of the lifetime observations. -/
 theorem refreshFree_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout
@@ -263,7 +180,6 @@ theorem refreshFree_relabel (state : TemporalControl interface profile config cr
       (relabel (state.refreshFree closing).1 lifetime, (state.refreshFree closing).2) :=
   rfl
 
-/-- A planning boundary commutes with a change of the lifetime observations. -/
 theorem planFree_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -272,14 +188,12 @@ theorem planFree_relabel (state : TemporalControl interface profile config crite
       relabel (state.planFree plan features) lifetime :=
   rfl
 
-/-- The meta draw commutes with a change of the lifetime observations. -/
 theorem drawMeta_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension) :
     (relabel state lifetime).drawMeta features =
       (relabel (state.drawMeta features).1 lifetime, (state.drawMeta features).2) :=
   rfl
 
-/-- Meta credit commutes with a change of the lifetime observations. -/
 theorem learnMeta_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension)
     (decision : PolicyDecision metaCount) :
@@ -288,8 +202,6 @@ theorem learnMeta_relabel (state : TemporalControl interface profile config crit
   rw [TemporalControl.learnMeta_eq, TemporalControl.learnMeta_eq]
   split <;> rfl
 
-/-- Dispatch of a drawn meta action commutes with a change of the lifetime
-observations. -/
 theorem dispatchMeta_relabel
     (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
@@ -311,7 +223,6 @@ theorem dispatchMeta_relabel
       simp only [bind, Option.bind, pure, Option.map_some, withSkill_relabel,
         stepOption_relabel]
 
-/-- A free dispatch commutes with a change of the lifetime observations. -/
 theorem atBoundary_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -337,8 +248,6 @@ theorem atBoundary_relabel (state : TemporalControl interface profile config cri
     simp only [closeOption_relabel]
     exact dispatchMeta_relabel _ lifetime models features declared reward goal drawn.2 _
 
-/-- Selection commutes with a change of the lifetime observations: it neither reads nor
-writes them, for every model operation and planning boundary. -/
 theorem select_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -393,10 +302,6 @@ theorem select_relabel (state : TemporalControl interface profile config criteri
               exact atBoundary_relabel _ lifetime models plan features declared reward goal
                 none _
 
-/-! ## The operations after selection -/
-
-/-- The value an interrupted option's span closes toward does not read the lifetime
-observations. -/
 theorem takeoverValue_relabel
     (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension)
@@ -406,7 +311,6 @@ theorem takeoverValue_relabel
       state.takeoverValue features declared goal decision :=
   rfl
 
-/-- Off-policy option learning commutes with a change of the lifetime observations. -/
 theorem followOptions_relabel
     (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
@@ -417,8 +321,6 @@ theorem followOptions_relabel
   rw [TemporalControl.followOptions_eq, TemporalControl.followOptions_eq]
   split <;> rfl
 
-/-- Closing an interrupted option's span commutes with a change of the lifetime
-observations. -/
 theorem closeSpan_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (continuation : Option Binary32) :
     (relabel state lifetime).closeSpan continuation =
@@ -429,8 +331,6 @@ theorem closeSpan_relabel (state : TemporalControl interface profile config crit
     rw [TemporalControl.closeSpan_eq, TemporalControl.closeSpan_eq]
     rfl
 
-/-- The completion boundary reads the lifetime observations only to write them: its
-learners are the same whatever they are. -/
 theorem finish_learners (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension)
     (observation : Frame interface) (reward : Binary32)
@@ -441,11 +341,6 @@ theorem finish_learners (state : TemporalControl interface profile config criter
     simp [learners, relabel, TemporalControl.finish_eq, TemporalControl.recordEpisodes,
       TemporalControl.predictionView, PredictionControl.advanceWith, frozen]
 
-/-! ## The local transition and the full decision -/
-
-/-- The local transition does not read the lifetime observations: from two states with
-the same learners it returns the same decision and next states with the same learners,
-and it refuses both or neither. -/
 theorem step_learners
     (first second : TemporalControl interface profile config criterion dimension)
     (same : learners first = learners second) (planning : PlanningSelection)
@@ -464,8 +359,6 @@ theorem step_learners
     simp only [Option.map_some, bind, Option.bind, pure, relabelResult, takeoverValue_relabel,
       followOptions_relabel, closeSpan_relabel, outcome, finish_learners]
 
-/-- The tester keeps the relation: from two agents with the same learners it returns
-agents with the same learners, on the same unit outputs. -/
 theorem retire_learners
     (first second : Agent interface profile config criterion dimension planning)
     (same : learners first.control = learners second.control)
@@ -478,7 +371,6 @@ theorem retire_learners
     obtain ⟨runtime, credit, average, rate⟩ := same
     exact ⟨by rw [runtime], credit, average, rate⟩
 
-/-- The clock advance keeps the relation. -/
 theorem advance_learners
     (first second : Agent interface profile config criterion dimension planning)
     (same : learners first.control = learners second.control) :
@@ -487,8 +379,6 @@ theorem advance_learners
   obtain ⟨runtime, credit, average, rate⟩ := same
   exact ⟨by rw [runtime], credit, average, rate⟩
 
-/-- The encoding of a frame does not read the lifetime observations: two agents with the
-same learners give the same features and unit outputs. -/
 theorem frame_learners
     (first second : Agent interface profile config criterion dimension planning)
     (same : learners first.control = learners second.control) (observation : Frame interface) :
@@ -501,9 +391,6 @@ theorem frame_learners
     rw [runtime]
   · rw [(first.frame observation).freshUnits, (second.frame observation).freshUnits, runtime]
 
-/-- The full decision does not read the lifetime observations. Two agents with the same
-learners return the same decision on every percept, and agents with the same learners
-after it, in every world interface, profile, criterion and planning selection. -/
 theorem act_learners
     (first second : Agent interface profile config criterion dimension planning)
     (same : learners first.control = learners second.control) (percept : Percept interface) :
@@ -526,10 +413,6 @@ theorem act_learners
   exact retire_learners ⟨firstNext, firstValid, firstEpisodes⟩
     ⟨secondNext, secondValid, secondEpisodes⟩ stepped.1 _
 
-/-! ## Every step order -/
-
-/-- The learning part reads the lifetime observations only to write them: its learners are the
-same whatever they are. -/
 theorem learn_learners (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension)
     (observation : Frame interface) (reward : Binary32) (goal : Bool)
@@ -539,7 +422,6 @@ theorem learn_learners (state : TemporalControl interface profile config criteri
   unfold TemporalControl.learn
   simp only [takeoverValue_relabel, followOptions_relabel, closeSpan_relabel, finish_learners]
 
-/-- The reward-free preparation commutes with a change of the lifetime observations. -/
 theorem prepareDraw_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
     (features : SwiftTd.ActiveSet dimension) :
@@ -549,7 +431,6 @@ theorem prepareDraw_relabel (state : TemporalControl interface profile config cr
   dsimp only
   split <;> rfl
 
-/-- A served step that draws first commutes with a change of the lifetime observations. -/
 theorem serveDraw_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension) :
     (relabel state lifetime).serveDraw features =
@@ -567,8 +448,6 @@ theorem serveDraw_relabel (state : TemporalControl interface profile config crit
       simp only [bind, Option.bind, pure, Option.map_some, interrupt_relabel, withPhase_relabel]
       split <;> simp only [withoutPlanning_relabel, relabel_runtime]
 
-/-- What `TemporalControl.drawBoundary` does after its refresh, planning and meta draw: draw the
-primitive action or the first action of the selected option. -/
 def drawDispatch (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials)
     (owed : Option (Closing interface.actions config criterion dimension interface.layout
@@ -594,7 +473,6 @@ def drawDispatch (state : TemporalControl interface profile config criterion dim
         decision.snapshot.values, some decision, some slot, ended⟩)
 
 set_option maxRecDepth 4096 in
-/-- `TemporalControl.drawBoundary` is its refresh, planning and meta draw, then `drawDispatch`. -/
 theorem drawBoundary_dispatch
     (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -611,7 +489,6 @@ theorem drawBoundary_dispatch
         ((state.refreshFree closing).2.map closingEvent) :=
   rfl
 
-/-- `drawDispatch` commutes with a change of the lifetime observations. -/
 theorem drawDispatch_relabel
     (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (features : SwiftTd.ActiveSet dimension)
@@ -632,7 +509,6 @@ theorem drawDispatch_relabel
     | none => rfl
     | some potential => rfl
 
-/-- A free dispatch that draws first commutes with a change of the lifetime observations. -/
 theorem drawBoundary_relabel
     (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout)
@@ -648,8 +524,6 @@ theorem drawBoundary_relabel
   simp only [refreshFree_relabel, planFree_relabel, drawMeta_relabel]
   exact drawDispatch_relabel _ lifetime features declared _ _ _
 
-/-- What `TemporalControl.drawFirst` does at a live option, from the state with its occupancy
-cleared: the option continues and draws, or it ends at a free dispatch. -/
 def drawOption (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
@@ -676,7 +550,6 @@ def drawOption (state : TemporalControl interface profile config criterion dimen
     state.drawBoundary plan features declared (some ⟨slot, ⟨activation, potential, reason⟩, none⟩)
       estimate
 
-/-- `drawOption` commutes with a change of the lifetime observations. -/
 theorem drawOption_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -702,8 +575,6 @@ theorem drawOption_relabel (state : TemporalControl interface profile config cri
     | continuing next => rfl
     | ending reason => exact drawBoundary_relabel state lifetime plan features declared _ _
 
-/-- What `TemporalControl.drawFirst` does after its preparation at a step that serves no
-committed run. -/
 def drawFree (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool) :
@@ -719,7 +590,6 @@ def drawFree (state : TemporalControl interface profile config criterion dimensi
     | .option slot activation =>
       drawOption (state.withPhase .idle) plan features declared goal slot activation
 
-/-- `drawFree` commutes with a change of the lifetime observations. -/
 theorem drawFree_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -740,7 +610,6 @@ theorem drawFree_relabel (state : TemporalControl interface profile config crite
       exact drawOption_relabel (state.withPhase .idle) lifetime plan features declared goal slot
         activation
 
-/-- `TemporalControl.drawFirst` is its preparation, then a served step or `drawFree`. -/
 theorem drawFirst_dispatch (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -753,9 +622,6 @@ theorem drawFirst_dispatch (state : TemporalControl interface profile config cri
   dsimp only
   cases (state.prepareDraw models features).serveDraw features <;> rfl
 
-/-- Selection that draws before it credits commutes with a change of the lifetime
-observations: it neither reads nor writes them, for every model operation and planning
-boundary. -/
 theorem drawFirst_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (models : OptionModelOps criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
@@ -768,14 +634,12 @@ theorem drawFirst_relabel (state : TemporalControl interface profile config crit
   | some result => rfl
   | none => exact drawFree_relabel _ lifetime plan features declared goal
 
-/-- The owed reward commutes with a change of the lifetime observations. -/
 theorem oweReward_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (reward : Binary32) :
     (relabel state lifetime).oweReward reward = relabel (state.oweReward reward) lifetime := by
   unfold TemporalControl.oweReward
   split <;> rfl
 
-/-- The owed writes commute with a change of the lifetime observations. -/
 theorem settle_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout)
     (owed : Owed interface profile config criterion dimension)
@@ -812,7 +676,6 @@ theorem settle_relabel (state : TemporalControl interface profile config criteri
     cases closing <;> cases started <;>
       simp only [closeOption_relabel, learnMeta_relabel, start]
 
-/-- The deferred work of a step order commutes with a change of the lifetime observations. -/
 theorem deferred_relabel (state : TemporalControl interface profile config criterion dimension)
     (lifetime : Lifetime.Stats interface.layout) (order : StepOrder)
     (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
@@ -831,8 +694,6 @@ theorem deferred_relabel (state : TemporalControl interface profile config crite
   · exact after state
   · simp only [TemporalControl.deferred, settle_relabel, after]
 
-/-- Two chosen values with one order, percept, encoding, decision and owed record, whose
-temporal states differ in their lifetime observations, reach the same learners. -/
 theorem chosen_learners
     (left right : Chosen interface profile config criterion dimension planning)
     (lifetime : Lifetime.Stats interface.layout) (order : left.order = right.order)
@@ -848,11 +709,6 @@ theorem chosen_learners
       right.percept.frame right.percept.reward right.percept.frame.achieved right.decision)
   rw [← order, ← percept, ← features, ← decision, ← owed, control, deferred_relabel, learn_learners]
 
-/-- **At every step order the agent's step reads its lifetime observations only to write
-them.** Two agents with the same learners return the same decision on every percept, and agents
-with the same learners after it, under each of the three orders, in every world interface,
-profile, criterion and planning selection. Under `learnThenAct` this is `act_learners`
-(`Agent.act_parts`). -/
 theorem actOrdered_learners
     (first second : Agent interface profile config criterion dimension planning)
     (same : learners first.control = learners second.control) (order : StepOrder)
@@ -936,16 +792,12 @@ theorem actOrdered_learners
         (leftPercept.trans rightPercept.symm)
         (leftFeatures.trans (encoded.1.trans rightFeatures.symm)) decision owed control)
 
-/-! ## Host accounting -/
-
-/-- Environment accounting keeps every learner, in every world interface. -/
 theorem recordEnvironment_learners
     (state : Agent interface profile config criterion dimension planning) (family : Fin 4)
     (reward : Binary32) :
     learners (state.recordEnvironment family reward).control = learners state.control :=
   rfl
 
-/-- Attempt accounting keeps every learner, in every world interface. -/
 theorem recordAttempt_learners
     (state : Agent interface profile config criterion dimension planning) (family : Fin 4)
     (cycle steps : UInt64) (achieved : Bool) :
@@ -953,14 +805,10 @@ theorem recordAttempt_learners
       learners state.control :=
   rfl
 
-/-- Censoring the pending observations at process exit keeps every learner. -/
 theorem censor_learners (state : Agent interface profile config criterion dimension planning) :
     learners state.censorObservations.control = learners state.control :=
   rfl
 
-/-- A host operation that keeps the learners changes neither the next decision nor the
-learners after it. Environment accounting, attempt accounting and censoring are such
-operations. -/
 theorem act_accounting (state : Agent interface profile config criterion dimension planning)
     (account : Agent interface profile config criterion dimension planning →
       Agent interface profile config criterion dimension planning)
@@ -971,11 +819,6 @@ theorem act_accounting (state : Agent interface profile config criterion dimensi
         learners (state.act percept).1.control :=
   act_learners (account state) state (isolated state) percept
 
-/-! ## The closed loop -/
-
-/-- The executed agent's actions are a function of its learners: from two agent states
-with the same learners, the executed agent takes the same action at every time, in every
-world over its interface and from every start state. -/
 theorem executed_actions
     (first second : Agent interface profile config criterion dimension planning)
     (same : learners first.control = learners second.control)

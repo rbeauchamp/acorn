@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Curriculum
 import Acorn.Host.Control
 import Acorn.Host.CheckpointDiagnostic
@@ -10,160 +5,97 @@ import Acorn.FeatureConsumers
 import Acorn.Timing
 import Acorn.Host.Forever
 
-/-!
-# Native streaming runner shell
-
-Application transitions remain in `Attempt` and `Campaign`. This shell invokes
-the supplied full-agent and persistence owners, isolates observer failures,
-and checks supervision only after recording an attempt. It keeps no outcome
-history. Filesystem implementation belongs to the supplied persistence owner;
-IO, clocks, allocator, thread scheduling and standard runtime primitives remain
-explicit native trust boundaries.
--/
 namespace Acorn.Host
 
 variable {order : StepOrder}
 
-/-- Closed current research-profile selection; there is no qualified default. -/
 inductive ResearchProfile where
-  /-- Ranked learned features and subtask interests. -/
   | ranked
-  /-- Primitive-only comparison. -/
   | primitive
-  /-- Boundary-credit comparison. -/
   | boundaryCredit
-  /-- Annealed exploration-rate comparison. -/
   | annealed
-  /-- Spatial feature comparison. -/
   | spatial
   deriving DecidableEq, BEq
 
-/-- Only ranked constructions have the current checkpoint representation. -/
 def ResearchProfile.resumable : ResearchProfile → Bool
   | .ranked => true
   | .primitive | .boundaryCredit | .annealed | .spatial => false
 
-/-- Full-agent construction receives the actual profile and separate criterion. -/
 structure AgentSelection where
-  /-- Explicit research composition. -/
   profile : ResearchProfile
-  /-- Control criterion is independent of profile. -/
   criterion : Features.Criterion
 
-/-- Native timing and refusal evidence attached at the actual observation boundary. -/
 structure CaptureMetrics where
-  /-- Duration of this step's agent computation, both parts together; terminal
-  captures perform no agent computation. -/
   updateUs : UInt64
-  /-- Duration of the preceding environment commit, initially zero. -/
   environmentUs : UInt64
-  /-- Observer refusals before this callback. -/
   observerRefusals : UInt64
-  /-- Checkpoint write refusals before this callback. -/
   checkpointFailures : UInt64
-  /-- Latest successful checkpoint's observed file size, when metadata was available. -/
   checkpointBytes : Option UInt64
-  /-- Latest successful checkpoint's native write duration. -/
   checkpointWriteUs : Option UInt64
 
-/-- One-way consumers may retain rows outside the bounded runner state. -/
 structure StreamObserver (β : Type) where
-  /-- Actual startup checkpoint result, before any frame can be delivered. -/
   onInitialized : CheckpointAdmission → BaseIO Unit
-  /-- Pre-environment observer frame. -/
   onStep : Option (StepFrame β → CaptureMetrics → IO Unit)
-  /-- Fresh final-state observer frame. -/
   onAttemptEnd : StepFrame β → CaptureMetrics → IO Unit
-  /-- Completed attempt row. -/
   onOutcome : GoalOutcome → IO Unit
 
-/-- Disconnected observation performs no effect and has no influence on actions. -/
 def StreamObserver.none {β : Type} : StreamObserver β :=
   ⟨fun _ => pure (), Option.none, fun _ _ => pure (), fun _ => pure ()⟩
 
-/-- Capture is demanded only by an installed step consumer. The thunk contains
-no action-selection operation and cannot change the selected transition. -/
 def StreamObserver.deliverStep {β : Type} (observer : StreamObserver β)
     (frame : Unit → StepFrame β) (metrics : CaptureMetrics) : IO Unit :=
   match observer.onStep with
   | .none => pure ()
   | some consume => consume (frame ()) metrics
 
-/-- A disconnected observer cannot demand even an arbitrary capture computation. -/
 theorem StreamObserver.none_deliverStep {β : Type} (frame : Unit → StepFrame β)
     (metrics : CaptureMetrics) :
     (StreamObserver.none : StreamObserver β).deliverStep frame metrics = pure () := rfl
 
-/-- Persisted-image IO remains an explicit hook for the full checkpoint owner. -/
 inductive CheckpointLoad (α : Type) where
-  /-- Only successful admission can supply replacement agent state. -/
   | loaded (agent : α)
-  /-- A missing image leaves the fresh agent untouched. -/
   | missing
-  /-- Refusal preserves the receiving agent and carries its diagnostic. -/
   | refused (message : String)
 
-/-- Persisted-image IO remains an explicit hook for the full checkpoint owner. -/
 structure CheckpointHooks (α : Type) where
-  /-- Destination supplied once before admission. -/
   path : System.FilePath
-  /-- Zero permits load but disables all writes. -/
   interval : UInt32
-  /-- Read/validate/install, with a declared missing/refused result and legal returned agent. -/
   load : α → System.FilePath → IO (CheckpointLoad α)
-  /-- Serialize the current legal agent to the admitted destination. -/
   save : α → System.FilePath → IO Unit
 
-/-- Explicit shell failure leaves the caller without a false success report. -/
 inductive RunnerError where
-  /-- Campaign admission failure. -/
   | campaign (error : CampaignError)
-  /-- World generation, observation or transition refusal. -/
   | world (error : WorldError)
-  /-- Aggregate metric overflow. -/
   | metric (error : MetricError)
-  /-- Startup or output IO failure with its native diagnostic text. -/
   | io (message : String)
 
-/-- Current observer and checkpoint failure counts, with saturating word semantics. -/
 structure RunnerResources where
-  /-- Observer callbacks that failed; execution continues. -/
   observerRefusals : UInt64 := 0
-  /-- Checkpoint writes that failed; execution continues. -/
   checkpointFailures : UInt64 := 0
-  /-- Disposition of the latest boundary write, retained after the final frame. -/
   checkpointStatus : CheckpointStatus := .disabled
-  /-- Preceding measured environment duration, carried across attempt boundaries. -/
   environmentUs : UInt64 := 0
-  /-- Size observed after the latest successful checkpoint, if readable. -/
   checkpointBytes : Option UInt64 := none
-  /-- Measured duration of the latest successful checkpoint write. -/
   checkpointWriteUs : Option UInt64 := none
 
-/-- Elapsed native nanoseconds become saturating microseconds, without unsigned subtraction wrap. -/
 def elapsedMicroseconds (before after : Nat) : UInt64 :=
   (min ((after - before) / 1000) (2 ^ 64 - 1)).toUInt64
 
-/-- Duration conversion has the exact saturating integer meaning for every clock pair. -/
 theorem elapsedMicroseconds_exact (before after : Nat) :
     (elapsedMicroseconds before after).toNat = min ((after - before) / 1000) (2 ^ 64 - 1) := by
   apply Nat.mod_eq_of_lt
   have := Nat.min_le_right ((after - before) / 1000) (2 ^ 64 - 1)
   omega
 
-/-- Capture metadata is a projection of the current runner resource state. -/
 def RunnerResources.capture (resources : RunnerResources) (updateUs : UInt64) : CaptureMetrics :=
   ⟨updateUs, resources.environmentUs, resources.observerRefusals, resources.checkpointFailures,
     resources.checkpointBytes, resources.checkpointWriteUs⟩
 
-/-- An observer failure affects only its refusal count. -/
 def notifyObserver (operation : IO Unit) (resources : RunnerResources) : IO RunnerResources := do
   try
     operation
     return resources
   catch _ => return { resources with observerRefusals := saturatingIncrement64 resources.observerRefusals }
 
-/-- Final observation and outcome bookkeeping use the unchanged attempt owner. -/
 def finishAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (observer : StreamObserver β) (context : GoalContext)
     (attempt : Attempt config α goal cap) (resources : RunnerResources) :
@@ -174,11 +106,6 @@ def finishAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UIn
     let resources ← notifyObserver (observer.onAttemptEnd frame (resources.capture 0)) resources
     return .ok (run, outcome, resources)
 
-/-- The runtime loop consumes the preceding attempt before selection. Structural
-fuel and the attempt's own remaining witness independently bound transitions;
-no imperative early-return state retains an obsolete agent through the callback. A
-refused action returns the refusal with the stage of that pass, which the whole step
-has already learned. -/
 def runAttemptSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks .learnThenAct α β) (observer : StreamObserver β) (context : GoalContext) :
     Nat → Attempt config α goal cap → RunnerResources →
@@ -204,18 +131,6 @@ def runAttemptSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : U
         let resources := { resources with environmentUs := elapsedMicroseconds beforeEnvironment afterEnvironment }
         runAttemptSteps callbacks observer context fuel (environment.record callbacks) resources
 
-/-- The loop that releases the action between the two parts: the first part, the
-world's transition on the released action, then the second part (PAR-19; the source
-is cited in `Acorn.Timing`). The second part runs on both answers of the world, so a
-refused action still has its percept learned and its step frame delivered before the
-refusal is returned. `DecisionInput.chooseOwned_release` proves that the functions one
-pass composes give the stage those of a pass of `runAttemptSteps` give, and
-`runReleasedSteps_complete` proves that the loop returns the pure fold
-`Attempt.complete`. The step frame is delivered after the second part; it holds the
-pre-transition world and the learned agent. The reported agent duration is the sum of
-both parts, and the reported environment duration is the preceding transition's. The
-loop takes the callbacks of an order that releases (`StepOrder.Releases`), so the
-callbacks of the default order do not reach it. -/
 def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (releases : order.Releases)
     (observer : StreamObserver β) (context : GoalContext) :
@@ -250,9 +165,6 @@ def runReleasedSteps {config : WorldConfig} {α β : Type} {goal : Goal} {cap : 
         runReleasedSteps callbacks releases observer context fuel (environment.record callbacks)
           resources
 
-/-- Execute the admitted finite attempt through the same proved selection,
-world transition and bookkeeping, capturing only demanded step observations. The
-step order of the callbacks selects the loop: no caller passes an order beside them. -/
 def runAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (observer : StreamObserver β)
     (context : GoalContext) (initial : Attempt config α goal cap) (resources : RunnerResources) :
@@ -267,16 +179,6 @@ def runAttempt {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64
     runReleasedSteps callbacks (fun same => StepOrder.noConfusion same) observer context cap.toNat
       initial resources
 
-/-! ## The native loops compute the pure fold
-
-`IO` is a function on a world token. The statements below are about every token: if a
-loop returns a value from it, the value agrees with the result of `Attempt.complete`
-(`AttemptAgrees`: the same refusal with the same learned stage of the refused pass, or
-the same run state and outcome). They do not state that a loop returns; that rests on `notifyObserver` catching every observer
-failure and on the clock read, which cannot fail by its type. The order of effects,
-the observer's own effects and the reported durations are outside these statements. -/
-
-/-- A returned bind ran its first action to a value and its continuation from there. -/
 theorem returned_bind {α β : Type} (action : IO α) (next : α → IO β)
     (world after : Void IO.RealWorld) (value : β)
     (returned : (action >>= next) world = .ok value after) :
@@ -292,7 +194,6 @@ theorem returned_bind {α β : Type} (action : IO α) (next : α → IO β)
     rw [ran] at returned
     cases returned
 
-/-- A returned `pure` returns its value. -/
 theorem returned_pure {α : Type} (value found : α) (world after : Void IO.RealWorld)
     (returned : (pure value : IO α) world = .ok found after) : found = value := by
   have unfolded : (pure value : IO α) world = .ok value world := rfl
@@ -300,15 +201,10 @@ theorem returned_pure {α : Type} (value found : α) (world after : Void IO.Real
   cases returned
   rfl
 
-/-- A returned `IO.lazyPure` returns the value of its function. -/
 theorem returned_lazyPure {α : Type} (fn : Unit → α) (found : α) (world after : Void IO.RealWorld)
     (returned : IO.lazyPure fn world = .ok found after) : found = fn () :=
   returned_pure (fn ()) found world after returned
 
-/-- A value a native attempt loop returned agrees with a result of the pure fold: the
-same refusal, with the same learned stage of the refused pass, or the same run state
-and outcome. The fold's terminal frame and the loop's resource counters are
-observations outside the agreement. -/
 def AttemptAgrees {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (folded : Except (Refusal config α goal cap) (RunState config α × GoalOutcome × StepFrame β))
     (returned : Except (Refusal config α goal cap)
@@ -318,7 +214,6 @@ def AttemptAgrees {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UIn
   | .ok (run, outcome, _), .ok (found, observed, _) => found = run ∧ observed = outcome
   | _, _ => False
 
-/-- Whatever the final bookkeeping returns is the attempt's pure close. -/
 theorem finishAttempt_returned {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (observer : StreamObserver β) (context : GoalContext)
     (attempt : Attempt config α goal cap) (resources : RunnerResources)
@@ -342,11 +237,6 @@ theorem finishAttempt_returned {config : WorldConfig} {α β : Type} {goal : Goa
     rw [same]
     exact ⟨rfl, rfl⟩
 
-/-- **The default loop computes the pure fold.** For every callback, observer, fuel,
-attempt, resource record and world token: a value the loop returns agrees with the
-result of `Attempt.complete` (`AttemptAgrees`). On a refused action that is the same
-refusal with the same learned stage; on a refused observation, the same refusal with no
-stage. No hypothesis on the clock or the observer is used. -/
 theorem runAttemptSteps_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks .learnThenAct α β) (observer : StreamObserver β) (context : GoalContext)
     (fuel : Nat) (attempt : Attempt config α goal cap) (resources : RunnerResources)
@@ -408,15 +298,6 @@ theorem runAttemptSteps_complete {config : WorldConfig} {α β : Type} {goal : G
             obtain ⟨afterEnvironment, w7, _, returned⟩ := returned_bind _ _ _ _ _ returned
             exact ih _ _ _ returned
 
-/-- **The loop that releases the action between the parts computes the same pure
-fold.** For every callback, observer, fuel, attempt, resource record and world token: a
-value the loop returns agrees with the result of `Attempt.complete` (`AttemptAgrees`),
-on acceptance and on a refusal. On a refused action the loop returns the stage that the
-fold's refusal holds: the whole step of the callbacks, the first part and then the
-second, applied once to the input that the attempt of the refused pass sensed, an attempt
-that the fold reaches from the start in accepted passes (`Attempt.complete_learned`). So
-the second part runs exactly once on a refused pass in this loop, as it does in the
-default one, and on every accepted pass the next attempt is the fold's. -/
 theorem runReleasedSteps_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (releases : order.Releases)
     (observer : StreamObserver β) (context : GoalContext)
@@ -485,9 +366,6 @@ theorem runReleasedSteps_complete {config : WorldConfig} {α β : Type} {goal : 
             obtain ⟨observed, w8, _, returned⟩ := returned_bind _ _ _ _ _ returned
             exact ih _ _ _ returned
 
-/-- **Either loop of an attempt computes the pure fold.** Whatever step order the
-callbacks have, a value the attempt runner returns agrees with the result of
-`Attempt.complete` at the attempt's own step cap (`AttemptAgrees`). -/
 theorem runAttempt_complete {config : WorldConfig} {α β : Type} {goal : Goal} {cap : UInt64}
     (callbacks : AgentCallbacks order α β) (observer : StreamObserver β)
     (context : GoalContext) (initial : Attempt config α goal cap) (resources : RunnerResources)
@@ -507,35 +385,23 @@ theorem runAttempt_complete {config : WorldConfig} {α β : Type} {goal : Goal} 
     exact runReleasedSteps_complete callbacks _ observer context cap.toNat initial resources world
       after value returned
 
-/-- The reason a successfully running campaign returned. -/
 inductive CampaignEnd where
-  /-- Finite repetition budget exhausted, including an empty finite campaign. -/
   | complete
-  /-- Cooperative stop observed at the attempt boundary. -/
   | stopped
   deriving DecidableEq
 
-/-- Final bounded runner state, with report rows owned by the observer. -/
 structure CampaignResult (config : WorldConfig) (α : Type) where
-  /-- Final continual stream, including the undiscarded last reward. -/
   run : RunState config α
-  /-- Exact total steps across accepted outcomes. -/
   totalSteps : UInt64
-  /-- Two-word summary of every completed outcome, in order. -/
   outcomes : OutcomeFold
-  /-- Saturating completed-attempt total; checkpoint phase is independently indexed. -/
   attempts : UInt32
-  /-- Observer and checkpoint IO failure counters. -/
   resources : RunnerResources
-  /-- Actual exit boundary. -/
   ending : CampaignEnd
 
-/-- A campaign cursor derives all outcome metadata from the admitted receiving plan. -/
 def CampaignCursor.context {size : Nat} {plan : CampaignPlan size} (cursor : CampaignCursor plan)
     (tier : UInt8) : GoalContext :=
   ⟨cursor.goal.val.toUInt64, cursor.attempt.val.toUInt64, tier, cursor.cycle⟩
 
-/-- Reported attempt identity preserves the full admitted cursor domain. -/
 theorem CampaignCursor.context_attempt {size : Nat} {plan : CampaignPlan size}
     (cursor : CampaignCursor plan) (tier : UInt8) :
     (cursor.context tier).attempt.toNat = cursor.attempt.val := by
@@ -545,9 +411,6 @@ theorem CampaignCursor.context_attempt {size : Nat} {plan : CampaignPlan size}
   have := plan.attempts.toNat_lt
   omega
 
-/-- Execute an armed checkpoint and retain its actual result independently of
-optional size/timing observations. A failed confirmation does not prove that
-no bytes reached the destination. -/
 def saveCheckpoint (capability : WritableCheckpoint) (write : IO Unit)
     (resources : RunnerResources) : IO RunnerResources := do
   let beforeWrite ← IO.monoNanosNow
@@ -565,8 +428,6 @@ def saveCheckpoint (capability : WritableCheckpoint) (write : IO Unit)
       checkpointFailures := saturatingIncrement64 resources.checkpointFailures
       checkpointStatus := .failed }
 
-/-- The actual scheduling owner selects the receiving agent and admitted path
-before invoking the shared checkpoint writer. -/
 def checkpointAction {size : Nat} {plan : CampaignPlan size} {α : Type}
     (agent : α) (checkpoint : Option (WritableCheckpoint × (α → System.FilePath → IO Unit)))
     (decision : BoundaryDecision plan) (resources : RunnerResources) :
@@ -578,8 +439,6 @@ def checkpointAction {size : Nat} {plan : CampaignPlan size} {α : Type}
       saveCheckpoint capability (save agent capability.path) resources
     else pure resources
 
-/-- Every closing boundary with a capability selects the actual writer with
-exactly the current agent and admitted destination; writer admission is not assumed. -/
 theorem checkpointAction_closing {size : Nat} {plan : CampaignPlan size} {α : Type}
     (agent : α) (capability : WritableCheckpoint) (save : α → System.FilePath → IO Unit)
     (decision : BoundaryDecision plan) (resources : RunnerResources)
@@ -588,17 +447,11 @@ theorem checkpointAction_closing {size : Nat} {plan : CampaignPlan size} {α : T
       saveCheckpoint capability (save agent capability.path) resources := by
   simp only [checkpointAction, capability.closing_due decision closing, ↓reduceIte]
 
-/-- A boundary cannot be returned until its checkpoint action has returned.
-The action includes scheduling, write failure accounting and diagnostics; IO
-exceptions propagate instead of manufacturing a completion receipt. -/
 def completeBoundary {size : Nat} {plan : CampaignPlan size}
     (decision : BoundaryDecision plan) (checkpoint : IO RunnerResources) :
     IO (RunnerResources × BoundaryDecision plan) :=
   EST.bind checkpoint (fun resources => EST.pure (resources, decision))
 
-/-- The executed IO boundary returns precisely after its actual checkpoint action,
-with the action's resulting native world and the unchanged execution decision.
-This conditional progress law assumes effect completion, not successful saving. -/
 theorem completeBoundary_returns {size : Nat} {plan : CampaignPlan size}
     (decision : BoundaryDecision plan) (checkpoint : IO RunnerResources)
     (before after : Void IO.RealWorld) (resources : RunnerResources)
@@ -606,7 +459,6 @@ theorem completeBoundary_returns {size : Nat} {plan : CampaignPlan size}
     completeBoundary decision checkpoint before = .ok (resources, decision) after := by
   simp only [completeBoundary, EST.bind, EST.pure, returned]
 
-/-- Native failure cannot bypass the checkpoint action and claim an ending. -/
 theorem completeBoundary_error {size : Nat} {plan : CampaignPlan size}
     (decision : BoundaryDecision plan) (checkpoint : IO RunnerResources)
     (before after : Void IO.RealWorld) (error : IO.Error)
@@ -614,8 +466,6 @@ theorem completeBoundary_error {size : Nat} {plan : CampaignPlan size}
     completeBoundary decision checkpoint before = .error error after := by
   simp only [completeBoundary, EST.bind, failed]
 
-/-- Any successful boundary receipt witnesses that the actual checkpoint action
-returned; no independently modeled write or assumed-equivalent implementation is used. -/
 theorem completeBoundary_requires {size : Nat} {plan : CampaignPlan size}
     (decision : BoundaryDecision plan) (checkpoint : IO RunnerResources)
     (before after : Void IO.RealWorld) (resources : RunnerResources)
@@ -629,29 +479,16 @@ theorem completeBoundary_requires {size : Nat} {plan : CampaignPlan size}
     rfl
   | error error world => rw [actual] at returned; contradiction
 
-/-- A campaign between attempts: the run state and the bookkeeping the loop carries. -/
 structure CampaignProgress (config : WorldConfig) (α : Type) {size : Nat}
     (plan : CampaignPlan size) where
-  /-- Current stream state. -/
   run : RunState config α
-  /-- What the campaign does next. -/
   decision : BoundaryDecision plan
-  /-- Exact total steps across accepted outcomes. -/
   totalSteps : UInt64
-  /-- Two-word summary of every completed outcome, in order. -/
   outcomes : OutcomeFold
-  /-- Saturating completed-attempt total. -/
   attempts : UInt32
-  /-- Observer and checkpoint IO failure counters. -/
   resources : RunnerResources
-  /-- The writable checkpoint capability and its save action, when admitted. -/
   checkpoint : Option (WritableCheckpoint × (α → System.FilePath → IO Unit))
 
-/-- One campaign boundary: the result at an ending, or the next attempt with its outcome
-bookkeeping and boundary checkpoint. The progress record is taken apart on entry and its
-run state is handed to the attempt, so nothing else refers to the agent while the attempt
-runs and the attempt's first writes can reuse the agent's storage. That reuse is a
-property of the compiled code, not of these values. -/
 def campaignStep {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
     {plan : CampaignPlan curriculum.size} (callbacks : AgentCallbacks order α β)
     (observer : StreamObserver β) (readStop : BaseIO Bool)
@@ -683,15 +520,6 @@ def campaignStep {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
           (checkpointAction next.agent checkpoint boundary resources)
         return .inl ⟨next, nextDecision, total, outcomes, attempts, savedResources, checkpoint⟩
 
-/-- **A campaign boundary that continues ran one attempt of the pure fold.** For every
-curriculum, plan, callback record, observer, stop reader, progress record and world
-token: when the boundary returns the next progress, the progress it took held a cursor,
-and the pure fold of the callbacks, from the run state that progress held and for the
-goal of that cursor at the plan's step cap, returns the run state of the next progress.
-So every run state that the campaign loop carries from one boundary to the next is made
-from the one before by the given callbacks through `Attempt.complete`, and by nothing
-else. The statement is about one boundary; the loop that repeats it is a library
-iteration and is outside it. -/
 theorem campaignStep_attempt {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
     {plan : CampaignPlan curriculum.size} (callbacks : AgentCallbacks order α β)
     (observer : StreamObserver β) (readStop : BaseIO Bool)
@@ -757,10 +585,6 @@ theorem campaignStep_attempt {config : WorldConfig} {α β : Type} (curriculum :
           obtain ⟨rfl, rfl⟩ := agrees
           exact ⟨frame, rfl, rfl⟩
 
-/-- Complete native campaign loop after domain and startup admission. The loop carries
-either the progress between attempts or the campaign's result, and each pass hands the
-progress to `campaignStep`: no return follows that call, so the loop keeps no second
-reference to the run state across an attempt. -/
 def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curriculum)
     (plan : CampaignPlan curriculum.size) (callbacks : AgentCallbacks order α β)
     (observer : StreamObserver β)
@@ -775,16 +599,8 @@ def runAdmittedCampaign {config : WorldConfig} {α β : Type} (curriculum : Curr
     match phase with
     | .inr result => return result
     | .inl progress => phase ← campaignStep curriculum callbacks observer readStop progress
-  -- The loop has no `break`, so it ends only by returning.
   throw (IO.userError "campaign loop ended without a result")
 
-/-- Startup preserves refusal order and never constructs an agent before campaign admission.
-Unexpected loader errors retain the fresh agent and disable writes, like a refused image.
-The step order is the index of the callbacks and it selects the loop, so the two parts
-and the loop are of one order. The callbacks, the constructor and the checkpoint hooks
-share the agent type `α`. For the Acorn agent that type is the state type of one
-construction, which holds the order, so the hooks stamp and admit that order as well;
-its campaign entry takes the construction and derives the constructor and the callbacks. -/
 def runCampaign {α β : Type} (config : WorldConfig) (seed : UInt64) (selection : AgentSelection)
     (spec : CampaignSpec) (buildAgent : AgentSelection → IO α)
     (callbacks : AgentCallbacks order α β)

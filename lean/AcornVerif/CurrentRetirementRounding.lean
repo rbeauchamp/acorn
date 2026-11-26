@@ -1,11 +1,4 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentArithmetic
-
-/-! # One-sided binary32 rounding bounds for scalar backup arithmetic -/
 
 open Acorn
 open Float.Model (Format UnpackedFloat totalExponent)
@@ -14,24 +7,18 @@ open AcornVerif.CurrentArithmetic
 
 namespace AcornVerif.CurrentRetirementRounding
 
-/-- Nearest-even quotient rounding cannot fall below any integer lower bound
-on the exact quotient. -/
 theorem nearest_lower (mantissa denominator lower : Nat) (positive : 0 < denominator)
     (bound : lower * denominator ≤ mantissa) :
     lower ≤ Rounding.nearestEven mantissa denominator := by
   exact le_trans ((Nat.le_div_iff_mul_le positive).mpr bound)
     (Rounding.nearestEven_bracket _ _).1
 
-/-- Rounding to a coarser dyadic grid preserves every lower bound already on
-that grid. The exponent relation accounts for all discarded source digits. -/
 theorem rounded_grid_lower (mantissa floorMantissa shift gap : Nat)
     (bound : floorMantissa * 2 ^ (gap + shift) ≤ mantissa) :
     floorMantissa * 2 ^ gap ≤ Rounding.nearestEven mantissa (2 ^ shift) := by
   apply nearest_lower _ _ _ (Nat.two_pow_pos _)
   simpa only [Nat.pow_add, Nat.mul_assoc] using bound
 
-/-- Comparing dyadics on an integral common grid is an exact natural-number
-comparison, with no rational approximation. -/
 theorem dyadic_lower (mantissa lower : Nat) (exponent floorExponent : Int)
     (order : exponent ≤ floorExponent)
     (bound : (lower : ℚ) * 2 ^ floorExponent ≤ (mantissa : ℚ) * 2 ^ exponent) :
@@ -46,8 +33,6 @@ theorem dyadic_lower (mantissa lower : Nat) (exponent floorExponent : Int)
   have reduced := (mul_le_mul_iff_left₀ positive).mp bound
   exact_mod_cast reduced
 
-/-- Exact binary32 rounding preserves a positive normal representable lower
-bound when the input already needs no left normalization. -/
 theorem round_grid_bound (mantissa lower : Nat) (exponent floorExponent : Int)
     (positive : 0 < mantissa) (lowerBound : lower < 2 ^ 24)
     (floorNormal : -149 < floorExponent)
@@ -103,8 +88,6 @@ theorem round_grid_bound (mantissa lower : Nat) (exponent floorExponent : Int)
       _ ≤ (2 : ℚ) ^ 23 * 2 ^ target := mul_le_mul_of_nonneg_left power (by positivity)
       _ ≤ _ := mul_le_mul_of_nonneg_right leadingQ (by positivity)
 
-/-- Full positive binary32 rounding preserves every positive normal lower
-bound already representable in the target format. -/
 theorem round_lower (mantissa lower : Nat) (exponent floorExponent : Int)
     (positive : 0 < mantissa) (lowerBound : lower < 2 ^ 24)
     (floorNormal : -149 < floorExponent)
@@ -129,16 +112,12 @@ theorem round_lower (mantissa lower : Nat) (exponent floorExponent : Int)
     (by rwa [total]) padded
   simpa only [round, decreaseExponent, Nat.shiftLeft_eq] using result
 
-/-- Reversing the sign in the full rounding model reverses its exact numerical
-reading, including zero. -/
 theorem round_negative_value (mantissa : Nat) (exponent : Int) :
     unpackedValue (round Format.binary32 .negative mantissa exponent) =
       -unpackedValue (round Format.binary32 .positive mantissa exponent) := by
   simp only [round, model_round_exact_value, signCoefficient]
   ring
 
-/-- Signed normalization preserves every negative normal representable upper
-bound, even when the normalized exponent will overflow during packing. -/
 theorem normalize_negative_bound (mantissa : Int) (exponent : Int)
     (lower : Nat) (floorExponent : Int) (positive : 0 < lower)
     (lowerBound : lower < 2 ^ 24) (floorNormal : -149 < floorExponent)

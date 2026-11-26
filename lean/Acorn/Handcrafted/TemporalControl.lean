@@ -1,85 +1,21 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Planning
 import Acorn.Handcrafted.TemporalProfile
 import Acorn.Handcrafted.PredictionControl
 
-/-!
-# Current local temporal-control composition
-
-This dispatcher consumes one already-encoded frame of any world interface and its
-preceding reward. It composes persistent exploration, option policies, assignment refresh,
-SMDP meta credit, off-policy option learning, primitive credit, prediction
-feedback and the old-gain clock.
-The full agent supplies encoding/retirement order. Model learning and the selected
-planning algorithm execute the current managed owners. No attempt timeout is a termination input.
-
-Persistent exploration belongs to the behaviour (PAR-8): Dabney, Ostrovski & Barreto,
-*Temporally-Extended ε-Greedy Exploration*, ICLR (2021), arXiv:2006.01782v1, Algorithm 1,
-PDF p. 14, starts a run with probability ε at every step with no run in progress,
-whichever action is greedy. Every decision that is not served from a run makes one
-persistent draw, by the layer that selects the primitive action: primitive control
-(`choosePrimitive`) or the executing option (`stepOption`). The meta-controller's draw
-selects that layer and stays a single-step draw over meta actions. A run an option's
-draw begins interrupts the option: §4.2, PDF p. 5, makes the run an option of the
-behaviour, which "takes action a for n steps and then terminates", and one occupancy
-executes at a time. The option is the executing invocation of the frame it drew; the
-first served step ends its execution. The run gives it no terminal credit, because the
-run is not one of the option's stopping conditions, and from that step the option
-learns off-policy under its own stopping decision, like every option that is not
-executing (`interrupt`). The meta-controller's span for the option closes at that step
-toward the option's own continuing value, and the run's rewards are credited to no meta
-action (`takeoverValue`, `closeSpan`). The meta-controller decides again when the run
-is spent.
-
-Sutton, Precup & Singh, *Between MDPs and semi-MDPs*, Artificial Intelligence
-112 (1999), equations (8)–(9), p. 190 and §6, pp. 204–205, supplies the SMDP
-and intra-option forms. Acorn's PAR-9 uses executed-action Sarsa, and PAR-15
-centers every layer with one shared pre-observation gain. For the executing
-option, nominal epsilon means are used only for interruption, and differential
-terminal credit uses the next sampled meta action, drawn after the refresh and after
-the planning that selection runs.
-
-After selection, every option that is not executing learns from the action
-actually taken (PAR-17): Sutton, Machado et al., *Reward-respecting subtasks for
-model-based reinforcement learning*, Artificial Intelligence 324 (2023), 104001,
-arXiv:2202.03466v4, §3, equation (10) and §4, equation (17). The executing option
-keeps its on-policy update, and an ending option's terminal credit keeps its owner.
-A stop of an option that is not executing credits the nominal meta value in both
-criteria, since no meta action is drawn for it. An option selected to start
-executing first settles the transition it was following.
-
-Every model operation that needs a value reads the meta-controller as it stands at
-that operation (`TemporalControl.valueFunction`): the model caches before dispatch,
-planning, and the residual target at each model close. Each frame is recorded in the
-bounded recent-frame store at the common completion boundary, after selection and
-planning, so planning's search control backs up only at earlier frames.
--/
 namespace Acorn.Handcrafted
 open Features
 
-/-- Local temporal state uses the actual receiver-owned representation and learners. -/
 structure TemporalControl (interface : Interface) (profile : FeatureProfile)
     (config : Features.Config) (criterion : Criterion) (dimension : Dimension) where
-  /-- One common lifecycle storage owner and exclusive phase. -/
   runtime : FeatureRuntime interface.symbols interface.actions config criterion dimension interface.layout
     (OptionActivation (profile.mode != .frozen)) (CommittedRun interface.actions (profile.mode != .frozen))
     (Option (TemporalDecision interface.actions))
-  /-- Profile-fixed primitive credit and its optional deferred span. -/
   credit : PrimitiveCredit
-  /-- Credit payload cannot change the immutable policy. -/
   creditMatches : creditKind credit = profile.credit
-  /-- Shared host-transition gain, read before any hierarchy update. -/
   average : AverageRewardTracker
-  /-- Schedule payload belongs only to its immutable rate policy. -/
   rate : RateState profile.rate
-  /-- Fixed-memory observations have no reader on the policy-selection path. -/
   lifetime : Lifetime.Stats interface.layout
 
-/-- Zero knowledge, no invented prior transition, and canonical action-stream seed. -/
 def TemporalControl.initial (interface : Interface) (profile : FeatureProfile)
     (config : Features.Config) (criterion : Criterion) (dimension : Dimension) :
     TemporalControl interface profile config criterion dimension :=
@@ -90,31 +26,23 @@ def TemporalControl.initial (interface : Interface) (profile : FeatureProfile)
 variable {interface : Interface} {actions : Word.Count} {profile : FeatureProfile}
   {config : Features.Config} {criterion : Criterion} {dimension : Dimension}
 
-/-- A view transfers the same controller and demon values to the already-proved
-prediction/credit operation; no second learner implementation or storage is maintained. -/
 def TemporalControl.predictionView (state : TemporalControl interface profile config criterion dimension) :
     PredictionControl interface profile criterion dimension :=
   ⟨⟨state.runtime.lifecycle.consumers.control, state.credit, state.average, state.runtime.references.pendingAction⟩,
     state.creditMatches, state.runtime.lifecycle.consumers.demons,
     state.runtime.references.demonPredictions, state.runtime.references.demonErrors, state.lifetime⟩
 
-/-- Lifetime payload derives its slot, age and reason from the actual consumed activation. -/
 def _root_.Acorn.Features.TemporalDecision.episodeEnd (decision : TemporalDecision actions) : Option Lifetime.EpisodeEnd :=
   decision.ended.map fun event =>
     let reason : Fin 3 := match event.reason with
       | .goal => 0 | .duration => 1 | .interrupted => 2
     ⟨event.slot, event.age.val.toUInt32, reason⟩
 
-/-- Account for actual option endings before starts at the same decision boundary. -/
 def TemporalControl.recordEpisodes (state : TemporalControl interface profile config criterion dimension)
     (decision : TemporalDecision interface.actions) : TemporalControl interface profile config criterion dimension :=
   { state with lifetime := { state.lifetime with
       options := Lifetime.recordOptions state.lifetime.options decision.episodeEnd decision.started } }
 
-/-- Complete one selected primitive step: primitive credit, demons, then gain, and record
-the frame for later search control. The signal values are evaluated once, for the demons.
-Every selection branch uses this single completion boundary. Retirement is the
-full-agent owner's next operation, after every learner has consumed this frame. -/
 def TemporalControl.finish (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
     (decision : TemporalDecision interface.actions) : TemporalControl interface profile config criterion dimension :=
@@ -136,8 +64,6 @@ def TemporalControl.finish (state : TemporalControl interface profile config cri
     predicted.control.credit, predicted.creditMatches, predicted.control.average, rate,
     predicted.lifetime⟩
 
-/-- Consuming the ensemble before learner updates preserves the complete
-composition for every state, observation, reward word and selected decision. -/
 theorem TemporalControl.finish_eq (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
     (decision : TemporalDecision interface.actions) :
@@ -168,8 +94,6 @@ theorem TemporalControl.finish_eq (state : TemporalControl interface profile con
         cases consumers
         rfl
 
-/-- The completion boundary writes no option slot: every skill is as it was, in every
-profile. -/
 theorem TemporalControl.finish_skills (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
     (decision : TemporalDecision interface.actions) :
@@ -177,39 +101,31 @@ theorem TemporalControl.finish_skills (state : TemporalControl interface profile
       state.runtime.lifecycle.consumers.skills := by
   rw [TemporalControl.finish_eq]
 
-/-- Meta span is the existing byte-bounded credit gap, observed without copying its algorithm. -/
 def TemporalControl.gap (state : TemporalControl interface profile config criterion dimension) : CreditGap :=
   ⟨state.runtime.references.gapSteps, state.runtime.references.gapReward⟩
 
-/-- Write a complete span together. -/
 def TemporalControl.withGap (state : TemporalControl interface profile config criterion dimension) (gap : CreditGap) :
     TemporalControl interface profile config criterion dimension :=
   { state with runtime := { state.runtime with references := { state.runtime.references with
     gapSteps := gap.steps, gapReward := gap.reward } } }
 
-/-- Advance the deferred meta clock only when a learning hierarchy skipped its decision. -/
 def TemporalControl.skipMeta (state : TemporalControl interface profile config criterion dimension) :
     TemporalControl interface profile config criterion dimension :=
   if profile.usesHierarchy && profile.mode != .frozen then state.withGap state.gap.skip else state
 
-/-- The primitive learner's rate with its work: the primitive controller's derived rate. -/
 def TemporalControl.primitiveRateCosted
     (state : TemporalControl interface profile config criterion dimension) :
     Costed SwiftTd.ExploreRate :=
   state.runtime.lifecycle.consumers.control.exploreRateCosted (count := interface.actions)
 
-/-- The primitive learner's PAR-10 rate, the sole source of the explicitly shared rate. -/
 def TemporalControl.primitiveRate (state : TemporalControl interface profile config criterion dimension) : SwiftTd.ExploreRate :=
   state.primitiveRateCosted.val
 
-/-- The primitive rate is the primitive controller's derived rate. -/
 theorem TemporalControl.primitiveRate_def
     (state : TemporalControl interface profile config criterion dimension) :
     state.primitiveRate =
       state.runtime.lifecycle.consumers.control.exploreRate (count := interface.actions) := rfl
 
-/-- The meta rate with its work: the work of the source the rate policy names, the
-meta-controller's derived rate or the primitive one. -/
 def TemporalControl.metaRateCosted
     (state : TemporalControl interface profile config criterion dimension) :
     Costed SwiftTd.ExploreRate :=
@@ -218,12 +134,9 @@ def TemporalControl.metaRateCosted
       (count := metaCount))
     (fun _ => state.primitiveRateCosted)
 
-/-- Resolve the meta rate against its own learner or the declared common source. -/
 def TemporalControl.metaRate (state : TemporalControl interface profile config criterion dimension) : SwiftTd.ExploreRate :=
   state.metaRateCosted.val
 
-/-- The meta rate is the rate policy's controller rate, at the meta-controller's own derived
-rate and the primitive rate. -/
 theorem TemporalControl.metaRate_def
     (state : TemporalControl interface profile config criterion dimension) :
     state.metaRate =
@@ -232,32 +145,22 @@ theorem TemporalControl.metaRate_def
         (fun _ => state.primitiveRate) :=
   RateState.controllerCosted_val _ _ _
 
-/-- The primitive source cannot accidentally read a different controller. -/
 def TemporalControl.controlRate (state : TemporalControl interface profile config criterion dimension) : SwiftTd.ExploreRate :=
   state.rate.controller (fun _ => state.primitiveRate) (fun _ => state.primitiveRate)
 
-/-- The source of an option's rate with its work: the primitive rate's where the rate policy
-shares it, and nothing otherwise. -/
 def TemporalControl.skillRateCosted
     (state : TemporalControl interface profile config criterion dimension) :
     Costed ConsumerRate :=
   state.rate.skillCosted (fun _ => state.primitiveRateCosted)
 
-/-- The source of an option's rate. In selection an option that starts resolves its own
-rate after its invocation reset; the draw-first dispatch resolves it for the first action
-before that reset (`Skill.frozenPolicy`). -/
 def TemporalControl.skillRate (state : TemporalControl interface profile config criterion dimension) : ConsumerRate :=
   state.skillRateCosted.val
 
-/-- The options' rate source is the rate policy's, at the primitive rate. -/
 theorem TemporalControl.skillRate_def
     (state : TemporalControl interface profile config criterion dimension) :
     state.skillRate = state.rate.skill (fun _ => state.primitiveRate) :=
   RateState.skillCosted_val _ _
 
-/-- Under the declared policy the primitive controller, the meta-controller and
-every option read the declared D6 word at every state, whatever any learner
-would derive. These are the only rates the dispatcher's snapshots consume. -/
 theorem TemporalControl.declared_rates (state : TemporalControl interface profile config criterion dimension)
     (declared : profile.rate = .declared) :
     state.controlRate = declaredRate ∧ state.metaRate = declaredRate ∧
@@ -268,26 +171,21 @@ theorem TemporalControl.declared_rates (state : TemporalControl interface profil
   simp only [TemporalControl.skillRate_def, RateState.declared_skill state.rate declared,
     ConsumerRate.resolve]
 
-/-- The current value function with its work: the meta rate's. -/
 def TemporalControl.valueFunctionCosted
     (state : TemporalControl interface profile config criterion dimension) :
     Costed (ValueFunction criterion dimension) := do
   let rate ← state.metaRateCosted
   Costed.pure ⟨state.runtime.lifecycle.consumers.metaController, rate⟩
 
-/-- The current value function: the meta-controller as it stands, with the rate its
-nominal policy resolves to now. Model targets and model caches read it. -/
 def TemporalControl.valueFunction (state : TemporalControl interface profile config criterion dimension) :
     ValueFunction criterion dimension :=
   state.valueFunctionCosted.val
 
-/-- The value function is the meta-controller with the meta rate. -/
 theorem TemporalControl.valueFunction_def
     (state : TemporalControl interface profile config criterion dimension) :
     state.valueFunction = ⟨state.runtime.lifecycle.consumers.metaController, state.metaRate⟩ :=
   rfl
 
-/-- Replace exactly one option's managed storage. -/
 def TemporalControl.withSkill (state : TemporalControl interface profile config criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount) (skill : Skill interface.actions config criterion dimension interface.layout) :
     TemporalControl interface profile config criterion dimension :=
@@ -295,20 +193,16 @@ def TemporalControl.withSkill (state : TemporalControl interface profile config 
     consumers := { state.runtime.lifecycle.consumers with
       skills := state.runtime.lifecycle.consumers.skills.set slot.val skill slot.isLt } } } }
 
-/-- Occupancy is written atomically: one of free, a committed run or a live option.
-A committed run holds the option whose draw began it only until its first served step. -/
 def TemporalControl.withPhase (state : TemporalControl interface profile config criterion dimension)
     (phase : Occupancy (OptionActivation (profile.mode != .frozen)) (CommittedRun interface.actions (profile.mode != .frozen))) :
     TemporalControl interface profile config criterion dimension :=
   { state with runtime := { state.runtime with references := { state.runtime.references with phase } } }
 
-/-- Non-planning hierarchy branches clear only the last diagnostic errors. -/
 def TemporalControl.withoutPlanning (state : TemporalControl interface profile config criterion dimension) :
     TemporalControl interface profile config criterion dimension :=
   { state with runtime := { state.runtime with references := { state.runtime.references with
     planningErrors := Vector.replicate _ .zero } } }
 
-/-- Fresh primitive choice consumes branch, duration/action or greedy draws in order. -/
 def TemporalControl.choosePrimitive (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (metaValues : Vector Binary32 metaCount.word.toNat)
     (metaDecision : Option (PolicyDecision metaCount)) (ended : Option EndEvent) :
@@ -321,13 +215,6 @@ def TemporalControl.choosePrimitive (state : TemporalControl interface profile c
     drawn.1.action, snapshot.values, drawn.1.probabilities, drawn.1.explored,
     metaValues, metaDecision, none, ended⟩)
 
-/-- End the execution of the option a committed run holds, at the run's first served
-step. The run gives the option no terminal credit: an exploratory run is not one of its
-stopping conditions. A learning option is linked to the trajectory it was executing
-(`OptionActivation.following`), so this frame's off-policy learning (`followOptions`)
-credits the transition into the frame as it does for every option that is not
-executing, under the option's own stopping decision. A frozen option is written
-nowhere. The event records the interruption. -/
 def TemporalControl.interrupt (state : TemporalControl interface profile config criterion dimension)
     (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
       OptionActivation (profile.mode != .frozen))) :
@@ -342,8 +229,6 @@ def TemporalControl.interrupt (state : TemporalControl interface profile config 
       else state,
       some ⟨slot, activation.age, .interrupted⟩)
 
-/-- Interrupting a held option writes the skill table only and reports the held slot: the
-lifetime record, occupancy, random state and every other reference are untouched. -/
 theorem TemporalControl.interrupt_frame (state : TemporalControl interface profile config criterion dimension)
     (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
       OptionActivation (profile.mode != .frozen))) :
@@ -360,10 +245,6 @@ theorem TemporalControl.interrupt_frame (state : TemporalControl interface profi
       dsimp only
       split <;> rfl
 
-/-- A continuing run bypasses every option/meta draw and preserves random state. Its
-first served step interrupts the option whose draw began the run and leaves the
-deferred meta span as that option's own actions made it, for `closeSpan`; every later
-served step advances the deferred clock. -/
 def TemporalControl.serve (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Option (TemporalControl interface profile config criterion dimension × TemporalDecision interface.actions) :=
@@ -381,9 +262,6 @@ def TemporalControl.serve (state : TemporalControl interface profile config crit
       metaValues, none, none, interrupted.2⟩)
   | .idle | .option _ _ => none
 
-/-- A served step, for every state: occupancy held a committed run, the decision repeats
-its action, the returned state holds the run `ExploratoryRun.serve` returns and no
-option, and the generator state is untouched. -/
 theorem TemporalControl.serve_frame (state next : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision interface.actions)
     (served : state.serve features = some (next, decision)) :
@@ -411,14 +289,6 @@ theorem TemporalControl.serve_frame (state next : TemporalControl interface prof
         repeat' split
         all_goals exact congrArg (·.rng) (state.interrupt_frame committed.origin).2.1
 
-/-- Install a drawn option action. The option keeps occupancy for the next frame unless
-its draw began a run with a step left to serve, which takes occupancy and holds the
-option until that step (`Occupancy.afterOption`).
-The state is consumed and the option taken out of the table before its learners
-are updated, and `TemporalControl.stepOption_eq` proves the result equal to the
-listed composition. The ordering is meant to let the runtime reuse the learners'
-storage when the state and the option are referenced nowhere else; that is a
-performance expectation, not a proved property (see `detachedUpdate`). -/
 def TemporalControl.stepOption (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : (OptionActivation (profile.mode != .frozen))) (next : OptionContinuation interface.actions dimension activation)
@@ -437,9 +307,6 @@ def TemporalControl.stepOption (state : TemporalControl interface profile config
     ⟨.option slot, decision.action, next.policy.values, decision.probabilities,
       decision.explored, metaValues, metaDecision, if started then some slot else none, ended⟩)
 
-/-- Taking the option out of the table before its update preserves the complete
-composition, for every state, slot, activation and reward word: the stepped
-option is written back to its slot, and the phase and random state follow its draw. -/
 theorem TemporalControl.stepOption_eq (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (slot : Fin Acorn.FeatureConstants.skillCount)
     (activation : (OptionActivation (profile.mode != .frozen))) (next : OptionContinuation interface.actions dimension activation)
@@ -466,15 +333,6 @@ theorem TemporalControl.stepOption_eq (state : TemporalControl interface profile
         simp only [TemporalControl.stepOption, detachedUpdate_eq]
         rfl
 
-/-- Terminal credit of an option whose identity changed belongs to the detached old owner
-and is discarded with that retired objective: it is not computed, and nothing is written
-into the replacement. Otherwise the current owner is credited and its model closes at the
-terminal frame under the current value function. The state is
-consumed and the option taken out of the table before its learners are updated, and
-`TemporalControl.closeOption_eq` proves the result equal to the listed composition. The
-ordering is meant to let the runtime reuse the learners' storage when the state and the
-option are referenced nowhere else; that is a performance expectation, not a proved
-property (see `detachedUpdate`). -/
 def TemporalControl.closeOption (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
@@ -492,9 +350,6 @@ def TemporalControl.closeOption (state : TemporalControl interface profile confi
         credit, creditMatches, average, rate, lifetime⟩
   (state, ⟨closing.slot, closing.activation.activation.age, closing.activation.reason⟩)
 
-/-- Taking the option out of the table before its terminal credit preserves the complete
-composition, for every state, closing record and reward word: the current owner's ended
-option is written back to its slot, and a detached old owner's result is discarded. -/
 theorem TemporalControl.closeOption_eq (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (closing : Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))
@@ -521,8 +376,6 @@ theorem TemporalControl.closeOption_eq (state : TemporalControl interface profil
           simp only [detachedUpdate_eq]
           rfl
 
-/-- Refresh the ranked assignments of learned subtasks and every model's ranking at a
-free boundary, retaining a possible original owner. -/
 def TemporalControl.refreshFree (state : TemporalControl interface profile config criterion dimension)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))) :
     TemporalControl interface profile config criterion dimension × Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen))) :=
@@ -533,9 +386,6 @@ def TemporalControl.refreshFree (state : TemporalControl interface profile confi
     lifecycle := free.lifecycle
     references := { state.runtime.references with modelPredictions := free.predictions } } }, free.closing)
 
-/-- With learned subtasks, the learner state after a free-boundary refresh is the
-assigning refresh's. `TemporalControl.select_assigns` carries it to the state each
-free dispatch returns. -/
 theorem TemporalControl.refreshFree_assigns (state : TemporalControl interface profile config criterion dimension)
     (learned : profile.ranksSubtasks = true)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout (EndingPayload (profile.mode != .frozen)))) :
@@ -545,9 +395,6 @@ theorem TemporalControl.refreshFree_assigns (state : TemporalControl interface p
           (EndingPayload (profile.mode != .frozen))).refreshModels true).lifecycle := by
   simp only [TemporalControl.refreshFree, learned]
 
-/-- Plan only at a free learning boundary, using the unchanged old host gain and
-the meta-controller's current rate. Search control reads and advances the stored
-recent frames. -/
 def TemporalControl.planFree (state : TemporalControl interface profile config criterion dimension)
     (plan : PlanBoundary interface.actions config criterion dimension interface.layout) (features : SwiftTd.ActiveSet dimension) :
     TemporalControl interface profile config criterion dimension :=
@@ -565,18 +412,12 @@ def TemporalControl.planFree (state : TemporalControl interface profile config c
       planningErrors := planning.errors
       recent := planning.recent } } }
 
-/-- Freeze and draw the next meta action before any terminal or boundary credit. -/
 def TemporalControl.drawMeta (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) :
     TemporalControl interface profile config criterion dimension × PolicyDecision metaCount :=
   let drawn := (state.runtime.lifecycle.consumers.metaController.snapshot (count := metaCount) features state.metaRate).draw state.runtime.references.rng
   ({ state with runtime := { state.runtime with references := { state.runtime.references with rng := drawn.2 } } }, drawn.1)
 
-/-- Repay and close the meta span using its actual already-drawn action. The state
-is consumed before the controller is credited, and `TemporalControl.learnMeta_eq`
-proves the result equal to the listed composition. The ordering is meant to let
-the runtime reuse the rows' storage when the state is referenced nowhere else;
-that is a performance expectation, not a proved property. -/
 def TemporalControl.learnMeta (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
     TemporalControl interface profile config criterion dimension :=
@@ -590,9 +431,6 @@ def TemporalControl.learnMeta (state : TemporalControl interface profile config 
         { references with gapSteps := CreditGap.closed.steps, gapReward := CreditGap.closed.reward }⟩,
       credit, creditMatches, average, rate, lifetime⟩
 
-/-- Consuming the state before the meta-controller's update preserves the complete
-composition, for every state, feature list and drawn decision: the controller is
-credited the owed span and the span is closed. -/
 theorem TemporalControl.learnMeta_eq (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) :
     state.learnMeta features decision =
@@ -612,20 +450,10 @@ theorem TemporalControl.learnMeta_eq (state : TemporalControl interface profile 
         cases consumers
         rfl
 
-/-- Meta zero delegates to primitives; each other admitted action names exactly one skill. -/
 def skillOfMeta (action : Action metaCount.word.toNat) : Option (Fin Acorn.FeatureConstants.skillCount) :=
   if h : action.val = 0 then none else
     some ⟨action.val - 1, by have bound := action.isLt; change action.val < 4 at bound; change action.val - 1 < 3; omega⟩
 
-/-- Credit the sampled meta action, then execute its primitive or option choice.
-The selected action is already fixed before either credit operation. A selected
-option first settles the transition it was following off-policy, against the
-frozen meta snapshot of this decision, and then starts its invocation. The state is
-consumed and the option taken out of the table before it settles and begins, and
-`TemporalControl.dispatchMeta_eq` proves the result equal to the listed composition.
-The ordering is meant to let the runtime reuse the learners' storage when the state and
-the option are referenced nowhere else; that is a performance expectation, not a proved
-property (see `detachedUpdate`). -/
 def TemporalControl.dispatchMeta (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
@@ -652,8 +480,6 @@ def TemporalControl.dispatchMeta (state : TemporalControl interface profile conf
     pure (state.stepOption models slot begun.2.1 begun.2.2 reward
       decision.snapshot.values (some decision) true ended)
 
-/-- Taking the selected option out of the table before it settles and begins preserves
-the complete composition, for every state, frame, reward word and drawn decision. -/
 theorem TemporalControl.dispatchMeta_eq (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool)
@@ -687,8 +513,6 @@ theorem TemporalControl.dispatchMeta_eq (state : TemporalControl interface profi
         · simp only [detachedUpdate_eq]
           rfl
 
-/-- Free dispatch refreshes the ranked assignments and models, plans, draws meta, closes
-differential terminal credit, then learns meta. It starts the newly selected option immediately. -/
 def TemporalControl.atBoundary (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -705,9 +529,6 @@ def TemporalControl.atBoundary (state : TemporalControl interface profile config
       (result.1, some result.2)
   state.dispatchMeta models features declared reward goal decision ended
 
-/-- Advance the rate and owed meta reward, then observe models before dispatch under
-the current value function.
-The operation preserves occupancy and the incoming random/gain state. -/
 def TemporalControl.prepareSelection (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) : TemporalControl interface profile config criterion dimension :=
@@ -721,8 +542,6 @@ def TemporalControl.prepareSelection (state : TemporalControl interface profile 
     else state
   state
 
-/-- Policy selection with strict branch priority. Refusal returns no replacement
-state when a declared potential is not owned by the supplied source. -/
 def TemporalControl.selectWithOperations (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (plan : PlanBoundary interface.actions config criterion dimension interface.layout)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) :
@@ -754,14 +573,10 @@ def TemporalControl.selectWithOperations (state : TemporalControl interface prof
         let result := state.closeOption models features closing reward estimate
         result.1.atBoundary models plan features declared reward goal none (some result.2)
 
-/-- The sole executing option, derived from exclusive occupancy: a live option, or the
-option a committed run holds until its first served step. -/
 def TemporalControl.activeSlot (state : TemporalControl interface profile config criterion dimension) :
     Option (Fin Acorn.FeatureConstants.skillCount) :=
   state.runtime.references.phase.executing
 
-/-- The stopping estimate with its work: the comparison value of the drawn decision's snapshot,
-or the meta rate and the comparison value of the frame's meta values at it. -/
 def TemporalControl.stoppingEstimateCosted
     (state : TemporalControl interface profile config criterion dimension)
     (decision : TemporalDecision interface.actions) : Costed Binary32 :=
@@ -771,16 +586,10 @@ def TemporalControl.stoppingEstimateCosted
     let rate ← state.metaRateCosted
     comparisonValueCosted criterion (⟨decision.metaValues, rate⟩ : PolicySnapshot metaCount)
 
-/-- The stopping estimate options that are not executing compare against: the
-nominal value of the frame's meta snapshot. When a meta decision was drawn at this
-frame it is that decision's own frozen snapshot, values and rate; otherwise no
-meta learner has changed since the values were read, and the current rate is theirs. -/
 def TemporalControl.stoppingEstimate (state : TemporalControl interface profile config criterion dimension)
     (decision : TemporalDecision interface.actions) : Binary32 :=
   (state.stoppingEstimateCosted decision).val
 
-/-- The stopping estimate is the comparison value of the drawn decision's snapshot, or of the
-frame's meta values at the meta rate. -/
 theorem TemporalControl.stoppingEstimate_def
     (state : TemporalControl interface profile config criterion dimension)
     (decision : TemporalDecision interface.actions) :
@@ -792,9 +601,6 @@ theorem TemporalControl.stoppingEstimate_def
   unfold TemporalControl.stoppingEstimate TemporalControl.stoppingEstimateCosted
   cases decision.metaDecision <;> rfl
 
-/-- One slot's share of a followed frame with its work: the executing slot's unlinked record, or
-the potential of its interest, then its off-policy following or, without a source, its unlinked
-record. -/
 def followSlotCosted (models : OptionModelOps criterion dimension)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
@@ -811,9 +617,6 @@ def followSlotCosted (models : OptionModelOps criterion dimension)
           behaviour reward gain
       | none => Costed.op .unlinkSlot { skill with following := none }
 
-/-- One slot's share of a followed frame. The executing option keeps its own
-on-policy update and is linked to no off-policy trajectory. A slot whose declared
-potential source is not supplied learns nothing and is unlinked. -/
 def followSlot (models : OptionModelOps criterion dimension)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
@@ -824,8 +627,6 @@ def followSlot (models : OptionModelOps criterion dimension)
   (followSlotCosted models value features declared goal estimate rate action behaviour reward gain
     executing skill).val
 
-/-- The executing slot is unlinked; another slot follows the frame at its interest's potential,
-or is unlinked when its declared source is not supplied. -/
 theorem followSlot_def (models : OptionModelOps criterion dimension)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)
@@ -856,9 +657,6 @@ theorem followSlot_def (models : OptionModelOps criterion dimension)
     cases (skill.interest.potentialCosted features declared).val <;> rfl
   · rfl
 
-/-- The following of the option table with its work: where options learn, the stopping estimate,
-the options' rate source and the value function, then each slot's share in table order and the
-state's record with the followed table; otherwise the unchanged state. -/
 def TemporalControl.followOptionsCosted
     (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -881,19 +679,12 @@ def TemporalControl.followOptionsCosted
           credit, creditMatches, average, schedule, lifetime⟩)
     fun _ => Costed.op .followTable state
 
-/-- Every option that is not executing learns from the frame's actual action and
-its reported behaviour masses, in table order, after selection and before the
-common completion boundary, so each reads the same pre-observation gain as the
-executing option. Frozen and primitive-only profiles do no option learning. No
-random draw is consumed. -/
 def TemporalControl.followOptions (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions) :
     TemporalControl interface profile config criterion dimension :=
   (state.followOptionsCosted models features declared reward goal decision).val
 
-/-- Consuming the ensemble before the option updates preserves the complete
-composition: only the skill table changes, slot by slot. -/
 theorem TemporalControl.followOptions_eq (state : TemporalControl interface profile config criterion dimension)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) (decision : TemporalDecision interface.actions) :
@@ -916,14 +707,6 @@ theorem TemporalControl.followOptions_eq (state : TemporalControl interface prof
         cases consumers
         rfl
 
-/-- The value an interrupted option's meta span closes toward, on the first served step
-of the run that held it; `none` on every other frame. The run censors the option
-without stopping it, so the span is credited toward the option's own continuing return:
-its own meta value at this frame while its stopping decision continues, and the frame's
-nominal meta value where that decision ends. The decision is the one `followOptions`
-takes for the option's learners at this frame, read from the same skill, estimate and
-rate. A slot whose potential source is not supplied learns nothing and closes as
-stopped. -/
 def TemporalControl.takeoverValue (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
     (decision : TemporalDecision interface.actions) : Option Binary32 :=
@@ -941,15 +724,6 @@ def TemporalControl.takeoverValue (state : TemporalControl interface profile con
       | _, _ => estimate
   else none
 
-/-- Close the meta-controller's span at an interruption. The owed span covers the
-interrupted option's own actions and nothing of the run: selection, or the owed writes of
-a step order that draws first, accumulated this frame's reward, which the option's last
-action earned, and the first served step did not advance the deferred clock. The span is credited toward the supplied continuation
-with the error `learnMeta` forms, and every meta trace is then released, so the rewards
-of the served steps are credited to no meta action when the next decision is learned.
-The state is consumed before the controller is credited, and `closeSpan_eq` proves the
-result equal to the listed composition; storage reuse is a performance expectation,
-not a proved property. -/
 def TemporalControl.closeSpan (state : TemporalControl interface profile config criterion dimension)
     (continuation : Option Binary32) : TemporalControl interface profile config criterion dimension :=
   match continuation with
@@ -964,9 +738,6 @@ def TemporalControl.closeSpan (state : TemporalControl interface profile config 
         { references with gapSteps := CreditGap.closed.steps, gapReward := CreditGap.closed.reward }⟩,
       credit, creditMatches, average, rate, lifetime⟩
 
-/-- Consuming the state before the meta-controller's closing credit preserves the
-composition: the controller takes the closing credit for the owed span and the span is
-closed; nothing else is written. -/
 theorem TemporalControl.closeSpan_eq (state : TemporalControl interface profile config criterion dimension)
     (value : Binary32) :
     state.closeSpan (some value) =
@@ -985,7 +756,6 @@ theorem TemporalControl.closeSpan_eq (state : TemporalControl interface profile 
         cases consumers
         rfl
 
-/-- Current selection executes concrete model learning and the explicit planning choice. -/
 def TemporalControl.select (state : TemporalControl interface profile config criterion dimension)
     (planning : PlanningSelection) (features : SwiftTd.ActiveSet dimension)
     (declared : DeclaredPotentials) (reward : Binary32) (goal : Bool) :
@@ -993,14 +763,6 @@ def TemporalControl.select (state : TemporalControl interface profile config cri
   state.selectWithOperations (modelOperations criterion dimension) (planningBoundary planning)
     features declared reward goal
 
-/-- One local temporal transition: selection, off-policy learning of every option
-that is not executing, the closing of an interrupted option's meta span, then credit
-and feedback on every selected path. The span's continuation value is read before the
-options learn, from the state and decision selection returned.
-The input active set belongs to the caller's current encoding frame. Selection, with
-its assignment refresh, reads the Demon-0 weights as the previous step left them: the
-reward delivered here is learned by `finish`, after selection, so a subtask candidate
-that reward creates is installed at the next free dispatch, not at this decision. -/
 def TemporalControl.step (state : TemporalControl interface profile config criterion dimension)
     (planning : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32) (goal : Bool) :
@@ -1011,11 +773,6 @@ def TemporalControl.step (state : TemporalControl interface profile config crite
     obs.declared reward goal decision
   pure ((followed.closeSpan continuation).finish features obs reward decision, decision)
 
-/-- The part of one local transition that follows selection: off-policy learning of
-every option that is not executing, the closing of an interrupted option's meta span,
-then credit and feedback. Its inputs are the state and decision the first part of the
-step returned, after the writes its order owes, and the frame and reward of the percept.
-The decision is an input; it draws no action. -/
 def TemporalControl.learn (selected : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32) (goal : Bool)
     (decision : TemporalDecision interface.actions) :
@@ -1025,9 +782,6 @@ def TemporalControl.learn (selected : TemporalControl interface profile config c
     obs.declared reward goal decision
   (followed.closeSpan continuation).finish features obs reward decision
 
-/-- One local transition is selection, then the learning part on the state and decision
-selection returned, for every state, frame and reward word. A refused selection is a
-refused transition. -/
 theorem TemporalControl.step_parts (state : TemporalControl interface profile config criterion dimension)
     (planning : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32) (goal : Bool) :
@@ -1041,8 +795,6 @@ theorem TemporalControl.step_parts (state : TemporalControl interface profile co
     obtain ⟨selected, decision⟩ := selected
     rfl
 
-/-- Selection updates finish through the same prediction/credit definition and
-cannot use a different executed action for primitive credit. -/
 theorem TemporalControl.finish_credit (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
     (decision : TemporalDecision interface.actions) :

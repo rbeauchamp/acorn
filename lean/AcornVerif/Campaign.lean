@@ -1,50 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Visits
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-
-/-!
-# The campaign counting bound
-
-A `campaign` presents the slots of a class in one stream: one visit of a fixed length to each
-slot in turn, cycle after cycle, with the agent never restarted and each slot's world starting
-each visit from its own start state. An assignment picks a member for each slot, so a campaign
-holds at least one slot. A visit takes `length + 1` decisions, as in `Kernel.visits`.
-
-This is condition (d) of the mission contract's contract 2. For a class that conceals its goals
-behind one reference world, with a covering bound `k` for one visit, take a set of assignments
-of `N` slots on each of which an agent solves every slot on a given cycle. Then the set holds at
-most `m · k ^ N` assignments, where `m` is the size of any set holding the memories the agent has
-at that cycle's start (`campaign_count`), and at most `2 ^ b · k ^ N` for an agent whose memory
-fits `b` bits (`campaign_count_bits`). Both hold for every agent, number of slots and cycle.
-
-The proof follows the argument in the contract. A slot solved on a cycle is its member solved in
-its own world from the memory at its visit's start (`solvesSlot_solves`), and concealment bounds
-by `k` the members solved from one memory. The memory at the next slot is a function of this
-slot's memory and member (`campaign_memory_next`), so fixing the memory at a slot leaves at most
-`k` members for it, each fixing the memory at the next: `tracked_count`. Grouping the assignments
-by the memory at the cycle's start gives the bound.
-
-This is a lemma the mission theorem on campaigns uses, and not a mission result about learning.
-`campaign_count` holds of the executed agent as of every agent. `campaign_count_bits` gives
-nothing for that agent, whose memory type holds exact naturals and so fits no fixed width
-(argued). For a construction of the default step order, from the agent of a state a host runs,
-the memories it holds in a campaign over worlds that show grid percepts are agents of states a
-host runs, and `AcornVerif.CurrentKernelMemory.executed_campaign_count` is the count for it with
-a bound on the number of those states in place of a set of memories.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-- A campaign: one visit of `length` steps to each slot in turn, cycle after cycle. A visit takes
-`length + 1` decisions, as in `Kernel.visits`, and the next slot's world starts from its own
-start state. -/
 def campaign (family : WorldClass interface) (length slots : ℕ)
     (assignment : Fin (slots + 1) → family.Index) : World interface where
   State := Σ slot : Fin (slots + 1), (family.world (assignment slot)).State × Fin (length + 1)
@@ -57,18 +18,14 @@ def campaign (family : WorldClass interface) (length slots : ℕ)
         family.start _, ⟨0, Nat.succ_pos length⟩⟩
   percept := fun state => (family.world (assignment state.1)).percept state.2.1
 
-/-- The first state of a campaign: the first slot's start. -/
 def campaignStart (family : WorldClass interface) (length slots : ℕ)
     (assignment : Fin (slots + 1) → family.Index) :
     (campaign family length slots assignment).State :=
   ⟨0, family.start _, ⟨0, Nat.succ_pos length⟩⟩
 
-/-- The decisions before a slot's visit of a cycle. -/
 def campaignTime (length slots cycle : ℕ) (slot : Fin (slots + 1)) : ℕ :=
   (cycle * (slots + 1) + slot.val) * (length + 1)
 
-/-- An agent solves a slot on a cycle when, in that slot's visit of that cycle, some state after
-one to `length` steps satisfies the slot's goal. -/
 def SolvesSlot (family : WorldClass interface) (goals : family.Goals) (length slots : ℕ)
     (assignment : Fin (slots + 1) → family.Index) (agent : Agent interface)
     (cycle : ℕ) (slot : Fin (slots + 1)) : Prop :=
@@ -77,18 +34,14 @@ def SolvesSlot (family : WorldClass interface) (goals : family.Goals) (length sl
       (campaignStart family length slots assignment) (campaignTime length slots cycle slot + step)
     state.1 = slot ∧ (goals (assignment state.1)).satisfied state.2.1
 
-/-! ## One visit in the campaign -/
-
 variable {family : WorldClass interface} {length slots : ℕ}
   {assignment : Fin (slots + 1) → family.Index}
 
-/-- The first state of a slot's visit. -/
 def slotStart (family : WorldClass interface) (length slots : ℕ)
     (assignment : Fin (slots + 1) → family.Index) (slot : Fin (slots + 1)) :
     (campaign family length slots assignment).State :=
   ⟨slot, family.start _, ⟨0, Nat.succ_pos length⟩⟩
 
-/-- Within a visit the campaign's closed loop is the member's own. -/
 theorem campaign_loop (agent : Agent interface) (slot : Fin (slots + 1)) (time : ℕ)
     (within : time ≤ length) :
     loop (campaign family length slots assignment) agent
@@ -108,13 +61,11 @@ theorem campaign_loop (agent : Agent interface) (slot : Fin (slots + 1)) (time :
     simp only [interact, campaign, dite_eq_left short]
     rfl
 
-/-- The memory after one visit of a member from a memory. -/
 def visitEnd (agent : Agent interface) (family : WorldClass interface) (memory : agent.Memory)
     (index : family.Index) (length : ℕ) : agent.Memory :=
   (agent.act (memoryAt (family.world index) (agent.resume memory) (family.start index) length)
     (perceptAt (family.world index) (agent.resume memory) (family.start index) length)).2
 
-/-- A visit's last decision moves the campaign to the next slot's start. -/
 theorem campaign_return (agent : Agent interface) (slot : Fin (slots + 1))
     (memory : agent.Memory) :
     loop (campaign family length slots assignment) (agent.resume memory)
@@ -131,7 +82,6 @@ theorem campaign_return (agent : Agent interface) (slot : Fin (slots + 1))
   simp only [interact, campaign, dite_eq_right (Nat.lt_irrefl length)]
   rfl
 
-/-- At each multiple of a visit's decisions the campaign is at the start of a slot's visit. -/
 theorem campaign_period (agent : Agent interface) (count : ℕ) :
     stateAt (campaign family length slots assignment) agent
         (campaignStart family length slots assignment) (count * (length + 1)) =
@@ -153,7 +103,6 @@ theorem campaign_period (agent : Agent interface) (count : ℕ) :
     refine back.trans (congrArg (slotStart family length slots assignment) (Fin.ext ?_))
     exact Nat.mod_add_mod count (slots + 1) 1
 
-/-- The slot of the visit at a campaign time. -/
 theorem visitNumber_slot (cycle : ℕ) (slot : Fin (slots + 1)) :
     (⟨(cycle * (slots + 1) + slot.val) % (slots + 1), Nat.mod_lt _ (Nat.succ_pos slots)⟩ :
       Fin (slots + 1)) = slot :=
@@ -162,14 +111,12 @@ theorem visitNumber_slot (cycle : ℕ) (slot : Fin (slots + 1)) :
     rw [Nat.mul_comm cycle, Nat.mul_add_mod]
     exact Nat.mod_eq_of_lt slot.isLt)
 
-/-- At a slot's time of a cycle the campaign is at the start of that slot's visit. -/
 theorem campaign_state_slot (agent : Agent interface) (cycle : ℕ) (slot : Fin (slots + 1)) :
     stateAt (campaign family length slots assignment) agent
         (campaignStart family length slots assignment) (campaignTime length slots cycle slot) =
       slotStart family length slots assignment slot :=
   (campaign_period agent _).trans (congrArg _ (visitNumber_slot cycle slot))
 
-/-- A slot solved on a cycle is its member solved from the memory at its visit's start. -/
 theorem solvesSlot_solves (goals : family.Goals) (agent : Agent interface) (cycle : ℕ)
     (slot : Fin (slots + 1))
     (solved : SolvesSlot family goals length slots assignment agent cycle slot) :
@@ -196,7 +143,6 @@ theorem solvesSlot_solves (goals : family.Goals) (agent : Agent interface) (cycl
     exact held
   exact reduce _ _ _ whole met
 
-/-- The memory at the next slot's visit is the memory after this slot's visit. -/
 theorem campaign_memory_next (agent : Agent interface) (cycle : ℕ) (slot : Fin (slots + 1))
     (next : Fin (slots + 1)) (following : next.val = slot.val + 1) :
     memoryAt (campaign family length slots assignment) agent
@@ -213,9 +159,6 @@ theorem campaign_memory_next (agent : Agent interface) (cycle : ℕ) (slot : Fin
     (length := length) agent slot (memoryAt (campaign family length slots assignment) agent
         (campaignStart family length slots assignment) (campaignTime length slots cycle slot)))
 
-/-! ## Counting -/
-
-/-- Assignments of `count` slots each solved from the memory the earlier visits leave. -/
 def Tracked {Memory Index : Type} (solves : Memory → Index → Prop)
     (advance : Memory → Index → Memory) : (count : ℕ) → Memory → (Fin count → Index) → Prop
   | 0, _, _ => True
@@ -223,8 +166,6 @@ def Tracked {Memory Index : Type} (solves : Memory → Index → Prop)
     solves memory (chosen 0) ∧
       Tracked solves advance count (advance memory (chosen 0)) (Fin.tail chosen)
 
-/-- If at most `bound` members are solved from each memory, at most `bound ^ count` assignments
-of `count` slots are tracked from one memory. -/
 theorem tracked_count {Memory Index : Type} (solves : Memory → Index → Prop)
     (advance : Memory → Index → Memory) (bound : ℕ)
     (few : ∀ (memory : Memory) (solved : Finset Index),
@@ -267,7 +208,6 @@ theorem tracked_count {Memory Index : Type} (solves : Memory → Index → Prop)
       _ ≤ bound ^ count * bound := Nat.mul_le_mul_left _ heads
       _ = bound ^ (count + 1) := (Nat.pow_succ _ _).symm
 
-/-- The slots from one on, solved along the campaign, are tracked from that slot's memory. -/
 theorem tracked_of_solved (goals : family.Goals) (agent : Agent interface) (cycle : ℕ)
     (each : ∀ slot, SolvesSlot family goals length slots assignment agent cycle slot)
     (remaining first : ℕ) (fits : first + remaining = slots + 1) :
@@ -306,11 +246,6 @@ theorem tracked_of_solved (goals : family.Goals) (agent : Agent interface) (cycl
       subst none
       exact trivial
 
-/-- **The campaign counting bound.** For a class that conceals its goals, with a covering bound
-for one visit: take a set of assignments of `slots + 1` slots on each of which an agent solves
-every slot on one cycle, and a set of memories holding the agent's memory at that cycle's start
-under each. The assignments number at most the memories times the bound to the power of the
-slots. It holds for every agent, number of slots and cycle, the first cycle included. -/
 theorem campaign_count {goals : family.Goals}
     {reference : World interface} {origin : reference.State}
     (hidden : Conceals family goals reference origin) {length bound : ℕ}
@@ -364,8 +299,6 @@ theorem campaign_count {goals : family.Goals}
     _ ≤ bound ^ (slots + 1) * memories.card := Nat.mul_le_mul_left _ image
     _ = memories.card * bound ^ (slots + 1) := Nat.mul_comm _ _
 
-/-- The count for an agent whose memory fits `bits` bits: at most `2 ^ bits` times the bound to
-the power of the slots. -/
 theorem campaign_count_bits {goals : family.Goals}
     {reference : World interface} {origin : reference.State}
     (hidden : Conceals family goals reference origin) {length bound : ℕ}

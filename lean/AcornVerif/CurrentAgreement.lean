@@ -1,44 +1,26 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Agreement
 import AcornVerif.CurrentOrder
 import Mathlib.Data.Nat.Sqrt
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Analysis.Real.Sqrt
 
-/-!
-# Executed discrepancy coordinates and agreement direction
-
-The numerical statements concern all finite binary32 encodings, with the
-standard arithmetic and native compiler boundaries declared by CurrentOrder.
-The score is Acorn's descriptive complement of normalized RMSE. Its integer
-presentation rounds error downward by less than one millionth; this display
-precision is separate from finite-return truncation and arithmetic error.
--/
 namespace AcornVerif.CurrentAgreement
 open Acorn Acorn.Agreement AcornVerif.CurrentOrder
 open AcornVerif.CurrentFloat AcornVerif.CurrentArithmetic
 
-/-- The executable magnitude decoder is the existing proved field interpretation. -/
 theorem magnitudeUnits_exact (value : Binary32) :
     magnitudeUnits value = fieldUnits 23 value.magnitude := rfl
 
-/-- Signed executable coordinates agree with the common proved signed field owner. -/
 theorem units_exact (value : Binary32) : units value = signedFieldUnits 23 value.key := by
   rw [Binary32.key_eq_negative, signedFieldUnits_sign]
   unfold units
   simp only [← Binary32.negative_iff]
   rfl
 
-/-- Every finite operand has exactly its executed integer coordinate at the binary32 scale. -/
 theorem units_numerical (value : Binary32) (finite : value.Finite) :
     numerical32 value = (units value : ℚ) * (2 : ℚ)^(-149 : Int) := by
   rw [numerical32_key_units value finite, units_exact]
 
-/-- Executed subtraction and squaring preserve the exact discrepancy between finite words. -/
 theorem squaredUnits_numerical (forecast outcome : Binary32)
     (forecastFinite : forecast.Finite) (outcomeFinite : outcome.Finite) :
     (squaredUnits forecast outcome : ℚ) * ((2 : ℚ)^(-149 : Int))^2 =
@@ -51,7 +33,6 @@ theorem squaredUnits_numerical (forecast outcome : Binary32)
   rw [square]
   ring
 
-/-- Exact admitted normalized squared error belongs to the unit interval. -/
 theorem ratio_bounds (ratio : Ratio) :
     0 ≤ (ratio.numerator : ℚ) / ratio.denominator ∧
       (ratio.numerator : ℚ) / ratio.denominator ≤ 1 := by
@@ -61,7 +42,6 @@ theorem ratio_bounds (ratio : Ratio) :
   · apply (div_le_one positive).mpr
     exact_mod_cast ratio.bounded
 
-/-- The actual square-root display cannot exceed its scale. -/
 theorem errorUnits_bound (ratio : Ratio) : ratio.errorUnits ≤ displayScale := by
   have quotient : ratio.numerator * displayScale^2 / ratio.denominator ≤ displayScale^2 := by
     apply Nat.div_le_of_le_mul
@@ -69,16 +49,13 @@ theorem errorUnits_bound (ratio : Ratio) : ratio.errorUnits ≤ displayScale := 
   have root := Nat.sqrt_le_sqrt quotient
   simpa [Ratio.errorUnits] using root
 
-/-- Natural subtraction is an exact complement here, never an underflow clamp. -/
 theorem agreementUnits_complement (ratio : Ratio) :
     ratio.agreementUnits + ratio.errorUnits = displayScale := by
   exact Nat.sub_add_cancel (errorUnits_bound ratio)
 
-/-- The executed increasing indicator always belongs to its admitted scale. -/
 theorem agreementUnits_bound (ratio : Ratio) : ratio.agreementUnits ≤ displayScale :=
   Nat.sub_le _ _
 
-/-- Greater exact normalized squared error cannot improve the displayed agreement. -/
 theorem agreementUnits_antitone (left right : Ratio)
     (ordered : left.numerator * right.denominator ≤ right.numerator * left.denominator) :
     right.agreementUnits ≤ left.agreementUnits := by
@@ -92,8 +69,6 @@ theorem agreementUnits_antitone (left right : Ratio)
     nlinarith only [scaled, multiplied, positive]
   exact Nat.sub_le_sub_left (Nat.sqrt_le_sqrt orderQ) displayScale
 
-/-- Exact integer brackets connect the executed root to the normalized mean;
-the upper bracket is strict even when integer division discards a remainder. -/
 theorem errorUnits_bracket (ratio : Ratio) :
     ratio.errorUnits^2 * ratio.denominator ≤ ratio.numerator * displayScale^2 ∧
     ratio.numerator * displayScale^2 < (ratio.errorUnits + 1)^2 * ratio.denominator := by
@@ -104,7 +79,6 @@ theorem errorUnits_bracket (ratio : Ratio) :
   · apply (Nat.div_lt_iff_lt_mul ratio.positive).mp
     exact Nat.lt_succ_sqrt' _
 
-/-- Display RMSE rounds downward by strictly less than one display unit. -/
 theorem errorUnits_precision (ratio : Ratio) :
     (ratio.errorUnits : ℝ) / displayScale ≤
         Real.sqrt ((ratio.numerator : ℝ) / ratio.denominator) ∧
@@ -124,7 +98,6 @@ theorem errorUnits_precision (ratio : Ratio) :
     apply (div_lt_div_iff₀ denominator (sq_pos_of_pos scale)).mpr
     exact_mod_cast brackets.2
 
-/-- The aggregate update is addition of one normalized question, without count weighting. -/
 theorem aggregate_add_value (aggregate : Aggregate) (ratio : Ratio) :
     ((aggregate.add ratio).numerator : ℚ) / (aggregate.add ratio).denominator =
       (aggregate.numerator : ℚ) / aggregate.denominator +
@@ -134,8 +107,6 @@ theorem aggregate_add_value (aggregate : Aggregate) (ratio : Ratio) :
   simp only [Aggregate.add, Nat.cast_add, Nat.cast_mul]
   field_simp
 
-/-- Each successful list fold includes exactly its supplied entries. The current
-question inventory, rather than this general reducer, owns distinct identities. -/
 theorem aggregateAll_count (ratios : List (Option Ratio)) (aggregate : Aggregate)
     (present : aggregateAll ratios = some aggregate) : aggregate.questions = ratios.length := by
   induction ratios generalizing aggregate with
@@ -148,7 +119,6 @@ theorem aggregateAll_count (ratios : List (Option Ratio)) (aggregate : Aggregate
       obtain ⟨prior, priorPresent, rfl⟩ := present
       simpa only [Aggregate.add, List.length_cons] using congrArg (· + 1) (ih prior priorPresent)
 
-/-- The strict near-perfect text threshold uses the exact squared ratio. -/
 theorem nearPerfect_meaning (ratio : Ratio)
     (near : ratio.numerator * 100000000 < ratio.denominator) :
     (9999 : ℝ) / 100 < 100 * (1 - Real.sqrt ((ratio.numerator : ℝ) / ratio.denominator)) := by
@@ -161,7 +131,6 @@ theorem nearPerfect_meaning (ratio : Ratio)
     nlinarith
   linarith
 
-/-- The strict near-zero text threshold also uses the exact squared ratio. -/
 theorem nearZero_meaning (ratio : Ratio)
     (near : ratio.denominator * 99980001 < ratio.numerator * 100000000) :
     100 * (1 - Real.sqrt ((ratio.numerator : ℝ) / ratio.denominator)) < (1 : ℝ)/100 := by
@@ -175,7 +144,6 @@ theorem nearZero_meaning (ratio : Ratio)
   have rootPositive := Real.sqrt_nonneg ((ratio.numerator : ℝ) / ratio.denominator)
   nlinarith
 
-/-- A successful complete fold sums each supplied question exactly once. -/
 theorem aggregateAll_value (ratios : List Ratio) (aggregate : Aggregate)
     (present : aggregateAll (ratios.map some) = some aggregate) :
     (aggregate.numerator : ℚ) / aggregate.denominator =
@@ -188,7 +156,6 @@ theorem aggregateAll_value (ratios : List Ratio) (aggregate : Aggregate)
     rw [aggregate_add_value, ih prior priorPresent]
     simp [List.map_cons, List.sum_cons, add_comm]
 
-/-- The aggregate ratio divides its exact question sum by its question count. -/
 theorem aggregate_ratio_value (aggregate : Aggregate) (ratio : Ratio)
     (present : aggregate.ratio = some ratio) :
     (ratio.numerator : ℚ) / ratio.denominator =
@@ -200,7 +167,6 @@ theorem aggregate_ratio_value (aggregate : Aggregate) (ratio : Ratio)
     ring
   · contradiction
 
-/-- Every finite discrepancy inside its numerical envelope passes exact sample admission. -/
 theorem admitSquared_available (forecast outcome envelope : Binary32)
     (forecastFinite : forecast.Finite) (outcomeFinite : outcome.Finite)
     (envelopeFinite : envelope.Finite)

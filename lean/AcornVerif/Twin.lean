@@ -1,31 +1,10 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Blindness
-
-/-!
-# The twin of an agent
-
-A *feedback* is any projection of a percept, such as its reward word (`AcornVerif.Blindness`).
-
-`twin`, `twin_stepped`, `twin_loop`, `twin_clauses`: where a member's percept is a function of a
-reference world's state along the same actions and of the percept's own feedback, every agent
-has a twin, stepped by the feedback alone, that takes the same action at every time, solves each
-member on the same visits, and separates and retains exactly when the agent does.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface} {Φ : Type}
 
-/-! ## The twin of an agent -/
-
-/-- The twin of an agent over a reference world: it carries the agent's memory and a state of the
-reference, rebuilds a percept from that state and from the feedback of the percept it receives,
-and gives the agent the rebuilt percept. -/
 def twin (feedback : Percept interface → Φ) (agent : Agent interface) (reference : World interface)
     (origin : reference.State) (rebuild : reference.State → Φ → Percept interface) :
     Agent interface where
@@ -36,7 +15,6 @@ def twin (feedback : Percept interface → Φ) (agent : Agent interface) (refere
       ((agent.act memory.1 (rebuild memory.2 (feedback percept))).2,
         reference.step memory.2 (agent.act memory.1 (rebuild memory.2 (feedback percept))).1))
 
-/-- The twin is stepped by the feedback. -/
 theorem twin_stepped (feedback : Percept interface → Φ) (agent : Agent interface)
     (reference : World interface) (origin : reference.State)
     (rebuild : reference.State → Φ → Percept interface) :
@@ -47,10 +25,6 @@ theorem twin_stepped (feedback : Percept interface → Φ) (agent : Agent interf
         reference.step memory.2 (agent.act memory.1 (rebuild memory.2 shown)).1)),
     fun _ _ => rfl⟩
 
-/-- **The twin takes the agent's actions.** In a world related to the reference by a relation the
-two transitions keep, where every related state delivers the percept rebuilt from the reference's
-state and from its own feedback, the twin's closed loop holds the agent's memory and a related
-state of the reference, and the twin takes the agent's action, at every time. -/
 theorem twin_loop (feedback : Percept interface → Φ) (agent : Agent interface)
     (reference : World interface) (origin : reference.State)
     (rebuild : reference.State → Φ → Percept interface)
@@ -128,14 +102,6 @@ theorem twin_loop (feedback : Percept interface → Φ) (agent : Agent interface
   rw [state, ← shown _ _ shadow, memory]
   rfl
 
-/-! ## The twin over a class in visits -/
-
-/-- **In a class in visits the twin solves what the agent solves.** Take a class and a reference
-world, and for each member a relation between its states and the reference's that holds of the
-two starts, that the two transitions keep, and under which the member's percept is rebuilt from
-the reference's state and the percept's own feedback. Then one agent stepped by the feedback, the
-twin over the reference in visits, solves each member on exactly the visits on which the agent
-solves it. -/
 theorem twin_solvesOnVisit (feedback : Percept interface → Φ) (agent : Agent interface)
     (reference : World interface) (origin : reference.State)
     (rebuild : reference.State → Φ → Percept interface)
@@ -180,8 +146,6 @@ theorem twin_solvesOnVisit (feedback : Percept interface → Φ) (agent : Agent 
   unfold SolvesOnVisit
   simp only [same]
 
-/-- The twin of `twin_solvesOnVisit` separates exactly when the agent does, and retains exactly
-when the agent does. -/
 theorem twin_clauses (feedback : Percept interface → Φ) (agent : Agent interface)
     (reference : World interface) (origin : reference.State)
     (rebuild : reference.State → Φ → Percept interface)

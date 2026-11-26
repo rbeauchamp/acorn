@@ -1,25 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.FeatureLifecycle
 import AcornVerif.CurrentLearnerCheck
 
-/-! # Executing consumer reset contracts
-
-The admission invariant connects the lifecycle's actual learners to the current
-learner's universal scheduling proof. No independently written update model is
-assumed equivalent. Numeric primitives retain the learner's declared trust.
--/
 namespace AcornVerif.CurrentFeatureConsumers
 open Acorn Acorn.Features AcornVerif.CurrentLearner
 
 variable {actions : Word.Count}
 
-/-- Every consumer's erased admission establishes the owning scheduling invariant: the
-fresh learner, every permitted entry, and a learner read back from a checkpoint image,
-whose admission is the stored-word check (`CurrentLearnerCheck.resumable_iff`). -/
 theorem managed_schedule {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) : ScheduleInv learner.state learner.phase := by
   rcases learner with ⟨state, phase, admitted⟩
@@ -28,12 +14,10 @@ theorem managed_schedule {config : Acorn.Config} {dimension : Dimension}
   | transition entry permitted _ ih => exact entry_schedule entry _ _ permitted ih
   | durable checked => exact (CurrentLearnerCheck.resumable_iff _ _).mp checked
 
-/-- Every managed learner passes the stored-word check. -/
 theorem managed_resumable {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) : learner.state.resumable learner.phase = true :=
   (CurrentLearnerCheck.resumable_iff _ _).mpr (managed_schedule learner)
 
-/-- Retiring from a unique eligibility array removes every occurrence of the slot. -/
 theorem retire_absent {config : Acorn.Config} {dimension : Dimension}
     (state : NumericState config dimension) (feature : FeatIdx dimension)
     (unique : state.transient.eligible.toList.Nodup) :
@@ -51,14 +35,11 @@ theorem retire_absent {config : Acorn.Config} {dimension : Dimension}
     have absent := Array.findIdx?_eq_none_iff.mp found feature member
     simp at absent
 
-/-- All phase-disciplined consumers remove the retired slot completely. -/
 theorem managed_retire_absent {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (feature : FeatIdx dimension) :
     feature ∉ (learner.retire feature).state.transient.eligible :=
   retire_absent learner.state feature (managed_schedule learner).2.1
 
-/-- The complete ensemble reset clears all register/knowledge words at the slot in
-every reader, and each reader keeps its prior shared aggregates. -/
 theorem ensemble_reset {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
     (ensemble : Ensemble actions config criterion dimension discounts) (feature : FeatIdx dimension)
@@ -86,14 +67,10 @@ theorem ensemble_reset {config : Features.Config} {criterion : Criterion}
     ⟨before, beforeMember, cleared.2.2.2.1, cleared.2.2.2.2⟩,
     managed_retire_absent before.2 feature⟩
 
-/-- Eligibility storage and a complete reset scan are bounded for every managed
-reader. The scheduler premise is carried by admission, not supplied by callers. -/
 theorem managed_capacity {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) : learner.state.eligibleCount ≤ dimension.capacity :=
   eligible_cardinality learner.state (managed_schedule learner).2.1
 
-/-- Summed eligibility work is bounded by the actual derived reader count.
-Discounted model aliases overcount work safely; they do not omit stored learners. -/
 theorem readers_capacity {dimension : Dimension} (readers : List (PackedLearner dimension)) :
     (readers.map (fun reader => reader.2.state.eligibleCount)).sum ≤
       readers.length * dimension.capacity := by
@@ -104,7 +81,6 @@ theorem readers_capacity {dimension : Dimension} (readers : List (PackedLearner 
     simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.add_mul, Nat.one_mul]
     omega
 
-/-- The all-consumer scan and reset have a lifetime-independent eligibility bound. -/
 theorem ensemble_capacity {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount}
     (ensemble : Ensemble actions config criterion dimension discounts) :

@@ -775,8 +775,8 @@ private theorem firstLoopElement_congr {cfg : Acorn.Config} {dim : Dimension}
     rw [hF.1, hF.2.2.2.1]
   · simp only [NumericState.firstLoopElement, hSet]
     rw [hW, hF.1, hF.2.1]
-  · simp only [NumericState.firstLoopElement, hSet]
-    rw [ite_bounded_val, ite_bounded_val, hW, hF.1, hF.2.1, hF.2.2.2.2.2.2.2.2, hB, hSt, hRails]
+  · simp only [NumericState.firstLoopElement, hSet, ite_bounded_val]
+    rw [hW, hF.1, hF.2.1, hF.2.2.2.2.2.2.2.2, hB, hSt, hRails]
   · simp only [NumericState.firstLoopElement, registers, hSet, hW, hF.1, hF.2.1, hF.2.2.1,
       hF.2.2.2.1, hF.2.2.2.2.2.1, hF.2.2.2.2.2.2.2.1, hF.2.2.2.2.2.2.2.2]
 

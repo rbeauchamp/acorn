@@ -1,43 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentForkedTarget
 import AcornVerif.TurnsBoth
-
-/-!
-# What mastery of a grid of concealed targets forces
-
-A member of `AcornVerif.CurrentForkedTarget.forkedFind` is a pair of concealed targets, one for
-each situation. This module proves, for mastery of a grid of such members
-(`AcornVerif.Kernel.MastersGridBy`), the bounds and the consequence that the definition is for.
-
-**The sharp covering bound.** A walk of `cap` steps comes within three tiles of at most
-`49 + 7 cap` tiles, and 49 of those are the tiles within three of the start, none of which is a
-target of the class. So one action sequence meets at most `7 cap` concealed targets
-(`find_covered_sharp`, `feasibleFind_covered_sharp`): 49 for a visit of seven steps, where
-`AcornVerif.CurrentConcealedTarget.find_covered` gives 98.
-
-**No agent that keeps nothing masters a grid** at the bound `7 length`, and no agent driven by
-its reward words and achievement flags masters one at any bound (`forked_need_grid`,
-`forked_blind_grid`).
-
-**Mastery of a grid needs experience of each situation.** Take a run of a member under an order.
-While no visit of the first situation has been solved, the agent's memory at the start of each
-visit is its memory in the run whose first situation holds the target `nowhere`, with the same
-second target (`first_unmet_memory`): what it has met in the first situation is what every first
-target shows before it is met, and what it has met in the second is decided by the second target
-alone. So among members with one second target, those the agent solves in the first situation
-on a visit, without having solved a visit of the first situation before, have at most `7 length`
-different first targets (`first_fresh_covered`): they are met by one walk. The same holds with
-the situations exchanged (`second_unmet_memory`, `second_fresh_covered`).
-
-For a grid this says: under each second target of the grid, all but at most `7 length` of the
-grid's first targets are targets the agent had already solved, in that run, on an earlier visit
-of the first situation; and likewise for the second situation. What an agent meets in one
-situation cannot stand in for experience of the other, however the grid is chosen.
--/
 
 namespace AcornVerif.CurrentForkedTargetBoth
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -46,11 +8,6 @@ open AcornVerif.CurrentConcealedTarget AcornVerif.CurrentForkedTarget
 
 variable {config : Host.WorldConfig}
 
-/-! ## The sharp covering bound -/
-
-/-- **One action sequence meets at most `7 cap` concealed targets.** The tiles a walk of `cap`
-steps comes within three of number at most `49 + 7 cap`, and they include the 49 within three of
-the start, none of which is a target of the class. -/
 theorem find_covered_sharp (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (cap : ℕ) :
     Kernel.Covered (findClass config mode live) (fun _ => completion config mode cap)
@@ -75,7 +32,6 @@ theorem find_covered_sharp (config : Host.WorldConfig) (mode : TaskFeatureMode)
   rw [Finset.card_sdiff_of_subset start, card_box, image] at fewer
   omega
 
-/-- One action sequence meets at most `7 length` feasible concealed targets. -/
 theorem feasibleFind_covered_sharp (config : Host.WorldConfig) (mode : TaskFeatureMode)
     (live : Live config) (length : ℕ) :
     Kernel.Covered (feasibleFind config mode live length)
@@ -91,14 +47,11 @@ theorem feasibleFind_covered_sharp (config : Host.WorldConfig) (mode : TaskFeatu
   obtain ⟨original, picked, rfl⟩ := Finset.mem_image.mp chosen
   exact each original picked
 
-/-- A member's key in the second situation: its second target. -/
 def secondTarget (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (pair : (forkedFind config mode first second length).Index) :
     (feasibleFind config mode second length).Index :=
   pair.1.2
 
-/-- One action sequence meets, from the first situation's starts within a visit, the goals of at
-most `7 length` members no two of which have one first target. -/
 theorem forked_first_covered (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (actions : ℕ → Kernel.Act Grid.interface)
     (solved : Finset (forkedFind config mode first second length).Index)
@@ -117,8 +70,6 @@ theorem forked_first_covered (mode : TaskFeatureMode) (first second : Live confi
   obtain ⟨pair, picked, rfl⟩ := Finset.mem_image.mp chosen
   exact each pair picked
 
-/-- **No agent that keeps nothing masters a grid** at the bound `7 length`, whatever the limit,
-the horizon, the returns and the predicate. -/
 theorem forked_need_grid (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     {agent : Kernel.Agent Grid.interface} (free : Kernel.ExperienceFree agent)
     (limit horizon returns : ℕ)
@@ -130,8 +81,6 @@ theorem forked_need_grid (mode : TaskFeatureMode) (first second : Live config) (
   Kernel.turns_need_grid (forked_conceals mode first second length)
     (forked_first_covered mode first second length) free
 
-/-- **No agent that goes by its clock, its reward words and its achievement flags masters a
-grid**, at any bound, keys, limit, horizon, returns and predicate. -/
 theorem forked_blind_grid (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (carried : first.carried = second.carried) {agent : Kernel.Agent Grid.interface}
     (blind : Kernel.FeedbackDriven
@@ -146,12 +95,6 @@ theorem forked_blind_grid (mode : TaskFeatureMode) (first second : Live config) 
   blind.mastersGrid (forked_mute mode first second length carried)
     (forked_apart mode first second length)
 
-/-! ## Before a situation is first solved -/
-
-/-- **A visit that does not meet a concealed target leaves the memory of the visit with no
-target.** Entered with one memory, a visit from a live state with a concealed target installed,
-on which the agent does not meet the target, leaves the agent the memory it would hold after the
-visit from that live state with the target `nowhere` installed. -/
 theorem unmet_visitMemory (mode : TaskFeatureMode) (live : Live config) (cap : ℕ)
     (target : (findClass config mode live).Index) (agent : Kernel.Agent Grid.interface)
     (memory : agent.Memory)
@@ -179,16 +122,10 @@ theorem unmet_visitMemory (mode : TaskFeatureMode) (live : Live config) (cap : �
   unfold Kernel.visitMemory
   rw [sameMemory, samePercept]
 
-/-- The starts of the run whose first situation holds the target `nowhere`, beside one target of
-the other situation. -/
 def blankFirst (first second : Live config) (target : Host.Position) : Bool → Option (Live config)
   | false => member first nowhere
   | true => member second target
 
-/-- **Before the first situation is first solved, the agent's memory is that of the run with no
-first target.** In a member's run under an order, if no earlier visit of the first situation was
-solved, the agent's memory at a visit's start is its memory in the run whose first situation holds
-the target `nowhere`, with the member's other target. -/
 theorem first_unmet_memory (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (agent : Kernel.Agent Grid.interface)
     (pair : (forkedFind config mode first second length).Index) (order : ℕ → Bool) (visit : ℕ)
@@ -214,10 +151,6 @@ theorem first_unmet_memory (mode : TaskFeatureMode) (first second : Live config)
       rw [Kernel.solvesTurn_iff, side] at unsolved
       exact unmet_visitMemory mode first length pair.1.1.1 agent _ unsolved
 
-/-- **What the other situation shows cannot stand in for the first situation.** Take members with
-one target in the other situation, a run under one order, and a visit. Those the agent solves in
-the first situation on that visit, having solved no earlier visit of the first situation,
-number at most `7 length`: they are met by one walk. -/
 theorem first_fresh_covered (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (agent : Kernel.Agent Grid.interface) (order : ℕ → Bool) (visit : ℕ)
     (target : (feasibleFind config mode second length).Index)
@@ -252,16 +185,10 @@ theorem first_fresh_covered (mode : TaskFeatureMode) (first second : Live config
   rw [shared] at solves
   exact ((find_conceals mode first length).solves_iff _ pair.1.1.1).mp solves
 
-/-- The starts of the run whose second situation holds the target `nowhere`, beside one target of
-the other situation. -/
 def blankSecond (first second : Live config) (target : Host.Position) : Bool → Option (Live config)
   | false => member first target
   | true => member second nowhere
 
-/-- **Before the second situation is first solved, the agent's memory is that of the run with no
-second target.** In a member's run under an order, if no earlier visit of the second situation was
-solved, the agent's memory at a visit's start is its memory in the run whose second situation holds
-the target `nowhere`, with the member's other target. -/
 theorem second_unmet_memory (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (agent : Kernel.Agent Grid.interface)
     (pair : (forkedFind config mode first second length).Index) (order : ℕ → Bool) (visit : ℕ)
@@ -287,8 +214,6 @@ theorem second_unmet_memory (mode : TaskFeatureMode) (first second : Live config
       rw [Kernel.solvesTurn_iff, side] at unsolved
       exact unmet_visitMemory mode second length pair.1.2.1 agent _ unsolved
 
-/-- One action sequence meets, from the second situation's starts within a visit, the goals of at
-most `7 length` members no two of which have one second target. -/
 theorem forked_second_covered (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (actions : ℕ → Kernel.Act Grid.interface)
     (solved : Finset (forkedFind config mode first second length).Index)
@@ -307,10 +232,6 @@ theorem forked_second_covered (mode : TaskFeatureMode) (first second : Live conf
   obtain ⟨pair, picked, rfl⟩ := Finset.mem_image.mp chosen
   exact each pair picked
 
-/-- **What the other situation shows cannot stand in for the second situation.** Take members with
-one target in the other situation, a run under one order, and a visit. Those the agent solves in
-the second situation on that visit, having solved no earlier visit of the second situation,
-number at most `7 length`: they are met by one walk. -/
 theorem second_fresh_covered (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (agent : Kernel.Agent Grid.interface) (order : ℕ → Bool) (visit : ℕ)
     (target : (feasibleFind config mode first length).Index)
@@ -345,11 +266,6 @@ theorem second_fresh_covered (mode : TaskFeatureMode) (first second : Live confi
   rw [shared] at solves
   exact ((find_conceals mode second length).solves_iff _ pair.1.2.1).mp solves
 
-/-- **Under one second target, the first targets solved without earlier experience are few.** Take
-a set of first targets and one second target. Suppose each first target of the set has a member,
-with that second target, that the agent solves in the first situation on a visit, having solved
-no earlier visit of the first situation in that member's run. Then the set holds at most
-`7 length` targets. -/
 theorem grid_first_experience (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (agent : Kernel.Agent Grid.interface) (order : ℕ → Bool) (visit : ℕ)
     (targets : Finset (feasibleFind config mode first length).Index)
@@ -379,11 +295,6 @@ theorem grid_first_experience (mode : TaskFeatureMode) (first second : Live conf
   · obtain ⟨own, -, rfl⟩ := Finset.mem_image.mp member
     exact solved own.1 own.2
 
-/-- **Under one first target, the second targets solved without earlier experience are few.** Take
-a set of second targets and one first target. Suppose each second target of the set has a member,
-with that first target, that the agent solves in the second situation on a visit, having solved
-no earlier visit of the second situation in that member's run. Then the set holds at most
-`7 length` targets. -/
 theorem grid_second_experience (mode : TaskFeatureMode) (first second : Live config) (length : ℕ)
     (agent : Kernel.Agent Grid.interface) (order : ℕ → Bool) (visit : ℕ)
     (targets : Finset (feasibleFind config mode second length).Index)

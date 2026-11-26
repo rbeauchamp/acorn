@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentBackupBounds
 import AcornVerif.CurrentConstants
 import AcornVerif.CurrentRetirement
@@ -100,19 +95,3 @@ import AcornVerif.Retirement
 import AcornVerif.ParameterBudget
 import AcornVerif.Rng
 import AcornVerif.WorldGoals
-
-/-!
-# Executable contracts and mathematical analysis
-
-Current* modules verify the imported Lean execution owners. Other modules retain
-mathematical identities and conditional algorithm contracts supporting the
-current mechanisms. Each theorem states its domain and hypotheses; mathematical
-identities establish execution properties only through their checked linkage.
-
-The Regula audit, Regula's proof verdict on the claimed modules, checks the axioms of
-every declaration, and the only admitted axiom dependencies are propext,
-Classical.choice and Quot.sound. A pass means this for a project that places no file
-or code aimed at Regula's checker or Lean's toolchain, which Acorn assumes of itself.
-Native compiler/runtime, reviewed tooling and OS boundaries remain explicit. No theorem
-count, source digest or successful build establishes useful learning.
--/

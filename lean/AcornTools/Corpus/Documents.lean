@@ -1,21 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Lean
 import AcornDocument
 import Acorn.Digits
 import AcornTools.Ownership
 import Acorn.Host.Viewer.BrowserSchema
 import AcornTools.Corpus.Browser
+import AcornTools.TrackedFiles
 
-/-! # Compiled declaration and document path admission
-
-Code spans identify maintained declarations or complete path claims. Compiler-owned
-names replace lexical declaration inference; IO and Lean environment loading are
-the reviewed tooling boundary.
--/
 namespace AcornDocument
 open Lean
 
@@ -119,7 +109,6 @@ private def fileExtensions : List String := [
   ".map",
   ".tmp"]
 
-/-- Visible inline code spans; fenced examples are not live document claims. -/
 def spans (text : String) : List String := Id.run do
   let mut fenced := false
   let mut result := []
@@ -146,7 +135,26 @@ private def braceExpand (path : String) : Except String (List String) := do
     return (choices.splitOn ",").map (fun c => head ++ c.trimAscii.toString ++ tail)
   | _ => throw "more than one path brace group"
 
-private def pathClaim (span : String) : IO Unit := do
+private structure TrackedIndex where
+  files : Std.HashSet String
+  dirs : Std.HashSet String
+
+private def trackedIndex (tracked : Array String) : TrackedIndex := Id.run do
+  let mut files : Std.HashSet String := {}
+  let mut dirs : Std.HashSet String := {}
+  for path in tracked do
+    files := files.insert path
+    let parts := path.splitOn "/"
+    let mut cur := ""
+    for part in parts.dropLast do
+      cur := if cur.isEmpty then part else cur ++ "/" ++ part
+      dirs := dirs.insert cur
+  return { files, dirs }
+
+private def allowedBuildDir (path : String) : Bool :=
+  ["lean/.lake", "lean/.lake/packages"].contains path
+
+private def pathClaim (tracked : TrackedIndex) (span : String) : IO Unit := do
   let (path, revision, lines) ← match span.splitOn "@" with
     | [plain] => match plain.splitOn ":" with
       | [path] => pure (path, none, none)
@@ -171,15 +179,33 @@ private def pathClaim (span : String) : IO Unit := do
   for path in ← IO.ofExcept (braceExpand path) do
     if revision.isSome then
       throw (IO.userError "archived path references are not part of the maintained source")
+    else if path.contains '*' then
+      unless lines.isNone do throw (IO.userError "line anchor on directory wildcard")
+      let dir := String.intercalate "/" (((path.splitOn "*").headD "").splitOn "/").dropLast
+      unless tracked.dirs.contains dir || allowedBuildDir dir do
+        throw (IO.userError s!"path is not tracked: {dir}")
+      AcornTrackedFiles.ensureRegularDir "." dir
     else
-      let path := if path.contains '*' then
-          String.intercalate "/" (((path.splitOn "*").headD "").splitOn "/").dropLast
-        else path
-      let kind ← (System.FilePath.mk path).symlinkMetadata
-      unless kind.type == .file || kind.type == .dir do throw (IO.userError "path is not regular")
-      if let some count := lines then
-        unless count ≤ ((← IO.FS.readFile path).splitOn "\n").length do
+      let hasTrailingSlash := path.endsWith "/"
+      let normalized := if hasTrailingSlash then (path.dropEndWhile (· == '/')).toString else path
+      discard (AcornTrackedFiles.checkComponents normalized)
+      if hasTrailingSlash then
+        unless lines.isNone do throw (IO.userError "line anchor on directory")
+        unless tracked.dirs.contains normalized || allowedBuildDir normalized do
+          throw (IO.userError s!"directory is not tracked: {normalized}")
+        AcornTrackedFiles.ensureRegularDir "." normalized
+      else if let some count := lines then
+        unless tracked.files.contains normalized do
+          throw (IO.userError s!"file is not tracked: {normalized}")
+        AcornTrackedFiles.ensureRegular "." normalized
+        unless count ≤ ((← IO.FS.readFile normalized).splitOn "\n").length do
           throw (IO.userError "line anchor exceeds file")
+      else if tracked.files.contains normalized then
+        AcornTrackedFiles.ensureRegular "." normalized
+      else if tracked.dirs.contains normalized || allowedBuildDir normalized then
+        AcornTrackedFiles.ensureRegularDir "." normalized
+      else
+        throw (IO.userError s!"path is not tracked: {normalized}")
 
 private def symbol (span : String) : Option String := do
   guard (span.toList.all (fun c => c.toNat < 128))
@@ -201,8 +227,6 @@ private def symbol (span : String) : Option String := do
   guard (!(name.splitOn ".").any (fun part => part.toList.head?.any Char.isDigit))
   return name
 
-/-- Derive document symbols from the admitted compiler environment. Every selected
-non-entry owner must be present; unrelated imports cannot supply owned names. -/
 def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet String) := do
   let owners := selection.filter fun owner =>
     !AcornOwnership.executables.any (fun entry => entry.2 == owner)
@@ -223,6 +247,7 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
     if let .tags tags := rule then
       for tag in tags do names := names.insert tag
   names := names.insert "main"
+  AcornTrackedFiles.ensureTrackedRegular "." "" "viewer/static/index.html"
   let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
   let words := (String.ofList (browser.toList.map (fun c =>
     if c.isAlphanum || c == '_' || c == '$' then c else ' '))).splitOn " " |>.filter (!·.isEmpty)
@@ -241,22 +266,25 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
               names := names.insert (String.intercalate "." (suffix.take count))
   return names
 
-/-- Load compiler declarations once, excluding executable `main` collisions.
-Only maintained module owners contribute names; imported libraries do not make
-an otherwise missing project declaration appear present. -/
 unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
   let package : System.FilePath := "lean"
+  AcornTrackedFiles.ensureTrackedRegular "." "" "scripts/lean.sh"
   let setup ← IO.Process.output {
     cmd := "./scripts/lean.sh", args := #["env", "lean", "--print-prefix"] }
   unless setup.exitCode == 0 do throw (IO.userError setup.stderr)
   let sysroot : System.FilePath := setup.stdout.trimAscii.toString
+  AcornTrackedFiles.ensureTrackedRegular "." "" "lean/lake-manifest.json"
   let lock ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile (package / "lake-manifest.json")))
   let dependencies ← IO.ofExcept (lock.getObjValAs? (Array Lean.Json) "packages")
   let mut paths := [package / ".lake/build/lib/lean"]
+  let mut seenDeps : Std.HashSet String := {}
   for dependency in dependencies do
-    -- Lake's checkout directory of the locked name (`PackageEntry.dirName`).
     let name := (← IO.ofExcept (dependency.getObjValAs? String "name")).toName.toString
       (escape := false)
+    if name.isEmpty || name == "." || name == ".." || seenDeps.contains name ||
+        !name.toList.all (fun c => c.isAlphanum || c == '-' || c == '_' || c == '.') then
+      throw (IO.userError s!"duplicate or unsupported locked dependency directory: {name}")
+    seenDeps := seenDeps.insert name
     paths := paths ++ [package / ".lake/packages" / name / ".lake/build/lib/lean"]
   searchPathRef.set (paths ++ [← getLibDir sysroot])
   enableInitializersExecution
@@ -273,10 +301,9 @@ private def resolves (names : Std.HashSet String) (name : String) : Bool :=
     (name.endsWith "_*" && names.toArray.any (fun candidate =>
       candidate.startsWith (name.dropEnd 1).toString))
 
-/-- Every applicable path and declaration claim is checked, reporting all stale
-references together; archive paths and external study citations are refused. -/
 unsafe def check (documents : Array (String × String)) (selection : Array Name)
-    (env? : Option Environment := none) : IO Unit := do
+    (tracked : Array String) (env? : Option Environment := none) : IO Unit := do
+  let index := trackedIndex tracked
   let names ← match env? with
     | some env => symbolsFrom env selection
     | none => symbols selection
@@ -285,7 +312,7 @@ unsafe def check (documents : Array (String × String)) (selection : Array Name)
     for span in (spans text).eraseDups do
       try
         if pathPrefixes.any (fun lead => span.startsWith lead) && !pathPrefixes.contains span then
-          pathClaim span
+          pathClaim index span
         else if span.startsWith "study:" then
           throw (IO.userError "unresolved study citation")
         else if let some name := symbol span then

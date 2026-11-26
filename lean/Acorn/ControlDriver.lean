@@ -1,34 +1,17 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Digits
 import Acorn.Handcrafted.GridWorld
 
-/-!
-# Native prediction/control consumer
-
-Calls current encoding, policy selection and prediction/control transitions.
-Output is an execution observation, never a correctness oracle or a scientific
-learning run. Universal guarantees belong to the same called definitions.
--/
 namespace Acorn.ControlDriver
 open Features Handcrafted
 
-/-- Small native storage; transition definitions remain dimension-generic. -/
 def dimension : Dimension := ⟨8, by decide, ⟨3, rfl⟩, by decide⟩
 
-/-- The full current primitive action domain. -/
 def actionCount : Word.Count := ⟨Acorn.FeatureConstants.primitiveCount.toUInt64, by decide⟩
 
-/-- Input observations retain the complete public sensory-byte domain. -/
 def observation (word : UInt64) : Host.Observation :=
   ⟨Vector.replicate _ (Vector.replicate _ ⟨word.toUInt8, 0, 0⟩),
     word.toUInt8, 0, .none, ⟨0, 0, 0, 0, false, false⟩⟩
 
-/-- Execute a policy draw and two continuing transitions through the same current
-state owners. Caller-supplied words keep native storage dynamically allocated. -/
 @[noinline] def execute (seed word : UInt64) (criterion : Criterion) : Nat × UInt32 × UInt32 :=
   let profile : FeatureProfile := ⟨.final, .perStep, .declared, .learned⟩
   let config : Features.Config :=
@@ -49,8 +32,6 @@ state owners. Caller-supplied words keep native storage dynamically allocated. -
 
 end Acorn.ControlDriver
 
-/-- Read the seed and raw word as unsigned numbers of the command line (`Acorn.Digits.natural`),
-refusing either at `2 ^ 64` or more instead of wrapping it. -/
 def _root_.Acorn.ControlDriver.main (arguments : List String) : IO UInt32 := do
   let parsed := match arguments with
     | [] => some (0, 0)

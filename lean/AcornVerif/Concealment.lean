@@ -1,47 +1,10 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.WorldClass
-
-/-!
-# Concealed goals
-
-A class of worlds conceals its goals behind a reference world when every member, along
-every action sequence, delivers the reference's percepts until that member's goal is first
-satisfied (`Conceals`). Before a member's goal is met an agent perceives in it what it
-perceives in the reference, so every agent, learning or not, keeps in each member the memory it
-keeps in the reference and takes the reference's actions until that member's goal is met
-(`Conceals.agree`). A member whose goal those actions have met need no longer match the
-reference, so a miss can tell the remaining members from it. Every
-agent is therefore blind on the class (`Conceals.blind`), and a covering bound is a need
-bound for every agent (`Conceals.need`): one agent, the same in every member, solves at most
-as many members as one action sequence meets. This is the first-visit bound. It covers an
-agent that learns, provided its memory at the attempt's start is the same in every member:
-it has had no experience of the member yet. The members an agent solves are exactly those its
-actions in the reference meet (`Conceals.solves_iff`).
-
-The bound says nothing about a later attempt in a world that persists, because the world
-can carry what an agent learned nothing about. `park` follows a step counter until its
-percept shows the goal met and from then on takes an action that keeps the goal met. It is
-experience-free (`park_experienceFree`), and once it has met a goal that the action keeps,
-it meets the goal at every later time (`park_keeps`): the world's state holds what its
-memory does not. In `AcornVerif.Kernel.visits` each member returns between attempts to its
-own fixed start state, which does not depend on earlier attempts; there an experience-free
-agent's later attempts are bounded as its first is.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-! ## Concealment -/
-
-/-- A class conceals its goals behind a reference world and a state of it when, along every
-action sequence, each member delivers the reference's percept at every time before that
-member's goal is first satisfied. -/
 def Conceals (family : WorldClass interface) (goals : family.Goals)
     (reference : World interface) (origin : reference.State) : Prop :=
   ∀ (index : family.Index) (actions : ℕ → Act interface) (time : ℕ),
@@ -54,9 +17,6 @@ def Conceals (family : WorldClass interface) (goals : family.Goals)
 variable {family : WorldClass interface} {goals : family.Goals}
   {reference : World interface} {origin : reference.State}
 
-/-- Where an agent's closed loop in a member has so far taken the actions of its closed loop
-in the reference, and the member's goal has not been satisfied, the member delivers the
-percept the reference delivers. -/
 theorem Conceals.perceptAt_eq (hidden : Conceals family goals reference origin)
     (agent : Agent interface) (index : family.Index) (time : ℕ)
     (unmet : ∀ earlier, 1 ≤ earlier → earlier ≤ time → ¬ (goals index).satisfied
@@ -82,8 +42,6 @@ theorem Conceals.perceptAt_eq (hidden : Conceals family goals reference origin)
   rw [track time (Nat.le_refl time), stateAt_eq_path reference agent origin time]
   exact shown
 
-/-- Before a time at which a member's goal has not yet been satisfied, every agent keeps in
-that member the memory it keeps in the reference, and has taken the reference's actions. -/
 theorem Conceals.agree_before (hidden : Conceals family goals reference origin)
     (agent : Agent interface) (index : family.Index) (time : ℕ) :
     (∀ earlier, 1 ≤ earlier → earlier ≤ time → ¬ (goals index).satisfied
@@ -113,8 +71,6 @@ theorem Conceals.agree_before (hidden : Conceals family goals reference origin)
     · rw [equal]
       exact congrArg Prod.fst decided
 
-/-- Until a member's goal is first satisfied, every agent keeps in that member the memory it
-keeps in the reference and takes the reference's actions. -/
 theorem Conceals.agree (hidden : Conceals family goals reference origin)
     (agent : Agent interface) (index : family.Index) (time : ℕ)
     (unmet : ∀ earlier, 1 ≤ earlier → earlier ≤ time → ¬ (goals index).satisfied
@@ -134,24 +90,15 @@ theorem Conceals.agree (hidden : Conceals family goals reference origin)
       (agent.act (memoryAt reference agent origin time) (perceptAt reference agent origin time)).1
     rw [memory, percept]
 
-/-- Every agent is blind on a class that conceals its goals: in each member, before that
-member's goal is first satisfied, it takes the actions it takes in the reference. -/
 theorem Conceals.blind (hidden : Conceals family goals reference origin)
     (agent : Agent interface) : Blind family goals agent :=
   ⟨actionAt reference agent origin, fun index time unmet =>
     (hidden.agree agent index time unmet).2 time (Nat.le_refl time)⟩
 
-/-- The first-visit bound. In a class that conceals its goals, a covering bound is a need bound
-for every agent: whatever an agent has learned before, if one action sequence meets the goal
-of at most `bound` members, the agent solves at most `bound` members. -/
 theorem Conceals.need (hidden : Conceals family goals reference origin) {bound : ℕ}
     (covered : Covered family goals bound) : Need family goals (fun _ => True) bound :=
   fun agent _ => need_of_covered covered agent (hidden.blind agent)
 
-/-- **A member is solved exactly when the reference's actions meet it.** In a class that
-conceals its goals, an agent solves a member exactly when the actions of its closed loop in the
-reference meet that member's goal. Before the goal is first met the agent takes those actions,
-so its closed loop in the member is their path up to the first state that satisfies the goal. -/
 theorem Conceals.solves_iff (hidden : Conceals family goals reference origin)
     (agent : Agent interface) (index : family.Index) :
     Solves family goals agent index ↔
@@ -172,24 +119,16 @@ theorem Conceals.solves_iff (hidden : Conceals family goals reference origin)
         (fun step before => same step (by omega))]
       exact met
 
-/-! ## Parking -/
-
-/-- The parking agent: its memory is a step counter. It takes the staying action whenever its
-percept shows the signal, and otherwise the sequence's action at its count. -/
 def park (interface : Interface) (signal : Percept interface → Bool) (stay : Act interface)
     (actions : ℕ → Act interface) : Agent interface where
   Memory := ℕ
   initial := 0
   act := fun count percept => (if signal percept = true then stay else actions count, count + 1)
 
-/-- The parking agent's memory advances without reading percepts. -/
 theorem park_experienceFree (signal : Percept interface → Bool) (stay : Act interface)
     (actions : ℕ → Act interface) : ExperienceFree (park interface signal stay actions) :=
   ⟨fun (count : ℕ) => count + 1, fun _ _ => rfl⟩
 
-/-- In a world whose percept after a step shows the signal wherever that step satisfies a goal,
-and whose staying action keeps the goal satisfied, the parking agent keeps every goal it has
-satisfied after a step: it satisfies the goal at every later time. -/
 theorem park_keeps (world : World interface) (start : world.State)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (shows : ∀ state action, satisfied (world.step state action) →

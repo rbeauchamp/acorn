@@ -1,30 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentIntervals
 import Mathlib.Algebra.Order.Field.Basic
-/-!
-# Ordered polynomial envelopes
-
-Each Horner step and coefficient quotient uses the executing Acorn primitives.
-An arbitrary-list induction preserves an admitted envelope under an analytic
-one-step inequality. The exponential proof groups its existing coefficient
-prefix and derives the final quadratic bounds structurally, preserving every
-operation and rounding boundary. Machine spacing supplies the closed upper
-endpoint at one. The resulting interval is inside the retained component
-bounds; ideal exponential approximation error is a separate claim. Native
-primitive/compiler correspondence remains the declared trusted boundary.
--/
 open Acorn
 open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmetic
 open AcornVerif.CurrentOrder AcornVerif.CurrentOperations AcornVerif.CurrentDivision
 open AcornVerif.CurrentIntervals
 namespace AcornVerif.CurrentSeries
 
-/-- Every executing Horner step in the stated local domain stays finite and differs from its exact
-multiply-plus-add value by at most 2^-36. -/
 theorem hornerStep_finite_error (argument accumulator coefficient : Binary64)
     (argumentFinite : argument.Finite) (accumulatorFinite : accumulator.Finite)
     (coefficientFinite : coefficient.Finite)
@@ -61,8 +42,6 @@ theorem hornerStep_finite_error (argument accumulator coefficient : Binary64)
   rw [abs_le]
   constructor <;> linarith only [pm.1,pm.2,pa.1,pa.2]
 
-/-- An analytic one-step inequality preserves the numerical envelope through every finite ordered
-coefficient list, using the actual rounded accumulator. -/
 theorem hornerFrom_envelope (argument initial : Binary64) (coefficients : List Binary64)
     (radius bound coefficientBound : ℚ)
     (argumentFinite : argument.Finite) (initialFinite : initial.Finite)
@@ -99,8 +78,6 @@ theorem hornerFrom_envelope (argument initial : Binary64) (coefficients : List B
     exact ih (Binary64.hornerStep argument initial coefficient) step.1 nextBound
       (fun c hc => coefficientBounds c (List.mem_cons_of_mem coefficient hc))
 
-/-- Every positive admitted unsigned denominator yields a finite executing reciprocal bounded by
-its exact reciprocal and the derived division error. -/
 theorem reciprocal_coefficient_bound (denominator : UInt64) (minimum : Nat)
     (positive : 0 < minimum) (lower : minimum ≤ denominator.toNat)
     (small : denominator.toNat < 2 ^ 53) :
@@ -137,8 +114,6 @@ theorem reciprocal_coefficient_bound (denominator : UInt64) (minimum : Nat)
   rw [sub_add_cancel,abs_of_pos quotientPositive] at triangle
   linarith only [triangle,operation.2,quotientBound]
 
-/-- The actual exponential polynomial is finite and lies in [0.7,1.4199] for every finite
-remainder in [-0.35,0.35], and is at most one when that remainder is nonpositive. -/
 theorem expSeries_contract (remainder : Binary64) (finite : remainder.Finite)
     (bounded : |numerical64 remainder| ≤ 7 / 20) :
     (Portable.expSeries remainder).Finite ∧

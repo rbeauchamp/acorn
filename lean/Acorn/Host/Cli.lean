@@ -1,67 +1,33 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Digits
 import Acorn.Host.Runner
 import Acorn.Planning
 
-/-!
-# Current command admission and composition boundary
-
-The demo parser retains the complete current flag domain and its refusals.
-ANSI selection has a separate value type, so ignored streaming-only flags cannot
-reach that loop. Other commands retain their distinct maintained owner rather
-than being interpreted as a demo or running a substitute learning composition.
--/
 namespace Acorn.Host.Cli
 
-/-- Every current CLI dispatch branch, including the isolated study subprocess. -/
 inductive Command where
-  /-- Ordinary or ANSI demonstration. -/
   | demo
-  /-- Pinned deterministic mutation audit. -/
   | audit
-  /-- Generate compiler-linked constants. -/
   | emitLean
-  /-- Preserve execution identity without learning. -/
   | executionIdentity
-  /-- Baseline study, probe, emission and verification modes. -/
   | agentBaseline
-  /-- Intra-option credit study or probe. -/
   | intraOptionCredit
-  /-- Exploration-rate study or probe. -/
   | derivedExplorationRate
-  /-- Planning study or probe. -/
   | stompPlanning
-  /-- Paired differential control study. -/
   | averageRewardControl
-  /-- Isolated differential control arm. -/
   | averageRewardControlArm
-  /-- Operational study and timed attempt-boundary shutdown. -/
   | enduranceStability
-  /-- One run of visits of one concealed target. -/
   | visits
   deriving DecidableEq
 
-/-- CLI refusals preserve the offending field rather than silently taking a default. -/
 inductive Error where
-  /-- Unrecognized command name. -/
   | command (name : String)
-  /-- Unrecognized option. -/
   | unknown (name : String)
-  /-- Missing required value. -/
   | missing (name : String)
-  /-- Repeated option. -/
   | repeated (name : String)
-  /-- Invalid value or incompatible combination. -/
   | invalid (name value : String)
-  /-- Standard world admission failure. -/
   | world (error : WorldConfigError)
   deriving DecidableEq
 
-/-- Admission errors retain the offending command/option and its supplied value. -/
 def Error.message : Error → String
   | .command name => s!"unknown command {name}"
   | .unknown name => s!"unknown option {name}"
@@ -70,7 +36,6 @@ def Error.message : Error → String
   | .invalid name value => s!"invalid {name}: {value}"
   | .world _ => "world configuration refused"
 
-/-- No command and flag-first invocation retain the demo shorthand. -/
 def command (arguments : List String) : Except Error Command :=
   match arguments.head? with
   | none => .ok .demo
@@ -89,7 +54,6 @@ def command (arguments : List String) : Except Error Command :=
     | "visits" => .ok .visits
     | _ => if name.startsWith "--" then .ok .demo else .error (.command name)
 
-/-- The current 21-option schema; the boolean determines value consumption. -/
 def demoFlags : List (String × Bool) :=
   [("--seed", true), ("--side", true), ("--steps", true), ("--attempts", true),
     ("--goals", true), ("--cycles", true), ("--view", true), ("--csv", true),
@@ -99,8 +63,6 @@ def demoFlags : List (String × Bool) :=
     ("--control-stdin", false), ("--run-id", true), ("--agent-epoch", true),
     ("--new-agent-epoch", true), ("--cleared", false)]
 
-/-- Structural scan refuses repeated/unknown options and recognized options used as values.
-Unrecognized positional tokens retain the source parser's ignored-positional policy. -/
 def scan (schema : List (String × Bool)) : List String → List String → Except Error Unit
   | [], _ => .ok ()
   | name :: rest, seen =>
@@ -116,7 +78,6 @@ def scan (schema : List (String × Bool)) : List String → List String → Exce
           else scan schema tail (name :: seen)
       else scan schema rest (name :: seen)
 
-/-- Read the first occurrence, including values containing arbitrary path text. -/
 def value : List String → String → Except Error (Option String)
   | [], _ => .ok none
   | name :: rest, wanted =>
@@ -125,18 +86,12 @@ def value : List String → String → Except Error (Option String)
       | text :: _ => .ok (some text)
     else value rest wanted
 
-/-- The first occurrence of an option in an argument list with the argument after it,
-stated on the list alone: the option is at one position, no earlier argument is the
-option, and `text` is the next argument. -/
 def Follows (arguments : List String) (option text : String) : Prop :=
   ∃ before after, arguments = before ++ option :: text :: after ∧ option ∉ before
 
-/-- An option whose first occurrence is the last argument, stated on the list alone. -/
 def Ends (arguments : List String) (option : String) : Prop :=
   ∃ before, arguments = before ++ [option] ∧ option ∉ before
 
-/-- **The option reader finds nothing exactly when the option is absent.** For every
-argument list and option. -/
 theorem value_absent (arguments : List String) (wanted : String) :
     value arguments wanted = .ok none ↔ wanted ∉ arguments := by
   induction arguments with
@@ -149,8 +104,6 @@ theorem value_absent (arguments : List String) (wanted : String) :
     · have other : ¬ wanted = name := fun found => same found.symm
       simp [same, other, ih]
 
-/-- **The option reader returns exactly the text after the first occurrence.** For every
-argument list, option and text. -/
 theorem value_follows (arguments : List String) (wanted text : String) :
     value arguments wanted = .ok (some text) ↔ Follows arguments wanted text := by
   induction arguments with
@@ -204,8 +157,6 @@ theorem value_follows (arguments : List String) (wanted text : String) :
           exact ⟨others, after, (List.cons.inj shape).2,
             fun found => absent (List.mem_cons_of_mem _ found)⟩
 
-/-- **The option reader refuses exactly an option whose first occurrence is the last
-argument,** with the one error that names the option. -/
 theorem value_missing (arguments : List String) (wanted : String) (error : Error) :
     value arguments wanted = .error error ↔ Ends arguments wanted ∧ error = .missing wanted := by
   induction arguments with
@@ -253,13 +204,11 @@ theorem value_missing (arguments : List String) (wanted : String) (error : Error
           exact ⟨⟨others, (List.cons.inj shape).2,
             fun found => absent (List.mem_cons_of_mem _ found)⟩, named⟩
 
-/-- Required string admission agrees with the lifecycle protocol's Unicode trim. -/
 def required (arguments : List String) (name : String) : Except Error String := do
   let some text ← value arguments name | .error (.missing name)
   if (trimControlLine text).isEmpty || text.startsWith "--" then .error (.invalid name text)
   else return text
 
-/-- Integer width is checked before conversion; textual overflow never wraps. -/
 def unsigned (arguments : List String) (name : String) (width fallback : Nat) : Except Error Nat := do
   match ← value arguments name with
   | none => return fallback
@@ -267,9 +216,6 @@ def unsigned (arguments : List String) (name : String) (width fallback : Nat) : 
     let some number := Digits.natural text | .error (.invalid name text)
     if number < 2 ^ width then return number else .error (.invalid name text)
 
-/-- The standard side is an unsigned number of the command line (`Digits.natural`), 1024 when
-it is absent, admitted as a coordinate (`Coordinate.checked`), so a number of `2 ^ 63` or more
-is refused. Standard world admission then decides the side's own bounds. -/
 def side (arguments : List String) : Except Error Coordinate := do
   match ← value arguments "--side" with
   | none => return ⟨1024, by decide⟩
@@ -278,29 +224,22 @@ def side (arguments : List String) : Except Error Coordinate := do
     let some coordinate := Coordinate.checked number | .error (.invalid "--side" text)
     return coordinate
 
-/-- Stable research profile vocabulary; there is no implicit promotion. -/
 def profile (text : String) : Except Error ResearchProfile :=
   match text with
   | "ranked" => .ok .ranked | "primitive" => .ok .primitive
   | "boundary-credit" => .ok .boundaryCredit | "annealed" => .ok .annealed
   | "spatial" => .ok .spatial | _ => .error (.invalid "--research-profile" text)
 
-/-- The specification of the spelling of a research profile, written with no executed
-function: a text spells a profile when it is that profile's one word. -/
 def ProfileSpelled (text : String) (selected : ResearchProfile) : Prop :=
   (text = "ranked" ∧ selected = .ranked) ∨ (text = "primitive" ∧ selected = .primitive) ∨
     (text = "boundary-credit" ∧ selected = .boundaryCredit) ∨
     (text = "annealed" ∧ selected = .annealed) ∨ (text = "spatial" ∧ selected = .spatial)
 
-/-- **The profile admission accepts exactly the spelled profiles.** For every text and
-profile, the admission returns the profile exactly when the text spells it. -/
 theorem profile_spelled (text : String) (selected : ResearchProfile) :
     profile text = .ok selected ↔ ProfileSpelled text selected := by
   unfold profile ProfileSpelled
   split <;> cases selected <;> simp_all
 
-/-- **The profile admission refuses exactly the texts that spell no profile,** with the one
-error that names the option and the text. -/
 theorem profile_refused (text : String) (error : Error) :
     profile text = .error error ↔
       (∀ selected, ¬ ProfileSpelled text selected) ∧
@@ -308,7 +247,6 @@ theorem profile_refused (text : String) (error : Error) :
   unfold profile ProfileSpelled
   split <;> simp_all [eq_comm]
 
-/-- Criterion absence is preserved for the authoritative full-agent default owner. -/
 def criterion (arguments : List String) : Except Error (Option Features.Criterion) := do
   match ← value arguments "--criterion" with
   | none => return none
@@ -316,52 +254,38 @@ def criterion (arguments : List String) : Except Error (Option Features.Criterio
   | some "average-reward" => return some .differential
   | some text => .error (.invalid "--criterion" text)
 
-/-- Explicit planning admission delegates the single closed spelling rule to
-`Features.PlanningSelection.parse`; this layer owns only its error vocabulary
-and performs no substitution. -/
 def planningValue (text : String) : Except Error Features.PlanningSelection :=
   match Features.PlanningSelection.parse text with
   | some selection => .ok selection
   | Option.none => .error (.invalid "--planning" text)
 
-/-- Omission selects expectation-model planning; explicit values use the same checked admission. -/
 def planningSelection (arguments : List String) : Except Error Features.PlanningSelection := do
   match ← value arguments "--planning" with
   | none => return .expectation
   | some text => planningValue text
 
-/-- Every omitted planning value selects expectation-model planning, independently of other arguments. -/
 theorem planningSelection_absent (arguments : List String)
     (absent : value arguments "--planning" = .ok none) :
     planningSelection arguments = .ok .expectation := by
   simp [planningSelection, absent]
   rfl
 
-/-- Every supplied planning value reaches the closed-domain parser without substitution. -/
 theorem planningSelection_provided (arguments : List String) (text : String)
     (provided : value arguments "--planning" = .ok (some text)) :
     planningSelection arguments = planningValue text := by
   simp [planningSelection, provided]
   rfl
 
-/-- Explicit step-order admission delegates the single closed spelling rule to
-`StepOrder.parse`; this layer owns only its error vocabulary and performs no
-substitution. -/
 def stepOrderValue (text : String) : Except Error StepOrder :=
   match StepOrder.parse text with
   | some order => .ok order
   | Option.none => .error (.invalid "--step-order" text)
 
-/-- Omission selects learn-then-act: both parts of a step precede the world's
-transition. Explicit values use the same checked admission. -/
 def stepOrder (arguments : List String) : Except Error StepOrder := do
   match ← value arguments "--step-order" with
   | none => return .learnThenAct
   | some text => stepOrderValue text
 
-/-- **The value admission accepts exactly the spelled orders.** For every text and order,
-the admission returns the order exactly when the text spells it
-(`StepOrder.Spelled`, a specification with no executed function). -/
 theorem stepOrderValue_iff (text : String) (order : StepOrder) :
     stepOrderValue text = .ok order ↔ StepOrder.Spelled text order := by
   rw [← StepOrder.parse_spelled]
@@ -370,8 +294,6 @@ theorem stepOrderValue_iff (text : String) (order : StepOrder) :
   | none => simp
   | some found => simp
 
-/-- **The value admission refuses exactly the texts that spell no order,** with the one
-error that names the flag and the text. -/
 theorem stepOrderValue_refused (text : String) (error : Error) :
     stepOrderValue text = .error error ↔
       (∀ order, ¬ StepOrder.Spelled text order) ∧ error = .invalid "--step-order" text := by
@@ -383,11 +305,6 @@ theorem stepOrderValue_refused (text : String) (error : Error) :
     exact eq_comm
   | some found => simp
 
-/-- **The step order of a command line, on the argument list alone.** For every argument
-list and order, the admission returns the order exactly when the option is absent from
-the list and the order is the default, or the text after the first occurrence of the
-option spells the order. The right side calls no executed function: `Follows` and
-`StepOrder.Spelled` are relations on the list and the text. -/
 theorem stepOrder_iff (arguments : List String) (order : StepOrder) :
     stepOrder arguments = .ok order ↔
       ("--step-order" ∉ arguments ∧ order = .learnThenAct) ∨
@@ -407,10 +324,6 @@ theorem stepOrder_iff (arguments : List String) (order : StepOrder) :
         false_or, exists_eq_left']
       exact stepOrderValue_iff text order
 
-/-- **The step order of a command line is refused in exactly two shapes of the list.**
-For every argument list and error: the first occurrence of the option is the last
-argument, with the error that names the missing value; or the text after the first
-occurrence spells no order, with the error that names the option and the text. -/
 theorem stepOrder_refused (arguments : List String) (error : Error) :
     stepOrder arguments = .error error ↔
       (Ends arguments "--step-order" ∧ error = .missing "--step-order") ∨
@@ -428,77 +341,48 @@ theorem stepOrder_refused (arguments : List String) (error : Error) :
         exists_eq_left']
       exact stepOrderValue_refused text error
 
-/-- Every omitted step order selects learn-then-act, independently of other arguments. -/
 theorem stepOrder_absent (arguments : List String)
     (absent : value arguments "--step-order" = .ok none) :
     stepOrder arguments = .ok .learnThenAct := by
   simp [stepOrder, absent]
   rfl
 
-/-- Every supplied step order reaches the closed-domain parser without substitution. -/
 theorem stepOrder_provided (arguments : List String) (text : String)
     (provided : value arguments "--step-order" = .ok (some text)) :
     stepOrder arguments = stepOrderValue text := by
   simp [stepOrder, provided]
   rfl
 
-/-- Shared world and finite/unbounded goal schedule, with no agent construction side effect. -/
 structure Common where
-  /-- Explicit research profile. -/
   profile : ResearchProfile
-  /-- Admitted receiving world. -/
   world : WorldConfig
-  /-- Requested per-attempt steps. -/
   steps : UInt64
-  /-- Requested goal count, later clipped to the receiving curriculum. -/
   goals : UInt64
-  /-- Zero denotes unbounded repetitions. -/
   cycles : UInt64
-  /-- Immutable planning selection shared by streaming and ANSI construction. -/
   planning : Features.PlanningSelection
 
-/-- Streaming-only options forwarded to their actual full-agent/persistence/telemetry owners. -/
 structure Streaming where
-  /-- Shared configuration. -/
   common : Common
-  /-- Requested attempt count, with campaign admission normalizing zero. -/
   attempts : UInt64
-  /-- Explicit criterion override, if supplied. -/
   criterion : Option Features.Criterion
-  /-- Checkpoint destination. -/
   checkpoint : Option String
-  /-- Positive schedules write; zero is load-only. -/
   checkpointEvery : UInt32
-  /-- Post-campaign random baseline selection. -/
   baseline : Bool
-  /-- Stream telemetry selection. -/
   telemetry : Bool
-  /-- Outcome CSV destination. -/
   csv : Option String
-  /-- Detached stdin control reader selection. -/
   controlStdin : Bool
-  /-- Supplied durable run identity. -/
   runId : UInt64
-  /-- Receiving logical agent epoch. -/
   agentEpoch : UInt64
-  /-- Epoch for a fresh agent after absent/refused load. -/
   newAgentEpoch : UInt64
-  /-- Explicit cleared origin instead of fresh origin. -/
   cleared : Bool
-  /-- Declared order of the agent's two step parts around the world's transition. -/
   order : StepOrder
 
-/-- The separate ANSI domain has no ignored streaming-only option. -/
 inductive Demo where
-  /-- Ordinary streaming attempt/campaign protocol. -/
   | streaming (options : Streaming)
-  /-- ANSI loop with a positive rendering period. -/
   | ansi (common : Common) (period : Word.Count)
 
-/-- Ordinary CLI terrain seed, shared with legacy checkpoint adoption. -/
 def defaultSeed : UInt64 := 42
 
-/-- Complete current demo admission, with domain checks before world construction. -/
 def demo (arguments : List String) : Except Error Demo := do
   scan demoFlags arguments []
   if arguments.contains "--checkpoint-every" && !(arguments.contains "--checkpoint") then
@@ -546,46 +430,30 @@ def demo (arguments : List String) : Except Error Demo := do
       arguments.contains "--control-stdin", runId, epoch.toUInt64, newEpoch, arguments.contains "--cleared",
       order⟩
 
-/-- The option schema of one run of visits; the boolean determines value consumption. -/
 def visitsFlags : List (String × Bool) :=
   [("--seed", true), ("--side", true), ("--steps", true), ("--visits", true),
     ("--target-x", true), ("--target-y", true), ("--research-profile", true),
     ("--planning", true), ("--step-order", true), ("--checkpoint", true),
     ("--checkpoint-every", true), ("--comparator", false)]
 
-/-- One run of visits: one world, one target and one agent, or the comparator. -/
 structure Visits where
-  /-- Explicit research profile. -/
   profile : ResearchProfile
-  /-- Admitted receiving world. -/
   world : WorldConfig
-  /-- The steps of the world in one visit. -/
   cap : UInt64
-  /-- The number of visits, which is positive. -/
   visits : Nat
-  /-- The concealed target. -/
   target : Position
-  /-- Immutable planning selection. -/
   planning : Features.PlanningSelection
-  /-- Declared order of the agent's two step parts. -/
   order : StepOrder
-  /-- Checkpoint destination. -/
   checkpoint : Option String
-  /-- Positive schedules write, once per that many visits; zero is load-only. -/
   checkpointEvery : UInt32
-  /-- Run the uniform-random comparator instead of the agent. -/
   comparator : Bool
 
-/-- A coordinate a command line requires: a signed integer in the coordinate domain. -/
 def requiredCoordinate (arguments : List String) (name : String) : Except Error Coordinate := do
   let text ← required arguments name
   let some number := Digits.integer text | .error (.invalid name text)
   let some coordinate := Coordinate.checked number | .error (.invalid name text)
   return coordinate
 
-/-- Complete admission of one run of visits, with domain checks before world construction. The
-comparator has no planning, step order or checkpoint, so it refuses those options rather than
-ignoring them. -/
 def visits (arguments : List String) : Except Error Visits := do
   scan visitsFlags arguments []
   if arguments.contains "--checkpoint-every" && !(arguments.contains "--checkpoint") then
@@ -614,18 +482,13 @@ def visits (arguments : List String) : Except Error Visits := do
   return ⟨selected, world, steps, count, ⟨x, y⟩, planning, order, checkpoint, checkpointEvery,
     comparator⟩
 
-/-- Streaming schedule is a direct projection, without a second set of defaults. -/
 def Streaming.campaign (options : Streaming) : CampaignSpec :=
   ⟨options.common.steps, options.attempts, options.common.goals, options.common.cycles⟩
 
-/-- Later owners receive the untouched arguments of their own distinct command. -/
 inductive Dispatch where
-  /-- Current runner admission has completed. -/
   | demo (options : Demo)
-  /-- A distinct command retains its source owner and exact argument list. -/
   | external (command : { selected : Command // selected ≠ .demo }) (arguments : List String)
 
-/-- Exhaustive command routing never substitutes a demo for a study or an unknown command. -/
 def dispatch (arguments : List String) : Except Error Dispatch := do
   let selected ← command arguments
   if h : selected = .demo then return .demo (← demo arguments)

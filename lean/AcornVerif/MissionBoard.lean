@@ -1,85 +1,14 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Lean.Data.Json
 import AcornVerif.Landings
-
-/-! # The mission board
-
-GitHub is the record of Acorn's missions: an issue labelled `mission` is a mission, and `Accepted`
-states when a closed one has landed. This module derives the repository's copy of that record,
-`docs/mission-board.md` and `docs/mission-board.json`, from pages of GitHub's GraphQL interface.
-`docs/missions.md` gives the commands that run it.
-
-Beside GitHub's record the board shows the *targets*: the statements missions are to prove, held as
-definitions of type `Prop` under `lean/AcornVerif/Targets/`, which `AcornVerif.Targets.registry`
-lists, each with the theorem `AcornVerif.landings` records as proving it, if one is. A mission with
-a target reads as frozen whatever its issue says: its statements are in the repository, where
-`.github/CODEOWNERS` asks for the owner's review of that directory and only the owner merges.
-
-Beyond the toolchain the module imports that record and, through it, the registry, the modules of
-the targets, and so Mathlib and the Acorn modules the targets name. It spawns no process:
-`gh api graphql --paginate --slurp` fetches the pages, and the commands fetch them twice. It defines
-no root `main`, since the ownership audit imports every non-executable module together; the commands
-run `run` from a one-line script.
-
-What the proofs below establish about the executed definitions:
-
-* A read is complete or refused (`assemble_complete`): every page reports one total, only the last
-  page ends the pagination, and the missions read are that many distinct issues. Two reads must
-  agree before anything is written (`agree_both`), which refuses most changes GitHub makes between
-  pages; a label removed and restored between the two reads goes unseen.
-* A close is read as a pull request's in the two ways GitHub attributes one: the last closing
-  event names the pull request, or it names a commit, and that commit is the squash commit of a
-  merged pull request among those GitHub associates with it, and of no other of them
-  (`squashedBy_iff`). A commit that is no merged pull request's squash commit, a project and a
-  close by hand are read as no pull request's.
-* Credit follows acceptance (`credited_accepted`): every mission counted for an account or an agent
-  is a mission of the read whose closing pull request was merged into the default branch by the
-  repository's owner with the gate's final line on record. A claim, a comment, an open pull request
-  and a run have no field here, so they earn nothing.
-* Acceptance earns credit (`accepted_credited`): a closed mission of the read that meets `Accepted`
-  is recorded as landed (`landedOf_complete`) and counted for each holder its record names. So an
-  empty board cannot come from a `landing` that refuses what the condition accepts.
-* A mission with a target of the registry reads as frozen, and any other as its issue gives
-  (`Mission.contractState_targets`, `Mission.contractState_issue`). A target the board marks as
-  proved is a registered target whose statement holds, by the proof a recorded landing carries, and
-  every recorded landing is marked (`targetRowsOf_proved`, `targetRowsOf_shown`). `boardJson` and
-  `boardMarkdown` take the record of landings and derive their rows from it, so neither can be
-  given a row that no landing backs.
-* Text that `escape` outputs holds no character of `active` (`escape_inert`), and `boardMarkdown`
-  passes titles and the names of targets and theorems through it. An agent's name uses only a closed
-  character set (`agentName_closed`).
-
-What they do not establish: that GitHub answers truly, which includes that the pull requests it
-associates with a commit hold the one that merged as that commit; that a merge by the owner
-followed a passing gate run (`CONTRIBUTING.md` makes that the rule and nothing on GitHub enforces
-it; the gate's final line in the commit message is what the author pasted); that nobody but the
-owner changes a target,
-which rests on that merge rule, `Mission.contractState_targets` saying only what the board reads;
-that the parts of a contract a mission with targets keeps in its issue are as accepted, for which
-the board shows the issue's own state beside; that a target is in the file the board names, which
-`targetFile` derives from the target's name by the rule of that directory; that the theorem a
-landing names is the proof it carries; or that the written files are not edited afterwards.
--/
 
 namespace AcornVerif.MissionBoard
 
 open Lean (Json toJson)
 
-/-- What a read asks of a pull request. -/
 private def pullFields : String :=
   "number merged baseRefName mergedAt author { __typename login } mergedBy { login } " ++
   "mergeCommit { oid message }"
 
-/-- The one GraphQL query of a read. Its one `pageInfo` makes `gh api graphql --paginate` page the
-issues, and ordering by creation keeps the pages stable while issues change. GitHub attributes a
-close to a pull request, a commit or a project (its union `Closer`). The query asks a pull request
-for the fields a landing needs, and a commit for its object id and for the same fields of the pull
-requests GitHub associates with it, since a merged pull request's own squash commit is one way
-GitHub records that pull request's close of an issue. It asks a project for nothing. -/
 def query : String :=
   "query($endCursor: String) { repository(owner: \"rbeauchamp\", name: \"acorn\") { " ++
   "owner { login } defaultBranchRef { name } " ++
@@ -93,58 +22,34 @@ def query : String :=
   "... on Commit { oid associatedPullRequests(first: 100) { totalCount " ++
   "nodes { " ++ pullFields ++ " } } } } } } } } } } }"
 
-/-- A GitHub account: its login, unique among accounts of its kind at one time, and that kind. -/
 structure Account where
-  /-- GitHub's type name for the account, such as `User` or `Bot`. -/
   kind : String
-  /-- The account's current login. -/
   login : String
   deriving DecidableEq
 
-/-- The squash commit a merge put on the base branch. -/
 structure MergeCommit where
-  /-- The commit's object id. -/
   oid : String
-  /-- The commit's whole message, which later edits of the pull request cannot change. -/
   message : String
   deriving DecidableEq
 
-/-- A pull request as a read gives it: the one GitHub records as having closed an issue, or one
-GitHub associates with the commit it records as having closed it. -/
 structure Closer where
-  /-- The pull request's number. -/
   number : Nat
-  /-- Whether it merged. -/
   merged : Bool
-  /-- The branch it targets. -/
   base : String
-  /-- When it merged, as GitHub gives the time. -/
   mergedAt : Option String
-  /-- The account that opened it; none when that account was deleted. -/
   author : Option Account
-  /-- The login of the account that merged it. -/
   mergedBy : Option String
-  /-- The squash commit, once there is one. -/
   commit : Option MergeCommit
   deriving DecidableEq
 
-/-- Whether a pull request merged and the commit with object id `oid` is its squash commit. -/
 def Closer.squashes (p : Closer) (oid : String) : Bool :=
   p.merged && p.commit.any (·.oid == oid)
 
-/-- The pull request that closed an issue whose close GitHub attributes to the commit `oid`, given
-the pull requests GitHub associates with that commit: the one that merged with that commit as its
-squash commit, when every such pull request among them is that one. A commit that is no merged
-pull request's squash commit names nobody, and neither does one that two of them share, since
-GitHub's record then singles out no pull request to credit. -/
 def squashedBy (oid : String) (pulls : List Closer) : Option Closer :=
   match pulls.find? (·.squashes oid) with
   | none => none
   | some p => if pulls.all (fun q => !q.squashes oid || decide (q = p)) then some p else none
 
-/-- `squashedBy` names a pull request exactly when it is one of those associated with the commit,
-it merged with that commit as its squash commit, and no other of them did. So a commit closer adds
-no pull request that did not merge as that commit, and it loses none that alone did. -/
 theorem squashedBy_iff {oid : String} {pulls : List Closer} {p : Closer} :
     squashedBy oid pulls = some p ↔
       p ∈ pulls ∧ p.squashes oid = true ∧ ∀ q ∈ pulls, q.squashes oid = true → q = p := by
@@ -179,54 +84,31 @@ theorem squashedBy_iff {oid : String} {pulls : List Closer} {p : Closer} :
           | true => simp [only q inside held]
       simp [every]
 
-/-- One issue labelled `mission`. There is no field for a claim, a comment or a run. -/
 structure Mission where
-  /-- The issue's number. -/
   number : Nat
-  /-- The title, written by whoever filed or last edited it. -/
   title : String
-  /-- Whether the issue is open. -/
   isOpen : Bool
-  /-- Whether GitHub records it as closed because it was completed. -/
   completed : Bool
-  /-- When GitHub last changed anything about it, which lets two reads differ when a label moved. -/
   updatedAt : String
-  /-- When its text was last edited, if ever. -/
   lastEditedAt : Option String
-  /-- The issue's text, written by whoever filed or last edited it. -/
   body : String
-  /-- The login of the account that filed it. -/
   author : Option String
-  /-- The login of the account that last edited its text, if any. -/
   editor : Option String
-  /-- Its labels. -/
   labels : List String
-  /-- The pull request that closed it, if one did: the one GitHub's last closing event names, or
-  the one `squashedBy` gives for the commit that event names. -/
   closer : Option Closer
   deriving DecidableEq
 
-/-- One page of a read. -/
 structure Page where
-  /-- The number of missions GitHub reports in all. -/
   total : Nat
-  /-- Whether GitHub reports another page. -/
   more : Bool
-  /-- The login of the repository's owner. -/
   owner : String
-  /-- The name of the default branch. -/
   branch : String
-  /-- The missions on this page. -/
   missions : List Mission
   deriving DecidableEq
 
-/-- A complete read of the repository's missions. -/
 structure Snapshot where
-  /-- The login of the repository's owner. -/
   owner : String
-  /-- The name of the default branch. -/
   branch : String
-  /-- Every mission, in order of creation. -/
   missions : List Mission
   deriving DecidableEq
 
@@ -257,10 +139,6 @@ private def pullRequest (value : Json) : Except String Closer :=
     mergedBy := ← optional value "mergedBy" login
     commit := ← optional value "mergeCommit" mergeCommit }
 
-/-- The pull request a closing event of issue `number` credits, over every kind of closer GitHub
-has: a pull request is itself; a commit is the pull request `squashedBy` gives among all those
-GitHub associates with it, a list that must have fit the read; a project, a kind this read does
-not know and a close by hand are nobody. -/
 private def closer (number : Nat) (j : Json) : Except String (Option Closer) := do
   match ← optional j "closer" pure with
   | none => return none
@@ -312,10 +190,6 @@ private def page (j : Json) : Except String Page := do
     branch := ← text (← repository.getObjVal? "defaultBranchRef") "name"
     missions := ← nodes.toList.mapM mission }
 
-/-- A read is complete when GitHub reports at least one mission (no mission at all means the label
-was renamed or removed, never that the record is empty), its pages agree on one total and one
-repository, only the last page
-ends the pagination, and the issues read are exactly that many distinct numbers. -/
 def Complete (pages : List Page) (total : Nat) (owner branch : String) : Prop :=
   0 < total ∧
   (∀ p ∈ pages, p.total = total ∧ p.owner = owner ∧ p.branch = branch) ∧
@@ -327,7 +201,6 @@ instance (pages : List Page) (total : Nat) (owner branch : String) :
     Decidable (Complete pages total owner branch) := by
   unfold Complete; exact inferInstance
 
-/-- Assemble the pages of one read, refusing a read that is not complete. -/
 def assemble (pages : List Page) : Except String Snapshot :=
   match pages with
   | [] => .error "GitHub returned no pages"
@@ -337,8 +210,6 @@ def assemble (pages : List Page) : Except String Snapshot :=
             missions := (first :: rest).flatMap (·.missions) }
     else .error "the read of GitHub's pages is partial or inconsistent"
 
-/-- An assembled read holds exactly the total GitHub reported, distinct, from a pagination that
-ended. -/
 theorem assemble_complete {pages : List Page} {s : Snapshot} (read : assemble pages = .ok s) :
     ∃ total, Complete pages total s.owner s.branch ∧ s.missions = pages.flatMap (·.missions) := by
   unfold assemble at read
@@ -352,13 +223,11 @@ theorem assemble_complete {pages : List Page} {s : Snapshot} (read : assemble pa
       exact ⟨first.total, complete, rfl⟩
     · simp at read
 
-/-- Two reads, taken one after the other, must assemble to one snapshot. -/
 def agree (first second : List Page) : Except String Snapshot := do
   let a ← assemble first
   let b ← assemble second
   if a = b then return a else throw "GitHub's missions changed between the two reads; read again"
 
-/-- What `agree` returns both reads assembled to. -/
 theorem agree_both {first second : List Page} {s : Snapshot} (read : agree first second = .ok s) :
     assemble first = .ok s ∧ assemble second = .ok s := by
   unfold agree at read
@@ -377,16 +246,11 @@ theorem agree_both {first second : List Page} {s : Snapshot} (read : agree first
         exact ⟨rfl, rfl⟩
       · simp [throw, throwThe, MonadExcept.throw] at read
 
-/-- The labels that say what kind of work a mission is. Labels on a repository are applied only by
-accounts with triage access, or by the issue template, which applies `mission` alone. -/
 def kindLabels : List String :=
   ["mission:proof", "mission:contract", "mission:world", "mission:prior-art"]
 
-/-- The kinds a mission carries, in the order of `kindLabels`. -/
 def Mission.kinds (m : Mission) : List String := kindLabels.filter m.labels.contains
 
-/-- The text under the issue template's `## Mission contract` heading, when it has any. CRLF line
-ends, which GitHub stores for text typed in its web forms, are removed. -/
 def contractOf (body : String) : Option String :=
   let lines := (body.splitOn "\n").map fun line => (line.dropEndWhile (· == '\r')).toString
   match lines.dropWhile (fun line => line.trimAscii.toString != "## Mission contract") with
@@ -396,44 +260,28 @@ def contractOf (body : String) : Option String :=
     let trimmed := contract.trimAscii.toString
     if trimmed.isEmpty then none else some trimmed
 
-/-- Whether a mission's contract can be relied on as frozen. -/
 inductive ContractState
-  /-- It has a target, or it carries a kind label and a contract and nobody but the owner has
-  edited it last. -/
   | frozen
-  /-- It has no kind label or no contract section, so nobody has accepted a contract yet. -/
   | proposed
-  /-- Someone other than the owner edited it last, so its text may not be what was accepted. -/
   | edited
   deriving DecidableEq
 
-/-- The state of a mission's contract as its issue alone gives it, where `owner` is the
-repository's owner. An outsider's edit after the owner's acceptance shows as `edited`; the owner's
-own later edit accepts it again. -/
 def Mission.issueState (m : Mission) (owner : String) : ContractState :=
   if m.kinds.isEmpty || (contractOf m.body).isNone then .proposed
   else match m.editor with
     | some editor => if editor = owner then .frozen else .edited
     | none => .frozen
 
-/-- A registered target as the board shows it. -/
 structure TargetRow where
-  /-- The issue number of the target's mission. -/
   mission : Nat
-  /-- The target's name. -/
   name : Lean.Name
-  /-- The name of the theorem recorded as proving it, if one is. -/
   provedBy : Option Lean.Name
 
-/-- One row for each target of `Targets.registry`, in its order, with the theorem of the first
-landing of `record` that names the target. -/
 def targetRowsOf (record : List Targets.Landing) : List TargetRow :=
   Targets.registry.map fun target => {
     mission := target.mission, name := target.name
     provedBy := (record.find? (·.target == target.name)).map (·.provedBy) }
 
-/-- A row marked as proved comes from a landing of the record that names the row's target and
-theorem, and its target is registered under the row's mission with a statement that holds. -/
 theorem targetRowsOf_proved {record : List Targets.Landing} {row : TargetRow} {proof : Lean.Name}
     (member : row ∈ targetRowsOf record) (proved : row.provedBy = some proof) :
     (∃ landing ∈ record, landing.target = row.name ∧ landing.provedBy = proof) ∧
@@ -450,7 +298,6 @@ theorem targetRowsOf_proved {record : List Targets.Landing} {row : TargetRow} {p
   exact ⟨⟨landing, List.mem_of_find?_eq_some found, named, rfl⟩, target, registered, rfl, rfl,
     (Targets.statementOf_name target registered).mp holds⟩
 
-/-- Every landing of the record is shown: the row of its target is marked as proved. -/
 theorem targetRowsOf_shown {record : List Targets.Landing} {landing : Targets.Landing}
     (member : landing ∈ record) :
     ∃ row ∈ targetRowsOf record, row.name = landing.target ∧ row.provedBy.isSome = true := by
@@ -459,13 +306,9 @@ theorem targetRowsOf_shown {record : List Targets.Landing} {landing : Targets.La
   simp only [Option.isSome_map, List.find?_isSome]
   exact ⟨landing, member, by simp [named]⟩
 
-/-- The state of a mission's contract, where `owner` is the repository's owner. A mission with a
-target of `Targets.registry` is frozen: its statements are definitions in the repository, so its
-issue's label, text and last editor do not decide it. Any other mission follows its issue. -/
 def Mission.contractState (m : Mission) (owner : String) : ContractState :=
   if Targets.registry.any (·.mission == m.number) then .frozen else m.issueState owner
 
-/-- A mission with a registered target is frozen. -/
 theorem Mission.contractState_targets {m : Mission} {owner : String}
     (held : ∃ target ∈ Targets.registry, target.mission = m.number) :
     m.contractState owner = .frozen := by
@@ -474,7 +317,6 @@ theorem Mission.contractState_targets {m : Mission} {owner : String}
     List.any_eq_true.mpr ⟨target, member, by simp [same]⟩
   simp only [Mission.contractState, found, ite_true]
 
-/-- A mission with no registered target has the state its issue gives it. -/
 theorem Mission.contractState_issue {m : Mission} {owner : String}
     (none : ∀ target ∈ Targets.registry, target.mission ≠ m.number) :
     m.contractState owner = m.issueState owner := by
@@ -483,25 +325,19 @@ theorem Mission.contractState_issue {m : Mission} {owner : String}
     exact none
   simp only [Mission.contractState, absent, Bool.false_eq_true, ite_false]
 
-/-- Whether a character may stand in an agent's name. -/
 def agentChar (c : Char) : Bool :=
   c.isAlphanum || [' ', '.', '_', '+', '-', '(', ')', '/'].contains c
 
-/-- A name of at most 64 characters from `agentChar`, and nothing else. -/
 def admitName (name : String) : Option String :=
   if !name.isEmpty && name.length ≤ 64 && name.toList.all agentChar then some name else none
 
-/-- A line with its surrounding space and any list marker removed. -/
 def bareLine (line : String) : String :=
   let trimmed := line.trimAscii.toString
   if trimmed.startsWith "- " then (trimmed.drop 2).toString else trimmed
 
-/-- An agent named by a line of the squash commit's message: `Agent: <name>` or `- Agent: <name>`,
-with a name `admitName` admits. Any other line names nobody. -/
 def agentName (line : String) : Option String :=
   if (bareLine line).startsWith "Agent: " then admitName ((bareLine line).drop 7).toString else none
 
-/-- A name `agentName` admits uses only the closed character set. -/
 theorem agentName_closed {line name : String} (named : agentName line = some name) :
     ∀ c ∈ name.toList, agentChar c = true := by
   unfold agentName at named
@@ -516,47 +352,28 @@ theorem agentName_closed {line name : String} (named : agentName line = some nam
     · simp at named
   · simp at named
 
-/-- The last line of a passing `./scripts/gate.sh`, which the pull request template asks for. -/
 def gateLine : String := "gate: every merge check passed"
 
-/-- A mission that landed. -/
 structure Landed where
-  /-- The mission's issue number. -/
   mission : Nat
-  /-- The mission's title. -/
   title : String
-  /-- The number of the pull request that closed it. -/
   pullRequest : Nat
-  /-- The account that opened that pull request. -/
   account : Option Account
-  /-- The agents the squash commit's message names. -/
   agents : List String
-  /-- When the pull request merged. -/
   mergedAt : Option String
-  /-- The squash commit's object id. -/
   commit : String
 
-/-- Why a closed mission is not on the record as landed. -/
 inductive Withheld
-  /-- It was closed as not planned or as a duplicate. -/
   | notCompleted
-  /-- No merged pull request closed it. -/
   | noMerge
-  /-- The pull request that closed it merged into another branch. -/
   | otherBranch
-  /-- Someone other than the repository's owner merged it. -/
   | otherMerger
-  /-- The squash commit's message holds no passing gate result. -/
   | noGateResult
 
-/-- What a closed mission must have to have landed: it was completed, the pull request that closed
-it (`Mission.closer`) merged into the default branch at the owner's hand, and the squash commit,
-which later edits of the pull request cannot change, holds the gate's final line. -/
 def Accepted (m : Mission) (owner branch : String) : Prop :=
   m.completed = true ∧ ∃ c, m.closer = some c ∧ c.merged = true ∧ c.base = branch ∧
     c.mergedBy = some owner ∧ ∃ commit, c.commit = some commit ∧ commit.message.contains gateLine
 
-/-- Decide whether a closed mission landed, and give the reason when it did not. -/
 def Mission.landing (m : Mission) (owner branch : String) : Except Withheld Landed :=
   if !m.completed then .error .notCompleted else
   match m.closer with
@@ -574,7 +391,6 @@ def Mission.landing (m : Mission) (owner branch : String) : Except Withheld Land
           agents := ((commit.message.splitOn "\n").filterMap agentName).eraseDups
           mergedAt := c.mergedAt, commit := commit.oid }
 
-/-- A mission that `landing` admits meets `Accepted`, and the record names that mission. -/
 theorem Mission.landing_accepted {m : Mission} {owner branch : String} {l : Landed}
     (landed : m.landing owner branch = .ok l) : Accepted m owner branch ∧ l.mission = m.number := by
   unfold Mission.landing at landed
@@ -606,8 +422,6 @@ theorem Mission.landing_accepted {m : Mission} {owner branch : String} {l : Land
                 exact ⟨⟨completed, c, closing, merged, base, mergedBy, commit, found, contains⟩,
                   rfl⟩
 
-/-- A mission that meets `Accepted` is one that `landing` admits, so `landing` refuses nothing the
-condition accepts. -/
 theorem Mission.landing_complete {m : Mission} {owner branch : String}
     (accepted : Accepted m owner branch) :
     ∃ l, m.landing owner branch = .ok l ∧ l.mission = m.number := by
@@ -615,14 +429,12 @@ theorem Mission.landing_complete {m : Mission} {owner branch : String}
   subst base
   simp [Mission.landing, completed, closing, merged, mergedBy, found, contains]
 
-/-- The missions of a read that landed. -/
 def landedOf (s : Snapshot) : List Landed :=
   (s.missions.filter (!·.isOpen)).filterMap fun m =>
     match m.landing s.owner s.branch with
     | .ok l => some l
     | .error _ => none
 
-/-- Every landed record comes from a mission of the read that meets `Accepted`. -/
 theorem landedOf_accepted {s : Snapshot} {l : Landed} (landed : l ∈ landedOf s) :
     ∃ m ∈ s.missions, m.number = l.mission ∧ Accepted m s.owner s.branch := by
   simp only [landedOf, List.mem_filterMap, List.mem_filter] at landed
@@ -635,8 +447,6 @@ theorem landedOf_accepted {s : Snapshot} {l : Landed} (landed : l ∈ landedOf s
     exact ⟨m, member, same.symm, accepted⟩
   · simp at record
 
-/-- A closed mission of the read that meets `Accepted` has a landed record. A mission that is open,
-reopened ones included, is outside the statement and earns nothing. -/
 theorem landedOf_complete {s : Snapshot} {m : Mission} (member : m ∈ s.missions)
     (closed : m.isOpen = false) (accepted : Accepted m s.owner s.branch) :
     ∃ l ∈ landedOf s, l.mission = m.number := by
@@ -645,15 +455,10 @@ theorem landedOf_complete {s : Snapshot} {m : Mission} (member : m ∈ s.mission
   simp only [landedOf, List.mem_filterMap, List.mem_filter]
   exact ⟨m, ⟨member, by simp [closed]⟩, by simp [landed]⟩
 
-/-- What a holder is credited with: the missions that landed in their name. -/
 structure Credit (α : Type) where
-  /-- Who is credited. -/
   holder : α
-  /-- The issue numbers of the missions that landed in their name. -/
   missions : List Nat
 
-/-- Credit each holder `names` gives a landed mission, most missions first, with ties in the order
-of landing. -/
 def credits {α : Type} [DecidableEq α] (names : Landed → List α) (landed : List Landed) :
     List (Credit α) :=
   let rows := ((landed.flatMap names).eraseDups).map fun holder =>
@@ -661,7 +466,6 @@ def credits {α : Type} [DecidableEq α] (names : Landed → List α) (landed : 
       Credit α)
   rows.mergeSort fun a b => decide (b.missions.length ≤ a.missions.length)
 
-/-- A mission counted for a holder is one that landed, and it names that holder. -/
 theorem credited_landed {α : Type} [DecidableEq α] {names : Landed → List α}
     {landed : List Landed} {c : Credit α} {mission : Nat} (row : c ∈ credits names landed)
     (counted : mission ∈ c.missions) :
@@ -673,7 +477,6 @@ theorem credited_landed {α : Type} [DecidableEq α] {names : Landed → List α
   obtain ⟨l, ⟨member, name⟩, number⟩ := counted
   exact ⟨l, member, number, name⟩
 
-/-- Every landed mission is counted for every holder it names. -/
 theorem landed_credited {α : Type} [DecidableEq α] {names : Landed → List α}
     {landed : List Landed} {l : Landed} {holder : α} (member : l ∈ landed)
     (name : holder ∈ names l) :
@@ -688,8 +491,6 @@ theorem landed_credited {α : Type} [DecidableEq α] {names : Landed → List α
   · simp only [List.mem_map, List.mem_filter, decide_eq_true_eq]
     exact ⟨l, ⟨member, name⟩, rfl⟩
 
-/-- Credit follows acceptance: every mission counted for an account or an agent on the board is a
-mission of the read whose closing pull request meets `Accepted`. -/
 theorem credited_accepted {α : Type} [DecidableEq α] {names : Landed → List α} {s : Snapshot}
     {c : Credit α} {mission : Nat} (row : c ∈ credits names (landedOf s))
     (counted : mission ∈ c.missions) :
@@ -698,8 +499,6 @@ theorem credited_accepted {α : Type} [DecidableEq α] {names : Landed → List 
   obtain ⟨m, found, number, accepted⟩ := landedOf_accepted member
   exact ⟨m, found, number.trans same, accepted⟩
 
-/-- Acceptance earns credit: a closed mission of the read that meets `Accepted` has a landed record,
-and is counted for every holder that record names. -/
 theorem accepted_credited {α : Type} [DecidableEq α] {names : Landed → List α} {s : Snapshot}
     {m : Mission} (member : m ∈ s.missions) (closed : m.isOpen = false)
     (accepted : Accepted m s.owner s.branch) :
@@ -710,20 +509,15 @@ theorem accepted_credited {α : Type} [DecidableEq α] {names : Landed → List 
   rw [← number]
   exact landed_credited landed name
 
-/-- Characters that act as nothing in a Markdown table cell or in HTML. -/
 def inert (c : Char) : Bool :=
   c.isAlphanum || [' ', '.', ',', ':', '(', ')', '\'', '"', '-', '?', '/', '=', '+', '%'].contains c
 
-/-- Replace every character that is not `inert` by its numeric character reference, which renders
-as that character and acts as nothing. -/
 def escape (s : String) : String :=
   String.ofList <| s.toList.flatMap fun c =>
     if inert c then [c] else '&' :: '#' :: (Nat.toDigits 10 c.toNat ++ [';'])
 
-/-- The characters `escape` may output. -/
 def escaped (c : Char) : Bool := inert c || c == '&' || c == '#' || c == ';' || c.isDigit
 
-/-- Everything `escape` outputs is `inert` or belongs to a numeric character reference. -/
 theorem escape_chars (s : String) : ∀ c ∈ (escape s).toList, escaped c = true := by
   intro c member
   simp only [escape, String.toList_ofList, List.mem_flatMap] at member
@@ -740,11 +534,8 @@ theorem escape_chars (s : String) : ∀ c ∈ (escape s).toList, escaped c = tru
     · simp [escaped, Nat.isDigit_of_mem_toDigits (by decide) (by decide) digit]
     · decide
 
-/-- The characters by which text would act as Markdown or HTML: table cells, code spans, links,
-tags, emphasis, escapes and new lines. -/
 def active : List Char := ['`', '|', '[', ']', '<', '>', '*', '_', '~', '\\', '!', '\n', '\r']
 
-/-- Text that has been through `escape` holds no character of `active`. -/
 theorem escape_inert (s : String) : ∀ c ∈ (escape s).toList, c ∉ active := by
   intro c member known
   have allowed := escape_chars s c member
@@ -792,16 +583,12 @@ private def accountJson (value : Option Account) : Json :=
   | some a => Json.mkObj [("kind", .str a.kind), ("login", .str a.login)]
   | none => .null
 
-/-- The file that holds a target: its module's, by the rule of `lean/AcornVerif/Targets/` that a
-target's name is its module's name followed by one more component. -/
 def targetFile (name : Lean.Name) : String :=
   "lean/" ++ (name.getPrefix.toString (escape := false)).replace "." "/" ++ ".lean"
 
 private def nameJson (value : Option Lean.Name) : Json :=
   optionJson (value.map (·.toString))
 
-/-- The machine-readable copy, with the targets as `record` shows them. Titles and contracts are as
-GitHub returned them, and JSON encoding is what keeps them data. -/
 def boardJson (stamp : String) (record : List Targets.Landing) (s : Snapshot) : Json :=
   let landed := landedOf s
   Json.mkObj [
@@ -933,10 +720,6 @@ private def creditSection (s : Snapshot) : String :=
       else ["", "| Agent | Landed missions | Which |", "|---|---|---|"] ++ agentRows
     rows (["| Account | Landed missions | Which |", "|---|---|---|"] ++ accountRows ++ agentTable)
 
-/-- The page for people, with the targets as `record` shows them. Everything an outsider wrote goes
-through `escape`, and so do the names of targets and theorems; links are built from issue and pull
-request numbers, from logins that pass `loginChar` and from target files whose characters pass
-`pathChar`, never from outside text. -/
 def boardMarkdown (stamp : String) (record : List Targets.Landing) (s : Snapshot) : String :=
   rows [
     "# Mission board", "",
@@ -967,7 +750,6 @@ def boardMarkdown (stamp : String) (record : List Targets.Landing) (s : Snapshot
 
 private def stampShape : List Char := "0000-00-00T00:00:00Z".toList
 
-/-- Whether a time has the form `date -u +%FT%TZ` prints. -/
 def validStamp (stamp : String) : Bool :=
   stamp.length == stampShape.length &&
     (stamp.toList.zip stampShape).all fun (c, shape) =>
@@ -982,7 +764,6 @@ private def publish (path content : String) : IO Unit := do
   IO.FS.writeFile staged content
   IO.FS.rename staged path
 
-/-- Derive both files, then write them; a refused read writes nothing. -/
 def render (stamp first second base : String) : IO Unit := do
   unless validStamp stamp do
     throw (IO.userError s!"not a UTC time of the form {String.ofList stampShape}: {stamp}")
@@ -991,8 +772,6 @@ def render (stamp first second base : String) : IO Unit := do
   publish (base ++ ".json") ((boardJson stamp landings snapshot).pretty ++ "\n")
   publish (base ++ ".md") (boardMarkdown stamp landings snapshot)
 
-/-- `query` prints the GraphQL query; `render <time> <read> <read> <path without extension>` writes
-the board. -/
 def run (args : List String) : IO UInt32 := do
   match args with
   | ["query"] =>

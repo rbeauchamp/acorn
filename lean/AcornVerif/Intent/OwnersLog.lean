@@ -1,69 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.LeanIntentBridge
-
-/-!
-# The owners' log
-
-Acorn's owners' log, the one value of `LeanIntent.OwnersLog` that lean-intent's confirmation check
-reads from the build (`LeanIntent.Confirmation.Read.check`): each statement as the text
-`LeanIntent.Statement.print` writes, in a string literal broken across source lines by string gaps,
-which add nothing to the text. It holds, in order:
-
-* the owners declaration, naming the principal `owner`;
-* the owner's delegation `agents-below-intent`, of 2026-10-29, of every decision below their intent
-  on the day and hash records to the principal `agents`, which may confirm, decline and retract and
-  may not pass it on;
-* the agents' eleven answers of 2026-10-29 under that delegation, which named the record's revision
-  by a commit and its predicates in a short form;
-* the agents' retraction of each of them on 2026-11-03, since the confirmation check compares an
-  answer's revision and predicate with the texts it computes from the build;
-* the answers the agents gave again on 2026-11-03, with the same verdicts, against those texts:
-  for each of the day and hash records, the question every revision asks, whether its rendering
-  restates the intent, and each decision on a consequence.
-  `LeanIntent.Confirmation.Read.answerStatement` wrote each, from a process that imports the modules
-  `intent-check` reads, so that its texts are the checker's;
-* for the record of contract 1 of Acorn's mission contract, the interface every world meets
-  (`AcornVerif.Intent.WorldInterface.worldInterface`), the origin statement `contract-1-origin`,
-  which says that the agents wrote the plain restatement the record was written from and that the
-  owner adopted it, and the owner's answer `contract-1-restatement`, which attached the owner's
-  confirmation of that restatement, given on 2026-11-03 in the words the two statements hold as
-  their source, to the record's Lean 4.35.0 revision. The owner saw the restatement, not the record
-  or its rendering; the record's confirmation file, `lean/AcornVerif/Intent/WorldInterface.md`,
-  says so, and gives the status of every consequence of the record;
-* and, in the same way for the record of contract 3, the invariants of learning from one stream
-  (`AcornVerif.Intent.OneStream.oneStream`), the origin statement `contract-3-origin` and the
-  owner's answer `contract-3-restatement`, attached to that record's Lean 4.35.0 revision by the
-  agents' decision, as its confirmation file, `lean/AcornVerif/Intent/OneStream.md`, says;
-* on 2026-11-20, after Acorn upgraded from Lean 4.35.0 to Lean 4.36.0 (commit
-  `611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9`), which changed only the Lean library basis line of
-  each rendered revision and predicate text, the agents' retractions of the eleven Lean 4.35.0
-  consequence answers on the day and hash records (`day-1-r2-retracted` to `hash-6-r2-retracted`),
-  the agents' restatement answers (`day-restatement-r2`, `hash-restatement-r2`) and the eleven
-  re-given consequence answers (`day-1-r3` to `hash-6-r3`) against the Lean 4.36.0 texts, with the
-  same verdicts, all under `agents-below-intent`;
-* and on 2026-11-21, the owner's answers `contract-1-restatement-r2` and
-  `contract-3-restatement-r2` against the Lean 4.36.0 revisions of the interface and one-stream
-  records (each differing from its Lean 4.35.0 revision only in the Lean library basis line),
-  holding the owner's exact reply `"confirmed"` to the recommendation to confirm re-recording both
-  answers against Lean v4.36.0.
-
-The statements that are the owner's are the declaration, the delegation, the origins and answers of
-2026-11-03, and the answers of 2026-11-21 for the interface record and the record of learning from
-one stream; every other answer names the agents, acting under the delegation, as its author. The
-decisions on the day and hash records and their reasons are described in
-`AcornVerif.Intent.Decisions` and the pilot report, `docs/spec-first-pilot.md`.
--/
 
 namespace AcornVerif.Intent.Decisions
 
 open LeanIntent
 
-/-- The owners' log of the day, hash, interface and one-stream records, each statement as
-`LeanIntent.Statement.print` writes it. -/
 def ownersLog : OwnersLog := ⟨[
   "lean-intent statement 1\n\
     kind owners\n\
