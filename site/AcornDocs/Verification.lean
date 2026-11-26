@@ -841,36 +841,55 @@ entry under that directory, a subdirectory or a symbolic link included, fails
 it and is named, while untracked working-copy entries are ignored. The check
 reads declarations
 from compiled modules, never from sources, and running it builds the checking
-program and no module that program reads. So for each pin file it first
-requires the module the file names to be, under exactly that name, one of the
-package's Lean source files, a member of the inventory that verification's
-build requests from. It then asks Lake, through the bootstrap and building
-nothing, for the source file and the compiled file of the root package's
-module of that name, which Lake gives only when the module is built from the
-present sources. It requires that source file to be the inventoried file, and
-the compiled file Lean finds for the module to be the compiled file Lake
-named. It fails, naming the module, when
-the tree holds no source file of exactly that name, a name that differs from a
-source's only in the case of its letters included, when the root package does
-not hold the module, when Lake does not report the module and every module of
-the workspace it imports current, when Lake reads the module's source from
-another place, and when Lean finds the module's compiled
-file elsewhere. A module of a dependency or of the documentation package is
-refused as no source of this package, and any tracked entry below the package
-directory that is neither a regular file nor below regular directories fails
-the inventory and the check with it. The command that prints a pin file requires
-the same things
-before it reads a module. So a compiled file that an earlier build left
-behind is not read in
-place of the tree's source, as far as Lake's record of what is current is
-right: that record, and that nothing but Lake has written the compiled files
-since, are trusted. Because AcornFrameCheck.current compares real paths for the
-named root module alone before AcornFrameCheck.imported loads its dependency
-closure (a boundary shared by verification and `frame-check print`), Lean's
-search path, which the bootstrap's `lake exe` sets with the workspace's own
-library directories first, is also trusted to resolve the pinned module's
-imports to the compiled artifacts Lake checked. The check relies besides, as every check of the gate does,
-on the stability of the file system while it runs, which the
+program and no module that program reads. So before AcornFrameCheck.imported
+loads any environment, for the check and for `frame-check print` alike,
+AcornFrameCheck.current first admits the Lean sysroot against the pinned
+toolchain prefix (refusing sysroot overrides), verifies tracked regular-file
+admission for `lean/lean-toolchain`, `lean/Bootstrap.lean`,
+`lean/lakefile.lean`, and `lean/lake-manifest.json`, admits non-symlink
+directories across `lean/.lake` and `lean/.lake/packages` and each locked
+dependency checkout (verifying locked Git revisions whenever `.git` metadata is
+present and rejecting ambient package-override manifests), and requires the
+named root module to be, under exactly its name, one of the package's Lean
+source files in AcornModuleInventory.allModules. It then asks Lake, through
+the bootstrap and building nothing, for the root module's source file, compiled
+file, module header, and transitive workspace imports. For the root module and
+every transitive root-package import in that closure, it requires membership in
+AcornModuleInventory.allModules, currency reported by Lake against the present
+sources, non-symlink regular-file real-path equality between Lake's source
+answer and the inventoried `.lean` file, and non-symlink regular-file real-path
+equality among Lean's resolved compiled `.olean`, Lake's answer, and the root
+build library path. For every non-root workspace module in Lake's transitive
+imports, it requires absence of any shadowing `.olean` in the root build
+library and non-symlink regular-file containment of both Lake's source and
+compiled answers (matching Lean's resolved `.olean`) inside a locked dependency
+checkout under `lean/.lake/packages`. Whenever a workspace module's header
+declares the Lean module system, it additionally queries Lake's `.olean.server`,
+`.olean.private`, `.ir.sig`, and `.ir` outputs and requires all four to exist
+as non-symlink regular files matching the sibling artifacts beside Lean's
+resolved `.olean`. After importModules constructs the environment and before any
+frame walk reads declarations from it, AcornFrameCheck.imported re-checks every
+entry of the loaded module header against its metadata: loaded workspace
+modules must match the Lake-verified closure, module-system flag, and regular
+`.olean` (plus regular companion artifacts when the module system is enabled),
+and every remaining loaded module must carry a core toolchain prefix (Init,
+Std, Lean, or Lake) outside AcornModuleInventory.allModules whose resolved
+`.olean` (and companion artifacts when the module system is enabled) is a regular
+file matching the admitted sysroot library directory. It fails, naming the
+module, when any tree source is absent or differs in letter case, when the root
+package lacks the root module, when Lake does not report the module and its
+workspace import closure current, when any source, compiled `.olean`, or module
+companion artifact resolves elsewhere or through a symbolic link, or when an
+unverified or shadowed module enters the loaded environment. A module of a
+dependency or of the documentation package is refused as a root target as no
+source of this package, and any tracked entry below the package directory that
+is neither a regular file nor below regular directories fails the inventory and
+the check with it. So a compiled file left behind by an earlier build or
+shadowed on Lean's search path is not read in place of the tree's sources, as
+far as Lake's record of what is current is right: that record, and that nothing
+but Lake has altered the compiled files without invalidating Lake's traces,
+remain trusted, together with toolchain binaries and the stability of the file
+system while the check runs, which the
 [compiler and execution boundary](#compiler-and-execution-boundary) lists among
 the trusted boundaries. The check then computes
 that list from the compiled module and fails when a
