@@ -173,6 +173,26 @@ theorem acornDay_fulfils {config : WorldConfig} (base : World config) {m : Nat}
       (acornDay config base World.dayPhase) :=
   fulfils (dayPhase_refines base hL hwrap) rfl
 
+theorem admissible_fulfils {config : WorldConfig} (hadm : config.raw.admissible = true)
+    (base : World config) :
+    (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
+      (acornDay config base World.dayPhase) := by
+  obtain ⟨_, _, _, h8, hdvd, _⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
+  obtain ⟨m, hm⟩ := h8
+  exact acornDay_fulfils base hm (hm ▸ Nat.mod_eq_zero_of_dvd hdvd)
+
+theorem admissible_spec_fulfils {config : WorldConfig} (hspec : config.raw.Admissible)
+    (base : World config) :
+    (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
+      (acornDay config base World.dayPhase) :=
+  admissible_fulfils ((RawWorldConfig.admissible_spec_iff config.raw).mpr hspec) base
+
+theorem admitted_fulfils {raw : RawWorldConfig} {config : WorldConfig}
+    (hadmit : WorldConfig.admit raw = .ok config) (base : World config) :
+    (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
+      (acornDay config base World.dayPhase) :=
+  admissible_fulfils (WorldConfig.admit_admissible raw config hadmit) base
+
 theorem standard_fulfils {seed : UInt64} {side : Coordinate} {config : WorldConfig}
     (h : WorldConfig.standard seed side = .ok config) (base : World config) :
     (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
@@ -194,6 +214,74 @@ theorem acornDay_odd_unfulfilled {config : WorldConfig} (base : World config)
     have := (dayCycle_meets.mp ⟨(fun _ hd => nomatch hd), h (fun _ hd => nomatch hd)⟩).1.2.1
     simp only [acornDay] at this
     omega
+
+theorem acornDay_not_dvd_unfulfilled {config : WorldConfig} (base : World config)
+    (phase : World config → Fin 8) (hwrap : ¬ config.raw.dayLength.toNat ∣ 2 ^ 64) :
+    ¬ (dayCycleFor (World config) Action UInt8 Nat).Fulfilled (acornDay config base phase) := by
+  intro h
+  obtain ⟨⟨hpos, heven, s, hs⟩, -⟩ :=
+    dayCycle_meets.mp ⟨(fun _ hd => nomatch hd), h (fun _ hd => nomatch hd)⟩
+  simp only [acornDay, NightHalf] at hpos heven hs
+  obtain ⟨L, hL⟩ : ∃ L, config.raw.dayLength.toNat = L := ⟨_, rfl⟩
+  rw [hL] at hpos heven hs hwrap
+  have hper : ∀ t : Nat,
+      (t + 2 ^ 64).toUInt64 = t.toUInt64 := fun t => by
+    apply UInt64.eq_of_toBitVec_eq
+    apply BitVec.eq_of_toNat_eq
+    simp [Nat.toUInt64_eq, UInt64.toNat_ofNat']
+  have hshift : ∀ t : Nat,
+      (t + s) % L < L / 2 ↔ (t + 2 ^ 64 + s) % L < L / 2 := fun t => by
+    rw [← hs t, ← hs (t + 2 ^ 64), hper t]
+  have hr_pos : 0 < 2 ^ 64 % L :=
+    Nat.pos_of_ne_zero fun h0 => hwrap (Nat.dvd_of_mod_eq_zero h0)
+  have hr_lt : 2 ^ 64 % L < L := Nat.mod_lt _ hpos
+  have hzero : (L - s % L + s) % L = 0 := by
+    have hs_lt : s % L < L := Nat.mod_lt s hpos
+    have hs_le : s % L ≤ s := Nat.mod_le s L
+    have h1 : L - s % L + s = L + (s - s % L) := by omega
+    have h2 : s - s % L = L * (s / L) := by
+      have := Nat.mod_add_div s L
+      omega
+    rw [h1, h2, Nat.add_mod, Nat.mod_self, Nat.mul_mod_right, Nat.zero_add, Nat.zero_mod]
+  by_cases hhalf : 2 ^ 64 % L ≤ L / 2
+  · have h1 := hshift (L - s % L + (L / 2 - 1))
+    have ha : (L - s % L + (L / 2 - 1) + s) % L = L / 2 - 1 := by
+      rw [show L - s % L + (L / 2 - 1) + s = (L - s % L + s) + (L / 2 - 1) by omega,
+        Nat.add_mod, hzero, Nat.zero_add, Nat.mod_mod, Nat.mod_eq_of_lt (by omega)]
+    have hb : (L - s % L + (L / 2 - 1) + 2 ^ 64 + s) % L = L / 2 - 1 + 2 ^ 64 % L := by
+      rw [show L - s % L + (L / 2 - 1) + 2 ^ 64 + s =
+          (L - s % L + (L / 2 - 1) + s) + 2 ^ 64 by omega,
+        Nat.add_mod, ha, Nat.mod_eq_of_lt (by omega)]
+    rw [ha, hb] at h1
+    omega
+  · have h1 := hshift (L - s % L + L / 2)
+    have ha : (L - s % L + L / 2 + s) % L = L / 2 := by
+      rw [show L - s % L + L / 2 + s = (L - s % L + s) + L / 2 by omega,
+        Nat.add_mod, hzero, Nat.zero_add, Nat.mod_mod, Nat.mod_eq_of_lt (by omega)]
+    have hb : (L - s % L + L / 2 + 2 ^ 64 + s) % L = L / 2 + 2 ^ 64 % L - L := by
+      rw [show L - s % L + L / 2 + 2 ^ 64 + s = (L - s % L + L / 2 + s) + 2 ^ 64 by omega,
+        Nat.add_mod, ha, Nat.mod_eq_sub_mod (by omega),
+        Nat.mod_eq_of_lt (by omega)]
+    rw [ha, hb] at h1
+    omega
+
+theorem admit_refuses_non_eight_dvd {raw : RawWorldConfig}
+    (hbad : ¬ (0 < raw.dayLength.toNat ∧ 8 ∣ raw.dayLength.toNat ∧ raw.dayLength.toNat ∣ 2 ^ 64)) :
+    (WorldConfig.admit raw).isOk = false :=
+  Bool.eq_false_iff.mpr fun h => hbad (WorldConfig.admit_isOk_dayLength h)
+
+theorem admit_refuses_odd {raw : RawWorldConfig}
+    (hodd : raw.dayLength.toNat % 2 = 1) : (WorldConfig.admit raw).isOk = false :=
+  admit_refuses_non_eight_dvd fun ⟨_, h8, _⟩ => by omega
+
+theorem admit_refuses_not_dvd {raw : RawWorldConfig}
+    (hwrap : ¬ raw.dayLength.toNat ∣ 2 ^ 64) : (WorldConfig.admit raw).isOk = false :=
+  admit_refuses_non_eight_dvd fun ⟨_, _, hdvd⟩ => hwrap hdvd
+
+theorem admit_refuses_short {raw : RawWorldConfig}
+    (hpos : 0 < raw.dayLength.toNat) (hshort : raw.dayLength.toNat < 8) :
+    (WorldConfig.admit raw).isOk = false :=
+  admit_refuses_non_eight_dvd fun ⟨_, ⟨m, hm⟩, _⟩ => by omega
 
 section
 

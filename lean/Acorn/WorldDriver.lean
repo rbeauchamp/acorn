@@ -11,6 +11,7 @@ def worldError : WorldError → String
 def configError : WorldConfigError → String
   | .sideTooSmall => "SideTooSmall" | .sideTooLarge => "SideTooLarge"
   | .nonpositiveSide => "NonpositiveSide" | .zeroDayLength => "ZeroDayLength"
+  | .invalidDayLength => "InvalidDayLength"
   | .sideExceedsPatch => "SideExceedsPatch" | .scaleOverflow => "ScaleOverflow"
 
 def cliError : Cli.Error → String

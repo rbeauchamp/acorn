@@ -79,7 +79,7 @@ theorem admissible_latticeAdmits {config : WorldConfig} (hadm : config.raw.admis
     (hy : (if config.raw.deerCap = 0 then -5 else -(2 ^ 63)) ≤ tile.y.val ∧
       tile.y.val ≤ (if config.raw.deerCap = 0 then config.raw.side.val + 4 else 2 ^ 63 - 1)) :
     CurrentTerrain.LatticeAdmits tile config.raw.baseScale := by
-  obtain ⟨hpos, hmax, _, hrange⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
+  obtain ⟨hpos, hmax, _, _, _, hrange⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
   have hbounds := admitBounds_nonempty config.raw hpos hmax
   have hoct := (scaleAdmitsRange_iff config.raw.admitLo (config.raw.admitHi hmax)
     config.raw.baseScale).mp hrange
@@ -134,7 +134,7 @@ theorem admissible_translate_isSome {config : WorldConfig} (hadm : config.raw.ad
     ∃ tile, pos.position.translate dx dy = some tile ∧
       -5 ≤ tile.x.val ∧ tile.x.val ≤ config.raw.side.val + 4 ∧
       -5 ≤ tile.y.val ∧ tile.y.val ≤ config.raw.side.val + 4 := by
-  obtain ⟨_, hmax, _, _⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
+  obtain ⟨_, hmax, _, _, _, _⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
   have hx_lo : 0 ≤ (pos.x.val : Int) := Int.natCast_nonneg pos.x.val
   have hy_lo : 0 ≤ (pos.y.val : Int) := Int.natCast_nonneg pos.y.val
   have hx_hi : (pos.x.val : Int) < config.raw.side.val := by
@@ -230,12 +230,26 @@ theorem standard_admits (seed : UInt64) (side : Coordinate) (config : WorldConfi
           config.raw.admitLo octave below,
         FloatLibBridge.octaveScale_ofNat_not_pastLast sNat hs_lo hs_hi
           (config.raw.admitHi hmax) octave below⟩
+  have hday_eq : config.raw.dayLength.toNat = 2048 := by
+    rw [hraw]
+    change FeatureConstants.worldDayLength.toUInt64.toNat = 2048
+    decide
+  have h8 : 8 ∣ config.raw.dayLength.toNat := by
+    rw [hday_eq]
+    decide
+  have hdvd : config.raw.dayLength.toNat ∣ 2 ^ 64 := by
+    rw [hday_eq]
+    decide
+  have hdiv :
+      (config.raw.dayLength.toNat % 8 == 0 && 2 ^ 64 % config.raw.dayLength.toNat == 0) = true := by
+    rw [hday_eq]
+    decide
   have hadm : config.raw.admissible = true :=
     (RawWorldConfig.admissible_iff config.raw).mpr
-      ⟨config.positiveSide, hmax, config.positiveDay, hrange⟩
+      ⟨config.positiveSide, hmax, config.positiveDay, h8, hdvd, hrange⟩
   refine ⟨hadm, ?_⟩
   unfold WorldConfig.admit
-  simp only [config.positiveSide, hmax, config.positiveDay, hrange, ↓reduceDIte, ↓reduceIte]
+  simp only [config.positiveSide, hmax, config.positiveDay, hdiv, hrange, ↓reduceDIte, ↓reduceIte]
 
 theorem admissible_boxPosition_tileKind_isOk {config : WorldConfig}
     (hadm : config.raw.admissible = true) (world : World config) (pos : BoxPosition config) :
