@@ -20,6 +20,10 @@ private def proseTokens : List String := [
   "COMPACT",
   "LICENSE"]
 
+private def leanLiterals : List String := [
+  "true",
+  "false"]
+
 private def keywords : List String := [
   "crate",
   "self",
@@ -52,7 +56,35 @@ private def keywords : List String := [
   "extern",
   "std",
   "core",
-  "alloc"]
+  "alloc",
+  "def",
+  "abbrev",
+  "opaque",
+  "inductive",
+  "structure",
+  "class",
+  "instance",
+  "where",
+  "extends",
+  "deriving",
+  "private",
+  "protected",
+  "noncomputable",
+  "partial",
+  "partial_fixpoint",
+  "termination_by",
+  "decreasing_by",
+  "repeat",
+  "while",
+  "unless",
+  "namespace",
+  "section",
+  "open",
+  "import",
+  "expose",
+  "meta",
+  "module",
+  "prelude"]
 
 private def standardMacros : List String := [
   "assert",
@@ -227,6 +259,58 @@ private def symbol (span : String) : Option String := do
   guard (!(name.splitOn ".").any (fun part => part.toList.head?.any Char.isDigit))
   return name
 
+private def isLeanLibraryModule (owner : Name) : Bool :=
+  #[`Init, `Std, `Lean].any (·.isPrefixOf owner)
+
+private def pushNameComponents : Name → Array String → Array String
+  | .anonymous, acc => acc
+  | .str parent part, acc => (pushNameComponents parent acc).push part
+  | .num parent n, acc => (pushNameComponents parent acc).push (toString n)
+
+private def insertQualifiedParts (names : Std.HashSet String) (name : Name) :
+    Std.HashSet String := Id.run do
+  let parts := pushNameComponents name #[]
+  let mut names := names
+  for start in [:parts.size] do
+    if let some head := parts[start]? then
+      let mut current := head
+      names := names.insert current
+      for stop in [start + 1 : parts.size] do
+        if let some part := parts[stop]? then
+          current := current ++ "." ++ part
+          names := names.insert current
+  return names
+
+private def insertRootPrefixes (names : Std.HashSet String) (name : Name) :
+    Std.HashSet String := Id.run do
+  let parts := pushNameComponents name #[]
+  let mut names := names
+  let mut current := ""
+  for part in parts do
+    current := if current.isEmpty then part else current ++ "." ++ part
+    names := names.insert current
+  return names
+
+private def insertStructureFieldsAux (env : Environment) (ownerStruct : Name)
+    (includePrivate : Bool) :
+    Nat → Name → NameSet → Std.HashSet String → Std.HashSet String
+  | 0, _, _, names => names
+  | fuel + 1, curStruct, seen, names =>
+    if seen.contains curStruct then names
+    else match getStructureInfo? env curStruct with
+      | none => names
+      | some info => Id.run do
+        let seen := seen.insert curStruct
+        let mut names := names
+        for field in info.fieldInfo do
+          if !field.fieldName.isInternalDetail &&
+              (includePrivate || !isPrivateName field.projFn) then
+            names := insertQualifiedParts names (ownerStruct ++ field.fieldName)
+        for parent in info.parentInfo do
+          names := insertStructureFieldsAux env ownerStruct includePrivate fuel parent.structName
+            seen names
+        return names
+
 def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet String) := do
   let owners := selection.filter fun owner =>
     !AcornOwnership.executables.any (fun entry => entry.2 == owner)
@@ -240,6 +324,9 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
     let parts := owner.toString.splitOn "."
     for start in [:parts.length] do
       names := names.insert (String.intercalate "." (parts.drop start))
+  for imported in env.header.modules do
+    if isLeanLibraryModule imported.module then
+      names := insertRootPrefixes names imported.module
   for (key, _) in Acorn.Host.Viewer.browserSchema do names := names.insert key
   for constant in Acorn.Host.Viewer.BrowserConstant.all do names := names.insert constant.name
   for (key, rule) in Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules do
@@ -258,12 +345,18 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet S
   for (name, _) in env.constants do
     if let some index := env.getModuleIdxFor? name then
       if let some owner := (env.header.modules[index.toNat]?).map (·.module) then
-        if selected.contains owner then
-          let parts := name.toString.splitOn "."
-          for start in [:parts.length] do
-            let suffix := parts.drop start
-            for count in [1:suffix.length+1] do
-              names := names.insert (String.intercalate "." (suffix.take count))
+        let (shouldInsert, includePrivate, userName) :=
+          if selected.contains owner then
+            (true, true, (privateToUserName? name).getD name)
+          else if isLeanLibraryModule owner && !isPrivateName name &&
+              !name.isInternalDetail && !isNoConfusion env name then
+            (true, false, name)
+          else
+            (false, false, name)
+        if shouldInsert then
+          names := insertQualifiedParts names userName
+          if isStructure env name then
+            names := insertStructureFieldsAux env userName includePrivate 64 name {} names
   return names
 
 unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
@@ -296,7 +389,7 @@ unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
 
 private def resolves (names : Std.HashSet String) (name : String) : Bool :=
   let name := name.replace "::" "."
-  external name ||
+  external name || leanLiterals.contains name ||
     (proseTokens ++ keywords ++ standardMacros).contains name || names.contains name ||
     (name.endsWith "_*" && names.toArray.any (fun candidate =>
       candidate.startsWith (name.dropEnd 1).toString))
