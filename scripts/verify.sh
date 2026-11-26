@@ -57,6 +57,10 @@ export -f admit_tracked_helper
 # shellcheck disable=SC2329
 acorn_verify_checks() {
   local admit_clean=1
+  local sc_pin='scripts/shellcheck.pin'
+  local sc_line1='' sc_line2='' sc_line3='' sc_line4='' sc_line5='' sc_extra=''
+  local sc_version='' sc_path='' sc_version_output='' sc_vline='' sc_found=''
+  local sc_found_count=0
   local -a admit_args
   if [[ $("$2" --version) != *"GNU coreutils"* ]]; then
     echo "verification requires GNU coreutils timeout" >&2
@@ -76,10 +80,54 @@ acorn_verify_checks() {
     admit_args+=(--clean)
   fi
   ./scripts/tracked-files.sh "${admit_args[@]}" . \
-    scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
+    scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh "$sc_pin"
   git diff --check
   git diff --cached --check
-  SHELLCHECK_OPTS='' shellcheck --norc \
+  if [[ -L "$sc_pin" || ! -f "$sc_pin" ]]; then
+    echo "verify.sh: missing or non-regular pin file: $sc_pin" >&2
+    exit 1
+  fi
+  {
+    IFS= read -r sc_line1 &&
+      IFS= read -r sc_line2 &&
+      IFS= read -r sc_line3 &&
+      IFS= read -r sc_line4 &&
+      IFS= read -r sc_line5 &&
+      ! IFS= read -r sc_extra &&
+      [[ -z "$sc_extra" ]]
+  } < "$sc_pin" || {
+    echo "verify.sh: malformed pin file: $sc_pin" >&2
+    exit 1
+  }
+  if [[ ! $sc_line1 =~ ^VERSION=([0-9]+\.[0-9]+\.[0-9]+)$ ]] ||
+      [[ ! $sc_line2 =~ ^DARWIN_ARM64_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line3 =~ ^DARWIN_X86_64_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line4 =~ ^LINUX_X86_64_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line5 =~ ^LINUX_ARM64_SHA256=([0-9a-f]{64})$ ]]; then
+    echo "verify.sh: malformed pin values in $sc_pin" >&2
+    exit 1
+  fi
+  sc_version="${sc_line1#VERSION=}"
+  if ! sc_path=$(type -P shellcheck 2>/dev/null); then
+    echo "verify.sh: ShellCheck $sc_version is required (found none on PATH, admitted $sc_version)" >&2
+    exit 127
+  fi
+  if ! sc_version_output=$(SHELLCHECK_OPTS='' "$sc_path" --version 2>&1); then
+    echo "verify.sh: failed to query ShellCheck version at $sc_path (admitted $sc_version): $sc_version_output" >&2
+    exit 1
+  fi
+  while IFS= read -r sc_vline; do
+    sc_vline="${sc_vline%$'\r'}"
+    if [[ "$sc_vline" =~ ^version:[[:space:]]*([^[:space:]]+)[[:space:]]*$ ]]; then
+      sc_found="${BASH_REMATCH[1]}"
+      sc_found_count=$((sc_found_count + 1))
+    fi
+  done <<< "$sc_version_output"
+  if [[ "$sc_found_count" != 1 || "$sc_found" != "$sc_version" ]]; then
+    echo "verify.sh: ShellCheck version mismatch at $sc_path (found ${sc_found:-unknown}, admitted $sc_version)" >&2
+    exit 1
+  fi
+  SHELLCHECK_OPTS='' "$sc_path" --norc \
     scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
   shift 2
   ./scripts/lean.sh exe acorn-gates "$@"

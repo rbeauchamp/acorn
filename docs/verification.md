@@ -7,8 +7,8 @@ states the property and assumptions it checks. For installation and a first run,
 start with the [README](../README.md#start-with-the-live-viewer).
 
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
-Lean, Mathlib, FloatLib, lean-intent and Verso dependencies, a C compiler, OpenSSL 3, ShellCheck
-and GNU coreutils.
+Lean, Mathlib, FloatLib, lean-intent and Verso dependencies, ShellCheck `0.11.0`,
+a C compiler, OpenSSL 3 and GNU coreutils.
 Each run of the command has a hard 360-second deadline, which includes the
 project compilation the run does and every ordinary check; from cold project
 outputs that is the whole build. The [merge gate](#build-and-source-inventory)
@@ -54,12 +54,12 @@ The [verification workflow](../.github/workflows/verify.yml) runs the
 reopened and at every push to it, and at no other time, on GitHub's standard
 `ubuntu-24.04` x64 image. It installs no
 system package: it admits by name the packages that image provides, and takes
-elan from a release pinned by the SHA-256 of its archive. Every workflow step
+elan and ShellCheck (`0.11.0`, `scripts/shellcheck.pin`) from releases pinned by the SHA-256 of their archives. Every workflow step
 that reaches the network before the gate, the merge-gate step itself and the
 overall job each carry an explicit time limit, so a stalled download or a
 duration regression fails promptly. The workflow keeps no cache: each run provisions the
 dependencies from their pinned sources. Automatic local setup supports macOS and
-Ubuntu/Debian Linux.
+Ubuntu/Debian Linux and downloads pinned ShellCheck (`0.11.0`) from `scripts/shellcheck.pin` with SHA-256 verification when not already on PATH.
 
 For manual setup, which changes the machine's package manager state and so is
 done by an agent only where the person it works for has agreed to it, install
@@ -67,14 +67,36 @@ macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
 
 ```sh
-brew install coreutils shellcheck openssl@3 elan
+brew install coreutils openssl@3 elan
+```
+
+Then install pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`, `shellcheck-v0.11.0.darwin.aarch64.tar.gz` on Apple silicon or `shellcheck-v0.11.0.darwin.x86_64.tar.gz` with its matching SHA-256 from `scripts/shellcheck.pin` on Intel) after verifying its SHA-256 digest before extracting:
+
+```sh
+mkdir -p ~/.local/bin
+curl --fail --location --proto '=https' --tlsv1.2 -o /tmp/shellcheck.tar.gz \
+  https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.gz
+printf '%s  /tmp/shellcheck.tar.gz\n' 339b930feb1ea764467013cc1f72d09cd6b869ebf1013296ba9055ab2ffbd26f | shasum -a 256 -c
+tar -xzf /tmp/shellcheck.tar.gz -C /tmp shellcheck-v0.11.0/shellcheck
+install -m 0755 /tmp/shellcheck-v0.11.0/shellcheck ~/.local/bin/shellcheck
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 For Ubuntu, under the same condition, install:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck coreutils elan
+sudo apt-get install -y build-essential curl git libgmp-dev openssl coreutils elan
+```
+
+Then install pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`) on x86-64 ahead of any distro package on PATH:
+
+```sh
+curl --fail --location --proto '=https' --tlsv1.2 -o /tmp/shellcheck.tar.gz \
+  https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz
+printf '%s  /tmp/shellcheck.tar.gz\n' b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6 | sha256sum --check --strict
+tar -xzf /tmp/shellcheck.tar.gz -C /tmp shellcheck-v0.11.0/shellcheck
+sudo install -m 0755 /tmp/shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
 ```
 
 Ensure Lean and Lake are available in your shell, then run
@@ -604,8 +626,10 @@ atomically through an exclusive temporary file (while `lean/Bootstrap.lean` and
 `lean/AcornTools/Gate.lean` write their override files the same way) before invoking Lake
 (`-f lakefile.lean` through `Bootstrap.lean`, `-f lakefile.toml` under `site/`,
 and default workspace resolution after shadow-config refusal for
-`scripts/regula.sh`), while `scripts/verify.sh` invokes
-`SHELLCHECK_OPTS='' shellcheck --norc` so ambient configuration cannot alter
+`scripts/regula.sh`), while `scripts/verify.sh` admits `scripts/shellcheck.pin`,
+requires `shellcheck --version` to match the pinned `0.11.0` release (failing
+closed with both the found and admitted versions on any mismatch or absence),
+and invokes `SHELLCHECK_OPTS='' shellcheck --norc` so ambient configuration cannot alter
 script checks. The checks take their file lists from Git's stage-0 tracked
 regular-file index without materializing a separate HEAD checkout or hashing
 every tracked file independently against HEAD; verdict-producing commands
@@ -970,9 +994,9 @@ head, and nothing runs after a merge. Because `no-comments` compares against
 retargeting from a base with a looser ratchet when the head already contains main
 relies on the owner re-running `./scripts/gate.sh` against main before merge.
 
-The arrangement on GitHub differs from the pipeline's as follows. A step of
-the workflow downloads elan's pinned release in every run and installs it only
-after the archive's SHA-256 matches. The script's provisioning runs in a step
+The arrangement on GitHub differs from the pipeline's as follows. Separate steps of
+the workflow download elan's and ShellCheck's (`0.11.0`, `scripts/shellcheck.pin`) pinned releases in every run and install each only
+after its archive's SHA-256 matches. The script's provisioning runs in a step
 of its own, whose 12-minute limit bounds a stalled download and is no check's
 deadline, and the script's provisioning in the last step then finds the
 dependencies current. Nothing is stored between runs: every run
@@ -980,8 +1004,8 @@ provisions everything from its pinned sources and builds from cold project
 outputs. A copy stored by an earlier head of a pull request, which controls its
 own workflow, could otherwise be restored and trusted by a later head whose own
 changes show nothing of it. The merge-gate step runs `exec ./scripts/gate.sh` (so runner cancellation
-signals reach the gate directly) under a 13-minute
-`timeout-minutes` limit and the workflow's gate job carries a 20-minute `timeout-minutes`
+signals reach the gate directly) under an 18-minute
+`timeout-minutes` limit and the workflow's gate job carries a 30-minute `timeout-minutes`
 limit, where the pipeline's Test step has none; a successful provisioning step
 requires its duration handoff to `$GITHUB_OUTPUT` to succeed, while cancellation
 reporting stays best effort; each of verification's two stages

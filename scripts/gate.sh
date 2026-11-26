@@ -12,7 +12,7 @@ case "$*" in
   *) echo "$usage" >&2; exit 2 ;;
 esac
 cd "$(dirname "$0")/.."
-export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH="${ELAN_HOME:-$HOME/.elan}/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 step() { printf 'gate: %s at %s (%d s)\n' "$1" "$(date -u +%H:%M:%SZ)" "$SECONDS"; }
 
@@ -52,12 +52,13 @@ admit_tracked_helper() {
 }
 
 nc_pin='lean/no-comments.pin'
+sc_pin='scripts/shellcheck.pin'
 admit_tracked_helper . 1 || {
   echo "gate: scripts/tracked-files.sh failed pre-execution Git admission" >&2
   exit 1
 }
 ./scripts/tracked-files.sh admit-file --clean . \
-  scripts/tracked-files.sh scripts/gate.sh scripts/lean.sh scripts/verify.sh scripts/regula.sh "$nc_pin"
+  scripts/tracked-files.sh scripts/gate.sh scripts/lean.sh scripts/verify.sh scripts/regula.sh "$nc_pin" "$sc_pin"
 if [[ -L lean || ! -d lean || ! -f "$nc_pin" || -L "$nc_pin" ]]; then
   echo "gate: missing or non-regular pin file: $nc_pin" >&2
   exit 1
@@ -583,13 +584,13 @@ emit_gate_summary() {
       format_duration f_dur "$gate_total_dur"
       format_duration f_bud "$gate_budget_s"
       status_label f_st "$gate_verdict_state" "$gate_over"
-      printf -v row '| **Merge gate total (scripts/gate.sh)** | **%s** | **<= %s** | **13m** | **%s** |\n' "$f_dur" "$f_bud" "$f_st"
+      printf -v row '| **Merge gate total (scripts/gate.sh)** | **%s** | **<= %s** | **18m** | **%s** |\n' "$f_dur" "$f_bud" "$f_st"
       summary_body+="$row"
       if [[ -n "$workflow_elapsed_dur" ]]; then
         format_duration f_dur "$workflow_elapsed_dur"
         format_duration f_bud "$job_budget_s"
         status_label f_st "$gate_verdict_state" "$job_over"
-        printf -v row '| **Workflow elapsed (commit check through gate)** | **%s** | **<= %s** | **20m (job)** | **%s** |\n' "$f_dur" "$f_bud" "$f_st"
+        printf -v row '| **Workflow elapsed (commit check through gate)** | **%s** | **<= %s** | **30m (job)** | **%s** |\n' "$f_dur" "$f_bud" "$f_st"
         summary_body+="$row"
       fi
       summary_body+=$'\n'

@@ -78,7 +78,8 @@ cleanup() {
     while kill -0 "$viewer_pid" 2>/dev/null; do wait "$viewer_pid" || true; done
   fi
   if [[ "$control_open" == 1 ]]; then exec 3>&-; fi
-  rm -f "$lock/control" "$lock/pid" "$lock/installer.sh"
+  rm -f "$lock/control" "$lock/pid" "$lock/installer.sh" "$lock/shellcheck.tar.gz"
+  rm -rf "$lock/shellcheck-extract"
   rmdir "$lock"
   if [[ "$status" -ne 0 ]]; then
     printf 'Acorn stopped during %s; the diagnostic is above. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.\n' "$phase" >&2
@@ -93,7 +94,8 @@ on_signal() {
 trap cleanup EXIT
 trap on_signal INT TERM
 
-export PATH="${ELAN_HOME:-$HOME/.elan}/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+caller_path="$PATH"
+export PATH="${ELAN_HOME:-$HOME/.elan}/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 install_macos() {
   # A usable installed CLT is sufficient even when an unrelated Xcode selection
@@ -117,7 +119,6 @@ install_macos() {
   command -v brew >/dev/null 2>&1 || fail 'Homebrew is unavailable after installation.'
   local packages=()
   command -v elan >/dev/null 2>&1 || packages+=(elan)
-  command -v shellcheck >/dev/null 2>&1 || packages+=(shellcheck)
   command -v gtimeout >/dev/null 2>&1 || packages+=(coreutils)
   local openssl_prefix
   openssl_prefix=$(brew --prefix openssl@3)
@@ -129,7 +130,7 @@ install_macos() {
 install_linux() {
   command -v apt-get >/dev/null 2>&1 || fail 'Automatic Linux setup supports Ubuntu/Debian with apt-get; see docs/verification.md.'
   local packages=() package
-  for package in build-essential curl git libgmp-dev openssl shellcheck coreutils elan; do
+  for package in build-essential curl git libgmp-dev openssl coreutils elan; do
     if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) != 'install ok installed' ]]; then
       packages+=("$package")
     fi
@@ -142,15 +143,131 @@ install_linux() {
   fi
 }
 
+shellcheck_version_of() {
+  local sc_bin="$1" out='' line='' found='' count=0
+  out=$(SHELLCHECK_OPTS='' "$sc_bin" --version 2>/dev/null || true)
+  while IFS= read -r line; do
+    line="${line%$'\r'}"
+    if [[ "$line" =~ ^version:[[:space:]]*([^[:space:]]+)[[:space:]]*$ ]]; then
+      found="${BASH_REMATCH[1]}"
+      count=$((count + 1))
+    fi
+  done <<< "$out"
+  if [[ "$count" == 1 ]]; then
+    printf '%s\n' "$found"
+  fi
+}
+
+provision_shellcheck() {
+  local sc_pin="$root/scripts/shellcheck.pin"
+  local sc_line1='' sc_line2='' sc_line3='' sc_line4='' sc_line5='' sc_extra=''
+  local sc_version='' sc_darwin_arm64_sha256='' sc_darwin_x86_64_sha256=''
+  local sc_linux_x86_64_sha256='' sc_linux_arm64_sha256=''
+  local sc_existing='' sc_existing_ver='' sc_platform='' sc_sha256=''
+  local archive="$lock/shellcheck.tar.gz" extract_dir="$lock/shellcheck-extract"
+  local actual_sha256='' extracted='' dest_dir="$HOME/.local/bin" dest="$HOME/.local/bin/shellcheck"
+  local stage='' caller_sc='' caller_ver=''
+
+  if [[ -L "$sc_pin" || ! -f "$sc_pin" ]]; then
+    fail "Missing or non-regular ShellCheck pin file: scripts/shellcheck.pin"
+  fi
+  {
+    IFS= read -r sc_line1 &&
+      IFS= read -r sc_line2 &&
+      IFS= read -r sc_line3 &&
+      IFS= read -r sc_line4 &&
+      IFS= read -r sc_line5 &&
+      ! IFS= read -r sc_extra &&
+      [[ -z "$sc_extra" ]]
+  } < "$sc_pin" || fail "Malformed ShellCheck pin file: scripts/shellcheck.pin"
+  if [[ ! $sc_line1 =~ ^VERSION=([0-9]+\.[0-9]+\.[0-9]+)$ ]] ||
+      [[ ! $sc_line2 =~ ^DARWIN_ARM64_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line3 =~ ^DARWIN_X86_64_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line4 =~ ^LINUX_X86_64_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line5 =~ ^LINUX_ARM64_SHA256=([0-9a-f]{64})$ ]]; then
+    fail "Malformed ShellCheck pin values in scripts/shellcheck.pin"
+  fi
+  sc_version="${sc_line1#VERSION=}"
+  sc_darwin_arm64_sha256="${sc_line2#DARWIN_ARM64_SHA256=}"
+  sc_darwin_x86_64_sha256="${sc_line3#DARWIN_X86_64_SHA256=}"
+  sc_linux_x86_64_sha256="${sc_line4#LINUX_X86_64_SHA256=}"
+  sc_linux_arm64_sha256="${sc_line5#LINUX_ARM64_SHA256=}"
+
+  sc_existing=$(type -P shellcheck 2>/dev/null || true)
+  if [[ -n "$sc_existing" ]]; then
+    sc_existing_ver=$(shellcheck_version_of "$sc_existing")
+    if [[ "$sc_existing_ver" == "$sc_version" ]]; then
+      return 0
+    fi
+  fi
+
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64)
+      sc_platform='darwin.aarch64'
+      sc_sha256="$sc_darwin_arm64_sha256" ;;
+    Darwin-x86_64)
+      sc_platform='darwin.x86_64'
+      sc_sha256="$sc_darwin_x86_64_sha256" ;;
+    Linux-x86_64)
+      sc_platform='linux.x86_64'
+      sc_sha256="$sc_linux_x86_64_sha256" ;;
+    Linux-aarch64)
+      sc_platform='linux.aarch64'
+      sc_sha256="$sc_linux_arm64_sha256" ;;
+    *)
+      fail "Unsupported platform for pinned ShellCheck: $(uname -s)-$(uname -m)" ;;
+  esac
+
+  printf 'Installing pinned ShellCheck %s to %s…\n' "$sc_version" "$dest"
+  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    --connect-timeout 10 --max-time 120 --retry 2 --retry-delay 2 --retry-max-time 180 \
+    --output "$archive" \
+    "https://github.com/koalaman/shellcheck/releases/download/v${sc_version}/shellcheck-v${sc_version}.${sc_platform}.tar.gz"
+  actual_sha256=$(openssl dgst -sha256 -r "$archive" | awk '{print $1}') || fail "Failed to compute ShellCheck archive SHA-256."
+  [[ "$actual_sha256" == "$sc_sha256" ]] || fail "Downloaded ShellCheck archive failed SHA-256 verification."
+  rm -rf "$extract_dir"
+  mkdir -p "$extract_dir"
+  tar -xzf "$archive" -C "$extract_dir" "shellcheck-v${sc_version}/shellcheck"
+  extracted="$extract_dir/shellcheck-v${sc_version}/shellcheck"
+  [[ ! -L "$extracted" && -f "$extracted" ]] || fail "Extracted ShellCheck binary is missing or non-regular."
+  [[ ! -L "$HOME/.local" && ! -L "$dest_dir" ]] || fail "Refusing symlinked installation directory: $dest_dir"
+  mkdir -p "$dest_dir"
+  stage=$(mktemp "$dest_dir/shellcheck.XXXXXX")
+  if ! cp "$extracted" "$stage" || ! chmod 755 "$stage"; then
+    rm -f "$stage"
+    fail "Failed to stage ShellCheck binary in $dest_dir."
+  fi
+  if [[ -L "$dest" ]]; then
+    rm -f "$stage"
+    fail "Refusing symlinked destination: $dest"
+  fi
+  if ! mv -f "$stage" "$dest"; then
+    rm -f "$stage"
+    fail "Failed to install ShellCheck binary at $dest."
+  fi
+  rm -rf "$archive" "$extract_dir"
+  [[ "$(shellcheck_version_of "$dest")" == "$sc_version" ]] || fail "Installed ShellCheck at $dest does not report version $sc_version."
+
+  caller_sc=$(PATH="$caller_path" type -P shellcheck 2>/dev/null || true)
+  if [[ -n "$caller_sc" ]]; then
+    caller_ver=$(shellcheck_version_of "$caller_sc")
+  fi
+  if [[ "$caller_ver" != "$sc_version" ]]; then
+    printf 'Acorn installed ShellCheck %s at %s; ensure %s precedes other ShellCheck binaries on PATH when running ./scripts/verify.sh standalone.\n' \
+      "$sc_version" "$dest" "$dest_dir"
+  fi
+}
+
 printf 'Preparing Acorn…\n'
 case "$(uname -s)" in
   Darwin) install_macos ;;
   Linux) install_linux ;;
   *) fail 'This launcher supports macOS and Ubuntu/Debian Linux.' ;;
 esac
-for tool in git curl cc openssl elan lean lake; do
+for tool in git curl cc openssl tar elan lean lake; do
   command -v "$tool" >/dev/null 2>&1 || fail "Required tool is unavailable: $tool."
 done
+provision_shellcheck
 git --version >/dev/null
 
 # Elan selects lean-toolchain without changing the user's global default.
