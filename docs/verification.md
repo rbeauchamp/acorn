@@ -73,13 +73,18 @@ brew install coreutils openssl@3 elan
 Then install pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`, `shellcheck-v0.11.0.darwin.aarch64.tar.gz` on Apple silicon or `shellcheck-v0.11.0.darwin.x86_64.tar.gz` with its matching SHA-256 from `scripts/shellcheck.pin` on Intel) after verifying its SHA-256 digest before extracting:
 
 ```sh
-mkdir -p ~/.local/bin
-curl --fail --location --proto '=https' --tlsv1.2 -o /tmp/shellcheck.tar.gz \
-  https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.gz
-printf '%s  /tmp/shellcheck.tar.gz\n' 339b930feb1ea764467013cc1f72d09cd6b869ebf1013296ba9055ab2ffbd26f | shasum -a 256 -c
-tar -xzf /tmp/shellcheck.tar.gz -C /tmp shellcheck-v0.11.0/shellcheck
-install -m 0755 /tmp/shellcheck-v0.11.0/shellcheck ~/.local/bin/shellcheck
-export PATH="$HOME/.local/bin:$PATH"
+(
+  set -eu
+  tmp=$(mktemp -d)
+  trap 'rm -rf -- "$tmp"' EXIT
+  cd "$tmp"
+  curl --fail --location --proto '=https' --tlsv1.2 -o shellcheck.tar.gz \
+    https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.gz
+  printf '%s  shellcheck.tar.gz\n' 339b930feb1ea764467013cc1f72d09cd6b869ebf1013296ba9055ab2ffbd26f | shasum -a 256 -c
+  tar -xzf shellcheck.tar.gz shellcheck-v0.11.0/shellcheck
+  mkdir -p "$HOME/.local/bin"
+  install -m 0755 shellcheck-v0.11.0/shellcheck "$HOME/.local/bin/shellcheck"
+) && export PATH="$HOME/.local/bin:$PATH"
 ```
 
 For Ubuntu, under the same condition, install:
@@ -92,11 +97,17 @@ sudo apt-get install -y build-essential curl git libgmp-dev openssl coreutils el
 Then install pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`) on x86-64 ahead of any distro package on PATH:
 
 ```sh
-curl --fail --location --proto '=https' --tlsv1.2 -o /tmp/shellcheck.tar.gz \
-  https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz
-printf '%s  /tmp/shellcheck.tar.gz\n' b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6 | sha256sum --check --strict
-tar -xzf /tmp/shellcheck.tar.gz -C /tmp shellcheck-v0.11.0/shellcheck
-sudo install -m 0755 /tmp/shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
+(
+  set -eu
+  tmp=$(mktemp -d)
+  trap 'rm -rf -- "$tmp"' EXIT
+  cd "$tmp"
+  curl --fail --location --proto '=https' --tlsv1.2 -o shellcheck.tar.gz \
+    https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz
+  printf '%s  shellcheck.tar.gz\n' b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6 | sha256sum --check --strict
+  tar -xzf shellcheck.tar.gz shellcheck-v0.11.0/shellcheck
+  sudo install -m 0755 shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
+)
 ```
 
 Ensure Lean and Lake are available in your shell, then run

@@ -74,9 +74,6 @@ private def keywords : List String := [
   "partial_fixpoint",
   "termination_by",
   "decreasing_by",
-  "repeat",
-  "while",
-  "unless",
   "namespace",
   "section",
   "open",
@@ -259,6 +256,8 @@ private def symbol (span : String) : Option String := do
   guard (!(name.splitOn ".").any (fun part => part.toList.head?.any Char.isDigit))
   return name
 
+private def libraryRoots : List String := ["Init", "Std", "Lean"]
+
 private def isLeanLibraryModule (owner : Name) : Bool :=
   #[`Init, `Std, `Lean].any (·.isPrefixOf owner)
 
@@ -291,75 +290,113 @@ private def insertRootPrefixes (names : Std.HashSet String) (name : Name) :
     names := names.insert current
   return names
 
-private def insertStructureFieldsAux (env : Environment) (ownerStruct : Name)
-    (includePrivate : Bool) :
-    Nat → Name → NameSet → Std.HashSet String → Std.HashSet String
-  | 0, _, _, names => names
-  | fuel + 1, curStruct, seen, names =>
-    if seen.contains curStruct then names
-    else match getStructureInfo? env curStruct with
-      | none => names
-      | some info => Id.run do
-        let seen := seen.insert curStruct
-        let mut names := names
-        for field in info.fieldInfo do
-          if !field.fieldName.isInternalDetail &&
-              (includePrivate || !isPrivateName field.projFn) then
-            names := insertQualifiedParts names (ownerStruct ++ field.fieldName)
-        for parent in info.parentInfo do
-          names := insertStructureFieldsAux env ownerStruct includePrivate fuel parent.structName
-            seen names
-        return names
+private def insertLibraryConstant (library : Std.HashSet String) (name : Name) :
+    Std.HashSet String :=
+  let parts := pushNameComponents name #[]
+  match parts.toList with
+  | [] => library
+  | [single] => library.insert ("_root_." ++ single)
+  | _ => library.insert (String.intercalate "." parts.toList)
 
-def symbolsFrom (env : Environment) (selection : Array Name) : IO (Std.HashSet String) := do
+private def insertAcornField (fields : Std.HashSet String) (ownerStruct fieldName : Name) :
+    Std.HashSet String := Id.run do
+  let structParts := pushNameComponents ownerStruct #[]
+  let fieldParts := pushNameComponents fieldName #[]
+  if structParts.isEmpty || fieldParts.isEmpty then
+    return fields
+  let fieldSuffix := String.intercalate "." fieldParts.toList
+  let mut fields := fields
+  for start in [:structParts.size] do
+    let ownerSuffix :=
+      String.intercalate "." (structParts.extract start structParts.size).toList
+    fields := fields.insert (ownerSuffix ++ "." ++ fieldSuffix)
+  return fields
+
+private def insertLibraryField (fields : Std.HashSet String) (ownerStruct fieldName : Name) :
+    Std.HashSet String :=
+  let structParts := pushNameComponents ownerStruct #[]
+  let fieldParts := pushNameComponents fieldName #[]
+  if structParts.isEmpty || fieldParts.isEmpty then
+    fields
+  else
+    let fullStruct := String.intercalate "." structParts.toList
+    let fieldSuffix := String.intercalate "." fieldParts.toList
+    let qualified := fullStruct ++ "." ++ fieldSuffix
+    if structParts.size == 1 then
+      (fields.insert qualified).insert ("_root_." ++ qualified)
+    else
+      fields.insert qualified
+
+private def insertStructureFields (env : Environment) (structName : Name)
+    (includePrivate : Bool) (insertField : Name → Std.HashSet String → Std.HashSet String)
+    (fields : Std.HashSet String) : Std.HashSet String := Id.run do
+  let mut fields := fields
+  for fieldName in getStructureFieldsFlattened env structName do
+    if !fieldName.isInternalDetail then
+      if let some fieldOwner := findField? env structName fieldName then
+        if let some fieldInfo := getFieldInfo? env fieldOwner fieldName then
+          if includePrivate || !isPrivateName fieldInfo.projFn then
+            fields := insertField fieldName fields
+  return fields
+
+structure SymbolInventory where
+  acorn : Std.HashSet String := {}
+  acornFields : Std.HashSet String := {}
+  library : Std.HashSet String := {}
+  libraryFields : Std.HashSet String := {}
+
+def symbolsFrom (env : Environment) (selection : Array Name) : IO SymbolInventory := do
   let owners := selection.filter fun owner =>
     !AcornOwnership.executables.any (fun entry => entry.2 == owner)
   for owner in owners do
     unless (env.getModuleIdx? owner).isSome do
       throw (IO.userError s!"document symbols: missing compiled owner {owner}")
-  let mut names : Std.HashSet String := {}
+  let mut acorn : Std.HashSet String := {}
+  let mut acornFields : Std.HashSet String := {}
+  let mut library : Std.HashSet String := {}
+  let mut libraryFields : Std.HashSet String := {}
   for (command, owner) in AcornOwnership.executables do
-    if selection.contains owner then names := names.insert command
+    if selection.contains owner then acorn := acorn.insert command
   for owner in selection do
     let parts := owner.toString.splitOn "."
     for start in [:parts.length] do
-      names := names.insert (String.intercalate "." (parts.drop start))
+      acorn := acorn.insert (String.intercalate "." (parts.drop start))
   for imported in env.header.modules do
     if isLeanLibraryModule imported.module then
-      names := insertRootPrefixes names imported.module
-  for (key, _) in Acorn.Host.Viewer.browserSchema do names := names.insert key
-  for constant in Acorn.Host.Viewer.BrowserConstant.all do names := names.insert constant.name
+      library := insertRootPrefixes library imported.module
+  for (key, _) in Acorn.Host.Viewer.browserSchema do acorn := acorn.insert key
+  for constant in Acorn.Host.Viewer.BrowserConstant.all do acorn := acorn.insert constant.name
   for (key, rule) in Acorn.Host.Viewer.browserRules ++ Acorn.Host.Viewer.browserControlRules do
-    names := names.insert key
+    acorn := acorn.insert key
     if let .tags tags := rule then
-      for tag in tags do names := names.insert tag
-  names := names.insert "main"
+      for tag in tags do acorn := acorn.insert tag
+  acorn := acorn.insert "main"
   AcornTrackedFiles.ensureTrackedRegular "." "" "viewer/static/index.html"
   let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
   let words := (String.ofList (browser.toList.map (fun c =>
     if c.isAlphanum || c == '_' || c == '$' then c else ' '))).splitOn " " |>.filter (!·.isEmpty)
   for index in [:words.length] do
     if ["const", "let", "function", "class"].contains (words[index]?.getD "") then
-      if let some name := words[index+1]? then names := names.insert name
+      if let some name := words[index+1]? then acorn := acorn.insert name
   let selected := owners.foldl (fun set owner => set.insert owner) ({} : NameSet)
   for (name, _) in env.constants do
     if let some index := env.getModuleIdxFor? name then
       if let some owner := (env.header.modules[index.toNat]?).map (·.module) then
-        let (shouldInsert, includePrivate, userName) :=
-          if selected.contains owner then
-            (true, true, (privateToUserName? name).getD name)
-          else if isLeanLibraryModule owner && !isPrivateName name &&
-              !name.isInternalDetail && !isNoConfusion env name then
-            (true, false, name)
-          else
-            (false, false, name)
-        if shouldInsert then
-          names := insertQualifiedParts names userName
+        if selected.contains owner then
+          let userName := (privateToUserName? name).getD name
+          acorn := insertQualifiedParts acorn userName
           if isStructure env name then
-            names := insertStructureFieldsAux env userName includePrivate 64 name {} names
-  return names
+            acornFields := insertStructureFields env name true
+              (fun fieldName acc => insertAcornField acc userName fieldName) acornFields
+        else if isLeanLibraryModule owner && !isPrivateName name &&
+            !name.isInternalDetail && !isNoConfusion env name then
+          library := insertLibraryConstant library name
+          if isStructure env name then
+            libraryFields := insertStructureFields env name false
+              (fun fieldName acc => insertLibraryField acc name fieldName) libraryFields
+  return { acorn, acornFields, library, libraryFields }
 
-unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
+unsafe def symbols (selection : Array Name) : IO SymbolInventory := do
   let package : System.FilePath := "lean"
   AcornTrackedFiles.ensureTrackedRegular "." "" "scripts/lean.sh"
   let setup ← IO.Process.output {
@@ -387,17 +424,27 @@ unsafe def symbols (selection : Array Name) : IO (Std.HashSet String) := do
     (leakEnv := true) (loadExts := true)
   symbolsFrom env selection
 
-private def resolves (names : Std.HashSet String) (name : String) : Bool :=
+private def resolves (inventory : SymbolInventory) (name : String) : Bool :=
   let name := name.replace "::" "."
-  external name || leanLiterals.contains name ||
-    (proseTokens ++ keywords ++ standardMacros).contains name || names.contains name ||
-    (name.endsWith "_*" && names.toArray.any (fun candidate =>
-      candidate.startsWith (name.dropEnd 1).toString))
+  if name.endsWith "_*" then
+    inventory.acorn.toArray.any (fun candidate =>
+      candidate.startsWith (name.dropEnd 1).toString)
+  else if name.contains '.' then
+    external name ||
+      inventory.acorn.contains name ||
+      inventory.acornFields.contains name ||
+      inventory.library.contains name ||
+      inventory.libraryFields.contains name
+  else
+    external name || leanLiterals.contains name ||
+      (proseTokens ++ keywords ++ standardMacros).contains name ||
+      inventory.acorn.contains name ||
+      (libraryRoots.contains name && inventory.library.contains name)
 
 unsafe def check (documents : Array (String × String)) (selection : Array Name)
     (tracked : Array String) (env? : Option Environment := none) : IO Unit := do
   let index := trackedIndex tracked
-  let names ← match env? with
+  let inventory ← match env? with
     | some env => symbolsFrom env selection
     | none => symbols selection
   let mut failures := 0
@@ -409,7 +456,7 @@ unsafe def check (documents : Array (String × String)) (selection : Array Name)
         else if span.startsWith "study:" then
           throw (IO.userError "unresolved study citation")
         else if let some name := symbol span then
-          unless resolves names name do throw (IO.userError "unresolved maintained declaration")
+          unless resolves inventory name do throw (IO.userError "unresolved maintained declaration")
       catch error =>
         IO.eprintln s!"{path}: `{span}`: {error}"
         failures := failures + 1

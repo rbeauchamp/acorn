@@ -240,16 +240,10 @@ theorem standard_admits (seed : UInt64) (side : Coordinate) (config : WorldConfi
   have hdvd : config.raw.dayLength.toNat ∣ 2 ^ 64 := by
     rw [hday_eq]
     decide
-  have hdiv :
-      (config.raw.dayLength.toNat % 8 == 0 && 2 ^ 64 % config.raw.dayLength.toNat == 0) = true := by
-    rw [hday_eq]
-    decide
   have hadm : config.raw.admissible = true :=
     (RawWorldConfig.admissible_iff config.raw).mpr
       ⟨config.positiveSide, hmax, config.positiveDay, h8, hdvd, hrange⟩
-  refine ⟨hadm, ?_⟩
-  unfold WorldConfig.admit
-  simp only [config.positiveSide, hmax, config.positiveDay, hdiv, hrange, ↓reduceDIte, ↓reduceIte]
+  exact ⟨hadm, WorldConfig.admit_of_admissible config hadm⟩
 
 theorem admissible_boxPosition_tileKind_isOk {config : WorldConfig}
     (hadm : config.raw.admissible = true) (world : World config) (pos : BoxPosition config) :
