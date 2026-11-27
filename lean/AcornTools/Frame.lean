@@ -355,25 +355,63 @@ private def CompanionArtifacts.path (self : CompanionArtifacts) : CompanionKind 
   | .irSig => self.irSig
   | .ir => self.ir
 
+private def CompanionArtifacts.ofPairs (text : String)
+    (pairs : Array (CompanionKind × System.FilePath)) : IO CompanionArtifacts := do
+  let mut oleanServer? : Option System.FilePath := none
+  let mut oleanPrivate? : Option System.FilePath := none
+  let mut irSig? : Option System.FilePath := none
+  let mut ir? : Option System.FilePath := none
+  for (kind, path) in pairs do
+    match kind with
+    | .oleanServer =>
+      if oleanServer?.isSome then
+        throw (IO.userError s!"module {text}: duplicate companion artifact {kind.ext}")
+      oleanServer? := some path
+    | .oleanPrivate =>
+      if oleanPrivate?.isSome then
+        throw (IO.userError s!"module {text}: duplicate companion artifact {kind.ext}")
+      oleanPrivate? := some path
+    | .irSig =>
+      if irSig?.isSome then
+        throw (IO.userError s!"module {text}: duplicate companion artifact {kind.ext}")
+      irSig? := some path
+    | .ir =>
+      if ir?.isSome then
+        throw (IO.userError s!"module {text}: duplicate companion artifact {kind.ext}")
+      ir? := some path
+  match oleanServer?, oleanPrivate?, irSig?, ir? with
+  | some oleanServer, some oleanPrivate, some irSig, some ir =>
+    return { oleanServer, oleanPrivate, irSig, ir }
+  | _, _, _, _ =>
+    throw (IO.userError s!"module {text}: incomplete companion artifact set")
+
+structure AdmittedArtifacts where
+  oleanPath : System.FilePath
+  companions? : Option CompanionArtifacts
+
+private def AdmittedArtifacts.importArtifacts (self : AdmittedArtifacts) : ImportArtifacts :=
+  match self.companions? with
+  | none => .ofArrays #[#[self.oleanPath], #[]]
+  | some comp =>
+    .ofArrays #[#[self.oleanPath, comp.oleanServer, comp.oleanPrivate], #[comp.irSig, comp.ir]]
+
 structure LockedDep where
   pkgDir : System.FilePath
   trackedFiles : Option (Std.HashSet String)
 
 structure VerifiedMod where
   pkgDir : System.FilePath
-  oleanPath : System.FilePath
-  companions? : Option CompanionArtifacts
-
-private def VerifiedMod.importArtifacts (self : VerifiedMod) : ImportArtifacts :=
-  match self.companions? with
-  | none => .ofArrays #[#[self.oleanPath], #[]]
-  | some comp =>
-    .ofArrays #[#[self.oleanPath, comp.oleanServer, comp.oleanPrivate], #[comp.irSig, comp.ir]]
+  artifacts : AdmittedArtifacts
 
 structure GuardContext where
   allModules : Array Name
   deps : Array LockedDep
   sysrootLib : System.FilePath
+
+structure AdmittedClosure where
+  ctx : GuardContext
+  verified : NameMap VerifiedMod
+  coreArtifacts : NameMap AdmittedArtifacts
 
 private def admitSysroot (requireClean : Bool) : IO (System.FilePath × System.FilePath) := do
   AcornTrackedFiles.ensureTrackedRegular "." "lean/" "lean-toolchain" requireClean
@@ -413,6 +451,13 @@ private def admitSysroot (requireClean : Bool) : IO (System.FilePath × System.F
     throw (IO.userError s!"Lean library directory {activeLib} differs from {sysrootLib}")
   return (expectedPrefix, sysrootLib)
 
+private def runDepGit (depDir : System.FilePath) (args : Array String) : IO IO.Process.Output :=
+  IO.Process.output {
+    cmd := "git",
+    args := #["--no-replace-objects", "--no-optional-locks", "-C", depDir.toString] ++ args,
+    env := #[("GIT_NO_REPLACE_OBJECTS", some "1")],
+    stdin := .null }
+
 private def checkDepRawDiff (depDir : System.FilePath) (configFile manifestFile : String) :
     List String → IO Unit
   | [] => pure ()
@@ -426,10 +471,7 @@ private def checkDepRawDiff (depDir : System.FilePath) (configFile manifestFile 
       throw (IO.userError s!"dependency checkout {depDir} working tree differs from locked revision at {path}")
     let parts ← AcornTrackedFiles.checkComponents path
     discard (ensureNoSymlinkChain depDir parts false)
-    let hashOut ← IO.Process.output {
-      cmd := "git",
-      args := #["--no-optional-locks", "-C", depDir.toString, "hash-object", "--", path],
-      stdin := .null }
+    let hashOut ← runDepGit depDir #["hash-object", "--", path]
     unless hashOut.exitCode == 0 && stripNewline hashOut.stdout == oldOid do
       throw (IO.userError s!"dependency checkout {depDir} materialized entry {path} differs from locked revision")
     checkDepRawDiff depDir configFile manifestFile rest
@@ -437,36 +479,25 @@ private def checkDepRawDiff (depDir : System.FilePath) (configFile manifestFile 
 
 private def verifyLockedDepGit (depDir realDep : System.FilePath)
     (rev configFile manifestFile : String) : IO (Std.HashSet String) := do
-  let topOut ← IO.Process.output {
-    cmd := "git", args := #["--no-optional-locks", "-C", depDir.toString, "rev-parse", "--show-toplevel"],
-    stdin := .null }
+  let topOut ← runDepGit depDir #["rev-parse", "--show-toplevel"]
   unless topOut.exitCode == 0 do
     throw (IO.userError s!"git rev-parse --show-toplevel failed in {depDir}: {topOut.stderr}")
-  let prefixOut ← IO.Process.output {
-    cmd := "git", args := #["--no-optional-locks", "-C", depDir.toString, "rev-parse", "--show-prefix"],
-    stdin := .null }
+  let prefixOut ← runDepGit depDir #["rev-parse", "--show-prefix"]
   unless prefixOut.exitCode == 0 && (stripNewline prefixOut.stdout).isEmpty do
     throw (IO.userError s!"dependency checkout {depDir} is not a Git repository root")
   unless (← IO.FS.realPath (stripNewline topOut.stdout)) == realDep do
     throw (IO.userError s!"dependency checkout {depDir} Git root mismatch")
-  let revOut ← IO.Process.output {
-    cmd := "git",
-    args := #["--no-optional-locks", "-C", depDir.toString, "rev-parse", "--verify", "-q", "HEAD"],
-    stdin := .null }
+  let revOut ← runDepGit depDir #["rev-parse", "--verify", "-q", "HEAD"]
   unless revOut.exitCode == 0 && stripNewline revOut.stdout == rev do
     throw (IO.userError s!"dependency checkout {depDir} HEAD does not match locked revision {rev}")
-  let cachedOut ← IO.Process.output {
-    cmd := "git",
-    args := #["--no-optional-locks", "-C", depDir.toString,
-      "diff-index", "--cached", "--quiet", "--ignore-submodules=none", "HEAD", "--"],
-    stdin := .null }
+  let commitOut ← runDepGit depDir #["rev-parse", "--verify", "-q", rev ++ "^{commit}"]
+  unless commitOut.exitCode == 0 && stripNewline commitOut.stdout == rev do
+    throw (IO.userError s!"dependency checkout {depDir} literal commit {rev} is unavailable")
+  let cachedOut ← runDepGit depDir
+    #["diff-index", "--cached", "--quiet", "--ignore-submodules=none", rev, "--"]
   unless cachedOut.exitCode == 0 do
     throw (IO.userError s!"dependency checkout {depDir} has staged changes differing from locked revision {rev}")
-  let flagOut ← IO.Process.output {
-    cmd := "git",
-    args := #["--no-optional-locks", "-C", depDir.toString, "-c", "core.quotePath=false",
-      "ls-files", "-v", "-z"],
-    stdin := .null }
+  let flagOut ← runDepGit depDir #["-c", "core.quotePath=false", "ls-files", "-v", "-z"]
   unless flagOut.exitCode == 0 do
     throw (IO.userError s!"git ls-files -v failed in {depDir}: {flagOut.stderr}")
   let flagRecords := (flagOut.stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
@@ -475,20 +506,14 @@ private def verifyLockedDepGit (depDir realDep : System.FilePath)
   for record in flagRecords do
     unless record.startsWith "H " do
       throw (IO.userError s!"dependency checkout {depDir} has non-clean Git index flag: {record}")
-  let untrackedOut ← IO.Process.output {
-    cmd := "git",
-    args := #["--no-optional-locks", "-C", depDir.toString, "-c", "core.quotePath=false",
-      "ls-files", "--others", "--exclude-standard", "-z"],
-    stdin := .null }
+  let untrackedOut ← runDepGit depDir
+    #["-c", "core.quotePath=false", "ls-files", "--others", "--exclude-standard", "-z"]
   unless untrackedOut.exitCode == 0 && untrackedOut.stdout.isEmpty do
     throw (IO.userError s!"dependency checkout {depDir} contains untracked files")
-  let wtOut ← IO.Process.output {
-    cmd := "git",
-    args := #["--no-optional-locks", "-C", depDir.toString,
-      "-c", "core.symlinks=true", "-c", "core.fsmonitor=false",
+  let wtOut ← runDepGit depDir
+    #["-c", "core.symlinks=true", "-c", "core.fsmonitor=false",
       "diff", "--raw", "-z", "--no-abbrev", "--no-renames", "--no-ext-diff", "--no-textconv",
-      "--ignore-submodules=none", "HEAD", "--"],
-    stdin := .null }
+      "--ignore-submodules=none", rev, "--"]
   unless wtOut.exitCode == 0 do
     throw (IO.userError s!"git diff failed in {depDir}: {wtOut.stderr}")
   unless wtOut.stdout.isEmpty do
@@ -496,11 +521,7 @@ private def verifyLockedDepGit (depDir realDep : System.FilePath)
     unless tokens.getLast? == some "" do
       throw (IO.userError s!"unterminated git diff output in {depDir}")
     checkDepRawDiff depDir configFile manifestFile tokens.dropLast
-  let stageOut ← IO.Process.output {
-    cmd := "git",
-    args := #["--no-optional-locks", "-C", depDir.toString, "-c", "core.quotePath=false",
-      "ls-files", "--stage", "-z"],
-    stdin := .null }
+  let stageOut ← runDepGit depDir #["-c", "core.quotePath=false", "ls-files", "--stage", "-z"]
   unless stageOut.exitCode == 0 do
     throw (IO.userError s!"git ls-files --stage failed in {depDir}: {stageOut.stderr}")
   let stageRecords := (stageOut.stdout.splitOn (String.singleton (Char.ofNat 0))).filter (!·.isEmpty)
@@ -729,15 +750,15 @@ private def verifyDepFiles (deps : Array LockedDep) (mod : Name) (text : String)
   return (dep.pkgDir, found, realAnswered)
 
 private def verifyCompanionArtifacts (pkgDir : System.FilePath) (mod : Name) (text : String)
-    (found : System.FilePath) (answers : Array System.FilePath) : IO CompanionArtifacts := do
+    (found : System.FilePath) (answers : Array (CompanionKind × System.FilePath)) :
+    IO CompanionArtifacts := do
   let some parts := moduleComponents? mod
     | throw (IO.userError s!"module {text}: invalid module path components")
   unless answers.size == companionKinds.size do
     throw (IO.userError s!"module {text}: incomplete companion artifact answer count")
-  let mut verified : Array System.FilePath := #[]
-  for h : i in [:companionKinds.size] do
-    let ext := companionKinds[i].ext
-    let answered := answers[i]!
+  let mut verified : Array (CompanionKind × System.FilePath) := #[]
+  for (kind, answered) in answers do
+    let ext := kind.ext
     let realAnswered ← try
       ensureContainedLibArtifact pkgDir parts ext answered
     catch error =>
@@ -749,10 +770,8 @@ private def verifyCompanionArtifacts (pkgDir : System.FilePath) (mod : Name) (te
       throw (IO.userError s!"module {text}: companion artifact {sibling} is invalid: {error}")
     unless realSibling == realAnswered do
       throw (IO.userError s!"module {text}: companion artifact {sibling} differs from Lake's {answered}")
-    verified := verified.push realAnswered
-  let #[oleanServer, oleanPrivate, irSig, ir] := verified
-    | throw (IO.userError s!"module {text}: unexpected verified companion count")
-  return { oleanServer, oleanPrivate, irSig, ir }
+    verified := verified.push (kind, realAnswered)
+  CompanionArtifacts.ofPairs text verified
 
 private def verifyClosure (ctx : GuardContext) (module : Name) : IO (NameMap VerifiedMod) := do
   unless ctx.allModules.contains module do
@@ -780,7 +799,7 @@ private def verifyClosure (ctx : GuardContext) (module : Name) : IO (NameMap Ver
     needCompanions := needCompanions.push (module, text, true, ".", rootFound, realRootOLean)
   else
     verified := verified.insert module
-      { pkgDir := ".", oleanPath := realRootOLean, companions? := none }
+      { pkgDir := ".", artifacts := { oleanPath := realRootOLean, companions? := none } }
 
   let mut seen : NameSet := ({} : NameSet).insert module
   let mut pending : Array (Name × String × Bool) := #[]
@@ -814,7 +833,7 @@ private def verifyClosure (ctx : GuardContext) (module : Name) : IO (NameMap Ver
       needCompanions := needCompanions.push (imp, impText, isRoot, impPkgDir, impFound, realImpOLean)
     else
       verified := verified.insert imp
-        { pkgDir := impPkgDir, oleanPath := realImpOLean, companions? := none }
+        { pkgDir := impPkgDir, artifacts := { oleanPath := realImpOLean, companions? := none } }
 
   if !needCompanions.isEmpty then
     let mut artSpecs : Array String := #[]
@@ -827,22 +846,126 @@ private def verifyClosure (ctx : GuardContext) (module : Name) : IO (NameMap Ver
     for h : i in [:needCompanions.size] do
       let (mod, mText, _, impPkgDir, modFound, realModOLean) := needCompanions[i]
       let base := stride * i
-      let mut answers : Array System.FilePath := #[]
-      for j in [:stride] do
-        answers := answers.push (← requireLakeString s!"module {mText}" artAnswers[base + j]!)
+      let mut answers : Array (CompanionKind × System.FilePath) := #[]
+      for hj : j in [:companionKinds.size] do
+        let ans ← requireLakeString s!"module {mText}" artAnswers[base + j]!
+        answers := answers.push (companionKinds[j], ans)
       let companions ← verifyCompanionArtifacts impPkgDir mod mText modFound answers
       verified := verified.insert mod {
         pkgDir := impPkgDir
-        oleanPath := realModOLean
-        companions? := some companions
+        artifacts := { oleanPath := realModOLean, companions? := some companions }
       }
   return verified
 
-private def isToolchainPrefix (mod : Name) : Bool :=
-  #[`Init, `Std, `Lean, `Lake].any (·.isPrefixOf mod)
+private def toolchainPrefixes : Array Name := #[`Init, `Std, `Lean, `Lake]
 
-private def verifyLoadedEnv (ctx : GuardContext) (verified : NameMap VerifiedMod)
-    (root : Name) (env : Environment) : IO Unit := do
+private def isToolchainPrefix (mod : Name) : Bool :=
+  toolchainPrefixes.any (·.isPrefixOf mod)
+
+private def admitCoreFile (ctx : GuardContext) (verified : NameMap VerifiedMod)
+    (dir realDir : System.FilePath) (regFiles : Std.HashSet String) (mod : Name) (stem : String) :
+    IO AdmittedArtifacts := do
+  if (moduleComponents? mod).isNone then
+    throw (IO.userError s!"core module {mod}: invalid module path components")
+  if ctx.allModules.contains mod || verified.contains mod then
+    throw (IO.userError s!"core module {mod} collides with workspace module")
+  let oleanName := s!"{stem}.olean"
+  unless regFiles.contains oleanName do
+    throw (IO.userError s!"core module {mod}: missing exact-case regular file {dir / oleanName}")
+  let oleanPath := realDir / oleanName
+  let serverName := s!"{stem}.{CompanionKind.oleanServer.ext}"
+  let companions? ←
+    if regFiles.contains serverName then
+      let mut pairs : Array (CompanionKind × System.FilePath) := #[]
+      for kind in companionKinds do
+        let cname := s!"{stem}.{kind.ext}"
+        unless regFiles.contains cname do
+          throw (IO.userError s!"core module {mod}: missing regular companion {dir / cname}")
+        pairs := pairs.push (kind, realDir / cname)
+      some <$> CompanionArtifacts.ofPairs mod.toString pairs
+    else
+      for kind in companionKinds do
+        let cname := s!"{stem}.{kind.ext}"
+        if let some cm ← symlinkMetadata? (dir / cname) then
+          unless cm.type == .file do
+            throw (IO.userError s!"core module {mod}: non-regular companion {dir / cname}")
+          unless kind.isIR do
+            throw (IO.userError s!"core module {mod}: unexpected companion {dir / cname}")
+      pure none
+  return { oleanPath, companions? }
+
+private partial def walkCoreDir (ctx : GuardContext) (verified : NameMap VerifiedMod)
+    (dir realDir : System.FilePath) (prefixMod : Name) (acc : NameMap AdmittedArtifacts) :
+    IO (NameMap AdmittedArtifacts) := do
+  let entries ← dir.readDir
+  let mut regFiles : Std.HashSet String := {}
+  let mut subDirs : Array String := #[]
+  for entry in entries do
+    let name := entry.fileName
+    let metaData ← (dir / name).symlinkMetadata
+    match metaData.type with
+    | .file => regFiles := regFiles.insert name
+    | .dir => subDirs := subDirs.push name
+    | _ => throw (IO.userError s!"non-regular entry in sysroot library: {dir / name}")
+  let mut out := acc
+  for name in regFiles do
+    if name.endsWith ".olean" then
+      let stem := (name.dropEnd 6).toString
+      let mod := prefixMod.str stem
+      let art ← admitCoreFile ctx verified dir realDir regFiles mod stem
+      out := out.insert mod art
+  for subName in subDirs do
+    let subMod := prefixMod.str subName
+    if (moduleComponents? subMod).isNone then
+      throw (IO.userError s!"invalid sysroot library directory name: {dir / subName}")
+    let subDir := dir / subName
+    let realSub ← IO.FS.realPath subDir
+    unless realSub == realDir / subName do
+      throw (IO.userError s!"sysroot library directory {subDir} resolves outside {realDir}")
+    out ← walkCoreDir ctx verified subDir realSub subMod out
+  return out
+
+private def admitCoreModules (ctx : GuardContext) (verified : NameMap VerifiedMod) :
+    IO (NameMap AdmittedArtifacts) := do
+  for pfx in toolchainPrefixes do
+    let pfxStr := pfx.toString (escape := false)
+    if (← symlinkMetadata? (System.FilePath.mk ".lake/build/lib/lean" / pfxStr)).isSome then
+      throw (IO.userError s!"root build library shadows core prefix {pfxStr}")
+    if (← symlinkMetadata? (System.FilePath.mk ".lake/build/lib/lean" / s!"{pfxStr}.olean")).isSome then
+      throw (IO.userError s!"root build library shadows core module {pfxStr}")
+  ensureRegularDir ctx.sysrootLib
+  let realSysrootLib ← IO.FS.realPath ctx.sysrootLib
+  let topEntries ← ctx.sysrootLib.readDir
+  let mut topNames : Std.HashSet String := {}
+  for entry in topEntries do
+    topNames := topNames.insert entry.fileName
+  let mut out : NameMap AdmittedArtifacts := {}
+  for pfx in toolchainPrefixes do
+    let pfxStr := pfx.toString (escape := false)
+    let mut pfxRegFiles : Std.HashSet String := {}
+    let candidateNames := #[s!"{pfxStr}.olean"] ++ companionKinds.map fun k => s!"{pfxStr}.{k.ext}"
+    for cname in candidateNames do
+      if let some m ← symlinkMetadata? (ctx.sysrootLib / cname) then
+        unless m.type == .file && topNames.contains cname do
+          throw (IO.userError s!"non-regular or case-mismatched sysroot artifact: {ctx.sysrootLib / cname}")
+        pfxRegFiles := pfxRegFiles.insert cname
+    if pfxRegFiles.contains s!"{pfxStr}.olean" then
+      let art ← admitCoreFile ctx verified ctx.sysrootLib realSysrootLib pfxRegFiles pfx pfxStr
+      out := out.insert pfx art
+    let pfxDir := ctx.sysrootLib / pfxStr
+    if let some dm ← symlinkMetadata? pfxDir then
+      unless dm.type == .dir && topNames.contains pfxStr do
+        throw (IO.userError s!"non-directory or case-mismatched sysroot prefix: {pfxDir}")
+      let realPfxDir ← IO.FS.realPath pfxDir
+      unless realPfxDir == realSysrootLib / pfxStr do
+        throw (IO.userError s!"sysroot library directory {pfxDir} resolves outside {realSysrootLib}")
+      out ← walkCoreDir ctx verified pfxDir realPfxDir pfx out
+  if out.isEmpty then
+    throw (IO.userError s!"no admitted core toolchain modules found under {ctx.sysrootLib}")
+  return out
+
+private def verifyLoadedEnv (admitted : AdmittedClosure) (root : Name) (env : Environment) :
+    IO Unit := do
   unless env.header.modules.size == env.header.moduleData.size do
     throw (IO.userError s!"module {root}: module inventory and metadata differ")
   unless (env.getModuleIdx? root).isSome do
@@ -852,8 +975,8 @@ private def verifyLoadedEnv (ctx : GuardContext) (verified : NameMap VerifiedMod
     let data := env.header.moduleData[i]!
     let some parts := moduleComponents? mod
       | throw (IO.userError s!"module {root}: invalid loaded module name {mod}")
-    if let some info := verified.find? mod then
-      unless data.isModule == info.companions?.isSome do
+    if let some info := admitted.verified.find? mod then
+      unless data.isModule == info.artifacts.companions?.isSome do
         throw (IO.userError s!"module {mod}: loaded module-ness disagrees with source header")
       let found ← try findOLean mod catch error =>
         throw (IO.userError s!"module {mod}: Lean finds no compiled file after import: {error}")
@@ -861,9 +984,9 @@ private def verifyLoadedEnv (ctx : GuardContext) (verified : NameMap VerifiedMod
         ensureContainedLibArtifact info.pkgDir parts "olean" found
       catch error =>
         throw (IO.userError s!"module {mod}: loaded artifact {found} is invalid ({error})")
-      unless realLoaded == info.oleanPath do
-        throw (IO.userError s!"module {mod}: loaded artifact {found} differs from verified {info.oleanPath}")
-      if let some comp := info.companions? then
+      unless realLoaded == info.artifacts.oleanPath do
+        throw (IO.userError s!"module {mod}: loaded artifact {found} differs from verified {info.artifacts.oleanPath}")
+      if let some comp := info.artifacts.companions? then
         for kind in companionKinds do
           let sib := found.withExtension kind.ext
           let realSib ← try
@@ -873,42 +996,54 @@ private def verifyLoadedEnv (ctx : GuardContext) (verified : NameMap VerifiedMod
           unless realSib == comp.path kind do
             throw (IO.userError s!"module {mod}: companion artifact {sib} differs from verified {comp.path kind}")
     else
-      unless isToolchainPrefix mod && !ctx.allModules.contains mod do
+      unless isToolchainPrefix mod && !admitted.ctx.allModules.contains mod do
         throw (IO.userError s!"module {root}: loaded unverified module {mod}")
+      let some coreArt := admitted.coreArtifacts.find? mod
+        | throw (IO.userError s!"module {root}: loaded unadmitted core module {mod}")
+      unless data.isModule == coreArt.companions?.isSome do
+        throw (IO.userError s!"module {mod}: loaded core module-ness disagrees with admitted artifacts")
       let some oleanParts := moduleFileParts? parts "olean"
         | throw (IO.userError s!"module {mod}: invalid toolchain module path")
       let found ← try findOLean mod catch error =>
         throw (IO.userError s!"module {mod}: Lean finds no toolchain compiled file: {error}")
-      try
-        discard (ensureContainedRegular ctx.sysrootLib found (some oleanParts))
+      let (_, realLoaded) ← try
+        ensureContainedRegular admitted.ctx.sysrootLib found (some oleanParts)
       catch error =>
         throw (IO.userError s!"module {mod}: toolchain artifact {found} is invalid ({error})")
-      let coreKinds ← if data.isModule then
-          pure companionKinds
-        else if (← symlinkMetadata? (found.withExtension CompanionKind.irSig.ext)).isSome then
-          pure (companionKinds.filter CompanionKind.isIR)
-        else
-          pure #[]
-      for kind in coreKinds do
-        let some sibParts := moduleFileParts? parts kind.ext
-          | throw (IO.userError s!"module {mod}: invalid toolchain companion path")
-        let sib := found.withExtension kind.ext
-        try
-          discard (ensureContainedRegular ctx.sysrootLib sib (some sibParts))
-        catch error =>
-          throw (IO.userError s!"module {mod}: toolchain companion artifact {sib} is invalid ({error})")
+      unless realLoaded == coreArt.oleanPath do
+        throw (IO.userError s!"module {mod}: toolchain artifact {found} differs from admitted {coreArt.oleanPath}")
+      if let some comp := coreArt.companions? then
+        for kind in companionKinds do
+          let some sibParts := moduleFileParts? parts kind.ext
+            | throw (IO.userError s!"module {mod}: invalid toolchain companion path")
+          let sib := found.withExtension kind.ext
+          let (_, realSib) ← try
+            ensureContainedRegular admitted.ctx.sysrootLib sib (some sibParts)
+          catch error =>
+            throw (IO.userError s!"module {mod}: toolchain companion artifact {sib} is invalid ({error})")
+          unless realSib == comp.path kind do
+            throw (IO.userError s!"module {mod}: toolchain companion artifact {sib} differs from admitted {comp.path kind}")
 
-def current (module : Name) (requireClean : Bool := true) : IO Unit := do
-  let ctx ← newGuardContext requireClean
-  discard (verifyClosure ctx module)
-
-def imported (module : Name) (requireClean : Bool := true) : IO Environment := do
+def current (module : Name) (requireClean : Bool := true) : IO AdmittedClosure := do
   let ctx ← newGuardContext requireClean
   let verified ← verifyClosure ctx module
+  let coreArtifacts ← admitCoreModules ctx verified
+  return { ctx, verified, coreArtifacts }
+
+def imported (module : Name) (requireClean : Bool := true) : IO Environment := do
+  let admitted ← current module requireClean
   let arts : NameMap ImportArtifacts :=
-    verified.foldl (fun acc mod info => acc.insert mod info.importArtifacts) {}
-  let env ← importModules #[{ module }] {} (arts := arts)
-  verifyLoadedEnv ctx verified module env
+    let base := admitted.coreArtifacts.foldl
+      (fun acc mod art => acc.insert mod art.importArtifacts) {}
+    admitted.verified.foldl
+      (fun acc mod info => acc.insert mod info.artifacts.importArtifacts) base
+  let origSearchPath ← searchPathRef.get
+  let env ← try
+    searchPathRef.set []
+    importModules #[{ module }] {} (arts := arts)
+  finally
+    searchPathRef.set origSearchPath
+  verifyLoadedEnv admitted module env
   return env
 
 def computed (pin : Pin) (requireClean : Bool := true) : IO (Std.HashMap Name String) := do
