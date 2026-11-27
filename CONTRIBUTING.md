@@ -179,7 +179,7 @@ maintainer-led assignment:
 - where the author is one of the maintainers, another of them assigns: an
   agent other than the one that did the work, or a human maintainer;
 - the assignment is written on the pull request: who assigned, and whether the
-  referee is an independent model session or a person.
+  referee is an independent fresh model session or a person.
 
 **Single-maintainer interim provision.** While
 Acorn has only one human maintainer, independent human maintainer cross-checking
@@ -214,9 +214,9 @@ hold:
   role (under Findings and revision below or in validation-pipeline review
   rounds on revised commits) do not disqualify fresh review sessions from
   re-reading revised commits (and an author may relay the designated reviewer's
-  unedited report), whereas reusing an authoring, fixing or author-side advice
-  session disqualifies the review and requires another independent fresh
-  session or an uninvolved person under the general rule above;
+  unedited report), whereas reusing an authoring, fixing, author-side review
+  or advice session disqualifies the review and requires another independent
+  fresh session or an uninvolved person under the general rule above;
 - for a claim of discovery requiring two referees, this standing designation
   supplies at most one independent referee and never substitutes for the second
   independent referee assigned under the general rule above.
