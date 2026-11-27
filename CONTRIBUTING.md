@@ -25,11 +25,6 @@ is complete. The shipped skills under .agents/skills
 provide the review workflow, proof-specific questions and how the
 [Regula audit](docs/verification.md#regula-audit) applies to writing Lean.
 
-Claude Code reads AGENTS.md by itself only when no CLAUDE.md or CLAUDE.local.md
-applies to the checkout, including a CLAUDE.md in a parent directory. If one
-does, add `@AGENTS.md` to a personal, uncommitted CLAUDE.local.md at the
-checkout root.
-
 For each change, explain the intended behavior, its implementation and proof
 owners, and any assumptions in the PR, whose description keeps the sections of
 the [pull request template](.github/pull_request_template.md). Run
@@ -70,8 +65,8 @@ chose.
 
 The maintainers are the owner and the organization's agents
 ([triage and response](#triage-and-response)); a human maintainer is the owner
-or another person granted maintainer authority on the repository. A model family
-is the models of one developer. The maintainers' validation pipeline is the
+or another person granted maintainer authority on the repository. The
+maintainers' validation pipeline is the
 no-mistakes pipeline that the maintainers run on a change, configured by
 `.no-mistakes.yaml`. Its reviewer, a model that the maintainers configure and
 never one that an author chooses for a pull request, reads the change; the
@@ -81,9 +76,10 @@ merge gate on the commit, pushes it and opens or updates the pull request.
 ### Which review a pull request gets
 
 Every pull request requires an independent review under this protocol, and
-never by a reviewer the author chose; any model reviewer must belong to another
-model family than every model that did or fixed the work, and the applicable
-assignment rule determines when an uninvolved person is eligible. Which review
+never by a reviewer the author chose; any model reviewer must run in an
+independent fresh session that took no part in writing, fixing, or advising on
+the work (no same-session self-review), and the applicable assignment rule
+determines when an uninvolved person is eligible. Which review
 a pull request gets is decided by what it claims or changes and by whether it
 passed the maintainers' validation pipeline, never by who wrote it or by how
 its author describes it:
@@ -115,8 +111,8 @@ pull request's exact head commit, the checks GitHub registers on that head
 included, the run's reviewer read the change and the run's review ended with
 no finding open that blocks under
 [three rounds of review](#three-rounds-of-review), and the run's reviewer
-meets the rule of no same-family self-review that the single-maintainer
-interim provision below states, the run's own fixers counted among the models
+meets the rule of no same-session self-review that the single-maintainer
+interim provision below states, the run's own fixers counted among the sessions
 that fixed the work. A run that pushed the head but whose checks on GitHub
 failed or have not finished has not passed. What the run's review covers of
 the pull request's title and description is as
@@ -175,58 +171,54 @@ human maintainer, any fallback review when the interim designation cannot
 apply, and the second referee on a claim of discovery) receives an individual
 maintainer-led assignment:
 
-- the referee is of another model family than every model that did the work,
-  or is a person. Whom this admits for work a person did with no model is the
-  maintainers' call;
-- the referee took no part in the work: it did not write it, advise on it or
-  review it for the author;
+- the referee is an independent fresh model session or an uninvolved person.
+  Whom this admits for work a person did with no model is the maintainers'
+  call;
+- the referee took no part in the work: it did not write it, fix it, advise on
+  it or review it for the author;
 - where the author is one of the maintainers, another of them assigns: an
   agent other than the one that did the work, or a human maintainer;
-- the assignment is written on the pull request: who assigned, and the
-  referee's model family or that the referee is a person.
+- the assignment is written on the pull request: who assigned, and whether the
+  referee is an independent model session or a person.
 
 **Single-maintainer interim provision.** While
 Acorn has only one human maintainer, independent human maintainer cross-checking
 on every pull request is unavailable. During this single-maintainer phase,
 the referee's review and the short review remain mandatory wherever
 [which review a pull request gets](#which-review-a-pull-request-gets) gives
-them (by an external model of another model family than every model that did
-the work, or an uninvolved person where the general rule above admits one),
-with the same depth, exact head commit binding, findings, and
+them (by an independent fresh model session that took no part in writing,
+fixing or advising on the work, or an uninvolved person where the general rule
+above admits one), with the same depth, exact head commit binding, findings, and
 verdict of accept, revise or reject, plus exact-head `./scripts/gate.sh` and
 any blind specification read-back required at merge under
-[triage and response](#triage-and-response). Under this provision, the external
-model configured as the reviewer of the maintainers' validation pipeline gives
-a referee's review or a short review by standing owner designation when it
-reads the pull request as that review requires, standalone against the exact
-pull request head, title and description, and when all of the following hold:
+[triage and response](#triage-and-response). Under this provision, the reviewer
+configured for the maintainers' validation pipeline gives a referee's review or
+a short review by standing owner designation when it reads the pull request in
+an independent fresh session as that review requires, standalone against the
+exact pull request head, title and description, and when all of the following
+hold:
 
 - an assignment comment is written on the pull request recording the owner's
-  standing single-maintainer designation, the designated reviewer's model
-  family, and the exact head commit;
+  standing single-maintainer designation, that the designated reviewer ran in
+  an independent fresh session, and the exact head commit;
 - the reviewer's report or short review for that exact head commit, title and
   description is posted on the pull request, unedited except for any redaction
   required by the security-vulnerability rule below and any private material
   withheld under the rule on private material above (and for a claim of
   discovery, withheld and posted together with the second referee's report under
   the discovery rule below);
-- **no same-family self-review:** the designated reviewer took no part in writing
-  or fixing the change and belongs to a different model family than every model
-  that authored, fixed or advised on the work. In particular, if any contributing
-  or pipeline-fixing model (whether directed by an outside contributor, an
-  organization agent or a human maintainer) belongs to the same model family as
-  the validation pipeline's configured reviewer, that reviewer
-  cannot satisfy the protocol for that pull request and another reviewer is
-  assigned under the general rule above (of another model family or an
-  uninvolved person). Earlier review findings and reports issued by that model
-  strictly in its designated referee or reviewer role (under Findings
-  and revision below or in validation-pipeline review rounds on
-  revised commits) do not disqualify it from re-reading revised commits (and an
-  author may relay the designated reviewer's unedited report), whereas seeking
-  optional author-side review, advice, writing or fixing from that model does
-  disqualify it;
+- **no same-session self-review:** the designated reviewer runs in an
+  independent fresh session that took no part in writing, fixing or advising on
+  the work (no cross-provider or cross-family mandate applies). Earlier review
+  findings and reports issued strictly in its designated referee or reviewer
+  role (under Findings and revision below or in validation-pipeline review
+  rounds on revised commits) do not disqualify fresh review sessions from
+  re-reading revised commits (and an author may relay the designated reviewer's
+  unedited report), whereas reusing an authoring, fixing or author-side advice
+  session disqualifies the review and requires another independent fresh
+  session or an uninvolved person under the general rule above;
 - for a claim of discovery requiring two referees, this standing designation
-  supplies at most one cross-family referee and never substitutes for the second
+  supplies at most one independent referee and never substitutes for the second
   independent referee assigned under the general rule above.
 
 A run of the validation pipeline is not such a reading: it reads a change
@@ -326,9 +318,7 @@ closed, and new work is a new pull request.
 of [prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery),
 has two referees, each assigned by the rule above. Neither sees the other's
 report before filing its own: each files with the maintainers, who post both on
-the pull request once they hold both. Whether the two are also of different
-model families from each other is the maintainers' choice. Both reports must
-be clean.
+the pull request once they hold both. Both reports must be clean.
 
 ### The short review
 
@@ -375,17 +365,17 @@ the following hold:
 
 - an assignment comment is written on the pull request recording the owner's
   standing designation of the validation pipeline's configured reviewer, that
-  the pull request passed the validation pipeline, the run, the reviewer's
-  model family and the exact head commit;
+  the pull request passed the validation pipeline, the run, that the reviewer
+  ran in an independent fresh session, and the exact head commit;
 - the review is posted on the pull request, unedited except for any redaction
   required by the security-vulnerability rule above and any private material
   withheld under the rule on private material above;
-- the reviewer meets the rule of no same-family self-review that the
-  single-maintainer interim provision above states: it took no part in
-  writing or fixing the change, did not review it or advise on it for its
-  author, and belongs to a different model family than every model that
-  authored, fixed or advised on the work, the run's own fixers included;
-  reviews it gave as the validation pipeline's reviewer do not disqualify it.
+- the reviewer meets the rule of no same-session self-review that the
+  single-maintainer interim provision above states: it ran in an independent
+  fresh session that took no part in writing or fixing the change (the run's
+  own fixers included) and did not review it or advise on it for its author;
+  reviews issued strictly as the validation pipeline's reviewer do not
+  disqualify fresh review sessions on revised commits.
 
 The review counts only for the head commit, title and description that its
 reviewer read. Where the pull request's title and description were drafted or

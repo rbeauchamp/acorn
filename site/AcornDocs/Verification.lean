@@ -1571,8 +1571,9 @@ that assigned a referee or a reviewer is another than the one that did the work;
 the assignment comment states who assigned. For a pull request that claims no
 result and passed the maintainers' validation pipeline, the assignment comment
 records the owner's standing designation of the validation pipeline's
-configured reviewer, that the pull request passed, the run, the reviewer's
-model family and the exact head commit, beside the run's unedited review.
+configured reviewer, that the pull request passed, the run, that the reviewer
+ran in an independent fresh session, and the exact head commit, beside the
+run's unedited review.
 Unedited means that a posting withholds nothing but a security
 vulnerability's details and private material, which is a private path, a
 private record or personal data, each withheld part of private material
@@ -1580,21 +1581,21 @@ marked as withheld with its kind; each finding's existence, the verdict and
 what was done about each finding stay on the pull request.
 Under the single-maintainer interim provision, while Acorn has one human
 maintainer, a truthful assignment comment for a referee's review or a short
-review can instead record the owner's standing designation of the model
-configured as the validation pipeline's reviewer, reading the pull request
-standalone as that review requires, its model family, and the exact head
-commit without identifying a separate per-PR assigning agent, alongside its
-unedited exact-head report or short review. The protocol prohibits same-family
-self-review (disqualifying that model if chosen for author-side review,
-advice, writing or fixing while permitting re-reads after findings issued in
-its designated referee or reviewer role), falls back to another model family
-or an uninvolved person under the general rule when the designated model is
-disqualified, and retires that use of the designation once Acorn has more
-than one human maintainer. No check enforces that a pull request passed the
-validation pipeline, model-family separation, designated-role vs. author-side
-advice, multi-maintainer retirement, or which findings still block after a
-review's third round, leaving those checks as accepted risk in the written
-protocol. A
+review can instead record the owner's standing designation of the reviewer
+configured for the maintainers' validation pipeline, reading the pull request
+standalone in an independent fresh session as that review requires, and the
+exact head commit without identifying a separate per-PR assigning agent,
+alongside its unedited exact-head report or short review. The protocol prohibits
+same-session self-review (disqualifying any session used for author-side review,
+advice, writing or fixing while permitting fresh review sessions to re-read
+after findings issued strictly in the designated referee or reviewer role),
+falls back to another independent fresh session or an uninvolved person under
+the general rule when a review session is disqualified, and retires that use of
+the designation once Acorn has more than one human maintainer. No check enforces
+that a pull request passed the validation pipeline, fresh-session separation,
+designated-role vs. author-side advice, multi-maintainer retirement, or which
+findings still block after a review's third round, leaving those checks as
+accepted risk in the written protocol. A
 referee or a reviewer can be wrong, and two referees can both be wrong. An
 author's own account of a goal that changed while the work was done is
 something the protocol cannot check, since a referee sees the pull request and
