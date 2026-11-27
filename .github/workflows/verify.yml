@@ -78,10 +78,15 @@ jobs:
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+      # Check out github.event.pull_request.head.sha directly (already admitted as a 40-hex
+      # SHA above, so an empty payload has already failed and never falls back to the merge
+      # commit). CodeQL's actions/untrusted-checkout/medium rule matches a step output named
+      # after commit or sha heuristically regardless of trigger, whereas the direct GitHub
+      # context expression is evaluated against this workflow's pull_request-only trigger.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         timeout-minutes: 2
         with:
-          ref: ${{ steps.commit.outputs.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
           fetch-depth: 0
       - name: Confirm checked-out commit

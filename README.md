@@ -257,8 +257,9 @@ in `Acorn/`, implementation contracts and supporting mathematics in `AcornVerif/
 and build/verification tools in `AcornTools/`. Native runtime modules live in
 `NativeApp/` (its `Viewer.lean` module starts the viewer), executable entry
 points live in `Entry/`, and `Bootstrap.lean` is the directly invoked build
-bootstrap. Browser viewer assets live in `viewer/static/`, and the Verso
-documentation site lives in `site/`.
+bootstrap. The pure zero-JS Lean web viewer lives under `lean/Acorn/Host/Viewer/`
+(served by `acorn-viewer` with `Content-Security-Policy` `script-src 'none'`), and
+the Verso documentation site lives in `site/`.
 
 Research criticism, proof/implementation review, and contributions are welcome,
 including from outside contributors and their AI agents through

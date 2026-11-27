@@ -591,10 +591,19 @@ external prose names strictly by exact equality with
 namespace or type admits no other member of its namespace (every qualified
 external name must be listed in full), and the module imports only Lean's
 prelude so the Regula proof claim covers it and `AcornDocument.external_listed`.
-In `lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.code` conservatively
-strips JavaScript comments, strings, and regex literals and fails closed on
-unterminated constructs; its specification table check requires a unique line
-containing the Appendix A title with exact heading
+In `lean/AcornTools/Corpus/Audit.lean`, `AcornCorpus.check` and
+`AcornCorpus.language` audit the full Git-tracked regular-file inventory with
+zero directory carve-outs through `Acorn.Host.Viewer.Html.admitZeroJsFile`,
+whose exact admission boundary over tracked paths is proved by
+`Acorn.Host.Viewer.Html.admitZeroJsFile_iff`: rejecting any lowercase basename
+ending in a JavaScript or TypeScript suffix (including exact dot-basenames,
+proved by `Acorn.Host.Viewer.Html.hasForbiddenJsPath_dot_basename`), failing
+closed on any NUL byte or non-UTF-8 encoding outside the admitted UTF-8 text
+boundary (excluding UTF-16, UTF-32, and binary payloads), and rejecting any
+decoded UTF-8 file satisfying `Acorn.Host.Viewer.Html.ContainsScriptTag`. In
+`lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.check` verifies the
+specification table in `docs/viewer-ux.md`: it requires a unique line containing
+the Appendix A title with exact heading
 `## Appendix A · Constants this document quotes`, then scans from that heading
 to the end of `docs/viewer-ux.md` (without stopping at a later heading),
 requiring the generated constants table to appear consecutively once and
@@ -637,12 +646,12 @@ the `NativeApp` library and the `acorn-core` and `acorn-viewer` executables
 declare Lake's nativeProvenance target (alongside checkpointSync) in
 extraDepTargets, so provenanceJob runs before `NativeApp` compiles and
 contributes its trace to `NativeApp.Build`. provenanceJob admits
-`lean/Acorn/Host/AuditPins.lean` and `viewer/static/index.html` as Git-tracked
-regular files, collects tracked regular entries under `lean/` via nativeSources
-(every `.lean` and `.c` file, including `lean/Acorn/Host/AuditPins.lean` and
-`lean/os/checkpoint-sync.c`, plus `lean/lean-toolchain` and
-`lean/lake-manifest.json`), appends `viewer/static/index.html`, resolves real
-paths, and sorts them. nativeDigests (shared by singleton hashing in
+`lean/Acorn/Host/AuditPins.lean` as a Git-tracked regular file, collects tracked
+regular entries under `lean/` via nativeSources (every `.lean` and `.c` file,
+including `lean/Acorn/Host/AuditPins.lean`, `lean/Acorn/Host/Viewer/Html.lean`,
+`lean/Acorn/Host/Viewer/ServerView.lean`, and `lean/os/checkpoint-sync.c`, plus
+`lean/lean-toolchain` and `lean/lake-manifest.json`), resolves real paths, and
+sorts them. nativeDigests (shared by singleton hashing in
 nativeDigest) rejects paths containing newlines, hashes the list in one
 `openssl dgst -sha256 -r` invocation, and requires one lowercase
 64-hex-character SHA-256 digest per input in order with the matching path.
@@ -687,10 +696,19 @@ The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
 validates, and every gate check enumerates only Git-tracked stage-0 regular
 files so untracked working-copy entries do not enter checks or change the
-verdict, apart from the deliberate refusals of ambient `package-overrides.json`
-in an active workspace, non-regular or symlinked entries in checked `.lake`
-destinations, and an untracked `lakefile.toml` inside `lean/` during
-`scripts/regula.sh`. GitHub runs the same
+verdict, apart from the deliberate fail-closed refusals of ambient
+`package-overrides.json` in an active workspace, non-regular or symlinked
+entries in checked `.lake` destinations, an untracked `lakefile.toml` inside
+`lean/` during `scripts/regula.sh`, and an untracked nested `.git` directory
+inside `lean/` or `site/` (which redirects subtree index lookup so verdict
+routes fail closed). In a reused local checkout (unlike fresh hosted CI
+checkouts), that untracked-file boundary also rests on two residual
+local-checkout hypotheses: no direct out-of-wrapper Lake reconfiguration was
+run across a stage/unstage transition (since `scripts/tracked-files.sh` clears
+Acorn's cached `lakefile.olean` only when its tracked-module stamp changes,
+leaving any out-of-wrapper cached module list until `.lake/config` is cleared),
+and no untracked `.gitattributes` or local Git conversion filter alters
+working-tree comparison bytes under the `git diff HEAD` clean check. GitHub runs the same
 script at each event that gives a pull request its head, within the limits
 described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
@@ -841,36 +859,90 @@ entry under that directory, a subdirectory or a symbolic link included, fails
 it and is named, while untracked working-copy entries are ignored. The check
 reads declarations
 from compiled modules, never from sources, and running it builds the checking
-program and no module that program reads. So for each pin file it first
-requires the module the file names to be, under exactly that name, one of the
-package's Lean source files, a member of the inventory that verification's
-build requests from. It then asks Lake, through the bootstrap and building
-nothing, for the source file and the compiled file of the root package's
-module of that name, which Lake gives only when the module is built from the
-present sources. It requires that source file to be the inventoried file, and
-the compiled file Lean finds for the module to be the compiled file Lake
-named. It fails, naming the module, when
-the tree holds no source file of exactly that name, a name that differs from a
-source's only in the case of its letters included, when the root package does
-not hold the module, when Lake does not report the module and every module of
-the workspace it imports current, when Lake reads the module's source from
-another place, and when Lean finds the module's compiled
-file elsewhere. A module of a dependency or of the documentation package is
-refused as no source of this package, and any tracked entry below the package
-directory that is neither a regular file nor below regular directories fails
-the inventory and the check with it. The command that prints a pin file requires
-the same things
-before it reads a module. So a compiled file that an earlier build left
-behind is not read in
-place of the tree's source, as far as Lake's record of what is current is
-right: that record, and that nothing but Lake has written the compiled files
-since, are trusted. Because AcornFrameCheck.current compares real paths for the
-named root module alone before AcornFrameCheck.imported loads its dependency
-closure (a boundary shared by verification and `frame-check print`), Lean's
-search path, which the bootstrap's `lake exe` sets with the workspace's own
-library directories first, is also trusted to resolve the pinned module's
-imports to the compiled artifacts Lake checked. The check relies besides, as every check of the gate does,
-on the stability of the file system while it runs, which the
+program and no module that program reads. So before AcornFrameCheck.imported
+loads any environment, for the check and for `frame-check print` alike, it
+calls AcornFrameCheck.current and consumes the admission that call returns.
+AcornFrameCheck.current first admits the Lean sysroot by resolving the expected
+prefix directly from the Git-tracked regular file `lean/lean-toolchain` through
+Elan independently of ambient toolchain selection (refusing a mismatched
+prefix from `$LEAN_SYSROOT` or the ambient Lean command,
+and verifying non-symlink `lib/lean` directories; AcornFrameCheck.run initializes
+Lean's search path from that admitted prefix), verifies tracked regular-file
+admission for `lean/Bootstrap.lean`, `lean/lakefile.lean`, and `lean/lake-manifest.json`,
+admits non-symlink directories across `lean/.lake` and `lean/.lake/packages`
+and each locked dependency checkout (rejecting ambient package-override
+manifests, and whenever `.git` metadata is present running Git with replacement
+objects disabled via `--no-replace-objects` to verify that the checkout is a
+Git repository root at the literal locked commit revision with clean index,
+clean index flags, no untracked non-ignored files, no working-tree divergence
+from that literal commit apart from exact-blob materialization of non-Lean,
+non-config, non-manifest tracked symlinks, and stage-0 tracked regular-file
+membership for its configuration and manifest files), and requires the named
+root module to be, under exactly its name, one of the package's Lean source
+files in AcornModuleInventory.allModules. It then asks Lake, through the
+bootstrap and building nothing, for the root module's source file, compiled
+file, module header, and transitive workspace imports. For the root module and
+every transitive root-package import in that closure, it requires membership in
+AcornModuleInventory.allModules, currency reported by Lake against the present
+sources, and lexical containment under the root directory with no parent
+traversal or symbolic links along the candidate path itself: Lake's source
+answer must walk directly to the exact case-sensitive inventoried `.lean` file,
+and both Lake's compiled answer and Lean's resolved `.olean` must walk directly
+to the exact case-sensitive path under `.lake/build/lib/lean` with equal
+canonical real paths. For every non-root workspace module in Lake's transitive
+imports, it requires absence of any shadowing entry in `.lake/build/lib/lean`,
+lexical non-symlink regular-file containment of Lake's source answer inside a
+locked dependency checkout under `lean/.lake/packages` with exact module
+`.lean` suffix (and stage-0 tracked regular-file membership when `.git`
+metadata is present), and lexical non-symlink regular-file containment of both
+Lake's compiled answer and Lean's resolved `.olean` under that dependency's
+`.lake/build/lib/lean` with equal canonical real paths. Whenever a workspace
+module's header declares the Lean module system, it additionally queries Lake's
+`.olean.server`, `.olean.private`, `.ir.sig`, and `.ir` outputs from one closed
+companion inventory, preserving each companion kind through verification, and
+requires all four Lake answers and the sibling files beside Lean's resolved
+`.olean` to satisfy the same lexical non-symlink regular-file containment and
+canonical real-path equality. AcornFrameCheck.current also admits core modules
+with the Init, Std, Lean, and Lake prefixes directly under the admitted
+sysroot library directory (verifying absence of root-library shadows for those
+prefixes, non-symlink directories, exact on-disk casing, and non-symlink
+regular `.olean` and companion files, with no collision against workspace
+modules). AcornFrameCheck.imported builds a per-import artifact map strictly
+from that admission's workspace and core artifacts (with no cross-pin
+environment or verification cache) and supplies it to importModules while
+temporarily emptying Lean's search path, so importModules cannot fall back to
+filesystem lookup or deserialize any unadmitted `.olean` or companion artifact,
+binding legacy modules to their admitted `.olean` alone with empty IR parts and
+module-system modules to their admitted `.olean` and four companion artifacts.
+After restoring the search path and before any frame walk reads declarations
+from the constructed environment, AcornFrameCheck.imported performs a separate
+post-import check of every entry in the loaded module header against its
+metadata and Lean's search-path resolution: loaded workspace modules must match
+the current closure's verified map, module-system flag, and lexically contained
+regular `.olean` (plus the four companion artifacts when the module system is
+enabled), and every remaining loaded module must carry a core toolchain prefix
+(Init, Std, Lean, or Lake) outside AcornModuleInventory.allModules matching its
+pre-admitted core entry, module-system flag, and lexically contained
+non-symlink regular `.olean` (plus its four companions when the module system
+is enabled) under the admitted sysroot library directory. It fails, naming the
+module, when any tree source is absent or differs in letter case, when the root
+package lacks the root module, when Lake does not report the module and its
+workspace import closure current, when any source, compiled `.olean`, or
+companion artifact resolves elsewhere, uses a symbolic link along its path, or
+diverges from a Git-tracked locked dependency checkout, or when an unverified
+or shadowed module enters the loaded environment. A module of a dependency or of
+the documentation package is refused as a root target as no source of this
+package, and any tracked entry below the package directory that is neither a
+regular file nor below regular directories fails the inventory and the check
+with it. So a compiled file left behind by an earlier build or shadowed on
+Lean's search path is neither deserialized by the frame import nor read in place
+of the tree's sources, as far as Lake's record of what is current is right: that
+record, and that nothing but Lake has altered the compiled files without
+invalidating Lake's traces, remain trusted, together with toolchain binaries
+(including Elan), dependency checkouts lacking `.git` metadata, Git's
+working-tree comparison as configured (its filters and stat cache), the module
+search path of the Lake query launched through the bootstrap, and the stability
+of the file system while the check runs, which the
 [compiler and execution boundary](#compiler-and-execution-boundary) lists among
 the trusted boundaries. The check then computes
 that list from the compiled module and fails when a
@@ -1110,7 +1182,7 @@ available for focused diagnostics.
 
 Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
-native, browser-kernel and ownership admission after it. Each of these
+native and ownership admission after it. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
 before a failure is reported. The site check runs after these admissions, also
 when one of them fails, because `site/lakefile.toml` requires `../lean` by path
@@ -1445,9 +1517,17 @@ from Git-tracked regular `.lean` files below `lean/`, and admits every declared
 executable's root module against that same tracked regular-file inventory
 during configuration elaboration and target discovery. A new tracked source
 below Acorn, AcornVerif or NativeApp is therefore a module of that library, the
-claim covers it, and Acorn's boundary predicates class it by its name;
-untracked files on disk are neither assigned to libraries nor buildable as
-library modules or executable roots. The tools keep no written
+claim covers it, and Acorn's boundary predicates class it by its name; under
+the local-checkout conditions stated in
+[build and source inventory](#build-and-source-inventory) (no direct
+out-of-wrapper Lake reconfiguration across a stage/unstage transition leaving a
+stale cached `lakefile.olean` in `.lake/config`, no untracked `.gitattributes`
+or local Git conversion filter altering `git diff HEAD` working-tree bytes, and
+with ambient `package-overrides.json`, non-regular or symlinked `.lake`
+destinations, an untracked `lakefile.toml` inside `lean/` during
+`scripts/regula.sh`, and an untracked nested `.git` directory inside `lean/` or
+`site/` refused fail-closed), untracked files on disk are neither assigned to
+libraries nor buildable as library modules or executable roots. The tools keep no written
 list of those application modules. A new tracked source below
 `lean/AcornTools` is a module of a tool library outside the claim: ownership
 admission enumerates tracked regular `.lean` files from Git and requires each
@@ -1508,8 +1588,9 @@ that assigned a referee or a reviewer is another than the one that did the work;
 the assignment comment states who assigned. For a pull request that claims no
 result and passed the maintainers' validation pipeline, the assignment comment
 records the owner's standing designation of the validation pipeline's
-configured reviewer, that the pull request passed, the run, the reviewer's
-model family and the exact head commit, beside the run's unedited review.
+configured reviewer, that the pull request passed, the run, that the reviewer
+ran in an independent fresh session, and the exact head commit, beside the
+run's unedited review.
 Unedited means that a posting withholds nothing but a security
 vulnerability's details and private material, which is a private path, a
 private record or personal data, each withheld part of private material
@@ -1517,21 +1598,21 @@ marked as withheld with its kind; each finding's existence, the verdict and
 what was done about each finding stay on the pull request.
 Under the single-maintainer interim provision, while Acorn has one human
 maintainer, a truthful assignment comment for a referee's review or a short
-review can instead record the owner's standing designation of the model
-configured as the validation pipeline's reviewer, reading the pull request
-standalone as that review requires, its model family, and the exact head
-commit without identifying a separate per-PR assigning agent, alongside its
-unedited exact-head report or short review. The protocol prohibits same-family
-self-review (disqualifying that model if chosen for author-side review,
-advice, writing or fixing while permitting re-reads after findings issued in
-its designated referee or reviewer role), falls back to another model family
-or an uninvolved person under the general rule when the designated model is
-disqualified, and retires that use of the designation once Acorn has more
-than one human maintainer. No check enforces that a pull request passed the
-validation pipeline, model-family separation, designated-role vs. author-side
-advice, multi-maintainer retirement, or which findings still block after a
-review's third round, leaving those checks as accepted risk in the written
-protocol. A
+review can instead record the owner's standing designation of the reviewer
+configured for the maintainers' validation pipeline, reading the pull request
+standalone in an independent fresh session as that review requires, and the
+exact head commit without identifying a separate per-PR assigning agent,
+alongside its unedited exact-head report or short review. The protocol prohibits
+same-session self-review (disqualifying any session used for author-side review,
+advice, writing or fixing while permitting fresh review sessions to re-read
+after findings issued strictly in the designated referee or reviewer role),
+falls back to another independent fresh session or an uninvolved person under
+the general rule when a review session is disqualified, and retires that use of
+the designation once Acorn has more than one human maintainer. No check enforces
+that a pull request passed the validation pipeline, fresh-session separation,
+designated-role vs. author-side advice, multi-maintainer retirement, or which
+findings still block after a review's third round, leaving those checks as
+accepted risk in the written protocol. A
 referee or a reviewer can be wrong, and two referees can both be wrong. An
 author's own account of a goal that changed while the work was done is
 something the protocol cannot check, since a referee sees the pull request and
@@ -1735,8 +1816,9 @@ installs a run other than the one it retires ({decl}`Acorn.Host.Viewer.Core.repl
 the instants recorded by steps and outcomes do not go back, whatever the clock reads
 ({decl}`Acorn.Host.Viewer.Core.instant_later`, {decl}`Acorn.Host.Viewer.Core.step_last`,
 {decl}`Acorn.Host.Viewer.Core.resume_last`); and
-every result first installs its own lifecycle and publishes its control record from it
-({decl}`Acorn.Host.Viewer.Stepped.effects_settle`). The operating system's process, signal and wait
+every result first installs its own lifecycle and settles its server-held lifecycle state and
+detail from it ({decl}`Acorn.Host.Viewer.Stepped.effects_settle`, applied through
+{decl}`Acorn.Host.Viewer.Broadcast.settle`). The operating system's process, signal and wait
 semantics, the file system's durability, the Lean runtime's IO, mutexes and clock, the identity
 a core reports, the actor's mapping of each effect and call to the native operation it names, and
 its pre-launch check of the ranked core's file remain the trusted base.
@@ -1764,9 +1846,9 @@ events that hold a Start and a state reached by them that waits to spawn the fir
 ({decl}`Acorn.Host.Viewer.Core.start_spawns`). That is a statement of existence, whose witness has
 every call between the Start and the spawn succeed; a Start whose intent cannot be written reaches
 no spawn. The state built with no state file admits a launch for every seed within the browser's
-integers ({decl}`Acorn.Host.Viewer.Core.unstarted_launch`), and the control record of the start on
-that state says the run is desired stopped and actually stopped
-({decl}`Acorn.Host.Viewer.Core.start_control`).
+integers ({decl}`Acorn.Host.Viewer.Core.unstarted_launch`), and the typed control projection
+({decl}`Acorn.Host.Viewer.controlTelemetry`) of the start on that state says the run is desired
+stopped and actually stopped ({decl}`Acorn.Host.Viewer.Core.start_control`).
 
 A state file is decoded only when it is a JSON object that holds the six members of the state,
 each admitted, and beside them at most a schema version and a child record; any other is refused.
@@ -1882,8 +1964,9 @@ publication and the file is still the original. So a start-up that fails before 
 as an earlier version's ({decl}`Acorn.Host.Viewer.StartSource.earlier`), or as an unbound running
 intent ({decl}`Acorn.Host.Viewer.StartSource.other`), once: in the first launch that publishes
 the stopped state. That is the boundary, and no other: the reason is not lost by a failure before
-the publication, and after the publication it has been given, in that launch's first control
-record and on standard output, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
+the publication, and after the publication it has been given, in that launch's initial
+server-held lifecycle state ({decl}`Acorn.Host.Viewer.Broadcast.settle`) and on standard output,
+and is not given again. After it, a viewer of the earlier version started on the directory meets a file
 of the current version. A crash between the bind and the publication leaves the original file. A
 start-up that fails after the publication, when the ready line cannot be written for example,
 leaves a current-version stopped file, and the reason the next launch gives is that the saved
@@ -1898,10 +1981,12 @@ reason. A viewer that fails once its listener is bound
 ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
 turn on that path takes a command from the queue, so nothing is started from the intent the file
 records and a Start queued by then is not handled. Whenever the start state is stopped, the one
-line that says why ({decl}`Acorn.Host.Viewer.startAccount`) is in the reason of the first control
-record the supervisor publishes, under the `--start` flag too. A page that connects while that
-record is current shows the line; one that connects after a later transition has published its
-record is sent that record and shows that transition's reason. The viewer also prints the line on its standard output, at most once in a launch: for a file
+line that says why ({decl}`Acorn.Host.Viewer.startAccount`) is in the reason of the initial
+lifecycle detail the supervisor settles into server memory
+({decl}`Acorn.Host.Viewer.Broadcast.settle`), under the `--start` flag too. A page requested
+({decl}`Acorn.Host.Viewer.Broadcast.snapshot`) while that initial detail is current renders the
+line; one requested after a later transition has settled renders that transition's reason from the
+current {decl}`Acorn.Host.Viewer.BroadcastSnapshot` (no wire control frames are sent to clients). The viewer also prints the line on its standard output, at most once in a launch: for a file
 left as it is until the bind ({decl}`Acorn.Host.Viewer.StartSource.kept`: an earlier version's,
 whatever intent it records, or a current-version file with a running intent when this launch
 lacks a child record — including a `--cmd` launch — or its record does not match the file's)
@@ -2022,7 +2107,7 @@ is likewise read from the code. On viewer shutdown interrupting an admitted Stop
 resolves the waiter as {decl}`Acorn.Host.Viewer.ControlResult.unconfirmed` so HTTP returns `503`
 (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes before server teardown,
 whereas server cancellation during shutdown can also yield an empty `503` or closed connection
-without a JSON body; the browser treats both fail-closed as unconfirmed/unknown. Exiting without
+without a JSON body; a JSON `/control` client treats both fail-closed as unconfirmed/unknown, while HTML form POST `/control/form` renders a `503` HTML notice page or closes during shutdown. Exiting without
 starting a core on a parse or schema refusal from
 {decl}`Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean` is likewise
 read from the code.
@@ -2031,19 +2116,30 @@ Across the host-viewer modules under `lean/Acorn/Host/Viewer/`, several operatio
 outside proved host theorems. HttpServer.lean sets viewerHttpConfig to bind `127.0.0.1` with
 maxConnections 32, maxRequests 1, enableKeepAlive false, generateDate false,
 serverName none, maxBodySize and maxChunkSize equal to controlBodyCapacity (1024 bytes),
-maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout; HttpViewer.events calls
+maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout. HTML responses from `/`
+and `/index.html` (plus `/control/form` refusal pages) are constructed exclusively through the
+closed typed AST in `lean/Acorn/Host/Viewer/Html.lean` and `lean/Acorn/Host/Viewer/ServerView.lean`
+({decl}`Acorn.Host.Viewer.renderViewerPage`, with kernel-proved script-tag exclusion
+{decl}`Acorn.Host.Viewer.Html.Document.render_no_script` and
+{decl}`Acorn.Host.Viewer.renderViewerPage_no_script`) and emitted with
+`Content-Security-Policy` containing `script-src 'none'`, `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: no-referrer`, and `Cache-Control: no-store`. CSS is served from `/style.css`
+(`NativeApp.viewerAssets`), single BMP frames from `/stage.bmp` (`StageBmp.render`), and live
+zero-JS streaming images from `/stream/stage.bmp` via HttpViewer.stageStream, which calls
 Broadcast.subscribe (returning HTTP `503` on capacity or sequence exhaustion) and owns one
-dedicated SSE Body.stream delivery task per subscription that sends the snapshot's initial
-control, map, and replay frames before handing off to liveFrames, which uses EAsync.forIn (repeat
-via the ForIn instance over EAsync for Lean.Loop in Lean v4.36.0) rather than partial\_fixpoint
-because async task continuations admit no fixed point and calls Subscription.poll directly (not
-Subscription.receive): waiting via Selectable.one on the payload-free wake task or 5000 ms
-keepalive timer and writing SSE frames (`sendLine` or `: keepalive`) to the browser occur only
-after Subscription.poll releases the broadcast mutex, so a slow browser cannot block publication;
-liveFrames exits on disconnect (`.closed`) or a dropped wake promise (`some none`), and stream
-exit (finally), context cancellation (context.doneSelector), and response body.close each
-call Subscription.close (also closing the stream on cancellation or body.close) to remove the
-subscriber queue and wake an idle producer. RunDirectory.lean
+dedicated `multipart/x-mixed-replace` Body.stream delivery task per subscription driven by
+liveStageFrames: using EAsync.forIn rather than partial\_fixpoint because async task continuations
+admit no fixed point, calling Subscription.poll directly to detect coalesced version advances and
+waiting via Selectable.one on a cancellation token, the payload-free wake task, or a 2500 ms
+keepalive timer, routing every emission (initial, update-triggered, and heartbeat) through a single
+send boundary paced by waitForPace and {decl}`Acorn.Host.Viewer.paceRemainingMs` at
+`BrowserConstant.readPace` (250 ms, proved in {decl}`Acorn.Host.Viewer.paceRemainingMs_spacing`),
+and reading snapshots via Subscription.snapshot and writing BMP frames only outside the broadcast
+mutex so a slow browser cannot block publication; liveStageFrames exits on cancellation, disconnect
+(`.closed`), or a dropped wake promise (`some none`), and stream exit (finally), context
+cancellation (context.doneSelector), and response body.close each cancel the token and call
+Subscription.close (also closing the stream on cancellation or body.close) to remove the
+subscriber entry and wake an idle waiter. RunDirectory.lean
 (`lean/Acorn/Host/Viewer/RunDirectory.lean`) owns control-token minting through
 {decl}`Acorn.Host.Viewer.mintControlToken`, which reads 16 bytes from the fixed OS entropy device
 `/dev/urandom` in read mode via entropyBytes (failing on premature EOF or over-read, with no
@@ -2052,47 +2148,59 @@ hex characters; {decl}`Acorn.Host.Viewer.HttpViewer.new` in HttpServer.lean
 (`lean/Acorn/Host/Viewer/HttpServer.lean`) calls {decl}`Acorn.Host.Viewer.mintControlToken` at
 startup, so viewer startup requires OS entropy with no predictable token fallback.
 ControlRequest.lean (`lean/Acorn/Host/Viewer/ControlRequest.lean`) owns token comparison and
-control-request authorization: {decl}`Acorn.Host.Viewer.tokenMatches` rejects unequal UTF-8 byte
+control-request authorization for both JSON `POST /control` and zero-JS HTML form
+`POST /control/form`: {decl}`Acorn.Host.Viewer.tokenMatches` rejects unequal UTF-8 byte
 sizes and otherwise scans every byte before equality can succeed (a source-level work pattern, not
 a compiler or hardware constant-time guarantee), {decl}`Acorn.Host.Viewer.ControlHeaders.authorizes`
 combines header authorization (POST method, `application/json` media type, non-empty matching
-token) with exact framing (Content-Length equal to the bounded body size), and
-{decl}`Acorn.Host.Viewer.authorizeCommand` enforces that admission predicate before JSON decoding. Broadcast.lean
-serializes replay publication, generation/identity admission, lifecycle settlement, notices,
-disconnect, dequeue/wake registration, and subscriber registration behind one mutex with
-connectionCapacity 16, sliding 500-frame replay history via Buffer.retain, IdentityWait overflow
-marking worldPartial, and per-subscriber FIFO queues of capacity 4096 (subscriberCapacity) with
-two overflow policies: Subscriber.enqueue delivers telemetry frames via Buffer.offer (refusing a
-new frame without disturbing queued items when full), whereas Subscriber.enqueueControl delivers
-control records (from Broadcast.settle and Broadcast.commitIdentity) and lifecycle notices (from
-Broadcast.notice, backing Broadcast.announceCleared and Broadcast.announceExit) via Buffer.retain
-without deduplicating, appending the new item and evicting the oldest queued item when full;
-Broadcast.settle separately suppresses a byte-identical repeat of the current control record
-before calling Subscriber.enqueueControl (whereas Broadcast.commitIdentity and Broadcast.notice do
-not deduplicate). Broadcast.subscribe performs subscriber registration and ReplaySnapshot capture
-(`identity`, `control`, `world`, and `frames`) under that same publication mutex, closing the
-replay-to-live handoff gap so a published frame or control record cannot slip between the captured
-replay snapshot and subsequent live-queue delivery, and refuses registration before retaining a
-queue on capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion. Each subscriber
-has one bounded queue and one payload-free wake promise (`IO.Promise Unit`), with one delivery
-task serving as each subscription's sole reader; publishers resolve collected wake promises only
-after releasing the mutex, so a publisher never waits for a network reader, and native
-mutex/promise scheduling and allocator overhead remain trusted infrastructure without a liveness
-guarantee. Subscription.close removes the subscriber queue under the mutex before resolving its
-wake promise outside the mutex; Subscription.poll performs one serialized dequeue (`.item`),
-closed check (`.closed`), or payload-free wake registration (`.wait`) under the mutex so waiting
-and network writes occur strictly outside it; and Subscription.receive (unused by
-liveFrames in HttpServer.lean, which calls Subscription.poll directly) wraps Subscription.poll in a
-`forever` loop without a break (ending only by returning), waiting on `.wait` outside the mutex
-via IO.wait and returning `none` on either explicit disconnect (`.closed`) or a dropped wake
-promise (isNone). Line.lean bounds LineDecoder lines at
+token) with exact framing (Content-Length equal to the bounded body size) before JSON decoding in
+{decl}`Acorn.Host.Viewer.authorizeCommand`, and
+{decl}`Acorn.Host.Viewer.FormControlHeaders.authorizes` plus
+{decl}`Acorn.Host.Viewer.authorizeFormCommand` enforce HTTP POST, `application/x-www-form-urlencoded`,
+exact Content-Length within `controlBodyCapacity`, and `tokenMatches` against the per-start token
+(proved in {decl}`Acorn.Host.Viewer.AuthorizedFormCommand.post`,
+{decl}`Acorn.Host.Viewer.AuthorizedFormCommand.token_eq`, and
+{decl}`Acorn.Host.Viewer.authorizeFormCommand_spec`), returning `303 See Other` on `.accepted`
+and rendering a `403`/`503` HTML notice page on refusal or unconfirmed Stop. DecimalText.lean
+(`lean/Acorn/Host/Viewer/DecimalText.lean`) preserves exact base-10 exponents at admission without
+clamping ({decl}`Acorn.Host.Viewer.DecimalText.Decimal.parse_wireDecimal`,
+{decl}`Acorn.Host.Viewer.DecimalText.Scalar.fromJson_binary32`,
+{decl}`Acorn.Host.Viewer.DecimalText.Scalar.fromJson_binary64`) and separates exact rounding at
+display and arithmetic boundaries ({decl}`Acorn.Host.Viewer.DecimalText.Decimal.scaled?_iff`),
+short-circuiting arbitrarily negative shifts via `natDecimalLen` and refusing positive shifts above
+`maxPositiveScaleShift` (400) rather than substituting a smaller scale. Broadcast.lean
+serializes observer-state updates, generation/identity admission, lifecycle settlement, notices,
+disconnect, coalesced version polling, and subscriber registration behind one mutex with
+connectionCapacity 16, sliding 500-frame `FrameSummary` history via `ServerObserverState.summaries`,
+and pre-decoded `IdentityWait` buffers of capacity `replayCapacity` (500) whose overflow marks
+worldPartial. Each subscriber holds only its id, last seen monotonic version, and a payload-free
+wake promise (`IO.Promise Unit`) with no per-subscriber payload queue; publishers decode telemetry
+outside the mutex via `decodeTelemetry`, perform only bounded in-memory state updates under the
+mutex, advance the monotonic version, and resolve collected wake promises outside the mutex, so
+neither browser consumption nor JSON/decimal decoding stalls the broadcast lock.
+Broadcast.subscribe registers a subscriber at the current version and refuses registration on
+capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion; Broadcast.settle
+deduplicates unchanged lifecycle/detail/observation state before advancing the version;
+Subscription.snapshot reads the current `BroadcastSnapshot` and marks the current version seen in
+one mutex acquisition; Subscription.poll checks {decl}`Acorn.Host.Viewer.pollVersionState`
+(proved idempotent by {decl}`Acorn.Host.Viewer.pollVersionState_coalesces`) to coalesce any number
+of intervening updates into a single `.updated` result or install a fresh wake promise (`.wait`);
+and Subscription.close removes the subscriber entry under the mutex before resolving its wake
+promise outside the mutex, with native mutex/promise scheduling and allocator overhead remaining
+trusted infrastructure without a liveness guarantee. Line.lean bounds LineDecoder lines at
 lineCapacity (1 MiB, discarding oversize suffixes through newline and refusing incomplete oversized
 EOF), and readLines reads one byte at a time (input.read 1) because Lean v4.36.0 Handle.read
 calls buffered C fread (Lean runtime `io.cpp` lines 593–615), where multi-byte reads can block past
 newline waiting for a full request or EOF; callbacks must enqueue locally and IO errors propagate
-instead of synthesizing EOF. PipePump.lean filters stdout lines starting with `{`, surfaces
-`"writing disabled this run"` alongside checkpointRefusalNotice, and waits for inherited-descriptor
-EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
+instead of synthesizing EOF. PipePump.lean forwards each `{`-prefixed stdout
+`WireText` line synchronously through `Broadcast.publish` with the shared
+generation check (decoding telemetry outside the broadcast mutex and waking
+coalesced browser subscribers outside the mutex so slow browsers never stall
+publication, without any lossy ingress queue that could evict terrain
+observations or delay the final censor record past generation retirement, while
+the stdout reader task parses each record inline before reading the next line),
+surfaces `"writing disabled this run"` alongside checkpointRefusalNotice on stderr, and waits for
+inherited-descriptor EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
 ProcessOwner.lean consumes lastGeneration before IO.Process.spawn to avoid generation reuse on
 failed spawns, relies on Lean refcounting in ProcessOwner.windUp to close stdin on drop even after
 write error (no kill or wall-clock deadline), and in ProcessOwner.poll saturates uptime in Nat
@@ -2152,10 +2260,11 @@ run included, and every Clear configuration, reason and reading,
 on no call, whose lifecycle is the initial lifecycle of that state's identity and intent
 ({decl}`Acorn.Host.Viewer.Lifecycle.initial`), which holds that durable state and no
 replacement, and whose detail is the initial transition with the reason given. The supervisor
-publishes that detail in its first control record. A page is sent the control record that is
-current when it connects ({decl}`Acorn.Host.Viewer.Broadcast.subscribe`), so it shows that reason first
-only if it connects before the record of a later transition has replaced that one
-({decl}`Acorn.Host.Viewer.Broadcast.settle`). What the start gives is the definition as written and not
+settles that initial lifecycle state and detail into server memory via
+{decl}`Acorn.Host.Viewer.Broadcast.settle` rather than sending wire control frames to clients. A
+page renders the lifecycle detail from the current {decl}`Acorn.Host.Viewer.BroadcastSnapshot` when
+requested ({decl}`Acorn.Host.Viewer.Broadcast.snapshot`), so it shows that reason first only if
+requested before a later transition replaces it ({decl}`Acorn.Host.Viewer.Broadcast.settle`). What the start gives is the definition as written and not
 a theorem, and the bootstrap gives it only a state that it built or admitted. So a supervisor that starts from a matching saved
 running intent takes up that intent at its start and has asked for nothing there: a launch
 becomes pending only in the launch check ({decl}`Acorn.Host.Viewer.Core.launchCheck`), which
@@ -2211,12 +2320,12 @@ number other than the current version
 ({decl}`Acorn.Host.Viewer.Reached.earlier_spawns_nothing`). The third is for every state that
 the decoder returns to a launch that has no child record, or whose record differs from the one
 the JSON value's `child` member names, or that reads a value with no such record
-({decl}`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`). The control record of a start with no
-state file says the run is stopped: for every seed, whether or not a stray checkpoint was
-adopted, and every Clear configuration, reason, reading and observation, in the control record of
-the start state the desired word and the actual word are both `stopped`
-({decl}`Acorn.Host.Viewer.Core.start_control`); the start on a restored running state has
-another desired word. By the write clause of the first statement, a supervisor waits on the write
+({decl}`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`). The typed control projection
+({decl}`Acorn.Host.Viewer.controlTelemetry`) of a start with no state file says the run is stopped:
+for every seed, whether or not a stray checkpoint was adopted, and every Clear configuration,
+reason, reading and observation, in {decl}`Acorn.Host.Viewer.controlTelemetry` of the start state
+the desired word and the actual word are both `stopped` ({decl}`Acorn.Host.Viewer.Core.start_control`);
+the start on a restored running state has another desired word. By the write clause of the first statement, a supervisor waits on the write
 of a running intent only after a Start was handed to its step, or from a start state that held
 one.
 
@@ -2442,7 +2551,9 @@ intent when this launch lacks a child record (including a `--cmd` launch, whose 
 records `"child":null`) or its record does not match the file's
 ({decl}`Acorn.Host.Viewer.StartSource.other`), is not published there
 ({decl}`Acorn.Host.Viewer.StartSource.kept`). A launch relies on no unpublished state either way, since the attempted launch
-is saved before the spawn. The first control record is the start's.
+is saved before the spawn. The initial server-held lifecycle state settled via
+{decl}`Acorn.Host.Viewer.Broadcast.settle` (and read into
+{decl}`Acorn.Host.Viewer.BroadcastSnapshot`) is the start's.
 
 The bootstrap. The bootstrap admits configuration and durable state, binds loopback HTTP, then
 drives the serial supervisor. It gives the supervisor a running intent only from a state file

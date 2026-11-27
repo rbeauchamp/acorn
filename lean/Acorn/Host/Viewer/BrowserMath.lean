@@ -1,5 +1,3 @@
-import Acorn.Host.Viewer.WireNumber
-
 namespace Acorn.Host.Viewer.BrowserMath
 
 variable {n m p k : Nat} {α : Type}
@@ -70,35 +68,6 @@ def Expr.eval (environment : Fin n → Float) : Expr n → Float
     if test.eval (left.eval environment) (right.eval environment)
     then yes.eval environment else no.eval environment
 
-private def jsLiteral (value : Float) : String :=
-  if value.isNaN then "NaN"
-  else if value.isInf then if value < 0 then "(-Infinity)" else "Infinity"
-  else "(" ++ binary64Text ⟨value.toBits⟩ ++ ")"
-
-def Expr.javascript (environment : Fin n → String) : Expr n → String
-  | .literal value => jsLiteral value
-  | .input index => environment index
-  | .unary op value =>
-    let name := match op with | .abs => "abs" | .log => "log" | .ceil => "ceil"
-    s!"Math.{name}({value.javascript environment})"
-  | .binary op left right =>
-    let l := left.javascript environment
-    let r := right.javascript environment
-    match op with
-    | .min => s!"Math.min({l},{r})"
-    | .max => s!"Math.max({l},{r})"
-    | _ =>
-      let token := match op with | .add => "+" | .sub => "-" | .mul => "*" | _ => "/"
-      s!"({l}{token}{r})"
-  | .choose test left right yes no =>
-    let l := left.javascript environment
-    let r := right.javascript environment
-    let condition := match test with
-      | .lt => s!"({l}<{r})"
-      | .eq => s!"({l}==={r})"
-      | .finite => s!"Number.isFinite({l})"
-    s!"({condition}?{yes.javascript environment}:{no.javascript environment})"
-
 structure Fold (p k m : Nat) where
   initial : Fin k → Expr p
   step : Fin k → Expr (p + k + m)
@@ -113,20 +82,6 @@ def Fold.eval (program : Fold p k m) (parameters : Fin p → Float)
   let final := rows.foldl (fun state row => fun i =>
     (program.step i).eval (appendEnv (appendEnv parameters state) row)) initial
   program.result.eval (appendEnv parameters final)
-
-private def expressions (n : Nat) (f : Fin n → String) : String :=
-  "[" ++ String.intercalate "," ((List.finRange n).map f) ++ "]"
-
-def Fold.javascript (program : Fold p k m) : String :=
-  let params := fun (i : Fin p) => s!"p[{i.val}]"
-  let state := fun (i : Fin k) => s!"a[{i.val}]"
-  let row := fun (i : Fin m) => s!"x[{i.val}]"
-  let initial := expressions k fun i => (program.initial i).javascript params
-  let step := expressions k fun i =>
-    (program.step i).javascript (appendEnv (appendEnv params state) row)
-  let result := program.result.javascript (appendEnv params state)
-  "(p,rows)=>{const a=rows.reduce((a,x)=>" ++ step ++ "," ++ initial ++
-    ");return " ++ result ++ ";}"
 
 theorem Fold.eval_nil (program : Fold p k m) (parameters : Fin p → Float) :
     program.eval parameters [] = program.result.eval
@@ -210,19 +165,5 @@ def filling : Expr 2 :=
 
 def enoughSamples : Expr 1 :=
   .choose .lt (ref 0) (c 30) (c 0) (c 1)
-
-private def scalar (program : Expr n) : String :=
-  "(...p)=>" ++ program.javascript (fun i => s!"p[{i.val}]")
-
-def javascript : String :=
-  "const ObserverMath=Object.freeze({\n" ++ String.intercalate ",\n"
-    ["sum:" ++ sum.javascript, "mean:" ++ mean.javascript,
-     "meanAbsolute:" ++ meanAbsolute.javascript, "countEqual:" ++ countEqual.javascript,
-     "ratio:" ++ scalar (divide (ref (0 : Fin 2)) (ref 1)),
-     "meanPositive:" ++ meanPositive.javascript, "finiteReturn:" ++ finiteReturn.javascript,
-     "tdSurprise:" ++ tdSurprise.javascript, "pairedLatency:" ++ pairedLatency.javascript,
-     "normalizedError:" ++ scalar normalizedError, "horizon:" ++ scalar horizon,
-     "relativeChange:" ++ scalar relativeChange, "trend:" ++ scalar trend,
-     "filling:" ++ scalar filling, "enoughSamples:" ++ scalar enoughSamples] ++ "\n});\n"
 
 end Acorn.Host.Viewer.BrowserMath

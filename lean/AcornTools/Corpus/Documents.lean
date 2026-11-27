@@ -3,7 +3,7 @@ import AcornDocument
 import Acorn.Digits
 import AcornTools.Ownership
 import Acorn.Host.Viewer.BrowserSchema
-import AcornTools.Corpus.Browser
+import Acorn.Host.Viewer.BrowserStore
 import AcornTools.TrackedFiles
 
 namespace AcornDocument
@@ -258,6 +258,8 @@ private def symbol (span : String) : Option String := do
 
 private def libraryRoots : List String := ["Init", "Std", "Lean"]
 
+private def openLibraryRoots : List String := ["Std", "Lean"]
+
 private def isLeanLibraryModule (owner : Name) : Bool :=
   #[`Init, `Std, `Lean].any (·.isPrefixOf owner)
 
@@ -273,10 +275,6 @@ private def isUpperIdent (s : String) : Bool :=
   match s.toList with
   | c :: _ => 'A' ≤ c && c ≤ 'Z'
   | [] => false
-
-private def leafString? : Name → Option String
-  | .str _ s => some s
-  | _ => none
 
 private def pushNameComponents : Name → Array String → Array String
   | .anonymous, acc => acc
@@ -315,16 +313,15 @@ private def insertLibraryConstant (library : Std.HashSet String) (name : Name) :
   | [single] => library.insert ("_root_." ++ single)
   | _ => library.insert (String.intercalate "." parts.toList)
 
-private def insertLibraryShorthand (shorthand : Std.HashSet String) (name : Name) :
-    Std.HashSet String := Id.run do
-  let parts := pushNameComponents name #[]
-  if parts.size < 2 then
-    return shorthand
-  let mut shorthand := shorthand
-  for start in [:parts.size - 1] do
-    shorthand := shorthand.insert
-      (String.intercalate "." (parts.extract start parts.size).toList)
-  return shorthand
+private def insertLibraryShorthand (shorthand : Std.HashSet String) (parts : List String) :
+    Std.HashSet String :=
+  match parts with
+  | root :: head :: next :: rest =>
+    if openLibraryRoots.contains root then
+      shorthand.insert (String.intercalate "." (head :: next :: rest))
+    else
+      shorthand
+  | _ => shorthand
 
 private def insertQualifiedField (fields : Std.HashSet String) (ownerStruct fieldName : Name) :
     Std.HashSet String := Id.run do
@@ -355,6 +352,15 @@ private def insertLibraryField (fields : Std.HashSet String) (ownerStruct fieldN
     else
       fields.insert qualified
 
+private def insertLibraryFieldShorthand (shorthand : Std.HashSet String)
+    (ownerStruct fieldName : Name) : Std.HashSet String :=
+  let structParts := pushNameComponents ownerStruct #[]
+  let fieldParts := pushNameComponents fieldName #[]
+  if structParts.size < 2 || fieldParts.isEmpty then
+    shorthand
+  else
+    insertLibraryShorthand shorthand (structParts.toList ++ fieldParts.toList)
+
 private def insertStructureFields (env : Environment) (structName : Name)
     (includePrivate : Bool) (insertField : Name → Std.HashSet String → Std.HashSet String)
     (fields : Std.HashSet String) : Std.HashSet String := Id.run do
@@ -367,74 +373,6 @@ private def insertStructureFields (env : Environment) (structName : Name)
             fields := insertField fieldName fields
   return fields
 
-private def unwrapTypeHint (t : Expr) : Expr :=
-  let t := t.consumeMData
-  let fn := t.getAppFn
-  let args := t.getAppArgs
-  if fn.isConstOf `optParam || fn.isConstOf `autoParam || fn.isConstOf `outParam then
-    if let some inner := args[0]? then inner.consumeMData else t
-  else
-    t
-
-private def stripLambdas : Expr → Expr
-  | .lam _ _ body _ => stripLambdas body
-  | expr => expr
-
-private def headTypeNames (env : Environment) (t : Expr) : Array Name := Id.run do
-  let t := unwrapTypeHint t
-  let .const ty _ := t.getAppFn | return #[]
-  let mut result := #[ty]
-  if let some (.defnInfo defn) := env.find? ty then
-    match defn.hints with
-    | .abbrev =>
-      if let .const target _ := (unwrapTypeHint (stripLambdas defn.value)).getAppFn then
-        if target != ty then
-          result := result.push target
-    | _ => pure ()
-  return result
-
-private def parentStructures (env : Environment) (root : Name) : IO (Array Name) := do
-  let mut visited : NameSet := {}
-  let mut pending : Array Name := #[root]
-  let mut result : Array Name := #[]
-  while !pending.isEmpty do
-    let some cur := pending.back? | break
-    pending := pending.pop
-    if visited.contains cur then continue
-    visited := visited.insert cur
-    result := result.push cur
-    if let some info := getStructureInfo? env cur then
-      for parent in info.parentInfo do
-        if !visited.contains parent.structName then
-          pending := pending.push parent.structName
-  return result
-
-private def recordReceiverType (env : Environment)
-    (receivers : IO.Ref (Std.HashMap String (Std.HashSet Name)))
-    (binderName : Name) (binderType : Expr) : IO Unit := do
-  if binderName.isAnonymous || binderName.isInternalDetail then return
-  let .str .anonymous raw := binderName | return
-  unless raw.length ≥ 2 && isLowerIdent raw do return
-  let tys := headTypeNames env binderType
-  if tys.isEmpty then return
-  let mut expanded : Array Name := #[]
-  for ty in tys do
-    for parent in ← parentStructures env ty do
-      expanded := expanded.push parent
-  receivers.modify fun map =>
-    let current := map.getD raw {}
-    let updated := expanded.foldl (fun set ty => set.insert ty) current
-    map.insert raw updated
-
-private def collectBinders (env : Environment)
-    (receivers : IO.Ref (Std.HashMap String (Std.HashSet Name)))
-    (expr : Expr) : IO Unit :=
-  expr.forEach fun
-    | .letE n t _ _ _ => recordReceiverType env receivers n t
-    | .lam n t _ _ => recordReceiverType env receivers n t
-    | .forallE n t _ _ => recordReceiverType env receivers n t
-    | _ => pure ()
-
 structure SymbolInventory where
   acorn : Std.HashSet String := {}
   acornFields : Std.HashSet String := {}
@@ -443,8 +381,6 @@ structure SymbolInventory where
   libraryShorthand : Std.HashSet String := {}
   preludeRootTypes : Std.HashSet String := {}
   preludeOps : Std.HashSet String := {}
-  receiverTypes : Std.HashMap String (Std.HashSet Name) := {}
-  typeMembers : Std.HashMap Name (Std.HashSet String) := {}
 
 def symbolsFrom (env : Environment) (selection : Array Name) : IO SymbolInventory := do
   let owners := selection.filter fun owner =>
@@ -475,15 +411,7 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO SymbolInventor
     if let .tags tags := rule then
       for tag in tags do acorn := acorn.insert tag
   acorn := acorn.insert "main"
-  AcornTrackedFiles.ensureTrackedRegular "." "" "viewer/static/index.html"
-  let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
-  let words := (String.ofList (browser.toList.map (fun c =>
-    if c.isAlphanum || c == '_' || c == '$' then c else ' '))).splitOn " " |>.filter (!·.isEmpty)
-  for index in [:words.length] do
-    if ["const", "let", "function", "class"].contains (words[index]?.getD "") then
-      if let some name := words[index+1]? then acorn := acorn.insert name
   let selected := owners.foldl (fun set owner => set.insert owner) ({} : NameSet)
-  let receiversRef ← IO.mkRef ({} : Std.HashMap String (Std.HashSet Name))
   let mut usedByAcorn : NameSet := {}
   for (name, info) in env.constants do
     if let some index := env.getModuleIdxFor? name then
@@ -497,56 +425,24 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO SymbolInventor
           usedByAcorn := usedByAcorn.union info.type.getUsedConstantsAsSet
           if let some value := info.value? then
             usedByAcorn := usedByAcorn.union value.getUsedConstantsAsSet
-          collectBinders env receiversRef info.type
-          match info with
-          | .thmInfo _ => pure ()
-          | _ =>
-            if let some value := info.value? then
-              collectBinders env receiversRef value
-  let receiverTypes ← receiversRef.get
-  let mut boundTypes : NameSet := {}
-  for (_, tys) in receiverTypes do
-    for ty in tys do
-      boundTypes := boundTypes.insert ty
-  let mut typeMembers : Std.HashMap Name (Std.HashSet String) := {}
-  for ty in boundTypes do
-    if isStructure env ty then
-      let includePrivate := match env.getModuleIdxFor? ty with
-        | some idx =>
-          match (env.header.modules[idx.toNat]?).map (·.module) with
-          | some modName => selected.contains modName
-          | none => false
-        | none => false
-      let fields := insertStructureFields env ty includePrivate
-        (fun fieldName acc =>
-          acc.insert (String.intercalate "." (pushNameComponents fieldName #[]).toList)) {}
-      if !fields.isEmpty then
-        typeMembers := typeMembers.insert ty fields
   let mut initOpCandidates : Std.HashMap String (Option Name) := {}
   for (name, _) in env.constants do
     if let some index := env.getModuleIdxFor? name then
       if let some owner := (env.header.modules[index.toNat]?).map (·.module) then
         let inSelected := selected.contains owner
-        let userName := if inSelected then (privateToUserName? name).getD name else name
-        if (inSelected || !isPrivateName name) && !name.isInternalDetail &&
-            !isNoConfusion env name then
-          let prefixName := userName.getPrefix
-          if boundTypes.contains prefixName then
-            if let some memberStr := leafString? userName then
-              if !memberStr.startsWith "_" then
-                let current := typeMembers.getD prefixName {}
-                typeMembers := typeMembers.insert prefixName (current.insert memberStr)
         if !inSelected && isLeanLibraryModule owner && !isPrivateName name &&
             !name.isInternalDetail && !isNoConfusion env name then
           library := insertLibraryConstant library name
           if isStructure env name then
             libraryFields := insertStructureFields env name false
               (fun fieldName acc => insertLibraryField acc name fieldName) libraryFields
-          if usedByAcorn.contains name || boundTypes.contains name then
-            libraryShorthand := insertLibraryShorthand libraryShorthand name
+          if usedByAcorn.contains name then
+            libraryShorthand := insertLibraryShorthand libraryShorthand
+              (pushNameComponents name #[]).toList
             if isStructure env name then
               libraryShorthand := insertStructureFields env name false
-                (fun fieldName acc => insertQualifiedField acc name fieldName) libraryShorthand
+                (fun fieldName acc => insertLibraryFieldShorthand acc name fieldName)
+                libraryShorthand
           if isLeanInitModule owner then
             let parts := pushNameComponents name #[]
             if parts.size == 1 then
@@ -565,7 +461,7 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO SymbolInventor
         preludeOps := preludeOps.insert leaf
   return {
     acorn, acornFields, library, libraryFields, libraryShorthand,
-    preludeRootTypes, preludeOps, receiverTypes, typeMembers
+    preludeRootTypes, preludeOps
   }
 
 unsafe def symbols (selection : Array Name) : IO SymbolInventory := do
@@ -596,16 +492,6 @@ unsafe def symbols (selection : Array Name) : IO SymbolInventory := do
     (leakEnv := true) (loadExts := true)
   symbolsFrom env selection
 
-private def resolvesReceiverMember (inventory : SymbolInventory) (name : String) : Bool :=
-  match name.splitOn "." with
-  | [recv, member] =>
-    if recv.length ≥ 2 && isLowerIdent recv && !member.isEmpty then
-      (inventory.receiverTypes.getD recv {}).any fun ty =>
-        (inventory.typeMembers.getD ty {}).contains member
-    else
-      false
-  | _ => false
-
 private def resolves (inventory : SymbolInventory) (name : String) : Bool :=
   let name := name.replace "::" "."
   if name.endsWith "_*" then
@@ -617,8 +503,7 @@ private def resolves (inventory : SymbolInventory) (name : String) : Bool :=
       inventory.acornFields.contains name ||
       inventory.library.contains name ||
       inventory.libraryFields.contains name ||
-      inventory.libraryShorthand.contains name ||
-      resolvesReceiverMember inventory name
+      inventory.libraryShorthand.contains name
   else
     external name || leanLiterals.contains name ||
       (proseTokens ++ keywords ++ standardMacros).contains name ||

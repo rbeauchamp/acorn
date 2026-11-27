@@ -31,18 +31,23 @@ theorem browserRunLabels_distinct : (browserRunLabels.map Prod.fst).Nodup := by
 
 def unaskedStops : List ControlTransition := [.failed, .restartScheduled]
 
-def browserLifecycleJavascript : String :=
-  "const RUN_LABEL={" ++ String.intercalate "," (browserRunLabels.map fun (tag, label) =>
-    telemetryString tag ++ ":[" ++ telemetryString label.action ++ "," ++
-      telemetryString label.state ++ "," ++ telemetryString label.style ++ "," ++
-      toString label.busy ++ "]") ++ "};\n" ++
-  "const UNASKED_STOPS=[" ++ String.intercalate "," (unaskedStops.map fun transition =>
-    telemetryString transition.tag) ++ "];\n"
+def goalItemLabel (code : Nat) (count : Nat := 1) : String :=
+  match decodeGoalItem code with
+  | none => "—"
+  | some item =>
+    let labels := item.labels
+    if count == 1 then labels.1 else labels.2
 
-def browserKernelJavascript : String :=
-  browserConstantsJavascript ++ browserRefusalJavascript ++ browserLifecycleJavascript ++
-    browserStoreJavascript ++ BrowserMath.javascript ++ browserGoalLabelsJavascript ++
-    browserGoalTextJavascript ++ browserAdmissionJavascript ++ browserRecordJavascript ++
-    ClockProgram.javascript ++ BrowserNat.javascript ++ browserRulesJavascript
+theorem goalItemLabel_roundtrip (item : GoalItem) :
+    goalItemLabel item.code 1 = item.labels.1 ∧ goalItemLabel item.code 2 = item.labels.2 := by
+  simp [goalItemLabel, goalItem_roundtrip]
+
+def goalText (gkind gitem : Nat) (gx gy : Int) (gn : Nat) : String :=
+  match decodeGoalKind gkind with
+  | some (some .reach) => s!"Go to the gold target ({gx}, {gy})"
+  | some (some .collect) => s!"Hold at least {gn} {(goalItemLabel gitem gn).toLower}"
+  | some (some .craft) => s!"Own {goalItemLabel gitem 1}"
+  | some (some .survive) => s!"Continue for {gn} world steps in this attempt"
+  | _ => "—"
 
 end Acorn.Host.Viewer

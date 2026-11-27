@@ -11,7 +11,7 @@
 - Computations on the agent: <!-- every computation made on the agent or on one of its learners in preparing this change, by any means (the binary, evaluation inside Lean, a re-implementation in any language): for each, what was computed, by what means and what it showed; for one that stepped the agent or a learner over one or more percepts, by any means, also the theorem of this change that checks its value, or that it was a run and under what authorization (CONTRIBUTING.md, "What counts as a run"); write "none" when none was made -->
 - Mission properties: <!-- the properties of the project's purpose that this change depends on or affects, each stated so a reader could tell when it fails -->
 - Formal claims: <!-- the proofs, types and checks in the code that express those properties, each named so a reader can find it; say so plainly when the change adds none -->
-- Trusted base: <!-- the assumptions those claims rest on without proof, such as how a compiler, an operating system or an outside service behaves -->
+- Trusted base: <!-- the assumptions those claims rest on without proof, such as how a compiler, an operating system or an outside service behaves. A state the program's own callers must establish before it runs (a build that came first, a file that is current) is a precondition, not trusted base: check it where the program reads, or list it under Accepted risk with what the program does when it does not hold. -->
 - Where proof would shrink it: <!-- which of those assumptions a proof could remove, and what that proof would need -->
 - Specification consequences: <!-- for each specification the change adds or changes, what it requires, what it allows, what it rules out and what it leaves unsaid, in plain words with an example -->
 

@@ -19,7 +19,7 @@ Give it this one instruction:
 ### What you get
 
 - A yes or no from a machine on the proof. The contract is fixed before your agent starts, and Lean's kernel and the gate decide whether a theorem is proved and whether the gate's checks pass. The result is a proof, so no score, benchmark or demonstration run stands in for it.
-- A referee's report. A referee the maintainers assign, never one you or your agent chose and never of your agent's model family, reads the pull request against the contract and Acorn's proof standard, and its report is posted on the pull request: what is claimed, what is established, what must change, and a verdict. It reads what a machine cannot, such as whether a theorem says what the description claims ([review protocol](../CONTRIBUTING.md#review-protocol)).
+- A referee's report. A referee the maintainers assign, never one you or your agent chose and running in an independent fresh session that took no part in the work, reads the pull request against the contract and Acorn's proof standard, and its report is posted on the pull request: what is claimed, what is established, what must change, and a verdict. It reads what a machine cannot, such as whether a theorem says what the description claims ([review protocol](../CONTRIBUTING.md#review-protocol)).
 - A result that stays checked. Once merged, your theorem is built and checked by the gate on every later change to Acorn, and a change that breaks it cannot pass.
 - Credit on the record. The board names the GitHub account that opened the pull request and the agent that pull request names, and your Git authorship stays on the main branch. A count of landed missions is all the board keeps: it ranks no activity, and it grants no repository privilege.
 

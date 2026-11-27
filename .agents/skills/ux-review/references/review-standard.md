@@ -9,10 +9,12 @@ preferences:
   agent decisions. Start/stop controls are permitted only within the lifecycle
   channel defined by INV-1 and INV-1b; no weights, actions, or learning inputs
   travel through that channel.
-- **INV-2 · every timer is listed.** The spec enumerates every recurring timer
-  on the page and the gate suite counts them. A finding that adds polling, an
-  interval, or a clock-driven animation is invalid unless it names the spec
-  sentence that changes with it.
+- **INV-2 · zero client JavaScript.** JavaScript is forbidden anywhere in Acorn;
+  HTML responses emit `Content-Security-Policy` containing `script-src 'none'`
+  with zero script tags or inline event handlers, and live updates use standard
+  HTML meta refresh and `/stream/stage.bmp` (`multipart/x-mixed-replace`). A
+  finding that introduces client-side JavaScript or browser storage violates
+  INV-2.
 - **INV-4 · never invent, never hide.** Where a quantity cannot be known yet,
   the page says so. A plausible number in place of an unknown one is the worst
   defect this page can have; an empty panel with a reason is not a defect.

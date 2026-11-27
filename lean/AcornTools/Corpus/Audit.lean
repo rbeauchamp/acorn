@@ -1,4 +1,5 @@
 import Acorn.Host.AuditPins
+import Acorn.Host.Viewer.Html
 import AcornTools.ModuleInventory
 import AcornTools.TrackedFiles
 import AcornTools.Corpus.Documents
@@ -27,8 +28,21 @@ private def pythonToken (text : String) : Bool :=
   (text.splitOn " ").any fun word =>
     ["python", "python2", "python3", "pypy", "pypy3"].contains word || word.startsWith "python3."
 
-private def language (path : String) : IO Unit := do
+private def zeroJs (path : String) : IO String := do
   let bytes ← IO.FS.readBinFile path
+  match Acorn.Host.Viewer.Html.admitZeroJsFile path bytes with
+  | .ok text => return text
+  | .error .forbiddenExtension =>
+    throw (IO.userError s!"{path}: JavaScript/TypeScript source is forbidden")
+  | .error .nulByte =>
+    throw (IO.userError s!"{path}: NUL byte outside admitted UTF-8 text boundary is forbidden")
+  | .error .invalidUtf8 =>
+    throw (IO.userError s!"{path}: non-UTF-8 encoding outside admitted UTF-8 text boundary is forbidden")
+  | .error .scriptTag =>
+    throw (IO.userError s!"{path}: script tag is forbidden")
+
+private def language (path : String) : IO Unit := do
+  let text ← zeroJs path
   let ext := ((System.FilePath.mk path).extension.getD "").toLower
   require (!["rs", "py", "pyw", "pyi", "pyc", "pyo", "ipynb", "pyz", "tar", "zip", "gz", "tgz", "xz", "bz2", "7z",
     "rb", "pl", "pm", "lua", "go", "java", "cpp", "cc", "cxx", "h", "hpp", "swift", "jl", "r", "php", "bash", "zsh", "fish"].contains ext)
@@ -36,19 +50,16 @@ private def language (path : String) : IO Unit := do
   if ext == "c" then
     require (path == "lean/os/checkpoint-sync.c")
       s!"{path}: C source outside reviewed file-sync primitive"
-  if ["js", "ts", "jsx", "tsx", "mjs", "cjs"].contains ext then
-    require (path.startsWith "viewer/static/") s!"{path}: browser code outside observer assets"
-  if let some text := String.fromUTF8? bytes then
-    let first := (text.splitOn "\n").headD ""
-    let shell := ext == "sh" || first.startsWith "#!/bin/sh" || first.startsWith "#!/bin/bash"
-    let infrastructure := ["scripts/", ".github/", ".cursor/"].any (fun p => path.startsWith p)
-    require (!shell || infrastructure) s!"{path}: shell outside infrastructure"
-    require (!first.startsWith "#!" || (shell && infrastructure)) s!"{path}: unreviewed interpreter entry"
-    if shell || ["yml", "yaml", "toml"].contains ext then
-      for line in text.splitOn "\n" do
-        unless line.trimAscii.toString.startsWith "#" do
-          let tokens := String.ofList (line.toList.map fun c => if c.isAlphanum || c == '_' || c == '.' then c else ' ')
-          require (!pythonToken tokens) s!"{path}: Python interpreter in maintained infrastructure"
+  let first := (text.splitOn "\n").headD ""
+  let shell := ext == "sh" || first.startsWith "#!/bin/sh" || first.startsWith "#!/bin/bash"
+  let infrastructure := ["scripts/", ".github/", ".cursor/"].any (fun p => path.startsWith p)
+  require (!shell || infrastructure) s!"{path}: shell outside infrastructure"
+  require (!first.startsWith "#!" || (shell && infrastructure)) s!"{path}: unreviewed interpreter entry"
+  if shell || ["yml", "yaml", "toml"].contains ext then
+    for line in text.splitOn "\n" do
+      unless line.trimAscii.toString.startsWith "#" do
+        let tokens := String.ofList (line.toList.map fun c => if c.isAlphanum || c == '_' || c == '.' then c else ' ')
+        require (!pythonToken tokens) s!"{path}: Python interpreter in maintained infrastructure"
 
 def prose (path : String) : Bool :=
   (["README.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md"].contains path) ||
@@ -135,7 +146,11 @@ unsafe def check (documentsOnly : Bool := false)
   let tracked ← AcornTrackedFiles.listTracked "." ""
   let paths ← corpusFilesFrom tracked
   unless documentsOnly do
-    for path in paths do language path
+    for path in tracked do
+      if isExcluded path then
+        discard (zeroJs path)
+      else
+        language path
   for fixed in #["docs/prior-art-review.md", "docs/design.md", "docs/frontier.md"] do
     unless tracked.contains fixed do
       throw (IO.userError s!"missing tracked corpus file: {fixed}")
