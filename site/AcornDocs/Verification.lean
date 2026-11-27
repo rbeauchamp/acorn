@@ -591,10 +591,12 @@ external prose names strictly by exact equality with
 namespace or type admits no other member of its namespace (every qualified
 external name must be listed in full), and the module imports only Lean's
 prelude so the Regula proof claim covers it and `AcornDocument.external_listed`.
-In `lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.code` conservatively
-strips JavaScript comments, strings, and regex literals and fails closed on
-unterminated constructs; its specification table check requires a unique line
-containing the Appendix A title with exact heading
+In `lean/AcornTools/Corpus/Audit.lean`, `AcornCorpus.language` forbids JavaScript
+and TypeScript file extensions repo-wide and scans every tracked file's raw bytes
+for case-insensitive HTML script start tags with zero carve-outs. In
+`lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.check` verifies the
+specification table in `docs/viewer-ux.md`: it requires a unique line containing
+the Appendix A title with exact heading
 `## Appendix A · Constants this document quotes`, then scans from that heading
 to the end of `docs/viewer-ux.md` (without stopping at a later heading),
 requiring the generated constants table to appear consecutively once and
@@ -637,12 +639,12 @@ the `NativeApp` library and the `acorn-core` and `acorn-viewer` executables
 declare Lake's nativeProvenance target (alongside checkpointSync) in
 extraDepTargets, so provenanceJob runs before `NativeApp` compiles and
 contributes its trace to `NativeApp.Build`. provenanceJob admits
-`lean/Acorn/Host/AuditPins.lean` and `viewer/static/index.html` as Git-tracked
-regular files, collects tracked regular entries under `lean/` via nativeSources
-(every `.lean` and `.c` file, including `lean/Acorn/Host/AuditPins.lean` and
-`lean/os/checkpoint-sync.c`, plus `lean/lean-toolchain` and
-`lean/lake-manifest.json`), appends `viewer/static/index.html`, resolves real
-paths, and sorts them. nativeDigests (shared by singleton hashing in
+`lean/Acorn/Host/AuditPins.lean` as a Git-tracked regular file, collects tracked
+regular entries under `lean/` via nativeSources (every `.lean` and `.c` file,
+including `lean/Acorn/Host/AuditPins.lean`, `lean/Acorn/Host/Viewer/Html.lean`,
+`lean/Acorn/Host/Viewer/ServerView.lean`, and `lean/os/checkpoint-sync.c`, plus
+`lean/lean-toolchain` and `lean/lake-manifest.json`), resolves real paths, and
+sorts them. nativeDigests (shared by singleton hashing in
 nativeDigest) rejects paths containing newlines, hashes the list in one
 `openssl dgst -sha256 -r` invocation, and requires one lowercase
 64-hex-character SHA-256 digest per input in order with the matching path.
@@ -1110,7 +1112,7 @@ available for focused diagnostics.
 
 Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
-native, browser-kernel and ownership admission after it. Each of these
+native and ownership admission after it. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
 before a failure is reported. The site check runs after these admissions, also
 when one of them fails, because `site/lakefile.toml` requires `../lean` by path
@@ -2031,17 +2033,25 @@ Across the host-viewer modules under `lean/Acorn/Host/Viewer/`, several operatio
 outside proved host theorems. HttpServer.lean sets viewerHttpConfig to bind `127.0.0.1` with
 maxConnections 32, maxRequests 1, enableKeepAlive false, generateDate false,
 serverName none, maxBodySize and maxChunkSize equal to controlBodyCapacity (1024 bytes),
-maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout; HttpViewer.events calls
+maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout. HTML responses from `/`
+and `/index.html` (plus `/control/form` refusal pages) are constructed exclusively through the
+closed typed AST in `lean/Acorn/Host/Viewer/Html.lean` and `lean/Acorn/Host/Viewer/ServerView.lean`
+({decl}`Acorn.Host.Viewer.renderViewerPage`, with kernel-proved script-tag exclusion
+{decl}`Acorn.Host.Viewer.Html.Document.render_no_script` and
+{decl}`Acorn.Host.Viewer.renderViewerPage_no_script`) and emitted with
+`Content-Security-Policy` containing `script-src 'none'`, `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: no-referrer`, and `Cache-Control: no-store`. CSS is served from `/style.css`
+(`NativeApp.viewerAssets`), single BMP frames from `/stage.bmp` (`StageBmp.render`), and live
+zero-JS streaming images from `/stream/stage.bmp` via HttpViewer.stageStream, which calls
 Broadcast.subscribe (returning HTTP `503` on capacity or sequence exhaustion) and owns one
-dedicated SSE Body.stream delivery task per subscription that sends the snapshot's initial
-control, map, and replay frames before handing off to liveFrames, which uses EAsync.forIn (repeat
-via the ForIn instance over EAsync for Lean.Loop in Lean v4.36.0) rather than partial\_fixpoint
-because async task continuations admit no fixed point and calls Subscription.poll directly (not
-Subscription.receive): waiting via Selectable.one on the payload-free wake task or 5000 ms
-keepalive timer and writing SSE frames (`sendLine` or `: keepalive`) to the browser occur only
-after Subscription.poll releases the broadcast mutex, so a slow browser cannot block publication;
-liveFrames exits on disconnect (`.closed`) or a dropped wake promise (`some none`), and stream
-exit (finally), context cancellation (context.doneSelector), and response body.close each
+dedicated `multipart/x-mixed-replace` Body.stream delivery task per subscription driven by
+liveStageFrames: using EAsync.forIn rather than partial\_fixpoint because async task continuations
+admit no fixed point, calling Subscription.poll directly (not Subscription.receive), waiting via
+Selectable.one on the payload-free wake task or 2500 ms keepalive timer, throttling BMP emission
+by `BrowserConstant.readPace` (250 ms), and reading snapshots and writing frames only after
+Subscription.poll releases the broadcast mutex so a slow browser cannot block publication;
+liveStageFrames exits on disconnect (`.closed`) or a dropped wake promise (`some none`), and
+stream exit (finally), context cancellation (context.doneSelector), and response body.close each
 call Subscription.close (also closing the stream on cancellation or body.close) to remove the
 subscriber queue and wake an idle producer. RunDirectory.lean
 (`lean/Acorn/Host/Viewer/RunDirectory.lean`) owns control-token minting through
@@ -2052,12 +2062,20 @@ hex characters; {decl}`Acorn.Host.Viewer.HttpViewer.new` in HttpServer.lean
 (`lean/Acorn/Host/Viewer/HttpServer.lean`) calls {decl}`Acorn.Host.Viewer.mintControlToken` at
 startup, so viewer startup requires OS entropy with no predictable token fallback.
 ControlRequest.lean (`lean/Acorn/Host/Viewer/ControlRequest.lean`) owns token comparison and
-control-request authorization: {decl}`Acorn.Host.Viewer.tokenMatches` rejects unequal UTF-8 byte
+control-request authorization for both JSON `POST /control` and zero-JS HTML form
+`POST /control/form`: {decl}`Acorn.Host.Viewer.tokenMatches` rejects unequal UTF-8 byte
 sizes and otherwise scans every byte before equality can succeed (a source-level work pattern, not
 a compiler or hardware constant-time guarantee), {decl}`Acorn.Host.Viewer.ControlHeaders.authorizes`
 combines header authorization (POST method, `application/json` media type, non-empty matching
-token) with exact framing (Content-Length equal to the bounded body size), and
-{decl}`Acorn.Host.Viewer.authorizeCommand` enforces that admission predicate before JSON decoding. Broadcast.lean
+token) with exact framing (Content-Length equal to the bounded body size) before JSON decoding in
+{decl}`Acorn.Host.Viewer.authorizeCommand`, and
+{decl}`Acorn.Host.Viewer.FormControlHeaders.authorizes` plus
+{decl}`Acorn.Host.Viewer.authorizeFormCommand` enforce HTTP POST, `application/x-www-form-urlencoded`,
+exact Content-Length within `controlBodyCapacity`, and `tokenMatches` against the per-start token
+(proved in {decl}`Acorn.Host.Viewer.AuthorizedFormCommand.post`,
+{decl}`Acorn.Host.Viewer.AuthorizedFormCommand.token_eq`, and
+{decl}`Acorn.Host.Viewer.authorizeFormCommand_spec`), returning `303 See Other` on `.accepted`
+and rendering a `403`/`503` HTML notice page on refusal or unconfirmed Stop. Broadcast.lean
 serializes replay publication, generation/identity admission, lifecycle settlement, notices,
 disconnect, dequeue/wake registration, and subscriber registration behind one mutex with
 connectionCapacity 16, sliding 500-frame replay history via Buffer.retain, IdentityWait overflow

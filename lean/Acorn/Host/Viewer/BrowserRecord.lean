@@ -184,20 +184,6 @@ def BrowserConversion.numbers (conversion : BrowserConversion) (shape : Telemetr
     else none
   | _ => none
 
-def BrowserConversion.javascript : BrowserConversion → String → String
-  | .keep, x => x
-  | .nonFinite, x | .unmeasured, x => s!"observerNumber({x})"
-  | .absentIndex, x => s!"observerIndex({x})"
-  | .float32, x => s!"Float32Array.from({x},observerNumber)"
-  | .float64, x => s!"Float64Array.from({x},observerNumber)"
-  | .counts, x => s!"Float64Array.from({x})"
-  | .absentIndices, x => s!"Int32Array.from({x},observerIndex)"
-
-def BrowserConversion.finite : BrowserConversion → Option (String → String)
-  | .nonFinite => some fun x => s!"Number.isFinite({x})"
-  | .float32 | .float64 => some fun x => s!"{x}.every(Number.isFinite)"
-  | _ => none
-
 structure BrowserField where
   key : String
   conversion : BrowserConversion
@@ -221,14 +207,6 @@ theorem browserField_fits (entry : String × TelemetryShape) :
     (browserField entry).conversion.fits entry.2 = true :=
   browserConversion_fits entry.1 entry.2
 
-def BrowserField.javascript (field : BrowserField) : String :=
-  let key := telemetryString field.key
-  let target := "r[" ++ key ++ "]"
-  let marked := match field.conversion.finite with
-    | some test => "if(!" ++ test target ++ ")n??=" ++ key ++ ";"
-    | none => ""
-  target ++ "=" ++ field.conversion.javascript ("f[" ++ key ++ "]") ++ ";" ++ marked ++ "\n"
-
 inductive BrowserReading where
   | value
   | twice
@@ -245,13 +223,6 @@ def BrowserProperty.fits (key : String) (property : BrowserProperty)
     (match browserConversion key shape with
       | .float32 => true
       | _ => false)
-
-def BrowserProperty.javascript (key : String) (property : BrowserProperty) : String :=
-  let value := "r[" ++ telemetryString key ++ "]"
-  let reading := match property.reading with
-    | .value => value
-    | .twice => s!"Array.from({value},v=>2*v)"
-  property.name ++ ":" ++ reading
 
 def browserAgreementView : List (String × BrowserProperty) :=
   [("source_sha256", ⟨"source", .value⟩), ("build_sha256", ⟨"build", .value⟩),
@@ -300,18 +271,5 @@ theorem browserGoalProgressView_live :
       (entry.1, shape) ∈ browserSchema ∧ BrowserProperty.fits entry.1 entry.2 shape = true :=
   schemaCovers_sound BrowserProperty.fits browserGoalProgressView browserSchema
     (by decide +kernel)
-
-private def viewJavascript (view : List (String × BrowserProperty)) : String :=
-  String.intercalate "," (view.map fun (key, property) => property.javascript key)
-
-def browserRecordJavascript : String :=
-  "function observerNumber(v){return v===null?NaN:v;}\n" ++
-  "function observerIndex(v){return v===null?-1:v;}\n" ++
-  "function observerRecord(f){\nconst r={};let n=null;\n" ++
-  String.join (browserRecordFields.map BrowserField.javascript) ++
-  "return {rec:r,nonFiniteKey:n,agreement:{" ++ viewJavascript browserAgreementView ++
-  ",goalProgress:{" ++ viewJavascript browserGoalProgressView ++ "}}};\n}\n" ++
-  "function validate(f){const rejected=observerAdmission(f);if(rejected)return rejected;" ++
-  "return observerRecord(f);}\n"
 
 end Acorn.Host.Viewer

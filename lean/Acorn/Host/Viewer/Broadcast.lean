@@ -1,6 +1,7 @@
 import Acorn.Host.Viewer.Sensed
 import Acorn.Host.Viewer.IdentityHandshake
 import Acorn.Host.Viewer.ControlTelemetry
+import Acorn.Host.Viewer.ServerFrame
 import Std.Sync.Mutex
 import Acorn.Host.Forever
 
@@ -31,21 +32,34 @@ private structure BroadcastState where
   lifecycle : Lifecycle
   checkpointRefused : Bool := false
   control : Option WireText := none
+  detail : Option ControlDetail := none
   waiting : Option IdentityWait := none
   adopted : Option (UInt64 × CoreIdentity) := none
   world : Option ((key : MapKey) × WorldMemory key) := none
   worldPartial : Bool := false
   worldRevision : Nat := 0
   replay : Buffer WireText replayCapacity := .empty
+  observer : ServerObserverState
   subscribers : Buffer Subscriber connectionCapacity := .empty
   sequence : UInt64 := 0
+
+structure BroadcastSnapshot where
+  lifecycle : Lifecycle
+  observation : ControlObservation
+  detail : Option ControlDetail
+  world : Option ((key : MapKey) × WorldMemory key)
+  observer : ServerObserverState
 
 structure Broadcast where
   private mk ::
   private state : Std.Mutex BroadcastState
 
 def Broadcast.new (identity : Identity) (desired : Desired) (historyMayBeMissing : Bool := false) : BaseIO Broadcast := do
-  return ⟨← Std.Mutex.new { lifecycle := .initial identity desired, worldPartial := historyMayBeMissing }⟩
+  return ⟨← Std.Mutex.new {
+    lifecycle := .initial identity desired
+    worldPartial := historyMayBeMissing
+    observer := .empty identity
+  }⟩
 
 private def sameWorldRevision : Option ((key : MapKey) × WorldMemory key) →
     Option ((key : MapKey) × WorldMemory key) → Bool
@@ -115,9 +129,14 @@ private def BroadcastState.publish (state : BroadcastState) (text : WireText) : 
     subscribers := ⟨state.subscribers.values.map (·.enqueue text), by
       simpa using state.subscribers.bounded⟩ }
 
-private def BroadcastState.observe (state : BroadcastState) (text : WireText) : BroadcastState :=
+private def BroadcastState.observe (state : BroadcastState) (text : WireText)
+    (parsed : Option Json.Value) (nowMonoMs : Nat) : BroadcastState :=
   let next := state.publish text
-  match (SensedEnvelope.parse text).toOption.map (·.sensed) with
+  let observer := match parsed with
+    | some value => next.observer.observe value nowMonoMs
+    | none => next.observer
+  let next := { next with observer }
+  match parsed.bind fun value => (sensedFromJson value).toOption with
   | none => next
   | some sensed =>
     if sensed.key.run == state.lifecycle.identityValue.run &&
@@ -129,8 +148,14 @@ private def BroadcastState.observe (state : BroadcastState) (text : WireText) : 
 private def BroadcastState.observation (state : BroadcastState) : ControlObservation :=
   ⟨state.checkpointRefused, state.worldPartial⟩
 
+def Broadcast.snapshot (broadcast : Broadcast) : BaseIO BroadcastSnapshot :=
+  broadcast.state.atomically do
+    let state ← get
+    return ⟨state.lifecycle, state.observation, state.detail, state.world, state.observer⟩
+
 def Broadcast.commitIdentity (broadcast : Broadcast) (generation : UInt64) (actual : CoreIdentity)
     (lifecycle : Lifecycle) (detail : ControlDetail) : BaseIO (Except String Nat) := do
+  let nowMonoMs ← IO.monoMsNow
   let result : Except String (Nat × List (IO.Promise Unit)) ← broadcast.state.atomically do
     let state ← get
     let some waiting := state.waiting | return .error "no identity handshake is pending"
@@ -148,11 +173,14 @@ def Broadcast.commitIdentity (broadcast : Broadcast) (generation : UInt64) (actu
       state.lifecycle.identityValue.seed != actual.identity.seed
     let base := if newWorld then { state.withWorld none with worldPartial := false } else state
     let mut next : BroadcastState := { base with
-      lifecycle, waiting := none, adopted := some (generation, actual), control := some control
+      lifecycle, detail := some detail, waiting := none, adopted := some (generation, actual),
+      control := some control
       replay := if changed then .empty else state.replay
+      observer := if changed then .empty actual.identity else state.observer.resetIdentity actual.identity
       subscribers := ⟨subscribers, by simpa [subscribers] using state.subscribers.bounded⟩ }
     if forwarding then
-      for frame in waiting.frames.values do next := next.observe frame
+      for frame in waiting.frames.values do
+        next := next.observe frame (Json.parse frame.val).toOption nowMonoMs
     let dropped := waiting.dropped + if forwarding then 0 else waiting.frames.values.length
     if dropped > 0 then
       next := next.loseWorldTail
@@ -188,8 +216,12 @@ private def BroadcastState.change (state : BroadcastState) : Change → Broadcas
 
 def Broadcast.settle (broadcast : Broadcast) (lifecycle : Lifecycle) (changes : List Change)
     (detail : ControlDetail) : BaseIO (Except String Unit) := do
+  let isNewRun := changes.any fun change => match change with | .newRun => true | _ => false
   let result : Except String (List (IO.Promise Unit)) ← broadcast.state.atomically do
-    let state := { (changes.foldl BroadcastState.change (← get)) with lifecycle }
+    let changed := changes.foldl BroadcastState.change (← get)
+    let observer := if isNewRun then .empty lifecycle.identityValue
+      else changed.observer.resetIdentity lifecycle.identityValue
+    let state := { changed with lifecycle, detail := some detail, observer }
     set state
     match controlTelemetryLine lifecycle state.observation detail with
     | .error reason => return .error reason
@@ -230,7 +262,9 @@ def Broadcast.announceExit (broadcast : Broadcast) (reason : String) : BaseIO (E
     [⟨"eos", .flag, true⟩, ⟨"kind", .text, "exit"⟩, ⟨"reason", .text, controlDiagnostic reason⟩]
 
 def Broadcast.publish (broadcast : Broadcast) (generation : UInt64) (text : WireText) : BaseIO Bool := do
-  let identity := (coreIdentity text).toOption
+  let parsed := (Json.parse text.val).toOption
+  let identity := parsed.bind fun value => (coreIdentityFromJson value).toOption
+  let nowMonoMs ← IO.monoMsNow
   let wakes ← broadcast.state.atomically do
     let state ← get
     if let some waiting := state.waiting then
@@ -246,7 +280,7 @@ def Broadcast.publish (broadcast : Broadcast) (generation : UInt64) (text : Wire
     if !state.lifecycle.phaseValue.accepts generation then return none
     if let some (owner, actual) := state.adopted then
       if owner == generation && identity != some actual then return none
-    let next := state.observe text
+    let next := state.observe text parsed nowMonoMs
     set next
     return some (next.subscribers.values.map (·.wake))
   match wakes with

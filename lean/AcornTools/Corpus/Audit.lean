@@ -27,6 +27,25 @@ private def pythonToken (text : String) : Bool :=
   (text.splitOn " ").any fun word =>
     ["python", "python2", "python3", "pypy", "pypy3"].contains word || word.startsWith "python3."
 
+private def asciiLowerByte (b : UInt8) : UInt8 :=
+  if 65 ≤ b && b ≤ 90 then b + 32 else b
+
+private def scriptTagBytes : Array UInt8 := #[60, 115, 99, 114, 105, 112, 116]
+
+private def containsScriptTag (bytes : ByteArray) : Bool := Id.run do
+  if bytes.size < scriptTagBytes.size then return false
+  let limit := bytes.size - scriptTagBytes.size + 1
+  for offset in [:limit] do
+    let mut matched := true
+    for j in [:scriptTagBytes.size] do
+      if h1 : offset + j < bytes.size then
+        if h2 : j < scriptTagBytes.size then
+          if asciiLowerByte bytes[offset + j] != scriptTagBytes[j] then
+            matched := false
+            break
+    if matched then return true
+  return false
+
 private def language (path : String) : IO Unit := do
   let bytes ← IO.FS.readBinFile path
   let ext := ((System.FilePath.mk path).extension.getD "").toLower
@@ -36,8 +55,10 @@ private def language (path : String) : IO Unit := do
   if ext == "c" then
     require (path == "lean/os/checkpoint-sync.c")
       s!"{path}: C source outside reviewed file-sync primitive"
-  if ["js", "ts", "jsx", "tsx", "mjs", "cjs"].contains ext then
-    require (path.startsWith "viewer/static/") s!"{path}: browser code outside observer assets"
+  require (!["js", "ts", "jsx", "tsx", "mjs", "cjs", "mts", "cts"].contains ext)
+    s!"{path}: JavaScript/TypeScript source is forbidden"
+  require (!containsScriptTag bytes)
+    s!"{path}: script tag is forbidden"
   if let some text := String.fromUTF8? bytes then
     let first := (text.splitOn "\n").headD ""
     let shell := ext == "sh" || first.startsWith "#!/bin/sh" || first.startsWith "#!/bin/bash"

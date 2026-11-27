@@ -9,7 +9,7 @@ newcomer from that audience can say within ten seconds what the system is,
 what it is trying to do and how it is doing, and when nothing on the page would
 make them distrust the next number.
 
-This document states what the page must show and why. It does not describe how the page achieves it: mechanism lives in `viewer/static/index.html` and `Acorn.Host.Viewer` (with design rationale, numeric and wire invariants, and process-supervision boundaries documented in this specification, [the design](design.md), and [the verification guide](verification.md#viewer-ownership-boundaries)), and a requirement here names the owning function only where a reader would otherwise have to search. Requirements are numbered; a page behaviour that contradicts one is a bug, and a contradiction found in this document is fixed here. The gate suite requires the table of Appendix A to be the one rendered from the Lean owners of its constants. Prose quantities and completeness of that table remain review obligations.
+This document states what the page must show and why. It does not describe how the page achieves it: mechanism lives in `Acorn.Host.Viewer` (`Html.lean`, `ServerFrame.lean`, `ServerView.lean`, `StageBmp.lean`, `HttpServer.lean`, and the supervisor modules; design rationale, numeric and wire invariants, and process-supervision boundaries are documented in this specification, [the design](design.md), and [the verification guide](verification.md#viewer-ownership-boundaries)), and a requirement here names the owning function only where a reader would otherwise have to search. Requirements are numbered; a page behaviour that contradicts one is a bug, and a contradiction found in this document is fixed here. The gate suite requires the table of Appendix A to be the one rendered from the Lean owners of its constants. Prose quantities and completeness of that table remain review obligations.
 
 Reviews judge the page against this document: `proof-review` and
 `pr-review-toolkit` for the code and its guarantees, `ux-review` for whether
@@ -23,7 +23,7 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   (the core, which it runs as
   `acorn-core demo --research-profile ranked --telemetry --control-stdin`
   followed by the run's seed, campaign, identity and checkpoint arguments → child
-  stdout → SSE) and must never change the
+  stdout → zero-JS HTTP server) and must never change the
   agent's decisions. Telemetry may gain *read-only* fields — quantities
   computed from state the agent already produced — provided the audit digest
   is unchanged. As a **supervisor**, it starts and stops the core as a child
@@ -45,22 +45,23 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   reading “Running” because it was clicked would assert something it cannot
   know, and a stale claim about whether an agent is learning is worse than a
   slow one.
-- **INV-2 · Push, not poll.** Frames reach the browser over SSE as the core
-  produces them. **No HTTP polling of frames, ever.** The only *recurring*
-  timers are the steps/s counter, the staleness watchdog and the browser-storage
-  saver; each toast additionally arms a one-shot timer to remove itself, and
-  the goal flash arms a `requestAnimationFrame`. Those are presentation
-  lifetimes, not a polling loop — but they are timers, and this invariant lists
-  every one. The render loop runs on `requestAnimationFrame`, and the reading
-  cadence of the text readouts (UX-8) is a gate on that loop's own clock, not a
-  timer. The gate suite counts the page's interval timers, one-shot timers and
-  requests against this list, so a timer cannot be added without this
-  paragraph changing with it.
+- **INV-2 · Zero client JavaScript.** JavaScript is forbidden anywhere in Acorn.
+  HTML responses are constructed exclusively from the closed typed Lean AST in
+  `Acorn.Host.Viewer.Html`, emit `Content-Security-Policy` containing
+  `script-src 'none'`, and carry zero script elements or inline event handlers
+  (`Html.Document.render_no_script`, `renderViewerPage_no_script`,
+  `Html.AttrName.no_event_handler`). The corpus audit (`AcornCorpus.language`)
+  rejects any tracked JavaScript/TypeScript file or case-insensitive HTML script
+  start tag with zero carve-outs. Live updates are delivered without client code
+  via standard HTML meta refresh and browser-native `multipart/x-mixed-replace`
+  BMP streaming on `/stream/stage.bmp` (throttled to `READ_MS`). The earlier
+  SSE/EventSource transport, JS timer inventory, `requestAnimationFrame` render
+  loop, and browser-side frame buffers are intentionally retired.
 - **INV-3 · Refreshes restore the world.** The explored map is the run's: the
-  viewer keeps every tile the agent has sensed and hands it to each
-  connection (UX-44), and each browser additionally persists its own copy and
-  the trail (UX-45); a refresh, a reconnect or a second browser therefore shows
-  the same explored world and continues accumulating.
+  viewer server retains every tile the agent has sensed in `WorldMemory` and
+  persists it to `explored.map` (UX-44), and renders directly from that server
+  state on every request or stream frame; a refresh or second browser therefore
+  shows the same explored world without client storage (UX-45).
 - **INV-4 · Never invent, never hide.** The viewer shows what the stream says.
   Where a quantity cannot be known yet — an unfinished prediction horizon, a
   refused curriculum snapshot, a run with no frame — it
@@ -209,35 +210,13 @@ What a newcomer must be able to say without scrolling.
   state does, frames or no frames. A frozen stage under a top bar reading
   `live` cannot otherwise be told from a stalled one without scrolling to the
   transport, whose position depends on viewport size.
-- **UX-7 · Toasts.** Interaction effects are announced from the display
-  cursor, not from intake, so what you see and what you are told agree; the
-  queue hangs from the top of the stage under the HUD boxes, because the
-  stage's bottom edge can be below the fold and an announcement
-  placed there would be made to nobody. Particles and toasts are independent;
-  two events have one and not the other:
-
-  | event | particles | toast |
-  |---|---|---|
-  | harvest | green burst | `🪵 harvested +1` / `+3` with axe |
-  | eat | orange burst | `🍗 ate` |
-  | craft | blue burst | `🪓 crafted an axe` / `⛵ crafted a boat` |
-  | food pickup | small orange burst | — |
-  | attempt spent | — | `✗ attempt spent` |
-  | goal achieved | large white burst + screen flash | `★ goal achieved` |
-  | new goal | — | `🎯 new goal N: <text>` |
-  | unexpected core exit | — | `⚠ <reason>` in the fault colour |
-
-  Particles are world-anchored and decay in under a second. At live rate the
-  same event can fire hundreds of times a second: a repeat is counted onto the
-  standing toast that already says it (`🪵 harvested +1 ×37`), wherever it
-  stands in the queue, rather than stacked into a wall. Exhaustion is a
-  *state*, not an event: the HUD shows `💤 resting` while it lasts and no
-  toast fires. Events between the previously displayed frame and the current
-  one are announced, so nothing is skipped when the cursor advances by more
-  than one frame; the sweep is capped so a live-rate jump cannot freeze the
-  frame it is drawing, and ⏮/⏭ and the scrub slider reset the announcement
-  cursor to the destination, so a deliberate jump does not replay thousands of
-  toasts for events skipped on purpose.
+- **UX-7 · Interaction effects and faults (JS effects retired).** Client-side
+  animated particle bursts, screen flashes, and ephemeral JavaScript toasts are
+  intentionally retired under INV-2. Interaction outcomes (inventory, energy,
+  goal progress, and running option) render directly in the stage HUD and
+  sidebar; control refusals, unconfirmed stops, unexpected exits, and stderr
+  tails render directly in top-bar health pills, the control notice banner, and
+  the stopped-stage panel so no defect is hidden.
 
 ## 3 · Every figure says what it is
 
@@ -246,20 +225,13 @@ Rules that apply to every number, label and colour on the page.
 - **UX-8 · Reading cadence and windowed means.** The core lives at about a
   thousand steps a second; a per-step scalar redrawn on every animation frame
   is noise, and a reader cannot tell a value from its flicker. Two rules:
-  - **Text readouts and bars redraw at a reading pace.** While the cursor
-    moves, or frames arrive, the readouts in *Behaviour*, the action, reward
-    and ε lines of *The big world*, the GVF cards, the learner detail rows, the
-    Plasticity family means, *Resources*, the HUD option badge, the Knowledge
-    headline and the lanes' percentages, the ribbon's cursor caption and the
-    orientation strip redraw at most once per `READ_MS` (250 ms); when the
-    cursor lands (a pause, a scrub, a jump) they redraw at once; at the slowest
-    replay rate they redraw on every frame the cursor reaches; and while the
-    cursor rests they follow intake at the same cadence, so coverage and the
-    newest lifetime record do not freeze on a paused page. A change of display
-    state (UX-6) counts as movement. The gate rides on the animation frame's
-    clock and is not a timer (INV-2). Position and the sensed meter follow the
-    pose every frame, as do the canvases that show motion — stage, sensor
-    window, ribbon, demon lanes, sparklines.
+  - **Text readouts and live stage cadence.** The server renders full HTML/SVG
+    snapshots on demand and, in live mode, offers standard HTML meta refresh
+    (*Auto*, `1s`, `2s`, `5s`, or *Off*) alongside `/stream/stage.bmp`
+    (`multipart/x-mixed-replace`, throttled to `READ_MS` = 250 ms) for live
+    aerial motion without JavaScript. Buffered frames can be inspected one by
+    one via zero-JS anchor and form transport links (UX-26), without client
+    animation loops.
   - **Fast means windowed.** The cursor is *fast* when it is pinned live or
     replaying at 250 frames/s or more; then those readouts show arithmetic
     means and shares over the last `WIN` (1,000) buffered frames ending at the
@@ -474,43 +446,41 @@ Rules that apply to every number, label and colour on the page.
   such button". For Start and Clear, a request the server refuses (`⚠ <cmd>
   refused — <why>`) or a viewer the page cannot reach (`⚠ cannot reach the
   viewer to <cmd>`) raises a fault pill beside the controls that stays until a
-  control frame shows the server moved; the toast that also says it is below
-  the fold. The control endpoint is `POST /control`, bound to `127.0.0.1`,
-  POST-only, JSON-only, and gated by a token minted per viewer start and read
-  from the served page, so a page left open from a previous start holds a stale
-  one and is refused; bodies are capped and rejections say little about which
-  check failed. HTTP `/control` JSON error responses use fixed public strings
-  and never expose raw operating-system error messages or local run-directory/archive
-  paths; detailed native diagnostics remain in the supervisor's failure
-  diagnostic path and standard error. For a browser Stop (`{"cmd":"stop"}`),
-  `POST /control` holds its HTTP response until the supervisor actor completes
-  the `state.json` write for `desired: "stopped"`: it returns `202`
-  (`{"ok":true}`) only once the stopped state has been written, flushed and
-  renamed over `state.json`; it returns `503` (`{"ok":false,"reason":...}`) if
-  refused before admission (supervisor queue full, unavailable, or mailbox
-  already closing), and returns `503`
-  (`{"ok":false,"unconfirmed":true,"reason":...}`) if persisting fails or the
-  10-second HTTP wait times out. When viewer shutdown interrupts an admitted
-  Stop, the supervisor resolves the waiter as `.unconfirmed` so HTTP returns
-  `503` (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response
-  completes before server teardown, whereas server cancellation during shutdown
-  can also yield an empty `503` or closed connection without a JSON body.
-  Timing out ends only the HTTP wait and does not cancel the Stop (it may still
-  be queued, already executing in the actor, or already published before waiter
-  resolution), and a persistence error on a live run can still request child
-  wind-up or leave a pending Clear replacement revised to stopped; a lost
-  connection or abrupt crash can leave the browser with no HTTP response at
-  all. Only HTTP `202` confirms a browser Stop: a definite pre-execution
-  refusal (`!r.ok` with JSON `ok === false` and `unconfirmed !== true`) raises
-  `⚠ stop refused — <why>` (hover text noting refusal before taking effect),
-  any other non-`202` response — including `503` with `unconfirmed: true`, an
-  empty `503` from shutdown cancellation, or an unexpected status — raises
-  `⚠ stop not confirmed — <why>` (hover text noting the outcome was not
-  confirmed and it may still take effect or have requested wind-up), and a
-  closed connection or unreachable viewer raises
-  `⚠ stop outcome unknown — viewer unreachable` (hover text noting no HTTP
-  response was received); each pill stays until a control frame shows the
-  server moved, with a matching toast below the fold.
+  control frame shows the server moved. The programmatic control endpoint is
+  `POST /control` (JSON-only, `ControlHeaders.authorizes`, `authorizeCommand`),
+  and the zero-JS HTML page submits its Start/Stop and Clear buttons through
+  standard HTML forms to `POST /control/form` (`application/x-www-form-urlencoded`,
+  `FormControlHeaders.authorizes`, `authorizeFormCommand`, proved by
+  `AuthorizedFormCommand.post` and `AuthorizedFormCommand.token_eq`). Both routes
+  are bound to `127.0.0.1`, POST-only, capped by `controlBodyCapacity`, and gated
+  by the per-start random token minted by `mintControlToken` so a page left open
+  from a previous start holds a stale token and is refused; rejections say little
+  about which check failed. On `.accepted`, `POST /control/form` responds with
+  `303 See Other` back to the current view route (setting brief 1s transit refresh
+  until the supervisor settles), and on refusal or unconfirmed Stop renders a
+  `403`/`503` HTML page carrying the control notice banner. HTTP `/control` JSON
+  error responses use fixed public strings and never expose raw operating-system
+  error messages or local run-directory/archive paths; detailed native
+  diagnostics remain in the supervisor's failure diagnostic path and standard
+  error. For a Stop (`{"cmd":"stop"}` or form `cmd=stop`), both endpoints hold
+  their HTTP response until the supervisor actor completes the `state.json` write
+  for `desired: "stopped"`: `POST /control` returns `202` (`{"ok":true}`) and
+  `POST /control/form` redirects `303` only once the stopped state has been
+  written, flushed and renamed over `state.json`; pre-execution refusal returns
+  `503` (`{"ok":false,"reason":...}` on `/control`, or a `503` HTML notice on
+  `/control/form`), and persistence failure or the 10-second HTTP wait timeout
+  returns `503` (`{"ok":false,"unconfirmed":true,"reason":...}` on `/control`, or
+  an unconfirmed-Stop HTML notice on `/control/form`). When viewer shutdown
+  interrupts an admitted Stop, the supervisor resolves the waiter as
+  `.unconfirmed` so HTTP returns `503` if the response completes before server
+  teardown, whereas server cancellation during shutdown can also yield an empty
+  `503` or closed connection. Timing out ends only the HTTP wait and does not
+  cancel the Stop (it may still be queued, already executing in the actor, or
+  already published before waiter resolution), and a persistence error on a live
+  run can still request child wind-up or leave a pending Clear replacement
+  revised to stopped; a lost connection or abrupt crash can leave the caller with
+  no HTTP response at all. Only HTTP `202` (JSON `/control`) or `303` (form
+  `/control/form`) confirms a Stop.
 - **UX-22 · Stop is cooperative and persistent.** The core finishes its current
   finite attempt, attempts a checkpoint if saving is armed, and exits through
   the same writer as periodic and finite-campaign completion. Successful save
@@ -593,24 +563,17 @@ Rules that apply to every number, label and colour on the page.
   persisting nothing. The top bar raises `⚠ not saving — where Clear is
   available, it archives this run and prepares a fresh one`, naming the remedy
   rather than only the diagnosis.
-- **UX-26 · Transport.** Controls: ⏮/⏭ (jump 500 frames), ⏸/▶, ⚡ LIVE (pin
-  to the newest frame), replay rates 10 / 60 / 250 / 1000 frames per second, a
-  scrub slider, the buffered-frame position and a lag readout, each with a
-  hover text saying what it does, under a lede that says what the buffer holds
-  and lists the keys. Keyboard: space, `L`, ←, → — reaching the transport only
-  when no button, link or disclosure has the focus, so space on a focused Stop
-  presses Stop. LIVE pins the display to the newest frame — a timelapse of the
-  real thing. A replay rate detaches and walks the local buffer (a ring of
-  `CAP` (30,000) frames, then oldest dropped) at that rate, and the lag readout
-  says how far behind live that has put you. Pausing freezes the display; the
-  slider and ⏮/⏭ browse the buffer. Exactly one mode is lit: LIVE, or the rate
-  in force while the buffer is being walked — ▶ after a pause resumes at that
-  rate and lights it — and nothing while paused, when the ▶ glyph says so.
-  When the core is stopped or the stream stale, the label retains that state
-  and the cursor's position: `newest frame` only at the newest frame, otherwise
-  paused/replay mode and the number of buffered frames behind it. The transport
-  uses a one-based selected ordinal and actual buffer count; an empty ring
-  says `no frames buffered`.
+- **UX-26 · Transport (zero-JS navigation).** Anchor links and a GET frame-jump
+  form drive all transport state through query parameters (`ViewQuery`): *Live*
+  (`?view=live`), *Pause* (`?view=paused&frame=N`), step/jump links (`⏮`,
+  `◀ -10`, `◀ -1`, `+1 ▶`, `+10 ▶`, `⏭`), a frame-number GET form, refresh
+  cadence links (*Auto*, `1s`, `2s`, `5s`, *Off*), and stage mode toggles
+  (`SVG Stage`, `Live Stream (BMP)` via `/stream/stage.bmp`, and `/stage.bmp`
+  snapshot) over the server's `replayCapacity` (500) buffered frames. The
+  transport shows one-based ordinal and buffer count, or `0 buffered frames`
+  when empty. Client-side single-key hotkeys (`Space`, `L`, `←`, `→`) and the
+  30,000-frame browser ring (`CAP` remains owned in `BrowserStore` for protocol
+  reference) are intentionally retired under INV-2.
 - **UX-27 · Staleness and the frames/s counter.** If no new frame arrives for
   `STALE_MS` (8,000 ms) while the control state says the core is running, the
   label reads `stale — reconnecting…`, the page reopens the connection (the
@@ -634,43 +597,32 @@ Rules that apply to every number, label and colour on the page.
 
 What each panel must show. How it draws it is the code's.
 
-- **UX-28 · The stage.** The aerial view follows the agent: the agent stays
-  centred and explored terrain scrolls under it, at `Z` (4) logical px per
-  tile; the camera eases over small gaps and snaps over large ones (a live-rate
-  jump, a scrub), so the agent is never left off-centre. Only tiles the agent
-  has sensed are coloured; unexplored terrain stays near-black; beyond the
-  world's box — where the agent cannot walk and the page keeps no map — the
-  stage paints a tone of its own, so an agent at the edge is not read as
-  standing beside unexplored terrain. Base colours per kind: water `#3a6ea5`,
-  sand `#d9c58b`, grass `#7da05e`, forest `#5c8a3f`, tree `#2e6b2f`, mountain
-  `#8a8a8a`, stone `#b0b0b0`, ore `#d4a017`, each modulated by a deterministic
-  per-tile shade so terrain reads as ground; a tile re-sensed as a different
-  kind is repainted. The agent is a white circle with a gentle pulse, a soft
-  halo and a blue facing arrow. The recent trail fades out behind the agent;
-  live, it is the browser's own record, and detached it is read from the frame
-  ring behind the cursor, so the comet ends at the agent on screen and not at
-  the live agent hundreds of steps ahead. Entities render only inside the
-  current sensor window — the honest POMDP boundary — as orange food dots and
-  brown deer squares with a small hop, each over a dark outline; the window's
-  footprint is outlined in two tones so the edge of perception is visible on
-  grass and sand alike. For *Reach* goals a gold target is drawn — a pulsing
-  circle with crosshair and a `target` label, visible regardless of
-  exploration. When the symbol cannot fit inside the canvas, an inset edge
-  arrow points toward it. Target graphics have a separate layer above map
-  effects, and their backed labels stay inside the canvas. The goal card names
-  the compass direction and straight-line distance to the target centre; this
-  is not a route length or a count of steps remaining. Absolute placement is the
-  observer's, not the agent's: the stream carries `gx, gy` so a human can place
-  the marker, while the agent receives only the declared task relation
-  (displacement and distance) and neither absolute target coordinates nor its
-  own position (the [`Observation` interface](../lean/Acorn/Host/Observation.lean)). Night dims the view
-  with a translucent blue tint, deeper at midnight, and the clock's icon flips
-  ☀/🌙. Night is the world's: the page takes the phase from the generated
-  kernel's day-phase function, the emission of the integer program
-  `BrowserNat.dayPhase`. The program's integer semantics is the phase that the
-  world observes and charges, for every clock and day length
-  ([`BrowserNat.dayPhase_execution`](../lean/Acorn/Host/Viewer/BrowserNat.lean)).
-  The emitted JavaScript agrees with it on the admitted safe-integer `world_step` and `day_length` fields under the runtime and emitter assumptions of `Acorn.Host.Viewer.BrowserNat`: operands must be binary64 safe integers (`0 ≤ a < 2^53`, `b ≥ 1`, where *observerDiv*(a, b) = *Math.floor*(a / b) matches exact *Nat.div* because single nearest rounding shifts the quotient by at most `2^-53 * (a / b) < 1 / b`, strictly below the `1 / b` gap to the next integer, with *observerDiv*(_, 0) = 0 and *observerMod*(a, 0) = a), *observerLog2* doubles exact powers of two to avoid *Math.log2* boundary rounding, and browser runtime arithmetic and the structural backend remain explicit trust boundaries.
+- **UX-28 · The stage.** The aerial view follows the agent, rendered server-side
+  either as crisp inline SVG (`ServerView.lean`) or as a browser-native
+  `multipart/x-mixed-replace` 24-bit BMP stream (`/stream/stage.bmp`,
+  `StageBmp.render`): the agent stays centred and explored terrain scrolls under
+  it. Only tiles the agent has sensed are coloured; unexplored terrain stays
+  near-black; beyond the world's box the stage paints a dark out-of-bounds tone.
+  Base colours per kind: water `#3a6ea5`, sand `#d9c58b`, grass `#7da05e`,
+  forest `#5c8a3f`, tree `#2e6b2f`, mountain `#8a8a8a`, stone `#b0b0b0`, ore
+  `#d4a017`; a tile re-sensed as a different kind is repainted. The agent is a
+  white circle with a facing arrow, trailed by a recent path from buffered
+  server summaries. Entities render only inside the current 11×11 sensor window
+  — the honest POMDP boundary — as orange food dots and brown deer markers, with
+  the window footprint outlined. For *Reach* goals a gold target marker is drawn
+  regardless of exploration, or an edge indicator when outside the viewport.
+  Absolute placement is the observer's, not the agent's: the stream carries
+  `gx, gy` so a human can place the marker, while the agent receives only the
+  declared task relation (displacement and distance) and neither absolute target
+  coordinates nor its own position (the
+  [`Observation` interface](../lean/Acorn/Host/Observation.lean)). Night dims the
+  view with a translucent blue tint, deeper at midnight. Night is the world's:
+  both `ServerView` and `StageBmp` evaluate the integer program
+  `BrowserNat.dayPhase` directly in Lean, whose integer semantics is proved equal
+  to the phase the world observes and charges for every clock and day length
+  ([`BrowserNat.dayPhase_execution`](../lean/Acorn/Host/Viewer/BrowserNat.lean)),
+  removing the earlier JavaScript emitter and binary64 safe-integer trust
+  boundary completely.
 - **UX-29 · The HUD.** A header above the map places `current goal N/<goal_count>`
   on the left, with plain-language goal text — `Go to the gold target (x, y)` /
   `Hold at least n <item>` / `Own Axe|Boat` / `Continue for n world steps in this attempt`
@@ -759,7 +711,7 @@ What each panel must show. How it draws it is the code's.
   leave gaps and make included numeric summaries non-finite; the legend says
   both meanings. The axis has separated labels at its actual ends and readable
   interior decades. Curves hold up to 400 newest intake samples, one per
-  `VERIFY_STRIDE` (24) admitted frames, independently of the replay cursor;
+  `verifyStride` (24) admitted frames, independently of the replay cursor;
   their caption names the actual count and interval. Legend values separately
   name their frame window in fast mode or the selected frame when paused/slow.
   Expandable rows expose the active step size and eligible-feature count for
@@ -772,7 +724,7 @@ What each panel must show. How it draws it is the code's.
   computed as `c_t + γ·P(s_t) − P(s_{t-1})` from adjacent reported predictions.
   These are projected predictions, and the viewer evaluates the formula in
   binary64; the plot does not claim the learner's internal binary32 error. The browser
-  attempts one sample per `VERIFY_STRIDE` (24) admitted frames and holds up to
+  attempts one sample per `verifyStride` (24) admitted frames and holds up to
   400 available samples, with newest at right independently of the replay
   cursor. The plot names its top value, zero and actual held count. Bar height
   carries magnitude in a fixed contrasting ink.
@@ -869,22 +821,18 @@ What each panel must show. How it draws it is the code's.
   milliseconds per frame, labelled as this browser's. No control period is
   declared, so deadline margin and misses are literally `N/A / N/A`, never
   inferred from observed throughput.
-- **UX-41 · Geometries.** Every canvas is sized to its own box in device
-  pixels and scaled back to CSS units, so text and terrain stay crisp on a
-  retina display. At 1280 CSS px the full three-column analysis row remains
-  visible without page overflow; the top bar may wrap to two lines there.
-  Below 1040 px the orientation strip stacks (its verdict tiles go four
-  across), the goal-achievement summary follows the stage as a full-width block
-  and the analysis row stacks, with the mode badge stating `COMPACT`; at 700 px
-  and below the five nodes wrap to two columns — the arrows between
-  nodes go with the wrap, the return glyph stays on the last node, which takes
-  the whole row — and the tiles return to two across. No panel is hidden to
-  make the layout fit, and the page never scrolls horizontally. The research
-  disclosure has the same initial state at every width. The aerial stage has
-  its natural aspect, capped at 62% of viewport height with a 280 px minimum;
-  sidebar content cannot stretch it and move the centered agent below the
-  first screen. The sidebar contains the goal-achievement summary only; sensing
-  and world details flow below the main row, with compact canvases beside their
+- **UX-41 · Geometries.** Every inline SVG graphic scales via `viewBox` without
+  client scripts, and BMP stage images scale crisply via CSS (`image-rendering:
+  pixelated`). At 1280 CSS px the full three-column analysis row remains visible
+  without page overflow; the top bar may wrap to two lines there. Below 1040 px
+  the orientation strip stacks (its verdict tiles go four across), the
+  goal-achievement summary follows the stage as a full-width block and the
+  analysis row stacks, with the mode badge stating `COMPACT`; at 700 px and below
+  the five nodes wrap to two columns and the tiles return to two across. No panel
+  is hidden to make the layout fit, and the page never scrolls horizontally. The
+  research disclosure has the same initial state at every width (`?inside=1`
+  opens it). The sidebar contains the goal-achievement summary only; sensing and
+  world details flow below the main row, with compact SVG graphics beside their
   descriptions on wider screens and stacking on narrow screens.
 
 
@@ -1199,15 +1147,10 @@ What each panel must show. How it draws it is the code's.
   side limit are the server's own, the tile count is the square of the core's
   window side, and the kind count is the bound admission places on every
   sensed tile (`BrowserConstant.tileKinds_admitted`).
-- **UX-45 · Browser storage.** The explored map and the trail are saved to
-  `localStorage` (key `acorn-viewer-world-v1`) on a timer while either has
-  changed since the last save, and on unload; on load they are restored (the
-  top bar shows `restored`) and new frames merge into them. A stopped or
-  paused page changes nothing and so writes nothing. The map is run-length
-  encoded before storage, because a raw byte string of a mostly unseen world
-  would exceed the quota on JSON escaping alone. Storage failure (blocked or
-  full) is non-fatal: the viewer keeps working with an in-memory map and the
-  top bar says `not persisted`.
+- **UX-45 · Browser storage (retired).** Client-side `localStorage` persistence
+  is intentionally retired under INV-2 (zero JavaScript). Durable terrain and run
+  state belong strictly to the viewer server's run directory (`explored.map` and
+  `state.json`, UX-43 and UX-44).
 - **UX-46 · The server never lets a browser slow the core.** Each browser has
   a bounded queue, and a browser that stalls drops frames rather than growing
   the server's memory without bound; subscribing snapshots the replay buffer
@@ -1377,7 +1320,7 @@ announced once across that boundary.
 
 - **Launch options and seed masking (`Acorn.Host.Viewer.Options`):** `viewerSeed` masks entropy modulo `2^48` (`(entropy.toNat % 2^48).toUInt64`), and `rankedArguments` emits unquoted core flags (`demo --research-profile ranked --telemetry --control-stdin --seed ... --side 1024 --steps 4000 --attempts 3 --goals 13 --cycles 0 --run-id ... --agent-epoch ... --new-agent-epoch ...`, optionally followed by `--cleared` and `--checkpoint PATH`).
 - **Wire envelopes, exact telemetry numbers, and map codecs (`Acorn.Host.Viewer.Wire`, `WireNumber`, `TelemetryValue`, `MapCodec`, `Sensed`):** `WireText` enforces newline and carriage-return exclusion and UTF-8 byte length `≤ lineCapacity` (`LineBytes.text` strips one trailing `\r` for CRLF lines), `runWord` admits exact 16-lowercase-hex run IDs, `browserIntegerMax` is `9007199254740991` (`2^53 - 1`), and `HealthEnvelope` survives frames whose full-schema scientific fields fail admission. `WireNumber` serializes finite binary32 and binary64 values as exact decimals via `5^n` denominator scaling, emits `"null"` for all infinities and NaNs, preserves the sign of `-0.0`, and leaves consumer rounding to JSON readers. `TelemetryValue` renders `null` for `.optional` `none` and `\u00xx`-escapes control bytes `< 0x20` at the single emission boundary (`emitTelemetryFields`). `Sensed` excludes `agentEpoch` from `MapKey` (`MapKey` keys by `run`, `seed`, and `side`), and `MapCodec` accepts zero-count historical RLE triples, recomputes `seen` from admitted cells while ignoring header `seen` and *partial* values, and rejects base64 emission unless run byte length is divisible by 3 (emitting no `=` padding).
-- **Numeric observer programs, goal achievement, and browser schema (`Acorn.Host.Viewer.BrowserMath`, `GoalAchievement`, `BrowserKernel`, `BrowserRecord`, `BrowserSchema`, `ClockProgram`):** In `BrowserMath`, *minimum* and *maximum* handle `NaN` and `-0.0` (`0x8000000000000000`) to match JavaScript *Math.min*/*Math.max*, `BrowserMath.horizon` clamps `ceil(ln(0.01) / ln(γ))` to `[8, 600]`, `BrowserMath.relativeChange` guards denominators with `|x| < 1e-12` (returning `0` on exact equality and *Infinity* otherwise), `BrowserMath.trend` uses a `0.05` relative-change deadband, `BrowserMath.enoughSamples` requires at least `30` settled samples, `BrowserMath.finiteReturn` computes only the inner finite-horizon discounted return sum from SwiftTD RLJ 2 (2024) §3 equation (3) (not its squared lifetime error), and `BrowserMath.tdSurprise` averages absolute residuals across adjacent reported projected predictions using the TD form in SwiftTD Appendix A.1 equation (17) (rather than returning the signed residual of equation (17), and without claiming equality to the learner's internal binary32 error). In `GoalAchievement` (`lean/Acorn/Host/Viewer/GoalAchievement.lean`, citing Sutton, Bowling & Pilarski `arXiv:2208.11173v3` pp. 4–5 *"Designing around a base agent"* and Javed & Sutton 2024 *"The Big World Hypothesis"* and *"Benchmarking Algorithms in Big Worlds"*), `GoalAchievement.State.begin` refuses cycle-counter saturation (`2^64 - 1`) so wrapped cycles cannot merge, and `GoalAchievement.Pass.permille` truncates via floor integer division (`1000 * achieved / goals`). `BrowserKernel` (`Phase.runLabel`) supplies transient `busy` labels (`starting…`, `stopping…`, `clearing…`) and routes `unaskedStops` (`.failed`, `.restartScheduled`) to the connection label. `BrowserRecord` separates `.nonFinite` (casting non-finite scalars to `NaN` and setting *nonFiniteKey*), `.unmeasured` (`core_rss_bytes`, `checkpoint_bytes`, `checkpoint_write_us`, mapped to `NaN` without setting *nonFiniteKey*), `.absentIndex` (`retire_step`, `retire_unit`, mapped to `-1`), and `.absentIndices` (`subtask_unit`, converted into an *Int32Array* with `< 2^31` range and `-1` sentinel), with `demon_horizon` applying `.twice` (`2 * envelope`). *BrowserSchema.stringSortKey* hashes wire keys modulo `4294967291` without needing injectivity for `browserSchema_distinct`, `browserRules_goal_separation` isolates `gkind` and `gitem`, and unknown incoming JSON keys remain forward-compatible. `ClockProgram.agreementFollows` compares process markers, per-process clocks, and stopped flags (admitting a capture when its process marker is strictly newer regardless of either capture's clock or stopped flag, or when the process marker is the same, the prior capture is not stopped, and either the per-process clock strictly increases, or the clock is equal with the new capture stopped), whereas native `Capture.follows` (`ClockProgram.follows` in `Admission.lean`) compares lifetime and world clocks and admits a same-lifetime terminal capture from a non-terminal predecessor only at `prevWorld + 1` (never at the same world step), and `ClockProgram.snapshotFollows` enforces zero-step resolved goal ordering alongside browser safe-integer bounds.
+- **Server observer, typed HTML, numeric programs, goal achievement, and schema (`Acorn.Host.Viewer.Html`, `ServerFrame`, `ServerView`, `StageBmp`, `DecimalText`, `BrowserMath`, `GoalAchievement`, `BrowserKernel`, `BrowserRecord`, `BrowserSchema`, `ClockProgram`):** `Html` defines a closed HTML5/SVG AST with zero script tags and zero inline event attributes (`Html.AttrName.no_event_handler`, `Html.Document.render_no_script`), and `renderViewerPage_no_script` proves the served document never emits a script tag for any runtime input. `DecimalText` and `ServerFrame` decode and format incoming JSON telemetry directly in pure integer/decimal Lean without floating-point C primitives. In `BrowserMath`, `BrowserMath.horizon` clamps `ceil(ln(0.01) / ln(γ))` to `[8, 600]`, `BrowserMath.relativeChange` guards denominators with `|x| < 1e-12`, `BrowserMath.trend` uses a `0.05` relative-change deadband, `BrowserMath.enoughSamples` requires at least `30` settled samples, `BrowserMath.finiteReturn` computes only the inner finite-horizon discounted return sum from SwiftTD RLJ 2 (2024) §3 equation (3), and `BrowserMath.tdSurprise` averages absolute residuals across adjacent reported projected predictions using the TD form in SwiftTD Appendix A.1 equation (17). In `GoalAchievement` (`lean/Acorn/Host/Viewer/GoalAchievement.lean`, citing Sutton, Bowling & Pilarski `arXiv:2208.11173v3` pp. 4–5 *"Designing around a base agent"* and Javed & Sutton 2024 *"The Big World Hypothesis"* and *"Benchmarking Algorithms in Big Worlds"*), `GoalAchievement.State.begin` refuses cycle-counter saturation (`2^64 - 1`) so wrapped cycles cannot merge, and `GoalAchievement.Pass.permille` truncates via floor integer division (`1000 * achieved / goals`). `BrowserKernel` (`Phase.runLabel`, `goalItemLabel`, `goalText`) supplies transient `busy` labels (`starting…`, `stopping…`, `clearing…`), exhaustive goal text, and routes `unaskedStops` (`.failed`, `.restartScheduled`) to the connection label. `BrowserRecord` separates `.nonFinite`, `.unmeasured` (`core_rss_bytes`, `checkpoint_bytes`, `checkpoint_write_us`), `.absentIndex` (`retire_step`, `retire_unit`), and `.absentIndices` (`subtask_unit`, `< 2^31`), with `demon_horizon` applying `.twice` (`2 * envelope`). *BrowserSchema.stringSortKey* hashes wire keys modulo `4294967291` without needing injectivity for `browserSchema_distinct`, `browserRules_goal_separation` isolates `gkind` and `gitem`, and unknown incoming JSON keys remain forward-compatible. `ClockProgram.agreementFollows` compares process markers, per-process clocks, and stopped flags, native `Capture.follows` (`ClockProgram.follows` in `Admission.lean`) compares lifetime and world clocks, and `ClockProgram.snapshotFollows` is evaluated directly in Lean by `admitAgreementSnapshot` (`ServerFrame.lean`) alongside safe-integer bounds.
 - **Control diagnostics, stderr logs, and identity handshake (`Acorn.Host.Viewer.ControlTelemetry`, `LogPump`, `IdentityHandshake`):** `controlDiagnostic` truncates reasons at `1024` characters with `" [truncated]"` before appending the UX-24 `failureLimit` suffix (`controlTelemetry_reasons`), `controlTail` emits up to the last `6` stderr lines substituting `"[stderr line refused: invalid UTF-8]"` on invalid UTF-8 only while `.idle`, and `controlWarning` emits warnings only while `.idle` with `abnormalExit` taking precedence over a failed checkpoint status; `LogPump` retains `logTailCapacity := 200` lines and `logQueueCapacity := 256` queued entries; and `IdentityHandshake` persists the core's first reported `CoreIdentity` before releasing buffered pending frames without modifying `desired` (`PersistedState.adopt_desired`). See [verification](verification.md#viewer-ownership-boundaries) for server HTTP, broadcast, pipe-reader, process-owner, run-directory, and supervisor boundaries.
 
 ## 10 · Algorithm claims: pin or out of viewer scope
@@ -1417,13 +1360,12 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Step-size curves | plasticity panel | Alberta Plan Step 1, arXiv:2208.11173v3 **PDF p. 6**: *“All of that user expertise should be replaced by a meta-algorithm for setting the step-size parameter…”* The panel plots Acorn’s current step sizes. |
 | intra-option-credit / derived-exploration-rate studies | **out of viewer scope** | PAR-9 / PAR-10 identify the mechanisms, pinned above. |
 | Rendered inspection and compiler checks | contributor verification | AC-R4 geometries and AC-R6 check results cover presentation and implementation. |
-| Record keys = emit keys | proof, not a surface | The page's record conversion and frame store are generated from `browserSchema`. `browserRecord_keys` proves the record has a field for every schema key and no other; `browserColumns_live` proves each ring column reads a schema key at the schema's array width. |
+| Record keys = emit keys | proof, not a surface | `browserRecord_keys` proves `browserRecordFields` covers every `browserSchema` key and no other; `browserColumns_live` proves each column reads a schema key at the schema's array width; `renderViewerPage_no_script` proves the served HTML never emits a script tag. |
 
 ## Appendix A · Constants this document quotes
 
-`AcornTools.Corpus.Browser` renders the table below from its Lean owners, the page's
-constants, which the generated kernel declares from `BrowserConstant` in
-`Acorn.Host.Viewer.BrowserStore`, and the viewer server's values, and admits this appendix
+`AcornTools.Corpus.Browser` renders the table below from its Lean owners (`BrowserConstant` in
+`Acorn.Host.Viewer.BrowserStore` and the viewer server's values), and admits this appendix
 only when the table is exactly that text and no other line of the appendix holds a table
 cell. Other prose quantities, and whether the table lists every constant this document
 quotes, remain review obligations.

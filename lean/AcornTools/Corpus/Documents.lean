@@ -3,7 +3,7 @@ import AcornDocument
 import Acorn.Digits
 import AcornTools.Ownership
 import Acorn.Host.Viewer.BrowserSchema
-import AcornTools.Corpus.Browser
+import Acorn.Host.Viewer.BrowserStore
 import AcornTools.TrackedFiles
 
 namespace AcornDocument
@@ -475,13 +475,6 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO SymbolInventor
     if let .tags tags := rule then
       for tag in tags do acorn := acorn.insert tag
   acorn := acorn.insert "main"
-  AcornTrackedFiles.ensureTrackedRegular "." "" "viewer/static/index.html"
-  let browser ← AcornBrowserAudit.scripts (← IO.FS.readFile "viewer/static/index.html")
-  let words := (String.ofList (browser.toList.map (fun c =>
-    if c.isAlphanum || c == '_' || c == '$' then c else ' '))).splitOn " " |>.filter (!·.isEmpty)
-  for index in [:words.length] do
-    if ["const", "let", "function", "class"].contains (words[index]?.getD "") then
-      if let some name := words[index+1]? then acorn := acorn.insert name
   let selected := owners.foldl (fun set owner => set.insert owner) ({} : NameSet)
   let receiversRef ← IO.mkRef ({} : Std.HashMap String (Std.HashSet Name))
   let mut usedByAcorn : NameSet := {}

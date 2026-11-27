@@ -60,4 +60,124 @@ theorem AuthorizedCommand.post {headers : ControlHeaders} {token : String}
   simp [ControlHeaders.authorizes] at this
   exact this.1.1.1.1
 
+private def hexDigitVal (c : Char) : Option Nat :=
+  if '0' ≤ c && c ≤ '9' then some (c.toNat - 48)
+  else if 'a' ≤ c && c ≤ 'f' then some (c.toNat - 87)
+  else if 'A' ≤ c && c ≤ 'F' then some (c.toNat - 55)
+  else none
+
+private def percentDecodeLoop (cs : List Char) (acc : ByteArray) : Option ByteArray :=
+  match cs with
+  | [] => some acc
+  | '+' :: rest => percentDecodeLoop rest (acc.push 0x20)
+  | '%' :: h1 :: h2 :: rest =>
+    match hexDigitVal h1, hexDigitVal h2 with
+    | some v1, some v2 => percentDecodeLoop rest (acc.push (v1 * 16 + v2).toUInt8)
+    | _, _ => none
+  | '%' :: _ => none
+  | c :: rest =>
+    let bytes := (String.singleton c).toUTF8
+    percentDecodeLoop rest (acc ++ bytes)
+termination_by cs.length
+
+def percentDecode (s : String) : Option String := do
+  let bytes ← percentDecodeLoop s.toList ByteArray.empty
+  String.fromUTF8? bytes
+
+def parseFormPairs (text : String) : Option (List (String × String)) := do
+  if text.isEmpty then return []
+  let mut pairs := []
+  for part in text.splitOn "&" do
+    if part.isEmpty then continue
+    let segments := part.splitOn "="
+    match segments with
+    | [rawKey] =>
+      let key ← percentDecode rawKey
+      pairs := (key, "") :: pairs
+    | rawKey :: rest =>
+      let key ← percentDecode rawKey
+      let val ← percentDecode (String.intercalate "=" rest)
+      pairs := (key, val) :: pairs
+    | [] => none
+  return pairs.reverse
+
+structure FormPayload where
+  token : String
+  command : Command
+  viewMode : Option String
+  refresh : Option String
+  inside : Option String
+  stream : Option String
+  frame : Option String
+  deriving DecidableEq, BEq
+
+private def formLookup (pairs : List (String × String)) (key : String) : Option String :=
+  (pairs.find? fun p => p.1 == key).map Prod.snd
+
+def formControlPayload (body : ControlBody) : Except String FormPayload := do
+  let some text := String.fromUTF8? body.val | throw "invalid control UTF-8"
+  let some pairs := parseFormPairs text | throw "malformed form body"
+  let some token := formLookup pairs "token" | throw "missing control token"
+  let some word := formLookup pairs "cmd" | throw "missing lifecycle command"
+  let some command := Command.parse word | throw "unknown lifecycle command"
+  return {
+    token, command
+    viewMode := formLookup pairs "view"
+    refresh := formLookup pairs "refresh"
+    inside := formLookup pairs "inside"
+    stream := formLookup pairs "stream"
+    frame := formLookup pairs "frame"
+  }
+
+structure FormControlHeaders where
+  method : String
+  mediaType : String
+  length : Option Nat
+
+def FormControlHeaders.authorizes (headers : FormControlHeaders) (token : String)
+    (body : ControlBody) : Bool :=
+  headers.method == "POST" &&
+    headers.mediaType == "application/x-www-form-urlencoded" &&
+    !token.isEmpty &&
+    headers.length == some body.val.size
+
+structure AuthorizedFormCommand (headers : FormControlHeaders) (token : String) where
+  body : ControlBody
+  payload : FormPayload
+  authorized : headers.authorizes token body = true
+  decoded : formControlPayload body = .ok payload
+  tokenValid : tokenMatches payload.token token = true
+
+def authorizeFormCommand (headers : FormControlHeaders) (token : String) (body : ControlBody) :
+    Except String (AuthorizedFormCommand headers token) :=
+  if authorized : headers.authorizes token body = true then
+    match decoded : formControlPayload body with
+    | .error reason => .error reason
+    | .ok payload =>
+      if valid : tokenMatches payload.token token = true then
+        .ok ⟨body, payload, authorized, decoded, valid⟩
+      else .error "control token refused"
+  else .error "control request refused"
+
+theorem AuthorizedFormCommand.post {headers : FormControlHeaders} {token : String}
+    (command : AuthorizedFormCommand headers token) : headers.method = "POST" := by
+  have := command.authorized
+  simp [FormControlHeaders.authorizes] at this
+  exact this.1.1.1
+
+theorem AuthorizedFormCommand.token_eq {headers : FormControlHeaders} {token : String}
+    (command : AuthorizedFormCommand headers token) : command.payload.token = token := by
+  have h := command.tokenValid
+  unfold tokenMatches at h
+  split at h
+  · cases h
+  · simp only [Bool.and_eq_true, beq_iff_eq] at h
+    exact h.2
+
+theorem authorizeFormCommand_spec {headers : FormControlHeaders} {token : String}
+    {body : ControlBody} {authorized : AuthorizedFormCommand headers token}
+    (_admitted : authorizeFormCommand headers token body = .ok authorized) :
+    headers.method = "POST" ∧ authorized.payload.token = token :=
+  ⟨authorized.post, authorized.token_eq⟩
+
 end Acorn.Host.Viewer

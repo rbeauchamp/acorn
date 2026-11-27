@@ -75,10 +75,6 @@ theorem BrowserConstant.metaActions_skills :
 theorem BrowserConstant.names_distinct : (BrowserConstant.all.map (·.name)).Nodup := by
   decide
 
-def browserConstantsJavascript : String :=
-  "const " ++ String.intercalate "," (BrowserConstant.all.map fun constant =>
-    constant.name ++ "=" ++ toString constant.value) ++ ";\n"
-
 def BrowserConstant.product (stride : List BrowserConstant) : Nat :=
   stride.foldl (fun width constant => width * constant.value) 1
 
@@ -246,60 +242,5 @@ theorem browserColumns_distinct :
   nodup_of_distinct_keys stringSortKey
     (browserColumns.map (·.2.name) ++ browserIntakeColumns ++ ["id", "i"])
     (by decide +kernel)
-
-private def scaled (base : String) (stride : List BrowserConstant) : String :=
-  String.intercalate "*" (base :: stride.map BrowserConstant.name)
-
-private def tagList (key : String) : String :=
-  "[" ++ String.intercalate "," ((browserTags key).map telemetryString) ++ "]"
-
-def BrowserColumn.allocation (column : BrowserColumn) : String :=
-  let storage := match column.encoding with
-    | .number | .flag | .tag | .sum => "new Float64Array(CAP)"
-    | .text => "new Array(CAP)"
-    | .values stride => "new Float64Array(" ++ scaled "CAP" stride ++ ")"
-    | .bytes stride => "new Uint8Array(" ++ scaled "CAP" stride ++ ")"
-    | .cycleBin => "new Float64Array(" ++ scaled "CAP" [.goalFamilies] ++ ")"
-  "  " ++ column.name ++ ":" ++ storage ++ ",\n"
-
-def BrowserColumn.write (key : String) (column : BrowserColumn) : String :=
-  let value := "f[" ++ telemetryString key ++ "]"
-  let cell := "S." ++ column.name ++ "[i]"
-  let statement := match column.encoding with
-    | .number | .text => cell ++ "=" ++ value ++ ";"
-    | .flag => cell ++ "=" ++ value ++ "?1:0;"
-    | .tag => cell ++ "=" ++ tagList key ++ ".indexOf(" ++ value ++ ");"
-    | .sum => cell ++ "=observerSum(" ++ value ++ ");"
-    | .values stride | .bytes stride =>
-      "S." ++ column.name ++ ".set(" ++ value ++ "," ++ scaled "i" stride ++ ");"
-    | .cycleBin =>
-      let families := BrowserConstant.goalFamilies.name
-      "for(let k=0;k<" ++ families ++ ";k++)S." ++ column.name ++ "[i*" ++ families ++
-        "+k]=" ++ value ++ "[k*" ++ BrowserConstant.cycleBins.name ++ "+b];"
-  statement ++ "\n"
-
-def BrowserColumn.view (key : String) (column : BrowserColumn) : Option String :=
-  let cell := "S." ++ column.name ++ "[i]"
-  match column.encoding with
-  | .number | .sum | .text => some (column.name ++ ":" ++ cell)
-  | .flag => some (column.name ++ ":!!" ++ cell)
-  | .tag => some (column.name ++ ":" ++ tagList key ++ "[" ++ cell ++ "]")
-  | .values _ | .bytes _ | .cycleBin => none
-
-def browserStoreJavascript : String :=
-  "function observerFrameStore(CAP){return {\n" ++
-  String.join (browserColumns.map fun (_, column) => column.allocation) ++
-  String.join (browserIntakeColumns.map fun name =>
-    "  " ++ name ++ ":new Float64Array(CAP),\n") ++
-  "};}\n" ++
-  "function observerStore(S,i,f){\nconst b=observerCycleBucket(f[" ++
-    telemetryString browserCycleKey ++ "]);\n" ++
-  String.join (browserColumns.map fun (key, column) => column.write key) ++ "}\n" ++
-  "function observerFrame(S,id,i){return {id,i,\n" ++
-  String.intercalate ",\n" (browserColumns.filterMap fun (key, column) => column.view key) ++
-  "};}\n" ++
-  "function observerRing(CAP){const S=observerFrameStore(CAP),slot=id=>id%CAP;" ++
-  "return {S,slot,store:(id,f)=>observerStore(S,slot(id),f)," ++
-  "frame:id=>observerFrame(S,id,slot(id))};}\n"
 
 end Acorn.Host.Viewer
