@@ -13,7 +13,9 @@ import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.Nat.Prime.Basic
 import Mathlib.Data.ZMod.Basic
+import Mathlib.GroupTheory.OrderOfElement
 import Mathlib.NumberTheory.LucasPrimality
+import Mathlib.RingTheory.AdjoinRoot
 import Mathlib.Tactic.NormNum.Prime
 import Mathlib.Tactic.Ring
 
@@ -114,8 +116,7 @@ private def polyMul (a b : Nat) : Nat :=
 private def polyPowGo : Nat → Nat → Nat → Nat → Nat
   | 0, _, _, acc => acc
   | fuel + 1, a, e, acc =>
-    if e == 0 || acc == 0 then acc
-    else if a == 0 then 0
+    if e == 0 then acc
     else
       let acc1 := if e &&& 1 == 1 then polyMul acc a else acc
       polyPowGo fuel (polyMul a a) (e >>> 1) acc1
@@ -441,10 +442,10 @@ private theorem charpoly_check : evalPoly pLow = iterStep 256 1 := by decide
 set_option maxRecDepth 8192 in
 private theorem b_invbasis_check : checkInvBasisB 0 invBasisList = true := by decide
 
-set_option maxRecDepth 8192 in
+set_option maxRecDepth 65536 in
 private theorem pow_period_one : polyPow 2 (2 ^ 256 - 1) = 1 := by decide
 
-set_option maxRecDepth 8192 in
+set_option maxRecDepth 32768 in
 private theorem tree_check : checkTree 2 6 primeFactors256 = true := by decide
 
 private theorem primeFactors256_prod : primeFactors256.prod = 2 ^ 256 - 1 := by decide
@@ -1377,64 +1378,51 @@ private theorem natToPoly_polyPowGo :
     rw [polyPowGo]
     by_cases hE0 : e = 0
     · subst hE0
-      simp only [beq_self_eq_true, Bool.true_or, ↓reduceIte, pow_zero, mul_one]
+      simp only [beq_self_eq_true, ↓reduceIte, pow_zero, mul_one]
       have hDegAcc : (natToPoly acc).degree < charPoly.degree := by
         rw [charPoly_degree]
         exact natToPoly_degree_lt acc 256 hacc
       have hMod := (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr hDegAcc
       exact ⟨hacc, hMod.symm⟩
-    · by_cases hAcc0 : acc = 0
-      · subst hAcc0
-        simp only [beq_self_eq_true, Bool.or_true, ↓reduceIte, natToPoly_zero, zero_mul,
-          Polynomial.zero_modByMonic]
-        exact ⟨pow256_pos, trivial⟩
-      · have hE0B : (e == 0) = false := beq_false_of_ne hE0
-        have hAcc0B : (acc == 0) = false := beq_false_of_ne hAcc0
-        simp only [hE0B, hAcc0B, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
-        by_cases hA0 : a = 0
-        · subst hA0
-          simp only [beq_self_eq_true, ↓reduceIte, natToPoly_zero, zero_pow hE0, mul_zero,
-            Polynomial.zero_modByMonic]
-          exact ⟨pow256_pos, trivial⟩
-        · have hA0B : (a == 0) = false := beq_false_of_ne hA0
-          simp only [hA0B, Bool.false_eq_true, ↓reduceIte]
-          obtain ⟨haSqLt, haSqPoly⟩ := natToPoly_polyMul ha ha
-          have hR1 : e >>> 1 = e / 2 := by rw [Nat.shiftRight_eq_div_pow]
-          have hEHalfLt : e >>> 1 < 2 ^ fuel := by
-            rw [hR1]
-            exact Nat.div_lt_of_lt_mul
-              (lt_of_lt_of_le he (by rw [Nat.pow_succ, Nat.mul_comm]))
-          have hAnd1 : e &&& 1 = e % 2 := Nat.and_one_is_mod e
-          by_cases hOdd : (e &&& 1 == 1) = true
-          · simp only [hOdd, ↓reduceIte]
-            obtain ⟨hAcc1Lt, hAcc1Poly⟩ := natToPoly_polyMul hacc ha
-            obtain ⟨hResLt, hResPoly⟩ := natToPoly_polyPowGo fuel (polyMul a a) (e >>> 1)
-              (polyMul acc a) hEHalfLt haSqLt hAcc1Lt
-            refine ⟨hResLt, hResPoly.trans ?_⟩
-            rw [hAcc1Poly, haSqPoly, modByMonic_mul_left, ← modByMonic_mul_right,
-              poly_pow_modByMonic_idem, modByMonic_mul_right]
-            have hEMod : e % 2 = 1 := by have := eq_of_beq hOdd; omega
-            have heEq : e = 2 * (e >>> 1) + 1 := by omega
-            have hExpEq : (natToPoly acc * natToPoly a) * (natToPoly a * natToPoly a) ^ (e >>> 1) =
-                natToPoly acc * natToPoly a ^ e := by
-              conv_rhs => rw [heEq, pow_add, pow_mul, pow_one, sq]
-              ring
-            rw [hExpEq]
-          · have hOddF : (e &&& 1 == 1) = false := Bool.eq_false_iff.mpr hOdd
-            simp only [hOddF, Bool.false_eq_true, ↓reduceIte]
-            obtain ⟨hResLt, hResPoly⟩ := natToPoly_polyPowGo fuel (polyMul a a) (e >>> 1)
-              acc hEHalfLt haSqLt hacc
-            refine ⟨hResLt, hResPoly.trans ?_⟩
-            rw [haSqPoly, ← modByMonic_mul_right, poly_pow_modByMonic_idem, modByMonic_mul_right]
-            have hEMod : e % 2 = 0 := by
-              have hModLt := Nat.mod_lt e (by decide : 0 < 2)
-              have hNe : e % 2 ≠ 1 := fun h => hOdd (by rw [hAnd1, h]; rfl)
-              omega
-            have heEq : e = 2 * (e >>> 1) := by omega
-            have hExpEq : natToPoly acc * (natToPoly a * natToPoly a) ^ (e >>> 1) =
-                natToPoly acc * natToPoly a ^ e := by
-              conv_rhs => rw [heEq, pow_mul, sq]
-            rw [hExpEq]
+    · have hE0B : (e == 0) = false := beq_false_of_ne hE0
+      simp only [hE0B, Bool.false_eq_true, ↓reduceIte]
+      obtain ⟨haSqLt, haSqPoly⟩ := natToPoly_polyMul ha ha
+      have hR1 : e >>> 1 = e / 2 := by rw [Nat.shiftRight_eq_div_pow]
+      have hEHalfLt : e >>> 1 < 2 ^ fuel := by
+        rw [hR1]
+        exact Nat.div_lt_of_lt_mul
+          (lt_of_lt_of_le he (by rw [Nat.pow_succ, Nat.mul_comm]))
+      have hAnd1 : e &&& 1 = e % 2 := Nat.and_one_is_mod e
+      by_cases hOdd : (e &&& 1 == 1) = true
+      · simp only [hOdd, ↓reduceIte]
+        obtain ⟨hAcc1Lt, hAcc1Poly⟩ := natToPoly_polyMul hacc ha
+        obtain ⟨hResLt, hResPoly⟩ := natToPoly_polyPowGo fuel (polyMul a a) (e >>> 1)
+          (polyMul acc a) hEHalfLt haSqLt hAcc1Lt
+        refine ⟨hResLt, hResPoly.trans ?_⟩
+        rw [hAcc1Poly, haSqPoly, modByMonic_mul_left, ← modByMonic_mul_right,
+          poly_pow_modByMonic_idem, modByMonic_mul_right]
+        have hEMod : e % 2 = 1 := by have := eq_of_beq hOdd; omega
+        have heEq : e = 2 * (e >>> 1) + 1 := by omega
+        have hExpEq : (natToPoly acc * natToPoly a) * (natToPoly a * natToPoly a) ^ (e >>> 1) =
+            natToPoly acc * natToPoly a ^ e := by
+          conv_rhs => rw [heEq, pow_add, pow_mul, pow_one, sq]
+          ring
+        rw [hExpEq]
+      · have hOddF : (e &&& 1 == 1) = false := Bool.eq_false_iff.mpr hOdd
+        simp only [hOddF, Bool.false_eq_true, ↓reduceIte]
+        obtain ⟨hResLt, hResPoly⟩ := natToPoly_polyPowGo fuel (polyMul a a) (e >>> 1)
+          acc hEHalfLt haSqLt hacc
+        refine ⟨hResLt, hResPoly.trans ?_⟩
+        rw [haSqPoly, ← modByMonic_mul_right, poly_pow_modByMonic_idem, modByMonic_mul_right]
+        have hEMod : e % 2 = 0 := by
+          have hModLt := Nat.mod_lt e (by decide : 0 < 2)
+          have hNe : e % 2 ≠ 1 := fun h => hOdd (by rw [hAnd1, h]; rfl)
+          omega
+        have heEq : e = 2 * (e >>> 1) := by omega
+        have hExpEq : natToPoly acc * (natToPoly a * natToPoly a) ^ (e >>> 1) =
+            natToPoly acc * natToPoly a ^ e := by
+          conv_rhs => rw [heEq, pow_mul, sq]
+        rw [hExpEq]
 
 private theorem natToPoly_polyPow (a e : Nat) (he : e < 2 ^ 257) (ha : a < 2 ^ 256) :
     polyPow a e < 2 ^ 256 ∧ natToPoly (polyPow a e) = modByMonic (natToPoly a ^ e) charPoly := by
@@ -1887,18 +1875,6 @@ private theorem checkTree_sound :
       rw [hExp]
       exact hIH
 
-private theorem prime_dvd_list_prod (q : Nat) (hq : q.Prime) :
-    ∀ xs : List Nat, (∀ x ∈ xs, Nat.Prime x) → q ∣ xs.prod → q ∈ xs
-  | [], _, hdvd => by simp only [List.prod_nil] at hdvd; exact absurd hdvd hq.not_dvd_one
-  | x :: xs, hPrimes, hdvd => by
-    simp only [List.prod_cons] at hdvd
-    rcases hq.dvd_mul.mp hdvd with hHead | hTail
-    · rcases (hPrimes x List.mem_cons_self).eq_one_or_self_of_dvd q hHead with h1 | hEq
-      · exact absurd h1 hq.ne_one
-      · exact hEq ▸ List.mem_cons_self
-    · exact List.mem_cons_of_mem _
-        (prime_dvd_list_prod q hq xs (fun y hy => hPrimes y (List.mem_cons_of_mem _ hy)) hTail)
-
 private theorem x_pow_period_mod :
     modByMonic (Polynomial.X ^ (2 ^ 256 - 1)) charPoly = 1 := by
   have hN257 : 2 ^ 256 - 1 < 2 ^ 257 := lt_trans pow256_sub_one_lt pow256_lt_pow257
@@ -1909,8 +1885,14 @@ private theorem x_pow_period_mod :
 private theorem x_pow_prime_quot_ne_one {q : Nat} (hq : q.Prime) (hdvd : q ∣ 2 ^ 256 - 1) :
     modByMonic (Polynomial.X ^ ((2 ^ 256 - 1) / q)) charPoly ≠ 1 := by
   have hdvd' : q ∣ primeFactors256.prod := primeFactors256_prod.symm ▸ hdvd
-  have hQMem : q ∈ primeFactors256 :=
-    prime_dvd_list_prod q hq primeFactors256 primeFactors256_all_prime hdvd'
+  have hQMem : q ∈ primeFactors256 := by
+    obtain ⟨pq, hpq, hqEq⟩ := prime_dvd_factor_prod q hq (primeFactors256.map (·, 1))
+      (fun pq hpq => by
+        obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hpq
+        exact primeFactors256_all_prime p hp)
+      (by rw [List.map_map]; simpa [Function.comp_def] using hdvd')
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hpq
+    exact hqEq ▸ hp
   have hMod2 : natToPoly 2 = modByMonic (Polynomial.X ^ 1) charPoly := by
     rw [natToPoly_two, pow_one, (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr (by
       rw [charPoly_degree, Polynomial.degree_X]; decide)]
@@ -1920,132 +1902,42 @@ private theorem x_pow_prime_quot_ne_one {q : Nat} (hq : q.Prime) (hdvd : q ∣ 2
     (by rw [primeFactors256_prod]) hAllOne hMod2 tree_check q hQMem
   simpa [primeFactors256_prod] using hChk
 
-private theorem pow_gcd_mod_aux :
-    ∀ (s a b : Nat), a + b ≤ s →
-      modByMonic (Polynomial.X ^ a) charPoly = 1 → modByMonic (Polynomial.X ^ b) charPoly = 1 →
-      modByMonic (Polynomial.X ^ Nat.gcd a b) charPoly = 1
-  | 0, a, b, hs, ha, _ => by
-    have ha0 : a = 0 := by omega
-    have hb0 : b = 0 := by omega
-    subst ha0 hb0
-    simpa using ha
-  | s + 1, a, b, hs, ha, hb => by
-    by_cases ha0 : a = 0
-    · subst ha0; simpa using hb
-    · by_cases hb0 : b = 0
-      · subst hb0; simpa using ha
-      · by_cases hle : a ≤ b
-        · have hSub : modByMonic (Polynomial.X ^ (b - a)) charPoly = 1 := by
-            have hModId : modByMonic (modByMonic (Polynomial.X ^ (b - a)) charPoly) charPoly =
-                modByMonic (Polynomial.X ^ (b - a)) charPoly :=
-              (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr
-                (Polynomial.degree_modByMonic_lt _ charPoly_monic)
-            calc modByMonic (Polynomial.X ^ (b - a)) charPoly
-                = modByMonic (modByMonic (Polynomial.X ^ (b - a)) charPoly * 1) charPoly := by
-                  rw [mul_one, hModId]
-              _ = modByMonic (modByMonic (Polynomial.X ^ (b - a)) charPoly *
-                    modByMonic (Polynomial.X ^ a) charPoly) charPoly := by rw [ha]
-              _ = modByMonic (Polynomial.X ^ (b - a) * Polynomial.X ^ a) charPoly :=
-                  (Polynomial.mul_modByMonic _ _ charPoly).symm
-              _ = modByMonic (Polynomial.X ^ b) charPoly := by
-                  rw [← pow_add, Nat.sub_add_cancel hle]
-              _ = 1 := hb
-          have hEqGcd : Nat.gcd a b = Nat.gcd a (b - a) := by
-            rw [Nat.gcd_comm, Nat.gcd_sub_self_right hle, Nat.gcd_comm]
-          rw [hEqGcd]
-          exact pow_gcd_mod_aux s a (b - a) (by omega) ha hSub
-        · have hlt : b ≤ a := by omega
-          have hSub : modByMonic (Polynomial.X ^ (a - b)) charPoly = 1 := by
-            have hModId : modByMonic (modByMonic (Polynomial.X ^ (a - b)) charPoly) charPoly =
-                modByMonic (Polynomial.X ^ (a - b)) charPoly :=
-              (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr
-                (Polynomial.degree_modByMonic_lt _ charPoly_monic)
-            calc modByMonic (Polynomial.X ^ (a - b)) charPoly
-                = modByMonic (modByMonic (Polynomial.X ^ (a - b)) charPoly * 1) charPoly := by
-                  rw [mul_one, hModId]
-              _ = modByMonic (modByMonic (Polynomial.X ^ (a - b)) charPoly *
-                    modByMonic (Polynomial.X ^ b) charPoly) charPoly := by rw [hb]
-              _ = modByMonic (Polynomial.X ^ (a - b) * Polynomial.X ^ b) charPoly :=
-                  (Polynomial.mul_modByMonic _ _ charPoly).symm
-              _ = modByMonic (Polynomial.X ^ a) charPoly := by
-                  rw [← pow_add, Nat.sub_add_cancel hlt]
-              _ = 1 := ha
-          have hEqGcd : Nat.gcd a b = Nat.gcd (a - b) b := (Nat.gcd_sub_self_left hlt).symm
-          rw [hEqGcd]
-          exact pow_gcd_mod_aux s (a - b) b (by omega) hSub hb
+private theorem adjoinRoot_mk_modByMonic (f : Polynomial (ZMod 2)) :
+    AdjoinRoot.mk charPoly (modByMonic f charPoly) = AdjoinRoot.mk charPoly f := by
+  rw [← AdjoinRoot.modByMonicHom_mk charPoly_monic f]
+  exact AdjoinRoot.mk_leftInverse charPoly_monic (AdjoinRoot.mk charPoly f)
 
-private theorem x_pow_mod_one_eq_zero {m : Nat} (hmLt : m < 2 ^ 256 - 1)
-    (hm : modByMonic (Polynomial.X ^ m) charPoly = 1) : m = 0 := by
-  by_contra hmPos
-  set N := 2 ^ 256 - 1
-  set d := Nat.gcd m N
-  have hdDvdM : d ∣ m := Nat.gcd_dvd_left m N
-  have hdDvdN : d ∣ N := Nat.gcd_dvd_right m N
-  have hdPos : 0 < d := Nat.gcd_pos_of_pos_left N (Nat.pos_of_ne_zero hmPos)
-  have hdLe : d ≤ m := Nat.le_of_dvd (Nat.pos_of_ne_zero hmPos) hdDvdM
-  have hdLtN : d < N := lt_of_le_of_lt hdLe hmLt
-  set K := N / d
-  have hNK : N = d * K := (Nat.mul_div_cancel' hdDvdN).symm
-  have hKLt : 1 < K := by
-    by_contra hLe1
-    have hKLe : K ≤ 1 := Nat.le_of_not_lt hLe1
-    rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hKLe with hK0 | hK1
-    · rw [hK0, mul_zero] at hNK
-      exact absurd hNK (Nat.ne_of_gt pow256_sub_one_pos)
-    · rw [hK1, mul_one] at hNK
-      exact hdLtN.ne hNK.symm
-  set q := Nat.minFac K
-  have hqPrime : q.Prime := Nat.minFac_prime (by omega)
-  have hqDvdK : q ∣ K := Nat.minFac_dvd K
-  have hqDvdN : q ∣ N := hNK ▸ dvd_mul_of_dvd_right hqDvdK d
-  obtain ⟨M, hKM⟩ := hqDvdK
-  have hQuot : N / q = d * M := by
-    have hEq : N = q * (d * M) := by rw [hNK, hKM]; ring
-    rw [hEq, Nat.mul_div_right _ hqPrime.pos]
-  have hGcdMod : modByMonic (Polynomial.X ^ d) charPoly = 1 :=
-    pow_gcd_mod_aux (m + N) m N (le_refl _) hm x_pow_period_mod
-  have hQuotOne : modByMonic (Polynomial.X ^ (N / q)) charPoly = 1 := by
-    rw [hQuot, pow_mul, ← poly_pow_modByMonic_idem, hGcdMod, one_pow]
-    exact (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr (by
-      rw [charPoly_degree, Polynomial.degree_one]; decide)
-  exact x_pow_prime_quot_ne_one hqPrime hqDvdN hQuotOne
+private theorem root_orderOf :
+    orderOf (AdjoinRoot.root charPoly) = 2 ^ 256 - 1 := by
+  apply orderOf_eq_of_pow_and_pow_div_prime
+  · have h := congrArg (AdjoinRoot.mk charPoly) x_pow_period_mod
+    rw [adjoinRoot_mk_modByMonic, map_pow, AdjoinRoot.mk_X, map_one] at h
+    exact h
+  · intro q hq hdvd hEq
+    have hMod := congrArg (AdjoinRoot.modByMonicHom charPoly_monic) hEq
+    have h1 : modByMonic (1 : Polynomial (ZMod 2)) charPoly = 1 :=
+      (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr (by
+        rw [charPoly_degree, Polynomial.degree_one]; decide)
+    have hL : AdjoinRoot.modByMonicHom charPoly_monic
+        (AdjoinRoot.root charPoly ^ ((2 ^ 256 - 1) / q)) =
+        modByMonic (Polynomial.X ^ ((2 ^ 256 - 1) / q)) charPoly := by
+      rw [← AdjoinRoot.mk_X, ← map_pow, AdjoinRoot.modByMonicHom_mk]
+    have hR : AdjoinRoot.modByMonicHom charPoly_monic (1 : AdjoinRoot charPoly) = 1 := by
+      rw [← map_one (AdjoinRoot.mk charPoly), AdjoinRoot.modByMonicHom_mk, h1]
+    rw [hL, hR] at hMod
+    exact x_pow_prime_quot_ne_one hq hdvd hMod
 
-private theorem x_pow_mod_inj {i j : Nat} (hi : i < 2 ^ 256 - 1) (hj : j < 2 ^ 256 - 1)
+private theorem x_pow_mod_eq_modEq {i j : Nat}
     (hEq : modByMonic (Polynomial.X ^ i) charPoly = modByMonic (Polynomial.X ^ j) charPoly) :
-    i = j := by
-  set N := 2 ^ 256 - 1
-  wlog hij : i ≤ j generalizing i j
-  · exact (this hEq.symm hj hi (by omega)).symm
-  set k := j - i
-  have hkLt : k < N := by omega
-  have hkMod : modByMonic (Polynomial.X ^ k) charPoly = 1 := by
-    have hModId : modByMonic (modByMonic (Polynomial.X ^ k) charPoly) charPoly =
-        modByMonic (Polynomial.X ^ k) charPoly :=
-      (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr
-        (Polynomial.degree_modByMonic_lt _ charPoly_monic)
-    calc modByMonic (Polynomial.X ^ k) charPoly
-        = modByMonic (1 * modByMonic (Polynomial.X ^ k) charPoly) charPoly := by
-          rw [one_mul, hModId]
-      _ = modByMonic (modByMonic (Polynomial.X ^ N) charPoly *
-            modByMonic (Polynomial.X ^ k) charPoly) charPoly := by
-          rw [x_pow_period_mod]
-      _ = modByMonic (Polynomial.X ^ (N + k)) charPoly := by
-          rw [← Polynomial.mul_modByMonic _ _ charPoly, pow_add]
-      _ = modByMonic (Polynomial.X ^ (N - i) * Polynomial.X ^ j) charPoly := by
-          rw [← pow_add]; congr 2; omega
-      _ = modByMonic (modByMonic (Polynomial.X ^ (N - i)) charPoly *
-            modByMonic (Polynomial.X ^ j) charPoly) charPoly :=
-          Polynomial.mul_modByMonic _ _ charPoly
-      _ = modByMonic (modByMonic (Polynomial.X ^ (N - i)) charPoly *
-            modByMonic (Polynomial.X ^ i) charPoly) charPoly := by
-          rw [hEq]
-      _ = modByMonic (Polynomial.X ^ (N - i) * Polynomial.X ^ i) charPoly :=
-          (Polynomial.mul_modByMonic _ _ charPoly).symm
-      _ = modByMonic (Polynomial.X ^ N) charPoly := by
-          rw [← pow_add, Nat.sub_add_cancel (le_of_lt hi)]
-      _ = 1 := x_pow_period_mod
-  have hk0 := x_pow_mod_one_eq_zero hkLt hkMod
-  omega
+    i % (2 ^ 256 - 1) = j % (2 ^ 256 - 1) := by
+  have hRoot : AdjoinRoot.root charPoly ^ i = AdjoinRoot.root charPoly ^ j := by
+    have h := congrArg (AdjoinRoot.mk charPoly) hEq
+    simp only [adjoinRoot_mk_modByMonic, map_pow, AdjoinRoot.mk_X] at h
+    exact h
+  have hFin : IsOfFinOrder (AdjoinRoot.root charPoly) :=
+    orderOf_pos_iff.mp (root_orderOf ▸ pow256_sub_one_pos)
+  have hMod := hFin.pow_inj_mod.mp hRoot
+  rwa [root_orderOf] at hMod
 
 private theorem poly_surj_x_pow {f : Nat} (hfPos : 0 < f) (hfLt : f < 2 ^ 256) :
     ∃ m < 2 ^ 256 - 1, natToPoly f = modByMonic (Polynomial.X ^ m) charPoly := by
@@ -2077,7 +1969,9 @@ private theorem poly_surj_x_pow {f : Nat} (hfPos : 0 < f) (hfLt : f < 2 ^ 256) :
     rw [hEqV] at hPa
     have hModEq := hPa.symm.trans hPb
     rw [natToPoly_two] at hModEq
-    exact Fin.ext (x_pow_mod_inj a.isLt b.isLt hModEq)
+    have hMod : a.val % N = b.val % N := x_pow_mod_eq_modEq hModEq
+    rw [Nat.mod_eq_of_lt a.isLt, Nat.mod_eq_of_lt b.isLt] at hMod
+    exact Fin.ext hMod
   have hBij : Function.Bijective mapPow := (Fintype.bijective_iff_injective_and_card mapPow).mpr
     ⟨hInj, rfl⟩
   obtain ⟨m, hm⟩ := hBij.2 ⟨f - 1, by omega⟩
@@ -2803,25 +2697,9 @@ theorem xoshiro_orbit_inj (r : Rng.Xoshiro256) (hr : r ≠ Rng.Xoshiro256.zero)
       modByMonic (natToPoly f * natToPoly (polyPow 2 j)) charPoly := hMi.symm.trans hMj
   rw [hPi, hPj, natToPoly_two, modByMonic_mul_right, modByMonic_mul_right, hmPoly,
     modByMonic_mul_left, modByMonic_mul_left, ← pow_add, ← pow_add] at hModEq
-  set N := 2 ^ 256 - 1
-  have hPowPer : ∀ q : Nat, modByMonic ((Polynomial.X ^ N) ^ q) charPoly = 1 := by
-    intro q
-    induction q with
-    | zero =>
-      rw [pow_zero]
-      exact (Polynomial.modByMonic_eq_self_iff charPoly_monic).mpr (by
-        rw [charPoly_degree, Polynomial.degree_one]; decide)
-    | succ q ih =>
-      rw [pow_succ, ← modByMonic_mul_left, ih, one_mul, x_pow_period_mod]
-  have reduceMod : ∀ s : Nat,
-      modByMonic (Polynomial.X ^ s) charPoly = modByMonic (Polynomial.X ^ (s % N)) charPoly := by
-    intro s
-    have hs : s = N * (s / N) + s % N := (Nat.div_add_mod s N).symm
-    conv_lhs => rw [hs, pow_add, pow_mul, ← modByMonic_mul_left, hPowPer (s / N), one_mul]
-  rw [reduceMod (m + i), reduceMod (m + j)] at hModEq
-  have hModSame : (m + i) % N = (m + j) % N :=
-    x_pow_mod_inj (Nat.mod_lt _ pow256_sub_one_pos) (Nat.mod_lt _ pow256_sub_one_pos) hModEq
-  have hDiff : i % N = j % N := Nat.ModEq.add_left_cancel' m hModSame
+  have hModSame : (m + i) % (2 ^ 256 - 1) = (m + j) % (2 ^ 256 - 1) :=
+    x_pow_mod_eq_modEq hModEq
+  have hDiff : i % (2 ^ 256 - 1) = j % (2 ^ 256 - 1) := Nat.ModEq.add_left_cancel' m hModSame
   rw [Nat.mod_eq_of_lt hi, Nat.mod_eq_of_lt hj] at hDiff
   exact hDiff
 
@@ -2877,42 +2755,51 @@ private theorem advance_add (a b : Nat) (r : Rng.Xoshiro256) :
     rw [Nat.add_succ]
     exact ih r.next.2
 
-def checkCalmRun : Nat → Rng.Xoshiro256 → Bool
-  | 0, _ => true
-  | n + 1, r => !((r.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) && checkCalmRun n r.next.2
+private def checkCalmWith (finish : Rng.Xoshiro256 → Bool) : Nat → Rng.Xoshiro256 → Bool
+  | 0, r => finish r
+  | n + 1, r =>
+    !((r.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) && checkCalmWith finish n r.next.2
+
+def checkCalmRun (n : Nat) (r : Rng.Xoshiro256) : Bool :=
+  checkCalmWith (fun _ => true) n r
+
+private theorem checkCalmWith_add (finish : Rng.Xoshiro256 → Bool) (a b : Nat)
+    (r : Rng.Xoshiro256) :
+    checkCalmWith finish (a + b) r =
+      (checkCalmRun a r && checkCalmWith finish b (Rng.advance a r)) := by
+  induction a generalizing r with
+  | zero => simp [checkCalmRun, checkCalmWith, Rng.advance]
+  | succ k ih =>
+    rw [Nat.succ_add, checkCalmWith, checkCalmRun, checkCalmWith, Rng.advance, Bool.and_assoc,
+      ih r.next.2]
+    rfl
 
 theorem checkCalmRun_add (a b : Nat) (r : Rng.Xoshiro256) :
-    checkCalmRun (a + b) r = (checkCalmRun a r && checkCalmRun b (Rng.advance a r)) := by
-  induction a generalizing r with
-  | zero => simp [checkCalmRun, Rng.advance]
-  | succ k ih =>
-    rw [Nat.succ_add, checkCalmRun, checkCalmRun, Rng.advance, Bool.and_assoc, ih r.next.2]
+    checkCalmRun (a + b) r = (checkCalmRun a r && checkCalmRun b (Rng.advance a r)) :=
+  checkCalmWith_add (fun _ => true) a b r
 
-def checkCalmAndEnd : Nat → Rng.Xoshiro256 → Rng.Xoshiro256 → Bool
-  | 0, r, target => r == target
-  | n + 1, r, target =>
-    !((r.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) && checkCalmAndEnd n r.next.2 target
+def checkCalmAndEnd (n : Nat) (r target : Rng.Xoshiro256) : Bool :=
+  checkCalmWith (· == target) n r
 
 theorem checkCalmAndEnd_spec :
     ∀ (n : Nat) (r target : Rng.Xoshiro256), checkCalmAndEnd n r target = true →
-      checkCalmRun n r = true ∧ Rng.advance n r = target
-  | 0, r, target, h => ⟨rfl, eq_of_beq h⟩
-  | n + 1, r, target, h => by
-    simp only [checkCalmAndEnd, Bool.and_eq_true] at h
-    obtain ⟨hC, hR⟩ := checkCalmAndEnd_spec n r.next.2 target h.2
-    simp only [checkCalmRun, Bool.and_eq_true, Rng.advance]
-    exact ⟨⟨h.1, hC⟩, hR⟩
+      checkCalmRun n r = true ∧ Rng.advance n r = target := by
+  intro n r target h
+  have hSplit := checkCalmWith_add (· == target) n 0 r
+  rw [Nat.add_zero, checkCalmWith] at hSplit
+  rw [checkCalmAndEnd, hSplit, Bool.and_eq_true] at h
+  exact ⟨h.1, eq_of_beq h.2⟩
 
 theorem checkCalmRun_spec :
     ∀ (n : Nat) (r : Rng.Xoshiro256), checkCalmRun n r = true →
       ∀ i : Nat, i < n →
-        decide (((Rng.advance i r).next.1 >>> 11).toNat < 10737418 * 2 ^ 23) = false
-  | 0, _, _, _, hi => by omega
-  | n + 1, r, hChk, i, hi => by
-    simp only [checkCalmRun, Bool.and_eq_true, Bool.not_eq_true'] at hChk
-    cases i with
-    | zero => exact hChk.1
-    | succ k => exact checkCalmRun_spec n r.next.2 hChk.2 k (by omega)
+        decide (((Rng.advance i r).next.1 >>> 11).toNat < 10737418 * 2 ^ 23) = false := by
+  intro n r hChk i hi
+  have hSplit : n = i + ((n - i - 1) + 1) := by omega
+  rw [hSplit, checkCalmRun_add, Bool.and_eq_true] at hChk
+  have hHead := hChk.2
+  simp only [checkCalmRun, checkCalmWith, Bool.and_eq_true, Bool.not_eq_true'] at hHead
+  exact hHead.1
 
 theorem explorer_cold_rng_nonzero (count : Word.Count) (seed : UInt64) :
     (Explorer.cold count seed).rng ≠ Rng.Xoshiro256.zero :=
@@ -2931,12 +2818,11 @@ private theorem reservoir_rng {actions : Nat} (pending : List (Action actions)) 
 
 private theorem declared_calm_iff {count : Word.Count} (rng : Rng.Xoshiro256) :
     decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) = false →
-      (beginExploration count declaredRate rng).1 = none ∧
-      (beginExploration count declaredRate rng).2 = rng.next.2 := by
+      (beginExploration count declaredRate rng).1 = none := by
   intro hFalse
   unfold beginExploration
   dsimp only
-  rw [TemporalSupport.declared_branch, hFalse, Rng.nextF64_transition]
+  rw [TemporalSupport.declared_branch, hFalse]
   simp
 
 private def remLeft {count : Word.Count} (r : Option (ExploratoryRun count)) : Nat :=
@@ -3025,7 +2911,7 @@ private theorem stepOver_transition {count : Word.Count} (hCount : count.word.to
           (Explorer.mk (leftToServe (some run))
             (beginExploration count pol.epsilon ex.rng).2 : Explorer count).run = none := by
         intro hFalse
-        have hC := (declared_calm_iff (count := count) ex.rng hFalse).1
+        have hC := declared_calm_iff (count := count) ex.rng hFalse
         rw [← hEps] at hC
         rw [hB] at hC
         cases hC
@@ -3238,7 +3124,7 @@ theorem greedyFresh_action_mem {interface : Interface} {profile : FeatureProfile
         (explorerOf agent.control).rng).1 = none := by
     change (beginExploration interface.actions declaredRate
       (explorerOf agent.control).rng).1 = none
-    exact (declared_calm_iff _ calm).1
+    exact declared_calm_iff _ calm
   rw [hAct, Explorer.stepOver_greedy _ _ unserved hCalmBegin, PolicySnapshot.greedy_def]
   cases hC : snap.candidates with
   | nil => exact absurd hC hNe
