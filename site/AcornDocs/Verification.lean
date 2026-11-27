@@ -556,7 +556,7 @@ atomically through an exclusive temporary file (while `lean/Bootstrap.lean` and
 and default workspace resolution after shadow-config refusal for
 `scripts/regula.sh`), while `scripts/verify.sh` admits `scripts/shellcheck.sh` and `scripts/shellcheck.pin`
 and delegates script linting to `./scripts/shellcheck.sh check`, which resolves only the dedicated
-pinned binary inside `lean/.lake/packages` (never searching `PATH`), verifies real-directory workspace
+pinned binary inside `lean/.lake/packages` (never searching the shell's executable path), verifies real-directory workspace
 containment, the platform binary's SHA-256 digest and a successful `--version` match against the
 pinned `0.11.0` release (failing closed on any absence, symlink, digest mismatch, or version failure),
 and invokes that binary with `SHELLCHECK_OPTS=''` and `--norc` so ambient configuration cannot alter script checks. The checks take their file lists from Git's stage-0 tracked
