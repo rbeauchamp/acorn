@@ -313,9 +313,9 @@ private def insertLibraryConstant (library : Std.HashSet String) (name : Name) :
   | [single] => library.insert ("_root_." ++ single)
   | _ => library.insert (String.intercalate "." parts.toList)
 
-private def insertLibraryShorthand (shorthand : Std.HashSet String) (name : Name) :
+private def insertLibraryShorthand (shorthand : Std.HashSet String) (parts : List String) :
     Std.HashSet String :=
-  match (pushNameComponents name #[]).toList with
+  match parts with
   | root :: head :: next :: rest =>
     if openLibraryRoots.contains root then
       shorthand.insert (String.intercalate "." (head :: next :: rest))
@@ -354,19 +354,12 @@ private def insertLibraryField (fields : Std.HashSet String) (ownerStruct fieldN
 
 private def insertLibraryFieldShorthand (shorthand : Std.HashSet String)
     (ownerStruct fieldName : Name) : Std.HashSet String :=
+  let structParts := pushNameComponents ownerStruct #[]
   let fieldParts := pushNameComponents fieldName #[]
-  if fieldParts.isEmpty then
+  if structParts.size < 2 || fieldParts.isEmpty then
     shorthand
   else
-    match (pushNameComponents ownerStruct #[]).toList with
-    | root :: head :: rest =>
-      if openLibraryRoots.contains root then
-        let ownerSuffix := String.intercalate "." (head :: rest)
-        let fieldSuffix := String.intercalate "." fieldParts.toList
-        shorthand.insert (ownerSuffix ++ "." ++ fieldSuffix)
-      else
-        shorthand
-    | _ => shorthand
+    insertLibraryShorthand shorthand (structParts.toList ++ fieldParts.toList)
 
 private def insertStructureFields (env : Environment) (structName : Name)
     (includePrivate : Bool) (insertField : Name → Std.HashSet String → Std.HashSet String)
@@ -444,7 +437,8 @@ def symbolsFrom (env : Environment) (selection : Array Name) : IO SymbolInventor
             libraryFields := insertStructureFields env name false
               (fun fieldName acc => insertLibraryField acc name fieldName) libraryFields
           if usedByAcorn.contains name then
-            libraryShorthand := insertLibraryShorthand libraryShorthand name
+            libraryShorthand := insertLibraryShorthand libraryShorthand
+              (pushNameComponents name #[]).toList
             if isStructure env name then
               libraryShorthand := insertStructureFields env name false
                 (fun fieldName acc => insertLibraryFieldShorthand acc name fieldName)
