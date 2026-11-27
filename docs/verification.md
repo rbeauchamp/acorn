@@ -647,10 +647,19 @@ external prose names strictly by exact equality with
 namespace or type admits no other member of its namespace (every qualified
 external name must be listed in full), and the module imports only Lean's
 prelude so the Regula proof claim covers it and `AcornDocument.external_listed`.
-In `lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.code` conservatively
-strips JavaScript comments, strings, and regex literals and fails closed on
-unterminated constructs; its specification table check requires a unique line
-containing the Appendix A title with exact heading
+In `lean/AcornTools/Corpus/Audit.lean`, `AcornCorpus.check` and
+`AcornCorpus.language` audit the full Git-tracked regular-file inventory with
+zero directory carve-outs through `Acorn.Host.Viewer.Html.admitZeroJsFile`,
+whose exact admission boundary over tracked paths is proved by
+`Acorn.Host.Viewer.Html.admitZeroJsFile_iff`: rejecting any lowercase basename
+ending in a JavaScript or TypeScript suffix (including exact dot-basenames,
+proved by `Acorn.Host.Viewer.Html.hasForbiddenJsPath_dot_basename`), failing
+closed on any NUL byte or non-UTF-8 encoding outside the admitted UTF-8 text
+boundary (excluding UTF-16, UTF-32, and binary payloads), and rejecting any
+decoded UTF-8 file satisfying `Acorn.Host.Viewer.Html.ContainsScriptTag`. In
+`lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.check` verifies the
+specification table in `docs/viewer-ux.md`: it requires a unique line containing
+the Appendix A title with exact heading
 `## Appendix A · Constants this document quotes`, then scans from that heading
 to the end of `docs/viewer-ux.md` (without stopping at a later heading),
 requiring the generated constants table to appear consecutively once and
@@ -693,12 +702,12 @@ the `NativeApp` library and the `acorn-core` and `acorn-viewer` executables
 declare Lake's nativeProvenance target (alongside checkpointSync) in
 extraDepTargets, so provenanceJob runs before `NativeApp` compiles and
 contributes its trace to `NativeApp.Build`. provenanceJob admits
-`lean/Acorn/Host/AuditPins.lean` and `viewer/static/index.html` as Git-tracked
-regular files, collects tracked regular entries under `lean/` via nativeSources
-(every `.lean` and `.c` file, including `lean/Acorn/Host/AuditPins.lean` and
-`lean/os/checkpoint-sync.c`, plus `lean/lean-toolchain` and
-`lean/lake-manifest.json`), appends `viewer/static/index.html`, resolves real
-paths, and sorts them. nativeDigests (shared by singleton hashing in
+`lean/Acorn/Host/AuditPins.lean` as a Git-tracked regular file, collects tracked
+regular entries under `lean/` via nativeSources (every `.lean` and `.c` file,
+including `lean/Acorn/Host/AuditPins.lean`, `lean/Acorn/Host/Viewer/Html.lean`,
+`lean/Acorn/Host/Viewer/ServerView.lean`, and `lean/os/checkpoint-sync.c`, plus
+`lean/lean-toolchain` and `lean/lake-manifest.json`), resolves real paths, and
+sorts them. nativeDigests (shared by singleton hashing in
 nativeDigest) rejects paths containing newlines, hashes the list in one
 `openssl dgst -sha256 -r` invocation, and requires one lowercase
 64-hex-character SHA-256 digest per input in order with the matching path.
@@ -1220,7 +1229,7 @@ available for focused diagnostics.
 
 Checks that do not depend on one another run at once: the two source admissions
 with Lake's target inventory before the project build, and compiled boundary,
-native, browser-kernel and ownership admission after it. Each of these
+native and ownership admission after it. Each of these
 prints the output of a step whole when the step ends, and all of them are reaped
 before a failure is reported. The site check runs after these admissions, also
 when one of them fails, because `site/lakefile.toml` requires `../lean` by path
@@ -1325,7 +1334,7 @@ claimed theorem is about is claimed as well. `lake lint` imports the claimed
 modules into one environment, where Lean refuses two
 declarations of `main`. So Bootstrap, which `lean --run` interprets before anything is built,
 declares the one top-level `main` of the claim, and the root of each of the
-twelve application executables is a
+eleven application executables is a
 module of the library Entry, outside the claim. Its `main` applies the entry
 function of a claimed module, such as `Acorn.SwiftTdDriver.main`, and it holds
 nothing else; the theorem inventory refuses a theorem in it. AcornTools, the
@@ -1824,8 +1833,9 @@ installs a run other than the one it retires (`Acorn.Host.Viewer.Core.replaced_i
 the instants recorded by steps and outcomes do not go back, whatever the clock reads
 (`Acorn.Host.Viewer.Core.instant_later`, `Acorn.Host.Viewer.Core.step_last`,
 `Acorn.Host.Viewer.Core.resume_last`); and
-every result first installs its own lifecycle and publishes its control record from it
-(`Acorn.Host.Viewer.Stepped.effects_settle`). The operating system's process, signal and wait
+every result first installs its own lifecycle and settles its server-held lifecycle state and
+detail from it (`Acorn.Host.Viewer.Stepped.effects_settle`, applied through
+`Acorn.Host.Viewer.Broadcast.settle`). The operating system's process, signal and wait
 semantics, the file system's durability, the Lean runtime's IO, mutexes and clock, the identity
 a core reports, the actor's mapping of each effect and call to the native operation it names, and
 its pre-launch check of the ranked core's file remain the trusted base.
@@ -1853,9 +1863,9 @@ events that hold a Start and a state reached by them that waits to spawn the fir
 (`Acorn.Host.Viewer.Core.start_spawns`). That is a statement of existence, whose witness has
 every call between the Start and the spawn succeed; a Start whose intent cannot be written reaches
 no spawn. The state built with no state file admits a launch for every seed within the browser's
-integers (`Acorn.Host.Viewer.Core.unstarted_launch`), and the control record of the start on
-that state says the run is desired stopped and actually stopped
-(`Acorn.Host.Viewer.Core.start_control`).
+integers (`Acorn.Host.Viewer.Core.unstarted_launch`), and the typed control projection
+(`Acorn.Host.Viewer.controlTelemetry`) of the start on that state says the run is desired
+stopped and actually stopped (`Acorn.Host.Viewer.Core.start_control`).
 
 A state file is decoded only when it is a JSON object that holds the six members of the state,
 each admitted, and beside them at most a schema version and a child record; any other is refused.
@@ -1971,8 +1981,9 @@ publication and the file is still the original. So a start-up that fails before 
 as an earlier version's (`Acorn.Host.Viewer.StartSource.earlier`), or as an unbound running
 intent (`Acorn.Host.Viewer.StartSource.other`), once: in the first launch that publishes
 the stopped state. That is the boundary, and no other: the reason is not lost by a failure before
-the publication, and after the publication it has been given, in that launch's first control
-record and on standard output, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
+the publication, and after the publication it has been given, in that launch's initial
+server-held lifecycle state (`Acorn.Host.Viewer.Broadcast.settle`) and on standard output,
+and is not given again. After it, a viewer of the earlier version started on the directory meets a file
 of the current version. A crash between the bind and the publication leaves the original file. A
 start-up that fails after the publication, when the ready line cannot be written for example,
 leaves a current-version stopped file, and the reason the next launch gives is that the saved
@@ -1987,10 +1998,12 @@ reason. A viewer that fails once its listener is bound
 ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
 turn on that path takes a command from the queue, so nothing is started from the intent the file
 records and a Start queued by then is not handled. Whenever the start state is stopped, the one
-line that says why (`Acorn.Host.Viewer.startAccount`) is in the reason of the first control
-record the supervisor publishes, under the `--start` flag too. A page that connects while that
-record is current shows the line; one that connects after a later transition has published its
-record is sent that record and shows that transition's reason. The viewer also prints the line on its standard output, at most once in a launch: for a file
+line that says why (`Acorn.Host.Viewer.startAccount`) is in the reason of the initial
+lifecycle detail the supervisor settles into server memory
+(`Acorn.Host.Viewer.Broadcast.settle`), under the `--start` flag too. A page requested
+(`Acorn.Host.Viewer.Broadcast.snapshot`) while that initial detail is current renders the
+line; one requested after a later transition has settled renders that transition's reason from the
+current `Acorn.Host.Viewer.BroadcastSnapshot` (no wire control frames are sent to clients). The viewer also prints the line on its standard output, at most once in a launch: for a file
 left as it is until the bind (`Acorn.Host.Viewer.StartSource.kept`: an earlier version's,
 whatever intent it records, or a current-version file with a running intent when this launch
 lacks a child record — including a `--cmd` launch — or its record does not match the file's)
@@ -2111,7 +2124,7 @@ is likewise read from the code. On viewer shutdown interrupting an admitted Stop
 resolves the waiter as `Acorn.Host.Viewer.ControlResult.unconfirmed` so HTTP returns `503`
 (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes before server teardown,
 whereas server cancellation during shutdown can also yield an empty `503` or closed connection
-without a JSON body; the browser treats both fail-closed as unconfirmed/unknown. Exiting without
+without a JSON body; a JSON `/control` client treats both fail-closed as unconfirmed/unknown, while HTML form POST `/control/form` renders a `503` HTML notice page or closes during shutdown. Exiting without
 starting a core on a parse or schema refusal from
 `Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean` is likewise
 read from the code.
@@ -2120,19 +2133,30 @@ Across the host-viewer modules under `lean/Acorn/Host/Viewer/`, several operatio
 outside proved host theorems. HttpServer.lean sets viewerHttpConfig to bind `127.0.0.1` with
 maxConnections 32, maxRequests 1, enableKeepAlive false, generateDate false,
 serverName none, maxBodySize and maxChunkSize equal to controlBodyCapacity (1024 bytes),
-maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout; HttpViewer.events calls
+maximumRecvSize 2048, and 10000 ms headerTimeout and lingeringTimeout. HTML responses from `/`
+and `/index.html` (plus `/control/form` refusal pages) are constructed exclusively through the
+closed typed AST in `lean/Acorn/Host/Viewer/Html.lean` and `lean/Acorn/Host/Viewer/ServerView.lean`
+(`Acorn.Host.Viewer.renderViewerPage`, with kernel-proved script-tag exclusion
+`Acorn.Host.Viewer.Html.Document.render_no_script` and
+`Acorn.Host.Viewer.renderViewerPage_no_script`) and emitted with
+`Content-Security-Policy` containing `script-src 'none'`, `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: no-referrer`, and `Cache-Control: no-store`. CSS is served from `/style.css`
+(`NativeApp.viewerAssets`), single BMP frames from `/stage.bmp` (`StageBmp.render`), and live
+zero-JS streaming images from `/stream/stage.bmp` via HttpViewer.stageStream, which calls
 Broadcast.subscribe (returning HTTP `503` on capacity or sequence exhaustion) and owns one
-dedicated SSE Body.stream delivery task per subscription that sends the snapshot's initial
-control, map, and replay frames before handing off to liveFrames, which uses EAsync.forIn (repeat
-via the ForIn instance over EAsync for Lean.Loop in Lean v4.36.0) rather than partial\_fixpoint
-because async task continuations admit no fixed point and calls Subscription.poll directly (not
-Subscription.receive): waiting via Selectable.one on the payload-free wake task or 5000 ms
-keepalive timer and writing SSE frames (`sendLine` or `: keepalive`) to the browser occur only
-after Subscription.poll releases the broadcast mutex, so a slow browser cannot block publication;
-liveFrames exits on disconnect (`.closed`) or a dropped wake promise (`some none`), and stream
-exit (finally), context cancellation (context.doneSelector), and response body.close each
-call Subscription.close (also closing the stream on cancellation or body.close) to remove the
-subscriber queue and wake an idle producer. RunDirectory.lean
+dedicated `multipart/x-mixed-replace` Body.stream delivery task per subscription driven by
+liveStageFrames: using EAsync.forIn rather than partial\_fixpoint because async task continuations
+admit no fixed point, calling Subscription.poll directly to detect coalesced version advances and
+waiting via Selectable.one on a cancellation token, the payload-free wake task, or a 2500 ms
+keepalive timer, routing every emission (initial, update-triggered, and heartbeat) through a single
+send boundary paced by waitForPace and `Acorn.Host.Viewer.paceRemainingMs` at
+`BrowserConstant.readPace` (250 ms, proved in `Acorn.Host.Viewer.paceRemainingMs_spacing`),
+and reading snapshots via Subscription.snapshot and writing BMP frames only outside the broadcast
+mutex so a slow browser cannot block publication; liveStageFrames exits on cancellation, disconnect
+(`.closed`), or a dropped wake promise (`some none`), and stream exit (finally), context
+cancellation (context.doneSelector), and response body.close each cancel the token and call
+Subscription.close (also closing the stream on cancellation or body.close) to remove the
+subscriber entry and wake an idle waiter. RunDirectory.lean
 (`lean/Acorn/Host/Viewer/RunDirectory.lean`) owns control-token minting through
 `Acorn.Host.Viewer.mintControlToken`, which reads 16 bytes from the fixed OS entropy device
 `/dev/urandom` in read mode via entropyBytes (failing on premature EOF or over-read, with no
@@ -2141,47 +2165,59 @@ hex characters; `Acorn.Host.Viewer.HttpViewer.new` in HttpServer.lean
 (`lean/Acorn/Host/Viewer/HttpServer.lean`) calls `Acorn.Host.Viewer.mintControlToken` at
 startup, so viewer startup requires OS entropy with no predictable token fallback.
 ControlRequest.lean (`lean/Acorn/Host/Viewer/ControlRequest.lean`) owns token comparison and
-control-request authorization: `Acorn.Host.Viewer.tokenMatches` rejects unequal UTF-8 byte
+control-request authorization for both JSON `POST /control` and zero-JS HTML form
+`POST /control/form`: `Acorn.Host.Viewer.tokenMatches` rejects unequal UTF-8 byte
 sizes and otherwise scans every byte before equality can succeed (a source-level work pattern, not
 a compiler or hardware constant-time guarantee), `Acorn.Host.Viewer.ControlHeaders.authorizes`
 combines header authorization (POST method, `application/json` media type, non-empty matching
-token) with exact framing (Content-Length equal to the bounded body size), and
-`Acorn.Host.Viewer.authorizeCommand` enforces that admission predicate before JSON decoding. Broadcast.lean
-serializes replay publication, generation/identity admission, lifecycle settlement, notices,
-disconnect, dequeue/wake registration, and subscriber registration behind one mutex with
-connectionCapacity 16, sliding 500-frame replay history via Buffer.retain, IdentityWait overflow
-marking worldPartial, and per-subscriber FIFO queues of capacity 4096 (subscriberCapacity) with
-two overflow policies: Subscriber.enqueue delivers telemetry frames via Buffer.offer (refusing a
-new frame without disturbing queued items when full), whereas Subscriber.enqueueControl delivers
-control records (from Broadcast.settle and Broadcast.commitIdentity) and lifecycle notices (from
-Broadcast.notice, backing Broadcast.announceCleared and Broadcast.announceExit) via Buffer.retain
-without deduplicating, appending the new item and evicting the oldest queued item when full;
-Broadcast.settle separately suppresses a byte-identical repeat of the current control record
-before calling Subscriber.enqueueControl (whereas Broadcast.commitIdentity and Broadcast.notice do
-not deduplicate). Broadcast.subscribe performs subscriber registration and ReplaySnapshot capture
-(`identity`, `control`, `world`, and `frames`) under that same publication mutex, closing the
-replay-to-live handoff gap so a published frame or control record cannot slip between the captured
-replay snapshot and subsequent live-queue delivery, and refuses registration before retaining a
-queue on capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion. Each subscriber
-has one bounded queue and one payload-free wake promise (`IO.Promise Unit`), with one delivery
-task serving as each subscription's sole reader; publishers resolve collected wake promises only
-after releasing the mutex, so a publisher never waits for a network reader, and native
-mutex/promise scheduling and allocator overhead remain trusted infrastructure without a liveness
-guarantee. Subscription.close removes the subscriber queue under the mutex before resolving its
-wake promise outside the mutex; Subscription.poll performs one serialized dequeue (`.item`),
-closed check (`.closed`), or payload-free wake registration (`.wait`) under the mutex so waiting
-and network writes occur strictly outside it; and Subscription.receive (unused by
-liveFrames in HttpServer.lean, which calls Subscription.poll directly) wraps Subscription.poll in a
-`forever` loop without a break (ending only by returning), waiting on `.wait` outside the mutex
-via IO.wait and returning `none` on either explicit disconnect (`.closed`) or a dropped wake
-promise (isNone). Line.lean bounds LineDecoder lines at
+token) with exact framing (Content-Length equal to the bounded body size) before JSON decoding in
+`Acorn.Host.Viewer.authorizeCommand`, and
+`Acorn.Host.Viewer.FormControlHeaders.authorizes` plus
+`Acorn.Host.Viewer.authorizeFormCommand` enforce HTTP POST, `application/x-www-form-urlencoded`,
+exact Content-Length within `controlBodyCapacity`, and `tokenMatches` against the per-start token
+(proved in `Acorn.Host.Viewer.AuthorizedFormCommand.post`,
+`Acorn.Host.Viewer.AuthorizedFormCommand.token_eq`, and
+`Acorn.Host.Viewer.authorizeFormCommand_spec`), returning `303 See Other` on `.accepted`
+and rendering a `403`/`503` HTML notice page on refusal or unconfirmed Stop. DecimalText.lean
+(`lean/Acorn/Host/Viewer/DecimalText.lean`) preserves exact base-10 exponents at admission without
+clamping (`Acorn.Host.Viewer.DecimalText.Decimal.parse_wireDecimal`,
+`Acorn.Host.Viewer.DecimalText.Scalar.fromJson_binary32`,
+`Acorn.Host.Viewer.DecimalText.Scalar.fromJson_binary64`) and separates exact rounding at
+display and arithmetic boundaries (`Acorn.Host.Viewer.DecimalText.Decimal.scaled?_iff`),
+short-circuiting arbitrarily negative shifts via `natDecimalLen` and refusing positive shifts above
+`maxPositiveScaleShift` (400) rather than substituting a smaller scale. Broadcast.lean
+serializes observer-state updates, generation/identity admission, lifecycle settlement, notices,
+disconnect, coalesced version polling, and subscriber registration behind one mutex with
+connectionCapacity 16, sliding 500-frame `FrameSummary` history via `ServerObserverState.summaries`,
+and pre-decoded `IdentityWait` buffers of capacity `replayCapacity` (500) whose overflow marks
+worldPartial. Each subscriber holds only its id, last seen monotonic version, and a payload-free
+wake promise (`IO.Promise Unit`) with no per-subscriber payload queue; publishers decode telemetry
+outside the mutex via `decodeTelemetry`, perform only bounded in-memory state updates under the
+mutex, advance the monotonic version, and resolve collected wake promises outside the mutex, so
+neither browser consumption nor JSON/decimal decoding stalls the broadcast lock.
+Broadcast.subscribe registers a subscriber at the current version and refuses registration on
+capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion; Broadcast.settle
+deduplicates unchanged lifecycle/detail/observation state before advancing the version;
+Subscription.snapshot reads the current `BroadcastSnapshot` and marks the current version seen in
+one mutex acquisition; Subscription.poll checks `Acorn.Host.Viewer.pollVersionState`
+(proved idempotent by `Acorn.Host.Viewer.pollVersionState_coalesces`) to coalesce any number
+of intervening updates into a single `.updated` result or install a fresh wake promise (`.wait`);
+and Subscription.close removes the subscriber entry under the mutex before resolving its wake
+promise outside the mutex, with native mutex/promise scheduling and allocator overhead remaining
+trusted infrastructure without a liveness guarantee. Line.lean bounds LineDecoder lines at
 lineCapacity (1 MiB, discarding oversize suffixes through newline and refusing incomplete oversized
 EOF), and readLines reads one byte at a time (input.read 1) because Lean v4.36.0 Handle.read
 calls buffered C fread (Lean runtime `io.cpp` lines 593–615), where multi-byte reads can block past
 newline waiting for a full request or EOF; callbacks must enqueue locally and IO errors propagate
-instead of synthesizing EOF. PipePump.lean filters stdout lines starting with `{`, surfaces
-`"writing disabled this run"` alongside checkpointRefusalNotice, and waits for inherited-descriptor
-EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
+instead of synthesizing EOF. PipePump.lean forwards each `{`-prefixed stdout
+`WireText` line synchronously through `Broadcast.publish` with the shared
+generation check (decoding telemetry outside the broadcast mutex and waking
+coalesced browser subscribers outside the mutex so slow browsers never stall
+publication, without any lossy ingress queue that could evict terrain
+observations or delay the final censor record past generation retirement, while
+the stdout reader task parses each record inline before reading the next line),
+surfaces `"writing disabled this run"` alongside checkpointRefusalNotice on stderr, and waits for
+inherited-descriptor EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
 ProcessOwner.lean consumes lastGeneration before IO.Process.spawn to avoid generation reuse on
 failed spawns, relies on Lean refcounting in ProcessOwner.windUp to close stdin on drop even after
 write error (no kill or wall-clock deadline), and in ProcessOwner.poll saturates uptime in Nat
@@ -2241,10 +2277,11 @@ run included, and every Clear configuration, reason and reading,
 on no call, whose lifecycle is the initial lifecycle of that state's identity and intent
 (`Acorn.Host.Viewer.Lifecycle.initial`), which holds that durable state and no
 replacement, and whose detail is the initial transition with the reason given. The supervisor
-publishes that detail in its first control record. A page is sent the control record that is
-current when it connects (`Acorn.Host.Viewer.Broadcast.subscribe`), so it shows that reason first
-only if it connects before the record of a later transition has replaced that one
-(`Acorn.Host.Viewer.Broadcast.settle`). What the start gives is the definition as written and not
+settles that initial lifecycle state and detail into server memory via
+`Acorn.Host.Viewer.Broadcast.settle` rather than sending wire control frames to clients. A
+page renders the lifecycle detail from the current `Acorn.Host.Viewer.BroadcastSnapshot` when
+requested (`Acorn.Host.Viewer.Broadcast.snapshot`), so it shows that reason first only if
+requested before a later transition replaces it (`Acorn.Host.Viewer.Broadcast.settle`). What the start gives is the definition as written and not
 a theorem, and the bootstrap gives it only a state that it built or admitted. So a supervisor that starts from a matching saved
 running intent takes up that intent at its start and has asked for nothing there: a launch
 becomes pending only in the launch check (`Acorn.Host.Viewer.Core.launchCheck`), which
@@ -2300,12 +2337,12 @@ number other than the current version
 (`Acorn.Host.Viewer.Reached.earlier_spawns_nothing`). The third is for every state that
 the decoder returns to a launch that has no child record, or whose record differs from the one
 the JSON value's `child` member names, or that reads a value with no such record
-(`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`). The control record of a start with no
-state file says the run is stopped: for every seed, whether or not a stray checkpoint was
-adopted, and every Clear configuration, reason, reading and observation, in the control record of
-the start state the desired word and the actual word are both `stopped`
-(`Acorn.Host.Viewer.Core.start_control`); the start on a restored running state has
-another desired word. By the write clause of the first statement, a supervisor waits on the write
+(`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`). The typed control projection
+(`Acorn.Host.Viewer.controlTelemetry`) of a start with no state file says the run is stopped:
+for every seed, whether or not a stray checkpoint was adopted, and every Clear configuration,
+reason, reading and observation, in `Acorn.Host.Viewer.controlTelemetry` of the start state
+the desired word and the actual word are both `stopped` (`Acorn.Host.Viewer.Core.start_control`);
+the start on a restored running state has another desired word. By the write clause of the first statement, a supervisor waits on the write
 of a running intent only after a Start was handed to its step, or from a start state that held
 one.
 
@@ -2531,7 +2568,9 @@ intent when this launch lacks a child record (including a `--cmd` launch, whose 
 records `"child":null`) or its record does not match the file's
 (`Acorn.Host.Viewer.StartSource.other`), is not published there
 (`Acorn.Host.Viewer.StartSource.kept`). A launch relies on no unpublished state either way, since the attempted launch
-is saved before the spawn. The first control record is the start's.
+is saved before the spawn. The initial server-held lifecycle state settled via
+`Acorn.Host.Viewer.Broadcast.settle` (and read into
+`Acorn.Host.Viewer.BroadcastSnapshot`) is the start's.
 
 The bootstrap. The bootstrap admits configuration and durable state, binds loopback HTTP, then
 drives the serial supervisor. It gives the supervisor a running intent only from a state file

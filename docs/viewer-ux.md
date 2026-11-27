@@ -9,7 +9,7 @@ newcomer from that audience can say within ten seconds what the system is,
 what it is trying to do and how it is doing, and when nothing on the page would
 make them distrust the next number.
 
-This document states what the page must show and why. It does not describe how the page achieves it: mechanism lives in `viewer/static/index.html` and `Acorn.Host.Viewer` (with design rationale, numeric and wire invariants, and process-supervision boundaries documented in this specification, [the design](design.md), and [the verification guide](verification.md#viewer-ownership-boundaries)), and a requirement here names the owning function only where a reader would otherwise have to search. Requirements are numbered; a page behaviour that contradicts one is a bug, and a contradiction found in this document is fixed here. The gate suite requires the table of Appendix A to be the one rendered from the Lean owners of its constants. Prose quantities and completeness of that table remain review obligations.
+This document states what the page must show and why. It does not describe how the page achieves it: mechanism lives in `Acorn.Host.Viewer` (`Html.lean`, `ServerFrame.lean`, `ServerView.lean`, `StageBmp.lean`, `HttpServer.lean`, and the supervisor modules; design rationale, numeric and wire invariants, and process-supervision boundaries are documented in this specification, [the design](design.md), and [the verification guide](verification.md#viewer-ownership-boundaries)), and a requirement here names the owning function only where a reader would otherwise have to search. Requirements are numbered; a page behaviour that contradicts one is a bug, and a contradiction found in this document is fixed here. The gate suite requires the table of Appendix A to be the one rendered from the Lean owners of its constants. Prose quantities and completeness of that table remain review obligations.
 
 Reviews judge the page against this document: `proof-review` and
 `pr-review-toolkit` for the code and its guarantees, `ux-review` for whether
@@ -23,7 +23,7 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   (the core, which it runs as
   `acorn-core demo --research-profile ranked --telemetry --control-stdin`
   followed by the run's seed, campaign, identity and checkpoint arguments → child
-  stdout → SSE) and must never change the
+  stdout → zero-JS HTTP server) and must never change the
   agent's decisions. Telemetry may gain *read-only* fields — quantities
   computed from state the agent already produced — provided the audit digest
   is unchanged. As a **supervisor**, it starts and stops the core as a child
@@ -41,26 +41,33 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   accepts exactly one command, `stop`. Nothing the agent reads may travel this
   way; an unrecognised line is reported and ignored rather than acted on.
 - **INV-1c · The page renders server state, never its own guess.** A control
-  changes appearance only when a “ctl” frame says the server moved. A button
+  changes appearance only when the server's settled lifecycle snapshot says the
+  server moved. A button
   reading “Running” because it was clicked would assert something it cannot
   know, and a stale claim about whether an agent is learning is worse than a
   slow one.
-- **INV-2 · Push, not poll.** Frames reach the browser over SSE as the core
-  produces them. **No HTTP polling of frames, ever.** The only *recurring*
-  timers are the steps/s counter, the staleness watchdog and the browser-storage
-  saver; each toast additionally arms a one-shot timer to remove itself, and
-  the goal flash arms a `requestAnimationFrame`. Those are presentation
-  lifetimes, not a polling loop — but they are timers, and this invariant lists
-  every one. The render loop runs on `requestAnimationFrame`, and the reading
-  cadence of the text readouts (UX-8) is a gate on that loop's own clock, not a
-  timer. The gate suite counts the page's interval timers, one-shot timers and
-  requests against this list, so a timer cannot be added without this
-  paragraph changing with it.
+- **INV-2 · Zero client JavaScript.** JavaScript is forbidden anywhere in Acorn.
+  HTML responses are constructed exclusively from the closed typed Lean AST in
+  `Acorn.Host.Viewer.Html`, emit `Content-Security-Policy` containing
+  `script-src 'none'`, and carry zero script elements or inline event handlers
+  (`Html.Document.render_no_script`, `renderViewerPage_no_script`,
+  `Html.AttrName.no_event_handler`). The corpus audit (`AcornCorpus.check` and
+  `AcornCorpus.language`, via `Html.admitZeroJsFile` and
+  `Html.admitZeroJsFile_iff`) scans the full Git-tracked regular-file inventory
+  with zero directory carve-outs, rejecting any lowercase basename ending in a
+  JavaScript/TypeScript suffix (`.js`/`.ts`/`.jsx`/`.tsx`/`.mjs`/`.cjs`/`.mts`/`.cts`,
+  including exact dot-basenames, proved by `Html.hasForbiddenJsPath_dot_basename`),
+  any NUL byte or non-UTF-8 encoding outside the admitted UTF-8 text boundary,
+  and any case-insensitive HTML script start tag. Live updates are delivered without client code
+  via standard HTML meta refresh and browser-native `multipart/x-mixed-replace`
+  BMP streaming on `/stream/stage.bmp` (throttled to `READ_MS`). The earlier
+  SSE/EventSource transport, JS timer inventory, `requestAnimationFrame` render
+  loop, and browser-side frame buffers are intentionally retired.
 - **INV-3 · Refreshes restore the world.** The explored map is the run's: the
-  viewer keeps every tile the agent has sensed and hands it to each
-  connection (UX-44), and each browser additionally persists its own copy and
-  the trail (UX-45); a refresh, a reconnect or a second browser therefore shows
-  the same explored world and continues accumulating.
+  viewer server retains every tile the agent has sensed in `WorldMemory` and
+  persists it to `explored.map` (UX-44), and renders directly from that server
+  state on every request or stream frame; a refresh or second browser therefore
+  shows the same explored world without client storage (UX-45).
 - **INV-4 · Never invent, never hide.** The viewer shows what the stream says.
   Where a quantity cannot be known yet — an unfinished prediction horizon, a
   refused curriculum snapshot, a run with no frame — it
@@ -150,23 +157,22 @@ What a newcomer must be able to say without scrolling.
 
   | node | value | caption | lit when |
   |---|---|---|---|
-  | **features** | `imprint_units` imprint units | `retire_count` retired by generate-and-test, the last retired unit and its lifetime step (`retire_unit`, `retire_step`), `weight_space` weights per learner; the hover text says the imprint units are random ±1 projections of the sensed window and the task words, added to fixed tilings over a hand-authored channel layout (D1), that only the imprint units are generated-and-tested, and that the word *imprint* is Javed's (thesis ch. 9) for a mechanism this bank is not | a retirement landed within the last `WIN` frames |
-  | **subtasks** | `n / 3 assigned` (`subtask_unit` ≠ null), or `3 hand-authored (D2)` under `subtask_policy = hand_authored` | task reward + stopping bonus, with the hover text pinning the bonus weight (§10); or `neutral · no ranked feature yet` | a slot's (unit, bonus) changed within the last `WIN` frames |
-  | **options** | the running option's name, or `primitive` | share of the last `WIN` frames spent under an option; lifetime option starts | fast mode (UX-8): any option step in the last `WIN` frames; otherwise an option is running at the cursor |
-  | **models** | `r̂ · ĉ` of the running option (means in fast mode), or `r̂` per option, each symbol kept on one line with its number and formatted so a value of 1e-4 never prints as 0.000 (UX-11) | which option, and what the two numbers are (`ĉ` is written `ĉ_v` in the source) | as the options node |
-  | **planning** | `planning_steps` backups | since the agent began, across checkpoint resumes; mean \|Bellman error\| over the three slots, formatted likewise | `planning_steps` moved within the last `WIN` frames |
+  | **features** | `imprint_units` imprint units | `retire_count` retired by generate-and-test, the last retired unit and its lifetime step (`retire_unit`, `retire_step`), `weight_space` weights per learner; the hover text says the imprint units are random ±1 projections of the sensed window and the task words, added to fixed tilings over a hand-authored channel layout (D1), that only the imprint units are generated-and-tested, and that the word *imprint* is Javed's (thesis ch. 9) for a mechanism this bank is not | a retirement landed on the newest admitted capture |
+  | **subtasks** | `subtask_policy` (`learned` or `hand_authored`) | task reward + stopping bonus, with each option slot showing its assigned unit/bonus or `neutral · no ranked feature yet` under `learned`, or hand-authored potential under `hand_authored` | a slot's (unit, bonus) changed on the newest admitted capture |
+  | **options** | the running option's policy-aware name (UX-16), or `primitive` | the running slot's target (imprint unit & bonus, neutral, or hand-authored potential) | an option is running on the newest admitted capture (UX-8) |
+  | **models** | `3 option models` | `Reward & γ (discounted)` under discounted control, or `Reward, γ & duration` under differential control | an option ended on the newest admitted capture |
+  | **planning** | `planning_steps` backups | since the agent began, across checkpoint resumes | `planning_steps` advanced on the newest admitted capture |
 
-  Beneath the nodes, one line per option slot: its colour swatch, name, the
-  imprint unit and stopping bonus it is pursuing (or `neutral · no ranked
-  feature yet`, or the hand-authored potential), and in fast mode the share of
-  the window it ran; then a legend line saying what a lit node means. A lit
-  node is a border colour and a `· now` mark on its title — a fact about the
-  stream, never an animation on a timer — evaluated at the reading cadence
-  and, in fast mode, over the window rather than at the instant, so a node does
-  not pulse with a five-step option; it is lit only while the display is live
-  (UX-6), never on a stale stream or a stopped core. For the three
-  counter-driven nodes only the most recent change is remembered, so the state
-  is exact at the live edge and a scrub across an earlier event shows nothing.
+  Each option slot carries its colour swatch, policy-aware name, and target
+  (imprint unit and stopping bonus, `neutral · no ranked feature yet`, or
+  hand-authored potential) across the HUD, OaK progression, ribbon legend, and
+  Behaviour option-models table (UX-16). A lit node is a border colour and a
+  `· now` mark on its title — a fact about the stream, never an animation on a
+  timer — evaluated on the newest admitted capture while the display is live
+  (UX-6), never on a stale stream, a stopped core, or a paused historical
+  capture. For the three counter-driven nodes only the most recent change is
+  remembered, so the state is exact at the live edge and a scrub across an
+  earlier event shows nothing.
 - **UX-5 · Against the mission.** Four tiles, each with its definition in the
   hover text and its window in the caption:
   - **goals achieved** — lifetime successes / lifetime attempts over all four
@@ -209,95 +215,54 @@ What a newcomer must be able to say without scrolling.
   state does, frames or no frames. A frozen stage under a top bar reading
   `live` cannot otherwise be told from a stalled one without scrolling to the
   transport, whose position depends on viewport size.
-- **UX-7 · Toasts.** Interaction effects are announced from the display
-  cursor, not from intake, so what you see and what you are told agree; the
-  queue hangs from the top of the stage under the HUD boxes, because the
-  stage's bottom edge can be below the fold and an announcement
-  placed there would be made to nobody. Particles and toasts are independent;
-  two events have one and not the other:
-
-  | event | particles | toast |
-  |---|---|---|
-  | harvest | green burst | `🪵 harvested +1` / `+3` with axe |
-  | eat | orange burst | `🍗 ate` |
-  | craft | blue burst | `🪓 crafted an axe` / `⛵ crafted a boat` |
-  | food pickup | small orange burst | — |
-  | attempt spent | — | `✗ attempt spent` |
-  | goal achieved | large white burst + screen flash | `★ goal achieved` |
-  | new goal | — | `🎯 new goal N: <text>` |
-  | unexpected core exit | — | `⚠ <reason>` in the fault colour |
-
-  Particles are world-anchored and decay in under a second. At live rate the
-  same event can fire hundreds of times a second: a repeat is counted onto the
-  standing toast that already says it (`🪵 harvested +1 ×37`), wherever it
-  stands in the queue, rather than stacked into a wall. Exhaustion is a
-  *state*, not an event: the HUD shows `💤 resting` while it lasts and no
-  toast fires. Events between the previously displayed frame and the current
-  one are announced, so nothing is skipped when the cursor advances by more
-  than one frame; the sweep is capped so a live-rate jump cannot freeze the
-  frame it is drawing, and ⏮/⏭ and the scrub slider reset the announcement
-  cursor to the destination, so a deliberate jump does not replay thousands of
-  toasts for events skipped on purpose.
+- **UX-7 · Interaction effects and faults (JS effects retired).** Client-side
+  animated particle bursts, screen flashes, and ephemeral JavaScript toasts are
+  intentionally retired under INV-2. Interaction outcomes (inventory, energy,
+  goal progress, and running option) render directly in the stage HUD and
+  sidebar; control refusals, unconfirmed stops, unexpected exits, and stderr
+  tails render directly in top-bar health pills, the control notice banner, and
+  the stopped-stage panel so no defect is hidden.
 
 ## 3 · Every figure says what it is
 
 Rules that apply to every number, label and colour on the page.
 
-- **UX-8 · Reading cadence and windowed means.** The core lives at about a
-  thousand steps a second; a per-step scalar redrawn on every animation frame
+- **UX-8 · Reading cadence and exact capture readouts.** The core lives at about
+  a thousand steps a second; a per-step scalar redrawn on every animation frame
   is noise, and a reader cannot tell a value from its flicker. Two rules:
-  - **Text readouts and bars redraw at a reading pace.** While the cursor
-    moves, or frames arrive, the readouts in *Behaviour*, the action, reward
-    and ε lines of *The big world*, the GVF cards, the learner detail rows, the
-    Plasticity family means, *Resources*, the HUD option badge, the Knowledge
-    headline and the lanes' percentages, the ribbon's cursor caption and the
-    orientation strip redraw at most once per `READ_MS` (250 ms); when the
-    cursor lands (a pause, a scrub, a jump) they redraw at once; at the slowest
-    replay rate they redraw on every frame the cursor reaches; and while the
-    cursor rests they follow intake at the same cadence, so coverage and the
-    newest lifetime record do not freeze on a paused page. A change of display
-    state (UX-6) counts as movement. The gate rides on the animation frame's
-    clock and is not a timer (INV-2). Position and the sensed meter follow the
-    pose every frame, as do the canvases that show motion — stage, sensor
-    window, ribbon, demon lanes, sparklines.
-  - **Fast means windowed.** The cursor is *fast* when it is pinned live or
-    replaying at 250 frames/s or more; then those readouts show arithmetic
-    means and shares over the last `WIN` (1,000) buffered frames ending at the
-    cursor, and each says so: the Behaviour mode line reads `live · means over
-    the last N frames` (or `fast replay · …`), the decision chain becomes shares
-    by selecting layer (the `exploration_start` share is labelled `primitive
-    exploration start`, because that tag counts only the runs primitive control
-    drew: the first step of a run an option's draw begins is counted under
-    `option`, and every served step under `exploration continuation`, UX-14),
-    the selected-action probability becomes the mean
-    probability of the actions taken, the option boundary line counts starts
-    and ends by reason, the option-model and planning lines show per-slot
-    means, the policy mass is the mean mass, the value bars are mean values,
-    the big-world action, reward and ε lines are the window's most frequent
-    action, mean reward and mean ε with `· last N frames` on their labels, the
-    Plasticity family means are means over the window of each family's
-    per-frame mean (finite zero means idle; a non-finite member propagates),
-    and the Resources latencies are means marked `(means)`. Paused or replaying
-    slowly, the same readouts show the exact frame and the mode reads `selected
-    frame`, as do those labels. `N` is the number of frames actually buffered in
-    the window, so a fresh connection says `means over the last 500 frames`
-    until the ring holds more. Nothing is invented: a mean of stream values,
-    labelled with its window, is the observer's own arithmetic. These are
-    frame-weighted means and shares, including terminal snapshots; the reward
-    line therefore says `reward / frame`. Only boundary-event counts exclude
-    the repeated terminal decision record. The all-zero
-    verdict of UX-36 is decided over every frame in the window, not over the
-    means: a mean of zeros hides nothing, but the exact-zero *state* is a
-    property of each frame.
-- **UX-9 · One scope per number.** A count says whether it is the run's or
-  this browser's, and never says one scope and then qualifies it with another.
-  The world-seen figure is `sensed in this run` once the run's map has arrived
-  from the server (UX-44); `sensed in this run, as seen from this browser`
-  before it has; `retained sensed tiles · partial: observations may be missing
-  around stops or restarts` whenever the server marks possible incompleteness;
-  and, for a
-  world larger than the server keeps a map for, says so. The top bar's
-  percentage and the sensed meter carry the same scope in their hover text.
+  - **Text readouts and live stage cadence.** The server renders full HTML/SVG
+    snapshots on demand and, in live mode, offers standard HTML meta refresh
+    (*Auto*, `1s`, `2s`, `5s`, or *Off*) alongside `/stream/stage.bmp`
+    (`multipart/x-mixed-replace`, throttled to `READ_MS` = 250 ms) for live
+    aerial motion without JavaScript. Buffered captures can be inspected one by
+    one via zero-JS anchor and form transport links (UX-26), without client
+    animation loops.
+  - **Exact selected-capture and newest-capture readouts.** Under the zero-JS
+    server architecture, the earlier 1,000-frame client window-mean aggregator
+    (`WIN` remains owned in `BrowserStore` for protocol reference) is retired in
+    favour of exact server-rendered readouts with explicit per-panel scope.
+    In live mode, every panel renders exact values from the newest admitted
+    capture, the process-local agreement/curriculum snapshot, or the
+    checkpoint-persistent lifetime totals, with the scope stated on the panel.
+    When paused on an earlier buffered capture `#N`, summary-retained fields
+    (world and lifetime clocks, pose, facing, trail up to `#N`, action, reward,
+    decision source, primitive `ε`, active option slot, SwiftTD family means,
+    and update/environment latencies) render exact values from capture `#N`,
+    while full-frame fields (11×11 sensor patch, vitals and inventory, action
+    and meta value bars, option models, per-head α/credit tables, and process
+    resource observations) explicitly label their newest-capture,
+    process-local, or checkpoint-persistent scope. Nothing is invented or
+    interpolated: finite zero means idle, and any non-finite member propagates
+    as `⚠ non-finite` without rounding to zero.
+- **UX-9 · One scope per number.** A count says whether it is the run's, the
+  current process's, or the selected capture's, and never says one scope and
+  then qualifies it with another. Because the viewer server owns the retained
+  run map directly (`WorldMemory`, UX-44) with no client map copy, the
+  world-seen readout and map-history row state directly whether the server's
+  retained terrain is `complete since start`, `partial` (observations may be
+  missing around stops, restarts, or drops), unavailable before terrain is
+  observed, or unretained for a world whose side exceeds `mapSideCapacity`.
+  The top bar's percentage and the sensed readout carry the same scope.
   Current-pass goal outcomes come from the latest core curriculum snapshot,
   including outcomes before this browser connected. Missing or refused evidence
   is unavailable, never inferred as failure.
@@ -385,22 +350,33 @@ Rules that apply to every number, label and colour on the page.
 
 ## 4 · States and their remedies
 
-- **UX-18 · Connection vocabulary.** The connection label is exactly one of:
-  `connecting…` → `live` → `reconnecting…` (stream dropped) →
-  `stale — reconnecting…` (watchdog fired, UX-27) → `core stopped — <why>`
-  (the core exited unexpectedly, or could not start; the server publishes the
-  reason) → `core stopped` / `core starting…` / `core stopping…` /
-  `core clearing…` (the core is down or in transit because the operator asked,
-  so nothing is wrong and nothing reconnects). A data frame asserts `live`
-  only while the control state says `running`, and an opened socket asserts
-  nothing by itself: the server replays its last `replayCapacity` (500) frames to
-  every new connection, a stopped core's included, and those frames are the
-  core's past. A stop the operator did not ask for — the supervisor's failed
-  and restart_scheduled transitions — keeps its reason on the label in the
-  fault colour, and the control state owns that label: every control frame
-  that says the core is not running writes it (the third failed start changes
-  the reason while the state stays stopped), a replayed “eos” frame defers to
-  it, and the watchdog's ticks write the same label from the same state.
+- **UX-18 · Status and liveness vocabulary.** Every `GET /` (or `/index.html`)
+  renders the current server `BroadcastSnapshot` on demand (and refreshes via
+  standard HTML meta refresh when enabled), while `/stream/stage.bmp` streams
+  coalesced 24-bit BMP renderings of the current snapshot paced to `READ_MS`
+  (250 ms); connecting never replays raw JSON frames or emits wire control or
+  exit frames. The server retains up to `replayCapacity` (500) sliding
+  `FrameSummary` entries (`ServerObserverState.summaries`) for server-side
+  paused inspection (UX-26) and up to `replayCapacity` pre-adoption frames in
+  `IdentityWait`, never replayed over the wire on connection. The top bar's
+  status badge (`ServerObserverState.streamLiveness`, mirrored by status
+  banners on `/stage.bmp` and `/stream/stage.bmp`) is derived server-side from
+  settled lifecycle state and capture freshness as one of:
+  `awaiting first frame` → `live` → `stale — no fresh frames` /
+  `stale — no capture received` (when `STALE_MS` elapses without a fresh
+  capture while running, UX-27) → `core stopped — <why>` (unexpected exit,
+  failed start, or terminal warning; the supervisor settles the reason in
+  server state) → `core stopped` / `starting…` / `stopping…` / `clearing…`
+  (operator-requested idle or transit states, so nothing is wrong). A running
+  lifecycle phase asserts `live` only after a fresh capture arrives within
+  `STALE_MS`, and serving an HTTP page or BMP stream asserts nothing by
+  itself. An unasked stop — the supervisor's `failed` and `restart_scheduled`
+  transitions (`unaskedStops`) — keeps its reason on the status badge in the
+  fault colour, owned by the server's settled lifecycle and detail state
+  (`Broadcast.settle`): every transition settles the current `ControlDetail`
+  in server memory (`controlReason`), so subsequent HTML renders and BMP
+  frames report the latest reason directly without wire control or exit
+  records.
 - **UX-19 · Identity.** Every core frame carries authoritative `run_id`,
   `agent_epoch`, `world_step`, `lifetime_step` and a closed origin (`fresh`,
   `resumed` or `cleared`). The top bar's identity pill names the agent epoch
@@ -419,9 +395,9 @@ Rules that apply to every number, label and colour on the page.
   remedy.
 - **UX-20 · Health pills say what is wrong and what to do.** Refused and
   non-finite frames are counted and reported with their remedy, in the top
-  bar, drawn before the render loop looks for a frame, because the condition
+  bar, rendered even when the server's frame buffer is empty, because the condition
   that most needs reporting is the one where every frame is refused and the
-  ring stays empty. A frame is refused whole at the first failing check, never
+  buffer stays empty. A frame is refused whole at the first failing check, never
   partly absorbed, and counted by that check's refusal reason — a closed set
   with one remedy each, naming the wire keys involved (so an earlier missing key
   takes precedence over a later `schema_version` or constant mismatch):
@@ -440,13 +416,10 @@ Rules that apply to every number, label and colour on the page.
     rebuilding will not fix it;
   - a key present but not holding the value the schema promises → `⚠ the core
     sent a value outside its schema`: the emitter or the transport is wrong;
-  - a control or `map` frame the page cannot read → `⚠ the viewer server sent
-    a control frame this page cannot read`, counted apart from frame refusals
-    because page and server are one binary;
-  - a frame on which the page's own intake threw → `⚠ the page failed on N
-    frames — a viewer defect`, with the last error's message in the hover text;
-    the frame still counts as the core producing frames, so a page defect can
-    never look like a stale stream;
+  - under the zero-JS server (INV-2), there are no wire control or map frames
+    and no client-side JavaScript intake exceptions: the server decodes core
+    telemetry directly in total Lean (`decodeServerFrame`) and renders
+    lifecycle state and `WorldMemory` directly from `BroadcastSnapshot`;
   - a frame carrying a non-finite float → kept, counted, rendered as
     `⚠ non-finite` where the number would be, and reported as `⚠ the core
     reported a non-finite value in <field>`, naming the field; the hover text
@@ -464,7 +437,7 @@ Rules that apply to every number, label and colour on the page.
   states are shown, not skipped: a Clear takes as long as the core needs to
   finish its attempt, and a button that sat unchanged for that long would
   read as a click that did nothing. Each button's hover text states only what
-  the control frame carries: Stop "finish this attempt and exit; a checkpoint
+  the server's settled lifecycle snapshot carries: Stop "finish this attempt and exit; a checkpoint
   is written only if saving is armed" (or "saving is disarmed for this run"
   after a refusal, or "the viewer does not know whether this core checkpoints"
   under `--cmd`); Start "start the core; it resumes from its checkpoint if one
@@ -472,45 +445,43 @@ Rules that apply to every number, label and colour on the page.
   zero-knowledge identity; the core stays stopped". A disabled control still
   says why, so "unavailable here" is distinguishable from "this build has no
   such button". For Start and Clear, a request the server refuses (`⚠ <cmd>
-  refused — <why>`) or a viewer the page cannot reach (`⚠ cannot reach the
-  viewer to <cmd>`) raises a fault pill beside the controls that stays until a
-  control frame shows the server moved; the toast that also says it is below
-  the fold. The control endpoint is `POST /control`, bound to `127.0.0.1`,
-  POST-only, JSON-only, and gated by a token minted per viewer start and read
-  from the served page, so a page left open from a previous start holds a stale
-  one and is refused; bodies are capped and rejections say little about which
-  check failed. HTTP `/control` JSON error responses use fixed public strings
-  and never expose raw operating-system error messages or local run-directory/archive
-  paths; detailed native diagnostics remain in the supervisor's failure
-  diagnostic path and standard error. For a browser Stop (`{"cmd":"stop"}`),
-  `POST /control` holds its HTTP response until the supervisor actor completes
-  the `state.json` write for `desired: "stopped"`: it returns `202`
-  (`{"ok":true}`) only once the stopped state has been written, flushed and
-  renamed over `state.json`; it returns `503` (`{"ok":false,"reason":...}`) if
-  refused before admission (supervisor queue full, unavailable, or mailbox
-  already closing), and returns `503`
-  (`{"ok":false,"unconfirmed":true,"reason":...}`) if persisting fails or the
-  10-second HTTP wait times out. When viewer shutdown interrupts an admitted
-  Stop, the supervisor resolves the waiter as `.unconfirmed` so HTTP returns
-  `503` (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response
-  completes before server teardown, whereas server cancellation during shutdown
-  can also yield an empty `503` or closed connection without a JSON body.
-  Timing out ends only the HTTP wait and does not cancel the Stop (it may still
-  be queued, already executing in the actor, or already published before waiter
-  resolution), and a persistence error on a live run can still request child
-  wind-up or leave a pending Clear replacement revised to stopped; a lost
-  connection or abrupt crash can leave the browser with no HTTP response at
-  all. Only HTTP `202` confirms a browser Stop: a definite pre-execution
-  refusal (`!r.ok` with JSON `ok === false` and `unconfirmed !== true`) raises
-  `⚠ stop refused — <why>` (hover text noting refusal before taking effect),
-  any other non-`202` response — including `503` with `unconfirmed: true`, an
-  empty `503` from shutdown cancellation, or an unexpected status — raises
-  `⚠ stop not confirmed — <why>` (hover text noting the outcome was not
-  confirmed and it may still take effect or have requested wind-up), and a
-  closed connection or unreachable viewer raises
-  `⚠ stop outcome unknown — viewer unreachable` (hover text noting no HTTP
-  response was received); each pill stays until a control frame shows the
-  server moved, with a matching toast below the fold.
+  refused — <why>`) raises a fault pill and control notice banner on the
+  rendered refusal page until the notice is dismissed or a subsequent request
+  shows the server's settled lifecycle state moved. The programmatic control endpoint is
+  `POST /control` (JSON-only, `ControlHeaders.authorizes`, `authorizeCommand`),
+  and the zero-JS HTML page submits its Start/Stop and Clear buttons through
+  standard HTML forms to `POST /control/form` (`application/x-www-form-urlencoded`,
+  `FormControlHeaders.authorizes`, `authorizeFormCommand`, proved by
+  `AuthorizedFormCommand.post` and `AuthorizedFormCommand.token_eq`). Both routes
+  are bound to `127.0.0.1`, POST-only, capped by `controlBodyCapacity`, and gated
+  by the per-start random token minted by `mintControlToken` so a page left open
+  from a previous start holds a stale token and is refused; rejections say little
+  about which check failed. On `.accepted`, `POST /control/form` responds with
+  `303 See Other` back to the current view route (setting brief 1s transit refresh
+  until the supervisor settles), and on refusal or unconfirmed Stop renders a
+  `403`/`503` HTML page carrying the control notice banner. HTTP `/control` JSON
+  error responses use fixed public strings and never expose raw operating-system
+  error messages or local run-directory/archive paths; detailed native
+  diagnostics remain in the supervisor's failure diagnostic path and standard
+  error. For a Stop (`{"cmd":"stop"}` or form `cmd=stop`), both endpoints hold
+  their HTTP response until the supervisor actor completes the `state.json` write
+  for `desired: "stopped"`: `POST /control` returns `202` (`{"ok":true}`) and
+  `POST /control/form` redirects `303` only once the stopped state has been
+  written, flushed and renamed over `state.json`; pre-execution refusal returns
+  `503` (`{"ok":false,"reason":...}` on `/control`, or a `503` HTML notice on
+  `/control/form`), and persistence failure or the 10-second HTTP wait timeout
+  returns `503` (`{"ok":false,"unconfirmed":true,"reason":...}` on `/control`, or
+  an unconfirmed-Stop HTML notice on `/control/form`). When viewer shutdown
+  interrupts an admitted Stop, the supervisor resolves the waiter as
+  `.unconfirmed` so HTTP returns `503` if the response completes before server
+  teardown, whereas server cancellation during shutdown can also yield an empty
+  `503` or closed connection. Timing out ends only the HTTP wait and does not
+  cancel the Stop (it may still be queued, already executing in the actor, or
+  already published before waiter resolution), and a persistence error on a live
+  run can still request child wind-up or leave a pending Clear replacement
+  revised to stopped; a lost connection or abrupt crash can leave the caller with
+  no HTTP response at all. Only HTTP `202` (JSON `/control`) or `303` (form
+  `/control/form`) confirms a Stop.
 - **UX-22 · Stop is cooperative and persistent.** The core finishes its current
   finite attempt, attempts a checkpoint if saving is armed, and exits through
   the same writer as periodic and finite-campaign completion. Successful save
@@ -542,9 +513,10 @@ Rules that apply to every number, label and colour on the page.
   log failures produce a nonzero launcher exit after cleanup. EOF is not a stop request.
   The launcher owns terminal SIGINT and forwards this request, so Ctrl-C does
   not interrupt the viewer/core process group. No kill deadline is introduced.
-  Shutdown retains the durable intent; browser Stop remains the operation that
-  persists stopped intent and returns HTTP `202` only after `state.json` has
-  been written, flushed and renamed on disk.
+  Shutdown retains the durable intent; Stop remains the operation that persists
+  stopped intent and confirms (`303` on browser form `POST /control/form`, or
+  `202` on JSON `POST /control`) only after `state.json` has been written,
+  flushed and renamed on disk.
 - **UX-23 · Clear is one click: stop → archive → reseed → restore.** The
   whole run directory is renamed into the archive (UX-43) and a new random
   seed is taken. Cooperative stop happens first and attempts an armed save.
@@ -561,11 +533,13 @@ Rules that apply to every number, label and colour on the page.
   that state is unreachable.
   Clear returns to the run state it found: pressed while running the agent
   comes back running; pressed while stopped it stays stopped and says
-  `cleared; still stopped, as it was before`. Clear reaches the browser: on
-  the acknowledgement the page drops its stored world, resets agent-derived
-  buffers and rebuilds the map, and frames from the archived run are rejected
-  against the new control identity; the identity badge is rendered only from
-  the new core's typed origin, so a stale `resumed` has nothing to survive in.
+  `cleared; still stopped, as it was before`. On Clear settlement, the server
+  itself drops its retained `WorldMemory` and resets agent-derived observer
+  buffers via `Change.newRun`, redirects form submissions back to the live
+  route (`/`), and rejects frames from the archived run against the new
+  lifecycle identity; the identity badge is rendered only from the new core's
+  typed origin (showing `origin unreported` until a fresh frame arrives), so a
+  stale `resumed` has nothing to survive in.
   Clear is disabled under `--cmd`, with the reason in the hover text: the
   viewer does not know which checkpoint or seed that core uses, and a Clear
   that archives the wrong thing is worse than no Clear.
@@ -580,8 +554,8 @@ Rules that apply to every number, label and colour on the page.
   the reason a spawn failed, which is otherwise only in the log. A run that
   lasts longer than `healthyRunMs` (30 s) resets the count, so a campaign that
   ends cleanly three times is not mistaken for a build that cannot start. A
-  restart the supervisor made is visible after the fact: while the control
-  frame's failure count is above zero and the core is running, the top bar
+  restart the supervisor made is visible after the fact: while the server
+  lifecycle's failure count is above zero and the core is running, the top bar
   carries `⟲ restarted after an unexpected exit` (with the count when more
   than one), its hover text naming the last exit reason; the count resets at
   the operator's next Start or Clear, and the pill with it. The restart
@@ -593,84 +567,84 @@ Rules that apply to every number, label and colour on the page.
   persisting nothing. The top bar raises `⚠ not saving — where Clear is
   available, it archives this run and prepares a fresh one`, naming the remedy
   rather than only the diagnosis.
-- **UX-26 · Transport.** Controls: ⏮/⏭ (jump 500 frames), ⏸/▶, ⚡ LIVE (pin
-  to the newest frame), replay rates 10 / 60 / 250 / 1000 frames per second, a
-  scrub slider, the buffered-frame position and a lag readout, each with a
-  hover text saying what it does, under a lede that says what the buffer holds
-  and lists the keys. Keyboard: space, `L`, ←, → — reaching the transport only
-  when no button, link or disclosure has the focus, so space on a focused Stop
-  presses Stop. LIVE pins the display to the newest frame — a timelapse of the
-  real thing. A replay rate detaches and walks the local buffer (a ring of
-  `CAP` (30,000) frames, then oldest dropped) at that rate, and the lag readout
-  says how far behind live that has put you. Pausing freezes the display; the
-  slider and ⏮/⏭ browse the buffer. Exactly one mode is lit: LIVE, or the rate
-  in force while the buffer is being walked — ▶ after a pause resumes at that
-  rate and lights it — and nothing while paused, when the ▶ glyph says so.
-  When the core is stopped or the stream stale, the label retains that state
-  and the cursor's position: `newest frame` only at the newest frame, otherwise
-  paused/replay mode and the number of buffered frames behind it. The transport
-  uses a one-based selected ordinal and actual buffer count; an empty ring
-  says `no frames buffered`.
-- **UX-27 · Staleness and the frames/s counter.** If no new frame arrives for
-  `STALE_MS` (8,000 ms) while the control state says the core is running, the
-  label reads `stale — reconnecting…`, the page reopens the connection (the
-  server replays its last frames so the view refills) and clears the stale
-  state when frames resume; while the control state says the core is not
-  running the same silence reads as the idle label (UX-18), since a
-  deliberately stopped core is not a fault and reconnecting against it would
-  report one forever. Intake's `stored`, `refused`, `rewound` and `skipped`
-  outcomes describe ring admission independently of freshness. Only a valid
-  capture envelope matching the control plane's current run and epoch can
-  refresh health: identity and timestamp/lifetime/world counters must have
-  their declared forms, and the `(timestamp, lifetime step, world step)` tuple
-  must advance lexicographically for that identity. Timestamp comes first so
-  a resumed core can produce fresh captures behind the ring; counters separate
-  captures within one millisecond. Replayed refusals and page exceptions cannot
-  refresh health. A fresh envelope counts even when its payload is refused or
-  intake throws, keeping core production distinct from viewer usability. The
-  displayed throughput counts newly admitted capture envelopes per second.
+- **UX-26 · Transport (zero-JS navigation).** Anchor links and a GET frame-jump
+  form drive all transport state through query parameters (`ViewQuery`): *Live*
+  (`/`), *Pause* (`?view=paused&frame=N&run=<hex>&epoch=<ep>`), step/jump links
+  (`⏮`, `◀ -10`, `◀ -1`, `+1 ▶`, `+10 ▶`, `⏭`), a capture-ID GET form, refresh
+  cadence links (*Auto*, `1s`, `2s`, `5s`, *Off*), and stage mode toggles
+  (`SVG Stage`, `Live Stream (BMP)` via `/stream/stage.bmp`, and `/stage.bmp`
+  snapshot) over the server's `replayCapacity` (500) buffered captures. Paused
+  URLs bind selection to the immutable monotonic admitted capture ID (`ViewQuery.frame`)
+  and run/epoch identity (`ViewQuery.run`, `ViewQuery.epoch`) rather than a shifting buffer ordinal:
+  arriving captures cannot redirect a paused click or refresh to a different
+  capture, and eviction from the 500-frame window or a run/epoch change after
+  Clear renders an explicit alert notice instead of silently substituting
+  another capture or run. The transport shows the capture ID and buffer
+  position, or `0 buffered frames` when empty. Client-side single-key hotkeys
+  (`Space`, `L`, `←`, `→`) and the 30,000-frame browser ring (`CAP` remains
+  owned in `BrowserStore` for protocol reference) are intentionally retired
+  under INV-2.
+- **UX-27 · Staleness and the frames/s counter.** Staleness is evaluated
+  server-side from `BroadcastSnapshot` on every HTML render (`GET /`) and BMP
+  frame (`/stage.bmp`, `/stream/stage.bmp`) by
+  `ServerObserverState.streamLiveness`. While the supervisor's settled
+  lifecycle phase is running, if `STALE_MS` (8,000 ms) elapses without a fresh
+  capture, the status badge reads `stale — no fresh frames` (after an earlier
+  capture) or `stale — no capture received` (if no capture has arrived since
+  entering running), and BMP frames carry the matching fault banner; there is
+  no client-side SSE reconnect loop and no wire frame replay on connection,
+  and subsequent HTML renders or coalesced BMP updates return to `live` as
+  soon as fresh captures resume. While the lifecycle phase is not running
+  (idle or transit), the same silence reads as the idle or transit label
+  (UX-18), since a deliberately stopped core is not a fault. Intake's
+  `stored`, `refused`, `rewound` and `skipped` outcomes describe server
+  summary-buffer admission independently of freshness. Only a valid capture
+  envelope (`HealthEnvelope`) matching the server's current run and epoch can
+  refresh health (`HealthAdmission.receive`): identity and
+  timestamp/lifetime/world counters must have their declared forms, and the
+  `(timestamp, lifetime step, world step)` tuple must advance
+  lexicographically for that identity. Timestamp comes first so a resumed core
+  can produce fresh captures behind prior world steps; counters separate
+  captures within one millisecond. Stale, duplicate, or wrong-identity
+  captures cannot refresh health, whereas a fresh envelope updates
+  `ServerObserverState.lastFreshMonoMs` and `ServerObserverState.captureRate`
+  even when its full scientific payload is refused by `decodeServerFrame`,
+  keeping core production distinct from frame admission. The displayed
+  throughput (`CaptureRate.framesPerSecondTenths`) counts newly admitted fresh
+  capture envelopes per second over the recent one-to-two-second window
+  (displaying `—` while not running or before two captures span at least
+  250 ms).
 
 ## 5 · The panels
 
 What each panel must show. How it draws it is the code's.
 
-- **UX-28 · The stage.** The aerial view follows the agent: the agent stays
-  centred and explored terrain scrolls under it, at `Z` (4) logical px per
-  tile; the camera eases over small gaps and snaps over large ones (a live-rate
-  jump, a scrub), so the agent is never left off-centre. Only tiles the agent
-  has sensed are coloured; unexplored terrain stays near-black; beyond the
-  world's box — where the agent cannot walk and the page keeps no map — the
-  stage paints a tone of its own, so an agent at the edge is not read as
-  standing beside unexplored terrain. Base colours per kind: water `#3a6ea5`,
-  sand `#d9c58b`, grass `#7da05e`, forest `#5c8a3f`, tree `#2e6b2f`, mountain
-  `#8a8a8a`, stone `#b0b0b0`, ore `#d4a017`, each modulated by a deterministic
-  per-tile shade so terrain reads as ground; a tile re-sensed as a different
-  kind is repainted. The agent is a white circle with a gentle pulse, a soft
-  halo and a blue facing arrow. The recent trail fades out behind the agent;
-  live, it is the browser's own record, and detached it is read from the frame
-  ring behind the cursor, so the comet ends at the agent on screen and not at
-  the live agent hundreds of steps ahead. Entities render only inside the
-  current sensor window — the honest POMDP boundary — as orange food dots and
-  brown deer squares with a small hop, each over a dark outline; the window's
-  footprint is outlined in two tones so the edge of perception is visible on
-  grass and sand alike. For *Reach* goals a gold target is drawn — a pulsing
-  circle with crosshair and a `target` label, visible regardless of
-  exploration. When the symbol cannot fit inside the canvas, an inset edge
-  arrow points toward it. Target graphics have a separate layer above map
-  effects, and their backed labels stay inside the canvas. The goal card names
-  the compass direction and straight-line distance to the target centre; this
-  is not a route length or a count of steps remaining. Absolute placement is the
-  observer's, not the agent's: the stream carries `gx, gy` so a human can place
-  the marker, while the agent receives only the declared task relation
-  (displacement and distance) and neither absolute target coordinates nor its
-  own position (the [`Observation` interface](../lean/Acorn/Host/Observation.lean)). Night dims the view
-  with a translucent blue tint, deeper at midnight, and the clock's icon flips
-  ☀/🌙. Night is the world's: the page takes the phase from the generated
-  kernel's day-phase function, the emission of the integer program
-  `BrowserNat.dayPhase`. The program's integer semantics is the phase that the
-  world observes and charges, for every clock and day length
-  ([`BrowserNat.dayPhase_execution`](../lean/Acorn/Host/Viewer/BrowserNat.lean)).
-  The emitted JavaScript agrees with it on the admitted safe-integer `world_step` and `day_length` fields under the runtime and emitter assumptions of `Acorn.Host.Viewer.BrowserNat`: operands must be binary64 safe integers (`0 ≤ a < 2^53`, `b ≥ 1`, where *observerDiv*(a, b) = *Math.floor*(a / b) matches exact *Nat.div* because single nearest rounding shifts the quotient by at most `2^-53 * (a / b) < 1 / b`, strictly below the `1 / b` gap to the next integer, with *observerDiv*(_, 0) = 0 and *observerMod*(a, 0) = a), *observerLog2* doubles exact powers of two to avoid *Math.log2* boundary rounding, and browser runtime arithmetic and the structural backend remain explicit trust boundaries.
+- **UX-28 · The stage.** The aerial view follows the agent, rendered server-side
+  either as crisp inline SVG (`ServerView.lean`) or as a browser-native
+  `multipart/x-mixed-replace` 24-bit BMP stream (`/stream/stage.bmp`,
+  `StageBmp.render`): the agent stays centred and explored terrain scrolls under
+  it. Only tiles the agent has sensed are coloured; unexplored terrain stays
+  near-black; beyond the world's box the stage paints a dark out-of-bounds tone.
+  Base colours per kind: water `#3a6ea5`, sand `#d9c58b`, grass `#7da05e`,
+  forest `#5c8a3f`, tree `#2e6b2f`, mountain `#8a8a8a`, stone `#b0b0b0`, ore
+  `#d4a017`; a tile re-sensed as a different kind is repainted. The agent is a
+  white circle with a facing arrow, trailed by a recent path from buffered
+  server summaries. Entities render only inside the current 11×11 sensor window
+  — the honest POMDP boundary — as orange food dots and brown deer markers, with
+  the window footprint outlined. For *Reach* goals a gold target marker is drawn
+  regardless of exploration, or an edge indicator when outside the viewport.
+  Absolute placement is the observer's, not the agent's: the stream carries
+  `gx, gy` so a human can place the marker, while the agent receives only the
+  declared task relation (displacement and distance) and neither absolute target
+  coordinates nor its own position (the
+  [`Observation` interface](../lean/Acorn/Host/Observation.lean)). Night dims the
+  view with a translucent blue tint, deeper at midnight. Night is the world's:
+  both `ServerView` and `StageBmp` evaluate the integer program
+  `BrowserNat.dayPhase` directly in Lean, whose integer semantics is proved equal
+  to the phase the world observes and charges for every clock and day length
+  ([`BrowserNat.dayPhase_execution`](../lean/Acorn/Host/Viewer/BrowserNat.lean)),
+  removing the earlier JavaScript emitter and binary64 safe-integer trust
+  boundary completely.
 - **UX-29 · The HUD.** A header above the map places `current goal N/<goal_count>`
   on the left, with plain-language goal text — `Go to the gold target (x, y)` /
   `Hold at least n <item>` / `Own Axe|Boat` / `Continue for n world steps in this attempt`
@@ -687,7 +661,7 @@ What each panel must show. How it draws it is the code's.
   boat badges dimmed when absent, and `💤 resting` while the agent is
   exhausted. The footer's right side shows the running option — `—` when none, else the slot's
   name in the slot's colour — with a second line saying what the slot is
-  pursuing (UX-16) and, in fast mode, the share of the window an option ran.
+  pursuing (UX-16).
   Header and footer items wrap at narrow widths; neither overlays the map or
   obscures its target.
 - **UX-30 · What the agent senses.** The 11×11 sensor view shows exactly what
@@ -697,9 +671,8 @@ What each panel must show. How it draws it is the code's.
   agent's sight.
 - **UX-31 · The big world.** The whole explored map, the camera rectangle,
   the goal and the agent as a white dot; a meter labelled `sensed` reporting
-  `seen / 1,048,576 tiles` with a progress bar; the run's position; and, at the
-  reading cadence, the most frequent action, mean reward per frame and mean
-  primitive ε over the window, each label carrying its window (UX-8). The lede
+  `seen / 1,048,576 tiles` with a progress bar; the run's position; and the
+  exact action, reward, and primitive ε at the selected capture (UX-8). The lede
   states the coverage caveat (UX-13). The ε line's hover text says what the
   emitted rate is and is not (§10).
 - **UX-32 · Predictive agreement.** The supporting Knowledge panel displays
@@ -759,9 +732,9 @@ What each panel must show. How it draws it is the code's.
   leave gaps and make included numeric summaries non-finite; the legend says
   both meanings. The axis has separated labels at its actual ends and readable
   interior decades. Curves hold up to 400 newest intake samples, one per
-  `VERIFY_STRIDE` (24) admitted frames, independently of the replay cursor;
-  their caption names the actual count and interval. Legend values separately
-  name their frame window in fast mode or the selected frame when paused/slow.
+  `verifyStride` (24) admitted frames, independently of the replay cursor;
+  their caption names the actual count and interval. Family means separately
+  name the selected capture when paused or the newest capture when live (UX-8).
   Expandable rows expose the active step size and eligible-feature count for
   every learner that adapts one, including each option/action pair: a family mean never
   substitutes for the selective-credit state it summarises. The panel is that
@@ -772,7 +745,7 @@ What each panel must show. How it draws it is the code's.
   computed as `c_t + γ·P(s_t) − P(s_{t-1})` from adjacent reported predictions.
   These are projected predictions, and the viewer evaluates the formula in
   binary64; the plot does not claim the learner's internal binary32 error. The browser
-  attempts one sample per `VERIFY_STRIDE` (24) admitted frames and holds up to
+  attempts one sample per `verifyStride` (24) admitted frames and holds up to
   400 available samples, with newest at right independently of the replay
   cursor. The plot names its top value, zero and actual held count. Bar height
   carries magnitude in a fixed contrasting ink.
@@ -791,8 +764,8 @@ What each panel must show. How it draws it is the code's.
   and meta probabilities, selected-action probability, exploration branch,
   option boundary (β = 1 at an end, β = 0 while continuing, with the elapsed
   steps and the end reason; an end by an exploratory run is named as that
-  interruption, without β = 1, UX-38), reward, prediction error and credit state at the
-  cursor, or their window means in fast mode (UX-8). It never calls a value
+  interruption, without β = 1, UX-38), reward, prediction error and credit state
+  at the selected or newest capture with explicit scope (UX-8). It never calls a value
   difference an advantage, because this implementation has no
   option-advantage quantity, and initiation is explicitly the trivial
   all-states set, so no eligibility visualisation is invented. A value
@@ -811,8 +784,9 @@ What each panel must show. How it draws it is the code's.
   otherwise the predictions across the three slots. Differential research also
   shows predicted start duration in primitive steps. Every differential model
   query is for a fresh activation at age zero, including while an option runs;
-  start duration is not remaining duration. Fast mode uses the same labelled
-  window means as the other model readouts. The planning line shows
+  start duration is not remaining duration. Under zero-JS server rendering,
+  model readouts report exact newest-capture predictions alongside
+  checkpoint-persistent lifetime option execution totals (UX-8). The planning line shows
   backups since the agent began, which a checkpoint resume continues
   (`planning_steps`), and the Bellman planning error per slot
   (`planning_errors`), named `Bellman error` wherever it appears. Sources are
@@ -860,31 +834,26 @@ What each panel must show. How it draws it is the code's.
   exact, later buckets labelled by their logarithmic range — drawn from the
   cursor's frame and written only when its text changes.
 - **UX-40 · Resources.** Readings name their scope. The core reports
-  agent-update and environment-transition microseconds (means over the window
-  in fast mode, marked `frame means`, and from the selected frame when
-  paused/slow). Remaining core resource figures are the latest process
+  agent-update and environment-transition microseconds from the selected
+  capture (UX-8). Remaining core resource figures are the latest process
   observations: uptime, sampled resident set, last checkpoint size and write
-  time, checkpoint failures, and telemetry
-  drops and refusals; the browser separately reports its own render
-  milliseconds per frame, labelled as this browser's. No control period is
+  time, checkpoint failures, core telemetry drops and refusals, and server-side
+  refused and non-finite frame counts (with no client-side JavaScript
+  render-time telemetry under INV-2). No control period is
   declared, so deadline margin and misses are literally `N/A / N/A`, never
   inferred from observed throughput.
-- **UX-41 · Geometries.** Every canvas is sized to its own box in device
-  pixels and scaled back to CSS units, so text and terrain stay crisp on a
-  retina display. At 1280 CSS px the full three-column analysis row remains
-  visible without page overflow; the top bar may wrap to two lines there.
-  Below 1040 px the orientation strip stacks (its verdict tiles go four
-  across), the goal-achievement summary follows the stage as a full-width block
-  and the analysis row stacks, with the mode badge stating `COMPACT`; at 700 px
-  and below the five nodes wrap to two columns — the arrows between
-  nodes go with the wrap, the return glyph stays on the last node, which takes
-  the whole row — and the tiles return to two across. No panel is hidden to
-  make the layout fit, and the page never scrolls horizontally. The research
-  disclosure has the same initial state at every width. The aerial stage has
-  its natural aspect, capped at 62% of viewport height with a 280 px minimum;
-  sidebar content cannot stretch it and move the centered agent below the
-  first screen. The sidebar contains the goal-achievement summary only; sensing
-  and world details flow below the main row, with compact canvases beside their
+- **UX-41 · Geometries.** Every inline SVG graphic scales via `viewBox` without
+  client scripts, and BMP stage images scale crisply via CSS (`image-rendering:
+  pixelated`). At 1280 CSS px the full three-column analysis row remains visible
+  without page overflow; the top bar may wrap to two lines there. Below 1040 px
+  the orientation strip stacks (its verdict tiles go four across), the
+  goal-achievement summary follows the stage as a full-width block and the
+  analysis row stacks, with the mode badge stating `COMPACT`; at 700 px and below
+  the five nodes wrap to two columns and the tiles return to two across. No panel
+  is hidden to make the layout fit, and the page never scrolls horizontally. The
+  research disclosure has the same initial state at every width (`?inside=1`
+  opens it). The sidebar contains the goal-achievement summary only; sensing and
+  world details flow below the main row, with compact SVG graphics beside their
   descriptions on wider screens and stacking on narrow screens.
 
 
@@ -1028,7 +997,7 @@ What each panel must show. How it draws it is the code's.
   So such a file is read as an earlier version's, or as an unbound running
   intent, once, in the first launch that publishes the stopped state, and
   whenever the file is replaced that launch has already given the reason, in
-  its first control record and on standard output; it is not given again; a viewer of the earlier version started later on the
+  its initial settled lifecycle detail and on standard output; it is not given again; a viewer of the earlier version started later on the
   directory meets a file of the current version. A start-up that fails before
   that publication, such as on a port already in use, leaves the file as it
   was: the next viewer reads the same file and says the same. A start-up that
@@ -1059,12 +1028,14 @@ What each panel must show. How it draws it is the code's.
   example "Run: stopped because the run directory holds no saved state; it
   starts only on a Start on the viewer's control endpoint, which the page's
   Start button sends, or the --start flag". The line, without the `Run: ` it
-  is printed with, is in the reason of the first control record it publishes,
-  after `viewer initialized; `, under `--start` as well. The page shows the
-  reason of the control record that is current when it connects, in the hover
-  text of the state word (UX-21): a page that connects while that first record
-  is current shows the line, and one that connects after a later transition
-  has published its record shows that transition's reason. The viewer also
+  is printed with, is in the reason of the initial lifecycle detail the
+  supervisor settles into server state (`Broadcast.settle`), after
+  `viewer initialized; `, under `--start` as well. The page renders the
+  lifecycle detail that is current in `BroadcastSnapshot` when requested, in
+  the hover text of the state word (UX-21): a page requested while that
+  initial detail is current shows the line, and one requested after a later
+  transition has settled shows that transition's reason (no wire control
+  frames are sent to clients). The viewer also
   prints it on its standard output, at most once in a launch: for a file left
   as it is until the bind (an earlier version's, whatever intent it records,
   or a current-schema file with a running intent when this launch lacks a
@@ -1074,9 +1045,10 @@ What each panel must show. How it draws it is the code's.
   file, or a file of the current schema that says stopped, it is printed after
   the ready line and not under `--start`. Under `--start` the Start is
   submitted once the listener is bound. The viewer announces nothing of this
-  kind when the state it starts with is running. Browser Stop (`POST /control`
-  with `{"cmd":"stop"}`) returns HTTP `202` only after `state.json` has been
-  written, flushed and renamed on disk with `desired: "stopped"` — confirming
+  kind when the state it starts with is running. Stop (browser form
+  `POST /control/form` returning HTTP `303`, or JSON `POST /control` with
+  `{"cmd":"stop"}` returning HTTP `202`) confirms only after `state.json` has
+  been written, flushed and renamed on disk with `desired: "stopped"` — confirming
   that earlier publication — and returns HTTP `503` without acknowledging if
   refused before admission (queue full, unavailable, or mailbox already
   closing) or if persistence is unconfirmed (writing fails, or the 10-second
@@ -1088,8 +1060,10 @@ What each panel must show. How it draws it is the code's.
   `.unconfirmed` so HTTP returns `503`
   (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes
   before server teardown, whereas server cancellation during shutdown can also
-  yield an empty `503` or closed connection without a JSON body; both are
-  treated fail-closed by the browser as unconfirmed/unknown. Directory entries
+  yield an empty `503` or closed connection without a JSON body; a JSON
+  `/control` client treats both fail-closed as unconfirmed/unknown, while HTML
+  form POST `/control/form` renders a `503` HTML notice page or closes during
+  shutdown. Directory entries
   are not fsynced, so power-loss durability is not claimed, and a lost
   connection or abrupt crash can yield no HTTP response. This durability
   guarantee also rests on Acorn's exclusive single-viewer run-directory
@@ -1105,8 +1079,8 @@ What each panel must show. How it draws it is the code's.
   after the first viewer acknowledges Stop. The no-later-Start condition is
   ordered in supervisor processing order starting from that acknowledging
   resolution (not browser HTTP receipt time, so a concurrent Start processed
-  by the supervisor after that resolution — even before the browser receives
-  `202` — supersedes it): under exclusive single-viewer run-directory
+  by the supervisor after that resolution — even before the caller receives
+  `303` or `202` — supersedes it): under exclusive single-viewer run-directory
   ownership, stable run-directory paths without external state-file mutation,
   and with no later Start admitted by the supervisor while open, a viewer
   process crash at any step leaves the on-disk state stopped — or absent
@@ -1159,76 +1133,86 @@ What each panel must show. How it draws it is the code's.
   then calls ordinary `rename`, that mutex does not exclude an external writer
   creating `weights.ckpt` between the check and `rename`; the stable-path
   assumption excludes such a concurrent writer.
-- **UX-44 · The explored map belongs to the run.** The viewer server keeps
-  retained sensed tiles in the current run (`Acorn.Host.Viewer.WorldMemory`),
-  keyed by the *world* — run ID, side and seed — so that a frame from any other
-  world replaces it; the agent epoch is not part of the key, because a core
-  that restarts without loading a checkpoint begins a new agent in the same
-  world, and the terrain it sensed is still terrain. The page keys its own copy
-  by the same three facts, taken only from the frames themselves (or, on
-  Clear's acknowledgement, from the control plane's new run), and unions the
-  two copies only when they describe one world; a stored map that names no run
-  is not restored. Each connection receives the run's map once, after the
-  control frame and before the replay, and only when it names the control
-  plane's current run. The browser unions that retained map with its own
-  matching stored observations, which may include additional tiles. The map is persisted as
-  `acorn-run/explored.map` by the supervisor thread — periodically while a
-  tile has changed since the last successful write, and when the core exits;
-  never from the stdout pump, which sits between the core and its reader — and
-  read back at the next viewer start only if it names the run the state file
-  names and every byte is a kind or unseen; a file that fails that is refused
-  whole and said so on stderr. **Possible missing observations are explicit**:
-  a missing map for an existing run, every restored disk snapshot, and every
-  core reap mark the memory `partial: true`. A snapshot cannot certify that
-  observations after its last periodic write reached disk; generation isolation
-  at reap can omit buffered stdout tail frames. Changing the marker dirties
-  the map, and reap broadcasts and persists the partial claim before restart.
-  The header, map frame and UI scope retain it until a new world is created.
-  This is bounded retained evidence, not lossless retention. A run that has
-  never had a core begins empty with no observations to have missed. A
+- **UX-44 · The explored map belongs to the run.** The viewer server is the sole
+  owner of retained sensed tiles in the current run
+  (`Acorn.Host.Viewer.WorldMemory`), keyed by the *world* — run ID, side and
+  seed — so that a frame from any other world replaces it; the agent epoch is
+  not part of the key, because a core that restarts without loading a
+  checkpoint begins a new agent in the same world, and the terrain it sensed is
+  still terrain. There is no client-side map copy, browser-side map merge,
+  client browser storage (UX-45), generated JavaScript kernel, or wire map
+  frame: every `GET /` SVG overview/stage and every `/stage.bmp` or
+  `/stream/stage.bmp` image renders directly from the server's
+  `BroadcastSnapshot.world`. The map is persisted as `acorn-run/explored.map`
+  by the supervisor thread — periodically while a tile has changed since the
+  last successful write, and when the core exits; never from the stdout pump,
+  which sits between the core and its reader — and read back at the next viewer
+  start only if it names the run the state file names and every byte is a kind
+  or unseen; a file that fails that is refused whole and said so on stderr.
+  **Possible missing observations are explicit**: a missing map for an existing
+  run, every restored disk snapshot, and every core reap mark the memory
+  partial (`WorldMemory.markPartial` / `ControlObservation.mapPartial`). A
+  snapshot cannot certify that observations after its last periodic write
+  reached disk; generation isolation at reap can omit buffered stdout tail
+  frames. Changing the marker dirties the map, and reap settles the partial
+  claim in server state (`Broadcast.settle` with `Change.loseTail`) and
+  persists `explored.map` before restart. The persisted `explored.map` header
+  and server-rendered UI scope retain the partial flag until a new world is
+  created. This is bounded retained evidence, not lossless retention. A run
+  that has never had a core begins empty with no observations to have missed. A
   frame whose pose is outside its own world, or whose tiles are not kinds, is
   refused before any arithmetic. Identity and the map are read only from the
   core the pump belongs to. Reaping revokes frame forwarding; final drain may
   finish identity and checkpoint attribution for that still-owned generation,
-  but cannot re-adopt an archived run or re-key a memory Clear has reset. The server keeps a map only for a side up to
-  `mapSideCapacity` (4,096); a larger `--cmd` world is shown from frames and the
-  browser's own storage, has no server memory, and its tile says so. The
-  page declares none of the unseen byte, the kind count, the window's tile
-  count or the side limit: the generated kernel emits each from its Lean
-  definition (`Acorn.Host.Viewer.BrowserConstant`). The unseen byte and the
-  side limit are the server's own, the tile count is the square of the core's
-  window side, and the kind count is the bound admission places on every
-  sensed tile (`BrowserConstant.tileKinds_admitted`).
-- **UX-45 · Browser storage.** The explored map and the trail are saved to
-  `localStorage` (key `acorn-viewer-world-v1`) on a timer while either has
-  changed since the last save, and on unload; on load they are restored (the
-  top bar shows `restored`) and new frames merge into them. A stopped or
-  paused page changes nothing and so writes nothing. The map is run-length
-  encoded before storage, because a raw byte string of a mostly unseen world
-  would exceed the quota on JSON escaping alone. Storage failure (blocked or
-  full) is non-fatal: the viewer keeps working with an in-memory map and the
-  top bar says `not persisted`.
-- **UX-46 · The server never lets a browser slow the core.** Each browser has
-  a bounded queue, and a browser that stalls drops frames rather than growing
-  the server's memory without bound; subscribing snapshots the replay buffer
-  and registers under both locks, so the handover loses nothing and
-  duplicates nothing. A poisoned mutex is recovered rather than fatal: the data
-  behind those locks is a bounded ring of JSON lines, a list of channels and
-  the byte map of sensed tiles, nothing a panic can leave inconsistent, and
-  were poisoning fatal one connection thread's panic would silently kill the
-  broadcast while every browser went on displaying `live`. “accept” failures
-  back off exponentially instead of being retried at once: under descriptor
-  exhaustion every accept fails together, and a spinning accept loop would
-  steal CPU from the agent the viewer exists to observe — an observer
-  influencing the run, which INV-1 forbids. The core's stderr is captured to
-  `acorn-run/core.log` (rotated, one previous generation kept as
-  `core.log.1`) and echoed to the viewer's own stderr; the last lines are held
-  in memory and the last few travel with every `stopped` control frame, so the
-  page can show the core's own account of why it stopped without reading a
-  file. Every log write failure is absorbed and the reader drains the pipe
-  unconditionally while the child lives: a pipe nobody reads fills, at which
-  point the core blocks inside its own `eprintln!`, and a viewer that froze the
-  agent would be the worst INV-1 violation available.
+  but cannot re-adopt an archived run or re-key a memory Clear has reset. The
+  server keeps a map only for a side up to `mapSideCapacity` (4,096); a larger
+  `--cmd` world has no retained server map or client storage, renders only the
+  latest frame's 11×11 sensor window on the stage, and explicitly reports the
+  world map as unretained in the overview and top bar. The Lean server modules
+  read the unseen byte, the kind count, the sensor-window tile count, and the
+  side limit directly from their Lean definitions
+  (`Acorn.Host.Viewer.BrowserConstant`) with no generated JavaScript kernel:
+  the unseen byte and `mapSideCapacity` are the server's own, the tile count is
+  the square of the core's window side, and the kind count is the bound
+  admission places on every sensed tile (`BrowserConstant.tileKinds_admitted`).
+- **UX-45 · Browser storage (retired).** Client-side `localStorage` persistence
+  is intentionally retired under INV-2 (zero JavaScript). Durable terrain and run
+  state belong strictly to the viewer server's run directory (`explored.map` and
+  `state.json`, UX-43 and UX-44).
+- **UX-46 · The server never lets a browser slow the core.** `Broadcast`
+  serializes observer state, the sliding `replayCapacity` (500) `FrameSummary`
+  history (`ServerObserverState.summaries`), `WorldMemory`, settled lifecycle
+  state, and up to `connectionCapacity` (16) live BMP stream subscribers behind
+  one Lean `Std.Mutex`. Each `/stream/stage.bmp` subscriber holds only its ID,
+  last seen monotonic version, and a payload-free wake promise
+  (`IO.Promise Unit`), with no per-subscriber payload queue and no two-lock
+  replay handoff. Publishers (`PipePump.lean` calling `Broadcast.publish`)
+  decode incoming JSON/decimal telemetry outside the mutex (`decodeTelemetry`),
+  perform only bounded in-memory observer and `WorldMemory` updates under the
+  mutex, advance the monotonic version, and resolve collected wake promises
+  outside the mutex. Live stream handlers (`HttpViewer.stageStream` /
+  `liveStageFrames`) coalesce any number of intervening updates through
+  `Subscription.poll` (`pollVersionState`, proved idempotent by
+  `pollVersionState_coalesces`), pace every send through `waitForPace` at
+  `READ_MS` (250 ms), snapshot `BroadcastSnapshot` via `Subscription.snapshot`,
+  and encode and write 24-bit BMP responses strictly outside the broadcast
+  mutex (cancelling stalled HTTP writes on cooperative shutdown via
+  `CancellableTransport.sendAll` while keeping unfinished native writes charged
+  to the HTTP server's connection-limit semaphore). `GET /` requests likewise
+  acquire the mutex only to read `Broadcast.snapshot` and render HTML/SVG
+  outside the lock, so a slow or stalled browser only receives coalesced
+  current snapshots and never blocks core publication or grows server memory
+  without bound. Accept errors in `serveCancellable` sleep for 10 ms
+  (`Selector.sleep 10`, cancellable on shutdown) instead of spinning under
+  descriptor exhaustion, so the HTTP server does not steal CPU from the agent
+  (INV-1). The core's stderr is drained unconditionally while the child lives
+  into `LogPump` (bounded by `logQueueCapacity` 256 and `logTailCapacity` 200)
+  and appended to `acorn-run/core.log` (rotated to `core.log.1` at
+  `logCapacity`, 4 MiB); every log write failure is absorbed into `LogStatus`
+  so a full stderr pipe never blocks the core on stderr writes (INV-1), and up
+  to the last six lines (`controlTail`) are rendered directly from
+  `BroadcastSnapshot.detail` while stopped rather than sent in wire control
+  frames.
 
 ## 7 · Expected, and not bugs
 
@@ -1241,9 +1225,11 @@ What each panel must show. How it draws it is the code's.
   replacement per twenty steps for the 512-unit bank.
 - Deer and food pop in and out exactly at the sensor boundary.
 - Motion is bursty while the agent is low on energy: it rests to recover.
-- Near-black regions are genuinely unexplored, and the trail is short right
-  after a first-ever connect (the server replays only its last frames), though
-  the explored map itself is complete for the run (UX-44).
+- Near-black regions are genuinely unexplored, and the trail spans at most the
+  server's sliding `replayCapacity` (500) `FrameSummary` history
+  (`ServerObserverState.summaries`), so it is short right after a run starts or
+  resets, while the retained `WorldMemory` covers all sensed tiles for the run
+  up to `mapSideCapacity` (UX-44).
 - Agreement waits for every question to settle; per-question cards show pending
   futures and the actual settled coverage before the aggregate is available.
 - Curriculum rows include names and current-pass outcomes from before this
@@ -1341,13 +1327,22 @@ terminal frame per attempt. Fields the UI relies on:
 | `planning_steps, planning_errors[3]` | num / (float\|null)[] | PAR-14 Background Planning: Dyna planning backups since the agent began, continued across checkpoint resumes, and per-skill Bellman planning errors |
 | `update_us, environment_us, process_uptime_ms, checkpoint_failures, telemetry_refusals, telemetry_drops` | num | core execution latencies, process uptime, and reliability counters (UX-46) |
 | `tiles[121], tile_extra[121]` | byte[] | sensor window (kind; food+2·deer) |
-| `ev` | byte | events: 1 harvest, 2 ate, 4 crafted, 8 picked food, 16 exhausted, 32 moved. The page reads bits 1–16; **bit 32 (moved) is emitted and not read** — movement is already visible as the pose changing, so a toast or particle for it would be noise |
+| `ev` | byte | events: 1 harvest, 2 ate, 4 crafted, 8 picked food, 16 exhausted, 32 moved. The page reads bits 1–16; **bit 32 (moved) is emitted and not read** — movement is already visible as the pose changing, so a separate event indicator for it would be noise |
 | `gkind, gitem, gx, gy, gn` | num | goal family and item use the complete `GoalProtocol` vocabulary (including craftable item codes), shared by emission, admission and labels; target and quantity retain safe-integer browser limits |
 | `end` | bool | terminal frame of an attempt; carries the verdict in `done` |
-| `eos, kind, reason` | bool/str | **not from the core** — the viewer's server synthesises `{"eos":true,"kind":…,"reason":…}` when the child exits **unexpectedly** or fails to start. `kind` is `exit` for the native process-exit notice; start refusals are carried by the authoritative control diagnostic; `reason` is a human sentence. The UI shows `core stopped — <reason>` and raises a toast (UX-18). The reason is mandatory: a core that cannot start at all produces nothing *but* “eos” frames, and without it the page would have no statement anywhere of what went wrong. A stop the operator **asked for** raises no “eos”: the “ctl” frame already says so, and a toast reading "⚠ stopped on request" is the page complaining about something it was told to do |
-| `ctl, desired, actual, reason, seed, runId, agentEpoch, transition, transitionReason, failures, clearDisabled, checkpointRefused, terminalWarning` | bool/str/num | **not from the core** — the supervisor's exhaustive Lean state and last typed transition, emitted on every transition (UX-21). `desired` ∈ {`running`, `stopped`}; `actual` ∈ {`starting`, `running`, `stopping`, `clearing`, `stopped`}; the run/agent identity is the attribution authority for replay. **Also sent once, explicitly, to each browser as it connects**, before replay, so a client never reconstructs current identity from buffered frames |
-| `cleared, seed` | bool/num | **not from the core** — ordered acknowledgement that makes the page discard the archived world immediately. Identity itself comes from the preceding authoritative “ctl” frame and the following matching core frames |
-| `map, runId, side, seed, seen, partial, kinds` | bool/str/num/bool/str | **not from the core** — the run's explored map (UX-44), sent once per connection after the “ctl” frame and before the replay, once the memory holds a frame for the current run; `kinds` is the run-length-encoded, base64'd `side²` tile map, `255` for never sensed; “partial” says observations may be missing, including around stops or viewer restarts |
+
+**No synthetic wire control, exit, cleared, or map SSE frames are sent to
+browsers.** Under the zero-JS server (INV-2), browsers receive server-rendered
+HTML (`GET /` from `BroadcastSnapshot`) and coalesced 24-bit BMP images
+(`/stage.bmp`, `/stream/stage.bmp`) rather than SSE JSON streams. Lifecycle
+state (`Lifecycle`, `ControlDetail`, `ControlObservation`), unexpected-exit
+diagnostics (`controlReason`, `controlWarning`, `controlTail`), Clear resets
+(`Change.newRun`), and retained terrain (`WorldMemory`, persisted to
+`explored.map` via `MapCodec`) are maintained directly in server memory
+(`Broadcast`) and rendered into HTML and BMP responses; `controlTelemetry`
+remains in `Acorn.Host.Viewer.ControlTelemetry` as the typed projection covered
+by `controlTelemetry_reasons` and `Core.start_control`, not a wire stream
+delivered to clients.
 
 **`null` means non-finite.** JSON has no form for `NaN` or `±inf`, so every
 float field may be `null`, and `null` means exactly "the core computed a value
@@ -1377,7 +1372,7 @@ announced once across that boundary.
 
 - **Launch options and seed masking (`Acorn.Host.Viewer.Options`):** `viewerSeed` masks entropy modulo `2^48` (`(entropy.toNat % 2^48).toUInt64`), and `rankedArguments` emits unquoted core flags (`demo --research-profile ranked --telemetry --control-stdin --seed ... --side 1024 --steps 4000 --attempts 3 --goals 13 --cycles 0 --run-id ... --agent-epoch ... --new-agent-epoch ...`, optionally followed by `--cleared` and `--checkpoint PATH`).
 - **Wire envelopes, exact telemetry numbers, and map codecs (`Acorn.Host.Viewer.Wire`, `WireNumber`, `TelemetryValue`, `MapCodec`, `Sensed`):** `WireText` enforces newline and carriage-return exclusion and UTF-8 byte length `≤ lineCapacity` (`LineBytes.text` strips one trailing `\r` for CRLF lines), `runWord` admits exact 16-lowercase-hex run IDs, `browserIntegerMax` is `9007199254740991` (`2^53 - 1`), and `HealthEnvelope` survives frames whose full-schema scientific fields fail admission. `WireNumber` serializes finite binary32 and binary64 values as exact decimals via `5^n` denominator scaling, emits `"null"` for all infinities and NaNs, preserves the sign of `-0.0`, and leaves consumer rounding to JSON readers. `TelemetryValue` renders `null` for `.optional` `none` and `\u00xx`-escapes control bytes `< 0x20` at the single emission boundary (`emitTelemetryFields`). `Sensed` excludes `agentEpoch` from `MapKey` (`MapKey` keys by `run`, `seed`, and `side`), and `MapCodec` accepts zero-count historical RLE triples, recomputes `seen` from admitted cells while ignoring header `seen` and *partial* values, and rejects base64 emission unless run byte length is divisible by 3 (emitting no `=` padding).
-- **Numeric observer programs, goal achievement, and browser schema (`Acorn.Host.Viewer.BrowserMath`, `GoalAchievement`, `BrowserKernel`, `BrowserRecord`, `BrowserSchema`, `ClockProgram`):** In `BrowserMath`, *minimum* and *maximum* handle `NaN` and `-0.0` (`0x8000000000000000`) to match JavaScript *Math.min*/*Math.max*, `BrowserMath.horizon` clamps `ceil(ln(0.01) / ln(γ))` to `[8, 600]`, `BrowserMath.relativeChange` guards denominators with `|x| < 1e-12` (returning `0` on exact equality and *Infinity* otherwise), `BrowserMath.trend` uses a `0.05` relative-change deadband, `BrowserMath.enoughSamples` requires at least `30` settled samples, `BrowserMath.finiteReturn` computes only the inner finite-horizon discounted return sum from SwiftTD RLJ 2 (2024) §3 equation (3) (not its squared lifetime error), and `BrowserMath.tdSurprise` averages absolute residuals across adjacent reported projected predictions using the TD form in SwiftTD Appendix A.1 equation (17) (rather than returning the signed residual of equation (17), and without claiming equality to the learner's internal binary32 error). In `GoalAchievement` (`lean/Acorn/Host/Viewer/GoalAchievement.lean`, citing Sutton, Bowling & Pilarski `arXiv:2208.11173v3` pp. 4–5 *"Designing around a base agent"* and Javed & Sutton 2024 *"The Big World Hypothesis"* and *"Benchmarking Algorithms in Big Worlds"*), `GoalAchievement.State.begin` refuses cycle-counter saturation (`2^64 - 1`) so wrapped cycles cannot merge, and `GoalAchievement.Pass.permille` truncates via floor integer division (`1000 * achieved / goals`). `BrowserKernel` (`Phase.runLabel`) supplies transient `busy` labels (`starting…`, `stopping…`, `clearing…`) and routes `unaskedStops` (`.failed`, `.restartScheduled`) to the connection label. `BrowserRecord` separates `.nonFinite` (casting non-finite scalars to `NaN` and setting *nonFiniteKey*), `.unmeasured` (`core_rss_bytes`, `checkpoint_bytes`, `checkpoint_write_us`, mapped to `NaN` without setting *nonFiniteKey*), `.absentIndex` (`retire_step`, `retire_unit`, mapped to `-1`), and `.absentIndices` (`subtask_unit`, converted into an *Int32Array* with `< 2^31` range and `-1` sentinel), with `demon_horizon` applying `.twice` (`2 * envelope`). *BrowserSchema.stringSortKey* hashes wire keys modulo `4294967291` without needing injectivity for `browserSchema_distinct`, `browserRules_goal_separation` isolates `gkind` and `gitem`, and unknown incoming JSON keys remain forward-compatible. `ClockProgram.agreementFollows` compares process markers, per-process clocks, and stopped flags (admitting a capture when its process marker is strictly newer regardless of either capture's clock or stopped flag, or when the process marker is the same, the prior capture is not stopped, and either the per-process clock strictly increases, or the clock is equal with the new capture stopped), whereas native `Capture.follows` (`ClockProgram.follows` in `Admission.lean`) compares lifetime and world clocks and admits a same-lifetime terminal capture from a non-terminal predecessor only at `prevWorld + 1` (never at the same world step), and `ClockProgram.snapshotFollows` enforces zero-step resolved goal ordering alongside browser safe-integer bounds.
+- **Server observer, typed HTML, numeric programs, goal achievement, and schema (`Acorn.Host.Viewer.Html`, `ServerFrame`, `ServerView`, `StageBmp`, `DecimalText`, `BrowserMath`, `GoalAchievement`, `BrowserKernel`, `BrowserRecord`, `BrowserSchema`, `ClockProgram`):** `Html` defines a closed HTML5/SVG AST with zero script tags and zero inline event attributes (`Html.AttrName.no_event_handler`, `Html.Document.render_no_script`), and `renderViewerPage_no_script` proves the served document never emits a script tag for any runtime input. `DecimalText` and `ServerFrame` decode and format incoming JSON telemetry directly in pure integer/decimal Lean without floating-point C primitives. In `BrowserMath`, `BrowserMath.horizon` clamps `ceil(ln(0.01) / ln(γ))` to `[8, 600]`, `BrowserMath.relativeChange` guards denominators with `|x| < 1e-12`, `BrowserMath.trend` uses a `0.05` relative-change deadband, `BrowserMath.enoughSamples` requires at least `30` settled samples, `BrowserMath.finiteReturn` computes only the inner finite-horizon discounted return sum from SwiftTD RLJ 2 (2024) §3 equation (3), and `BrowserMath.tdSurprise` averages absolute residuals across adjacent reported projected predictions using the TD form in SwiftTD Appendix A.1 equation (17). In `GoalAchievement` (`lean/Acorn/Host/Viewer/GoalAchievement.lean`, citing Sutton, Bowling & Pilarski `arXiv:2208.11173v3` pp. 4–5 *"Designing around a base agent"* and Javed & Sutton 2024 *"The Big World Hypothesis"* and *"Benchmarking Algorithms in Big Worlds"*), `GoalAchievement.State.begin` refuses cycle-counter saturation (`2^64 - 1`) so wrapped cycles cannot merge, and `GoalAchievement.Pass.permille` truncates via floor integer division (`1000 * achieved / goals`). `BrowserKernel` (`Phase.runLabel`, `goalItemLabel`, `goalText`) supplies transient `busy` labels (`starting…`, `stopping…`, `clearing…`), exhaustive goal text, and routes `unaskedStops` (`.failed`, `.restartScheduled`) to the connection label. `BrowserRecord` separates `.nonFinite`, `.unmeasured` (`core_rss_bytes`, `checkpoint_bytes`, `checkpoint_write_us`), `.absentIndex` (`retire_step`, `retire_unit`), and `.absentIndices` (`subtask_unit`, `< 2^31`), with `demon_horizon` applying `.twice` (`2 * envelope`). *BrowserSchema.stringSortKey* hashes wire keys modulo `4294967291` without needing injectivity for `browserSchema_distinct`, `browserRules_goal_separation` isolates `gkind` and `gitem`, and unknown incoming JSON keys remain forward-compatible. `ClockProgram.agreementFollows` compares process markers, per-process clocks, and stopped flags, native `Capture.follows` (`ClockProgram.follows` in `Admission.lean`) compares lifetime and world clocks, and `ClockProgram.snapshotFollows` is evaluated directly in Lean by `admitAgreementSnapshot` (`ServerFrame.lean`) alongside safe-integer bounds.
 - **Control diagnostics, stderr logs, and identity handshake (`Acorn.Host.Viewer.ControlTelemetry`, `LogPump`, `IdentityHandshake`):** `controlDiagnostic` truncates reasons at `1024` characters with `" [truncated]"` before appending the UX-24 `failureLimit` suffix (`controlTelemetry_reasons`), `controlTail` emits up to the last `6` stderr lines substituting `"[stderr line refused: invalid UTF-8]"` on invalid UTF-8 only while `.idle`, and `controlWarning` emits warnings only while `.idle` with `abnormalExit` taking precedence over a failed checkpoint status; `LogPump` retains `logTailCapacity := 200` lines and `logQueueCapacity := 256` queued entries; and `IdentityHandshake` persists the core's first reported `CoreIdentity` before releasing buffered pending frames without modifying `desired` (`PersistedState.adopt_desired`). See [verification](verification.md#viewer-ownership-boundaries) for server HTTP, broadcast, pipe-reader, process-owner, run-directory, and supervisor boundaries.
 
 ## 10 · Algorithm claims: pin or out of viewer scope
@@ -1417,13 +1412,12 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 | Step-size curves | plasticity panel | Alberta Plan Step 1, arXiv:2208.11173v3 **PDF p. 6**: *“All of that user expertise should be replaced by a meta-algorithm for setting the step-size parameter…”* The panel plots Acorn’s current step sizes. |
 | intra-option-credit / derived-exploration-rate studies | **out of viewer scope** | PAR-9 / PAR-10 identify the mechanisms, pinned above. |
 | Rendered inspection and compiler checks | contributor verification | AC-R4 geometries and AC-R6 check results cover presentation and implementation. |
-| Record keys = emit keys | proof, not a surface | The page's record conversion and frame store are generated from `browserSchema`. `browserRecord_keys` proves the record has a field for every schema key and no other; `browserColumns_live` proves each ring column reads a schema key at the schema's array width. |
+| Record keys = emit keys | proof, not a surface | `browserRecord_keys` proves `browserRecordFields` covers every `browserSchema` key and no other; `browserColumns_live` proves each column reads a schema key at the schema's array width; `renderViewerPage_no_script` proves the served HTML never emits a script tag. |
 
 ## Appendix A · Constants this document quotes
 
-`AcornTools.Corpus.Browser` renders the table below from its Lean owners, the page's
-constants, which the generated kernel declares from `BrowserConstant` in
-`Acorn.Host.Viewer.BrowserStore`, and the viewer server's values, and admits this appendix
+`AcornTools.Corpus.Browser` renders the table below from its Lean owners (`BrowserConstant` in
+`Acorn.Host.Viewer.BrowserStore` and the viewer server's values), and admits this appendix
 only when the table is exactly that text and no other line of the appendix holds a table
 cell. Other prose quantities, and whether the table lists every constant this document
 quotes, remain review obligations.
@@ -1448,7 +1442,7 @@ The mission panel describes the running mechanisms and cites their sources.
 Viewer launch requires `--research-profile ranked` for its
 managed command or an explicit `--cmd`; the two are mutually exclusive.
 The core CLI also requires a research profile. Existing field windows, lifecycle
-controls and timers keep their specified semantics. Source explanations identify
+controls and refresh/stream cadence keep their specified semantics. Source explanations identify
 profile-dependent credit instead of claiming every research profile learns
 under options. Exact profile/comparison definitions and eligibility decisions
 are owned by `docs/prior-art-review.md`.

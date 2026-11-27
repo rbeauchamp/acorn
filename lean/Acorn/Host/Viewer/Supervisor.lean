@@ -254,10 +254,6 @@ def Supervisor.submitControl (supervisor : Supervisor) (command : Command) :
       set { mailbox with commands }
       return .immediate result
 
-def supervisorInitial (snapshot : ReplaySnapshot) : BaseIO InitialFrames := do
-  let map := snapshot.world.bind fun ⟨_, memory⟩ => memory.frame.toOption
-  return ⟨snapshot.control, map⟩
-
 private def Supervisor.popCommand (supervisor : Supervisor) :
     BaseIO (Option (Command × Option StopWaiter)) :=
   supervisor.queue.atomically do
@@ -285,7 +281,7 @@ private def Supervisor.closeMailbox (supervisor : Supervisor) (reason : String) 
     waiter.resolve (.unconfirmed reason)
 
 def Supervisor.http (supervisor : Supervisor) (assets : ViewerAssets) : IO HttpViewer :=
-  HttpViewer.new supervisor.broadcast assets supervisorInitial supervisor.submitControl
+  HttpViewer.new supervisor.broadcast assets supervisor.submitControl
 
 def Supervisor.step (supervisor : Supervisor) : IO Unit :=
   supervisor.actor.atomically do

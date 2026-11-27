@@ -2,16 +2,12 @@ import Acorn.Digits
 import Acorn.Host.Viewer.Broadcast
 import Acorn.Host.Viewer.ControlRequest
 import Acorn.Host.Viewer.RunDirectory
+import Acorn.Host.Viewer.ServerView
+import Acorn.Host.Viewer.StageBmp
 import Std.Http.Server
 
 namespace Acorn.Host.Viewer
 open Std Async Http
-
-def initialMapCapacity : Nat := 4 * mapSideCapacity * mapSideCapacity + 1024
-
-structure InitialFrames where
-  control : Option WireText
-  map : Option (SseLine initialMapCapacity)
 
 inductive ControlResult where
   | accepted
@@ -27,20 +23,18 @@ inductive ControlDispatch where
   | pending (task : Task (Option ControlResult))
 
 structure ViewerAssets where
-  index : String
+  stylesheet : String
 
 structure HttpViewer where
   private mk ::
   private broadcast : Broadcast
   private token : String
   private assets : ViewerAssets
-  private initial : ReplaySnapshot → BaseIO InitialFrames
   private submit : Command → BaseIO ControlDispatch
 
 def HttpViewer.new (broadcast : Broadcast) (assets : ViewerAssets)
-    (initial : ReplaySnapshot → BaseIO InitialFrames)
     (submit : Command → BaseIO ControlDispatch) : IO HttpViewer := do
-  return ⟨broadcast, ← mintControlToken, assets, initial, submit⟩
+  return ⟨broadcast, ← mintControlToken, assets, submit⟩
 
 private def singleHeader (head : Request.Head) (name : Header.Name) : Option String := do
   let values ← head.headers.getAll? name
@@ -52,11 +46,75 @@ private def controlHeaders (head : Request.Head) : ControlHeaders :=
   let length := (singleHeader head (.mk "content-length")).bind Digits.read
   ⟨toString head.method, mediaType, (singleHeader head (.mk "x-oak-token")).getD "", length⟩
 
+private def formControlHeaders (head : Request.Head) : FormControlHeaders :=
+  let contentType := (singleHeader head (.mk "content-type")).getD ""
+  let mediaType := ((contentType.splitOn ";").headD "").trimAscii.toString.toLower
+  let length := (singleHeader head (.mk "content-length")).bind Digits.read
+  ⟨toString head.method, mediaType, length⟩
+
 private def response (status : Status) (contentType : Header.Value) (bytes : ByteArray) :
     Async (Response Body.Any) := do
   let body ← Body.Full.ofByteArray bytes
   return (Response.new.status status
     |>.header (.mk "content-type") contentType
+    |>.header (.mk "x-content-type-options") (.mk "nosniff")
+    |>.header (.mk "referrer-policy") (.mk "no-referrer")
+    |>.header (.mk "cache-control") (.mk "no-store")).body (Body.Any.ofBody body)
+
+set_option maxRecDepth 4096 in
+private def cspHeaderValue : Header.Value :=
+  .mk Html.contentSecurityPolicy (by decide)
+
+private theorem mem_of_getLast?_some : ∀ {l : List Char} {c : Char}, l.getLast? = some c → c ∈ l
+  | [], _, h => by cases h
+  | [x], c, h => by
+    simp only [List.getLast?_singleton, Option.some.injEq] at h
+    subst h
+    exact List.mem_cons_self ..
+  | _ :: y :: rest, c, h =>
+    List.mem_cons_of_mem _ (mem_of_getLast?_some (l := y :: rest) (by simpa using h))
+
+private theorem visibleAscii_validHeaderValue (s : String)
+    (hVis : ∀ c ∈ s.toList, '!' ≤ c ∧ c ≤ '~') :
+    Header.IsValidHeaderValue s := by
+  have hVchar : ∀ c ∈ s.toList, Std.Http.Internal.Char.fieldVchar c = true := by
+    intro c hc
+    obtain ⟨hLo, hHi⟩ := hVis c hc
+    simp [Std.Http.Internal.Char.fieldVchar, Std.Http.Internal.Char.vchar, hLo, hHi]
+  refine ⟨?_, ?_, ?_⟩
+  · rw [List.all_eq_true]
+    intro c hc
+    simp [Std.Http.Internal.Char.fieldContent, hVchar c hc]
+  · cases hList : s.toList with
+    | nil => rfl
+    | cons c cs =>
+      simp only [List.head?_cons, Option.map_some, Option.getD_some]
+      exact hVchar c (hList ▸ List.mem_cons_self ..)
+  · cases hLast : s.toList.getLast? with
+    | none => rfl
+    | some c =>
+      simp only [Option.map_some, Option.getD_some]
+      exact hVchar c (mem_of_getLast?_some hLast)
+
+private def locationHeaderValue (query : ViewQuery) : Header.Value :=
+  .mk query.href (visibleAscii_validHeaderValue query.href (ViewQuery.href_visibleAscii query))
+
+private def htmlResponse (status : Status) (doc : Html.Document) :
+    Async (Response Body.Any) := do
+  let body ← Body.Full.ofByteArray doc.render.toUTF8
+  return (Response.new.status status
+    |>.header (.mk "content-type") (.mk "text/html; charset=utf-8")
+    |>.header (.mk "content-security-policy") cspHeaderValue
+    |>.header (.mk "x-content-type-options") (.mk "nosniff")
+    |>.header (.mk "referrer-policy") (.mk "no-referrer")
+    |>.header (.mk "cache-control") (.mk "no-store")).body (Body.Any.ofBody body)
+
+private def redirectResponse (query : ViewQuery) : Async (Response Body.Any) := do
+  let body ← Body.Full.ofByteArray ByteArray.empty
+  return (Response.new.status .seeOther
+    |>.header (.mk "location") (locationHeaderValue query)
+    |>.header (.mk "x-content-type-options") (.mk "nosniff")
+    |>.header (.mk "referrer-policy") (.mk "no-referrer")
     |>.header (.mk "cache-control") (.mk "no-store")).body (Body.Any.ofBody body)
 
 private def refused : Async (Response Body.Any) :=
@@ -101,6 +159,12 @@ private def awaitControl (task : Task (Option ControlResult)) : ContextAsync Con
       pure (.unconfirmed "timed out waiting for stop confirmation")
   ]
 
+private def HttpViewer.renderPage (viewer : HttpViewer) (status : Status)
+    (query : ViewQuery) (notice : Option ControlNotice) : ContextAsync (Response Body.Any) := do
+  let snapshot ← viewer.broadcast.snapshot
+  let nowMonoMs ← IO.monoMsNow
+  htmlResponse status (renderViewerPage snapshot query viewer.token notice nowMonoMs)
+
 private def HttpViewer.control (viewer : HttpViewer) (request : Request Body.Stream) :
     ContextAsync (Response Body.Any) := do
   let headers := controlHeaders request.line
@@ -115,39 +179,116 @@ private def HttpViewer.control (viewer : HttpViewer) (request : Request Body.Str
   | .immediate result => return ← controlResponse result
   | .pending task => return ← controlResponse (← awaitControl task)
 
-private def sendLine (stream : Body.Stream) (text : String) : Async Unit :=
-  stream.send (.ofByteArray ("data: " ++ text ++ "\n\n").toUTF8)
+private def HttpViewer.controlForm (viewer : HttpViewer) (request : Request Body.Stream) :
+    ContextAsync (Response Body.Any) := do
+  let headers := formControlHeaders request.line
+  if headers.method != "POST" || headers.mediaType != "application/x-www-form-urlencoded" ||
+      headers.length.isNone || headers.length.getD 0 > controlBodyCapacity then
+    return ← viewer.renderPage .forbidden {} (some .forbidden)
+  let bytes : ByteArray ← request.body.readAll (some controlBodyCapacity.toUInt64)
+  let some body := controlBody bytes | return ← viewer.renderPage .forbidden {} (some .forbidden)
+  let .ok authorized := authorizeFormCommand headers viewer.token body
+    | return ← viewer.renderPage .forbidden {} (some .forbidden)
+  let payload := authorized.payload
+  let query := { ViewQuery.ofPairs payload.pairs with watch := true }
+  let outcome ← match ← viewer.submit payload.command with
+    | .immediate result => pure result
+    | .pending task => awaitControl task
+  match outcome with
+  | .accepted =>
+    let redirectQuery :=
+      if payload.command == .clear then
+        { query with mode := .live, frame := none, run := none, epoch := none }
+      else query
+    redirectResponse redirectQuery
+  | .clearUnavailable => viewer.renderPage .forbidden { query with watch := false } (some .forbidden)
+  | .unavailable | .busy =>
+    viewer.renderPage .serviceUnavailable { query with watch := false }
+      (some (.refused payload.command "supervisor unavailable or busy"))
+  | .refused reason =>
+    viewer.renderPage .serviceUnavailable { query with watch := false }
+      (some (.refused payload.command (stopDiagnostic reason)))
+  | .unconfirmed reason =>
+    viewer.renderPage .serviceUnavailable { query with watch := false }
+      (some (.unconfirmed (stopDiagnostic reason)))
 
-private def liveFrames (subscription : Subscription) (stream : Body.Stream) : Async Unit :=
+private def bmpMultipartChunk (bytes : ByteArray) : ByteArray :=
+  ("--acornframe\r\nContent-Type: image/bmp\r\nContent-Length: " ++
+    toString bytes.size ++ "\r\n\r\n").toUTF8 ++ bytes ++ "\r\n".toUTF8
+
+def paceRemainingMs (lastSent : Option Nat) (nowMs : Nat) (paceMs : Nat) : Nat :=
+  match lastSent with
+  | none => 0
+  | some prev => paceMs - (nowMs - prev)
+
+theorem paceRemainingMs_initial (nowMs paceMs : Nat) :
+    paceRemainingMs none nowMs paceMs = 0 := rfl
+
+theorem paceRemainingMs_bounded (lastSent : Option Nat) (nowMs paceMs : Nat) :
+    paceRemainingMs lastSent nowMs paceMs ≤ paceMs := by
+  cases lastSent with
+  | none => exact Nat.zero_le _
+  | some prev => exact Nat.sub_le _ _
+
+theorem paceRemainingMs_spacing (prev nowMs paceMs : Nat)
+    (hPos : 0 < paceMs) (hZero : paceRemainingMs (some prev) nowMs paceMs = 0) :
+    prev + paceMs ≤ nowMs := by
+  simp only [paceRemainingMs] at hZero
+  omega
+
+private def waitForPace (lastSent : IO.Ref (Option Nat)) (cancel : Std.CancellationToken)
+    (paceMs : Nat) : Async Bool :=
+  EAsync.forIn false fun _ _ => do
+    if ← cancel.isCancelled then return .done false
+    let waitMs := paceRemainingMs (← lastSent.get) (← IO.monoMsNow) paceMs
+    if waitMs == 0 then return .done true
+    let delay : Std.Time.Millisecond.Offset :=
+      Std.Time.Millisecond.Offset.ofInt (Int.ofNat waitMs)
+    let proceed ← Selectable.one #[
+      .case cancel.selector (fun _ => pure false),
+      .case (← Selector.sleep delay) (fun _ => pure true)]
+    if proceed then return .yield false else return .done false
+
+private def liveStageFrames (subscription : Subscription) (cancel : Std.CancellationToken)
+    (stream : Body.Stream) : Async Unit := do
+  let lastSent ← IO.mkRef (none : Option Nat)
+  let sendCurrent : Async Bool := do
+    if !(← waitForPace lastSent cancel BrowserConstant.readPace.value) then
+      return false
+    let some snapshot ← subscription.snapshot | return false
+    let nowMonoMs ← IO.monoMsNow
+    let bmp := StageBmp.render (StageBmp.fromSnapshot snapshot nowMonoMs)
+    stream.send (.ofByteArray (bmpMultipartChunk bmp))
+    lastSent.set (some (← IO.monoMsNow))
+    return true
+  unless ← sendCurrent do return ()
   EAsync.forIn () fun _ _ => do
+    if ← cancel.isCancelled then return .done ()
     match ← subscription.poll with
     | .closed => return .done ()
-    | .item text =>
-      sendLine stream text.val
-      return .yield ()
+    | .updated =>
+      if ← sendCurrent then return .yield () else return .done ()
     | .wait task =>
       let result ← Selectable.one #[
+        .case cancel.selector (fun _ => pure (some none)),
         .case (promiseSelector task) (fun wake => pure (some wake)),
-        .case (← Selector.sleep 5000) (fun _ => pure none)]
+        .case (← Selector.sleep 2500) (fun _ => pure none)]
       match result with
       | some none => return .done ()
-      | some (some ()) => return .yield ()
+      | some (some ()) =>
+        if ← sendCurrent then return .yield () else return .done ()
       | none =>
-        stream.send (.ofByteArray ": keepalive\n\n".toUTF8)
-        return .yield ()
+        if ← sendCurrent then return .yield () else return .done ()
 
-private def HttpViewer.events (viewer : HttpViewer) : ContextAsync (Response Body.Any) := do
+private def HttpViewer.stageStream (viewer : HttpViewer) : ContextAsync (Response Body.Any) := do
   let context ← ContextAsync.getContext
-  let some (subscription, snapshot) ← viewer.broadcast.subscribe |
+  let some subscription ← viewer.broadcast.subscribe |
     return ← response .serviceUnavailable (.mk "text/plain") "subscriber capacity reached\n".toUTF8
+  let cancel ← Std.CancellationToken.new
   let finished ← Std.CancellationToken.new
-  let initial ← viewer.initial snapshot
   let stream ← Body.stream fun stream => do
     try
-      if let some control := initial.control then sendLine stream control.val
-      if let some map := initial.map then sendLine stream map.val
-      for frame in snapshot.frames.values do sendLine stream frame.val
-      liveFrames subscription stream
+      liveStageFrames subscription cancel stream
     finally
       subscription.close
       finished.cancel
@@ -156,25 +297,38 @@ private def HttpViewer.events (viewer : HttpViewer) : ContextAsync (Response Bod
       .case context.doneSelector (fun _ => pure true),
       .case finished.selector (fun _ => pure false)]
     if cancelled then
+      cancel.cancel
       subscription.close
       stream.close
   let erased := Body.Any.ofBody stream
-  let body := { erased with close := do subscription.close; stream.close; finished.cancel }
+  let body := { erased with close := do cancel.cancel; subscription.close; stream.close; finished.cancel }
   return (Response.new
-    |>.header (.mk "content-type") (.mk "text/event-stream")
-    |>.header (.mk "cache-control") (.mk "no-cache")
-    |>.header (.mk "access-control-allow-origin") (.mk "*")
+    |>.header (.mk "content-type") (.mk "multipart/x-mixed-replace; boundary=acornframe")
+    |>.header (.mk "x-content-type-options") (.mk "nosniff")
+    |>.header (.mk "cache-control") (.mk "no-store")
     |>.header (.mk "x-accel-buffering") (.mk "no")).body body
+
+private def extractRawQuery (uriText : String) : String :=
+  match uriText.splitOn "?" with
+  | _ :: rest :: _ => (rest.splitOn "#").headD ""
+  | _ => ""
 
 private def HttpViewer.request (viewer : HttpViewer) (request : Request Body.Stream) :
     ContextAsync (Response Body.Any) := do
   let path := toString request.line.uri.path
   match path with
   | "/control" => viewer.control request
-  | "/events" => viewer.events
+  | "/control/form" => viewer.controlForm request
+  | "/style.css" =>
+    response .ok (.mk "text/css; charset=utf-8") viewer.assets.stylesheet.toUTF8
+  | "/stage.bmp" =>
+    let snapshot ← viewer.broadcast.snapshot
+    let nowMonoMs ← IO.monoMsNow
+    response .ok (.mk "image/bmp") (StageBmp.render (StageBmp.fromSnapshot snapshot nowMonoMs))
+  | "/stream/stage.bmp" => viewer.stageStream
   | "/" | "/index.html" =>
-    response .ok (.mk "text/html; charset=utf-8")
-      (viewer.assets.index.replace "__OAK_CONTROL_TOKEN__" viewer.token).toUTF8
+    let query := ViewQuery.parseRaw (extractRawQuery (toString request.line.uri))
+    viewer.renderPage .ok query none
   | "/favicon.ico" => response .noContent (.mk "image/x-icon") ByteArray.empty
   | _ => response .notFound (.mk "text/plain; charset=utf-8") "not found\n".toUTF8
 
@@ -191,8 +345,166 @@ def viewerHttpConfig : Http.Config where
   generateDate := false
   serverName := none
 
+private inductive SendWaitOutcome where
+  | finished (result : Option (Except IO.Error Unit))
+  | cancelled
+
+private structure CancellableTransport where
+  client : TCP.Socket.Client
+  context : Std.CancellationContext
+  closed : IO.Ref Bool
+  pendingWrite : IO.Ref (Option (Task (Option (Except IO.Error Unit))))
+
+private def CancellableTransport.abort (t : CancellableTransport) : IO Unit := do
+  t.closed.set true
+  try t.client.native.cancelRecv catch _ => pure ()
+
+private def CancellableTransport.sendAll (t : CancellableTransport) (data : Array ByteArray) :
+    Async Unit := do
+  if (← t.closed.get) || (← t.context.isCancelled) || (← t.pendingWrite.get).isSome then
+    t.abort
+    throw (IO.userError "connection closed")
+  let sendPromise ← t.client.native.send data
+  let sendTask := sendPromise.result?
+  t.pendingWrite.set (some sendTask)
+  let outcome ←
+    if ← IO.hasFinished sendTask then
+      let res ← (show BaseIO (Option (Except IO.Error Unit)) from IO.wait sendTask)
+      pure (SendWaitOutcome.finished res)
+    else
+      Selectable.one #[
+        .case t.context.doneSelector (fun _ => pure .cancelled),
+        .case (promiseSelector sendTask) (fun res => pure (SendWaitOutcome.finished res))
+      ]
+  match outcome with
+  | .finished (some (.ok ())) =>
+    t.pendingWrite.set none
+    pure ()
+  | .finished (some (.error err)) =>
+    t.pendingWrite.set none
+    t.abort
+    throw err
+  | .finished none =>
+    t.pendingWrite.set none
+    t.abort
+    throw (IO.userError "connection write interrupted")
+  | .cancelled =>
+    t.abort
+    throw (IO.userError "connection write cancelled")
+
+private instance : Http.Transport CancellableTransport where
+  recv t expect := do
+    if (← t.closed.get) || (← t.context.isCancelled) then
+      return none
+    t.client.recv? expect
+  sendAll := CancellableTransport.sendAll
+  recvSelector t expect := t.client.recvSelector expect
+  close := CancellableTransport.abort
+
+private def releasePermitWhenIdle (server : Http.Server) (releasePermit : Bool)
+    (pendingWrite : Option (Task (Option (Except IO.Error Unit)))) : BaseIO Unit := do
+  if releasePermit then
+    if let some limit := server.connectionLimit then
+      match pendingWrite with
+      | none => limit.release
+      | some writeTask =>
+        discard <| BaseIO.chainTask writeTask fun _ => limit.release
+
+private def finishTracked (server : Http.Server) (releasePermit : Bool)
+    (pendingWrite : Option (Task (Option (Except IO.Error Unit))) := none) : ContextAsync Unit := do
+  releasePermitWhenIdle server releasePermit pendingWrite
+  server.activeConnections.atomically do
+    modify (· - 1)
+    if (← get) = 0 ∧ (← server.context.isCancelled) then
+      discard <| server.shutdownPromise.send ()
+
+private def acquirePermit (server : Http.Server) : ContextAsync (Option Bool) := do
+  if ← server.context.isCancelled then
+    return none
+  if let some limit := server.connectionLimit then
+    let permit ← limit.acquire
+    let acquired ← Selectable.one #[
+      .case (← ContextAsync.doneSelector) (fun _ => pure false),
+      .case (promiseSelector permit.result?) (fun res => pure res.isSome)
+    ]
+    if acquired then
+      return some true
+    else
+      discard <| BaseIO.chainTask permit.result? fun
+        | some () => limit.release
+        | none => pure ()
+      return none
+  else
+    return some false
+
+private def serveCancellable {σ : Type} [Http.Server.Handler σ]
+    (addr : Net.SocketAddress) (handler : σ) (config : Http.Config)
+    (backlog : UInt32 := 1024) : Async Http.Server := do
+  let listener ← TCP.Socket.Server.mk
+  listener.bind addr
+  listener.listen backlog
+  listener.noDelay
+  let localAddr ← listener.getSockName
+  let httpServer ← Http.Server.new config (some localAddr)
+  httpServer.activeConnections.atomically (modify (· + 1))
+  let runServer : ContextAsync Unit := do
+    try
+      ContextAsync.forIn () fun _ _ => do
+        if ← httpServer.context.isCancelled then
+          return .done ()
+        let some releasePermit ← acquirePermit httpServer | return .done ()
+        let accepted : Except IO.Error (Option TCP.Socket.Client) ←
+          try
+            pure (.ok (← Selectable.one #[
+              .case (← ContextAsync.doneSelector) (fun _ => pure none),
+              .case listener.acceptSelector (fun client => pure (some client))
+            ]))
+          catch e =>
+            pure (.error e)
+        match accepted with
+        | .error _ =>
+          if releasePermit then
+            if let some limit := httpServer.connectionLimit then
+              limit.release
+          if ← httpServer.context.isCancelled then
+            return .done ()
+          let stillRunning ← Selectable.one #[
+            .case (← ContextAsync.doneSelector) (fun _ => pure false),
+            .case (← Selector.sleep 10) (fun _ => pure true)
+          ]
+          if stillRunning then return .yield () else return .done ()
+        | .ok none =>
+          if releasePermit then
+            if let some limit := httpServer.connectionLimit then
+              limit.release
+          return .done ()
+        | .ok (some client) =>
+          let extensions ← do
+            match (← EIO.toBaseIO client.getPeerName) with
+            | .ok peerAddr => pure (Extensions.empty.insert (Http.Server.RemoteAddr.mk peerAddr))
+            | .error _ => pure Extensions.empty
+          let closed ← IO.mkRef false
+          let pendingWrite ← IO.mkRef (none : Option (Task (Option (Except IO.Error Unit))))
+          let transport : CancellableTransport := {
+            client := client
+            context := httpServer.context
+            closed := closed
+            pendingWrite := pendingWrite
+          }
+          httpServer.activeConnections.atomically (modify (· + 1))
+          ContextAsync.background do
+            try
+              Http.Server.serveConnection transport handler config extensions
+            finally
+              finishTracked httpServer releasePermit (← pendingWrite.get)
+          return .yield ()
+    finally
+      finishTracked httpServer false
+  Async.background (runServer httpServer.context)
+  return httpServer
+
 def HttpViewer.serve (viewer : HttpViewer) (port : UInt16) : Async Http.Server :=
-  Http.Server.serve (.v4 ⟨Net.IPv4Addr.ofParts 127 0 0 1, port⟩)
+  serveCancellable (.v4 ⟨Net.IPv4Addr.ofParts 127 0 0 1, port⟩)
     (Http.Server.Handler.ofFns viewer.request (fun _ => pure ()) (fun _ => pure false))
     viewerHttpConfig
 

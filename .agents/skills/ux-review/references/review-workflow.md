@@ -25,7 +25,7 @@ affected state and run the viewer/structural gates required by `AGENTS.md`.
 No finding IDs, confidence scores, charter, coverage attestation or full report
 are required. A useful screenshot and a short explanation are enough.
 
-Preserve observer-only lifecycle control and the spec's timer inventory. Do not
+Preserve observer-only lifecycle control and zero client JavaScript (INV-2). Do not
 hide data to fit a layout, imply unsupported learning/performance claims, invent
 citations or add a scenario/visual-regression test harness. Larger product choices
 belong to the owner; style preferences are not blocking defects.

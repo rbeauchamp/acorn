@@ -24,17 +24,6 @@ def Predicate.eval (values : Fin n → Nat) : Predicate n → Bool
   | .both a b => a.eval values && b.eval values
   | .either a b => a.eval values || b.eval values
 
-def Term.javascript (values : Fin n → String) : Term n → String
-  | .constant value => toString value
-  | .input index => values index
-  | .successor value => "(" ++ value.javascript values ++ "+1)"
-
-def Predicate.javascript (values : Fin n → String) : Predicate n → String
-  | .equal a b => "(" ++ a.javascript values ++ "===" ++ b.javascript values ++ ")"
-  | .less a b => "(" ++ a.javascript values ++ "<" ++ b.javascript values ++ ")"
-  | .both a b => "(" ++ a.javascript values ++ "&&" ++ b.javascript values ++ ")"
-  | .either a b => "(" ++ a.javascript values ++ "||" ++ b.javascript values ++ ")"
-
 def after : Predicate 6 :=
   .either (.less (.input 3) (.input 0))
     (.both (.equal (.input 0) (.input 3))
@@ -98,15 +87,5 @@ theorem snapshotFollows_goal (values : Fin 14 → Nat)
     (running : values 9 = 0) (cycle : values 3 = values 10)
     (resolved : values 11 < values 4) : snapshotFollows.eval values = true := by
   simp [snapshotFollows, Predicate.eval, Term.eval, process, clock, running, cycle, resolved]
-
-def javascript : String :=
-  let environment := fun (i : Fin 6) => s!"p[{i.val}]"
-  "const observerSnapshotFollows=(...p)=>" ++ snapshotFollows.javascript
-    (fun (i : Fin 14) => s!"p[{i.val}]") ++ ";\n" ++
-    "const observerAfter=(...p)=>" ++ after.javascript environment ++ ";\n" ++
-    "const observerAgreementFollows=(...p)=>" ++ agreementFollows.javascript environment ++ ";\n" ++
-    "const observerFollows=(...p)=>" ++ follows.javascript environment ++ ";\n" ++
-    "const observerWorldSuccessor=(...p)=>" ++ worldSuccessor.javascript
-      (fun (i : Fin 2) => s!"p[{i.val}]") ++ ";\n"
 
 end Acorn.Host.Viewer.ClockProgram

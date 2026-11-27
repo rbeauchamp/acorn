@@ -177,10 +177,8 @@ lean_lib «NativeApp» where
 
 def provenanceJob (pkg : Package) : FetchM (Job System.FilePath) := do
   ensureTrackedRegularIn pkg.dir "lean/" "Acorn/Host/AuditPins.lean"
-  ensureTrackedRegularIn (pkg.dir / "..") "" "viewer/static/index.html"
   let sources ← nativeSources pkg.dir
   let pinOwner := pkg.dir / "Acorn/Host/AuditPins.lean"
-  let sources := sources ++ #[pkg.dir / "../viewer/static/index.html"]
   let root ← IO.FS.realPath (pkg.dir / "..")
   let sources ← (sources.mapM IO.FS.realPath : IO (Array System.FilePath))
   let sources := sources.qsort (fun left right => left.toString < right.toString)
@@ -263,10 +261,6 @@ lean_exe «acorn-viewer» where
   moreLeancArgs := nativeFloatFlags
   extraDepTargets := #[`checkpointSync, `nativeProvenance]
   needs := #[«acorn-core»]
-
-lean_exe «browser-kernel» where
-  root := run_io (trackedExeRoot trackedPackageEntries `Entry.BrowserKernel)
-  moreLeancArgs := nativeFloatFlags
 
 lean_exe «checkpoint-native» where
   root := run_io (trackedExeRoot trackedPackageEntries `Entry.CheckpointNative)

@@ -247,27 +247,6 @@ theorem browserSchema_execution {config : Features.Config} {dimension : Dimensio
     (terminal : Bool) : telemetrySchema (coreTelemetry context frame terminal) = browserSchema := by
   rfl
 
-def TelemetryShape.browserPredicate : TelemetryShape → String → String
-  | .natural, x => s!"(Number.isSafeInteger({x})&&{x}>=0)"
-  | .goalKind, x =>
-    "[" ++ String.intercalate "," (goalKindCodes.map toString) ++ s!"].includes({x})"
-  | .goalItem, x =>
-    "[" ++ String.intercalate "," (goalItemCodes.map toString) ++ s!"].includes({x})"
-  | .integer, x => s!"Number.isSafeInteger({x})"
-  | .binary32, x =>
-    s!"({x}===null||(typeof {x}==='number'&&Number.isFinite({x})&&Number.isFinite(Math.fround({x}))))"
-  | .binary64, x =>
-    s!"({x}===null||(typeof {x}==='number'&&Number.isFinite({x})))"
-  | .flag, x => s!"(typeof {x}==='boolean')"
-  | .text, x => s!"(typeof {x}==='string')"
-  | .optional element, x => "(" ++ x ++ "===null||" ++ element.browserPredicate x ++ ")"
-  | .array count element, x =>
-    s!"(Array.isArray({x})&&{x}.length==={count}&&{x}.every(v=>" ++
-      element.browserPredicate "v" ++ "))"
-
-  | .sequence element, x =>
-    s!"(Array.isArray({x})&&{x}.every(v=>" ++ element.browserPredicate "v" ++ "))"
-
 inductive BrowserRule where
   | shape (value : TelemetryShape)
   | exact (value : Nat)
@@ -283,26 +262,6 @@ inductive BrowserRule where
   | either (left right : BrowserRule)
   | positive
   | decimal (maximum : Nat)
-
-def BrowserRule.javascript : BrowserRule → String → String
-  | .shape schemaValue, x => schemaValue.browserPredicate x
-  | .exact value, x => s!"({x}==={value})"
-  | .tags values, x =>
-    "[" ++ String.intercalate "," (values.map telemetryString) ++ s!"].includes({x})"
-  | .hex width, x => s!"(typeof {x}==='string'&&{x}.length==={width}&&/^[0-9a-f]+$/.test({x}))"
-  | .belowField field, x => s!"({x}===null||{x}<f[" ++ telemetryString field ++ "])"
-  | .atMost field, x => s!"({x}===null||{x}<=f[" ++ telemetryString field ++ "])"
-  | .lengthField field, x => s!"({x}.length===f[" ++ telemetryString field ++ "])"
-  | .each rule, x => s!"{x}.every(v=>" ++ rule.javascript "v" ++ ")"
-  | .range upper, x => s!"({x}>=0&&{x}<{upper})"
-  | .nullable rule, x => s!"({x}===null||" ++ rule.javascript x ++ ")"
-  | .list maximum rule, x => s!"(Array.isArray({x})&&{x}.length<={maximum}&&{x}.every(v=>" ++
-      rule.javascript "v" ++ "))"
-  | .either left right, x => "(" ++ left.javascript x ++ "||" ++ right.javascript x ++ ")"
-  | .positive, x => s!"({x}>0)"
-  | .decimal maximum, x =>
-    s!"(typeof {x}==='string'&&{x}.length<={toString maximum |>.length}&&" ++
-      s!"/^(0|[1-9][0-9]*)$/.test({x})&&BigInt({x})<=BigInt('{maximum}'))"
 
 def browserRules : List (String × BrowserRule) :=
   [("curriculum_names", .lengthField "goal_count"),
@@ -363,26 +322,6 @@ theorem browserRules_goal_separation :
     ∀ entry ∈ browserRules, entry.1 ≠ "gkind" ∧ entry.1 ≠ "gitem" := by
   decide
 
-def browserGoalLabelsJavascript : String :=
-  "function observerGoalItemLabel(code,count=1){const labels=({" ++
-    String.intercalate "," (goalItems.map fun item =>
-      toString item.code ++ ":[" ++ telemetryString item.labels.1 ++ "," ++
-        telemetryString item.labels.2 ++ "]") ++
-    "})[code];return labels?.[count===1?0:1]??'—';}\n"
-
-private def goalTextExpression : GoalKind → String
-  | none => "'—'"
-  | some .reach => "'Go to the gold target ('+gx+', '+gy+')'"
-  | some .collect => "'Hold at least '+gn+' '+observerGoalItemLabel(gitem,gn).toLowerCase()"
-  | some .craft => "'Own '+observerGoalItemLabel(gitem)"
-  | some .survive => "'Continue for '+gn+' world steps in this attempt'"
-
-def browserGoalTextJavascript : String :=
-  "function observerGoalText(gkind,gitem,gx,gy,gn){switch(gkind){" ++
-    String.join (goalKinds.map fun kind =>
-      "case " ++ toString kind.code ++ ":return " ++ goalTextExpression kind ++ ";") ++
-    "default:return '—';}}\n"
-
 inductive BrowserRefusal where
   | schema
   | cardinality
@@ -399,38 +338,6 @@ def BrowserRefusal.all : List BrowserRefusal :=
 theorem BrowserRefusal.all_complete (refusal : BrowserRefusal) :
     refusal ∈ BrowserRefusal.all := by
   cases refusal <;> simp [BrowserRefusal.all]
-
-def browserRefusalJavascript : String :=
-  "const Reject=Object.freeze({" ++
-    String.intercalate "," (BrowserRefusal.all.map fun refusal =>
-      refusal.tag ++ ":" ++ telemetryString refusal.tag) ++ "});\n"
-
-private def refuse (why : BrowserRefusal) (key : String) : String :=
-  "return {why:" ++ telemetryString why.tag ++ ",key:" ++ telemetryString key ++ "};\n"
-
-def browserAdmissionJavascript : String :=
-  "function observerAdmission(f){\nif(!f||typeof f!=='object'||Array.isArray(f))" ++
-    refuse .malformed "frame" ++
-  String.join (browserSchema.map fun (key, shape) =>
-    let access := "f[" ++ telemetryString key ++ "]"
-    let cardinality := match shape with
-      | .array count _ => s!"if(Array.isArray({access})&&{access}.length!=={count})" ++
-          refuse .cardinality key
-      | _ => ""
-    "if(!Object.hasOwn(f," ++ telemetryString key ++ "))" ++ refuse .missingField key ++
-      cardinality ++ "if(!" ++ shape.browserPredicate access ++ ")" ++ refuse .malformed key) ++
-  String.join (browserRules.map fun (key, rule) =>
-    let why : BrowserRefusal := match rule with
-      | .exact _ => if key == "schema_version" then .schema else .cardinality
-      | _ => .malformed
-    "if(!" ++ rule.javascript ("f[" ++ telemetryString key ++ "]") ++ ")" ++ refuse why key) ++
-  "return null;\n}\n"
-
-private def rulesFunction (name : String) (rules : List (String × BrowserRule)) : String :=
-  "function " ++ name ++ "(f){return !!f&&typeof f==='object'&&!Array.isArray(f)&&" ++
-    String.intercalate "&&" (rules.map fun (key, rule) =>
-      "Object.hasOwn(f," ++ telemetryString key ++ ")&&" ++
-        rule.javascript ("f[" ++ telemetryString key ++ "]")) ++ ";}\n"
 
 def browserEnvelopeRules : List (String × BrowserRule) :=
   [("run_id", .hex 16), ("agent_epoch", .shape .natural),
@@ -451,10 +358,5 @@ def browserControlRules : List (String × BrowserRule) :=
 def browserMapRules : List (String × BrowserRule) :=
   [("runId", .hex 16), ("side", .shape .natural), ("side", .positive), ("side", .range 4097),
    ("seed", .shape .natural), ("kinds", .shape .text), ("partial", .shape .flag)]
-
-def browserRulesJavascript : String :=
-  rulesFunction "observerEnvelope" browserEnvelopeRules ++
-    rulesFunction "observerControl" browserControlRules ++
-    rulesFunction "observerMap" browserMapRules
 
 end Acorn.Host.Viewer
