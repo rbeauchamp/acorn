@@ -1,8 +1,10 @@
 #!/bin/bash
-# The merge gate: provision the pinned dependencies, then run every merge check, in a
-# Git checkout that may hold nothing but tracked files. no-mistakes runs it as the
-# Test step's command (.no-mistakes.yaml); `./scripts/gate.sh provision` stops after
-# provisioning, as the build that no-mistakes stores for later runs does.
+# The merge gate: provision the pinned dependencies, then run every merge check against
+# the Git checkout's clean HEAD tracked stage-0 regular files (ignoring unrelated
+# untracked working-copy entries subject to the fail-closed refusals and local-checkout
+# hypotheses documented in docs/verification.md). no-mistakes runs it as the Test step's
+# command (.no-mistakes.yaml); `./scripts/gate.sh provision` stops after provisioning,
+# as the build that no-mistakes stores for later runs does.
 set -euo pipefail
 
 usage='usage: ./scripts/gate.sh [provision]'

@@ -752,10 +752,19 @@ The merge gate is `./scripts/gate.sh`. The no-mistakes pipeline runs it
 (`.no-mistakes.yaml`) before a pull request opens, on the exact commit it
 validates, and every gate check enumerates only Git-tracked stage-0 regular
 files so untracked working-copy entries do not enter checks or change the
-verdict, apart from the deliberate refusals of ambient `package-overrides.json`
-in an active workspace, non-regular or symlinked entries in checked `.lake`
-destinations, and an untracked `lakefile.toml` inside `lean/` during
-`scripts/regula.sh`. GitHub runs the same
+verdict, apart from the deliberate fail-closed refusals of ambient
+`package-overrides.json` in an active workspace, non-regular or symlinked
+entries in checked `.lake` destinations, an untracked `lakefile.toml` inside
+`lean/` during `scripts/regula.sh`, and an untracked nested `.git` directory
+inside `lean/` or `site/` (which redirects subtree index lookup so verdict
+routes fail closed). In a reused local checkout (unlike fresh hosted CI
+checkouts), that untracked-file boundary also rests on two residual
+local-checkout hypotheses: no direct out-of-wrapper Lake reconfiguration was
+run across a stage/unstage transition (since `scripts/tracked-files.sh` clears
+Acorn's cached `lakefile.olean` only when its tracked-module stamp changes,
+leaving any out-of-wrapper cached module list until `.lake/config` is cleared),
+and no untracked `.gitattributes` or local Git conversion filter alters
+working-tree comparison bytes under the `git diff HEAD` clean check. GitHub runs the same
 script at each event that gives a pull request its head, within the limits
 described after the frame check below. The gate provisions the pinned dependencies,
 then runs the command twice, from cold project outputs, each run under its own
@@ -1558,9 +1567,17 @@ from Git-tracked regular `.lean` files below `lean/`, and admits every declared
 executable's root module against that same tracked regular-file inventory
 during configuration elaboration and target discovery. A new tracked source
 below Acorn, AcornVerif or NativeApp is therefore a module of that library, the
-claim covers it, and Acorn's boundary predicates class it by its name;
-untracked files on disk are neither assigned to libraries nor buildable as
-library modules or executable roots. The tools keep no written
+claim covers it, and Acorn's boundary predicates class it by its name; under
+the local-checkout conditions stated in
+[build and source inventory](#build-and-source-inventory) (no direct
+out-of-wrapper Lake reconfiguration across a stage/unstage transition leaving a
+stale cached `lakefile.olean` in `.lake/config`, no untracked `.gitattributes`
+or local Git conversion filter altering `git diff HEAD` working-tree bytes, and
+with ambient `package-overrides.json`, non-regular or symlinked `.lake`
+destinations, an untracked `lakefile.toml` inside `lean/` during
+`scripts/regula.sh`, and an untracked nested `.git` directory inside `lean/` or
+`site/` refused fail-closed), untracked files on disk are neither assigned to
+libraries nor buildable as library modules or executable roots. The tools keep no written
 list of those application modules. A new tracked source below
 `lean/AcornTools` is a module of a tool library outside the claim: ownership
 admission enumerates tracked regular `.lean` files from Git and requires each
