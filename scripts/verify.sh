@@ -57,6 +57,7 @@ export -f admit_tracked_helper
 # shellcheck disable=SC2329
 acorn_verify_checks() {
   local admit_clean=1
+  local sc_pin='scripts/shellcheck.pin'
   local -a admit_args
   if [[ $("$2" --version) != *"GNU coreutils"* ]]; then
     echo "verification requires GNU coreutils timeout" >&2
@@ -76,11 +77,11 @@ acorn_verify_checks() {
     admit_args+=(--clean)
   fi
   ./scripts/tracked-files.sh "${admit_args[@]}" . \
-    scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
+    scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh scripts/shellcheck.sh "$sc_pin"
   git diff --check
   git diff --cached --check
-  SHELLCHECK_OPTS='' shellcheck --norc \
-    scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh
+  ./scripts/shellcheck.sh check \
+    scripts/tracked-files.sh scripts/verify.sh scripts/lean.sh scripts/start.sh scripts/gate.sh scripts/regula.sh scripts/shellcheck.sh
   shift 2
   ./scripts/lean.sh exe acorn-gates "$@"
 }

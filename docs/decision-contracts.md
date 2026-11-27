@@ -315,8 +315,9 @@ complete kinds of `Host.World.observe`, `Host.World.observeTile`,
 `Host.scaleAdmitsOctave`, `Host.scaleAdmitsRange`,
 `Host.RawWorldConfig.admissible`, `Host.octaveScale`,
 `Host.RawWorldConfig.admitLo`, or `Host.RawWorldConfig.admitHi`; their
-specifications state the exact numeric quotient condition through
-`Host.QuotientPastLast`, `Host.ScaleAdmitsRange`, and
+specifications state the exact numeric side-bound, day-length divisibility
+(`0 < dayLength`, `8 ∣ dayLength`, `dayLength ∣ 2^64`), and quotient
+conditions through `Host.QuotientPastLast`, `Host.ScaleAdmitsRange`, and
 `Host.RawWorldConfig.Admissible`, built directly from `Host.coordinateFloat`
 (`coordinate_float`), `Binary32.div`, `Binary32.mul`, `Binary32.Finite`,
 `Binary32.Negative`, and `Conversion.magnitudeUnits32`.

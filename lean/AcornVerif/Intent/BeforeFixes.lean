@@ -59,23 +59,18 @@ theorem dayPhaseBefore_unfulfilled {config : WorldConfig} (base : World config)
   have k19 := key 19 (by decide)
   omega
 
-theorem twentyTickDay_admitted :
-    ∃ raw config, WorldConfig.admit raw = .ok config ∧
-      config.raw.dayLength.toNat = 20 := by
-  let raw : RawWorldConfig :=
-    { seed := 0, side := ⟨1, by decide⟩, dayLength := 20, regrow := 0,
-      foodInterval := 0, foodCap := 0, deerCap := 0, baseScale := ⟨0x3f800000⟩ }
-  have hside : 0 < raw.side.val := by decide
-  have hmax : raw.side.val ≤ RawWorldConfig.maxSide := by decide
-  have hd : 0 < raw.dayLength.toNat := by decide
-  have hsc : scaleAdmitsRange raw.admitLo (raw.admitHi hmax) raw.baseScale = true := by
-    have hhi : raw.admitHi hmax = ⟨5, by decide⟩ :=
-      Subtype.ext (by rw [raw.admitHi_val hmax]; decide)
-    rw [hhi]
-    decide
-  refine ⟨raw, ⟨raw, hside, hd⟩, ?_, rfl⟩
-  unfold WorldConfig.admit
-  simp [hside, hmax, hd, hsc]
+theorem twentyTickDay_exists :
+    ∃ config : WorldConfig, config.raw.dayLength.toNat = 20 :=
+  ⟨⟨{ seed := 0, side := ⟨1, by decide⟩, dayLength := 20, regrow := 0,
+      foodInterval := 0, foodCap := 0, deerCap := 0, baseScale := ⟨0x3f800000⟩ },
+    by decide, by decide⟩, rfl⟩
+
+theorem twentyTickDay_refused :
+    ∀ raw config, raw.dayLength.toNat = 20 → WorldConfig.admit raw ≠ .ok config := by
+  intro raw config hL hadmit
+  have h8 := (WorldConfig.admit_isOk_dayLength (by rw [hadmit]; rfl)).2.1
+  rw [hL] at h8
+  exact absurd h8 (by decide)
 
 def hash2Before (x y seed : UInt64) : UInt64 :=
   let first := Acorn.Rng.mix64 ((seed ^^^ Acorn.Rng.increment) ^^^ x)

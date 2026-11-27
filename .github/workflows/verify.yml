@@ -49,16 +49,16 @@ env:
 # No step continues after a failure.
 jobs:
   gate:
-    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's 20-minute ceiling
-    # and the 12-minute provisioning / 13-minute merge-gate step ceilings bound wall-clock time
-    # while leaving headroom for ubuntu-24.04 runner variance so regressions fail promptly; each
-    # verification stage keeps verify.sh's 360-second deadline and scripts/gate.sh bounds
-    # no-comments admission (60s), Regula (360s), lean-intent (180s), frame-check (120s) and
-    # no-comments execution (300s) individually. Regula's contract names Ubuntu 24.04.5 LTS on
+    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's 30-minute ceiling
+    # and the 12-minute provisioning / 18-minute merge-gate step ceilings bound wall-clock time
+    # while leaving headroom for Azure and AWS ubuntu-24.04 runner variance so regressions fail
+    # promptly; each verification stage keeps verify.sh's 360-second deadline and scripts/gate.sh
+    # bounds no-comments admission (60s), Regula (360s), lean-intent (180s), frame-check (120s)
+    # and no-comments execution (300s) individually. Regula's contract names Ubuntu 24.04.5 LTS on
     # x86-64, the release that this runner image held when Regula observed it; an image of another
     # release is outside that contract.
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Identify the commit to verify
         id: commit
@@ -95,7 +95,7 @@ jobs:
         # step with its name.
         run: |
           status=0
-          for package in libc6-dev gcc g++ make dpkg-dev curl git libgmp-dev openssl shellcheck coreutils; do
+          for package in libc6-dev gcc g++ make dpkg-dev curl git libgmp-dev openssl coreutils; do
             if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) == 'install ok installed' ]]; then
               dpkg-query -W -f='${Package} ${Version}\n' "$package"
             else
@@ -206,7 +206,7 @@ jobs:
             fi
             if [[ "$rc" != 0 && "$prov_summary_written" == 0 && -n "${GITHUB_STEP_SUMMARY:-}" && ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
               printf -v summary_body \
-                '## Verify / gate phase timings\n\n| Phase | Duration | Target budget | Hard limit | Status |\n|---|---:|---:|---:|---|\n| Provision pinned dependencies | %dm %02ds (%d s) | <= 8m 00s (480 s) | 12m | %s |\n| Merge gate (scripts/gate.sh) | - | <= 10m 00s (600 s) | 13m | not run (provisioning failed) |\n\n' \
+                '## Verify / gate phase timings\n\n| Phase | Duration | Target budget | Hard limit | Status |\n|---|---:|---:|---:|---|\n| Provision pinned dependencies | %dm %02ds (%d s) | <= 8m 00s (480 s) | 12m | %s |\n| Merge gate (scripts/gate.sh) | - | <= 10m 00s (600 s) | 18m | not run (provisioning failed) |\n\n' \
                 $((elapsed / 60)) $((elapsed % 60)) "$elapsed" "$label"
               if printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY"; then
                 prov_summary_written=1
@@ -306,7 +306,7 @@ jobs:
       # alerts when target budgets are exceeded, exits non-zero when any check failed, and prints
       # its `gate:` lines with each part's status and time.
       - name: The merge gate on the exact source
-        timeout-minutes: 13
+        timeout-minutes: 18
         env:
           ACORN_BASE_REF: refs/remotes/origin/${{ github.base_ref }}
           ACORN_PROVISION_SECONDS: ${{ steps.provision.outputs.seconds }}

@@ -568,9 +568,9 @@ theorem raw_world_config_admissible :
       (Regula.Decides (· = true) Host.RawWorldConfig.Admissible) :=
   ⟨decides
     Host.RawWorldConfig.admissible_spec_iff
-    ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+    ⟨⟨0, ⟨1, by decide⟩, 8, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
       (Host.RawWorldConfig.admissible_spec_iff _).mp (by decide)⟩
-    ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+    ⟨⟨0, ⟨0, by decide⟩, 8, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
       fun h => absurd ((Host.RawWorldConfig.admissible_spec_iff _).mpr h) (by decide)⟩⟩
 
 theorem Host_RawWorldConfig_admissible_registered :
@@ -581,9 +581,9 @@ theorem world_config_admit : Regula.ExecutableContract Host.WorldConfig.admit
   ⟨decides
     (fun raw => (Host.WorldConfig.admit_isOk_iff raw).trans
       (Host.RawWorldConfig.admissible_spec_iff raw))
-    ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+    ⟨⟨0, ⟨1, by decide⟩, 8, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
       (Host.RawWorldConfig.admissible_spec_iff _).mp (by decide)⟩
-    ⟨⟨0, ⟨0, by decide⟩, 1, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
+    ⟨⟨0, ⟨0, by decide⟩, 8, 0, 0, 0, 0, ⟨0x42800000⟩⟩,
       fun h => absurd ((Host.RawWorldConfig.admissible_spec_iff _).mpr h) (by decide)⟩⟩
 
 theorem Host_WorldConfig_admit_registered : Regula.RegisteredDecision @Host.WorldConfig.admit := ⟨⟩

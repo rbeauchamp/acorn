@@ -77,6 +77,7 @@ inductive WorldConfigError where
   | sideTooLarge
   | nonpositiveSide
   | zeroDayLength
+  | invalidDayLength
   | sideExceedsPatch
   | scaleOverflow
   deriving DecidableEq
@@ -231,31 +232,29 @@ def RawWorldConfig.admitHi (raw : RawWorldConfig)
       omega⟩
   else ⟨2 ^ 63 - 1, by decide⟩
 
-def RawWorldConfig.admissible (raw : RawWorldConfig) : Bool :=
-  if 0 < raw.side.val then
-    if hmax : raw.side.val ≤ RawWorldConfig.maxSide then
-      0 < raw.dayLength.toNat &&
-        scaleAdmitsRange raw.admitLo (raw.admitHi hmax) raw.baseScale
-    else false
-  else false
-
-def RawWorldConfig.Admissible (raw : RawWorldConfig) : Prop :=
-  0 < raw.side.val ∧ raw.side.val ≤ 2 ^ 63 - 5 ∧ 0 < raw.dayLength.toNat ∧
-    ∀ lo hi : Coordinate,
-      lo.val = (if raw.deerCap = 0 then -5 else -(2 ^ 63)) →
-      hi.val = (if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1) →
-      ScaleAdmitsRange lo hi raw.baseScale
-
 def WorldConfig.admit (raw : RawWorldConfig) : Except WorldConfigError WorldConfig :=
   if hs : 0 < raw.side.val then
     if hm : raw.side.val ≤ RawWorldConfig.maxSide then
       if hd : 0 < raw.dayLength.toNat then
-        if scaleAdmitsRange raw.admitLo (raw.admitHi hm) raw.baseScale then
-          .ok ⟨raw, hs, hd⟩
-        else .error .scaleOverflow
+        if raw.dayLength.toNat % 8 == 0 && 2 ^ 64 % raw.dayLength.toNat == 0 then
+          if scaleAdmitsRange raw.admitLo (raw.admitHi hm) raw.baseScale then
+            .ok ⟨raw, hs, hd⟩
+          else .error .scaleOverflow
+        else .error .invalidDayLength
       else .error .zeroDayLength
     else .error .sideExceedsPatch
   else .error .nonpositiveSide
+
+def RawWorldConfig.admissible (raw : RawWorldConfig) : Bool :=
+  (WorldConfig.admit raw).isOk
+
+def RawWorldConfig.Admissible (raw : RawWorldConfig) : Prop :=
+  0 < raw.side.val ∧ raw.side.val ≤ 2 ^ 63 - 5 ∧
+    0 < raw.dayLength.toNat ∧ 8 ∣ raw.dayLength.toNat ∧ raw.dayLength.toNat ∣ 2 ^ 64 ∧
+    ∀ lo hi : Coordinate,
+      lo.val = (if raw.deerCap = 0 then -5 else -(2 ^ 63)) →
+      hi.val = (if raw.deerCap = 0 then raw.side.val + 4 else 2 ^ 63 - 1) →
+      ScaleAdmitsRange lo hi raw.baseScale
 
 theorem RawWorldConfig.admitLo_val (raw : RawWorldConfig) :
     raw.admitLo.val = if raw.deerCap = 0 then -5 else -(2 ^ 63) := by
@@ -343,11 +342,35 @@ theorem scaleAdmitsRange_spec_iff (lo hi : Coordinate) (baseScale : Binary32) :
 theorem RawWorldConfig.admissible_iff (raw : RawWorldConfig) :
     raw.admissible = true ↔
       0 < raw.side.val ∧ ∃ (hmax : raw.side.val ≤ RawWorldConfig.maxSide),
-        0 < raw.dayLength.toNat ∧
+        0 < raw.dayLength.toNat ∧ 8 ∣ raw.dayLength.toNat ∧ raw.dayLength.toNat ∣ 2 ^ 64 ∧
           scaleAdmitsRange raw.admitLo (raw.admitHi hmax) raw.baseScale = true := by
-  unfold RawWorldConfig.admissible
-  by_cases hpos : 0 < raw.side.val <;> by_cases hmax : raw.side.val ≤ RawWorldConfig.maxSide <;>
-    simp [hpos, hmax, Bool.and_eq_true, decide_eq_true_eq]
+  unfold RawWorldConfig.admissible WorldConfig.admit
+  by_cases hs : 0 < raw.side.val
+  · by_cases hm : raw.side.val ≤ RawWorldConfig.maxSide
+    · by_cases hd : 0 < raw.dayLength.toNat
+      · by_cases hdiv :
+            (raw.dayLength.toNat % 8 == 0 && 2 ^ 64 % raw.dayLength.toNat == 0) = true
+        · by_cases hsc : scaleAdmitsRange raw.admitLo (raw.admitHi hm) raw.baseScale = true
+          · rw [dite_eq_left hs, dite_eq_left hm, dite_eq_left hd, ite_eq_left hdiv,
+              ite_eq_left hsc]
+            simp only [Bool.and_eq_true, beq_iff_eq] at hdiv
+            exact ⟨fun _ => ⟨hs, hm, hd, Nat.dvd_of_mod_eq_zero hdiv.1,
+                Nat.dvd_of_mod_eq_zero hdiv.2, hsc⟩,
+              fun _ => rfl⟩
+          · rw [dite_eq_left hs, dite_eq_left hm, dite_eq_left hd, ite_eq_left hdiv,
+              ite_eq_right hsc]
+            exact ⟨fun h => Bool.noConfusion h, fun ⟨_, _, _, _, _, hsc'⟩ => False.elim (hsc hsc')⟩
+        · rw [dite_eq_left hs, dite_eq_left hm, dite_eq_left hd, ite_eq_right hdiv]
+          refine ⟨fun h => Bool.noConfusion h,
+            fun ⟨_, _, _, h8, hdvd, _⟩ => False.elim (hdiv ?_)⟩
+          simp only [Bool.and_eq_true, beq_iff_eq]
+          exact ⟨Nat.mod_eq_zero_of_dvd h8, Nat.mod_eq_zero_of_dvd hdvd⟩
+      · rw [dite_eq_left hs, dite_eq_left hm, dite_eq_right hd]
+        exact ⟨fun h => Bool.noConfusion h, fun ⟨_, _, hd', _⟩ => False.elim (hd hd')⟩
+    · rw [dite_eq_left hs, dite_eq_right hm]
+      exact ⟨fun h => Bool.noConfusion h, fun ⟨_, hm', _⟩ => False.elim (hm hm')⟩
+  · rw [dite_eq_right hs]
+    exact ⟨fun h => Bool.noConfusion h, fun ⟨hs', _⟩ => False.elim (hs hs')⟩
 
 theorem RawWorldConfig.admissible_spec_iff (raw : RawWorldConfig) :
     raw.admissible = true ↔ raw.Admissible := by
@@ -357,40 +380,31 @@ theorem RawWorldConfig.admissible_spec_iff (raw : RawWorldConfig) :
   have hlo_val : raw.admitLo.val = if raw.deerCap = 0 then -5 else -(2 ^ 63) :=
     RawWorldConfig.admitLo_val raw
   constructor
-  · intro ⟨hpos, hmx, hday, hsc⟩
+  · intro ⟨hpos, hmx, hday, h8, hdvd, hsc⟩
     have hmx' : raw.side.val ≤ 2 ^ 63 - 5 := by rw [← hmax]; exact hmx
-    refine ⟨hpos, hmx', hday, ?_⟩
+    refine ⟨hpos, hmx', hday, h8, hdvd, ?_⟩
     intro lo hi hlo hhi
     have hhi_val := RawWorldConfig.admitHi_val raw hmx
     have hlo_eq : lo = raw.admitLo := Subtype.ext (hlo.trans hlo_val.symm)
     have hhi_eq : hi = raw.admitHi hmx := Subtype.ext (hhi.trans hhi_val.symm)
     rw [hlo_eq, hhi_eq]
     exact (scaleAdmitsRange_spec_iff _ _ _).mp hsc
-  · intro ⟨hpos, hmx, hday, hforall⟩
+  · intro ⟨hpos, hmx, hday, h8, hdvd, hforall⟩
     have hmx' : raw.side.val ≤ RawWorldConfig.maxSide := by rw [hmax]; exact hmx
-    refine ⟨hpos, hmx', hday, ?_⟩
+    refine ⟨hpos, hmx', hday, h8, hdvd, ?_⟩
     have hhi_val := RawWorldConfig.admitHi_val raw hmx'
     exact (scaleAdmitsRange_spec_iff _ _ _).mpr
       (hforall raw.admitLo (raw.admitHi hmx') hlo_val hhi_val)
 
 theorem WorldConfig.admit_isOk_iff (raw : RawWorldConfig) :
-    (WorldConfig.admit raw).isOk = true ↔ raw.admissible = true := by
-  unfold WorldConfig.admit RawWorldConfig.admissible
-  by_cases hs : 0 < raw.side.val
-  · by_cases hm : raw.side.val ≤ RawWorldConfig.maxSide
-    · by_cases hd : 0 < raw.dayLength.toNat
-      · by_cases hsc : scaleAdmitsRange raw.admitLo (raw.admitHi hm) raw.baseScale = true <;>
-          simp [hs, hm, hd, hsc, Except.isOk, Except.toBool]
-      · simp [hs, hm, hd, Except.isOk, Except.toBool]
-    · simp [hs, hm, Except.isOk, Except.toBool]
-  · simp [hs, Except.isOk, Except.toBool]
+    (WorldConfig.admit raw).isOk = true ↔ raw.admissible = true :=
+  Iff.rfl
 
-theorem WorldConfig.admit_admissible (raw : RawWorldConfig) (config : WorldConfig)
-    (h : WorldConfig.admit raw = .ok config) : config.raw.admissible = true := by
-  have ok : (WorldConfig.admit raw).isOk = true := by rw [h]; rfl
-  have rawEq : config.raw = raw := by
-    unfold WorldConfig.admit at h
-    split at h
+private theorem WorldConfig.admit_raw (raw : RawWorldConfig) (config : WorldConfig)
+    (h : WorldConfig.admit raw = .ok config) : config.raw = raw := by
+  unfold WorldConfig.admit at h
+  split at h
+  · split at h
     · split at h
       · split at h
         · split at h
@@ -399,8 +413,41 @@ theorem WorldConfig.admit_admissible (raw : RawWorldConfig) (config : WorldConfi
         · cases h
       · cases h
     · cases h
-  rw [rawEq]
-  exact (WorldConfig.admit_isOk_iff raw).mp ok
+  · cases h
+
+theorem WorldConfig.admit_admissible (raw : RawWorldConfig) (config : WorldConfig)
+    (h : WorldConfig.admit raw = .ok config) : config.raw.admissible = true := by
+  rw [WorldConfig.admit_raw raw config h, RawWorldConfig.admissible, h]
+  rfl
+
+theorem WorldConfig.admit_of_admissible (config : WorldConfig)
+    (hadm : config.raw.admissible = true) : WorldConfig.admit config.raw = .ok config := by
+  have hok : (WorldConfig.admit config.raw).isOk = true := hadm
+  cases hres : WorldConfig.admit config.raw with
+  | error e => rw [hres] at hok; cases hok
+  | ok admitted =>
+    have hraw := WorldConfig.admit_raw config.raw admitted hres
+    cases config
+    cases admitted
+    simp only at hraw
+    subst hraw
+    rfl
+
+theorem WorldConfig.admit_isOk_dayLength {raw : RawWorldConfig}
+    (h : (WorldConfig.admit raw).isOk = true) :
+    0 < raw.dayLength.toNat ∧
+      8 ∣ raw.dayLength.toNat ∧ raw.dayLength.toNat ∣ 2 ^ 64 := by
+  obtain ⟨_, _, hd, h8, hdvd, _⟩ :=
+    (RawWorldConfig.admissible_iff raw).mp ((WorldConfig.admit_isOk_iff raw).mp h)
+  exact ⟨hd, h8, hdvd⟩
+
+theorem WorldConfig.admit_dayLength {raw : RawWorldConfig} {config : WorldConfig}
+    (h : WorldConfig.admit raw = .ok config) :
+    0 < config.raw.dayLength.toNat ∧
+      8 ∣ config.raw.dayLength.toNat ∧ config.raw.dayLength.toNat ∣ 2 ^ 64 := by
+  obtain ⟨_, _, hd, h8, hdvd, _⟩ :=
+    (RawWorldConfig.admissible_iff config.raw).mp (WorldConfig.admit_admissible raw config h)
+  exact ⟨hd, h8, hdvd⟩
 
 def WorldConfig.side (config : WorldConfig) : Nat := config.raw.side.val.toNat
 

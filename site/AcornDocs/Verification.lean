@@ -38,8 +38,8 @@ states the property and assumptions it checks. For installation and a first run,
 start with the [README](../README.md#start-with-the-live-viewer).
 
 Run `./scripts/verify.sh` in the actual Git checkout after provisioning the pinned
-Lean, Mathlib, FloatLib, lean-intent and Verso dependencies, a C compiler, OpenSSL 3, ShellCheck
-and GNU coreutils.
+Lean, Mathlib, FloatLib, lean-intent and Verso dependencies, ShellCheck `0.11.0`,
+a C compiler, OpenSSL 3 and GNU coreutils.
 Each run of the command has a hard 360-second deadline, which includes the
 project compilation the run does and every ordinary check; from cold project
 outputs that is the whole build. The [merge gate](#build-and-source-inventory)
@@ -87,13 +87,13 @@ The [verification workflow](../.github/workflows/verify.yml) runs the
 [merge gate](#build-and-source-inventory) when a pull request is opened or
 reopened and at every push to it, and at no other time, on GitHub's standard
 `ubuntu-24.04` x64 image. It installs no
-system package: it admits by name the packages that image provides, and takes
-elan from a release pinned by the SHA-256 of its archive. Every workflow step
+system package: it admits by name the packages that image provides, takes
+elan from a release pinned by the SHA-256 of its archive, and provisions pinned ShellCheck (`0.11.0`, `scripts/shellcheck.pin`) into `lean/.lake/packages` through `./scripts/gate.sh provision` (which calls `scripts/shellcheck.sh`) after verifying workspace containment, archive and binary SHA-256 digests, and version output. Every workflow step
 that reaches the network before the gate, the merge-gate step itself and the
 overall job each carry an explicit time limit, so a stalled download or a
 duration regression fails promptly. The workflow keeps no cache: each run provisions the
 dependencies from their pinned sources. Automatic local setup supports macOS and
-Ubuntu/Debian Linux.
+Ubuntu/Debian Linux and delegates pinned ShellCheck (`0.11.0`, `scripts/shellcheck.pin`) provisioning to `scripts/shellcheck.sh`, installing into `lean/.lake/packages` without modifying existing user or system ShellCheck binaries.
 
 For manual setup, which changes the machine's package manager state and so is
 done by an agent only where the person it works for has agreed to it, install
@@ -101,14 +101,20 @@ macOS command-line tools and the packages below
 ([Homebrew installation](https://brew.sh/)):
 
 ```sh
-brew install coreutils shellcheck openssl@3 elan
+brew install coreutils openssl@3 elan
 ```
 
 For Ubuntu, under the same condition, install:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y build-essential curl git libgmp-dev openssl shellcheck coreutils elan
+sudo apt-get install -y build-essential curl git libgmp-dev openssl coreutils elan
+```
+
+Then provision pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`, covering Apple silicon macOS, Intel macOS, x86-64 Linux and arm64 Linux) into `lean/.lake/packages` from the repository root using the shared checked helper (refusing symlinks outside the checkout, verifying archive and extracted binary SHA-256 digests and `--version`, and leaving user or system binaries untouched; alternatively, `./scripts/gate.sh provision` provisions all pinned dependencies together on supported merge-gate platforms):
+
+```sh
+./scripts/shellcheck.sh provision
 ```
 
 Ensure Lean and Lake are available in your shell, then run
@@ -548,9 +554,12 @@ atomically through an exclusive temporary file (while `lean/Bootstrap.lean` and
 `lean/AcornTools/Gate.lean` write their override files the same way) before invoking Lake
 (`-f lakefile.lean` through `Bootstrap.lean`, `-f lakefile.toml` under `site/`,
 and default workspace resolution after shadow-config refusal for
-`scripts/regula.sh`), while `scripts/verify.sh` invokes
-`SHELLCHECK_OPTS='' shellcheck --norc` so ambient configuration cannot alter
-script checks. The checks take their file lists from Git's stage-0 tracked
+`scripts/regula.sh`), while `scripts/verify.sh` admits `scripts/shellcheck.sh` and `scripts/shellcheck.pin`
+and delegates script linting to `./scripts/shellcheck.sh check`, which resolves only the dedicated
+pinned binary inside `lean/.lake/packages` (never searching the shell's executable path), verifies real-directory workspace
+containment, the platform binary's SHA-256 digest and a successful `--version` match against the
+pinned `0.11.0` release (failing closed on any absence, symlink, digest mismatch, or version failure),
+and invokes that binary with `SHELLCHECK_OPTS=''` and `--norc` so ambient configuration cannot alter script checks. The checks take their file lists from Git's stage-0 tracked
 regular-file index without materializing a separate HEAD checkout or hashing
 every tracked file independently against HEAD; verdict-producing commands
 (`./scripts/gate.sh`, `./scripts/verify.sh` outside `site write` and
@@ -896,7 +905,7 @@ head commit from the event, fails before any check when the event names none,
 checks out full history (so `origin` holds the pull request base branch), and
 never falls back to the merge of the head with its base. From that checkout
 it runs `./scripts/gate.sh provision` to provision the pinned dependencies
-(including the SHA-256-verified `no-comments` binary into `lean/.lake/packages`),
+(including the SHA-256-verified `no-comments` and ShellCheck `0.11.0` binaries into `lean/.lake/packages`),
 then runs `./scripts/gate.sh` with `ACORN_BASE_REF` set to `refs/remotes/origin/`
 and the pull request's base branch name (which the script passes through
 `--base-ref` to the pinned checker, which resolves it and refuses an
@@ -916,7 +925,7 @@ relies on the owner re-running `./scripts/gate.sh` against main before merge.
 
 The arrangement on GitHub differs from the pipeline's as follows. A step of
 the workflow downloads elan's pinned release in every run and installs it only
-after the archive's SHA-256 matches. The script's provisioning runs in a step
+after its archive's SHA-256 matches. The script's provisioning runs in a step
 of its own, whose 12-minute limit bounds a stalled download and is no check's
 deadline, and the script's provisioning in the last step then finds the
 dependencies current. Nothing is stored between runs: every run
@@ -924,8 +933,8 @@ provisions everything from its pinned sources and builds from cold project
 outputs. A copy stored by an earlier head of a pull request, which controls its
 own workflow, could otherwise be restored and trusted by a later head whose own
 changes show nothing of it. The merge-gate step runs `exec ./scripts/gate.sh` (so runner cancellation
-signals reach the gate directly) under a 13-minute
-`timeout-minutes` limit and the workflow's gate job carries a 20-minute `timeout-minutes`
+signals reach the gate directly) under an 18-minute
+`timeout-minutes` limit and the workflow's gate job carries a 30-minute `timeout-minutes`
 limit, where the pipeline's Test step has none; a successful provisioning step
 requires its duration handoff to `$GITHUB_OUTPUT` to succeed, while cancellation
 reporting stays best effort; each of verification's two stages

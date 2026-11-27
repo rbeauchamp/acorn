@@ -117,7 +117,6 @@ install_macos() {
   command -v brew >/dev/null 2>&1 || fail 'Homebrew is unavailable after installation.'
   local packages=()
   command -v elan >/dev/null 2>&1 || packages+=(elan)
-  command -v shellcheck >/dev/null 2>&1 || packages+=(shellcheck)
   command -v gtimeout >/dev/null 2>&1 || packages+=(coreutils)
   local openssl_prefix
   openssl_prefix=$(brew --prefix openssl@3)
@@ -129,7 +128,7 @@ install_macos() {
 install_linux() {
   command -v apt-get >/dev/null 2>&1 || fail 'Automatic Linux setup supports Ubuntu/Debian with apt-get; see docs/verification.md.'
   local packages=() package
-  for package in build-essential curl git libgmp-dev openssl shellcheck coreutils elan; do
+  for package in build-essential curl git libgmp-dev openssl coreutils elan; do
     if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) != 'install ok installed' ]]; then
       packages+=("$package")
     fi
@@ -148,7 +147,7 @@ case "$(uname -s)" in
   Linux) install_linux ;;
   *) fail 'This launcher supports macOS and Ubuntu/Debian Linux.' ;;
 esac
-for tool in git curl cc openssl elan lean lake; do
+for tool in git curl cc openssl tar elan lean lake; do
   command -v "$tool" >/dev/null 2>&1 || fail "Required tool is unavailable: $tool."
 done
 git --version >/dev/null
@@ -172,6 +171,9 @@ case "$dependency_status" in
     (cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface leanIntentBridge leanIntentNative) ;;
   *) fail 'Dependency admission failed; the diagnostic above must be resolved before provisioning.' ;;
 esac
+[[ ! -L "$root/scripts" && -d "$root/scripts" && ! -L "$root/scripts/shellcheck.sh" && -f "$root/scripts/shellcheck.sh" && -x "$root/scripts/shellcheck.sh" ]] ||
+  fail 'Missing or non-executable ShellCheck helper: scripts/shellcheck.sh'
+"$root/scripts/shellcheck.sh" provision
 phase='build'
 printf 'Building Acorn (subsequent launches reuse unchanged build outputs)…\n'
 ./scripts/lean.sh build acorn-viewer

@@ -1231,7 +1231,7 @@ theorem spawn_consider_value : Regula.ExecutableContract @Host.considerSpawn (fu
     CurrentSpawn.considerSpawn_outcome world x y best selected finished considered⟩
 
 def oneTile : Host.WorldConfig :=
-  ⟨⟨0, ⟨1, by decide⟩, 1, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
+  ⟨⟨0, ⟨1, by decide⟩, 8, 0, 0, 0, 0, ⟨0x3f800000⟩⟩, by decide, by decide⟩
 
 theorem spawn_select : Regula.ExecutableContract @Host.selectSpawn (fun select =>
     (∀ {config} (world : Host.World config) (spawn : Host.BoxPosition config),
