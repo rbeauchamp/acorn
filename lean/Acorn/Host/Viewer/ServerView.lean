@@ -1233,6 +1233,23 @@ private def metaActionLabels (f : ServerFrame) : Array String :=
     (optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus 1).shortName,
     (optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus 2).shortName]
 
+private def agreementPointsText (score : Option Nat) (scale : Nat) : String :=
+  match score with
+  | none => "—"
+  | some s =>
+    let hundredths := if scale == 0 then 0 else s * 10000 / scale
+    toString (hundredths / 100) ++ "." ++ padLeftZero 2 (toString (hundredths % 100))
+
+private def agreementHeadlineText (ag : AgreementSnapshot) : String :=
+  match ag.score with
+  | some _ => ag.text.getD (agreementPointsText ag.score ag.scale)
+  | none =>
+    let settledChannels := (List.range 11).countP fun i => (ag.channelScore[i]?.join).isSome
+    if ag.status.any (· == "invalid") then "invalid"
+    else if ag.status.any (· == "saturated") then "saturated"
+    else if ag.stopped then s!"incomplete {settledChannels}/11"
+    else s!"waiting {settledChannels}/11"
+
 private def formatMillionths (u : Nat) : String :=
   toString (u / 1000000) ++ "." ++ padLeftZero 6 (toString (u % 1000000))
 
@@ -1901,19 +1918,20 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       else
         ("primitive", optionClass f.summary.skill, s!"{f.summary.decisionSource}")
     | none, some s =>
-      let skName :=
+      let expTag := if s.explored then " · explored" else ""
+      let (skName, skSub) :=
         if s.skill < 3 then
           match latestFrame with
           | some f =>
             match f.subtaskPolicy with
-            | .handAuthored => (optionSlotLabel .handAuthored f.skillNames f.subtaskUnit f.subtaskBonus s.skill).shortName
-            | .learned => s!"option {s.skill + 1}"
-          | none => s!"option {s.skill + 1}"
-        else "primitive"
-      let expTag := if s.explored then " · explored" else ""
-      let skSub :=
-        if s.skill < 3 then s!"{s.decisionSource}{expTag} · target retained for newest capture only"
-        else s!"{s.decisionSource}{expTag}"
+            | .handAuthored =>
+              let lbl := optionSlotLabel .handAuthored f.skillNames f.subtaskUnit f.subtaskBonus s.skill
+              (lbl.shortName, s!"{lbl.target} · {s.decisionSource}{expTag}")
+            | .learned =>
+              (s!"option {s.skill + 1}", s!"{s.decisionSource}{expTag} · target retained for newest capture only")
+          | none =>
+            (s!"option {s.skill + 1}", s!"{s.decisionSource}{expTag} · target retained for newest capture only")
+        else ("primitive", s!"{s.decisionSource}{expTag}")
       (skName, optionClass s.skill, skSub)
     | none, none => ("—", "v none", "no frame yet")
   let stagePanel := el .div [kv .id "stage"] [
@@ -2122,7 +2140,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
            s!"{formatNatCommas f.planningSteps} backups")
         | none => (false, false, false, false, false, "—", "—", "—", "Committed temporal skills", "—", "Reward & γ", "—")
       let agScoreStr := match observer.agreement with
-        | some ag => ag.text.getD (formatPermilleScore ag.score ag.scale)
+        | some ag => agreementHeadlineText ag
         | none => "—"
       let (gpScoreStr, gpTileCaption) := match observer.agreement with
         | some ag =>
@@ -2180,18 +2198,9 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         ]
       ]
     let knowledgeCol :=
-      match observer.agreement, latestFrame with
-      | some ag, some f =>
-        let settledChannels := (List.range 11).countP fun i => (ag.channelScore[i]?.join).isSome
-        let hasInvalid := ag.status.any (· == "invalid")
-        let hasSaturated := ag.status.any (· == "saturated")
-        let agScoreText := match ag.score with
-          | some _ => ag.text.getD (formatPermilleScore ag.score ag.scale)
-          | none =>
-            if hasInvalid then "invalid"
-            else if hasSaturated then "saturated"
-            else if ag.stopped then s!"incomplete {settledChannels}/11"
-            else s!"waiting {settledChannels}/11"
+      match observer.agreement with
+      | some ag =>
+        let agScoreText := agreementHeadlineText ag
         let agErrText := match ag.error with
           | some e => formatMillionths e
           | none => "—"
@@ -2203,7 +2212,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           let name := ag.demonNames[idx]?.getD s!"GVF {idx + 1}"
           let policy := ag.demonTargetPolicy[idx]?.getD "—"
           let status := ag.status[idx]?.getD "—"
-          let sc := ag.channelText[idx]?.join.getD (formatPermilleScore (ag.channelScore[idx]?.join) ag.scale)
+          let sc := ag.channelText[idx]?.join.getD (agreementPointsText (ag.channelScore[idx]?.join) ag.scale)
           let hasSc := (ag.channelScore[idx]?.join).isSome
           let chErr := match ag.channelError[idx]?.join with
             | some e => formatMillionths e
@@ -2223,10 +2232,13 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           let roundStr := match ag.rounding[idx]?.join with
             | some r => formatMillionths r
             | none => "—"
-          let pred := (f.demons[idx]?.getD .nonFinite).formatCompact 3
-          let cum := (f.cums[idx]?.getD .nonFinite).formatCompact 3
-          let ret := (f.settledReturn[idx]?.getD .nonFinite).formatCompact 3
-          let err := (f.settledError[idx]?.getD .nonFinite).formatCompact 3
+          let (pred, cum, ret, err) := match latestFrame with
+            | some f =>
+              ((f.demons[idx]?.getD .nonFinite).formatCompact 3,
+               (f.cums[idx]?.getD .nonFinite).formatCompact 3,
+               (f.settledReturn[idx]?.getD .nonFinite).formatCompact 3,
+               (f.settledError[idx]?.getD .nonFinite).formatCompact 3)
+            | none => ("—", "—", "—", "—")
           el .div [kv .cls "agreement-card"] [
             el .h3 [] [txt name],
             el .strong (if hasSc then [kv .cls "has-score"] else []) [txt sc],
@@ -2237,6 +2249,9 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             el .p [] [txt s!"allowances — tail: {tailStr} · rounding: {roundStr}"],
             el .p [] [txt s!"newest capture — pred: {pred} · cum: {cum} · latest settled return: {ret} · err: {err}"]
           ]
+        let lifetimeChartNode := match latestFrame with
+          | some f => renderLifetimeHistorySvg f
+          | none => el .div [kv .cls "lede"] [txt "Waiting for newest full capture for lifetime history."]
         el .div [kv .cls "panel"] [
           el .h2 [] [txt "Knowledge — predictive agreement & GVFs"],
           whenNode proj.selectedIsEarlier
@@ -2256,11 +2271,11 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           ],
           renderAgreementHistorySvg ag,
           el .h3 [] [txt "Lifetime error (blue) & reward (green) · checkpoint-persistent"],
-          renderLifetimeHistorySvg f,
+          lifetimeChartNode,
           el .h3 [] [txt (if proj.selectedIsEarlier then s!"11 General Value Functions · process snapshot & newest capture {newestIdLabel}" else "11 General Value Functions")],
           el .div [kv .cls "agreement-channels"] cards
         ]
-      | _, _ =>
+      | none =>
         el .div [kv .cls "panel"] [
           el .h2 [] [txt "Knowledge — predictive agreement & GVFs"],
           el .div [kv .cls "lede"] [txt "No frames admitted yet."]

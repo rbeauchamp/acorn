@@ -582,6 +582,37 @@ def pathBasenameChars (path : String) : List Char :=
 def endsWithLowerChars (base suffix : List Char) : Bool :=
   suffix.reverse.isPrefixOf (base.map Char.toLower).reverse
 
+private theorem isPrefixOf_eq_true_iff : ∀ (p l : List Char),
+    p.isPrefixOf l = true ↔ ∃ t, l = p ++ t
+  | [], l => ⟨fun _ => ⟨l, rfl⟩, fun _ => rfl⟩
+  | _ :: _, [] => by
+    constructor
+    · intro h; cases h
+    · rintro ⟨_, h⟩; cases h
+  | a :: as, b :: bs => by
+    simp only [List.isPrefixOf, Bool.and_eq_true, beq_iff_eq]
+    constructor
+    · rintro ⟨rfl, hRest⟩
+      obtain ⟨t, ht⟩ := (isPrefixOf_eq_true_iff as bs).mp hRest
+      exact ⟨t, by simp [ht]⟩
+    · rintro ⟨t, hEq⟩
+      simp only [List.cons_append, List.cons.injEq] at hEq
+      exact ⟨hEq.1.symm, (isPrefixOf_eq_true_iff as bs).mpr ⟨t, hEq.2⟩⟩
+
+theorem endsWithLowerChars_iff (base suffix : List Char) :
+    endsWithLowerChars base suffix = true ↔
+      ∃ pref, base.map Char.toLower = pref ++ suffix := by
+  unfold endsWithLowerChars
+  rw [isPrefixOf_eq_true_iff]
+  constructor
+  · rintro ⟨tail, hRev⟩
+    refine ⟨tail.reverse, ?_⟩
+    have h := congrArg List.reverse hRev
+    simpa [List.reverse_append] using h
+  · rintro ⟨pref, hEq⟩
+    refine ⟨pref.reverse, ?_⟩
+    rw [hEq, List.reverse_append]
+
 def hasForbiddenJsPath (path : String) : Bool :=
   let base := pathBasenameChars path
   forbiddenJsExtensions.any fun ext => endsWithLowerChars base ('.' :: ext.toList)
@@ -589,8 +620,8 @@ def hasForbiddenJsPath (path : String) : Bool :=
 theorem hasForbiddenJsPath_iff (path : String) :
     hasForbiddenJsPath path = true ↔
       ∃ ext ∈ forbiddenJsExtensions,
-        endsWithLowerChars (pathBasenameChars path) ('.' :: ext.toList) = true := by
-  simp [hasForbiddenJsPath]
+        ∃ pref, (pathBasenameChars path).map Char.toLower = pref ++ '.' :: ext.toList := by
+  simp only [hasForbiddenJsPath, List.any_eq_true, endsWithLowerChars_iff]
 
 private theorem takeWhile_all_true (p : Char → Bool) (xs : List Char)
     (hXs : ∀ c ∈ xs, p c = true) :
@@ -649,7 +680,9 @@ theorem hasForbiddenJsPath_dot_basename (dir ext : String)
         ('.' :: ext.toList).reverse dir.toList.reverse '/' hDotNoSep (by decide)
       rw [hTake, List.reverse_reverse]
   rw [hasForbiddenJsPath_iff]
-  exact ⟨ext, hExt, by rw [hBase]; exact hEnds⟩
+  refine ⟨ext, hExt, ?_⟩
+  rw [hBase]
+  exact (endsWithLowerChars_iff _ _).mp hEnds
 
 def startsWithScriptTag : List Char → Bool
   | c0 :: c1 :: c2 :: c3 :: c4 :: c5 :: c6 :: _ =>
@@ -774,28 +807,24 @@ theorem admitZeroJsBytes_iff (bytes : ByteArray) (text : String) :
 theorem admitZeroJsFile_iff (path : String) (bytes : ByteArray) (text : String) :
     admitZeroJsFile path bytes = .ok text ↔
       (∀ ext ∈ forbiddenJsExtensions,
-        endsWithLowerChars (pathBasenameChars path) ('.' :: ext.toList) = false) ∧
+        ¬ ∃ pref, (pathBasenameChars path).map Char.toLower = pref ++ '.' :: ext.toList) ∧
       (0 : UInt8) ∉ bytes.data.toList ∧
       String.fromUTF8? bytes = some text ∧
       ¬ ContainsScriptTag text.toList := by
   unfold admitZeroJsFile
   by_cases hPath : hasForbiddenJsPath path = true
   · rw [ite_eq_left hPath]
-    obtain ⟨ext, hMem, hEnds⟩ := (hasForbiddenJsPath_iff path).mp hPath
+    obtain ⟨ext, hMem, hSuff⟩ := (hasForbiddenJsPath_iff path).mp hPath
     constructor
     · intro h
       cases h
     · rintro ⟨hAll, _⟩
-      have hFalse := hAll ext hMem
-      rw [hEnds] at hFalse
-      cases hFalse
+      exact False.elim (hAll ext hMem hSuff)
   · rw [ite_eq_right hPath]
     have hAll : ∀ ext ∈ forbiddenJsExtensions,
-        endsWithLowerChars (pathBasenameChars path) ('.' :: ext.toList) = false := by
-      intro ext hMem
-      cases hEnds : endsWithLowerChars (pathBasenameChars path) ('.' :: ext.toList) with
-      | false => rfl
-      | true => exact False.elim (hPath ((hasForbiddenJsPath_iff path).mpr ⟨ext, hMem, hEnds⟩))
+        ¬ ∃ pref, (pathBasenameChars path).map Char.toLower = pref ++ '.' :: ext.toList := by
+      intro ext hMem hSuff
+      exact hPath ((hasForbiddenJsPath_iff path).mpr ⟨ext, hMem, hSuff⟩)
     rw [admitZeroJsBytes_iff]
     exact ⟨fun h => ⟨hAll, h⟩, fun ⟨_, h⟩ => h⟩
 

@@ -156,23 +156,22 @@ What a newcomer must be able to say without scrolling.
 
   | node | value | caption | lit when |
   |---|---|---|---|
-  | **features** | `imprint_units` imprint units | `retire_count` retired by generate-and-test, the last retired unit and its lifetime step (`retire_unit`, `retire_step`), `weight_space` weights per learner; the hover text says the imprint units are random ±1 projections of the sensed window and the task words, added to fixed tilings over a hand-authored channel layout (D1), that only the imprint units are generated-and-tested, and that the word *imprint* is Javed's (thesis ch. 9) for a mechanism this bank is not | a retirement landed within the last `WIN` frames |
-  | **subtasks** | `n / 3 assigned` (`subtask_unit` ≠ null), or `3 hand-authored (D2)` under `subtask_policy = hand_authored` | task reward + stopping bonus, with the hover text pinning the bonus weight (§10); or `neutral · no ranked feature yet` | a slot's (unit, bonus) changed within the last `WIN` frames |
-  | **options** | the running option's name, or `primitive` | share of the last `WIN` frames spent under an option; lifetime option starts | fast mode (UX-8): any option step in the last `WIN` frames; otherwise an option is running at the cursor |
-  | **models** | `r̂ · ĉ` of the running option (means in fast mode), or `r̂` per option, each symbol kept on one line with its number and formatted so a value of 1e-4 never prints as 0.000 (UX-11) | which option, and what the two numbers are (`ĉ` is written `ĉ_v` in the source) | as the options node |
-  | **planning** | `planning_steps` backups | since the agent began, across checkpoint resumes; mean \|Bellman error\| over the three slots, formatted likewise | `planning_steps` moved within the last `WIN` frames |
+  | **features** | `imprint_units` imprint units | `retire_count` retired by generate-and-test, the last retired unit and its lifetime step (`retire_unit`, `retire_step`), `weight_space` weights per learner; the hover text says the imprint units are random ±1 projections of the sensed window and the task words, added to fixed tilings over a hand-authored channel layout (D1), that only the imprint units are generated-and-tested, and that the word *imprint* is Javed's (thesis ch. 9) for a mechanism this bank is not | a retirement landed on the newest admitted capture |
+  | **subtasks** | `subtask_policy` (`learned` or `hand_authored`) | task reward + stopping bonus, with each option slot showing its assigned unit/bonus or `neutral · no ranked feature yet` under `learned`, or hand-authored potential under `hand_authored` | a slot's (unit, bonus) changed on the newest admitted capture |
+  | **options** | the running option's policy-aware name (UX-16), or `primitive` | the running slot's target (imprint unit & bonus, neutral, or hand-authored potential) | an option is running on the newest admitted capture (UX-8) |
+  | **models** | `3 option models` | `Reward & γ (discounted)` under discounted control, or `Reward, γ & duration` under differential control | an option ended on the newest admitted capture |
+  | **planning** | `planning_steps` backups | since the agent began, across checkpoint resumes | `planning_steps` advanced on the newest admitted capture |
 
-  Beneath the nodes, one line per option slot: its colour swatch, name, the
-  imprint unit and stopping bonus it is pursuing (or `neutral · no ranked
-  feature yet`, or the hand-authored potential), and in fast mode the share of
-  the window it ran; then a legend line saying what a lit node means. A lit
-  node is a border colour and a `· now` mark on its title — a fact about the
-  stream, never an animation on a timer — evaluated at the reading cadence
-  and, in fast mode, over the window rather than at the instant, so a node does
-  not pulse with a five-step option; it is lit only while the display is live
-  (UX-6), never on a stale stream or a stopped core. For the three
-  counter-driven nodes only the most recent change is remembered, so the state
-  is exact at the live edge and a scrub across an earlier event shows nothing.
+  Each option slot carries its colour swatch, policy-aware name, and target
+  (imprint unit and stopping bonus, `neutral · no ranked feature yet`, or
+  hand-authored potential) across the HUD, OaK progression, ribbon legend, and
+  Behaviour option-models table (UX-16). A lit node is a border colour and a
+  `· now` mark on its title — a fact about the stream, never an animation on a
+  timer — evaluated on the newest admitted capture while the display is live
+  (UX-6), never on a stale stream, a stopped core, or a paused historical
+  capture. For the three counter-driven nodes only the most recent change is
+  remembered, so the state is exact at the live edge and a scrub across an
+  earlier event shows nothing.
 - **UX-5 · Against the mission.** Four tiles, each with its definition in the
   hover text and its window in the caption:
   - **goals achieved** — lifetime successes / lifetime attempts over all four
