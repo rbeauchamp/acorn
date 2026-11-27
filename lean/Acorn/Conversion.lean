@@ -1,32 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Encoding
 import Acorn.Rounding
 
-/-!
-# Raw width conversions and integer admission
-
-Finite width conversion operates on storage words directly, with exact dyadic
-widening and nearest-even narrowing bounds connected to the emitted fields.
-NaN width conversion alone uses the standard native cast boundary, matching
-the source operation's platform-dependent quieting/sign/payload choice rather
-than imposing a separate canonicalization policy. Those standard casts are
-opaque in the kernel and trusted at native execution; no numerical theorem
-below infers their exceptional behavior. Raw storage and admission never cast.
--/
-
 namespace Acorn.Conversion
 
-/-- The implicit leading bit and stored fraction of a normal binary64 word.
-The exponent and sign fields cannot enter this significand. -/
 def normalSignificand (bits : UInt64) : UInt64 :=
   ((1 : UInt64) <<< 52) ||| (bits &&& 0xfffffffffffff)
 
-/-- Field extraction gives the exact significand-width hypotheses used by
-rounding, for every raw word independently of its exponent classification. -/
 theorem normalSignificand_bounds (bits : UInt64) :
     2 ^ 52 ≤ (normalSignificand bits).toNat ∧
       (normalSignificand bits).toNat < 2 ^ 53 := by
@@ -35,29 +14,23 @@ theorem normalSignificand_bounds (bits : UInt64) :
   exact ⟨Nat.left_le_or,
     Nat.or_lt_two_pow (by decide) (Nat.lt_of_le_of_lt Nat.and_le_right (by decide))⟩
 
-/-- Rounded 24-bit normal significand before possible carry normalization. -/
 def roundedNormal (bits : UInt64) : UInt64 :=
   Rounding.wordShift64 (normalSignificand bits) 29
 
-/-- The normal word path shares the general rounded-significand contract. -/
 theorem roundedNormal_eq (bits : UInt64) :
     roundedNormal bits = Rounding.wordShift (normalSignificand bits) 29 := by
   exact Rounding.wordShift64_eq_wordShift _ 29
 
-/-- The actual normal rounding path retains the leading bit and has at most
-one carry bit; converting its result to UInt32 therefore cannot wrap. -/
 theorem roundedNormal_bounds (bits : UInt64) :
     2 ^ 23 ≤ (roundedNormal bits).toNat ∧ (roundedNormal bits).toNat ≤ 2 ^ 24 := by
   rw [roundedNormal_eq]
   exact ⟨Rounding.wordShift_leading_bit _ 23 29 (normalSignificand_bounds bits).1,
     Rounding.wordShift_carry_bound _ 24 29 (normalSignificand_bounds bits).2⟩
 
-/-- Exponent carry normalization is exact in integer significand units. -/
 def normalizedNormal (bits : UInt64) : UInt64 :=
   let rounded := roundedNormal bits
   if rounded == ((1 : UInt64) <<< 24) then ((1 : UInt64) <<< 23) else rounded
 
-/-- The mantissa installed by normal narrowing always fits its 24-bit field. -/
 theorem normalizedNormal_bounds (bits : UInt64) :
     2 ^ 23 ≤ (normalizedNormal bits).toNat ∧
       (normalizedNormal bits).toNat < 2 ^ 24 := by
@@ -72,8 +45,6 @@ theorem normalizedNormal_bounds (bits : UInt64) :
       simp [hw] at h
     omega
 
-/-- Carry changes the exponent exactly when halving the significand preserves
-the rounded integer. This connects normalization to the same quotient decision. -/
 theorem normalizedNormal_value (bits : UInt64) :
     (normalizedNormal bits).toNat *
       (if roundedNormal bits == ((1 : UInt64) <<< 24) then 2 else 1) =
@@ -85,12 +56,9 @@ theorem normalizedNormal_value (bits : UInt64) :
     simp [hw]
   · simp_all
 
-/-- Fraction field after removing the implicit leading bit. -/
 def normalFraction (bits : UInt64) : UInt32 :=
   (normalizedNormal bits).toUInt32 - ((1 : UInt32) <<< 23)
 
-/-- The actual emitted fraction has neither narrowing wrap nor subtraction
-underflow. Its decoded significand is exactly the normalized rounded integer. -/
 theorem normalFraction_exact (bits : UInt64) :
     (normalFraction bits).toNat + 2 ^ 23 = (normalizedNormal bits).toNat ∧
       (normalFraction bits).toNat < 2 ^ 23 := by
@@ -109,9 +77,6 @@ theorem normalFraction_exact (bits : UInt64) :
   rw [hf]
   omega
 
-/-- Decoding the actual fraction and its carry recovers a rounded significand
-within half a discarded unit of the source. This integer-scaled bound covers
-all source words before the separate exponent overflow decision. -/
 theorem normalFraction_distance (bits : UInt64) :
     let source := (normalSignificand bits).toNat
     let decoded := ((normalFraction bits).toNat + 2 ^ 23) *
@@ -122,8 +87,6 @@ theorem normalFraction_distance (bits : UInt64) :
   rw [roundedNormal_eq]
   exact Rounding.wordShift_distance (normalSignificand bits) 29
 
-/-- At a halfway source, the actual emitted normal fraction is even, including
-the exponent-carry case. Removing the implicit bit preserves that parity. -/
 theorem normalFraction_tie (bits : UInt64)
     (htie : 2 ^ 29 = 2 * ((normalSignificand bits).toNat % 2 ^ 29)) :
     (normalFraction bits).toNat % 2 = 0 := by
@@ -137,22 +100,17 @@ theorem normalFraction_tie (bits : UInt64)
     omega
   · omega
 
-/-- Significand in the binary32-subnormal narrowing branch. Binary64
-subnormals have no implicit leading bit. -/
 def subnormalSignificand (bits : UInt64) : UInt64 :=
   if (bits >>> 52) &&& 0x7ff == 0 then bits &&& 0xfffffffffffff
   else normalSignificand bits
 
-/-- Source units discarded to express the result in binary32-subnormal units. -/
 def subnormalShift (exponent : Nat) : Nat := if exponent = 0 then 925 else 926 - exponent
 
-/-- Every admitted subnormal-target exponent discards at least thirty bits. -/
 theorem subnormalShift_lower (exponent : Nat) (h : exponent < 897) :
     30 ≤ subnormalShift exponent := by
   unfold subnormalShift
   split <;> omega
 
-/-- Both source classes have a significand narrower than 53 bits. -/
 theorem subnormalSignificand_upper (bits : UInt64) :
     (subnormalSignificand bits).toNat < 2 ^ 53 := by
   unfold subnormalSignificand
@@ -161,19 +119,13 @@ theorem subnormalSignificand_upper (bits : UInt64) :
     exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
   · exact (normalSignificand_bounds bits).2
 
-/-- Rounded field for the subnormal-target branch, including the carry to the
-smallest normal binary32 value. -/
 def subnormalFraction (bits : UInt64) (exponent : Nat) : UInt32 :=
   (Rounding.wordShift (subnormalSignificand bits) (subnormalShift exponent)).toUInt32
 
-/-- Word-facing subnormal rounding keeps the exponent and shift unboxed.
-The explicit subtraction guard preserves the general API's saturated shift. -/
 def subnormalFractionWord (bits exponent : UInt64) : UInt32 :=
   let shift := if exponent = 0 then 925 else if 926 < exponent then 0 else 926 - exponent
   (Rounding.wordShift64 (subnormalSignificand bits) shift).toUInt32
 
-/-- Word exponent admission preserves the complete subnormal-field API,
-including exponent values outside the narrowing caller's domain. -/
 theorem subnormalFractionWord_eq (bits exponent : UInt64) :
     subnormalFractionWord bits exponent = subnormalFraction bits exponent.toNat := by
   have shiftValue : (if exponent = 0 then (925 : UInt64)
@@ -203,8 +155,6 @@ theorem subnormalFractionWord_eq (bits exponent : UInt64) :
   apply UInt64.toNat.inj
   rw [Rounding.wordShift64_exact, Rounding.wordShift_exact, shiftValue]
 
-/-- The emitted subnormal field retains the rounded integer exactly and can
-carry only into the smallest normal exponent, never into the sign field. -/
 theorem subnormalFraction_exact (bits : UInt64) (exponent : Nat) (h : exponent < 897) :
     (subnormalFraction bits exponent).toNat =
       Rounding.nearestEven (subnormalSignificand bits).toNat (2 ^ subnormalShift exponent) ∧
@@ -222,8 +172,6 @@ theorem subnormalFraction_exact (bits : UInt64) (exponent : Nat) (h : exponent <
     exact Nat.mod_eq_of_lt hfit
   exact ⟨hw.trans (Rounding.wordShift_exact _ _), hw ▸ hb⟩
 
-/-- The emitted subnormal field is within half a target unit of the source,
-including underflow to zero and carry to the least normal value. -/
 theorem subnormalFraction_distance (bits : UInt64) (exponent : Nat) (h : exponent < 897) :
     let source := (subnormalSignificand bits).toNat
     let unit := 2 ^ subnormalShift exponent
@@ -233,8 +181,6 @@ theorem subnormalFraction_distance (bits : UInt64) (exponent : Nat) (h : exponen
   rw [(subnormalFraction_exact bits exponent h).1]
   exact Rounding.nearestEven_distance _ _ (Nat.two_pow_pos _)
 
-/-- Every halfway source admitted to subnormal narrowing produces an even
-emitted field. This includes the zero/subnormal and subnormal/normal boundaries. -/
 theorem subnormalFraction_tie (bits : UInt64) (exponent : Nat) (h : exponent < 897)
     (htie : 2 ^ subnormalShift exponent =
       2 * ((subnormalSignificand bits).toNat % 2 ^ subnormalShift exponent)) :
@@ -242,8 +188,6 @@ theorem subnormalFraction_tie (bits : UInt64) (exponent : Nat) (h : exponent < 8
   rw [(subnormalFraction_exact bits exponent h).1]
   exact Rounding.nearestEven_tie _ _ htie
 
-/-- Assembling nonoverlapping exponent and fraction fields is exact natural
-addition. The bounds prevent either shifted-word wrap or overlapping bits. -/
 theorem normalFields_exact (exponent fraction : UInt32)
     (he : exponent.toNat < 256) (hf : fraction.toNat < 2 ^ 23) :
     ((exponent <<< 23) ||| fraction).toNat = exponent.toNat * 2 ^ 23 + fraction.toNat := by
@@ -252,10 +196,8 @@ theorem normalFields_exact (exponent fraction : UInt32)
   rw [Nat.mod_eq_of_lt hmul]
   simpa only [Nat.mul_comm] using (Nat.two_pow_add_eq_or_of_lt hf exponent.toNat).symm
 
-/-- Move the raw binary64 sign into the binary32 sign position. -/
 def narrowSign (bits : UInt64) : UInt32 := ((bits >>> 63).toUInt32) <<< 31
 
-/-- Sign extraction preserves exactly the high source bit. -/
 theorem narrowSign_exact (bits : UInt64) :
     (narrowSign bits).toNat = (bits.toNat / 2 ^ 63) * 2 ^ 31 := by
   have hb := bits.toNat_lt
@@ -267,7 +209,6 @@ theorem narrowSign_exact (bits : UInt64) :
   change ((bits.toNat / 2 ^ 63) * 2 ^ 31) % (2 ^ 32) = _
   exact Nat.mod_eq_of_lt (by omega)
 
-/-- Installing a source sign cannot change any admitted magnitude bit. -/
 theorem narrowSign_magnitude (bits : UInt64) (magnitude : UInt32)
     (h : magnitude.toNat < 2 ^ 31) :
     (Binary32.mk (narrowSign bits ||| magnitude)).magnitude = magnitude.toNat := by
@@ -275,19 +216,15 @@ theorem narrowSign_magnitude (bits : UInt64) (magnitude : UInt32)
   rw [Nat.and_two_pow_sub_one_eq_mod, Nat.or_mod_two_pow, narrowSign_exact]
   simp only [Nat.mul_mod_left, Nat.mod_eq_of_lt h, Nat.zero_or]
 
-/-- Installing a sign copies the source high bit exactly when the magnitude
-fits below it, including a zero magnitude and finite overflow to infinity. -/
 theorem narrowSign_highBit (bits : UInt64) (magnitude : UInt32)
     (h : magnitude.toNat < 2 ^ 31) :
     (narrowSign bits ||| magnitude).toNat / 2 ^ 31 = bits.toNat / 2 ^ 63 := by
   rw [UInt32.toNat_or, Nat.or_div_two_pow, narrowSign_exact,
     Nat.mul_div_cancel _ (Nat.two_pow_pos 31), Nat.div_eq_of_lt h, Nat.or_zero]
 
-/-- Exponent after the normal-significand carry decision. -/
 def normalExponent (bits : UInt64) (exponent : UInt64) : UInt64 :=
   if roundedNormal bits == ((1 : UInt64) <<< 24) then exponent + 1 else exponent
 
-/-- Every finite normal-target source has an exact, nonwrapping carry update. -/
 theorem normalExponent_bounds (bits exponent : UInt64)
     (hlo : 897 ≤ exponent.toNat) (hhi : exponent.toNat < 2047) :
     897 ≤ (normalExponent bits exponent).toNat ∧
@@ -301,7 +238,6 @@ theorem normalExponent_bounds (bits exponent : UInt64)
     omega
   · omega
 
-/-- Exponent carry is exact across the complete binary64 exponent-field domain. -/
 theorem normalExponent_exact (bits exponent : UInt64) (h : exponent.toNat < 2048) :
     (normalExponent bits exponent).toNat = exponent.toNat +
       (if roundedNormal bits == ((1 : UInt64) <<< 24) then 1 else 0) := by
@@ -312,8 +248,6 @@ theorem normalExponent_exact (bits exponent : UInt64) (h : exponent.toNat < 2048
     exact Nat.mod_eq_of_lt (by omega)
   · simp only [Nat.add_zero]
 
-/-- Normal-target magnitude, sharing one rounded significand between the exponent
-carry and fraction before the overflow decision. -/
 def normalMagnitude (bits exponent : UInt64) : UInt32 :=
   let rounded := roundedNormal bits
   let carry := rounded == ((1 : UInt64) <<< 24)
@@ -323,16 +257,12 @@ def normalMagnitude (bits exponent : UInt64) : UInt32 :=
     let normalized := if carry then ((1 : UInt64) <<< 23) else rounded
     ((adjusted - 896).toUInt32 <<< 23) ||| (normalized.toUInt32 - ((1 : UInt32) <<< 23))
 
-/-- Sharing the rounded significand is definitionally the same exponent/fraction assembly
-for every raw word and exponent, including wrapping inputs outside the finite-field domain. -/
 theorem normalMagnitude_components (bits exponent : UInt64) :
     normalMagnitude bits exponent =
       (if normalExponent bits exponent > 1150 then (0x7f800000 : UInt32)
       else ((normalExponent bits exponent - 896).toUInt32 <<< 23) ||| normalFraction bits) := by
   rfl
 
-/-- Finite normal-target narrowing is characterized exactly by its actual
-carry-adjusted exponent decision. The other branch is infinity, not NaN. -/
 theorem normalMagnitude_finite_iff (bits exponent : UInt64)
     (hlo : 897 ≤ exponent.toNat) (hhi : exponent.toNat < 2047) :
     (normalMagnitude bits exponent).toNat < 0x7f800000 ↔
@@ -361,8 +291,6 @@ theorem normalMagnitude_finite_iff (bits exponent : UInt64)
     have hf := (normalFraction_exact bits).2
     omega
 
-/-- A finite normal-target source yields a finite or infinite magnitude, never
-a NaN field. Both exponent subtraction and UInt32 narrowing are exact here. -/
 theorem normalMagnitude_bound (bits exponent : UInt64)
     (hlo : 897 ≤ exponent.toNat) (hhi : exponent.toNat < 2047) :
     (normalMagnitude bits exponent).toNat ≤ 0x7f800000 := by
@@ -375,19 +303,13 @@ theorem normalMagnitude_bound (bits exponent : UInt64)
     simp only [normalMagnitude_components, ite_eq_left hover]
     decide
 
-/-- The pinned native word-logarithm primitive has the standard integer meaning.
-Its native lowering is part of the declared standard-library trust boundary. -/
 theorem wordLog2_exact (word : UInt64) : word.log2.toNat = word.toNat.log2 := rfl
 
-/-- Normalize a subnormal significand using only fixed-width operations.
-The saturated shift retains this general helper's semantics above 53 bits. -/
 def widenSubnormalFraction (fraction : UInt64) : UInt64 :=
   let leading := fraction.log2
   let shift := if leading ≤ 52 then 52 - leading else 0
   (fraction - ((1 : UInt64) <<< leading)) <<< shift
 
-/-- Word normalization equals the general integer-shift specification over
-all storage words, including zero and fractions outside the subnormal domain. -/
 theorem widenSubnormalFraction_def (fraction : UInt64) :
     widenSubnormalFraction fraction =
       (fraction - ((1 : UInt64) <<< fraction.toNat.log2.toUInt64)) <<<
@@ -415,18 +337,14 @@ theorem widenSubnormalFraction_def (fraction : UInt64) :
   dsimp only [widenSubnormalFraction]
   rw [shift, leading]
 
-/-- Subnormal exponent assembly stays in words at initialization and execution. -/
 def widenSubnormalExponent (fraction : UInt64) : UInt64 := fraction.log2 + 874
 
-/-- The assembled exponent shares the integer-facing field specification. -/
 theorem widenSubnormalExponent_eq (fraction : UInt64) :
     widenSubnormalExponent fraction = (fraction.toNat.log2 + 874).toUInt64 := by
   apply UInt64.toNat.inj
   simp only [widenSubnormalExponent, UInt64.toNat_add, wordLog2_exact]
   rfl
 
-/-- The executing word normalization is exact: neither subtraction nor either
-variable shift wraps on the complete admitted subnormal domain. -/
 theorem widenSubnormalFraction_exact (fraction : UInt64) (positive : 0 < fraction.toNat) (width : fraction.toNat < 2 ^ 23) :
     (widenSubnormalFraction fraction).toNat =
       (fraction.toNat - 2 ^ fraction.toNat.log2) * 2 ^ (52 - fraction.toNat.log2) := by
@@ -458,8 +376,6 @@ theorem widenSubnormalFraction_exact (fraction : UInt64) (positive : 0 < fractio
     Nat.mod_eq_of_lt (show 52 - fraction.toNat.log2 < 64 by omega)]
   exact Nat.mod_eq_of_lt (by omega)
 
-/-- Restoring the implicit binary64 bit recovers the source significand scaled
-by the exact normalization power. No bits or precision are discarded. -/
 theorem widenSubnormalFraction_value (fraction : UInt64)
     (positive : 0 < fraction.toNat) (width : fraction.toNat < 2 ^ 23) :
     2 ^ 52 + (widenSubnormalFraction fraction).toNat =
@@ -474,8 +390,6 @@ theorem widenSubnormalFraction_value (fraction : UInt64)
   rw [widenSubnormalFraction_exact fraction positive width, Nat.sub_mul, hproduct]
   omega
 
-/-- The shifted fraction occupies exactly the available binary64 fraction
-field; its leading bit is represented by the separately constructed exponent. -/
 theorem widenSubnormalFraction_bound (fraction : UInt64)
     (positive : 0 < fraction.toNat) (width : fraction.toNat < 2 ^ 23) :
     (widenSubnormalFraction fraction).toNat < 2 ^ 52 := by
@@ -491,10 +405,8 @@ theorem widenSubnormalFraction_bound (fraction : UInt64)
   have hm := Nat.mul_lt_mul_of_pos_right hsmall (Nat.two_pow_pos (52 - fraction.toNat.log2))
   rwa [hproduct] at hm
 
-/-- Binary32 fraction widening pads with 29 zero low bits. -/
 def widenFraction (fraction : UInt64) : UInt64 := fraction <<< 29
 
-/-- Padding a binary32 fraction loses no bit and fits the binary64 fraction. -/
 theorem widenFraction_exact (fraction : UInt64) (width : fraction.toNat < 2 ^ 23) :
     (widenFraction fraction).toNat = fraction.toNat * 2 ^ 29 ∧
       (widenFraction fraction).toNat < 2 ^ 52 := by
@@ -505,7 +417,6 @@ theorem widenFraction_exact (fraction : UInt64) (width : fraction.toNat < 2 ^ 23
   rw [Nat.mod_eq_of_lt (show fraction.toNat * 2 ^ 29 < 2 ^ 64 by omega)]
   exact ⟨rfl, hproduct⟩
 
-/-- Assembling disjoint binary64 exponent and fraction fields is exact. -/
 theorem wideFields_exact (exponent fraction : UInt64)
     (he : exponent.toNat < 2048) (hf : fraction.toNat < 2 ^ 52) :
     ((exponent <<< 52) ||| fraction).toNat = exponent.toNat * 2 ^ 52 + fraction.toNat := by
@@ -515,10 +426,8 @@ theorem wideFields_exact (exponent fraction : UInt64)
   rw [Nat.mod_eq_of_lt hmul]
   simpa only [Nat.mul_comm] using (Nat.two_pow_add_eq_or_of_lt hf exponent.toNat).symm
 
-/-- Move the raw binary32 sign to the binary64 sign position. -/
 def widenSign (bits : UInt32) : UInt64 := (bits.toUInt64 >>> 31) <<< 63
 
-/-- Sign widening copies exactly the high source bit. -/
 theorem widenSign_exact (bits : UInt32) :
     (widenSign bits).toNat = (bits.toNat / 2 ^ 31) * 2 ^ 63 := by
   have hb := bits.toNat_lt
@@ -528,7 +437,6 @@ theorem widenSign_exact (bits : UInt32) :
   have hq : bits.toNat / 2 ^ 31 < 2 := by omega
   exact Nat.mod_eq_of_lt (by omega)
 
-/-- Installing a widened sign preserves every admitted binary64 magnitude bit. -/
 theorem widenSign_magnitude (bits : UInt32) (magnitude : UInt64)
     (h : magnitude.toNat < 2 ^ 63) :
     (Binary64.mk (widenSign bits ||| magnitude)).magnitude = magnitude.toNat := by
@@ -536,31 +444,23 @@ theorem widenSign_magnitude (bits : UInt32) (magnitude : UInt64)
   rw [Nat.and_two_pow_sub_one_eq_mod, Nat.or_mod_two_pow, widenSign_exact]
   simp only [Nat.mul_mod_left, Nat.mod_eq_of_lt h, Nat.zero_or]
 
-/-- Widening sign installation copies the source high bit exactly, including
-signed zero, whenever the assembled magnitude fits below the sign position. -/
 theorem widenSign_highBit (bits : UInt32) (magnitude : UInt64)
     (h : magnitude.toNat < 2 ^ 63) :
     (widenSign bits ||| magnitude).toNat / 2 ^ 63 = bits.toNat / 2 ^ 31 := by
   rw [UInt64.toNat_or, Nat.or_div_two_pow, widenSign_exact,
     Nat.mul_div_cancel _ (Nat.two_pow_pos 63), Nat.div_eq_of_lt h, Nat.or_zero]
 
-/-- Exact unsigned dyadic value in units of the least binary64 subnormal.
-It denotes an IEEE value only for finite encodings; exceptional inputs retain
-a total integer reading without being assigned a finite floating value. -/
 def magnitudeUnits64 (value : Binary64) : Nat :=
   let exponent := value.magnitude / 2 ^ 52
   let fraction := value.magnitude % 2 ^ 52
   if exponent = 0 then fraction else (2 ^ 52 + fraction) * 2 ^ (exponent - 1)
 
-/-- Binary32 finite magnitude in the same binary64-subnormal units. The common
-integer scale avoids any additional rounding in the semantic interpretation. -/
 def magnitudeUnits32 (value : Binary32) : Nat :=
   let exponent := value.magnitude / 2 ^ 23
   let fraction := value.magnitude % 2 ^ 23
   if exponent = 0 then fraction * 2 ^ 925
   else (2 ^ 23 + fraction) * 2 ^ (exponent + 924)
 
-/-- Raw binary32 field extraction reconstructs its signless encoding exactly. -/
 theorem fields32_decomposition (value : Binary32) :
     value.magnitude =
       (((value.bits >>> 23) &&& 0xff) : UInt32).toNat * 2 ^ 23 +
@@ -573,7 +473,6 @@ theorem fields32_decomposition (value : Binary32) :
   simp only [Nat.and_two_pow_sub_one_eq_mod]
   omega
 
-/-- Extracted fields fit their declared widths for every raw binary32 word. -/
 theorem fields32_bounds (value : Binary32) :
     (((value.bits >>> 23) &&& 0xff) : UInt32).toNat < 256 ∧
       ((value.bits &&& 0x7fffff) : UInt32).toNat < 2 ^ 23 := by
@@ -583,7 +482,6 @@ theorem fields32_bounds (value : Binary32) :
   · change (value.bits.toNat &&& (2 ^ 23 - 1)) < 2 ^ 23
     exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
-/-- Interpret the same fields used by widening on the common exact dyadic scale. -/
 theorem fields32_units (value : Binary32) :
     magnitudeUnits32 value =
       let exponent := (((value.bits >>> 23) &&& 0xff) : UInt32).toNat
@@ -601,8 +499,6 @@ theorem fields32_units (value : Binary32) :
       ((value.bits &&& 0x7fffff) : UInt32).toNat := by omega
   rw [hdiv, hmod]
 
-/-- Decode an actually assembled normal binary64 word, with either source
-sign. Field bounds give exact exponent/fraction recovery before dyadic scaling. -/
 theorem wideFields_units (bits : UInt32) (exponent fraction : UInt64)
     (he : 0 < exponent.toNat) (hemax : exponent.toNat < 2048)
     (hf : fraction.toNat < 2 ^ 52) :
@@ -616,8 +512,6 @@ theorem wideFields_units (bits : UInt32) (exponent fraction : UInt64)
   have hmod : (exponent.toNat * 2 ^ 52 + fraction.toNat) % 2 ^ 52 = fraction.toNat := by omega
   simp only [magnitudeUnits64, hm, hdiv, hmod, Nat.ne_of_gt he, ↓reduceIte]
 
-/-- An assembled exponent below the exceptional field always denotes a finite
-binary64 word, independently of the source sign and all fraction bits. -/
 theorem wideFields_finite (bits : UInt32) (exponent fraction : UInt64)
     (he : exponent.toNat < 2047) (hf : fraction.toNat < 2 ^ 52) :
     (Binary64.mk (widenSign bits ||| ((exponent <<< 52) ||| fraction))).Finite := by
@@ -627,7 +521,6 @@ theorem wideFields_finite (bits : UInt32) (exponent fraction : UInt64)
   rw [widenSign_magnitude bits _ hfit, hfields]
   omega
 
-/-- Every admitted exponent/fraction assembly leaves the copied sign untouched. -/
 theorem wideFields_sign (bits : UInt32) (exponent fraction : UInt64)
     (he : exponent.toNat < 2048) (hf : fraction.toNat < 2 ^ 52) :
     (widenSign bits ||| ((exponent <<< 52) ||| fraction)).toNat / 2 ^ 63 =
@@ -636,8 +529,6 @@ theorem wideFields_sign (bits : UInt32) (exponent fraction : UInt64)
   have hfit : ((exponent <<< 52) ||| fraction).toNat < 2 ^ 63 := by rw [hfields]; omega
   exact widenSign_highBit bits _ hfit
 
-/-- Decode an actually assembled normal binary32 word with either binary64
-source sign. The emitted exponent and fraction are recovered exactly. -/
 theorem narrowFields_units (bits : UInt64) (exponent fraction : UInt32)
     (he : 0 < exponent.toNat) (hemax : exponent.toNat < 256)
     (hf : fraction.toNat < 2 ^ 23) :
@@ -652,8 +543,6 @@ theorem narrowFields_units (bits : UInt64) (exponent fraction : UInt32)
   simp only [magnitudeUnits32, hm, hdiv, hmod, Nat.ne_of_gt he, ↓reduceIte]
 
 set_option exponentiation.threshold 1024 in
-/-- A subnormal-target emitted magnitude is an exact multiple of the common
-binary32-subnormal unit, including its carry to the least normal value. -/
 theorem subnormalFields_units (bits : UInt64) (magnitude : UInt32)
     (h : magnitude.toNat ≤ 2 ^ 23) :
     magnitudeUnits32 ⟨narrowSign bits ||| magnitude⟩ = magnitude.toNat * 2 ^ 925 := by
@@ -666,7 +555,6 @@ theorem subnormalFields_units (bits : UInt64) (magnitude : UInt32)
     rw [heq]
     rw [Nat.div_self (by decide : 0 < 2 ^ 23), Nat.mod_self, ite_eq_right (by decide : ¬ 1 = 0), Nat.add_zero]
 
-/-- Raw binary64 field extraction reconstructs its signless encoding exactly. -/
 theorem fields64_decomposition (value : Binary64) :
     value.magnitude =
       (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat * 2 ^ 52 +
@@ -679,20 +567,17 @@ theorem fields64_decomposition (value : Binary64) :
   simp only [Nat.and_two_pow_sub_one_eq_mod]
   omega
 
-/-- Every raw binary64 fraction fits its declared field. -/
 theorem fraction64_bound (bits : UInt64) :
     ((bits &&& 0xfffffffffffff) : UInt64).toNat < 2 ^ 52 := by
   change (bits.toNat &&& (2 ^ 52 - 1)) < 2 ^ 52
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
-/-- The actual normal significand restores the implicit bit by exact addition. -/
 theorem normalSignificand_value (bits : UInt64) :
     (normalSignificand bits).toNat = 2 ^ 52 + ((bits &&& 0xfffffffffffff) : UInt64).toNat := by
   change 2 ^ 52 ||| (bits.toNat &&& (2 ^ 52 - 1)) = 2 ^ 52 + (bits.toNat &&& (2 ^ 52 - 1))
   have hf : bits.toNat &&& (2 ^ 52 - 1) < 2 ^ 52 := fraction64_bound bits
   rw [Nat.or_comm, Nat.or_two_pow_eq_add_of_lt hf, Nat.add_comm]
 
-/-- Interpret the same binary64 fields consumed by the narrowing branches. -/
 theorem fields64_units (value : Binary64) :
     magnitudeUnits64 value =
       let exponent := (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat
@@ -709,12 +594,8 @@ theorem fields64_units (value : Binary64) :
       ((value.bits &&& 0xfffffffffffff) : UInt64).toNat := by omega
   rw [hdiv, hmod]
 
-/-- Binary64 significand scale in units of its least subnormal. The exceptional
-field has a total integer reading here, without denoting a finite IEEE value. -/
 def sourceScale64 (exponent : Nat) : Nat := if exponent = 0 then 1 else 2 ^ (exponent - 1)
 
-/-- The exact dyadic interpretation uses the same leading-bit classification
-as the actual narrowing significand. -/
 theorem fields64_scaled_units (value : Binary64) :
     magnitudeUnits64 value = (subnormalSignificand value.bits).toNat *
       sourceScale64 (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat := by
@@ -732,8 +613,6 @@ theorem fields64_scaled_units (value : Binary64) :
       ↓reduceIte, normalSignificand_value]
 
 set_option exponentiation.threshold 1024 in
-/-- The subnormal-target quotient's denominator and source scale multiply to
-one binary32-subnormal unit for every exponent admitted to that branch. -/
 theorem subnormalScale_exact (exponent : Nat) (h : exponent < 897) :
     2 ^ subnormalShift exponent * sourceScale64 exponent = 2 ^ 925 := by
   unfold subnormalShift sourceScale64
@@ -742,7 +621,6 @@ theorem subnormalScale_exact (exponent : Nat) (h : exponent < 897) :
   · rename_i hnonzero
     rw [← Nat.pow_add, show 926 - exponent + (exponent - 1) = 925 by omega]
 
-/-- Decode the actual finite normal-target magnitude after exponent carry. -/
 theorem normalMagnitude_units (bits exponent : UInt64) (hlo : 897 ≤ exponent.toNat) (hhi : exponent.toNat < 2047)
     (hfinite : (normalExponent bits exponent).toNat ≤ 1150) :
     magnitudeUnits32 ⟨narrowSign bits ||| normalMagnitude bits exponent⟩ =
@@ -767,7 +645,6 @@ theorem normalMagnitude_units (bits exponent : UInt64) (hlo : 897 ≤ exponent.t
   rw [show (normalExponent bits exponent).toNat - 896 + 924 =
     (normalExponent bits exponent).toNat + 28 by omega]
 
-/-- Carry doubles the dyadic scale exactly when the actual significand is halved. -/
 theorem normalExponent_scale (bits exponent : UInt64) (hhi : exponent.toNat < 2047) :
     2 ^ ((normalExponent bits exponent).toNat + 28) =
       (if roundedNormal bits == ((1 : UInt64) <<< 24) then 2 else 1) *
@@ -780,8 +657,6 @@ theorem normalExponent_scale (bits exponent : UInt64) (hhi : exponent.toNat < 20
     rw [show exponent.toNat + 1 + 28 = exponent.toNat + 28 + 1 by omega, Nat.pow_succ, Nat.mul_comm]
   · simp
 
-/-- The assembled finite normal result denotes the exact rounded quotient on
-its original scale; exponent carry introduces no additional rounding. -/
 theorem normalMagnitude_rounded_units (bits exponent : UInt64)
     (hlo : 897 ≤ exponent.toNat) (hhi : exponent.toNat < 2047)
     (hfinite : (normalExponent bits exponent).toNat ≤ 1150) :
@@ -790,7 +665,6 @@ theorem normalMagnitude_rounded_units (bits exponent : UInt64)
   rw [normalMagnitude_units bits exponent hlo hhi hfinite, normalExponent_scale bits exponent hhi,
     ← Nat.mul_assoc, normalizedNormal_value]
 
-/-- The actual finite normal-target result is within half its original rounding unit of the exact source dyadic magnitude. -/
 theorem normalMagnitude_distance (value : Binary64)
     (hlo : 897 ≤ (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat)
     (hhi : (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat < 2047)
@@ -820,7 +694,6 @@ theorem normalMagnitude_distance (value : Binary64)
   simpa only [Nat.mul_assoc, hscale] using hd
 
 set_option exponentiation.threshold 1024 in
-/-- The actual subnormal-target result is within half a binary32-subnormal unit of the exact source, including zero and the carry into normal range. -/
 theorem subnormalMagnitude_distance (value : Binary64)
     (h : (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat < 897) :
     let exponent := (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat
@@ -835,19 +708,12 @@ theorem subnormalMagnitude_distance (value : Binary64)
     (2 ^ subnormalShift exponent) (sourceScale64 exponent) (Nat.two_pow_pos _)
   simpa only [Nat.mul_assoc, subnormalScale_exact exponent h] using hd
 
-/-- Standard native NaN widening. The compiled cast owns quieting and payload
-choice, just as the source width cast does. Its opaque kernel interpretation
-is not used as evidence for any finite-value or payload theorem. -/
 def widenNaN (value : Binary32) : Binary64 :=
   ⟨(Float32.ofBits value.bits).toFloat.toBits⟩
 
-/-- Standard native NaN narrowing, with the source cast's trusted native
-exceptional boundary. No fixed sign or payload is imposed by this wrapper. -/
 def narrowNaN (value : Binary64) : Binary32 :=
   ⟨(Float.ofBits value.bits).toFloat32.toBits⟩
 
-/-- Binary32 fields widened into binary64 fields. Finite inputs normalize
-without losing precision; infinity retains its sign and NaNs use the native cast. -/
 def widen (x : Binary32) : Binary64 :=
   let b := x.bits
   let sign := widenSign b
@@ -859,14 +725,12 @@ def widen (x : Binary32) : Binary64 :=
   else if e == 0 then
     if f == 0 then Binary64.mk sign
     else
-      -- Subnormal: value = f · 2⁻¹⁴⁹ with f < 2²³. Normalize to an f64.
       let e64 := widenSubnormalExponent f
       let frac64 := widenSubnormalFraction f
       Binary64.mk (sign ||| ((e64 <<< 52) ||| frac64))
   else
     Binary64.mk (sign ||| (((e.toUInt64 + 896) <<< 52) ||| widenFraction f))
 
-/-- Field-level specification of the word-facing widening implementation. -/
 theorem widen_def (x : Binary32) : widen x =
   let b := x.bits
   let sign := widenSign b
@@ -878,7 +742,6 @@ theorem widen_def (x : Binary32) : widen x =
   else if e == 0 then
     if f == 0 then Binary64.mk sign
     else
-      -- Subnormal: value = f · 2⁻¹⁴⁹ with f < 2²³. Normalize to an f64.
       let L := f.toNat.log2
       let e64 : UInt64 := (L + 874).toUInt64
       let frac64 := widenSubnormalFraction f
@@ -888,9 +751,6 @@ theorem widen_def (x : Binary32) : widen x =
   unfold widen
   simp only [widenSubnormalExponent_eq]
 
-/-- Every finite source has exactly the same dyadic magnitude after the
-executing widening recipe. The shared 2^-1074 unit exposes all exponent and
-significand arithmetic, including zero and every subnormal, without rounding. -/
 theorem widen_magnitude_exact (value : Binary32) (finite : value.Finite) :
     magnitudeUnits64 (widen value) = magnitudeUnits32 value := by
   let e : UInt32 := (value.bits >>> 23) &&& 0xff
@@ -952,8 +812,6 @@ theorem widen_magnitude_exact (value : Binary32) (finite : value.Finite) :
     rw [hfactor, Nat.mul_assoc, ← Nat.pow_add]
     rw [show 29 + (e.toNat + 896 - 1) = e.toNat + 924 by omega]
 
-/-- Every finite binary32 source widens to a finite binary64 word. Together
-with the dyadic identity this establishes exact finite magnitude conversion. -/
 theorem widen_finite (value : Binary32) (finite : value.Finite) : (widen value).Finite := by
   let e : UInt32 := (value.bits >>> 23) &&& 0xff
   let f : UInt64 := (value.bits &&& 0x7fffff).toUInt64
@@ -999,8 +857,6 @@ theorem widen_finite (value : Binary32) (finite : value.Finite) : (widen value).
       exact Nat.mod_eq_of_lt (by omega)
     exact wideFields_finite value.bits _ _ (by rw [hecast]; omega) (widenFraction_exact f hwidth).2
 
-/-- Narrowing with nearest-even finite quotient decisions and standard native
-NaN conversion. Infinity and finite overflow retain the source sign. -/
 def narrow (y : Binary64) : Binary32 :=
   let b := y.bits
   let sign32 := narrowSign b
@@ -1010,15 +866,10 @@ def narrow (y : Binary64) : Binary32 :=
     if f == 0 then Binary32.mk (sign32 ||| 0x7f800000)
     else narrowNaN y
   else if e ≥ 897 then
-    -- Normal-target candidate (the leading-bit exponent T = e − 1023 ≥ −126):
-    -- keep 24 of the 53 significand bits, round the low 29 to nearest-even.
     Binary32.mk (sign32 ||| normalMagnitude b e)
   else
-    -- Subnormal target (or zero): result = round(S · 2^(E+149)); the shift
-    -- is d = 925 for a subnormal input, 926 − e otherwise (≥ 30 here).
     Binary32.mk (sign32 ||| subnormalFractionWord b e)
 
-/-- The field-level specification of the executing narrowing definition. -/
 theorem narrow_def (y : Binary64) : narrow y =
   let b := y.bits
   let sign32 := narrowSign b
@@ -1028,19 +879,12 @@ theorem narrow_def (y : Binary64) : narrow y =
     if f == 0 then Binary32.mk (sign32 ||| 0x7f800000)
     else narrowNaN y
   else if e ≥ 897 then
-    -- Normal-target candidate (the leading-bit exponent T = e − 1023 ≥ −126):
-    -- keep 24 of the 53 significand bits, round the low 29 to nearest-even.
     Binary32.mk (sign32 ||| normalMagnitude b e)
   else
-    -- Subnormal target (or zero): result = round(S · 2^(E+149)); the shift
-    -- is d = 925 for a subnormal input, 926 − e otherwise (≥ 30 here).
     Binary32.mk (sign32 ||| subnormalFraction b e.toNat) := by
   unfold narrow
   simp only [subnormalFractionWord_eq]
 
-/-- Every finite source exponent narrows to a finite or infinite encoding,
-never a NaN, for either sign and every source fraction. This theorem follows
-the executing branches and their emitted fields, not an independent decoder. -/
 theorem narrow_finite_input_bound (value : Binary64)
     (h : (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat < 2047) :
     (narrow value).magnitude ≤ 0x7f800000 := by
@@ -1062,8 +906,6 @@ theorem narrow_finite_input_bound (value : Binary64)
       rw [narrowSign_magnitude _ _ (by omega)]
       omega
 
-/-- The complete finite-source narrowing path preserves the source sign bit,
-including negative zero, underflow to zero and overflow to signed infinity. -/
 theorem narrow_sign (value : Binary64) (finite : value.Finite) :
     (narrow value).bits.toNat / 2 ^ 31 = value.bits.toNat / 2 ^ 63 := by
   have hfields := fields64_decomposition value
@@ -1087,8 +929,6 @@ theorem narrow_sign (value : Binary64) (finite : value.Finite) :
         (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat (by omega)).2
       exact narrowSign_highBit _ _ (by omega)
 
-/-- For every finite source, the actual narrowed word is finite exactly when
-the carry-adjusted exponent fits. Subnormal and zero outputs are included. -/
 theorem narrow_finite_iff (value : Binary64) (finite : value.Finite) :
     (narrow value).Finite ↔
       (normalExponent value.bits ((value.bits >>> 52) &&& 0x7ff)).toNat ≤ 1150 := by
@@ -1128,15 +968,10 @@ theorem narrow_finite_iff (value : Binary64) (finite : value.Finite) :
     rw [hcarry]
     split <;> omega
 
-/-- Original rounding unit of width narrowing, on the exact common dyadic
-scale. Subnormal results have a fixed unit; normal results track the exponent. -/
 def narrowUnit (value : Binary64) : Nat :=
   2 ^ max 925 ((((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat + 28)
 
 set_option exponentiation.threshold 1024 in
-/-- The actual narrowing function is within half its rounding unit of every
-finite source whose carry-adjusted exponent does not overflow binary32.
-Infinity outputs are excluded explicitly rather than assigned a finite error. -/
 theorem narrow_distance (value : Binary64) (finite : value.Finite)
     (noOverflow : (normalExponent value.bits ((value.bits >>> 52) &&& 0x7ff)).toNat ≤ 1150) :
     2 * magnitudeUnits64 value ≤ 2 * magnitudeUnits32 (narrow value) + narrowUnit value ∧
@@ -1170,8 +1005,6 @@ theorem narrow_distance (value : Binary64) (finite : value.Finite)
     rw [ite_eq_right hnormal, Nat.max_eq_left (show exponent.toNat + 28 ≤ 925 by omega)]
     exact subnormalMagnitude_distance value hsubnormal
 
-/-- The actual widening preserves the sign bit of every finite input,
-including both encodings of zero. -/
 theorem widen_sign (value : Binary32) (finite : value.Finite) : (widen value).bits.toNat / 2 ^ 63 = value.bits.toNat / 2 ^ 31 := by
   let e : UInt32 := (value.bits >>> 23) &&& 0xff
   let f : UInt64 := (value.bits &&& 0x7fffff).toUInt64
@@ -1214,17 +1047,12 @@ theorem widen_sign (value : Binary32) (finite : value.Finite) : (widen value).bi
       exact Nat.mod_eq_of_lt (by omega)
     exact wideFields_sign value.bits _ _ (by rw [hecast]; omega) (widenFraction_exact f hwidth).2
 
-/-- Every finite result of the actual finite-source narrowing function obeys
-the half-unit dyadic error bound. Output finiteness is the exact overflow
-classification above, not a sampled property or a hidden input restriction. -/
 theorem narrow_finite_distance (value : Binary64) (sourceFinite : value.Finite)
     (resultFinite : (narrow value).Finite) :
     2 * magnitudeUnits64 value ≤ 2 * magnitudeUnits32 (narrow value) + narrowUnit value ∧
       2 * magnitudeUnits32 (narrow value) ≤ 2 * magnitudeUnits64 value + narrowUnit value :=
   narrow_distance value sourceFinite ((narrow_finite_iff value sourceFinite).mp resultFinite)
 
-/-- Exact truncated integer of a finite binary64 encoding. Exceptional words
-have a total reading here, but the public cast classifies them first. -/
 def trunc64 (value : Binary64) : Int :=
   let exponent := ((value.bits >>> 52) &&& 0x7ff).toNat
   if exponent < 1023 then 0
@@ -1235,9 +1063,6 @@ def trunc64 (value : Binary64) : Int :=
     if value.bits &&& 0x8000000000000000 != 0 then -(magnitude : Int) else magnitude
 
 set_option exponentiation.threshold 2048 in
-/-- Truncation discards exactly the dyadic fractional units, for every raw
-word's total interpretation. For finite encodings this is truncation toward
-zero; exceptional public casts classify the word before using this reading. -/
 theorem trunc64_magnitude_exact (value : Binary64) :
     (trunc64 value).natAbs = magnitudeUnits64 value / 2 ^ 1074 := by
   rw [fields64_units]
@@ -1280,19 +1105,13 @@ theorem trunc64_magnitude_exact (value : Binary64) :
         conv => rhs; rw [hp, Nat.pow_add]
         rw [← Nat.div_div_eq_div_mul, Nat.mul_div_cancel _ (Nat.two_pow_pos (e - 1))]
 
-/-- Integer interval projection used by signed casts after classification. -/
 def clampInt (value lower upper : Int) : Int := max lower (min upper value)
 
-/-- Integer admission covers all integers; no assumption on the raw float's
-magnitude or finiteness is needed after its explicit exceptional branch. -/
 theorem clampInt_bounds (value lower upper : Int) (h : lower ≤ upper) :
     lower ≤ clampInt value lower upper ∧ clampInt value lower upper ≤ upper := by
   unfold clampInt
   omega
 
-/-- Total signed machine cast: NaN maps to zero, infinities to the appropriate
-endpoint, and finite words truncate toward zero then saturate. `bits + 1`
-prevents the undefined zero-width signed domain. -/
 def signedCast (bits : Nat) (value : Binary64) : Int :=
   let extent : Int := 2 ^ bits
   if value.isNaN then 0
@@ -1300,8 +1119,6 @@ def signedCast (bits : Nat) (value : Binary64) : Int :=
     if value.bits &&& 0x8000000000000000 != 0 then -extent else extent - 1
   else clampInt (trunc64 value) (-extent) (extent - 1)
 
-/-- The same cast used by callers is legal for every raw binary64 word and
-every positive signed width. This is a range guarantee, not a rounding bound. -/
 theorem signedCast_bounds (bits : Nat) (value : Binary64) :
     -(2 ^ bits : Int) ≤ signedCast bits value ∧
       signedCast bits value < (2 ^ bits : Int) := by
@@ -1314,13 +1131,9 @@ theorem signedCast_bounds (bits : Nat) (value : Binary64) :
     · have := clampInt_bounds (trunc64 value) (-(2 ^ bits)) (2 ^ bits - 1) (by omega)
       omega
 
-/-- The normal significand shifted into an unsigned i32 magnitude. Callers
-admit exponents in [1023,1053], making the shift and narrowing nonwrapping. -/
 def truncI32Magnitude (bits : UInt64) : UInt32 :=
   (normalSignificand bits >>> ((1075 : UInt64) - ((bits >>> 52) &&& 0x7ff))).toUInt32
 
-/-- Saturating binary64-to-i32 conversion over raw words. Classification precedes
-shifting, so the finite shift branch has a strictly positive shift below 64. -/
 def toI32Word (value : Binary64) : Int32 :=
   let negative := value.bits &&& 0x8000000000000000 != 0
   if value.isNaN then (0 : UInt32).toInt32
@@ -1333,24 +1146,18 @@ def toI32Word (value : Binary64) : Int32 :=
       let truncated := (truncI32Magnitude value.bits).toInt32
       if negative then -truncated else truncated
 
-/-- Binary64 to signed 32-bit integer, including every exceptional encoding. -/
 def toI32 (value : Binary64) : Int := (toI32Word value).toInt
 
-/-- Exact signed word conversion on the admitted i32 domain. Values outside
-that domain encounter the explicitly visible UInt64 magnitude wrap. -/
 def ofInt (value : Int) : Binary64 :=
   let magnitude := value.natAbs.toUInt64.toFloat.toBits
   if value < 0 then ⟨magnitude ^^^ 0x8000000000000000⟩ else ⟨magnitude⟩
 
-/-- Signed native-word conversion obtains an unsigned magnitude without an
-intermediate arbitrary-precision integer, including the minimum signed word. -/
 def ofI64Word (value : Int64) : Binary64 :=
   let negative := value.toUInt64 ≥ (0x8000000000000000 : UInt64)
   let magnitude := if negative then -value.toUInt64 else value.toUInt64
   let bits := magnitude.toFloat.toBits
   if negative then ⟨bits ^^^ 0x8000000000000000⟩ else ⟨bits⟩
 
-/-- The high unsigned half is exactly the negative signed-word domain. -/
 theorem i64Sign_eq (value : Int64) :
     (value.toUInt64 ≥ (0x8000000000000000 : UInt64)) ↔ value < 0 := by
   change 2^63 ≤ value.toUInt64.toNat ↔ value < 0
@@ -1362,7 +1169,6 @@ theorem i64Sign_eq (value : Int64) :
   have width := value.toUInt64.toNat_lt
   split at repr <;> omega
 
-/-- Unsigned two's-complement magnitude is the exact absolute integer value. -/
 theorem i64Magnitude_exact (value : Int64) :
     (if value < 0 then -value.toUInt64 else value.toUInt64).toNat = value.toInt.natAbs := by
   have repr := BitVec.toInt_eq_toNat_cond value.toBitVec
@@ -1391,7 +1197,6 @@ theorem i64Magnitude_exact (value : Int64) :
     rw [ite_eq_left low] at repr
     rw [repr, Int.natAbs_natCast]
 
-/-- Every i64 follows the existing signed conversion's exact primitive recipe. -/
 theorem ofI64Word_eq (value : Int64) : ofI64Word value = ofInt value.toInt := by
   have magnitude : (if value < 0 then -value.toUInt64 else value.toUInt64) =
       value.toInt.natAbs.toUInt64 := by
@@ -1408,14 +1213,11 @@ theorem ofI64Word_eq (value : Int64) : ofI64Word value = ofInt value.toInt := by
   simp only [Int64.lt_iff_toInt_lt]
   rfl
 
-/-- Sign extension keeps the complete i32 domain in native words. -/
 def ofI32Word (value : Int32) : Binary64 := ofI64Word value.toInt64
 
-/-- The i32 word conversion shares the existing signed conversion contract. -/
 theorem ofI32Word_eq (value : Int32) : ofI32Word value = ofInt value.toInt := by
   rw [ofI32Word, ofI64Word_eq, Int32.toInt_toInt64]
 
-/-- Widening preserves the magnitude interval from zero through one for both signs. -/
 theorem widen_magnitude_unit (value : Binary32) (bound : value.magnitude ≤ 0x3f800000) :
     (widen value).magnitude ≤ 0x3ff0000000000000 := by
   let e : UInt32 := (value.bits >>> 23) &&& 0xff
@@ -1467,12 +1269,10 @@ theorem widen_magnitude_unit (value : Binary32) (bound : value.magnitude ≤ 0x3
     rw [widenSign_magnitude _ _ (by rw [hw]; omega), hw]
     omega
 
-/-- Every normal rounding carry emits a zero fraction in the next exponent. -/
 theorem normalFraction_carry_zero (bits : UInt64)
     (carry : roundedNormal bits == ((1 : UInt64) <<< 24)) : normalFraction bits = 0 := by
   simp [normalFraction, normalizedNormal, beq_iff_eq.mp carry]
 
-/-- A zero source fraction is retained exactly by normal narrowing. -/
 theorem roundedNormal_zero_fraction (bits : UInt64)
     (zero : (bits &&& 0xfffffffffffff : UInt64).toNat = 0) :
     roundedNormal bits = (1 : UInt64) <<< 23 := by
@@ -1483,7 +1283,6 @@ theorem roundedNormal_zero_fraction (bits : UInt64)
   rw [roundedNormal, hm]
   rfl
 
-/-- A normal-target unit magnitude cannot round past the encoding of one. -/
 theorem normalMagnitude_unit (bits exponent : UInt64) (lo : 897 ≤ exponent.toNat)
     (hi : exponent.toNat ≤ 1023)
     (top : exponent.toNat = 1023 → (bits &&& 0xfffffffffffff : UInt64).toNat = 0) :
@@ -1521,7 +1320,6 @@ theorem normalMagnitude_unit (bits exponent : UInt64) (lo : 897 ≤ exponent.toN
     decide
   · omega
 
-/-- Narrowing preserves the magnitude unit interval for both signs, including underflow and carry. -/
 theorem narrow_magnitude_unit (value : Binary64) (bound : value.magnitude ≤ 0x3ff0000000000000) :
     (narrow value).magnitude ≤ 0x3f800000 := by
   let e : UInt64 := (value.bits >>> 52) &&& 0x7ff
@@ -1550,7 +1348,6 @@ theorem narrow_magnitude_unit (value : Binary64) (bound : value.magnitude ≤ 0x
       rw [narrowSign_magnitude _ _ (by omega)]
       omega
 
-/-- Positive-sign unit inputs remain in that raw-word interval on widening. -/
 theorem widen_word_unit (value : Binary32) (bound : value.bits.toNat ≤ 0x3f800000) :
     (widen value).bits.toNat ≤ 0x3ff0000000000000 := by
   have hm : value.magnitude = value.bits.toNat := by
@@ -1562,7 +1359,6 @@ theorem widen_word_unit (value : Binary32) (bound : value.bits.toNat ≤ 0x3f800
   rw [Nat.and_two_pow_sub_one_eq_mod] at hb
   omega
 
-/-- Positive-sign unit inputs remain in that raw-word interval on narrowing. -/
 theorem narrow_word_unit (value : Binary64) (bound : value.bits.toNat ≤ 0x3ff0000000000000) :
     (narrow value).bits.toNat ≤ 0x3f800000 := by
   have hm : value.magnitude = value.bits.toNat := by
@@ -1573,7 +1369,6 @@ theorem narrow_word_unit (value : Binary64) (bound : value.bits.toNat ≤ 0x3ff0
   change (narrow value).bits.toNat &&& (2^31-1) ≤ _ at hb
   rw [Nat.and_two_pow_sub_one_eq_mod] at hb
   omega
-/-- The narrowing recipe preserves either exact zero sign. -/
 theorem narrow_signed_zero (sign : Bool) :
     narrow ⟨if sign then 0x8000000000000000 else 0⟩ = ⟨if sign then 0x80000000 else 0⟩ := by
   cases sign
@@ -1583,7 +1378,6 @@ theorem narrow_signed_zero (sign : Bool) :
   · change Binary32.mk (0x80000000 ||| (Rounding.wordShift 0 925).toUInt32) = ⟨0x80000000⟩
     rw [Rounding.wordShift_zero]
     rfl
-/-- Extracting assembled wide fields returns their original nonoverlapping values. -/
 theorem wideFields_extract (bits : UInt32) (exponent fraction : UInt64)
     (he : exponent.toNat < 2048) (hf : fraction.toNat < 2^52) :
     let word := widenSign bits ||| ((exponent <<< 52) ||| fraction)
@@ -1597,7 +1391,6 @@ theorem wideFields_extract (bits : UInt32) (exponent fraction : UInt64)
   dsimp only at hd
   constructor <;> apply UInt64.toNat.inj <;> omega
 
-/-- The finite-source narrowing magnitude follows exactly its exponent-selected recipe. -/
 theorem narrow_magnitude_cases (value : Binary64)
     (he : (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat < 2047) :
     (narrow value).magnitude =
@@ -1622,7 +1415,6 @@ theorem narrow_magnitude_cases (value : Binary64)
         have := (subnormalFraction_exact value.bits (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat (by omega)).2
         omega)
 
-/-- A significand with 29 padded zero bits narrows exactly to its original 24-bit significand. -/
 theorem normalMagnitude_aligned (bits exponent : UInt64) (fraction : Nat)
     (he : 897 ≤ exponent.toNat) (he' : exponent.toNat ≤ 1150) (hf : fraction < 2^23)
     (aligned : (normalSignificand bits).toNat = (2^23+fraction)*2^29) :
@@ -1652,7 +1444,6 @@ theorem normalMagnitude_aligned (bits exponent : UInt64) (fraction : Nat)
   rw [normalFields_exact _ _ (by rw [hcast]; omega) hfrac.2, hcast]
   omega
 
-/-- A zero-padded subnormal-target significand narrows exactly to its source field. -/
 theorem subnormalFraction_aligned (bits : UInt64) (exponent fraction : Nat)
     (he : exponent < 897)
     (aligned : (subnormalSignificand bits).toNat = fraction*2^(subnormalShift exponent)) :
@@ -1660,7 +1451,6 @@ theorem subnormalFraction_aligned (bits : UInt64) (exponent fraction : Nat)
   rw [(subnormalFraction_exact bits exponent he).1, aligned,
     Rounding.nearestEven_exact _ _ (Nat.two_pow_pos _)]
 
-/-- Assembled finite normal fields expose the original normalized significand to narrowing. -/
 theorem wideFields_significand (bits : UInt32) (exponent fraction : UInt64)
     (he : 0 < exponent.toNat) (he' : exponent.toNat < 2047) (hf : fraction.toNat < 2^52) :
     let word := widenSign bits ||| ((exponent <<< 52) ||| fraction)
@@ -1679,7 +1469,6 @@ theorem wideFields_significand (bits : UInt32) (exponent fraction : UInt64)
   simp only [Bool.false_eq_true, ↓reduceIte]
   rw [normalSignificand_value, fields.2]
 
-/-- Narrowing recovers every finite binary32 magnitude after exact widening. -/
 theorem narrow_widen_magnitude (value : Binary32) (finite : value.Finite) :
     (narrow (widen value)).magnitude = value.magnitude := by
   let e : UInt32 := (value.bits >>> 23) &&& 0xff
@@ -1766,7 +1555,6 @@ theorem narrow_widen_magnitude (value : Binary32) (finite : value.Finite) :
     rw [hecast]
     omega
 
-/-- Widening then narrowing preserves every finite source word, including either zero sign. -/
 theorem narrow_widen_finite (value : Binary32) (finite : value.Finite) : narrow (widen value) = value := by
   have hm := narrow_widen_magnitude value finite
   have hs := narrow_sign (widen value) (widen_finite value finite)
@@ -1776,7 +1564,6 @@ theorem narrow_widen_finite (value : Binary32) (finite : value.Finite) : narrow 
   have hw : (narrow (widen value)).bits.toNat = value.bits.toNat := by omega
   have heq := UInt32.toNat.inj hw
   exact congrArg Binary32.mk heq
-/-- Widening then narrowing preserves every non-NaN word, including signed infinities. -/
 theorem narrow_widen_nonNaN (value : Binary32) (notNan : value.isNaN = false) :
     narrow (widen value) = value := by
   by_cases finite : value.Finite
@@ -1796,7 +1583,6 @@ theorem narrow_widen_nonNaN (value : Binary32) (notNan : value.isNaN = false) :
     · have he : value = ⟨0xff800000⟩ := congrArg Binary32.mk (UInt32.toNat.inj h)
       rw [he]
       rfl
-/-- Every finite nonzero binary32 word widens into the binary64 normal range. -/
 theorem widen_normal_or_zero (value : Binary32) (finite : value.Finite) :
     (widen value).magnitude = 0 ∨ 2^52 ≤ (widen value).magnitude := by
   let e : UInt32 := (value.bits >>> 23) &&& 0xff
@@ -1860,7 +1646,6 @@ theorem widen_normal_or_zero (value : Binary32) (finite : value.Finite) :
     rw [hecast] at hw
     rw [widenSign_magnitude _ _ (by rw [hw]; omega), hw]
     omega
-/-- The raw truncation recipe applies the stored sign to its exact integer magnitude. -/
 theorem trunc64_signed_magnitude (value : Binary64) :
     trunc64 value =
       if value.bits &&& 0x8000000000000000 != 0 then -((trunc64 value).natAbs : Int)
@@ -1871,7 +1656,6 @@ theorem trunc64_signed_magnitude (value : Binary64) :
   · simp only [he, ↓reduceIte]
     split <;> simp
 
-/-- Truncation is the signed integer quotient of the actual dyadic magnitude, toward zero. -/
 theorem trunc64_signed_exact (value : Binary64) :
     trunc64 value =
       if value.bits &&& 0x8000000000000000 != 0 then -((magnitudeUnits64 value / 2^1074 : Nat) : Int)
@@ -1879,7 +1663,6 @@ theorem trunc64_signed_exact (value : Binary64) :
   conv => lhs; rw [trunc64_signed_magnitude]
   rw [trunc64_magnitude_exact]
 
-/-- Finite signed casts follow the same truncation and saturation definitions used by execution. -/
 theorem signedCast_finite (bits : Nat) (value : Binary64) (finite : value.Finite) :
     signedCast bits value = clampInt (trunc64 value) (-(2^bits)) (2^bits-1) := by
   have hn : value.isNaN = false := by
@@ -1893,14 +1676,11 @@ theorem signedCast_finite (bits : Nat) (value : Binary64) (finite : value.Finite
     omega
   simp only [signedCast, hn, hi, Bool.false_eq_true, ↓reduceIte]
 
-/-- Every finite machine cast has the exact signed quotient-and-clamp semantics. -/
 theorem signedCast_finite_value (bits : Nat) (value : Binary64) (finite : value.Finite) :
     signedCast bits value =
       clampInt (if value.bits &&& 0x8000000000000000 != 0 then -((magnitudeUnits64 value / 2^1074 : Nat) : Int)
         else ((magnitudeUnits64 value / 2^1074 : Nat) : Int)) (-(2^bits)) (2^bits-1) := by
   rw [signedCast_finite bits value finite, trunc64_signed_exact]
-/-- The finite i32 shift branch returns the exact integer quotient, below
-2^31. Its shift is between 22 and 52, so no machine shift masking occurs. -/
 theorem truncI32Magnitude_exact (bits : UInt64)
     (lo : 1023 ≤ (((bits >>> 52) &&& 0x7ff) : UInt64).toNat)
     (hi : (((bits >>> 52) &&& 0x7ff) : UInt64).toNat < 1054) :
@@ -1928,8 +1708,6 @@ theorem truncI32Magnitude_exact (bits : UInt64)
     rw [hs, Nat.mod_eq_of_lt hd', Nat.mod_eq_of_lt (by omega)]
   exact ⟨heq, heq ▸ hq⟩
 
-/-- Exponent magnitude bounds the truncated integer below, for every raw
-encoding and every threshold within the stored significand width. -/
 theorem trunc64_large_power (value : Binary64) (power : Nat) (width : power ≤ 52)
     (large : 1023 + power ≤ (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat) :
     2^power ≤ (trunc64 value).natAbs := by
@@ -1961,14 +1739,11 @@ theorem trunc64_large_power (value : Binary64) (power : Nat) (width : power ≤ 
       dsimp only [e] at *
       omega
 
-/-- The i32 overflow exponent ensures a magnitude at least 2^31. -/
 theorem trunc64_large (value : Binary64)
     (large : 1054 ≤ (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat) :
     2^31 ≤ (trunc64 value).natAbs :=
   trunc64_large_power value 31 (by decide) large
 
-/-- Truncation in the nonsaturating i32 range uses precisely the admitted
-word shift and preserves the stored sign. -/
 theorem trunc64_i32 (value : Binary64)
     (lo : 1023 ≤ (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat)
     (hi : (((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat < 1054) :
@@ -1984,8 +1759,6 @@ theorem trunc64_i32 (value : Binary64)
   dsimp only
   rw [ite_eq_right (show ¬(((value.bits >>> 52) &&& 0x7ff) : UInt64).toNat ≥ 1075 by omega), ← eqn]
 
-/-- Word conversion has the same total saturating semantics as the public
-integer specification, for every binary64 encoding. -/
 theorem toI32_eq_signedCast (value : Binary64) : toI32 value = signedCast 31 value := by
   let e := ((value.bits >>> 52) &&& 0x7ff : UInt64)
   have fields := fields64_decomposition value
@@ -2047,14 +1820,11 @@ theorem toI32_eq_signedCast (value : Binary64) : toI32 value = signedCast 31 val
       · simp only [neg, Bool.false_eq_true, ↓reduceIte, cast, clampInt]
         omega
 
-/-- The nonsaturating i64 magnitude uses bounded shifts on its admitted exponent
-range. Classification at the caller precedes either shift. -/
 def truncI64Magnitude (bits : UInt64) : UInt64 :=
   let exponent := bits >>> 52 &&& 0x7ff
   if exponent ≥ (1075 : UInt64) then normalSignificand bits <<< (exponent - 1075)
   else normalSignificand bits >>> ((1075 : UInt64) - exponent)
 
-/-- Every admitted finite i64 magnitude is exact and fits below the sign bit. -/
 theorem truncI64Magnitude_exact (bits : UInt64)
     (lo : 1023 ≤ (bits >>> 52 &&& (0x7ff : UInt64)).toNat)
     (hi : (bits >>> 52 &&& (0x7ff : UInt64)).toNat < 1086) :
@@ -2095,7 +1865,6 @@ theorem truncI64Magnitude_exact (bits : UInt64)
       omega
     exact ⟨eqn, eqn ▸ bound⟩
 
-/-- Every source at the i64 overflow exponent truncates beyond its positive range. -/
 theorem trunc64_large_i64 (value : Binary64)
     (large : 1086 ≤ (value.bits >>> 52 &&& (0x7ff : UInt64)).toNat) :
     2^63 ≤ (trunc64 value).natAbs := by
@@ -2112,7 +1881,6 @@ theorem trunc64_large_i64 (value : Binary64)
   have bound := Nat.mul_le_mul sig power
   split <;> simp only [Int.natAbs_neg, Int.natAbs_natCast] <;> exact bound
 
-/-- Finite i64 truncation uses the admitted magnitude and original stored sign. -/
 theorem trunc64_i64 (value : Binary64)
     (lo : 1023 ≤ (value.bits >>> 52 &&& (0x7ff : UInt64)).toNat)
     (hi : (value.bits >>> 52 &&& (0x7ff : UInt64)).toNat < 1086) :
@@ -2126,8 +1894,6 @@ theorem trunc64_i64 (value : Binary64)
   dsimp only
   rw [← eqn]
 
-/-- Saturating binary64-to-i64 conversion classifies all exceptional encodings
-before admitting the finite magnitude shifts. NaNs select zero. -/
 def toI64Word (value : Binary64) : Int64 :=
   let negative := value.bits &&& 0x8000000000000000 != 0
   if value.IsNaN then (0 : UInt64).toInt64
@@ -2138,11 +1904,8 @@ def toI64Word (value : Binary64) : Int64 :=
     let magnitude := (truncI64Magnitude value.bits).toInt64
     if negative then -magnitude else magnitude
 
-/-- Integer-facing view of the complete saturating i64 word conversion. -/
 def toI64 (value : Binary64) : Int := (toI64Word value).toInt
 
-/-- Word conversion has the same total saturating semantics as the public
-integer specification, for every binary64 encoding. -/
 theorem toI64_eq_signedCast (value : Binary64) : toI64 value = signedCast 63 value := by
   let e := ((value.bits >>> 52) &&& 0x7ff : UInt64)
   have fields := fields64_decomposition value
@@ -2204,8 +1967,6 @@ theorem toI64_eq_signedCast (value : Binary64) : toI64 value = signedCast 63 val
       · simp only [neg, Bool.false_eq_true, ↓reduceIte, cast, clampInt]
         omega
 
-/-- Cap the total raw truncation at 128 after negative values map to zero.
-This field kernel supports the bounded exploration clock without large integers. -/
 def cappedTrunc128 (value : Binary64) : UInt32 :=
   if value.bits &&& 0x8000000000000000 != 0 then 0
   else
@@ -2214,8 +1975,6 @@ def cappedTrunc128 (value : Binary64) : UInt32 :=
     else if exponent < 1023 then 0
     else truncI32Magnitude value.bits
 
-/-- The capped word recipe preserves the total raw truncation meaning,
-including exceptional encodings, before any caller-specific classification. -/
 theorem cappedTrunc128_exact (value : Binary64) :
     (cappedTrunc128 value).toNat = min (trunc64 value).toNat 128 := by
   let e := ((value.bits >>> 52) &&& 0x7ff : UInt64)

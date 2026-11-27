@@ -1,60 +1,33 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Checkpoint.Codec
 
-/-!
-# Formats of stored values
-
-A format writes a value as bytes and reads a value back from the front of a byte list,
-returning the bytes after it. A `Codec` carries its round-trip law in its value; a format
-carries none, because the law of the format of a learner state needs invariants of the
-learner that the proof library proves. The two laws are predicates of a format instead:
-`Format.Lawful`, reading the bytes of a value returns the value, and `Format.Canonical`,
-every value read is followed in its input by exactly the bytes returned, so no value has a
-second encoding. Each combinator here proves that it keeps both (`Format.Exact`).
--/
 namespace Acorn.Checkpoint
 
-/-- A writer and a prefix reader of one stored type. -/
 structure Format (α : Type) where
-  /-- Bytes in file order. -/
   encode : α → List UInt8
-  /-- Read one value from the front, returning the bytes after it. -/
   decode : List UInt8 → Option (α × List UInt8)
 
 namespace Format
 
 variable {α β : Type}
 
-/-- Reading the bytes of a value, followed by any bytes, returns the value and those bytes. -/
 abbrev Lawful (format : Format α) : Prop :=
   ∀ value suffix, format.decode (format.encode value ++ suffix) = some (value, suffix)
 
-/-- Every value read is followed in its input by exactly the bytes returned. -/
 abbrev Canonical (format : Format α) : Prop :=
   ∀ bytes value rest, format.decode bytes = some (value, rest) →
     bytes = format.encode value ++ rest
 
-/-- Reading the bytes of one value, followed by any bytes, returns the value and those bytes. -/
 abbrev LawfulAt (format : Format α) (value : α) : Prop :=
   ∀ suffix, format.decode (format.encode value ++ suffix) = some (value, suffix)
 
-/-- Both laws: the format reads exactly the encodings of its values, each as its value. -/
 structure Exact (format : Format α) : Prop where
-  /-- Reading an encoding returns its value. -/
   lawful : format.Lawful
-  /-- Only encodings are read. -/
   canonical : format.Canonical
 
 end Format
 
-/-- The format of a codec. -/
 def Codec.format {α : Type} (codec : Codec α) : Format α := ⟨codec.encode, codec.decode⟩
 
-/-- A canonical codec is an exact format; its round trip is its own law. -/
 theorem Codec.format_exact {α : Type} {codec : Codec α} (canonical : codec.Canonical) :
     codec.format.Exact := ⟨codec.roundtrip, canonical⟩
 
@@ -62,7 +35,6 @@ namespace Format
 
 variable {α β : Type}
 
-/-- Two values in order. -/
 def pair (left : Format α) (right : Format β) : Format (α × β) where
   encode value := left.encode value.1 ++ right.encode value.2
   decode bytes := do
@@ -70,7 +42,6 @@ def pair (left : Format α) (right : Format β) : Format (α × β) where
     let (second, rest) ← right.decode rest
     some ((first, second), rest)
 
-/-- Two canonical formats in order are canonical. -/
 theorem pair_canonical {left : Format α} {right : Format β} (first : left.Canonical)
     (second : right.Canonical) : (left.pair right).Canonical := by
   intro bytes value rest decoded
@@ -88,20 +59,17 @@ theorem pair_canonical {left : Format α} {right : Format β} (first : left.Cano
       rw [first _ _ _ head, second _ _ _ tail]
       simp [pair]
 
-/-- Two exact formats in order are exact. -/
 theorem pair_exact {left : Format α} {right : Format β} (first : left.Exact)
     (second : right.Exact) : (left.pair right).Exact :=
   ⟨fun value suffix => by simp [pair, List.append_assoc, first.lawful, second.lawful],
     pair_canonical first.canonical second.canonical⟩
 
-/-- Two values each read back are read back in order. -/
 theorem pair_lawfulAt {left : Format α} {right : Format β} {first : α} {second : β}
     (head : left.LawfulAt first) (tail : right.LawfulAt second) :
     (left.pair right).LawfulAt (first, second) := by
   intro suffix
   simp [pair, List.append_assoc, head, tail]
 
-/-- Read a stored value and admit it into another type, which may refuse it. -/
 def filterMap (format : Format α) (pack : α → Option β) (unpack : β → α) : Format β where
   encode value := format.encode (unpack value)
   decode bytes := do
@@ -109,9 +77,6 @@ def filterMap (format : Format α) (pack : α → Option β) (unpack : β → α
     let value ← pack raw
     some (value, rest)
 
-/-- An admission of a canonical format is exact when the format reads back the stored form of
-every value, the admission admits that form as the value, and every value it admits from a
-stored form has that stored form. -/
 theorem filterMap_exact_of {format : Format α} {pack : α → Option β} {unpack : β → α}
     (lawful : ∀ value suffix,
       format.decode (format.encode (unpack value) ++ suffix) = some (unpack value, suffix))
@@ -135,8 +100,6 @@ theorem filterMap_exact_of {format : Format α} {pack : α → Option β} {unpac
         rw [canonical _ _ _ inner]
         simp [filterMap, packed raw made built]
 
-/-- An admission of an exact format is exact when it admits the stored form of every value
-as that value, and every value it admits from a stored form has that stored form. -/
 theorem filterMap_exact {format : Format α} {pack : α → Option β} {unpack : β → α}
     (exact : format.Exact) (inverse : ∀ value, pack (unpack value) = some value)
     (packed : ∀ raw value, pack raw = some value → unpack value = raw) :
@@ -144,11 +107,9 @@ theorem filterMap_exact {format : Format α} {pack : α → Option β} {unpack :
   filterMap_exact_of (fun value suffix => exact.lawful (unpack value) suffix) exact.canonical
     inverse packed
 
-/-- Change representation through a total inverse pair. -/
 def map (format : Format α) (pack : α → β) (unpack : β → α) : Format β :=
   format.filterMap (fun raw => some (pack raw)) unpack
 
-/-- A representation change of an exact format is exact when the two maps are inverse. -/
 theorem map_exact {format : Format α} {pack : α → β} {unpack : β → α}
     (exact : format.Exact) (inverse : ∀ value, pack (unpack value) = value)
     (packed : ∀ raw, unpack (pack raw) = raw) : (format.map pack unpack).Exact :=
@@ -156,24 +117,18 @@ theorem map_exact {format : Format α} {pack : α → β} {unpack : β → α}
     obtain rfl := Option.some.inj built
     exact packed raw)
 
-/-- No bytes are needed for the unique unit value. -/
 def unit : Format Unit := unitCodec.format
 
-/-- The empty format is exact. -/
 theorem unit_exact : unit.Exact := Codec.format_exact unitCodec_canonical
 
-/-- One byte. -/
 def byte : Format UInt8 := byteCodec.format
 
-/-- The byte format is exact. -/
 theorem byte_exact : byte.Exact := Codec.format_exact byteCodec_canonical
 
-/-- A flag is the byte zero or the byte one; every other byte is refused. -/
 def bool : Format Bool :=
   byte.filterMap (fun stored => if stored = 0 then some false else if stored = 1 then some true
     else none) (fun flag => if flag then 1 else 0)
 
-/-- The flag format is exact. -/
 theorem bool_exact : bool.Exact :=
   filterMap_exact byte_exact (fun flag => by cases flag <;> rfl) (fun stored flag built => by
     by_cases zero : stored = 0
@@ -188,13 +143,9 @@ theorem bool_exact : bool.Exact :=
         rfl
       · simp [zero, one] at built)
 
-/-- A value of a closed finite type, stored as one byte: its position in a listing of all
-its values. -/
 def enum (values : List α) (position : α → Nat) : Format α :=
   byte.filterMap (fun stored => values[stored.toNat]?) (fun value => UInt8.ofNat (position value))
 
-/-- An enumeration is exact when the listing holds every value at its position and has at
-most 256 entries. -/
 theorem enum_exact (values : List α) (position : α → Nat)
     (listed : ∀ value, values[position value]? = some value)
     (positions : ∀ (index : Nat) (inside : index < values.length), position values[index] = index)
@@ -214,14 +165,11 @@ theorem enum_exact (values : List α) (position : α → Nat)
       simp only [UInt8.toNat_ofNat', placed]
       exact Nat.mod_eq_of_lt stored.toNat_lt)
 
-/-- An index below a count, stored as a fixed-width word; a word at or above the count is
-refused. -/
 def fin (width count : Nat) : Format (Fin count) :=
   (wordCodec width).format.filterMap
     (fun word => if h : word.val < count then some ⟨word.val, h⟩ else none)
     (fun index => ⟨index.val % 256 ^ width, Nat.mod_lt _ (Nat.pow_pos (by decide))⟩)
 
-/-- The index format is exact when every index fits the word width. -/
 theorem fin_exact (width count : Nat) (fits : count ≤ 256 ^ width) : (fin width count).Exact :=
   filterMap_exact (Codec.format_exact (wordCodec_canonical width))
     (fun index => by
@@ -234,7 +182,6 @@ theorem fin_exact (width count : Nat) (fits : count ≤ 256 ^ width) : (fin widt
         exact Fin.ext (Nat.mod_eq_of_lt word.isLt)
       · contradiction)
 
-/-- An optional value: the byte zero for none, the byte one before a present value. -/
 def option (format : Format α) : Format (Option α) where
   encode
     | none => [0]
@@ -246,7 +193,6 @@ def option (format : Format α) : Format (Option α) where
       else if tag = 1 then (format.decode rest).map fun (value, rest) => (some value, rest)
       else none
 
-/-- An optional exact value is exact. -/
 theorem option_exact {format : Format α} (exact : format.Exact) : format.option.Exact := by
   constructor
   · intro value suffix
@@ -276,7 +222,6 @@ theorem option_exact {format : Format α} (exact : format.Exact) : format.option
             rfl
         · simp [option, zero, one] at decoded
 
-/-- One of two values: the byte zero before a left value, the byte one before a right one. -/
 def sum (left : Format α) (right : Format β) : Format (α ⊕ β) where
   encode
     | .inl value => 0 :: left.encode value
@@ -288,7 +233,6 @@ def sum (left : Format α) (right : Format β) : Format (α ⊕ β) where
       else if tag = 1 then (right.decode rest).map fun (value, rest) => (.inr value, rest)
       else none
 
-/-- A choice of two exact formats is exact. -/
 theorem sum_exact {left : Format α} {right : Format β} (first : left.Exact)
     (second : right.Exact) : (left.sum right).Exact := by
   constructor
@@ -324,14 +268,12 @@ theorem sum_exact {left : Format α} {right : Format β} (first : left.Exact)
             rfl
         · simp [sum, zero, one] at decoded
 
-/-- Read a fixed number of values with one accumulator. -/
 def decodeInto (format : Format α) : Nat → List UInt8 → List α → Option (List α × List UInt8)
   | 0, bytes, reversed => some (reversed.reverse, bytes)
   | count + 1, bytes, reversed => do
     let (value, rest) ← format.decode bytes
     decodeInto format count rest (value :: reversed)
 
-/-- Each successful read adds exactly its requested count to the accumulator. -/
 theorem decodeInto_length (format : Format α) (count : Nat) (bytes : List UInt8)
     (reversed values : List α) (rest : List UInt8)
     (decoded : decodeInto format count bytes reversed = some (values, rest)) :
@@ -351,7 +293,6 @@ theorem decodeInto_length (format : Format α) (count : Nat) (bytes : List UInt8
       simp only [List.length_cons] at length
       omega
 
-/-- Reading the encodings of a list returns the list after the accumulator. -/
 theorem decodeInto_lawful {format : Format α} (lawful : format.Lawful) (values : List α)
     (suffix : List UInt8) (reversed : List α) :
     decodeInto format values.length (values.flatMap format.encode ++ suffix) reversed =
@@ -361,8 +302,6 @@ theorem decodeInto_lawful {format : Format α} (lawful : format.Lawful) (values 
   | cons value values ih =>
     simp [decodeInto, List.append_assoc, lawful, ih]
 
-/-- A list read value by value is the encoding of the values read after the accumulator,
-followed by the returned bytes. -/
 theorem decodeInto_written {format : Format α} (canonical : format.Canonical) :
     ∀ (count : Nat) (bytes : List UInt8) (reversed values : List α) (rest : List UInt8),
       decodeInto format count bytes reversed = some (values, rest) →
@@ -383,7 +322,6 @@ theorem decodeInto_written {format : Format α} (canonical : format.Canonical) :
       rw [canonical _ _ _ first, middleRead]
       simp
 
-/-- A fixed number of values; the count is the type's, never a stored word. -/
 def vector (format : Format α) (count : Nat) : Format (Vector α count) where
   encode values := values.toList.flatMap format.encode
   decode bytes :=
@@ -393,7 +331,6 @@ def vector (format : Format α) (count : Nat) : Format (Vector α count) where
       some (⟨values.toArray, by simpa using decodeInto_length format count bytes [] values rest h⟩,
         rest)
 
-/-- A fixed-count vector of an exact format is exact. -/
 theorem vector_exact {format : Format α} (exact : format.Exact) (count : Nat) :
     (format.vector count).Exact := by
   constructor
@@ -420,15 +357,12 @@ theorem vector_exact {format : Format α} (exact : format.Exact) (count : Nat) :
       subst valuesRead
       simpa [vector] using bytesRead
 
-/-- A list of values: its length as an eight-byte word, then its values. A stored length
-above `bound` is refused before any value is read, so the bound limits the work of a read. -/
 def list (format : Format α) (bound : Nat) : Format (List α) where
   encode values := u64Codec.encode values.length.toUInt64 ++ values.flatMap format.encode
   decode bytes := do
     let (count, rest) ← u64Codec.decode bytes
     if count.toNat ≤ bound then decodeInto format count.toNat rest [] else none
 
-/-- A list no longer than the bound is read back, when the bound fits the length word. -/
 theorem list_lawful {format : Format α} (lawful : format.Lawful) (bound : Nat)
     (fits : bound < 2 ^ 64) (values : List α) (short : values.length ≤ bound)
     (suffix : List UInt8) :
@@ -441,7 +375,6 @@ theorem list_lawful {format : Format α} (lawful : format.Lawful) (bound : Nat)
   simp only [list, List.append_assoc, u64Codec.roundtrip, bind, Option.bind]
   simp only [exactCount, short, ↓reduceIte, h]
 
-/-- The list format reads only encodings. -/
 theorem list_canonical {format : Format α} (canonical : format.Canonical) (bound : Nat) :
     (format.list bound).Canonical := by
   intro bytes value rest decoded
@@ -464,26 +397,14 @@ theorem list_canonical {format : Format α} (canonical : format.Canonical) (boun
       rw [tailRead, ← valuesRead]
     · contradiction
 
-/-- The base-128 digits of a natural after digits already written, which `written` holds
-latest first: each byte holds seven bits, least significant digit first, and its high bit
-says that a further byte follows. Each digit is a tail call, so writing runs in constant
-native stack. -/
 def encodeNaturalInto (value : Nat) (written : List UInt8) : List UInt8 :=
   if value < 128 then (UInt8.ofNat value :: written).reverse
   else encodeNaturalInto (value / 128) (UInt8.ofNat (value % 128 + 128) :: written)
 termination_by value
 decreasing_by omega
 
-/-- A natural number in base 128, least significant digit first: each byte holds seven bits,
-and its high bit says that a further byte follows. -/
 def encodeNatural (value : Nat) : List UInt8 := encodeNaturalInto value []
 
-/-- Read the digits of a base-128 natural after the lower digits already read, which `lower`
-holds latest first. A further byte adds its digit to `lower`; the terminating byte is the
-highest digit, and the value is the fold of the lower digits into it. A terminating byte whose
-digits are all zero after a further byte is refused, since the writer never writes one, so
-every natural has one encoding. Each byte is a tail call, so reading runs in constant native
-stack. -/
 def decodeNaturalInto : List UInt8 → List Nat → Option (Nat × List UInt8)
   | [], _ => none
   | digit :: rest, lower =>
@@ -495,18 +416,10 @@ def decodeNaturalInto : List UInt8 → List Nat → Option (Nat × List UInt8)
         else some (lower.foldl (fun value next => value * 128 + next) digit.toNat, rest)
     else decodeNaturalInto rest ((digit.toNat - 128) :: lower)
 
-/-- Read a base-128 natural. -/
 def decodeNatural (bytes : List UInt8) : Option (Nat × List UInt8) := decodeNaturalInto bytes []
 
-/-- A natural of any size. Reading a natural of `n` bytes takes work quadratic in `n`, since
-each digit rebuilds the accumulated value. The image writes the evaluator's exact naturals in
-this format; those of every state a host runs fit their allowance (`naturalAllowance`), which
-bounds their length (`AcornVerif.CurrentRunningMemory.running_naturals_allowed`). That theorem
-bounds neither the work nor the memory of each part of a step, which requirement R8 of issue #90
-owes. -/
 def natural : Format Nat := ⟨encodeNatural, decodeNatural⟩
 
-/-- Written digits precede the digits of the natural. -/
 theorem encodeNaturalInto_written (value : Nat) (written : List UInt8) :
     encodeNaturalInto value written = written.reverse ++ encodeNaturalInto value [] := by
   rw [encodeNaturalInto.eq_1 value written, encodeNaturalInto.eq_1 value []]
@@ -519,7 +432,6 @@ theorem encodeNaturalInto_written (value : Nat) (written : List UInt8) :
 termination_by value
 decreasing_by all_goals omega
 
-/-- The digits of a natural: its lowest digit, then the digits of the rest. -/
 theorem encodeNatural_eq (value : Nat) : encodeNatural value =
     if value < 128 then [UInt8.ofNat value]
     else UInt8.ofNat (value % 128 + 128) :: encodeNatural (value / 128) := by
@@ -531,8 +443,6 @@ theorem encodeNatural_eq (value : Nat) : encodeNatural value =
     rw [encodeNaturalInto_written]
     simp
 
-/-- Lower digits already read are folded into the value of the remaining digits, which must
-not be zero. -/
 theorem decodeNaturalInto_lower : ∀ (bytes : List UInt8) (lower : Nat) (digits : List Nat),
     decodeNaturalInto bytes (lower :: digits) =
       (decodeNaturalInto bytes []).bind fun (high, tail) =>
@@ -560,8 +470,6 @@ theorem decodeNaturalInto_lower : ∀ (bytes : List UInt8) (lower : Nat) (digits
           dsimp only
           rw [single, ite_eq_right positive, List.foldl_cons]
 
-/-- Reading a natural: a terminating byte is the natural, and a further byte is its digit
-below the natural read after it, which must not be zero. -/
 theorem decodeNatural_cons (digit : UInt8) (rest : List UInt8) :
     decodeNatural (digit :: rest) =
       if digit.toNat < 128 then some (digit.toNat, rest)
@@ -587,7 +495,6 @@ theorem decodeNatural_cons (digit : UInt8) (rest : List UInt8) :
         simp only [Option.bind_some, zero, ↓reduceIte]
         rw [single]
 
-/-- Reading the encoding of a natural returns it. -/
 theorem natural_lawful (value : Nat) (suffix : List UInt8) :
     decodeNatural (encodeNatural value ++ suffix) = some (value, suffix) := by
   by_cases small : value < 128
@@ -611,7 +518,6 @@ theorem natural_lawful (value : Nat) (suffix : List UInt8) :
 termination_by value
 decreasing_by omega
 
-/-- A natural read is followed by exactly the returned bytes. -/
 theorem natural_canonical : ∀ (bytes : List UInt8) (value : Nat) (rest : List UInt8),
     decodeNatural bytes = some (value, rest) → bytes = encodeNatural value ++ rest
   | [], _, _, decoded => by simp [decodeNatural, decodeNaturalInto] at decoded
@@ -645,7 +551,6 @@ theorem natural_canonical : ∀ (bytes : List UInt8) (value : Nat) (rest : List 
           · have quotient : (digit.toNat - 128 + 128 * high) / 128 = high := by omega
             rw [quotient, written]
 
-/-- The natural format is exact. -/
 theorem natural_exact : natural.Exact := ⟨natural_lawful, natural_canonical⟩
 
 end Format

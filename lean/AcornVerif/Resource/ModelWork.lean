@@ -1,25 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Models
 import AcornVerif.Resource.ControlWork
-
-/-!
-# Work of the option models
-
-The bounds of the costed definitions of an option model's input, of its ranked features
-(`Acorn.RankedFeatures`), of its prediction, of its updates and of its restart (`Acorn.Models`).
-Each definition here is the executed function with the bound proved of its costed definition as
-its work, and its `_costed` theorem checks that the costed definition is within it. A transition
-part has one row
-for each ranked position, `(rankDimension dimension).capacity` rows, each an admitted learner
-over the ranked positions, and one deviation learner for each meta action. A row's input is
-the frame's active ranked positions and the bias position, so it has at most one position
-more than the frame has active features (`RankedFeatures.input_length`). A prediction reads
-every row; an update visits every row and updates the rows of occupied positions.
--/
 
 namespace AcornVerif.Resource.Twin
 
@@ -27,9 +7,6 @@ open Acorn Acorn.Features
 
 variable {dimension : Dimension} {criterion : Criterion} {count : Word.Count}
 
-/-! ## Active sets of the models -/
-
-/-- Bound of a model input over `width` features. -/
 abbrev inputBound (κ : Costs) (width : Nat) : Nat :=
   κ .insert + (Library.contains.control (κ .visit + κ .compare) width +
     Library.append.control (κ .visit) width)
@@ -45,7 +22,6 @@ theorem insertCosted_within (κ : Costs) (active : SwiftTd.ActiveSet dimension)
       (Acorn.Costed.attach_within (Acorn.Costed.append_within _ _ κ))
       (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _))
 
-/-- An insertion, with the bound of its costed definition. -/
 def insert (κ : Costs) (active : SwiftTd.ActiveSet dimension) (index : FeatIdx dimension) :
     Costed (SwiftTd.ActiveSet dimension) :=
   ⟨Features.insert active index, inputBound κ active.indices.length⟩
@@ -72,7 +48,6 @@ theorem modelInputCosted_within (κ : Costs) (criterion : Criterion)
   · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
   · exact Acorn.Costed.bind_within (Acorn.Costed.op_within _ _ κ) (insertCosted_within κ base _)
 
-/-- A model input, with the bound of its costed definition. -/
 def modelInput (κ : Costs) (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) : Costed (SwiftTd.ActiveSet dimension) :=
   ⟨Features.modelInput criterion base age, κ .hashFeature + inputBound κ base.indices.length⟩
@@ -92,7 +67,6 @@ theorem modelInput_costed (κ : Costs) (criterion : Criterion)
     (modelInputCosted criterion base age).Within κ (modelInput κ criterion base age).work :=
   modelInputCosted_within κ criterion base age
 
-/-- A model input has at most one feature more than the frame. -/
 theorem modelInput_length (criterion : Criterion) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) :
     (Features.modelInput criterion base age).indices.length ≤ base.indices.length + 1 := by
@@ -109,7 +83,6 @@ theorem activeCosted_within (κ : Costs) (ranked : RankedFeatures dimension)
       (Acorn.Costed.filterMap_within fun _ _ => Acorn.Costed.op_within _ _ κ))
     (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _))
 
-/-- The active positions, with the bound of their costed definition. -/
 def rankedActive (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Costed (SwiftTd.ActiveSet (rankDimension dimension)) :=
@@ -127,7 +100,6 @@ theorem rankedActive_costed (κ : Costs) (ranked : RankedFeatures dimension)
     (ranked.activeCosted features).Within κ (rankedActive κ ranked features).work :=
   activeCosted_within κ ranked features
 
-/-- Bound of a row input over `width` features. -/
 abbrev rowInputBound (κ : Costs) (width : Nat) : Nat :=
   (Library.filterMap.work (κ .visit) width (κ .position)) +
     (κ .rankWidth + (κ .rankWidth + inputBound κ width))
@@ -146,7 +118,6 @@ theorem inputCosted_within (κ : Costs) (ranked : RankedFeatures dimension)
   simp only [rowInputBound, inputBound]
   omega
 
-/-- A row input, with the bound of its costed definition. -/
 def rankedInput (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Costed (SwiftTd.ActiveSet (rankDimension dimension)) :=
@@ -166,7 +137,6 @@ theorem rankedInput_costed (κ : Costs) (ranked : RankedFeatures dimension)
     (ranked.inputCosted features).Within κ (rankedInput κ ranked features).work :=
   inputCosted_within κ ranked features
 
-/-- Bound of the occupied positions of a ranking of `width` positions. -/
 abbrev occupiedBound (κ : Costs) (width : Nat) : Nat :=
   κ .rankWidth + Library.finRange.control (κ .visit) width +
     (Library.filterMap.work (κ .visit) width (κ .read))
@@ -179,7 +149,6 @@ theorem occupiedCosted_within (κ : Costs) (ranked : RankedFeatures dimension) :
   refine (Acorn.Costed.filterMap_within fun _ _ => Acorn.Costed.op_within _ _ κ).mono ?_
   simp [Acorn.Costed.charge_val, Acorn.Costed.finRange_val]
 
-/-- The occupied positions, with the bound of their costed definition. -/
 def occupied (κ : Costs) (ranked : RankedFeatures dimension) :
     Costed (List (RankIdx dimension × FeatIdx dimension)) :=
   ⟨ranked.occupied, occupiedBound κ (rankDimension dimension).capacity⟩
@@ -195,7 +164,6 @@ theorem occupied_costed (κ : Costs) (ranked : RankedFeatures dimension) :
     ranked.occupiedCosted.Within κ (occupied κ ranked).work :=
   occupiedCosted_within κ ranked
 
-/-- Bound of an indicator over `width` features and `positions` ranked positions. -/
 abbrev indicatorBound (κ : Costs) (width positions : Nat) : Nat :=
   (Library.filterMap.work (κ .visit) width (κ .position)) +
     (κ .rankWidth + Library.replicate.control (κ .visit) positions) +
@@ -217,7 +185,6 @@ theorem indicatorCosted_within (κ : Costs) (ranked : RankedFeatures dimension)
   simp only [indicatorBound]
   omega
 
-/-- The indicator, with the bound of its costed definition. -/
 def indicator (κ : Costs) (ranked : RankedFeatures dimension)
     (features : SwiftTd.ActiveSet dimension) :
     Costed (Vector Expectation (rankDimension dimension).capacity) :=
@@ -239,9 +206,6 @@ theorem indicator_costed (κ : Costs) (ranked : RankedFeatures dimension)
     (ranked.indicatorCosted features).Within κ (indicator κ ranked features).work :=
   indicatorCosted_within κ ranked features
 
-/-! ## Predictions -/
-
-/-- Bound of the ranked values at `positions` ranked positions. -/
 abbrev rankedValuesBound (κ : Costs) (positions : Nat) : Nat :=
   occupiedBound κ positions +
     Library.vectorMap.work (κ .visit) metaCount.word.toNat
@@ -258,7 +222,6 @@ theorem rankedValuesCosted_within (κ : Costs) (value : ValueFunction criterion 
     (sumMapCosted_pure_within κ .productTerm .zero _ _).mono
       (Library.foldl.work_mono (RankedFeatures.occupied_length ranked) (Nat.le_refl _))
 
-/-- The ranked values, with the bound of their costed definition. -/
 def rankedValues (κ : Costs) (value : ValueFunction criterion dimension)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity) :
@@ -284,7 +247,6 @@ theorem rankedValues_costed (κ : Costs) (value : ValueFunction criterion dimens
       (rankedValues κ value ranked expected).work :=
   rankedValuesCosted_within κ value ranked expected
 
-/-- Bound of a nominal value over `size` values under either criterion. -/
 abbrev comparisonBound (κ : Costs) (size : Nat) : Nat := expectedBound κ size + bestBound κ size
 
 theorem comparisonValueCosted_within (κ : Costs) (criterion : Criterion)
@@ -294,7 +256,6 @@ theorem comparisonValueCosted_within (κ : Costs) (criterion : Criterion)
   · exact (bestCosted_within κ policy).mono (Nat.le_add_left _ _)
   · exact (expectedCosted_within κ policy).mono (Nat.le_add_right _ _)
 
-/-- A nominal value, with the bound of its costed definition. -/
 def comparisonValue (κ : Costs) (criterion : Criterion) (policy : PolicySnapshot count) :
     Costed Binary32 :=
   ⟨Features.comparisonValue criterion policy, comparisonBound κ count.word.toNat⟩
@@ -312,7 +273,6 @@ theorem comparisonValue_costed (κ : Costs) (criterion : Criterion)
       (comparisonValue κ criterion policy).work :=
   comparisonValueCosted_within κ criterion policy
 
-/-- Bound of the rows' predictions at `positions` rows over `width` inputs. -/
 abbrev expectedAtBound (κ : Costs) (positions width : Nat) : Nat :=
   Library.vectorMap.work (κ .visit) positions
     (Library.foldl.work (κ .visit) width (κ .sumTerm) + κ .project)
@@ -325,7 +285,6 @@ theorem expectedAtCosted_within (κ : Costs) (transition : Transition dimension 
     Acorn.Costed.bind_within (linearPredictionCosted_within κ row.state input)
       (Acorn.Costed.op_within _ _ κ)
 
-/-- The rows' expected values, with the bound of their costed definition. -/
 def expectedAt (κ : Costs) (transition : Transition dimension criterion)
     (input : SwiftTd.ActiveSet (rankDimension dimension)) :
     Costed (Vector Expectation (rankDimension dimension).capacity) :=
@@ -347,14 +306,12 @@ theorem expectedAt_costed (κ : Costs) (transition : Transition dimension criter
     (transition.expectedAtCosted input).Within κ (expectedAt κ transition input).work :=
   expectedAtCosted_within κ transition input
 
-/-- Bound of a predicted outcome's values over `width` features at `positions` rows. -/
 abbrev outcomeValuesBound (κ : Costs) (positions width : Nat) : Nat :=
   rowInputBound κ width + expectedAtBound κ positions (width + 1) +
     rankedValuesBound κ positions +
     Library.ofFn.work (κ .visit) metaCount.word.toNat
       (Library.foldl.work (κ .visit) (width + 1) (κ .sumTerm) + κ .outcomeValue)
 
-/-- A row-prediction bound grows with the input width. -/
 theorem expectedAtBound_mono (κ : Costs) (positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     expectedAtBound κ positions width ≤ expectedAtBound κ positions limit :=
@@ -389,7 +346,6 @@ theorem outcomeValuesCosted_within (κ : Costs) (transition : Transition dimensi
   simp only [outcomeValuesBound] at expected deviations ⊢
   omega
 
-/-- A predicted outcome's values, with the bound of their costed definition. -/
 def outcomeValues (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) : Costed (Vector Binary32 metaCount.word.toNat) :=
@@ -416,7 +372,6 @@ theorem outcomeValues_costed (κ : Costs) (transition : Transition dimension cri
       (outcomeValues κ transition value features shared).work :=
   outcomeValuesCosted_within κ transition value features shared
 
-/-- Bound of a look-ahead over `width` features at `positions` rows. -/
 abbrev lookaheadBound (κ : Costs) (positions width : Nat) : Nat :=
   outcomeValuesBound κ positions width + comparisonBound κ metaCount.word.toNat
 
@@ -428,7 +383,6 @@ theorem lookaheadCosted_within (κ : Costs) (transition : Transition dimension c
   Acorn.Costed.bind_within (outcomeValuesCosted_within κ transition value features shared)
     (comparisonValueCosted_within κ criterion _)
 
-/-- A look-ahead, with the bound of its costed definition. -/
 def lookahead (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (shared : Binary32) : Costed Binary32 :=
@@ -455,7 +409,6 @@ theorem lookahead_costed (κ : Costs) (transition : Transition dimension criteri
       (lookahead κ transition value features shared).work :=
   lookaheadCosted_within κ transition value features shared
 
-/-- Bound of a model prediction over `width` features. -/
 abbrev predictBound (κ : Costs) (positions width : Nat) : Nat :=
   κ .hashFeature + inputBound κ width +
     (3 * Library.foldl.work (κ .visit) (width + 1) (κ .sumTerm) +
@@ -495,7 +448,6 @@ theorem predictCosted_within (κ : Costs) (model : Model dimension criterion)
     simp only [predictBound]
     omega
 
-/-- A model prediction, with the bound of its costed definition. -/
 def predict (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (base : SwiftTd.ActiveSet dimension)
     (age : ModelAge) : Costed (ModelPrediction criterion) :=
@@ -519,9 +471,6 @@ theorem predict_costed (κ : Costs) (model : Model dimension criterion)
     (model.predictCosted value base age).Within κ (predict κ model value base age).work :=
   predictCosted_within κ model value base age
 
-/-! ## Updates -/
-
-/-- A row learner's bound grows with its input width. -/
 theorem secondLoopBound_mono (κ : Costs) {width limit : Nat} (fits : width ≤ limit) :
     secondLoopBound κ width ≤ secondLoopBound κ limit := by
   have := Library.map.work_mono (visit := κ .visit) fits (Nat.le_refl (κ .read))
@@ -544,8 +493,6 @@ theorem stepBound_mono (κ : Costs) (count : Nat) {width limit : Nat} (fits : wi
   simp only [stepBound]
   omega
 
-/-- A learner record's entry is within the bound of its entry at the capacity of its
-dimension. -/
 theorem applyCosted_capacity (κ : Costs) {learnerConfig : Acorn.Config} {space : Dimension}
     (learner : Managed learnerConfig space) (entry : SwiftTd.Entry space)
     (permitted : SwiftTd.Permitted entry learner.phase) :
@@ -554,8 +501,6 @@ theorem applyCosted_capacity (κ : Costs) {learnerConfig : Acorn.Config} {space 
   (managedApply_costed κ learner entry permitted).mono
     (managedApply_work κ learner entry permitted)
 
-/-- Bound of a model update at `positions` rows, by bounds of a row's and a deviation
-learner's update. -/
 abbrev updateRowsBound (κ : Costs) (positions rowBound deviationBound : Nat) : Nat :=
   Library.mapFinIdx.work (κ .visit) positions rowBound +
     (Library.mapFinIdx.work (κ .visit) metaCount.word.toNat deviationBound + κ .modelClose)
@@ -579,7 +524,6 @@ theorem updateRowsCosted_within (κ : Costs) (transition : Transition dimension 
   exact Acorn.Costed.ite_within (fun _ => rowFits _ _)
     fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
 
-/-- Bound of a transition part's start over `width` features. -/
 abbrev transitionBeginBound (κ : Costs) (positions width : Nat) : Nat :=
   rowInputBound κ width + (κ .rankWidth + updateRowsBound κ positions
     (κ .managedEntry + beginBound κ positions (width + 1))
@@ -598,7 +542,6 @@ theorem transitionBeginCosted_within (κ : Costs) (transition : Transition dimen
     (fun _ learner => (applyCosted_capacity κ learner _ _).mono
       (Nat.add_le_add_left (beginBound_mono κ _ width) _)))
 
-/-- A transition part's start, with the bound of its costed definition. -/
 def transitionBegin (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) :=
   ⟨transition.begin features,
@@ -619,7 +562,6 @@ theorem transitionBegin_costed (κ : Costs) (transition : Transition dimension c
     (transition.beginCosted features).Within κ (transitionBegin κ transition features).work :=
   transitionBeginCosted_within κ transition features
 
-/-- Bound of a transition part's step over `width` features. -/
 abbrev transitionStepBound (κ : Costs) (positions width : Nat) : Nat :=
   rowInputBound κ width + (κ .rankWidth + updateRowsBound κ positions
     (κ .managedEntry + stepBound κ positions (width + 1))
@@ -638,7 +580,6 @@ theorem transitionStepCosted_within (κ : Costs) (transition : Transition dimens
     (fun _ learner => (applyCosted_capacity κ learner _ _).mono
       (Nat.add_le_add_left (stepBound_mono κ _ width) _)))
 
-/-- A transition part's step, with the bound of its costed definition. -/
 def transitionStep (κ : Costs) (transition : Transition dimension criterion)
     (features : SwiftTd.ActiveSet dimension) : Costed (Transition dimension criterion) :=
   ⟨transition.step features,
@@ -659,7 +600,6 @@ theorem transitionStep_costed (κ : Costs) (transition : Transition dimension cr
     (transition.stepCosted features).Within κ (transitionStep κ transition features).work :=
   transitionStepCosted_within κ transition features
 
-/-- Bound of an outcome over `width` features at `positions` ranked positions. -/
 abbrev outcomeBound (κ : Costs) (positions width : Nat) : Nat :=
   indicatorBound κ width positions +
     (predictAllBound κ metaCount.word.toNat width + (rankedValuesBound κ positions +
@@ -679,7 +619,6 @@ theorem outcomeCosted_within (κ : Costs) (transition : Transition dimension cri
               (Acorn.Costed.ofFn_within fun _ => Acorn.Costed.op_within _ _ κ)
               (Acorn.Costed.pure_within _ κ))))))
 
-/-- An outcome, with the bound of its costed definition. -/
 def outcome (κ : Costs) (transition : Transition dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension) :
     Costed (Outcome dimension) :=
@@ -704,7 +643,6 @@ theorem outcome_costed (κ : Costs) (transition : Transition dimension criterion
       (outcome κ transition value features).work :=
   outcomeCosted_within κ transition value features
 
-/-- A model learner's bound of a terminal entry. -/
 abbrev modelTerminalBound (κ : Costs) (capacity : Nat) : Nat :=
   κ .managedEntry + terminalBound κ capacity capacity
 
@@ -718,7 +656,6 @@ theorem transitionTerminalCosted_within (κ : Costs) (transition : Transition di
     (fun _ row => Acorn.Costed.charge_within (applyCosted_capacity κ row _ _))
     (fun _ learner => Acorn.Costed.charge_within (applyCosted_capacity κ learner _ _)))
 
-/-- A transition part's terminal step, with the bound of its costed definition. -/
 def transitionTerminal (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) : Costed (Transition dimension criterion) :=
   ⟨transition.terminal outcome,
@@ -743,7 +680,6 @@ theorem transitionTerminal_costed (κ : Costs) (transition : Transition dimensio
     (transition.terminalCosted outcome).Within κ (transitionTerminal κ transition outcome).work :=
   transitionTerminalCosted_within κ transition outcome
 
-/-- Bound of a stopped trajectory at a capacity. -/
 abbrev stopTrajectoryBound (κ : Costs) (capacity : Nat) : Nat :=
   κ .learnerError + ((κ .managedEntry + firstLoopBound κ capacity) +
     (κ .managedEntry + releaseBound κ capacity))
@@ -755,7 +691,6 @@ theorem stopTrajectoryCosted_within {learnerConfig : Acorn.Config} {space : Dime
     (Acorn.Costed.attach_within (applyCosted_capacity κ learner _ _))
     (applyCosted_capacity κ _ .release _))
 
-/-- A stopped trajectory, with the bound of its costed definition. -/
 def stopTrajectory {learnerConfig : Acorn.Config} {space : Dimension} (κ : Costs)
     (learner : Managed learnerConfig space) (target : Binary32) :
     Costed (Managed learnerConfig space) :=
@@ -785,7 +720,6 @@ theorem transitionStopCosted_within (κ : Costs) (transition : Transition dimens
     (fun _ row => Acorn.Costed.charge_within (stopTrajectoryCosted_within κ row _))
     (fun _ learner => Acorn.Costed.charge_within (stopTrajectoryCosted_within κ learner _)))
 
-/-- A transition part's stopped trajectory, with the bound of its costed definition. -/
 def transitionStop (κ : Costs) (transition : Transition dimension criterion)
     (outcome : Outcome dimension) : Costed (Transition dimension criterion) :=
   ⟨transition.stop outcome, κ .rankWidth + updateRowsBound κ (rankDimension dimension).capacity
@@ -809,7 +743,6 @@ theorem transitionStop_costed (κ : Costs) (transition : Transition dimension cr
     (transition.stopCosted outcome).Within κ (transitionStop κ transition outcome).work :=
   transitionStopCosted_within κ transition outcome
 
-/-- Bound of a restarted trajectory over `width` features at a capacity. -/
 abbrev restartTrajectoryBound (κ : Costs) (capacity width : Nat) : Nat :=
   (κ .managedEntry + releaseBound κ capacity) + (κ .managedEntry + stepBound κ capacity width)
 
@@ -820,7 +753,6 @@ theorem restartTrajectoryCosted_within {learnerConfig : Acorn.Config} {space : D
   Acorn.Costed.bind_within (applyCosted_capacity κ learner .release trivial)
     (applyCosted_capacity κ _ (.step features .zero) trivial)
 
-/-- Bound of a transition part's restart over `width` features. -/
 abbrev transitionRestartBound (κ : Costs) (positions width : Nat) : Nat :=
   rowInputBound κ width + (κ .rankWidth + updateRowsBound κ positions
     (restartTrajectoryBound κ positions (width + 1))
@@ -839,9 +771,6 @@ theorem transitionRestartCosted_within (κ : Costs) (transition : Transition dim
     (fun _ learner => (restartTrajectoryCosted_within κ learner _).mono
       (Nat.add_le_add_left (Nat.add_le_add_left (stepBound_mono κ _ width) _) _)))
 
-/-! ## A whole model -/
-
-/-- Bound of a model start over `width` features. -/
 abbrev modelBeginBound (κ : Costs) (capacity positions width : Nat) : Nat :=
   κ .hashFeature + inputBound κ width +
     (3 * (κ .managedEntry + beginBound κ capacity (width + 1)) +
@@ -878,7 +807,6 @@ theorem modelBeginCosted_within (κ : Costs) (model : Model dimension criterion)
     simp only [modelBeginBound]
     omega
 
-/-- A model start, with the bound of its costed definition. -/
 def modelBegin (κ : Costs) (model : Model dimension criterion)
     (base : SwiftTd.ActiveSet dimension) : Costed (Model dimension criterion) :=
   ⟨model.begin base,
@@ -899,7 +827,6 @@ theorem modelBegin_costed (κ : Costs) (model : Model dimension criterion)
     (model.beginCosted base).Within κ (modelBegin κ model base).work :=
   modelBeginCosted_within κ model base
 
-/-- Bound of a model step over `width` features. -/
 abbrev modelStepBound (κ : Costs) (capacity positions width : Nat) : Nat :=
   κ .hashFeature + inputBound κ width +
     (3 * (κ .managedEntry + stepBound κ capacity (width + 1)) +
@@ -936,7 +863,6 @@ theorem modelStepCosted_within (κ : Costs) (model : Model dimension criterion)
     simp only [modelStepBound]
     omega
 
-/-- A model step, with the bound of its costed definition. -/
 def modelStep (κ : Costs) (model : Model dimension criterion)
     (base : SwiftTd.ActiveSet dimension) (age : ModelAge) (reward : Binary32) :
     Costed (Model dimension criterion) :=
@@ -959,7 +885,6 @@ theorem modelStep_costed (κ : Costs) (model : Model dimension criterion)
     (model.stepCosted base age reward).Within κ (modelStep κ model base age reward).work :=
   modelStepCosted_within κ model base age reward
 
-/-- Bound of a model's terminal step over `width` features. -/
 abbrev modelTerminalWorkBound (κ : Costs) (capacity positions width : Nat) : Nat :=
   outcomeBound κ positions width + (3 * modelTerminalBound κ capacity +
     ((κ .rankWidth + updateRowsBound κ positions
@@ -998,7 +923,6 @@ theorem modelTerminalCosted_within (κ : Costs) (model : Model dimension criteri
     simp only [modelTerminalWorkBound]
     omega
 
-/-- A model's terminal step, with the bound of its costed definition. -/
 def modelTerminal (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) : Costed (Model dimension criterion) :=
@@ -1026,7 +950,6 @@ theorem modelTerminal_costed (κ : Costs) (model : Model dimension criterion)
       (modelTerminal κ model value features reward).work :=
   modelTerminalCosted_within κ model value features reward
 
-/-- Bound of a model's stopped trajectory over `width` features. -/
 abbrev modelStopBound (κ : Costs) (capacity positions width : Nat) : Nat :=
   outcomeBound κ positions width + (3 * stopTrajectoryBound κ capacity +
     ((κ .rankWidth + updateRowsBound κ positions
@@ -1062,7 +985,6 @@ theorem modelStopCosted_within (κ : Costs) (model : Model dimension criterion)
     simp only [modelStopBound]
     omega
 
-/-- A model's stopped trajectory, with the bound of its costed definition. -/
 def modelStop (κ : Costs) (model : Model dimension criterion)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (reward : Binary32) : Costed (Model dimension criterion) :=
@@ -1090,7 +1012,6 @@ theorem modelStop_costed (κ : Costs) (model : Model dimension criterion)
       (modelStop κ model value features reward).work :=
   modelStopCosted_within κ model value features reward
 
-/-- Bound of a model restart over `width` features. -/
 abbrev modelRestartBound (κ : Costs) (capacity positions width : Nat) : Nat :=
   κ .hashFeature + inputBound κ width +
     (3 * restartTrajectoryBound κ capacity (width + 1) +

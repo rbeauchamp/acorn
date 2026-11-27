@@ -1,28 +1,7 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Handcrafted.StepParts
 import AcornVerif.Resource.EncodeWork
 import AcornVerif.Resource.PlanWork
 import AcornVerif.Resource.RefreshWork
-
-/-!
-# Work of selection
-
-Twins of the dispatch of `Acorn.Handcrafted.TemporalControl` with the model operations and
-the planning boundary that `TemporalControl.select` passes. Each twin is the executed
-operation's value with the work of a run that follows the operation's control flow: the run
-tests the conditions the operation tests, on the values the executed definitions compute,
-and charges the twin of every operation it calls. Where the executed operation takes an
-option out of its table so that the runtime can reuse its storage (`detachedUpdate`), the
-run follows the listed composition the repository proves equal to it
-(`TemporalControl.dispatchMeta_eq`, `TemporalControl.stepOption_eq`,
-`TemporalControl.closeOption_eq`). The primitive rate, the meta rate, the options' rate source and
-the value function are adapters instead: each pairs the executed definition's value with the bound
-proved of its costed definition, which its `_costed` theorem checks.
--/
 
 namespace AcornVerif.Resource.Twin
 
@@ -31,10 +10,6 @@ open Acorn Acorn.Features Acorn.Handcrafted
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension}
 
-/-! ## Rates and the value function -/
-
-/-- The costed run of `RateState.controller` and `RateState.skill`: the learner rate the
-policy resolves, if any, or the read of an annealed rate. -/
 def rateRun {policy : RatePolicy} (rate : RateState policy)
     (own primitive annealed : Costed Unit) : Costed Unit :=
   match rate with
@@ -53,19 +28,16 @@ theorem rateRun_work {policy : RatePolicy} (rate : RateState policy)
   · exact primitiveFits
   · exact annealedFits
 
-/-- `TemporalControl.primitiveRate` with its bound, the primitive controller's derived rate's. -/
 def primitiveRate (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     Costed SwiftTd.ExploreRate :=
   exploreRate (count := interface.actions) κ state.runtime.lifecycle.consumers.control
 
-/-- The primitive rate's adapter carries a bound of the costed definition. -/
 theorem primitiveRate_costed (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.primitiveRateCosted.Within κ (primitiveRate κ state).work :=
   primitiveRateCosted_within κ state
 
-/-- `TemporalControl.metaRate` with its bound. -/
 def metaRate (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     Costed SwiftTd.ExploreRate :=
@@ -76,13 +48,10 @@ theorem metaRate_work (κ : Costs)
     (metaRate κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
   Nat.le_refl _
 
-/-- The meta rate's adapter carries a bound of the costed definition. -/
 theorem metaRate_costed (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.metaRateCosted.Within κ (metaRate κ state).work := metaRateCosted_within κ state
 
-/-- Twin of `TemporalControl.controlRate`: the primitive rate, or the projection of an annealed
-rate. -/
 def controlRate (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     Costed SwiftTd.ExploreRate :=
@@ -99,7 +68,6 @@ theorem controlRate_work (κ : Costs)
       state.runtime.lifecycle.consumers.control) (Nat.le_add_left _ _))
     (by change κ .rateClose ≤ _; simp only [metaRateBound, rateBound]; omega)
 
-/-- `TemporalControl.skillRate` with its bound. -/
 def skillSource (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     Costed ConsumerRate :=
@@ -110,12 +78,10 @@ theorem skillSource_work (κ : Costs)
     (skillSource κ state).work ≤ metaRateBound κ interface.actions.word.toNat dimension.capacity :=
   Nat.le_add_left _ _
 
-/-- The rate source's adapter carries a bound of the costed definition. -/
 theorem skillSource_costed (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.skillRateCosted.Within κ (skillSource κ state).work := skillSourceCosted_within κ state
 
-/-- `TemporalControl.valueFunction` with its bound. -/
 def valueFunction (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     Costed (ValueFunction criterion dimension) :=
@@ -131,16 +97,11 @@ theorem valueFunction_work (κ : Costs)
       metaRateBound κ interface.actions.word.toNat dimension.capacity :=
   Nat.le_refl _
 
-/-- The value function's adapter carries a bound of the costed definition. -/
 theorem valueFunction_costed (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.valueFunctionCosted.Within κ (valueFunction κ state).work :=
   valueFunctionCosted_within κ state
 
-/-! ## The operations of selection -/
-
-/-- The costed run of `TemporalControl.prepareSelection`: the rate advance and the owed meta
-reward, then each option model's prediction under the current value function. -/
 def prepareRun (κ : Costs) (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (reward : Binary32) : Costed Unit :=
   let state := { state with rate := state.rate.advance }
@@ -155,7 +116,6 @@ def prepareRun (κ : Costs) (state : TemporalControl interface profile config cr
       state.runtime.lifecycle.consumers.skills))
     (Costed.pure ()))
 
-/-- Bound of selection's preparation over `width` features. -/
 abbrev prepareBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   κ .prepare + Library.vectorMap.work (κ .visit) Acorn.FeatureConstants.skillCount
     (metaRateBound κ rows capacity +
@@ -173,9 +133,6 @@ theorem prepareRun_work (κ : Costs)
         Costed.bind_work_le (predict_work κ skill.model value features ⟨0, by decide⟩) fun _ =>
           Nat.le_refl _)) (Nat.zero_le _))
 
-/-- The costed run of `TemporalControl.serve`: a committed run with a step left repeats its
-action and reports both controllers' values and a point mass. The zero vectors it stores are
-closed terms of the compiled code. -/
 def serveRun (κ : Costs) (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) : Costed Unit :=
   match state.runtime.references.phase with
@@ -191,7 +148,6 @@ def serveRun (κ : Costs) (state : TemporalControl interface profile config crit
       Costed.op (κ .serve) ()
   | .idle | .option _ _ => Costed.pure ()
 
-/-- Bound of a served step over `width` features. -/
 abbrev serveBound (κ : Costs) (rows width : Nat) : Nat :=
   predictAllBound κ rows width +
     (predictAllBound κ metaCount.word.toNat width +
@@ -217,8 +173,6 @@ theorem serveRun_work (κ : Costs)
   · exact Nat.zero_le _
   · exact Nat.zero_le _
 
-/-- The costed run of `TemporalControl.choosePrimitive`: the primitive controller's rate,
-its snapshot and the persistent draw. -/
 def choosePrimitiveRun (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) : Costed Unit := do
@@ -228,7 +182,6 @@ def choosePrimitiveRun (κ : Costs)
   Costed.discard (drawPersistent κ snapshot state.runtime.references.rng)
   Costed.op (κ .choosePrimitive) ()
 
-/-- Bound of a primitive draw over `width` features. -/
 abbrev primitiveBound (κ : Costs) (rows capacity width : Nat) : Nat :=
   metaRateBound κ rows capacity + (predictAllBound κ rows width + κ .snapshot +
     (persistentBound κ rows + κ .choosePrimitive))
@@ -243,7 +196,6 @@ theorem choosePrimitiveRun_work (κ : Costs)
       Costed.bind_work_le (drawPersistent_work κ snapshot state.runtime.references.rng)
         fun _ => Nat.le_refl _
 
-/-- The costed run of `TemporalControl.refreshFree`: the refresh of the free dispatch. -/
 def refreshFreeRun (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout
@@ -253,7 +205,6 @@ def refreshFreeRun (κ : Costs)
     ⟨state.runtime.lifecycle, state.runtime.references.modelPredictions, closing⟩
   Costed.charge (κ .refreshFree) (Costed.discard (refreshModels κ free profile.ranksSubtasks))
 
-/-- Bound of a free dispatch's refresh. -/
 abbrev refreshFreeBound (κ : Costs) (rows capacity positions units : Nat) : Nat :=
   κ .refreshFree + refreshBound κ rows capacity positions units
 
@@ -266,9 +217,6 @@ theorem refreshFreeRun_work (κ : Costs)
         (rankDimension dimension).capacity config.units.count :=
   Costed.charge_work_le (Costed.discard_work_le (refreshModels_work κ _ _))
 
-/-- The costed run of `TemporalControl.planFree` with the planning boundary of a selection:
-a frozen agent stores cleared errors, a closed term of the compiled code; any other plans at the
-meta-controller's rate. -/
 def planFreeRun (κ : Costs) (selection : PlanningSelection)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) : Costed Unit :=
@@ -283,7 +231,6 @@ def planFreeRun (κ : Costs) (selection : PlanningSelection)
       Costed.discard (Twin.planningBoundary κ selection planning
         state.runtime.lifecycle.consumers.skills features state.average.rate rate)))
 
-/-- Bound of a free boundary's planning over `width` features. -/
 abbrev planFreeBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   κ .planFree + (metaRateBound κ rows capacity + planningBound κ capacity positions width)
 
@@ -297,8 +244,6 @@ theorem planFreeRun_work (κ : Costs) (selection : PlanningSelection)
     (Costed.bind_work_le (metaRate_work κ state) fun _ =>
       Costed.discard_work_le (planningBoundary_work κ selection _ _ features _ _)))
 
-/-- The costed run of `TemporalControl.drawMeta`: the meta-controller's rate, its snapshot
-and the draw. -/
 def drawMetaRun (κ : Costs) (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) : Costed Unit := do
   let rate ← metaRate κ state
@@ -307,7 +252,6 @@ def drawMetaRun (κ : Costs) (state : TemporalControl interface profile config c
   Costed.discard (draw κ snapshot state.runtime.references.rng)
   Costed.op (κ .drawMeta) ()
 
-/-- Bound of a meta draw over `width` features. -/
 abbrev drawMetaBound (κ : Costs) (rows capacity width : Nat) : Nat :=
   metaRateBound κ rows capacity + (predictAllBound κ metaCount.word.toNat width + κ .snapshot +
     (κ .drawClose + max (κ .uniform) (greedyBound κ metaCount.word.toNat) + κ .drawMeta))
@@ -322,7 +266,6 @@ theorem drawMetaRun_work (κ : Costs)
       Costed.bind_work_le (draw_work κ snapshot state.runtime.references.rng) fun _ =>
         Nat.le_refl _
 
-/-- The start twin's continuation holds the start frame. -/
 theorem beginTemporal_twin_frame {actions : Word.Count} {discounts : List Discount} (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool)
@@ -330,8 +273,6 @@ theorem beginTemporal_twin_frame {actions : Word.Count} {discounts : List Discou
     (beginTemporal κ skill features potential learning rate).val.2.2.features = features :=
   beginTemporal_frame skill _ features potential learning rate
 
-/-- The costed run of `TemporalControl.closeOption` with the model operations of selection:
-the current owner's end, which a detached old owner does not take. -/
 def closeOptionRun (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension)
@@ -345,7 +286,6 @@ def closeOptionRun (κ : Costs)
       Costed.discard (endTemporal κ (state.runtime.lifecycle.consumers.skills.get closing.slot)
         value features closing.activation reward terminal state.average.rate))
 
-/-- Bound of an option's closing over `width` features. -/
 abbrev closeOptionBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   κ .closeOption +
     (metaRateBound κ rows capacity + endTemporalBound κ rows capacity positions width)
@@ -366,8 +306,6 @@ theorem closeOptionRun_work (κ : Costs)
   · exact Costed.bind_work_le (valueFunction_work κ state) fun value =>
       Costed.discard_work_le (endTemporal_work κ _ value features _ _ _ _)
 
-/-- The costed run of `TemporalControl.learnMeta`: the meta-controller's credit of the owed
-span. -/
 def learnMetaRun (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : PolicyDecision metaCount) : Costed Unit :=
@@ -376,7 +314,6 @@ def learnMetaRun (κ : Costs)
     (Costed.discard (policyStep κ state.runtime.lifecycle.consumers.metaController features decision
       (criterion.center owed.1 owed.2 state.average.rate) owed.2)))
 
-/-- Bound of the meta-controller's credit over `width` features. -/
 abbrev learnMetaBound (κ : Costs) (capacity width : Nat) : Nat :=
   κ .learnMeta + policyStepBound κ metaCount.word.toNat capacity width
 
@@ -388,7 +325,6 @@ theorem learnMetaRun_work (κ : Costs)
   Costed.charge_work_le (Costed.ite_work_bound _ (Nat.zero_le _)
     (Costed.discard_work_le (policyStep_work κ _ features decision _ _)))
 
-/-- The costed run of `TemporalControl.stepOption` with the model operations of selection. -/
 def stepOptionRun (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -399,7 +335,6 @@ def stepOptionRun (κ : Costs)
     (stepTemporal κ (state.runtime.lifecycle.consumers.skills.get slot) activation next reward
       state.average.rate state.runtime.references.rng))
 
-/-- Bound of an option step over `width` features. -/
 abbrev stepOptionBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   κ .stepOption + stepTemporalBound κ rows capacity positions width
 
@@ -413,9 +348,6 @@ theorem stepOptionRun_work (κ : Costs)
         (rankDimension dimension).capacity next.features.indices.length :=
   Costed.charge_work_le (Costed.discard_work_le (stepTemporal_work κ _ activation next _ _ _))
 
-/-- The costed run of `TemporalControl.dispatchMeta` with the model operations of selection,
-in the listed composition of `TemporalControl.dispatchMeta_eq`: the meta credit, then the
-primitive draw or the drawn option's potential, settlement, start and first step. -/
 def dispatchMetaRun (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -438,7 +370,6 @@ def dispatchMetaRun (κ : Costs)
           let begun ← beginTemporal κ settled features potential (profile.mode != .frozen) source
           stepOptionRun κ (state.withSkill slot begun.1) slot begun.2.1 begun.2.2 reward)
 
-/-- Bound of a meta dispatch over `width` features. -/
 abbrev dispatchBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   learnMetaBound κ capacity width + (κ .dispatchMeta + (primitiveBound κ rows capacity width +
     (potentialBound κ width + (metaRateBound κ rows capacity + (metaRateBound κ rows capacity +
@@ -484,9 +415,6 @@ theorem dispatchMetaRun_work (κ : Costs)
                     (Nat.le_of_eq (by rw [beginTemporal_twin_frame])))
     · omega
 
-/-- The costed run of `TemporalControl.atBoundary` with the model operations and planning
-boundary of selection: the refresh, the planning, the meta draw, the closing of an ending
-option, and the dispatch. -/
 def atBoundaryRun (κ : Costs) (selection : PlanningSelection)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -507,7 +435,6 @@ def atBoundaryRun (κ : Costs) (selection : PlanningSelection)
         reward drawn.2.continuation
       dispatchMetaRun κ result.1 features declared reward goal drawn.2)
 
-/-- Bound of a free dispatch over `width` features. -/
 abbrev atBoundaryBound (κ : Costs) (rows capacity positions units width : Nat) : Nat :=
   refreshFreeBound κ rows capacity positions units +
     (planFreeBound κ rows capacity positions width + (drawMetaBound κ rows capacity width +
@@ -534,9 +461,6 @@ theorem atBoundaryRun_work (κ : Costs) (selection : PlanningSelection)
   · exact Costed.bind_work_le (closeOptionRun_work κ _ features _ reward _) fun _ =>
       dispatchMetaRun_work κ _ features declared reward goal _
 
-/-- The costed run of `TemporalControl.select` at a planning selection: the preparation, a
-served step, a primitive-only draw, a free dispatch, or an executing option's decision and
-its step or its closing. -/
 def selectRun (κ : Costs) (selection : PlanningSelection)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -583,7 +507,6 @@ def selectRun (κ : Costs) (selection : PlanningSelection)
                             features closing reward estimate
                           atBoundaryRun κ selection result.1 features declared reward goal none)))
 
-/-- Bound of an executing option's decision and its step or closing over `width` features. -/
 abbrev optionBranchBound (κ : Costs) (rows capacity positions units width : Nat) :
     Nat :=
   potentialBound κ width + (metaRateBound κ rows capacity +
@@ -594,7 +517,6 @@ abbrev optionBranchBound (κ : Costs) (rows capacity positions units width : Nat
             (closeOptionBound κ rows capacity positions width +
               atBoundaryBound κ rows capacity positions units width)))))))
 
-/-- Bound of selection over `width` features. -/
 abbrev selectBound (κ : Costs) (rows capacity positions units width : Nat) : Nat :=
   prepareBound κ rows capacity positions width + (serveBound κ rows width + (κ .select +
     (primitiveBound κ rows capacity width +
@@ -656,8 +578,6 @@ theorem selectRun_work (κ : Costs) (selection : PlanningSelection)
             · exact Costed.bind_work_le (closeOptionRun_work κ _ features _ reward estimate)
                 fun _ => atBoundaryRun_work κ selection _ features declared reward goal none
 
-/-- Twin of `TemporalControl.alignedSelect`: selection's value with its proof, and the work
-of its run. -/
 def alignedSelect (κ : Costs) (state : TemporalControl interface profile config criterion dimension)
     (aligned : state.Aligned) (planning : PlanningSelection)
     (features : SwiftTd.ActiveSet dimension) (observation : Frame interface) (reward : Binary32)

@@ -1,22 +1,8 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AgentArguments
 
-/-!
-# Native full-agent consumer
-
-This diagnostic entry admits the full feature-size domain and calls the actual
-initialization, finite-prefix transition and current observation definitions.
-Caller-supplied words provide raw sensory and feedback inputs; output records
-execution. The application CLI and delivered IO have separate owners.
--/
 namespace Acorn.AgentDriver
 open Features Handcrafted
 
-/-- Native execution consumes the exact proved prefix and observation owners. -/
 @[noinline] def execute (admitted : DefaultConstruction) (words : List UInt64) : String :=
   let (state, stopped) := AgentConstruction.execute admitted
     (words.map (Host.AgentArguments.input admitted.construction))
@@ -24,14 +10,12 @@ open Features Handcrafted
   let action := observed.decision.map (·.action.val)
   s!"clock={observed.clock} action={action} gain={observed.gain.value.bits} stopped={stopped}"
 
-/-- Complete immutable native configuration is checked before allocating learner storage. -/
 def dispatch (arguments : List String) : Option String := do
   let (construction, words) ← Host.AgentArguments.admit arguments
   return execute construction words
 
 end Acorn.AgentDriver
 
-/-- Native admission/output failures cannot produce a false success status. -/
 def _root_.Acorn.AgentDriver.main (arguments : List String) : IO UInt32 := do
   try
     match Acorn.AgentDriver.dispatch arguments with

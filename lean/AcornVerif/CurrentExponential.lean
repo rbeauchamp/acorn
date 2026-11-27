@@ -1,30 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentPower
-/-!
-# Executing exponential classification and scaling
-
-The current definitions in `Acorn.Portable` own every operation. These proofs
-unfold the pinned Lean 4.36.0 standard floating model, as documented in
-`CurrentFloat.lean` and `CurrentPower.lean`, to establish exact normal exponent
-scaling and the actual finite-width narrowing behavior.
-
-The polynomial domain [1/2, 3/2] contains the retained component contract's
-[0.7, 1.42] interval. The scale bounds include subnormal binary32 results,
-underflow to zero, and permitted overflow at the upper exponents. Saturation
-admits only the finite strict interior of its generated thresholds. Reduction
-and the series require their own component proofs; this module does not infer
-ideal transcendental accuracy or compiler/runtime correctness.
--/
 namespace AcornVerif.CurrentExponential
 open Acorn
 open Float.Model (Format UnpackedFloat)
 open Float.Model.UnpackedFloat
 open AcornVerif.CurrentFloat AcornVerif.CurrentPower
-/-- The raw power-of-two construction writes the exact admitted normal exponent field. -/
 theorem powerOfTwo_word (exponent : Int) (lo : -1022 ≤ exponent) (hi : exponent ≤ 1023) :
     (Portable.powerOfTwo exponent).bits.toNat = (exponent+1023).toNat*2^52 := by
   have hn : 0 ≤ exponent+1023 := by omega
@@ -41,7 +20,6 @@ theorem powerOfTwo_word (exponent : Int) (lo : -1022 ≤ exponent) (hi : exponen
   change (exponent+1023).toNat*2^52 % (2^64) = _
   exact Nat.mod_eq_of_lt hp
 
-/-- The same power-of-two word is the normalized standard binary64 model with unit significand. -/
 theorem powerOfTwo_model (exponent : Int) (lo : -1022 ≤ exponent) (hi : exponent ≤ 1023) :
     Portable.powerOfTwo exponent =
       ⟨(Float.Model.pack (.finite .positive (2^52) (exponent-52) (by decide))).toBits⟩ := by
@@ -52,7 +30,6 @@ theorem powerOfTwo_model (exponent : Int) (lo : -1022 ≤ exponent) (hi : expone
   simp only [Nat.mod_self, Nat.add_zero] at hm
   exact congrArg Binary64.mk (UInt64.toNat.inj (hp.trans hm.symm))
 
-/-- Scaling a normal model by an admitted power of two shifts its exponent exactly above the subnormal floor; packing owns overflow. -/
 theorem binary64_scale_normal_model (m : Nat) (e exponent : Int)
     (lo : 2^52 ≤ m) (hi : m < 2^53) (he : -1074 ≤ e) (he' : e ≤ 971)
     (hk : -1022 ≤ exponent) (hk' : exponent ≤ 1023)
@@ -80,7 +57,6 @@ theorem binary64_scale_normal_model (m : Nat) (e exponent : Int)
   rw [show e+(exponent-52) = (e+exponent)-(52:Nat) by omega,
     model_round_scaled_exact .positive m 52 (e+exponent) lo hi resultLo]
 
-/-- Every positive-sign normal word is exactly its decoded normalized model. -/
 theorem model_positive_normal_word (value : Binary64) (positive : value.bits.toNat < 2^63)
     (lo : 0 < ((value.bits >>> 52) &&& 0x7ff : UInt64).toNat)
     (hi : ((value.bits >>> 52) &&& 0x7ff : UInt64).toNat < 2047) :
@@ -110,7 +86,6 @@ theorem model_positive_normal_word (value : Binary64) (positive : value.bits.toN
     simp only [he, hf] at hp
     exact hp
   exact (congrArg Binary64.mk hbits).symm
-/-- The executing exponential scale keeps the significand and shifts the biased exponent exactly on a containing dyadic domain. -/
 theorem expScale_wide_word (polynomial : Binary64) (exponent : Int)
     (lo : 0x3fe0000000000000 ≤ polynomial.bits.toNat) (hi : polynomial.bits.toNat ≤ 0x3ff8000000000000)
     (hk : -151 ≤ exponent) (hk' : exponent ≤ 129) :
@@ -142,7 +117,6 @@ theorem expScale_wide_word (polynomial : Binary64) (exponent : Int)
   rw [heq, hfrac] at hw
   exact hw
 
-/-- The scaled result retains exactly the source fraction and its shifted normal exponent. -/
 theorem expScale_wide_components (polynomial : Binary64) (exponent : Int)
     (lo : 0x3fe0000000000000 ≤ polynomial.bits.toNat) (hi : polynomial.bits.toNat ≤ 0x3ff8000000000000)
     (hk : -151 ≤ exponent) (hk' : exponent ≤ 129) :
@@ -173,7 +147,6 @@ theorem expScale_wide_components (polynomial : Binary64) (exponent : Int)
   apply UInt64.toNat.inj
   omega
 
-/-- Scaling and final narrowing always produce a positive-sign finite or infinite word, never NaN. -/
 theorem expScale_nonnegative (polynomial : Binary64) (exponent : Int)
     (lo : 0x3fe0000000000000 ≤ polynomial.bits.toNat) (hi : polynomial.bits.toNat ≤ 0x3ff8000000000000)
     (hk : -151 ≤ exponent) (hk' : exponent ≤ 129) :
@@ -195,7 +168,6 @@ theorem expScale_nonnegative (polynomial : Binary64) (exponent : Int)
   change (Conversion.narrow wide).bits.toNat ≤ _
   omega
 
-/-- Every strictly negative scaling exponent produces a result in the positive-sign unit interval. -/
 theorem expScale_negative_unit (polynomial : Binary64) (exponent : Int)
     (lo : 0x3fe0000000000000 ≤ polynomial.bits.toNat) (hi : polynomial.bits.toNat ≤ 0x3ff8000000000000)
     (hk : -151 ≤ exponent) (negative : exponent < 0) :
@@ -210,7 +182,6 @@ theorem expScale_negative_unit (polynomial : Binary64) (exponent : Int)
   apply Conversion.narrow_word_unit
   omega
 
-/-- At exponent zero, every unit-bounded polynomial remains unit-bounded after the actual scale and narrowing. -/
 theorem expScale_zero_unit (polynomial : Binary64)
     (lo : 0x3fe0000000000000 ≤ polynomial.bits.toNat) (hi : polynomial.bits.toNat ≤ 0x3ff0000000000000) :
     (Portable.expScale polynomial 0).bits.toNat ≤ 0x3f800000 := by
@@ -222,7 +193,6 @@ theorem expScale_zero_unit (polynomial : Binary64)
   have hw := expScale_wide_word polynomial 0 lo (by omega) (by omega) (by omega)
   apply Conversion.narrow_word_unit
   omega
-/-- A significand no larger than one and a half cannot carry into the next exponent when narrowed. -/
 theorem normalExponent_no_carry (word exponent : UInt64)
     (bound : ((word &&& 0xfffffffffffff : UInt64).toNat) ≤ 2^51) :
     Conversion.normalExponent word exponent = exponent := by
@@ -240,7 +210,6 @@ theorem normalExponent_no_carry (word exponent : UInt64)
     omega
   simp only [Conversion.normalExponent, hn, Bool.false_eq_true, ↓reduceIte]
 
-/-- The actual scaled/narrowed result is finite through exponent 127 on the containing half-to-three-halves polynomial domain. -/
 theorem expScale_finite (polynomial : Binary64) (exponent : Int)
     (lo : 0x3fe0000000000000 ≤ polynomial.bits.toNat) (hi : polynomial.bits.toNat ≤ 0x3ff8000000000000)
     (hk : -151 ≤ exponent) (hk' : exponent ≤ 127) :
@@ -274,7 +243,6 @@ theorem expScale_finite (polynomial : Binary64) (exponent : Int)
     exact hew
   · rw [Conversion.normalExponent_exact _ _ (by omega)]
     split <;> omega
-/-- The actual exponential classifier preserves exceptional words and admits only its finite strict interior. -/
 theorem expSaturation_ends (value : Binary32) :
     match Portable.expSaturation value with
     | some result =>

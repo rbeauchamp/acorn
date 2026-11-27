@@ -1,39 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Targets.LearnedState
-
-/-! # What a complete result entails, and all that it certifies
-
-For every setting, mechanism and task.
-
-**Consequences of a complete result** (a term of `Result`).
-* `Result.history_free_refused`: a goal that an agent whose output is a function of the current
-  percept meets in every world has no result.
-* `Result.handout_not_rule`: at every seed, no one rule of the time and the current percept
-  hands the base agent what the mechanism hands it along the runs in every world of the
-  family. Within one world a rule can. A mechanism whose hand-out ignores its memory has no
-  result (`Result.stateless_refused`).
-* `Result.predictor_not_schedule`, `Result.controller_not_schedule`: at every seed, what each
-  learner store holds along the run is not a schedule over time that is the same in every world
-  of the family.
-* `Result.family_varied`, `Result.goal_separates`: the family has two worlds, and the goal holds
-  of one trace and fails of another.
-
-**All that a complete result certifies about its goal.** `Result.recognized`: every complete
-result is also one for the goal "the trace is the assembled agent's at some seed", which
-recognizes the submission and asks nothing else. `recognized_iff`: for a mechanism and a family
-of worlds, some goal has a complete result exactly when that goal has one. So the fields cannot
-tell a task from that goal.
--/
 
 namespace AcornVerif.LearnedState
 
 variable {S : Setting}
 
-/-- One more step of a run. -/
 theorem run_succ (S : Setting) (agent : Agent S.Seed S.Percept S.Output) (seed : S.Seed)
     (world : World S.Percept S.Action) (time : Nat) :
     run S agent seed world (time + 1) =
@@ -43,7 +13,6 @@ theorem run_succ (S : Setting) (agent : Agent S.Seed S.Percept S.Output) (seed :
         (agent.step (run S agent seed world time).2
           (world.percept (run S agent seed world time).1)).2) := rfl
 
-/-- A rewritten agent's clock is the time. -/
 theorem rewritten_clock (mechanism : Mechanism S) (rewrite : Nat → S.base.State → S.base.State)
     (seed : S.Seed) (world : World S.Percept S.Action) (time : Nat) :
     (run S (rewritten S mechanism rewrite) seed world time).2.2 = time := by
@@ -53,7 +22,6 @@ theorem rewritten_clock (mechanism : Mechanism S) (rewrite : Nat → S.base.Stat
     rw [run_succ]
     exact congrArg (· + 1) ih
 
-/-- Two rewrites that agree at a state give one step there. -/
 theorem rewritten_step (mechanism : Mechanism S) (first second : Nat → S.base.State → S.base.State)
     (state : (S.base.State × mechanism.Memory) × Nat) (percept : S.Percept)
     (same : second state.2 state.1.1 = first state.2 state.1.1) :
@@ -61,7 +29,6 @@ theorem rewritten_step (mechanism : Mechanism S) (first second : Nat → S.base.
       (rewritten S mechanism first).step state percept := by
   simp only [rewritten, same]
 
-/-- Two rewrites that agree along the run of the first give one run. -/
 theorem run_rewritten (mechanism : Mechanism S) (first second : Nat → S.base.State → S.base.State)
     (seed : S.Seed) (world : World S.Percept S.Action)
     (same : ∀ time,
@@ -80,7 +47,6 @@ theorem run_rewritten (mechanism : Mechanism S) (first second : Nat → S.base.S
       exact same time
     rw [run_succ, run_succ, ih, rewritten_step mechanism first second _ _ here]
 
-/-- Two rewrites that agree along the run of the first give one trace. -/
 theorem trace_rewritten (mechanism : Mechanism S)
     (first second : Nat → S.base.State → S.base.State) (seed : S.Seed)
     (world : World S.Percept S.Action)
@@ -100,8 +66,6 @@ theorem trace_rewritten (mechanism : Mechanism S)
   rw [run_rewritten mechanism first second seed world same time,
     rewritten_step mechanism first second _ _ here]
 
-/-- A rule that hands the base agent what the mechanism hands it along the assembled run gives
-the assembled run, without the mechanism's memory. -/
 theorem run_fed (mechanism : Mechanism S) (rule : Nat → S.Percept → S.Extra) (seed : S.Seed)
     (world : World S.Percept S.Action)
     (same : ∀ time,
@@ -118,7 +82,6 @@ theorem run_fed (mechanism : Mechanism S) (rule : Nat → S.Percept → S.Extra)
     rw [run_succ, ih, run_succ]
     simp only [fed, assembled, rewritten, here]
 
-/-- Under the same hypothesis the fed agent and the assembled agent have one trace. -/
 theorem trace_fed (mechanism : Mechanism S) (rule : Nat → S.Percept → S.Extra) (seed : S.Seed)
     (world : World S.Percept S.Action)
     (same : ∀ time,
@@ -132,8 +95,6 @@ theorem trace_fed (mechanism : Mechanism S) (rule : Nat → S.Percept → S.Extr
   rw [run_fed mechanism rule seed world same time]
   simp only [assembled, rewritten, here]
 
-/-- An agent whose output is a function of the current percept moves a world as the responder
-with that reply does. -/
 theorem world_of_stateless (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Output)
     (stateless : ∀ state percept, (agent.step state percept).1 = reply percept) (seed : S.Seed)
     (world : World S.Percept S.Action) (time : Nat) :
@@ -146,8 +107,6 @@ theorem world_of_stateless (agent : Agent S.Seed S.Percept S.Output) (reply : S.
         (S.action (reply (world.percept (run S (responding S fun _ => reply) seed world time).1)))
     rw [stateless, ih]
 
-/-- An agent whose output is a function of the current percept has the trace of the responder
-with that reply. -/
 theorem trace_of_stateless (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Output)
     (stateless : ∀ state percept, (agent.step state percept).1 = reply percept) (seed : S.Seed)
     (world : World S.Percept S.Action) :
@@ -160,9 +119,6 @@ theorem trace_of_stateless (agent : Agent S.Seed S.Percept S.Output) (reply : S.
 
 variable {mechanism : Mechanism S} {task : Task S}
 
-/-- **The task needs the past.** If an agent whose output is a function of the current percept
-meets the goal in every world of the family, at some seed, there is no result. A constant
-emitter and a responder that copies part of the current percept are such agents. -/
 theorem Result.history_free_refused (result : Result S mechanism task)
     (agent : Agent S.Seed S.Percept S.Output) (reply : S.Percept → S.Output)
     (stateless : ∀ state percept, (agent.step state percept).1 = reply percept) (seed : S.Seed)
@@ -172,9 +128,6 @@ theorem Result.history_free_refused (result : Result S mechanism task)
   rw [← trace_of_stateless agent reply stateless seed (task.world member)]
   exact met member
 
-/-- **The mechanism's hand-out is not a rule.** In a result, at every seed, no rule of
-the time and the current percept hands the base agent what the mechanism hands it along the
-runs in every world of the family. -/
 theorem Result.handout_not_rule (result : Result S mechanism task) (seed : S.Seed) :
     ¬ ∃ rule : Nat → S.Percept → S.Extra, ∀ member time,
       rule time ((task.world member).percept
@@ -188,7 +141,6 @@ theorem Result.handout_not_rule (result : Result S mechanism task) (seed : S.See
   rw [trace_fed mechanism rule seed (task.world member) (agrees member)]
   exact result.meets seed member
 
-/-- A mechanism whose hand-out ignores its memory has no result. -/
 theorem Result.stateless_refused (result : Result S mechanism task)
     (recode : S.Percept → S.Extra)
     (stateless : ∀ memory percept, (mechanism.read memory percept).1 = recode percept) :
@@ -196,9 +148,6 @@ theorem Result.stateless_refused (result : Result S mechanism task)
   obtain ⟨seed⟩ := S.seeded
   exact result.handout_not_rule seed ⟨fun _ => recode, fun _ _ => (stateless _ _).symm⟩
 
-/-- **The prediction learners' store is not a schedule.** In a result, at every seed, what
-the prediction learners hold along the runs is not one schedule over time in every world of
-the family. -/
 theorem Result.predictor_not_schedule (result : Result S mechanism task) (seed : S.Seed) :
     ¬ ∃ schedule : Nat → S.Predictor, ∀ member time,
       S.predictor (run S (assembled S mechanism) seed (task.world member) time).2.1.1 =
@@ -214,9 +163,6 @@ theorem Result.predictor_not_schedule (result : Result S mechanism task) (seed :
       exact S.predictor_same _)
   exact same ▸ result.meets seed member
 
-/-- **The control learners' store is not a schedule.** In a result, at every seed, what the
-control learners hold along the runs is not one schedule over time in every world of the
-family. -/
 theorem Result.controller_not_schedule (result : Result S mechanism task) (seed : S.Seed) :
     ¬ ∃ schedule : Nat → S.Controller, ∀ member time,
       S.controller (run S (assembled S mechanism) seed (task.world member) time).2.1.1 =
@@ -232,8 +178,6 @@ theorem Result.controller_not_schedule (result : Result S mechanism task) (seed 
       exact S.controller_same _)
   exact same ▸ result.meets seed member
 
-/-- A family whose members all have one world has no result: what the prediction learners hold
-in that world, at each time, is a schedule. So the family of a result has two worlds. -/
 theorem Result.family_varied (result : Result S mechanism task)
     (single : ∀ first second : task.Family, task.world first = task.world second) : False := by
   obtain ⟨seed⟩ := S.seeded
@@ -245,7 +189,6 @@ theorem Result.family_varied (result : Result S mechanism task)
     (fun world => S.predictor (run S (assembled S mechanism) seed world time).2.1.1)
     (single member only)
 
-/-- The goal of a result holds of one trace and fails of another, in one world. -/
 theorem Result.goal_separates (result : Result S mechanism task) :
     ∃ member, ∃ met failed : Nat → (task.world member).State × S.Output,
       task.goal member met ∧ ¬ task.goal member failed := by
@@ -253,10 +196,6 @@ theorem Result.goal_separates (result : Result S mechanism task) :
   obtain ⟨member, fails⟩ := result.baseFails seed
   exact ⟨member, _, _, result.meets seed member, fails⟩
 
-/-! ## All that a complete result certifies -/
-
-/-- A goal over a family whose members are determined by their worlds reads a member only
-through its world. -/
 theorem sameWorld_of_injective {S : Setting} {Family : Type}
     (world : Family → World S.Percept S.Action)
     (goal : (member : Family) → (Nat → (world member).State × S.Output) → Prop)
@@ -267,12 +206,10 @@ theorem sameWorld_of_injective {S : Setting} {Family : Type}
   obtain rfl := injective first second same
   exact holds
 
-/-- The trace is the assembled agent's, in a world, at some seed. -/
 def Recognized (S : Setting) (mechanism : Mechanism S) (world : World S.Percept S.Action)
     (trace : Nat → world.State × S.Output) : Prop :=
   ∃ other, AcornVerif.LearnedState.trace S (assembled S mechanism) other world = trace
 
-/-- Being the assembled agent's trace is read off the world alone. -/
 theorem Recognized.cast {S : Setting} {mechanism : Mechanism S}
     {first second : World S.Percept S.Action} (same : first = second)
     (trace : Nat → first.State × S.Output) (holds : Recognized S mechanism first trace) :
@@ -280,8 +217,6 @@ theorem Recognized.cast {S : Setting} {mechanism : Mechanism S}
   subst same
   exact holds
 
-/-- The task that only recognizes the submission: over a family of worlds, the goal "the trace
-is the assembled agent's, in that world, at some seed". -/
 def recognizer (S : Setting) (mechanism : Mechanism S) {Family : Type}
     (world : Family → World S.Percept S.Action) : Task S where
   Family := Family
@@ -289,9 +224,6 @@ def recognizer (S : Setting) (mechanism : Mechanism S) {Family : Type}
   goal member := Recognized S mechanism (world member)
   sameWorld _ _ same trace holds := holds.cast same trace
 
-/-- **Every complete result is also one for the task that only recognizes the submission**,
-over the same worlds: an agent that fails the goal has, in that world, a trace that is the
-assembled agent's at no seed. So no field depends on the goal being a task. -/
 theorem Result.recognized {S : Setting} {mechanism : Mechanism S} {task : Task S}
     (result : Result S mechanism task) :
     Result S mechanism (recognizer S mechanism task.world) := by
@@ -310,9 +242,6 @@ theorem Result.recognized {S : Setting} {mechanism : Mechanism S} {task : Task S
     fun seed predictions controls =>
       fails _ seed (result.learningNeeded seed predictions controls)⟩
 
-/-- **All that a complete result certifies about its goal.** For a mechanism and a family of
-worlds, some task over those worlds has a complete result exactly when the task that only
-recognizes the submission has one. -/
 theorem recognized_iff (S : Setting) (mechanism : Mechanism S) {Family : Type}
     (world : Family → World S.Percept S.Action) :
     (∃ goal sameWorld, Result S mechanism ⟨Family, world, goal, sameWorld⟩) ↔

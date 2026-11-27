@@ -1,78 +1,12 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Blindness
 import AcornVerif.Campaign
 import AcornVerif.Replay
-
-/-!
-# Visits that start in one of two situations
-
-In `AcornVerif.Kernel.visits` every visit of a member starts from one state, so what an agent
-perceives along a visit is decided by its own earlier actions and by whether its goal has been
-met. This module states the class in which that is not so. A `TurnClass` gives each member two
-start states, its two *situations*. `turns` is a member's world in visits under an *order*, a
-function that names the situation of each visit: the world takes `length` steps from the start
-of the visit's situation, delivers one more percept, and then moves to the start of the next
-visit's situation whatever the action. The order is no part of what the world shows. A class
-has a member for every order, so no agent can hold the order in advance.
-
-Within a visit the closed loop is the member's own from the situation's start (`turns_loop`),
-and every visit begins at the start of its situation (`turns_period`). So an agent solves a
-member on a visit exactly when, resumed from its memory at that visit's start, it solves the
-member from the situation's start within one visit (`solvesTurn_iff`). That memory is decided by
-the order of the earlier visits alone (`turnMemory_congr`): the situation of a visit reaches the
-agent through that visit's percepts and through nothing else.
-
-Two promises are stated over such a class.
-
-- `MastersBy`: under one order and on one visit before a stated visit, the agent solves each
-  member of a set of more than `bound` members whichever situation that visit brings. The
-  members are counted by a key, which the set does not repeat.
-- `KeepsBut`: under every order, a member solved on a visit is solved again on every later
-  visit before the horizon that brings the same situation, but for at most `lapses` visits of
-  that member.
-
-What the class forces, for a class in which no single action sequence meets a member's goal from
-both of its starts (`Apart`):
-
-- **Every agent that masters reads the visit's percepts.** Where an agent solves a member on a
-  visit in both situations, it takes different actions at some step of that visit in the two
-  runs, from one memory at the visit's start (`turn_differs`, `turnMemory_sides`).
-- **No feedback-driven agent masters.** Where the two situations give one feedback until the
-  goal is met (`Mute`), an agent whose actions depend on its clock and its feedback solves no
-  member on any visit in both situations (`FeedbackDriven.turn`), so it masters at no bound
-  (`FeedbackDriven.masters`), and of the two sides of the members of any finite set it solves at
-  most as many as the set has members (`FeedbackDriven.sides`). The same holds of every agent
-  whose closed loops in the class are those of a feedback-driven agent
-  (`MastersBy.of_states`).
-- **No agent that keeps nothing masters above a covering bound.** Where the first situation's
-  class conceals its goals and one action sequence meets the goals of at most `bound` members
-  with different keys, an experience-free agent does not master at that bound (`turns_need`).
-
-The promises are satisfiable. `switch` runs one agent for each situation and reads the situation
-from the first percept of each visit. Where that percept shows the situation, it solves a member
-on a visit exactly when the situation's agent solves it, in the situation's class in visits, on
-the visit of that situation's own count (`switch_turn`). So where each situation's agent solves
-again whatever it has solved, the switch keeps with no lapse (`switch_keeps`).
-
-A world in turns is a kernel world built from a member's own transition and percept. No host
-loop in the tree runs one, and no theorem here relates it to a host's run.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-! ## A world in turns -/
-
-/-- A world in visits of a length under an order of two situations. From the start state of the
-visit's situation the world takes `length` steps, delivers one more percept at the visit's last
-state, and then moves to the start state of the next visit's situation whatever the action. The
-state holds the visit's number and the steps taken in it. -/
 def turns (world : World interface) (start : Bool → world.State) (order : ℕ → Bool)
     (length : ℕ) : World interface where
   State := world.State × ℕ × Fin (length + 1)
@@ -82,13 +16,10 @@ def turns (world : World interface) (start : Bool → world.State) (order : ℕ 
     else (start (order (state.2.1 + 1)), state.2.1 + 1, ⟨0, Nat.succ_pos length⟩)
   percept := fun state => world.percept state.1
 
-/-- The first state of a visit: the start state of its situation, with no step taken. -/
 def turnStart (world : World interface) (start : Bool → world.State) (order : ℕ → Bool)
     (length visit : ℕ) : (turns world start order length).State :=
   (start (order visit), visit, ⟨0, Nat.succ_pos length⟩)
 
-/-- Within a visit the closed loop is the world's own from the start of the visit's
-situation. -/
 theorem turns_loop (world : World interface) (start : Bool → world.State) (order : ℕ → Bool)
     (length visit : ℕ) (agent : Agent interface) (time : ℕ) (within : time ≤ length) :
     loop (turns world start order length) agent (turnStart world start order length visit)
@@ -108,15 +39,11 @@ theorem turns_loop (world : World interface) (start : Bool → world.State) (ord
     simp only [interact, turns, dite_eq_left short]
     rfl
 
-/-- The memory an agent holds after one whole visit from a start state, entered with a
-memory. -/
 def visitMemory (agent : Agent interface) (world : World interface) (origin : world.State)
     (length : ℕ) (memory : agent.Memory) : agent.Memory :=
   (agent.act (memoryAt world (agent.resume memory) origin length)
     (perceptAt world (agent.resume memory) origin length)).2
 
-/-- A visit's last decision moves the world in turns to the start of the next visit, and leaves
-the agent the memory of one whole visit from the situation's start. -/
 theorem turns_return (world : World interface) (start : Bool → world.State) (order : ℕ → Bool)
     (length visit : ℕ) (agent : Agent interface) (memory : agent.Memory) :
     loop (turns world start order length) (agent.resume memory)
@@ -132,8 +59,6 @@ theorem turns_return (world : World interface) (start : Bool → world.State) (o
   simp only [interact, turns, dite_eq_right (Nat.lt_irrefl length)]
   rfl
 
-/-- Every visit begins at the start of its situation: after each multiple of `length + 1`
-decisions. -/
 theorem turns_period (world : World interface) (start : Bool → world.State) (order : ℕ → Bool)
     (length : ℕ) (agent : Agent interface) (visit : ℕ) :
     stateAt (turns world start order length) agent (turnStart world start order length 0)
@@ -149,14 +74,11 @@ theorem turns_period (world : World interface) (start : Bool → world.State) (o
       (memoryAt (turns world start order length) agent (turnStart world start order length 0)
         (visit * (length + 1))))
 
-/-- An agent's memory at the start of a visit of a world in turns. -/
 def turnMemory (world : World interface) (start : Bool → world.State) (order : ℕ → Bool)
     (length : ℕ) (agent : Agent interface) (visit : ℕ) : agent.Memory :=
   memoryAt (turns world start order length) agent (turnStart world start order length 0)
     (visit * (length + 1))
 
-/-- The memory at the start of the next visit is the memory of one whole visit from the start of
-this visit's situation, entered with the memory at this visit's start. -/
 theorem turnMemory_succ (world : World interface) (start : Bool → world.State)
     (order : ℕ → Bool) (length : ℕ) (agent : Agent interface) (visit : ℕ) :
     turnMemory world start order length agent (visit + 1) =
@@ -168,9 +90,6 @@ theorem turnMemory_succ (world : World interface) (start : Bool → world.State)
     (memoryAt (turns world start order length) agent (turnStart world start order length 0)
       (visit * (length + 1))))
 
-/-- **The memory at a visit's start is decided by the order of the earlier visits.** Under two
-orders that name one situation for every earlier visit, an agent holds one memory at the start
-of a visit. -/
 theorem turnMemory_congr (world : World interface) (start : Bool → world.State)
     (first second : ℕ → Bool) (length : ℕ) (agent : Agent interface) (visit : ℕ)
     (same : ∀ earlier, earlier < visit → first earlier = second earlier) :
@@ -186,8 +105,6 @@ theorem turnMemory_congr (world : World interface) (start : Bool → world.State
       ih (fun earlier before => same earlier (Nat.lt_succ_of_lt before)),
       same visit (Nat.lt_succ_self visit)]
 
-/-- Within a visit, the world's state is the state that the agent resumed from its memory at the
-visit's start reaches in the world itself from the start of the visit's situation. -/
 theorem turns_state (world : World interface) (start : Bool → world.State) (order : ℕ → Bool)
     (length : ℕ) (agent : Agent interface) (visit step : ℕ) (within : step ≤ length) :
     (stateAt (turns world start order length) agent (turnStart world start order length 0)
@@ -198,8 +115,6 @@ theorem turns_state (world : World interface) (start : Bool → world.State) (or
   exact congrArg Prod.fst
     (congrArg Prod.fst (turns_loop world start order length visit _ step within))
 
-/-- Within a visit, the agent's action is the action of the agent resumed from its memory at the
-visit's start, in the world itself from the start of the visit's situation. -/
 theorem turns_action (world : World interface) (start : Bool → world.State) (order : ℕ → Bool)
     (length : ℕ) (agent : Agent interface) (visit step : ℕ) (within : step ≤ length) :
     actionAt (turns world start order length) agent (turnStart world start order length 0)
@@ -225,23 +140,14 @@ theorem turns_action (world : World interface) (start : Bool → world.State) (o
   rw [inner]
   rfl
 
-/-! ## A class in turns -/
-
-/-- A class of worlds each visit of which starts in one of two situations: each member has a
-world and, for each situation, a start state. -/
 structure TurnClass (interface : Interface) where
-  /-- The members. -/
   Index : Type
-  /-- A member's world. -/
   world : Index → World interface
-  /-- A member's start state in each situation. -/
   start : (index : Index) → Bool → (world index).State
 
-/-- One goal for each member, read in both of its situations. -/
 abbrev TurnClass.Goals (family : TurnClass interface) : Type :=
   (index : family.Index) → AttemptGoal (family.world index)
 
-/-- The class of one situation: every member, started in that situation. -/
 abbrev TurnClass.side (family : TurnClass interface) (situation : Bool) :
     WorldClass interface where
   Index := family.Index
@@ -250,14 +156,10 @@ abbrev TurnClass.side (family : TurnClass interface) (situation : Bool) :
 
 variable {family : TurnClass interface} {goals : family.Goals} {length : ℕ}
 
-/-- A member's goal with a visit's length as its step cap. -/
 def turnGoal (goals : family.Goals) (length : ℕ) (index : family.Index) :
     AttemptGoal (family.world index) :=
   ⟨(goals index).satisfied, length⟩
 
-/-- An agent solves a member on a visit under an order when, in that member's world in turns,
-some state of that visit after one to `length` steps satisfies the member's goal. Visit 0 is the
-first. -/
 def SolvesTurn (family : TurnClass interface) (goals : family.Goals) (length : ℕ)
     (order : ℕ → Bool) (agent : Agent interface) (visit : ℕ) (index : family.Index) : Prop :=
   ∃ step, 1 ≤ step ∧ step ≤ length ∧ (goals index).satisfied
@@ -265,9 +167,6 @@ def SolvesTurn (family : TurnClass interface) (goals : family.Goals) (length : �
       (turnStart (family.world index) (family.start index) order length 0)
       (visit * (length + 1) + step)).1
 
-/-- An agent solves a member on a visit exactly when, resumed from its memory at the visit's
-start, it achieves the member's goal from the start of the visit's situation within one visit's
-length. -/
 theorem solvesTurn_iff (family : TurnClass interface) (goals : family.Goals) (length : ℕ)
     (order : ℕ → Bool) (agent : Agent interface) (visit : ℕ) (index : family.Index) :
     SolvesTurn family goals length order agent visit index ↔
@@ -287,7 +186,6 @@ theorem solvesTurn_iff (family : TurnClass interface) (goals : family.Goals) (le
     rw [inner step high]
     exact met
 
-/-- The memory at a visit's start does not read that visit's situation. -/
 theorem turnMemory_sides (world : World interface) (start : Bool → world.State)
     (order : ℕ → Bool) (length : ℕ) (agent : Agent interface) (visit : ℕ) (situation : Bool) :
     turnMemory world start (Function.update order visit situation) length agent visit =
@@ -295,9 +193,6 @@ theorem turnMemory_sides (world : World interface) (start : Bool → world.State
   turnMemory_congr world start _ _ length agent visit
     (fun _ before => Function.update_of_ne (Nat.ne_of_lt before) situation order)
 
-/-- An agent solves a member on a visit, with that visit's situation set, exactly when,
-resumed from its memory at the visit's start under the order as it was, it achieves the member's
-goal from that situation's start. -/
 theorem solvesTurn_side (family : TurnClass interface) (goals : family.Goals) (length : ℕ)
     (order : ℕ → Bool) (agent : Agent interface) (visit : ℕ) (index : family.Index)
     (situation : Bool) :
@@ -309,8 +204,6 @@ theorem solvesTurn_side (family : TurnClass interface) (goals : family.Goals) (l
         (turnGoal goals length index) (family.start index situation) := by
   rw [solvesTurn_iff, turnMemory_sides, Function.update_self]
 
-/-- Two agents in one state at every time of every member's world in turns solve the same
-members on the same visits under the same orders. -/
 theorem solvesTurn_of_states {first second : Agent interface}
     (same : ∀ (index : family.Index) (order : ℕ → Bool) (time : ℕ),
       stateAt (turns (family.world index) (family.start index) order length) first
@@ -323,16 +216,6 @@ theorem solvesTurn_of_states {first second : Agent interface}
   unfold SolvesTurn
   simp only [same]
 
-/-! ## The two promises -/
-
-/-- **Mastery before a stated visit.** Under one order, on one visit before the visit `limit`,
-the agent solves each member of a set of more than `bound` members in both situations: under the
-order with that visit's situation set to the one and to the other. No two members of the set
-have one key.
-
-This is a draft of the successor mission's promise, under revision, and no definition of the
-mission contract. It has a witness on the day-and-night class and a failing example in every
-feedback-driven agent (`FeedbackDriven.masters`). -/
 def MastersBy (family : TurnClass interface) (goals : family.Goals) (length bound : ℕ)
     {κ : Type} (key : family.Index → κ) (limit : ℕ) (agent : Agent interface) : Prop :=
   ∃ (order : ℕ → Bool) (visit : ℕ) (solved : Finset family.Index),
@@ -341,13 +224,6 @@ def MastersBy (family : TurnClass interface) (goals : family.Goals) (length boun
     ∀ index ∈ solved, ∀ situation : Bool,
       SolvesTurn family goals length (Function.update order visit situation) agent visit index
 
-/-- **Keeping what is solved, situation by situation, but for a number of lapses.** For each
-member and each order there are at most `lapses` visits outside which the agent solves the member
-on every visit before the visit `horizon` that is later than one on which it solved it and that
-brings the same situation.
-
-This is a draft of the successor mission's promise, under revision, and no definition of the
-mission contract. It has a witness on the day-and-night class and no failing example. -/
 def KeepsBut (family : TurnClass interface) (goals : family.Goals)
     (length horizon lapses : ℕ) (agent : Agent interface) : Prop :=
   ∀ (index : family.Index) (order : ℕ → Bool), ∃ lapsed : Finset ℕ, lapsed.card ≤ lapses ∧
@@ -355,7 +231,6 @@ def KeepsBut (family : TurnClass interface) (goals : family.Goals)
       SolvesTurn family goals length order agent visit index → later ∉ lapsed →
         SolvesTurn family goals length order agent later index
 
-/-- An agent that masters before a visit masters before every later one. -/
 theorem MastersBy.mono {bound limit later : ℕ} {κ : Type} {key : family.Index → κ}
     {agent : Agent interface} (within : limit ≤ later)
     (masters : MastersBy family goals length bound key limit agent) :
@@ -363,14 +238,12 @@ theorem MastersBy.mono {bound limit later : ℕ} {κ : Type} {key : family.Index
   obtain ⟨order, visit, solved, before, many, distinct, each⟩ := masters
   exact ⟨order, visit, solved, Nat.lt_of_lt_of_le before within, many, distinct, each⟩
 
-/-- An agent that keeps but for a number of lapses keeps but for every greater number. -/
 theorem KeepsBut.mono {horizon lapses more : ℕ} {agent : Agent interface}
     (within : lapses ≤ more) (keeps : KeepsBut family goals length horizon lapses agent) :
     KeepsBut family goals length horizon more agent := fun index order => by
   obtain ⟨lapsed, count, kept⟩ := keeps index order
   exact ⟨lapsed, Nat.le_trans count within, kept⟩
 
-/-- An agent in the states of an agent that masters, masters. -/
 theorem MastersBy.of_states {first second : Agent interface}
     (same : ∀ (index : family.Index) (order : ℕ → Bool) (time : ℕ),
       stateAt (turns (family.world index) (family.start index) order length) first
@@ -384,20 +257,13 @@ theorem MastersBy.of_states {first second : Agent interface}
   exact ⟨order, visit, solved, before, many, distinct, fun index member situation =>
     (solvesTurn_of_states same _ visit index).mp (each index member situation)⟩
 
-/-! ## What a class with forks forces -/
-
 variable {Φ : Type}
 
-/-- **Every member is a fork.** No single action sequence meets a member's goal, within one
-visit's length, from both of its starts. -/
 def Apart (family : TurnClass interface) (goals : family.Goals) (length : ℕ) : Prop :=
   ∀ (index : family.Index) (actions : ℕ → Act interface),
     ¬ ((turnGoal goals length index).MetBy (family.start index false) actions ∧
       (turnGoal goals length index).MetBy (family.start index true) actions)
 
-/-- **The situations give one feedback until the goal is met.** Along every action sequence,
-from a member's two starts, the percepts have one feedback at every time before which the goal
-has been met from neither. -/
 def Mute (feedback : Percept interface → Φ) (family : TurnClass interface)
     (goals : family.Goals) : Prop :=
   ∀ (index : family.Index) (actions : ℕ → Act interface) (time : ℕ),
@@ -410,8 +276,6 @@ def Mute (feedback : Percept interface → Φ) (family : TurnClass interface)
       feedback ((family.world index).percept
         (path (family.world index) (family.start index true) actions time))
 
-/-- Within a visit whose situation is set, the agent's action is the action of the agent resumed
-from its memory at the visit's start under the order as it was, from that situation's start. -/
 theorem turns_action_side (world : World interface) (start : Bool → world.State)
     (order : ℕ → Bool) (length : ℕ) (agent : Agent interface) (visit step : ℕ)
     (within : step ≤ length) (situation : Bool) :
@@ -423,11 +287,6 @@ theorem turns_action_side (world : World interface) (start : Bool → world.Stat
   rw [turns_action world start _ length agent visit step within, turnMemory_sides,
     Function.update_self]
 
-/-- **An agent that solves a member in both situations reads that visit's percepts.** In a class
-whose members are forks, where an agent solves a member on a visit under an order with that
-visit's situation set to the one and to the other, its actions at some step of that visit differ
-between the two runs. Its memory at the visit's start is the same in both
-(`turnMemory_sides`), so the difference comes from what it perceives during the visit. -/
 theorem turn_differs (apart : Apart family goals length) (order : ℕ → Bool)
     (agent : Agent interface) (visit : ℕ) (index : family.Index)
     (solved : ∀ situation : Bool, SolvesTurn family goals length
@@ -468,10 +327,6 @@ theorem turn_differs (apart : Apart family goals length) (order : ℕ → Bool)
     (fun step before => same step (Nat.lt_of_lt_of_le before within))]
   exact met
 
-/-- **A fork in turns defeats every feedback-driven agent.** In a class whose members are forks
-and whose situations give one feedback until the goal is met, an agent whose actions depend on
-its clock and its feedback solves no member, on any visit under any order, in both situations of
-that visit. -/
 theorem FeedbackDriven.turn {feedback : Percept interface → Φ} {agent : Agent interface}
     (blind : FeedbackDriven feedback agent) (mute : Mute feedback family goals)
     (apart : Apart family goals length) (order : ℕ → Bool) (visit : ℕ)
@@ -493,8 +348,6 @@ theorem FeedbackDriven.turn {feedback : Percept interface → Φ} {agent : Agent
     (fun actions time unmetFirst unmetSecond => mute index actions time unmetFirst unmetSecond)
     (apart index) ⟨first, second⟩
 
-/-- **No feedback-driven agent masters**, at any bound, key and limit, in a class whose members
-are forks and whose situations give one feedback until the goal is met. -/
 theorem FeedbackDriven.masters {feedback : Percept interface → Φ} {agent : Agent interface}
     (blind : FeedbackDriven feedback agent) (mute : Mute feedback family goals)
     (apart : Apart family goals length) (bound limit : ℕ) {κ : Type}
@@ -503,10 +356,6 @@ theorem FeedbackDriven.masters {feedback : Percept interface → Φ} {agent : Ag
   obtain ⟨index, member⟩ := Finset.card_pos.mp (Nat.lt_of_le_of_lt (Nat.zero_le bound) many)
   exact blind.turn mute apart order visit index (each index member)
 
-/-- **A feedback-driven agent serves at most one side of each fork.** Take any order and visit,
-and any finite set of sides, a member with a situation for that visit, each of which the agent
-solves on that visit. Then no two of them are sides of one member: the set has as many sides as
-members. So of the two sides of each of `n` members it solves at most `n`. -/
 theorem FeedbackDriven.sides {feedback : Percept interface → Φ} {agent : Agent interface}
     (blind : FeedbackDriven feedback agent) (mute : Mute feedback family goals)
     (apart : Apart family goals length) (order : ℕ → Bool) (visit : ℕ)
@@ -527,10 +376,6 @@ theorem FeedbackDriven.sides {feedback : Percept interface → Φ} {agent : Agen
   · exact each _ member
   · exact each _ also
 
-/-- **No agent that keeps nothing masters above a covering bound.** Take a class in turns whose
-first situation's class conceals its goals behind a reference, and a bound such that one action
-sequence meets, from their first starts within a visit, the goals of at most `bound` members no
-two of which have one key. Then no experience-free agent masters at that bound. -/
 theorem turns_need {reference : World interface} {origin : reference.State}
     (hidden : Conceals (family.side false) goals reference origin) {κ : Type}
     (key : family.Index → κ) {bound : ℕ}
@@ -552,12 +397,6 @@ theorem turns_need {reference : World interface} {origin : reference.State}
   rw [experienceFree_memoryAt law] at solves
   exact ((hidden.withLength length).solves_iff _ index).mp solves
 
-/-! ## One agent for each situation -/
-
-/-- The agent that runs one agent for each situation. At the first percept of each visit it
-reads the situation from the percept; through the visit it gives every percept to that
-situation's agent and takes its action, while the other agent's memory rests. Its own memory
-holds the situation it read and the steps taken in the visit. -/
 def switch (side : Percept interface → Bool) (length : ℕ) (agents : Bool → Agent interface) :
     Agent interface where
   Memory := (Bool × Fin (length + 1)) × ((situation : Bool) → (agents situation).Memory)
@@ -572,7 +411,6 @@ def switch (side : Percept interface → Bool) (length : ℕ) (agents : Bool →
           ((agents (if memory.1.2.val = 0 then side percept else memory.1.1)).act
             (memory.2 (if memory.1.2.val = 0 then side percept else memory.1.1)) percept).2))
 
-/-- One decision of the switch, where the situation it reads or holds is known. -/
 theorem switch_act (side : Percept interface → Bool) (length : ℕ)
     (agents : Bool → Agent interface) (flag : Bool) (count : Fin (length + 1))
     (memories : (situation : Bool) → (agents situation).Memory) (percept : Percept interface)
@@ -586,10 +424,6 @@ theorem switch_act (side : Percept interface → Bool) (length : ℕ)
   subst reads
   rfl
 
-/-- **Within a visit the switch is its situation's agent.** From a start state whose percept
-shows a situation, entered with its step count at zero, the switch's closed loop for one visit's
-length has the states of that situation's agent resumed from its own memory, and holds that
-agent's memory in that situation's place and the other memories as they were. -/
 theorem switch_loop (side : Percept interface → Bool) (length : ℕ)
     (agents : Bool → Agent interface) (world : World interface) (origin : world.State)
     (situation : Bool) (reads : side (world.percept origin) = situation) (flag : Bool)
@@ -642,10 +476,6 @@ theorem switch_loop (side : Percept interface → Bool) (length : ℕ)
           (loop world ((agents situation).resume (memories situation)) origin time).1)).2)
           (Function.update_self situation _ memories)))
 
-/-- **One visit of the switch is one visit of its situation's agent.** The memory the switch
-holds after a whole visit from a start state whose percept shows a situation holds, in that
-situation's place, the memory that situation's agent holds after the visit, and the other
-memories as they were. -/
 theorem switch_visitMemory (side : Percept interface → Bool) (length : ℕ)
     (agents : Bool → Agent interface) (world : World interface) (origin : world.State)
     (situation : Bool) (reads : side (world.percept origin) = situation) (flag : Bool)
@@ -682,8 +512,6 @@ theorem switch_visitMemory (side : Percept interface → Bool) (length : ℕ)
       (loop world ((agents situation).resume (memories situation)) origin length).1)).2)
       (Function.update_self situation _ memories)))
 
-/-- The memory after one more visit of a world in visits is the memory of one whole visit from
-the start, entered with the memory at this visit's start. -/
 theorem visits_memory_succ (world : World interface) (start : world.State) (length : ℕ)
     (agent : Agent interface) (count : ℕ) :
     memoryAt (visits world start length) agent (visitStart world start length)
@@ -705,12 +533,10 @@ theorem visits_memory_succ (world : World interface) (start : world.State) (leng
   rw [inner]
   rfl
 
-/-- The visits before a visit to which an order gives a situation. -/
 def seen (order : ℕ → Bool) (situation : Bool) : ℕ → ℕ
   | 0 => 0
   | visit + 1 => seen order situation visit + if order visit = situation then 1 else 0
 
-/-- The count of a situation's visits does not fall. -/
 theorem seen_mono (order : ℕ → Bool) (situation : Bool) {visit later : ℕ}
     (after : visit ≤ later) : seen order situation visit ≤ seen order situation later := by
   induction later with
@@ -721,7 +547,6 @@ theorem seen_mono (order : ℕ → Bool) (situation : Bool) {visit later : ℕ}
     · exact Nat.le_trans (ih (Nat.le_of_lt_succ sooner)) (Nat.le_add_right _ _)
     · rw [same]
 
-/-- A later visit of one situation has a greater count of that situation's visits. -/
 theorem seen_lt (order : ℕ → Bool) {visit later : ℕ} (after : visit < later) :
     seen order (order visit) visit < seen order (order visit) later := by
   have next : seen order (order visit) (visit + 1) = seen order (order visit) visit + 1 := by
@@ -730,8 +555,6 @@ theorem seen_lt (order : ℕ → Bool) {visit later : ℕ} (after : visit < late
   have rest := seen_mono order (order visit) (show visit + 1 ≤ later from after)
   omega
 
-/-- The count of a situation's visits before a visit reads the order of the earlier visits
-only. -/
 theorem seen_congr (first second : ℕ → Bool) (situation : Bool) (visit : ℕ)
     (same : ∀ earlier, earlier < visit → first earlier = second earlier) :
     seen first situation visit = seen second situation visit := by
@@ -743,11 +566,6 @@ theorem seen_congr (first second : ℕ → Bool) (situation : Bool) (visit : ℕ
     rw [ih (fun earlier before => same earlier (Nat.lt_succ_of_lt before)),
       same visit (Nat.lt_succ_self visit)]
 
-/-- **At the start of each visit the switch holds each situation's agent as that agent stands
-after its own visits.** Where the percept of each situation's start shows the situation, the
-switch's memory at the start of a visit of a world in turns holds, for each situation, the
-memory that situation's agent holds in that situation's world in visits after as many visits as
-the order has given the situation. -/
 theorem switch_memory (side : Percept interface → Bool) (length : ℕ)
     (agents : Bool → Agent interface) (world : World interface) (start : Bool → world.State)
     (reads : ∀ situation, side (world.percept (start situation)) = situation)
@@ -791,10 +609,6 @@ theorem switch_memory (side : Percept interface → Bool) (length : ℕ)
       rw [ite_eq_right (fun same => here same.symm)]
       rfl
 
-/-- **The switch solves what its situation's agent solves.** Where the percept of each of a
-member's starts shows the situation, the switch solves the member on a visit under an order
-exactly when the agent of that visit's situation solves it, in that situation's class in visits,
-on the visit whose number is the count of that situation's earlier visits. -/
 theorem switch_turn (family : TurnClass interface) (goals : family.Goals) (length : ℕ)
     (side : Percept interface → Bool) (agents : Bool → Agent interface) (order : ℕ → Bool)
     (visit : ℕ) (index : family.Index)
@@ -837,9 +651,6 @@ theorem switch_turn (family : TurnClass interface) (goals : family.Goals) (lengt
     rw [states time within]
     exact met
 
-/-- **The switch keeps what its agents retain.** Where the percept of each start shows the
-situation and each situation's agent, in that situation's class in visits, solves on every later
-visit a member it has solved, the switch keeps with no lapse, before every horizon. -/
 theorem switch_keeps (family : TurnClass interface) (goals : family.Goals) (length : ℕ)
     (side : Percept interface → Bool) (agents : Bool → Agent interface)
     (reads : ∀ index situation,
@@ -853,17 +664,8 @@ theorem switch_keeps (family : TurnClass interface) (goals : family.Goals) (leng
   rw [switch_turn family goals length side agents order visit index (reads index)] at solved
   exact retains (order visit) index _ _ (seen_lt order after) solved
 
-/-! ## An agent that differs only where the class never looks -/
-
 variable {E Core V : Type}
 
-/-- **An agent that is feedback-driven on everything a class shows it does not master.** Take a
-chooser whose preference and memory read the percept through a feedback alone, made aloof on a
-set of percepts: on those it holds a resting preference. Over every sequence of percepts it need
-then not be driven by the feedback; whether it is depends on the set, and with an empty set it is
-the chooser itself. If no member of the class delivers a percept of the set, it does not master,
-at any bound, key and limit: in every member's world in turns its closed loop is the chooser's
-own (`aloof_loop`), and the chooser is feedback-driven (`chooser_stepped`). -/
 theorem aloof_masters {feedback : Percept interface → Φ} (select : E → V → Act interface × E)
     (core : Core) (seed : E) (prefer : Core → Φ → V)
     (advance : Core → Φ → Act interface → Core)
@@ -883,12 +685,6 @@ theorem aloof_masters {feedback : Percept interface → Φ} (select : E → V �
     (turns (family.world index) (family.start index) order length) _
     (fun state => never index state.1) time)
 
-/-! ## What keeping asks -/
-
-/-- **A member solved in a situation is solved again among any more visits of that situation
-than the lapses.** Under keeping but for `lapses` lapses, take a visit on which the agent solved
-a member and a set of more than `lapses` later visits before the horizon that bring the same
-situation. The agent solves the member on one of them. -/
 theorem KeepsBut.again {horizon lapses : ℕ} {agent : Agent interface}
     (keeps : KeepsBut family goals length horizon lapses agent) (index : family.Index)
     (order : ℕ → Bool) (visit : ℕ)
@@ -902,8 +698,6 @@ theorem KeepsBut.again {horizon lapses : ℕ} {agent : Agent interface}
   obtain ⟨after, before, same⟩ := each other inside
   exact ⟨other, inside, kept visit other after before same solved out⟩
 
-/-- **A horizon within one visit of the lapses asks no keeping.** Where the lapses number at
-least the visits before the horizon, less one, every agent keeps. -/
 theorem keepsBut_of_lapses (family : TurnClass interface) (goals : family.Goals) (length : ℕ)
     {horizon lapses : ℕ} (agent : Agent interface) (covered : horizon ≤ lapses + 1) :
     KeepsBut family goals length horizon lapses agent := by

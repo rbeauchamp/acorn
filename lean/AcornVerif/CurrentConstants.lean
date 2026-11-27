@@ -1,26 +1,12 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.ModelConstants
 import AcornVerif.CurrentArithmetic
 import Acorn.Average
 import Acorn.FeatureConstants
 import Acorn.Handcrafted.TemporalProfile
 
-/-! # Mathematical interpretation of current constants
-
-Current consumers import their owning constants directly. These small closed
-interfaces bind the rational and dimensional inputs used by supporting proofs
-to the machine definitions they describe. They establish constant identity;
-each consuming theorem supplies its own hypotheses and behavioral guarantee.
--/
 namespace AcornVerif.CurrentConstants
 open Acorn AcornVerif.CurrentArithmetic
 
-/-- Every member of the closed discount domain has the retained exact rational
-value and rounded horizon. The conversion reads the actual binary32 operations. -/
 theorem discount_values (discount : Discount) :
     (numerical32 discount.gamma, numerical32 discount.horizon) =
       (match discount with
@@ -38,8 +24,6 @@ theorem discount_values (discount : Discount) :
     change ((1:ℚ)*16609444*2^(-24:Int), (1:ℚ)*13107213*2^(-17:Int)) = _
     norm_num [ModelConstants.gammaG99, ModelConstants.horizonG99]
 
-/-- The gain and demon configuration model constants denote the actual machine
-words and derived gain step, rather than decimal approximations. -/
 theorem numeric_values :
     numerical32 gainTrackingStep = ModelConstants.gainStepSize ∧
     gainTrackingHorizon.toNat = ModelConstants.gainTrackingHorizon ∧
@@ -60,15 +44,11 @@ theorem numeric_values :
     ModelConstants.differentialValueBound, ModelConstants.eta, ModelConstants.alphaInit,
     ModelConstants.metaGamma, ModelConstants.optionGamma]
 
-/-- The declared D6 rate denotes the exact dyadic rational of its binary32 word;
-`0.01` itself is not representable, so this is the value every draw compares. -/
 theorem explore_rate_value :
     numerical32 Handcrafted.declaredRate.value = ModelConstants.exploreRate := by
   change (1:ℚ)*10737418*2^(-30:Int) = ModelConstants.exploreRate
   norm_num [ModelConstants.exploreRate]
 
-/-- Current dimensions and the retained storage arithmetic share the same closed
-interface. Concrete receiver traversal is owned by CurrentFeatureConsumers. -/
 theorem dimensions :
     FeatureConstants.defaultWeightSpace = ModelConstants.weightSpace ∧
     FeatureConstants.primitiveCount + FeatureConstants.metaActionCount +

@@ -1,22 +1,10 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Lean
 import Acorn.Provenance
+import AcornTools.TrackedFiles
 
-/-! # Closed departure ownership
-
-The closed departure type and complete compiled quarantine-module/type inventory
-are bound to the maintained register. Composite state types declare all consumed
-origins here; signal producers additionally carry their executable Provenance
-contracts. Review checks each declared origin against the producing code.
--/
 namespace AcornDepartureAudit
 open Lean Acorn
 
-/-- Every constructor has a register key; adding a departure requires this total match. -/
 def key : Departure → String
   | .featureChannels => "D1"
   | .spatialPotentials => "D2"
@@ -27,7 +15,6 @@ def key : Departure → String
   | .featureTester => "D7"
   | .achievementEvent => "D8"
 
-/-- Maintained loci include compositions; adding a quarantined module requires admission. -/
 def modules : List (Name × List Departure) :=
   [(`Acorn.Handcrafted.Signals, [.featureChannels, .cumulants]),
    (`Acorn.Handcrafted.Observation, [.featureChannels, .spatialPotentials, .cumulants]),
@@ -50,8 +37,6 @@ def modules : List (Name × List Departure) :=
    (`Acorn.Handcrafted.StepParts, [.featureChannels, .spatialPotentials, .explorationDuration,
      .learnerParameters, .cumulants, .explorationRate, .featureTester, .achievementEvent])]
 
-/-- Every quarantine data type is a declared producer, immutable profile or
-composite state/proof relation. Newly elaborated inductive types fail closed. -/
 def types : List Name :=
   [`Acorn.Handcrafted.TaskFeatureMode, `Acorn.Handcrafted.Predictions,
    `Acorn.Handcrafted.SpatialInterest, `Acorn.Handcrafted.EvaluationMode,
@@ -65,9 +50,6 @@ def types : List Name :=
 private def require (legal : Bool) (message : String) : IO Unit :=
   unless legal do throw (IO.userError s!"departure ownership: {message}")
 
-/-- Compiler metadata supplies the complete constructor and public/private type
-inventory. Documents must name every module in every declared departure it uses.
-`maintained` are the governed discovered sources, which hold every quarantine module. -/
 def check (env : Environment) (maintained : Array Name) : IO Unit := do
   let departures : List Departure := [.featureChannels, .spatialPotentials,
     .explorationDuration, .learnerParameters, .cumulants, .explorationRate, .featureTester,
@@ -87,6 +69,7 @@ def check (env : Environment) (maintained : Array Name) : IO Unit := do
           if owners.contains owner then actual := name :: actual
   require (actual.length == types.length && actual.all types.contains)
     s!"quarantine data-type inventory differs: {actual}"
+  AcornTrackedFiles.ensureTrackedRegular ".." "" "docs/learned-only-binding.md"
   let text ← IO.FS.readFile "../docs/learned-only-binding.md"
   let entries := ((text.splitOn "### D").drop 1).map fun entry =>
     ("D" ++ (entry.takeWhile Char.isDigit).toString, entry)

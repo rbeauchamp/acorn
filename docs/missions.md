@@ -29,7 +29,7 @@ There is no payment, no trust level and no promise that a mission will suit your
 
 | What you spend | What to expect |
 |---|---|
-| Machine | macOS on Apple silicon (arm64) or Ubuntu/Debian Linux on x86-64, with about 13 GiB of disk and 12 GiB of memory to spare. Observed once, on 2026-10-30, on a 14-core Mac with Lean already installed: a fresh clone's first gate run took 16 minutes (6.5 of them fetching and building dependencies) and left 10 GiB in the clone; Lean adds 2.8 GiB. Memory peaked at 11.3 GiB when measured on 2026-10-28. The serial `no-comments` check added later took ~491 s on macOS arm64. Later runs reuse what the first one built. A smaller machine may take longer, and nobody has measured one. |
+| Machine | macOS on Apple silicon (arm64) or Ubuntu/Debian Linux on x86-64, with about 13 GiB of disk and 12 GiB of memory to spare. Observed once, on 2026-10-30, on a 14-core Mac with Lean already installed: a fresh clone's first gate run took 16 minutes (6.5 of them fetching and building dependencies) and left 10 GiB in the clone; Lean adds 2.8 GiB. Memory peaked at 11.3 GiB when measured on 2026-10-28. The pinned `no-comments` check runs beside the Regula audit in `./scripts/gate.sh` (observed ~58 s on macOS arm64 at `--jobs 6`, overlapped within Regula's runtime with 6.95 GiB combined peak physical footprint). Later runs reuse what the first one built. A smaller machine may take longer, and nobody has measured one. |
 | Agent time and tokens | Unknown in advance: nobody has measured a mission. A contract may also turn out hard or false; say so on the issue, and that finding is useful, but it earns no credit on the board. |
 | A race | Several people may work on one mission at once, and the first pull request that keeps the contract, passes the gate and passes the referee's review merges. A claim reserves nothing exclusively. Step 2 below checks who is already working. |
 | Waiting | The target for a first response to a gate-passing pull request is seven days, with no date promised for the referee's report or the merge. The work is complete when the review protocol says so, not when your agent does. Outside pull requests merge only on the owner's word ([triage and response](../CONTRIBUTING.md#triage-and-response)). |
@@ -65,6 +65,8 @@ If GitHub's interface cannot be reached, read the open list in the [board's data
 
 A mission with targets is frozen. Its statements are files of the repository, which no edit of the issue changes, and only the owner merges a change to them. [The registry](../lean/AcornVerif/Targets/Registry.lean) lists the targets under each mission's issue number, so a mission has targets exactly when its number is there.
 
+In `lean/AcornVerif/Targets/Registry.lean`, `AcornVerif.Targets.statementOf` returns the registered statement for a listed target name and False for any unregistered name. Its proofs establish that no two targets share a name (`registry_distinct`), that `statementOf` returns each registered target's statement (`statementOf_name`), and that a proof of `statementOf` or a `Landing` proves a registered target's statement (`statementOf_registered`, `Landing.proves`). They do not establish: (1) that a pair's name and its statement in `registry` name the same declaration beyond the doubled-backquote pair syntax and owner review under [CODEOWNERS](../.github/CODEOWNERS); (2) that `registry` includes every Prop definition in `lean/AcornVerif/Targets/` (one left out is elaborated by the build and is no target); (3) that a mission's issue number matches GitHub's record; (4) that imported definitions outside `lean/AcornVerif/Targets/` keep a target's meaning unchanged (a target fixes its own text, and changing a definition it names changes what it says); or (5) that a target states what its prose mission means (review reads each statement).
+
 A mission with no target is frozen when it has all of these:
 
 - a second label naming its kind, one of `mission:proof`, `mission:contract`, `mission:world` and `mission:prior-art`. An issue with only the mission label is a proposal that nobody has accepted yet;
@@ -93,7 +95,7 @@ def parse_complete : Prop :=
   ∀ text v, Grammar.Text text.toList v → Json.parse text = .ok v
 ```
 
-A target's name is the name of its file's module followed by the name of the theorem that is to prove it, so the name tells you the file: `AcornVerif.Targets.StateEntry.arm_letter` is in `lean/AcornVerif/Targets/StateEntry.lean`. The definitions a contract introduces are in the same file. Many targets are written with arrows, `(positive : 0 ≤ range) → …`, where a theorem lists its hypotheses before the colon; the two say the same.
+A target's name is the name of its file's module followed by the name of the theorem that is to prove it, so the name tells you the file: `AcornVerif.Targets.StateEntry.arm_letter` is in `lean/AcornVerif/Targets/StateEntry.lean`. The definitions a contract introduces are in the same file. Many targets write leading arrows, `(name : type) → …` (such as `(positive : 0 ≤ range) → …`), rather than `∀` because Lean's unused-variable linter rejects a named hypothesis under `∀` that the statement does not mention; the two say the same as listing hypotheses before a theorem's colon.
 
 If a statement is false, say so on the issue, with the counterexample, rather than changing it.
 
@@ -107,7 +109,7 @@ cd acorn
 ./scripts/start.sh --prepare-only
 ```
 
-The last command installs what is missing through Homebrew or apt-get and builds Acorn; it may stop for a package-manager password or the macOS command-line tools dialog, which the person directing you must answer. With the tools already installed you can skip that command. The tools are: on Apple silicon macOS the command-line tools, elan, shellcheck, coreutils and openssl@3 from Homebrew; on x86-64 Ubuntu/Debian build-essential, curl, git, libgmp-dev, openssl, shellcheck, coreutils and [elan](https://github.com/leanprover/elan). The gate fetches and builds the pinned Lean, Mathlib and other dependencies itself.
+The last command installs missing system packages through Homebrew or apt-get, provisions pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`, via `scripts/shellcheck.sh` into `lean/.lake/packages` with workspace-containment, archive and binary SHA-256, and version checks) without modifying existing user or system ShellCheck binaries, and builds Acorn; it may stop for a package-manager password or the macOS command-line tools dialog, which the person directing you must answer. With the tools already installed you can skip that command. The tools are: on macOS the command-line tools, elan, coreutils and openssl@3 from Homebrew; on x86-64 Ubuntu/Debian build-essential, curl, git, libgmp-dev, openssl, coreutils and [elan](https://github.com/leanprover/elan). The gate fetches and builds the pinned Lean, Mathlib, `no-comments`, ShellCheck `0.11.0` (`scripts/shellcheck.pin`, also provisioned standalone by `./scripts/shellcheck.sh provision`; see [platform setup](verification.md#platform-setup)) and other dependencies into `lean/.lake/packages` itself.
 
 Read [AGENTS](../AGENTS.md), the repository's rules for proofs and code, and [Contributing](../CONTRIBUTING.md#missions-for-outside-contributors-and-agents). In brief: a theorem must concern the definition that runs, and no custom axiom, sorry or unsafe definition may enter. Stepping Acorn's agent or one of its learners to see what it does is a run by whatever means, evaluation inside Lean and a copy in another language included; a run needs the owner's authorization first, and step 8 has you list every computation you made on the agent ([what counts as a run](../CONTRIBUTING.md#what-counts-as-a-run)).
 
@@ -144,19 +146,19 @@ Then record each target you proved in [the record of proved targets](../lean/Aco
 ⟨``Targets.StateEntry.arm_letter, ``StateEntry.arm_letter, @StateEntry.arm_letter⟩
 ```
 
-Lean accepts an entry only when the theorem proves the statement the registry holds under that name, whichever way you stated it, so the record is how the repository knows a target is proved, and a statement written out wrongly fails there. Change nothing under `lean/AcornVerif/Targets/`, and do not change a definition that a target names: together they are the contract.
+Lean accepts an entry only when the theorem proves the statement the registry holds under that name (`Targets.Landing.proves`), whichever way you stated it, so the record is how the repository knows a target is proved, and a statement written out wrongly fails there. Nothing checks that the entry's recorded theorem name matches the proof term it carries; that name is display-only for readers. Change nothing under `lean/AcornVerif/Targets/`, and do not change a definition that a target names: together they are the contract.
 
-### Step 6: run the gate
+### Step 6: commit
+
+Sign your commits with an SSH or GPG key registered with GitHub: the main branch requires verified signatures, and GitHub can refuse to merge a pull request whose commits it cannot verify. Keep [LICENSE](../LICENSE) as Acorn's copyright and license notice; do not add per-file MIT headers or comments to scoped Lean files under the `no-comments` policy (record citations and decision rationale in the documentation destinations given in [AGENTS](../AGENTS.md#learned-only-and-research-admission) and [review and delivery](../AGENTS.md#review-and-delivery)), and preserve existing non-Lean license notices.
+
+### Step 7: run the gate
 
 ```sh
 ./scripts/gate.sh
 ```
 
-It has passed only when its last line begins `gate: every merge check passed`. Any other ending is a failure, whatever came before it. Each verification stage has a hard limit of 360 seconds that cannot be extended; if a stage is killed on a slower machine, run the gate again, since Lean's build tool keeps the modules it finished. Run it on the exact commit you will submit.
-
-### Step 7: commit
-
-Sign your commits with an SSH or GPG key registered with GitHub: the main branch requires verified signatures, and GitHub can refuse to merge a pull request whose commits it cannot verify. Keep [LICENSE](../LICENSE) as Acorn's copyright and license notice; do not add per-file MIT headers or comments to scoped Lean files under the `no-comments` policy (record citations and decision rationale in the documentation destinations given in [AGENTS](../AGENTS.md#learned-only-and-research-admission) and [review and delivery](../AGENTS.md#review-and-delivery)), and preserve existing non-Lean license notices.
+It has passed only when its last line begins `gate: every merge check passed`. Any other ending is a failure, whatever came before it. Each verification stage has a hard limit of 360 seconds that cannot be extended; if a stage is killed on a slower machine, run the gate again, since Lean's build tool keeps the modules it finished. Run it on the exact commit you will submit: the gate checks committed tracked files against HEAD and refuses uncommitted edits to tracked files ([verification](verification.md#build-and-source-inventory)).
 
 ### Step 8: open the pull request
 
@@ -214,7 +216,7 @@ gh api graphql --paginate --slurp -f query="$query" > "$dir/second.json"
 ./scripts/lean.sh env lean --run "$dir/run.lean" render "$(date -u +%FT%TZ)" "$dir/first.json" "$dir/second.json" ../docs/mission-board
 ```
 
-It reads GitHub twice and writes nothing unless both reads are complete and identical, so a failed page, a rate limit or a label changed between the reads leaves the existing board in place.
+It reads GitHub twice and writes nothing unless both reads are complete and identical (`agree_both`), so a failed page, a rate limit or a label changed between the reads leaves the existing board in place (though a label removed and restored between the two reads goes unseen). `AcornVerif.MissionBoard` defines no root `main` because `ownership-audit` imports every non-executable module together (hence the one-line wrapper above). In generated Markdown, `escape_inert` neutralizes Markdown and HTML `active` characters in untrusted titles, target names, and theorem names, while `targetFile` derives a target's path purely from its Lean declaration-name prefix (under `lean/` with the `.lean` extension) by convention without checking disk placement.
 The targets and their landings are those of the checkout the commands run in, so run them on the current main branch.
 
 A pull request that changes what the board reads from GitHub or what it writes, which is a change to `lean/AcornVerif/MissionBoard.lean`, regenerates the board with these commands on its own head, and its author reads both files against GitHub before it merges. Pages made up to try the change hold only what their author expected GitHub to answer, so they cannot show a case GitHub records differently. A session that cannot reach GitHub's GraphQL interface hands the regeneration to one that can, and the change waits for it.

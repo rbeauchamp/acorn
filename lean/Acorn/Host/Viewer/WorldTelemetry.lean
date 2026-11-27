@@ -1,31 +1,16 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Attempt
 import Acorn.Host.Viewer.TelemetryValue
 
-/-!
-# World telemetry from the actual capture
-
-Configuration, original task, body, sensor patch and preceding result belong
-to the immutable frame captured by the runner. No telemetry function regenerates
-terrain, reconstructs a target from a remaining quantity, or advances the world.
--/
 namespace Acorn.Host.Viewer
 
-/-- Closed facing-to-wire index mapping. -/
 def directionCode : Direction → Nat
   | .north => 0 | .south => 1 | .east => 2 | .west => 3
 
-/-- Independent event bits preserve every combination of public raw event fields. -/
 def eventCode (events : StepResult) : Nat :=
   (if events.harvested.isSome then 1 else 0) + (if events.ate then 2 else 0) +
   (if events.crafted.isSome then 4 else 0) + (if events.pickedFood > 0 then 8 else 0) +
   (if events.exhausted then 16 else 0) + (if events.moved then 32 else 0)
 
-/-- Original task arguments determine the exact wire descriptor. -/
 def goalTelemetry (goal : Option Goal) : GoalKind × GoalItem × Int × Int × Nat :=
   match goal with
   | none => (none, none, 0, 0, 0)
@@ -35,27 +20,22 @@ def goalTelemetry (goal : Option Goal) : GoalKind × GoalItem × Int × Int × N
   | some (.survive count) => (some .survive, none, 0, 0, count.toNat)
   | some (.find target) => (some .reach, none, target.x.val, target.y.val, 0)
 
-/-- The actual emitted goal tags are admitted for every original task, including
-absence and every craftable. Other numeric fields retain their own wire limits. -/
 theorem goalTelemetry_admitted (goal : Option Goal) :
     (goalTelemetry goal).1.code ∈ goalKindCodes ∧
       (goalTelemetry goal).2.1.code ∈ goalItemCodes :=
   ⟨goalKind_admitted _, goalItem_admitted _⟩
 
-/-- Decoding both emitted semantic tags preserves their exact meaning. -/
 theorem goalTelemetry_meaning (goal : Option Goal) :
     decodeGoalKind (goalTelemetry goal).1.code = some (goalTelemetry goal).1 ∧
       decodeGoalItem (goalTelemetry goal).2.1.code = some (goalTelemetry goal).2.1 :=
   ⟨goalKind_roundtrip _, goalItem_roundtrip _⟩
 
-/-- The family on the wire is derived from the original goal constructor. -/
 theorem goalTelemetry_family (goal : Option Goal) :
     (goalTelemetry goal).1 = goal.map Goal.family := by
   cases goal with
   | none => rfl
   | some goal => cases goal <;> rfl
 
-/-- Canonical row-major flattening derives its dimensions from the sensor vectors. -/
 def observationVector (observation : Observation) (read : TileObservation → Nat) :
     Vector Nat (patchSide * patchSide) :=
   Vector.ofFn fun index =>
@@ -65,7 +45,6 @@ def observationVector (observation : Observation) (read : TileObservation → Na
       Nat.mod_lt _ (by decide)⟩
     read ((observation.tiles.get row).get col)
 
-/-- Emit the complete world-facing portion of the protocol from one actual frame. -/
 def worldTelemetry {β : Type} (frame : StepFrame β) (terminal : Bool) : List TelemetryField :=
   let config := frame.worldConfig.raw
   let (kind, item, gx, gy, quantity) := goalTelemetry frame.task
@@ -106,12 +85,10 @@ def worldTelemetry {β : Type} (frame : StepFrame β) (terminal : Bool) : List T
       observationVector frame.observation (fun tile => tile.food.toNat + 2 * tile.deer.toNat)⟩,
    ⟨"end", .flag, terminal⟩]
 
-/-- Facing serialization inverts the host's closed direction constructor. -/
 theorem directionCode_roundtrip (direction : Direction) :
     Direction.fromIndex ⟨directionCode direction, by cases direction <;> decide⟩ = direction := by
   cases direction <;> rfl
 
-/-- The original collect target is preserved even after inventory exceeds it. -/
 theorem goalTelemetry_collect (item : Item) (count : UInt32) :
     goalTelemetry (some (.collect item count)) = (some .collect, some (.inl item), 0, 0, count.toNat) := rfl
 

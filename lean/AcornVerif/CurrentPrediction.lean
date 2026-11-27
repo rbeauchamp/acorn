@@ -1,20 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentOrder
 import Acorn.State
-/-!
-# Ordered binary32 prediction bounds
-
-Strict power-of-two bounds retain the smaller rounding radius below a binade
-endpoint. The closed weight domain supplies a common finite envelope; raw word
-spacing closes the global cap. Induction composes the actual left-to-right sum
-for arbitrary finite lists. No runtime trajectory enumeration or output clipping
-is used to infer a transient-state bound. Native primitive/compiler behavior
-remains the declared trust boundary.
--/
 open Acorn
 open Float.Model (Format totalExponent UnpackedFloat)
 open Float.Model.UnpackedFloat
@@ -22,8 +7,6 @@ open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmeti
 open AcornVerif.CurrentOrder
 namespace AcornVerif.CurrentPrediction
 
-/-- A strict power-of-two magnitude bound gives the smaller half-unit radius below its binade
-endpoint. -/
 theorem model_round_uniform_error_strict (spec : Format) (sign : Sign) (mantissa : Nat)
     (exponent limit : Int)
     (bound : |signCoefficient sign * mantissa * (2 : ℚ) ^ exponent| < (2 : ℚ) ^ limit) :
@@ -50,8 +33,6 @@ theorem model_round_uniform_error_strict (spec : Format) (sign : Sign) (mantissa
     exact div_le_div_of_nonneg_right
       (zpow_le_zpow_right₀ (by norm_num : (1:ℚ) ≤ 2) htarget) (by norm_num)
 
-/-- Signed normalization inherits the strict magnitude rounding radius, including either zero
-sign. -/
 theorem model_signed_round_value_strict (spec : Format) (mantissa : Int) (exponent : Int)
     (zeroSign : Sign)
     (limit : Int) (bound : |(mantissa : ℚ) * (2 : ℚ) ^ exponent| < (2 : ℚ) ^ limit) :
@@ -89,7 +70,6 @@ theorem model_signed_round_value_strict (spec : Format) (mantissa : Int) (expone
       (by simpa only [hs] using bound)
     simpa only [hs] using proof
 
-/-- Actual unpacked addition preserves normalization and the strict-domain radius before packing. -/
 theorem model_add_dyadic_local_strict (spec : Format) (left right : UnpackedFloat)
     (leftNormal : ModelNormalized spec left) (rightNormal : ModelNormalized spec right)
     (limit : Int)
@@ -139,8 +119,6 @@ theorem model_add_dyadic_local_strict (spec : Format) (left right : UnpackedFloa
       change ModelNormalized spec (normalize spec sum target .positive) ∧ _
       simpa only [heq] using proof
 
-/-- Actual binary32 addition remains finite and inherits the strict rounding radius whenever
-the exact sum is below an admitted power of two, through exponent 33. -/
 theorem binary32_add_finite_strict_error (left right : Binary32)
     (leftFinite : left.Finite) (rightFinite : right.Finite) (limit : Int) (range : limit ≤ 33)
     (bound : |numerical32 left + numerical32 right| < (2 : ℚ) ^ limit) :
@@ -182,8 +160,6 @@ theorem binary32_add_finite_strict_error (left right : Binary32)
     exact model_normalized_finite _ _ operation.1
   · simpa only [numerical32,decoded] using error
 
-/-- Every legal weight under any closed current criterion is finite and bounded in magnitude by
-101. The small margin includes the rounded machine horizon for the longest discount. -/
 theorem weight_numerical_bound (rule : ValueRule) (weight : Weight rule) :
     weight.value.Finite ∧ |numerical32 weight.value| ≤ 101 := by
   have legal := weight_legal weight
@@ -217,8 +193,6 @@ theorem weight_numerical_bound (rule : ValueRule) (weight : Weight rule) :
   rw [upperValue] at upperProof
   exact ⟨legal.1,abs_le.mpr ⟨lowerProof,upperProof⟩⟩
 
-/-- Every finite binary32 magnitude above 2^32 is at least 2^32+512, by discrete raw-magnitude
-order. This includes both signs. -/
 theorem numerical32_prediction_cap_gap (value : Binary32) (finite : value.Finite)
     (above : 4294967296 < |numerical32 value|) :
     4294967808 ≤ |numerical32 value| := by
@@ -250,8 +224,6 @@ theorem numerical32_prediction_cap_gap (value : Binary32) (finite : value.Finite
   rw [nextValue] at order
   simpa only [abs_of_pos (by norm_num : (0:ℚ)<4294967808)] using order
 
-/-- At the global prediction cap, every admitted weight leaves the actual rounded sum finite
-and within the cap; the weight and rounding error cannot reach the next representable value. -/
 theorem prediction_sum_cap (sum weight : Binary32) (sumFinite : sum.Finite)
     (weightFinite : weight.Finite) (sumBound : |numerical32 sum| ≤ 4294967296)
     (weightBound : |numerical32 weight| ≤ 101) :
@@ -273,11 +245,8 @@ theorem prediction_sum_cap (sum weight : Binary32) (sumFinite : sum.Finite)
   rw [sub_add_cancel] at triangle
   linarith only [gap,triangle,error,exactBound]
 
-/-- The derived prediction envelope grows by 256 per addition and caps at 2^32. -/
 def predictionRadius (count : Nat) : ℚ := (min count (2^24) : Nat)*256
 
-/-- Every actual rounded addition preserves the count-indexed envelope, over all counts and all
-finite admitted machine sums and weights. -/
 theorem prediction_sum_step (count : Nat) (sum weight : Binary32)
     (sumFinite : sum.Finite) (weightFinite : weight.Finite)
     (sumBound : |numerical32 sum| ≤ predictionRadius count)
@@ -314,8 +283,6 @@ theorem prediction_sum_step (count : Nat) (sum weight : Binary32)
     rw [after]
     exact prediction_sum_cap sum weight sumFinite weightFinite sumBound weightBound
 
-/-- Arbitrary finite ordered lists preserve the prediction envelope at every prefix, through
-induction on the actual rounded accumulator rather than a real-valued reassociation. -/
 theorem prediction_sumFrom_bound (count : Nat) (initial : Binary32) (values : List Binary32)
     (finite : initial.Finite) (bound : |numerical32 initial| ≤ predictionRadius count)
     (weights : ∀ value ∈ values, value.Finite ∧ |numerical32 value| ≤ 101) :
@@ -332,8 +299,6 @@ theorem prediction_sumFrom_bound (count : Nat) (initial : Binary32) (values : Li
     simpa only [Binary32.sumFrom_def,List.foldl_cons,List.length_cons,Nat.add_assoc,Nat.add_comm,
       Nat.add_left_comm] using tailProof
 
-/-- Starting from zero, the actual ordered sum of any list of legally stored weights is finite
-and satisfies the derived envelope without projecting the transient accumulator. -/
 theorem legal_weight_sum_bound (rule : ValueRule) (weights : List (Weight rule)) :
     (Binary32.sumFrom .zero (weights.map Weight.value)).Finite ∧
       |numerical32 (Binary32.sumFrom .zero (weights.map Weight.value))| ≤

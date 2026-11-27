@@ -2731,17 +2731,19 @@ function drawStreamHealth() {
   }
   const skew = refused[Reject.schema].frames + refused[Reject.cardinality].frames;
   if (skew) {
-    // The page's schema number and shape constants are compiled into the
-    // viewer binary, so a disagreement means the two halves were built from
-    // different trees. Only these two reasons can say so.
+    // The page's schema number, fixed protocol constants and shape constants
+    // are compiled into the viewer binary, so a disagreement can indicate the
+    // two halves were built from different trees. Only these two reasons offer
+    // the rebuild remedy.
     const keys = refused[Reject.schema].keys.concat(refused[Reject.cardinality].keys);
-    notes.push(`⚠ stream shape mismatch — rebuild the viewer against this core`);
+    notes.push(`⚠ stream shape mismatch — rebuild the core and viewer from one tree`);
     why.push(`${frames(skew)} refused at ${keyList(keys)}: this page expects schema ${SCHEMA}, ` +
              `${N_DEM} demons, ${N_CTL} actions, ${N_META} meta actions ` +
              `and a ${N_TILE}-tile window. The page is embedded in the viewer ` +
-             `binary, so rebuild both from the same source package:\n` +
-             `  cargo build --release\n` +
-             `  cargo build --release --manifest-path viewer/Cargo.toml`);
+             `binary, so rebuild both from the same source tree:\n` +
+             `  ./scripts/lean.sh build acorn-core acorn-viewer\n` +
+             `If pinned dependencies also need provisioning (without starting a run):\n` +
+             `  ./scripts/start.sh --prepare-only`);
   }
   const bad = refused[Reject.malformed];
   if (bad.frames) {
@@ -2886,13 +2888,13 @@ function setConn(text, cls) { connEl.textContent = text; connEl.className = cls;
 const CTL_TOKEN = document.body.dataset.controlToken || "";
 let ctlState = null;
 
-// A refused command is a fault the operator must see where they pressed the
-// button: the pill stays until a control frame shows the server moved.
+// A failed or unconfirmed command is a fault the operator must see where they
+// pressed the button: the pill stays until a control frame shows the server moved.
 let ctlFaultAt = null;
-function showControlFault(text) {
+function showControlFault(text, title) {
   const el = $("s_ctlfault");
   el.textContent = `⚠ ${text}`; el.className = "pill reset";
-  el.title = "the last control request did not take effect; the pill clears when the server's state moves";
+  el.title = title || "the last control request did not take effect; the pill clears when the server's state moves";
   ctlFaultAt = ctlState ? ctlState.transition : "";
 }
 function hideControlFault() { $("s_ctlfault").className = "pill hidden"; ctlFaultAt = null; }
@@ -2903,17 +2905,44 @@ async function sendCmd(cmd) {
       headers: { "Content-Type": "application/json", "X-Oak-Token": CTL_TOKEN },
       body: JSON.stringify({ cmd })
     });
-    if (!r.ok) {
+    if (cmd === "stop") {
+      if (r.status !== 202) {
+        let why = `${r.status}`;
+        let definiteRefusal = false;
+        try {
+          const j = await r.json();
+          if (j && j.reason) why = j.reason;
+          if (!r.ok && j && j.ok === false && j.unconfirmed !== true) definiteRefusal = true;
+        } catch (e) {}
+        if (definiteRefusal) {
+          toast(`⚠ stop refused — ${why}`, "fault");
+          showControlFault(`stop refused — ${why}`,
+            "the last stop request was refused before taking effect; the pill clears when the server's state moves");
+        } else {
+          toast(`⚠ stop not confirmed — ${why}`, "fault");
+          showControlFault(`stop not confirmed — ${why}`,
+            "the outcome of the last stop request was not confirmed; it may still take effect or have requested wind-up; the pill clears when the server's state moves");
+        }
+      }
+    } else if (!r.ok) {
       let why = `${r.status}`;
       try { const j = await r.json(); if (j && j.reason) why = j.reason; } catch (e) {}
       toast(`⚠ ${cmd} refused — ${why}`, "fault");
       showControlFault(`${cmd} refused — ${why}`);
     }
   } catch (e) {
-    // The viewer itself is unreachable. Say so rather than leaving the button
-    // looking as though the request landed.
-    toast(`⚠ cannot reach the viewer to ${cmd}`, "fault");
-    showControlFault(`cannot reach the viewer to ${cmd}`);
+    if (cmd === "stop") {
+      // No HTTP response arrived (lost connection or viewer crash); the page
+      // cannot know whether the stop reached the viewer or persisted.
+      toast("⚠ stop outcome unknown — viewer unreachable", "fault");
+      showControlFault("stop outcome unknown — viewer unreachable",
+        "no HTTP response was received from the viewer; the stop may or may not have taken effect; the pill clears when the server's state moves");
+    } else {
+      // The viewer itself is unreachable. Say so rather than leaving the button
+      // looking as though the request landed.
+      toast(`⚠ cannot reach the viewer to ${cmd}`, "fault");
+      showControlFault(`cannot reach the viewer to ${cmd}`);
+    }
   }
 }
 

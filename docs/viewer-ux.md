@@ -9,15 +9,7 @@ newcomer from that audience can say within ten seconds what the system is,
 what it is trying to do and how it is doing, and when nothing on the page would
 make them distrust the next number.
 
-This document states what the page must show and why. It does not describe
-how the page achieves it: mechanism lives in `viewer/static/index.html` and
-`Acorn.Host.Viewer`, whose comments carry the rationale for each piece of code, and a
-requirement here names the owning function only where a reader would otherwise
-have to search. Requirements are numbered; a page behaviour that contradicts
-one is a bug, and a contradiction found in this document is fixed here. The
-gate suite requires the table of Appendix A to be the one rendered from the Lean
-owners of its constants. Prose quantities and completeness of that table remain
-review obligations.
+This document states what the page must show and why. It does not describe how the page achieves it: mechanism lives in `viewer/static/index.html` and `Acorn.Host.Viewer` (with design rationale, numeric and wire invariants, and process-supervision boundaries documented in this specification, [the design](design.md), and [the verification guide](verification.md#viewer-ownership-boundaries)), and a requirement here names the owning function only where a reader would otherwise have to search. Requirements are numbered; a page behaviour that contradicts one is a bug, and a contradiction found in this document is fixed here. The gate suite requires the table of Appendix A to be the one rendered from the Lean owners of its constants. Prose quantities and completeness of that table remain review obligations.
 
 Reviews judge the page against this document: `proof-review` and
 `pr-review-toolkit` for the code and its guarantees, `ux-review` for whether
@@ -429,14 +421,20 @@ Rules that apply to every number, label and colour on the page.
   non-finite frames are counted and reported with their remedy, in the top
   bar, drawn before the render loop looks for a frame, because the condition
   that most needs reporting is the one where every frame is refused and the
-  ring stays empty. A frame is refused whole, never partly absorbed, and
-  counted by the reason it was refused — a closed set with one remedy each,
-  naming the wire keys involved:
-  - `schema_version` not this page's, or a count or array length that
-    disagrees with the page's constants → `⚠ stream shape mismatch — rebuild
-    the viewer against this core`; the page is embedded in the viewer binary,
-    so the two were built from different trees, and the hover text carries the
-    expected shape and the two build commands;
+  ring stays empty. A frame is refused whole at the first failing check, never
+  partly absorbed, and counted by that check's refusal reason — a closed set
+  with one remedy each, naming the wire keys involved (so an earlier missing key
+  takes precedence over a later `schema_version` or constant mismatch):
+  - `schema_version` not this page's, a fixed protocol constant
+    (`agreement_version` `1`, `agreement_scale` `1000000`) or embedded constant
+    count mismatch, or an array length that disagrees with the page's constants
+    → `⚠ stream shape
+    mismatch — rebuild the core and viewer from one tree`; the page is embedded
+    in the viewer binary, so a wire-shape disagreement can indicate the two were
+    built from different trees, and the hover text carries the expected shape
+    and the rebuild commands (`./scripts/lean.sh build acorn-core acorn-viewer`,
+    or `./scripts/start.sh --prepare-only` when pinned dependencies also need
+    provisioning without starting a run);
   - a required key the core does not emit → `⚠ stream shape mismatch — the
     page requires a field this core does not emit`: a source defect,
     rebuilding will not fix it;
@@ -473,14 +471,46 @@ Rules that apply to every number, label and colour on the page.
   exists"; Clear, while stopped, "archive this run and create a new
   zero-knowledge identity; the core stays stopped". A disabled control still
   says why, so "unavailable here" is distinguishable from "this build has no
-  such button". A request the server refuses, or a viewer the page cannot
-  reach, raises a fault pill beside the controls (`⚠ stop refused — <why>`)
-  that stays until a control frame shows the server moved; the toast that also
-  says it is below the fold. The control endpoint is `POST /control`, bound to
-  `127.0.0.1`, POST-only, JSON-only, and gated by a token minted per viewer
-  start and read from the served page, so a page left open from a previous
-  start holds a stale one and is refused; bodies are capped and rejections say
-  little about which check failed.
+  such button". For Start and Clear, a request the server refuses (`⚠ <cmd>
+  refused — <why>`) or a viewer the page cannot reach (`⚠ cannot reach the
+  viewer to <cmd>`) raises a fault pill beside the controls that stays until a
+  control frame shows the server moved; the toast that also says it is below
+  the fold. The control endpoint is `POST /control`, bound to `127.0.0.1`,
+  POST-only, JSON-only, and gated by a token minted per viewer start and read
+  from the served page, so a page left open from a previous start holds a stale
+  one and is refused; bodies are capped and rejections say little about which
+  check failed. HTTP `/control` JSON error responses use fixed public strings
+  and never expose raw operating-system error messages or local run-directory/archive
+  paths; detailed native diagnostics remain in the supervisor's failure
+  diagnostic path and standard error. For a browser Stop (`{"cmd":"stop"}`),
+  `POST /control` holds its HTTP response until the supervisor actor completes
+  the `state.json` write for `desired: "stopped"`: it returns `202`
+  (`{"ok":true}`) only once the stopped state has been written, flushed and
+  renamed over `state.json`; it returns `503` (`{"ok":false,"reason":...}`) if
+  refused before admission (supervisor queue full, unavailable, or mailbox
+  already closing), and returns `503`
+  (`{"ok":false,"unconfirmed":true,"reason":...}`) if persisting fails or the
+  10-second HTTP wait times out. When viewer shutdown interrupts an admitted
+  Stop, the supervisor resolves the waiter as `.unconfirmed` so HTTP returns
+  `503` (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response
+  completes before server teardown, whereas server cancellation during shutdown
+  can also yield an empty `503` or closed connection without a JSON body.
+  Timing out ends only the HTTP wait and does not cancel the Stop (it may still
+  be queued, already executing in the actor, or already published before waiter
+  resolution), and a persistence error on a live run can still request child
+  wind-up or leave a pending Clear replacement revised to stopped; a lost
+  connection or abrupt crash can leave the browser with no HTTP response at
+  all. Only HTTP `202` confirms a browser Stop: a definite pre-execution
+  refusal (`!r.ok` with JSON `ok === false` and `unconfirmed !== true`) raises
+  `⚠ stop refused — <why>` (hover text noting refusal before taking effect),
+  any other non-`202` response — including `503` with `unconfirmed: true`, an
+  empty `503` from shutdown cancellation, or an unexpected status — raises
+  `⚠ stop not confirmed — <why>` (hover text noting the outcome was not
+  confirmed and it may still take effect or have requested wind-up), and a
+  closed connection or unreachable viewer raises
+  `⚠ stop outcome unknown — viewer unreachable` (hover text noting no HTTP
+  response was received); each pill stays until a control frame shows the
+  server moved, with a matching toast below the fold.
 - **UX-22 · Stop is cooperative and persistent.** The core finishes its current
   finite attempt, attempts a checkpoint if saving is armed, and exits through
   the same writer as periodic and finite-campaign completion. Successful save
@@ -513,7 +543,8 @@ Rules that apply to every number, label and colour on the page.
   The launcher owns terminal SIGINT and forwards this request, so Ctrl-C does
   not interrupt the viewer/core process group. No kill deadline is introduced.
   Shutdown retains the durable intent; browser Stop remains the operation that
-  persists stopped intent.
+  persists stopped intent and returns HTTP `202` only after `state.json` has
+  been written, flushed and renamed on disk.
 - **UX-23 · Clear is one click: stop → archive → reseed → restore.** The
   whole run directory is renamed into the archive (UX-43) and a new random
   seed is taken. Cooperative stop happens first and attempts an armed save.
@@ -639,9 +670,7 @@ What each panel must show. How it draws it is the code's.
   `BrowserNat.dayPhase`. The program's integer semantics is the phase that the
   world observes and charges, for every clock and day length
   ([`BrowserNat.dayPhase_execution`](../lean/Acorn/Host/Viewer/BrowserNat.lean)).
-  The emitted JavaScript agrees with it on the admitted safe-integer `world_step`
-  and `day_length` fields, under the emitter and runtime assumptions that module
-  states.
+  The emitted JavaScript agrees with it on the admitted safe-integer `world_step` and `day_length` fields under the runtime and emitter assumptions of `Acorn.Host.Viewer.BrowserNat`: operands must be binary64 safe integers (`0 ≤ a < 2^53`, `b ≥ 1`, where *observerDiv*(a, b) = *Math.floor*(a / b) matches exact *Nat.div* because single nearest rounding shifts the quotient by at most `2^-53 * (a / b) < 1 / b`, strictly below the `1 / b` gap to the next integer, with *observerDiv*(_, 0) = 0 and *observerMod*(a, 0) = a), *observerLog2* doubles exact powers of two to avoid *Math.log2* boundary rounding, and browser runtime arithmetic and the structural backend remain explicit trust boundaries.
 - **UX-29 · The HUD.** A header above the map places `current goal N/<goal_count>`
   on the left, with plain-language goal text — `Go to the gold target (x, y)` /
   `Hold at least n <item>` / `Own Axe|Boat` / `Continue for n world steps in this attempt`
@@ -984,21 +1013,22 @@ What each panel must show. How it draws it is the code's.
   follows a failed start).
 
   A state built with no state file, or read from a file of the current schema
-  with the intent that file records, is written as the supervisor is built,
-  before the listener binds. An earlier version's file, whatever intent it
-  records, and a file of the current schema whose running intent was given
-  for another child are left on disk exactly as they are until the listener is
-  bound. The viewer then prints and flushes the line that says why the run is
-  shown stopped, under `--start` as well, and only then publishes the stopped
-  state it started from, in the
-  current schema with this launch's child, before it prints its ready line,
-  before `--start` submits its Start and before any command is processed. If
-  the line cannot be written or flushed, the viewer exits before the
-  publication and the file is still the original.
-  So such a file is read as an earlier version's, or as given for another
-  child, once, in the first launch that publishes the stopped state, and
+  taken with the intent that file records, is written as the supervisor is
+  built, before the listener binds. An earlier version's file, whatever intent
+  it records, and a file of the current schema with a running intent, when
+  this launch lacks a child record (including a `--cmd` launch, whose own
+  running file records `"child":null`) or its record does not match the
+  file's, are left on disk exactly as they are until the listener is bound.
+  The viewer then prints and flushes the line that says why the run is shown
+  stopped, under `--start` as well, and only then publishes the stopped state
+  it started from, in the current schema with this launch's child, before it
+  prints its ready line, before `--start` submits its Start and before any
+  command is processed. If the line cannot be written or flushed, the viewer
+  exits before the publication and the file is still the original.
+  So such a file is read as an earlier version's, or as an unbound running
+  intent, once, in the first launch that publishes the stopped state, and
   whenever the file is replaced that launch has already given the reason, in
-  its first control record and in its log; it is not given again; a viewer of the earlier version started later on the
+  its first control record and on standard output; it is not given again; a viewer of the earlier version started later on the
   directory meets a file of the current version. A start-up that fails before
   that publication, such as on a port already in use, leaves the file as it
   was: the next viewer reads the same file and says the same. A start-up that
@@ -1008,7 +1038,11 @@ What each panel must show. How it draws it is the code's.
   endpoint before the publication is only queued; it is handled afterwards if
   the start-up goes on, and is lost with the viewer if the start-up fails
   after the publication. If the publication itself fails, the viewer exits
-  with that error before its ready line, and the file is still the original.
+  with that error before its ready line: a failure before the rename leaves the
+  original file intact, whereas an indeterminate rename error (such as
+  POSIX.1-2017 `rename` EIO or Linux NFS rename-despite-error) may leave either
+  the original file or the newly renamed stopped file on disk, in which case the
+  next launch reads whichever entry is present and gives that entry's reason.
   A viewer that fails once its listener is bound ends through its shutdown,
   whose turns step the supervisor to close it and can write the map; no turn
   on that path takes a command from the queue. An operator who starts the viewer directly on a run
@@ -1019,29 +1053,66 @@ What each panel must show. How it draws it is the code's.
   run as before.
 
   Whenever the state a viewer starts with is stopped (no state file, a saved
-  stopped state, an earlier version's file, or a running intent given for
-  another child), the viewer says why in one line, for example "Run: stopped
-  because the run directory holds no saved state; it starts only on a Start on
-  the viewer's control endpoint, which the page's Start button sends, or the
-  --start flag". The line, without the `Run: ` it is printed with, is in the
-  reason of the first control record it publishes, after `viewer initialized; `,
-  under `--start` as well. The page shows the reason of the control record
-  that is current when it connects, in the hover text of the state word
-  (UX-21): a page that connects while that first record is current shows the
-  line, and one that connects after a later transition has published its
-  record shows that transition's reason. The
-  viewer also prints it on its standard output, at most once in a launch: for
-  a file left as it is until the bind (an earlier version's, whatever intent
-  it records, or one of the current schema whose running intent was given for
-  another child) the line is printed and flushed after the listener is bound
-  and before the stopped state is published, under `--start` as well; for no
-  state file, or a file of the current schema that says stopped, it is printed
-  after the ready line and not under `--start`. Under `--start` the Start is submitted once the listener is
-  bound. The viewer announces nothing of this kind when the state it starts
-  with is running. A Stop that the viewer has acknowledged but not yet written
-  when the viewer crashes is not made durable: the saved state still says
-  running, by the earlier Start, and the next launch with the same child
-  resumes it.
+  stopped state, an earlier version's file, or a current-schema running intent
+  when this launch lacks a child record — including a `--cmd` launch — or its
+  record does not match the file's), the viewer says why in one line, for
+  example "Run: stopped because the run directory holds no saved state; it
+  starts only on a Start on the viewer's control endpoint, which the page's
+  Start button sends, or the --start flag". The line, without the `Run: ` it
+  is printed with, is in the reason of the first control record it publishes,
+  after `viewer initialized; `, under `--start` as well. The page shows the
+  reason of the control record that is current when it connects, in the hover
+  text of the state word (UX-21): a page that connects while that first record
+  is current shows the line, and one that connects after a later transition
+  has published its record shows that transition's reason. The viewer also
+  prints it on its standard output, at most once in a launch: for a file left
+  as it is until the bind (an earlier version's, whatever intent it records,
+  or a current-schema file with a running intent when this launch lacks a
+  child record — including a `--cmd` launch — or its record does not match the
+  file's) the line is printed and flushed after the listener is bound and
+  before the stopped state is published, under `--start` as well; for no state
+  file, or a file of the current schema that says stopped, it is printed after
+  the ready line and not under `--start`. Under `--start` the Start is
+  submitted once the listener is bound. The viewer announces nothing of this
+  kind when the state it starts with is running. Browser Stop (`POST /control`
+  with `{"cmd":"stop"}`) returns HTTP `202` only after `state.json` has been
+  written, flushed and renamed on disk with `desired: "stopped"` — confirming
+  that earlier publication — and returns HTTP `503` without acknowledging if
+  refused before admission (queue full, unavailable, or mailbox already
+  closing) or if persistence is unconfirmed (writing fails, or the 10-second
+  HTTP wait times out, which ends only the HTTP wait without cancelling the
+  Stop; HTTP error responses carry fixed public strings rather than raw OS
+  errors or local paths, while detailed native diagnostics stay in the
+  supervisor's failure diagnostics and stderr). When viewer shutdown
+  interrupts an admitted Stop, the supervisor resolves the waiter as
+  `.unconfirmed` so HTTP returns `503`
+  (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes
+  before server teardown, whereas server cancellation during shutdown can also
+  yield an empty `503` or closed connection without a JSON body; both are
+  treated fail-closed by the browser as unconfirmed/unknown. Directory entries
+  are not fsynced, so power-loss durability is not claimed, and a lost
+  connection or abrupt crash can yield no HTTP response. This durability
+  guarantee also rests on Acorn's exclusive single-viewer run-directory
+  ownership premise (stated above for manual viewer invocation and in
+  [interrupted-launch recovery](verification.md#interrupted-launch-recovery))
+  and on the run directory's stable-path and no-external-mutation assumptions
+  (no external process replaces the run-directory path or mutates `state.json`):
+  `RunDirectory.open` allocates fresh per-process IO mutexes on each open
+  rather than an inter-process lock, so atomic local rename prevents torn
+  writes within one viewer process but cannot prevent a second concurrent
+  viewer that already read `desired: "running"` — or an external writer
+  replacing the path or mutating `state.json` — from overwriting `state.json`
+  after the first viewer acknowledges Stop. The no-later-Start condition is
+  ordered in supervisor processing order starting from that acknowledging
+  resolution (not browser HTTP receipt time, so a concurrent Start processed
+  by the supervisor after that resolution — even before the browser receives
+  `202` — supersedes it): under exclusive single-viewer run-directory
+  ownership, stable run-directory paths without external state-file mutation,
+  and with no later Start admitted by the supervisor while open, a viewer
+  process crash at any step leaves the on-disk state stopped — or absent
+  during a Clear archive before the replacement state is written — and the
+  next launch with the same child cannot resume running without an explicit
+  Start.
 
   When the supervisor does start the ranked core, it runs the executable
   `acorn-core` beside the viewer with the explicitly selected ranked research
@@ -1077,9 +1148,17 @@ What each panel must show. How it draws it is the code's.
   flight. The archive root is a sibling, not a child and not a distant path: a
   child would be archived into itself, and a distant one could be on another
   filesystem where `rename` is not atomic. A stray `./acorn-weights.ckpt` in
-  the working directory is moved in on startup, and only when the destination
-  is empty — a checkpoint outside the run directory would survive a Clear, and
-  the current run's weights are never overwritten to tidy up an older file.
+  the working directory is moved in on startup by
+  `RunDirectory.adoptStrayCheckpoint` only when the destination-absence check
+  finds no `weights.ckpt` entry (refusing a non-regular stray entry if present)
+  — a checkpoint outside the run directory would survive a Clear, and the
+  current run's weights are never overwritten to tidy up an older file,
+  provided startup does not race another checkpoint writer. Because
+  `RunDirectory.adoptStrayCheckpoint` serializes with in-process publication
+  and archival under the run directory's mutex, checks destination absence, and
+  then calls ordinary `rename`, that mutex does not exclude an external writer
+  creating `weights.ckpt` between the check and `rename`; the stable-path
+  assumption excludes such a concurrent writer.
 - **UX-44 · The explored map belongs to the run.** The viewer server keeps
   retained sensed tiles in the current run (`Acorn.Host.Viewer.WorldMemory`),
   keyed by the *world* — run ID, side and seed — so that a frame from any other
@@ -1293,6 +1372,13 @@ core re-observes before capturing it, so the achievement frame (the one a paused
 scrub lands on) is internally consistent and can be painted like any other. Its
 world time repeats into the next attempt's first frame, which is why events are
 announced once across that boundary.
+
+### Implementation invariants and host-viewer contracts
+
+- **Launch options and seed masking (`Acorn.Host.Viewer.Options`):** `viewerSeed` masks entropy modulo `2^48` (`(entropy.toNat % 2^48).toUInt64`), and `rankedArguments` emits unquoted core flags (`demo --research-profile ranked --telemetry --control-stdin --seed ... --side 1024 --steps 4000 --attempts 3 --goals 13 --cycles 0 --run-id ... --agent-epoch ... --new-agent-epoch ...`, optionally followed by `--cleared` and `--checkpoint PATH`).
+- **Wire envelopes, exact telemetry numbers, and map codecs (`Acorn.Host.Viewer.Wire`, `WireNumber`, `TelemetryValue`, `MapCodec`, `Sensed`):** `WireText` enforces newline and carriage-return exclusion and UTF-8 byte length `≤ lineCapacity` (`LineBytes.text` strips one trailing `\r` for CRLF lines), `runWord` admits exact 16-lowercase-hex run IDs, `browserIntegerMax` is `9007199254740991` (`2^53 - 1`), and `HealthEnvelope` survives frames whose full-schema scientific fields fail admission. `WireNumber` serializes finite binary32 and binary64 values as exact decimals via `5^n` denominator scaling, emits `"null"` for all infinities and NaNs, preserves the sign of `-0.0`, and leaves consumer rounding to JSON readers. `TelemetryValue` renders `null` for `.optional` `none` and `\u00xx`-escapes control bytes `< 0x20` at the single emission boundary (`emitTelemetryFields`). `Sensed` excludes `agentEpoch` from `MapKey` (`MapKey` keys by `run`, `seed`, and `side`), and `MapCodec` accepts zero-count historical RLE triples, recomputes `seen` from admitted cells while ignoring header `seen` and *partial* values, and rejects base64 emission unless run byte length is divisible by 3 (emitting no `=` padding).
+- **Numeric observer programs, goal achievement, and browser schema (`Acorn.Host.Viewer.BrowserMath`, `GoalAchievement`, `BrowserKernel`, `BrowserRecord`, `BrowserSchema`, `ClockProgram`):** In `BrowserMath`, *minimum* and *maximum* handle `NaN` and `-0.0` (`0x8000000000000000`) to match JavaScript *Math.min*/*Math.max*, `BrowserMath.horizon` clamps `ceil(ln(0.01) / ln(γ))` to `[8, 600]`, `BrowserMath.relativeChange` guards denominators with `|x| < 1e-12` (returning `0` on exact equality and *Infinity* otherwise), `BrowserMath.trend` uses a `0.05` relative-change deadband, `BrowserMath.enoughSamples` requires at least `30` settled samples, `BrowserMath.finiteReturn` computes only the inner finite-horizon discounted return sum from SwiftTD RLJ 2 (2024) §3 equation (3) (not its squared lifetime error), and `BrowserMath.tdSurprise` averages absolute residuals across adjacent reported projected predictions using the TD form in SwiftTD Appendix A.1 equation (17) (rather than returning the signed residual of equation (17), and without claiming equality to the learner's internal binary32 error). In `GoalAchievement` (`lean/Acorn/Host/Viewer/GoalAchievement.lean`, citing Sutton, Bowling & Pilarski `arXiv:2208.11173v3` pp. 4–5 *"Designing around a base agent"* and Javed & Sutton 2024 *"The Big World Hypothesis"* and *"Benchmarking Algorithms in Big Worlds"*), `GoalAchievement.State.begin` refuses cycle-counter saturation (`2^64 - 1`) so wrapped cycles cannot merge, and `GoalAchievement.Pass.permille` truncates via floor integer division (`1000 * achieved / goals`). `BrowserKernel` (`Phase.runLabel`) supplies transient `busy` labels (`starting…`, `stopping…`, `clearing…`) and routes `unaskedStops` (`.failed`, `.restartScheduled`) to the connection label. `BrowserRecord` separates `.nonFinite` (casting non-finite scalars to `NaN` and setting *nonFiniteKey*), `.unmeasured` (`core_rss_bytes`, `checkpoint_bytes`, `checkpoint_write_us`, mapped to `NaN` without setting *nonFiniteKey*), `.absentIndex` (`retire_step`, `retire_unit`, mapped to `-1`), and `.absentIndices` (`subtask_unit`, converted into an *Int32Array* with `< 2^31` range and `-1` sentinel), with `demon_horizon` applying `.twice` (`2 * envelope`). *BrowserSchema.stringSortKey* hashes wire keys modulo `4294967291` without needing injectivity for `browserSchema_distinct`, `browserRules_goal_separation` isolates `gkind` and `gitem`, and unknown incoming JSON keys remain forward-compatible. `ClockProgram.agreementFollows` compares process markers, per-process clocks, and stopped flags (admitting a capture when its process marker is strictly newer regardless of either capture's clock or stopped flag, or when the process marker is the same, the prior capture is not stopped, and either the per-process clock strictly increases, or the clock is equal with the new capture stopped), whereas native `Capture.follows` (`ClockProgram.follows` in `Admission.lean`) compares lifetime and world clocks and admits a same-lifetime terminal capture from a non-terminal predecessor only at `prevWorld + 1` (never at the same world step), and `ClockProgram.snapshotFollows` enforces zero-step resolved goal ordering alongside browser safe-integer bounds.
+- **Control diagnostics, stderr logs, and identity handshake (`Acorn.Host.Viewer.ControlTelemetry`, `LogPump`, `IdentityHandshake`):** `controlDiagnostic` truncates reasons at `1024` characters with `" [truncated]"` before appending the UX-24 `failureLimit` suffix (`controlTelemetry_reasons`), `controlTail` emits up to the last `6` stderr lines substituting `"[stderr line refused: invalid UTF-8]"` on invalid UTF-8 only while `.idle`, and `controlWarning` emits warnings only while `.idle` with `abnormalExit` taking precedence over a failed checkpoint status; `LogPump` retains `logTailCapacity := 200` lines and `logQueueCapacity := 256` queued entries; and `IdentityHandshake` persists the core's first reported `CoreIdentity` before releasing buffered pending frames without modifying `desired` (`PersistedState.adopt_desired`). See [verification](verification.md#viewer-ownership-boundaries) for server HTTP, broadcast, pipe-reader, process-owner, run-directory, and supervisor boundaries.
 
 ## 10 · Algorithm claims: pin or out of viewer scope
 

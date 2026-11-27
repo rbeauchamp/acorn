@@ -1,37 +1,14 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.FeatureConstants
 import Acorn.FeatureRanking
 import Acorn.RankedFeatures
 
-/-!
-# Complete feature-consumer storage and resets
-
-This slice executes current SwiftTD resets in the current control, meta,
-skill-policy, model and demon shapes. Later controller/option modules supply
-updates through the same phase-indexed learner interface. The unrestricted
-standalone SwiftTD input domain remains unchanged.
-
-An option model also stores the transition part of an expectation model (Sutton,
-Machado et al., *Reward-respecting subtasks for model-based reinforcement
-learning*, Artificial Intelligence 324 (2023), 104001, arXiv:2202.03466v4, §4,
-equations (15)–(16), p. 14): one learner per ranked feature slot, each over the
-ranked slots as its input. Its weights live at ranked positions, not at feature
-slots, so they are no reader of a feature slot; retiring a ranked slot resets its
-row and its input column instead.
--/
 namespace Acorn.Features
 
 variable {actions : Word.Count}
 
-/-- Positive zero to five: the domain of a pruning reference word. -/
 def referenceRange : Interval32 :=
   ⟨.zero, ⟨0x40a00000⟩, by decide, by decide, by decide⟩
 
-/-- Whether all nine transient words of one slot are positive zero. -/
 def _root_.Acorn.NumericState.clearAt {config : Acorn.Config} {dimension : Dimension}
     (state : NumericState config dimension) (index : FeatIdx dimension) : Bool :=
   (state.transient.z.get index).value == .zero &&
@@ -44,14 +21,6 @@ def _root_.Acorn.NumericState.clearAt {config : Acorn.Config} {dimension : Dimen
     (state.transient.hTemp.get index).value == .zero &&
     (state.transient.p.get index).value == .zero
 
-/-- The invariant of an executing learner, decided on its stored words: no eligible index
-repeats, every slot that is not eligible holds nine positive-zero transient words, every
-pruning reference lies in `referenceRange`, and, when a standalone second loop is permitted,
-no eligible trace is zero. The proof library states this as the schedule invariant of the
-learner's capacity theorem, `ScheduleInv` (`AcornVerif.CurrentLearnerCheck.resumable_iff`), and
-proves it of every learner that `ManagedAdmission` admits
-(`AcornVerif.CurrentFeatureConsumers.managed_schedule`). The eligible list is read once into a slot
-flag vector, so the check takes work linear in the capacity and the list. -/
 def _root_.Acorn.NumericState.resumable {config : Acorn.Config} {dimension : Dimension}
     (state : NumericState config dimension) (phase : Bool) : Bool :=
   let eligible := state.transient.eligible.toList
@@ -62,37 +31,24 @@ def _root_.Acorn.NumericState.resumable {config : Acorn.Config} {dimension : Dim
         decide (referenceRange.Contains (state.transient.lastAlpha.get index).value)) &&
     (!phase || eligible.all fun index => !(state.transient.z.get index).value.isZero)
 
-/-- Erased provenance of phase-disciplined calls to the actual learner, or of a learner read
-back from a checkpoint image whose stored words pass the learner's invariant check.
-The same `Permitted` definition owns the existing universal capacity theorem. -/
 inductive ManagedAdmission (config : Acorn.Config) (dimension : Dimension) :
     NumericState config dimension → Bool → Prop where
-  /-- Fresh legal storage. -/
   | initial : ManagedAdmission config dimension (NumericState.initial config dimension) true
-  /-- Every permitted executing entry extends admission. -/
   | transition {state : NumericState config dimension} {phase : Bool}
       (entry : SwiftTd.Entry dimension) (permitted : SwiftTd.Permitted entry phase)
       (before : ManagedAdmission config dimension state phase) :
       ManagedAdmission config dimension (entry.apply state) (SwiftTd.nextReady entry phase)
-  /-- A learner of a checkpoint image enters with its invariant checked on its words. -/
   | durable {state : NumericState config dimension} {phase : Bool}
       (checked : state.resumable phase = true) : ManagedAdmission config dimension state phase
 
-/-- A learner scheduled under the already proved eligibility/resource contract.
-The invariant is erased, so no learning history is retained. -/
 structure Managed (config : Acorn.Config) (dimension : Dimension) where
-  /-- Executing current learner storage. -/
   state : NumericState config dimension
-  /-- Whether a standalone second loop is presently permitted. -/
   phase : Bool
-  /-- Core safety, unique eligibility and phase-specific readiness. -/
   admitted : ManagedAdmission config dimension state phase
 
-/-- Fresh phase-disciplined learner. -/
 def Managed.initial (config : Acorn.Config) (dimension : Dimension) : Managed config dimension :=
   ⟨NumericState.initial config dimension, true, .initial⟩
 
-/-- A learner entry with its work: the learner's record, then the entry. -/
 def Managed.applyCosted {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) : Costed (Managed config dimension) :=
@@ -101,77 +57,50 @@ def Managed.applyCosted {config : Acorn.Config} {dimension : Dimension}
       rw [state.property]
       exact .transition entry permitted learner.admitted⟩
 
-/-- Apply any current learner entry under its explicit scheduling premise. -/
 def Managed.apply {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) : Managed config dimension :=
   (learner.applyCosted entry permitted).val
 
-/-- An applied entry is the entry's state with the next phase and the extended admission. -/
 theorem Managed.apply_def {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) :
     learner.apply entry permitted = ⟨entry.apply learner.state, SwiftTd.nextReady entry learner.phase,
       .transition entry permitted learner.admitted⟩ := rfl
 
-/-- An applied entry's state is the entry applied to the learner's state. -/
 theorem Managed.apply_state {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) :
     (learner.apply entry permitted).state = entry.apply learner.state := rfl
 
-/-- An applied entry's phase is the entry's next phase. -/
 theorem Managed.apply_phase {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (entry : SwiftTd.Entry dimension)
     (permitted : SwiftTd.Permitted entry learner.phase) :
     (learner.apply entry permitted).phase = SwiftTd.nextReady entry learner.phase := rfl
 
-/-- A retirement with its work: the retirement entry. -/
 def Managed.retireCosted {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (feature : FeatIdx dimension) :
     Costed (Managed config dimension) :=
   learner.applyCosted (.retire feature) trivial
 
-/-- Receiver-owned reset of all nine registers, knowledge, eligibility and aggregates. -/
 def Managed.retire {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (feature : FeatIdx dimension) : Managed config dimension :=
   (learner.retireCosted feature).val
 
-/-- A retirement is the retirement entry. -/
 theorem Managed.retire_def {config : Acorn.Config} {dimension : Dimension}
     (learner : Managed config dimension) (feature : FeatIdx dimension) :
     learner.retire feature = learner.apply (.retire feature) trivial := rfl
 
-/-- A common read-only carrier preserves each consumer's own immutable configuration. -/
 abbrev PackedLearner (dimension : Dimension) := Σ config : Acorn.Config, Managed config dimension
 
-/-- Reset a heterogeneous learner without replacing its configuration. -/
 def PackedLearner.retire {dimension : Dimension} (feature : FeatIdx dimension)
     (learner : PackedLearner dimension) : PackedLearner dimension :=
   ⟨learner.1, learner.2.retire feature⟩
 
-/-- Read one element and store `stand` in its slot. It is kept out of line so that
-both operations precede any use of the element by the caller. Its value is the
-pair written below and nothing more is proved of it: whether anything still
-references the element read depends on how the caller's vector and its elements
-are shared. -/
 @[noinline] def takeOut {α : Type} {size : Nat} (items : Vector α size) (index : Fin size)
     (stand : α) : α × Vector α size :=
   (items.get index, items.set index.val stand index.isLt)
 
-/-- Apply `update` to one element of a vector, put the first component of the
-result back and return the second. `detachedUpdate_eq` proves the result is the
-plain update for every vector, index and function; that value equality is all
-that is proved.
-
-The detour through `takeOut` is a performance expectation, not a property. While
-`update` runs, the slot holds a second reference to the next element instead of
-the element being updated. The runtime can then reuse that element's storage
-when three conditions hold, none of which is stated or checked here: the vector
-is referenced only by this call, the element occurs in no other slot and is
-referenced nowhere else, and the vector has more than one element. Where one
-fails, for example in a table whose rows are one shared row or a caller that
-keeps the vector, `update` writes to copies and the result is the same. -/
 def detachedUpdate {α β : Type} {size : Nat} (items : Vector α size) (index : Fin size)
     (update : α → α × β) : Vector α size × β :=
   let next : Fin size := ⟨(index.val + 1) % size, Nat.mod_lt _ (Nat.zero_lt_of_lt index.isLt)⟩
@@ -179,8 +108,6 @@ def detachedUpdate {α β : Type} {size : Nat} (items : Vector α size) (index :
   let (updated, observed) := update taken
   (rest.set index.val updated index.isLt, observed)
 
-/-- `detachedUpdate` with a costed update: the update's work on the element it takes out, and the
-same detour through `takeOut`. -/
 def detachedUpdateCosted {α β : Type} {size : Nat} (items : Vector α size) (index : Fin size)
     (update : α → Costed (α × β)) : Costed (Vector α size × β) :=
   let next : Fin size := ⟨(index.val + 1) % size, Nat.mod_lt _ (Nat.zero_lt_of_lt index.isLt)⟩
@@ -188,9 +115,6 @@ def detachedUpdateCosted {α β : Type} {size : Nat} (items : Vector α size) (i
   Costed.bind (update taken) fun (updated, observed) =>
     Costed.pure (rest.set index.val updated index.isLt, observed)
 
-/-- The detached update is the plain one: the element at `index` becomes the first
-component of `update`'s result on it, and the second component is returned. The
-stand-in reference is overwritten and never observed. -/
 theorem detachedUpdate_eq {α β : Type} {size : Nat} (items : Vector α size) (index : Fin size)
     (update : α → α × β) :
     detachedUpdate items index update =
@@ -198,29 +122,20 @@ theorem detachedUpdate_eq {α β : Type} {size : Nat} (items : Vector α size) (
         (update (items.get index)).2) := by
   simp only [detachedUpdate, takeOut, Vector.set_set]
 
-/-- Complete current controller state relevant to representation replacement. -/
 structure Controller (config : Acorn.Config) (dimension : Dimension) (actions : Nat) where
-  /-- One learner per action, under the shared immutable configuration. -/
   learners : Vector (Managed config dimension) actions
-  /-- Shared previous prediction. -/
   vOld : Binary32
-  /-- Shared weight-change accumulator. -/
   vDelta : Binary32
-  /-- Deferred trace restart after action-identity replacement. -/
   restartPending : Bool
 
-/-- Fresh controller storage. -/
 def Controller.initial (config : Acorn.Config) (dimension : Dimension) (actions : Nat) :
     Controller config dimension actions :=
   ⟨Vector.ofFn (fun _ => Managed.initial config dimension), .zero, .zero, false⟩
 
-/-- Structural consumer order of the current controller. -/
 def Controller.readers {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) : List (PackedLearner dimension) :=
   controller.learners.toList.map (fun learner => ⟨config, learner⟩)
 
-/-- The controller's retirement with its work: one retirement for each row, then the
-controller's record. -/
 def Controller.retireCosted {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
     Costed (Controller config dimension actions) :=
@@ -228,15 +143,11 @@ def Controller.retireCosted {config : Acorn.Config} {dimension : Dimension} {act
   Costed.bind (Costed.mapVector (·.retireCosted feature) learners) fun rows =>
     Costed.op .controllerClose ⟨rows, vOld, vDelta, restart⟩
 
-/-- Every controller learner resets the retired slot. The shared previous value,
-weight-change aggregate and action-restart marker are kept, so only the slot's
-own state changes. -/
 def Controller.retire {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
     Controller config dimension actions :=
   (controller.retireCosted feature).val
 
-/-- A controller's retirement retires the feature in every row. -/
 theorem Controller.retire_def {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
     controller.retire feature =
@@ -245,8 +156,6 @@ theorem Controller.retire_def {config : Acorn.Config} {dimension : Dimension} {a
   cases controller
   rfl
 
-/-- One new action identity resets its learner and schedules a trace restart;
-shared lags are retained for pending credit to unchanged actions. -/
 def Controller.resetAction {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (action : Fin actions) :
     Controller config dimension actions :=
@@ -254,57 +163,34 @@ def Controller.resetAction {config : Acorn.Config} {dimension : Dimension} {acti
     learners := controller.learners.set action.val (Managed.initial config dimension) action.isLt
     restartPending := true }
 
-/-- Current control criteria, separate from research-profile selection. -/
 inductive Criterion where
-  /-- Preserved discounted control. -/
   | discounted
-  /-- Continuing differential control. -/
   | differential
   deriving DecidableEq
 
-/-- Criterion tags are exhaustive over the current immutable domain: zero discounted, one
-differential. -/
 def Criterion.tag : Criterion → UInt8
   | .discounted => 0
   | .differential => 1
 
-/-- The current criterion's exact numeric rule. -/
 def Criterion.rule : Criterion → ValueRule
   | .discounted => .discounted .g99
   | .differential => .differential
 
-/-- A role's configuration derives from the immutable criterion. -/
 def Criterion.config (criterion : Criterion) (role : Role) : Acorn.Config :=
   ⟨role, criterion.rule⟩
 
-/-- Transition part of one option's expectation model: for each ranked feature slot,
-a learner predicting whether that slot is active when the option stops, discounted by
-the time until then, from the ranked slots active now. Row `j` holds the `j`-th row
-of the matrix `W_o` of Sutton, Machado et al. (2023), §4, equation (16), restricted
-to the ranked slots. One further learner per meta action, over the same input,
-predicts how far that action's value at the outcome's unranked slots lies from the
-shared residual. The part stores the ranked width times the ranked width plus the
-meta action count in weights. -/
 structure Transition (dimension : Dimension) (criterion : Criterion) where
-  /-- The slots modeled, in position order. -/
   ranked : RankedFeatures dimension
-  /-- One learner per position, over the ranked positions as its feature space. -/
   rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
     (rankDimension dimension).capacity
-  /-- One learner per meta action, over the ranked positions: the deviation of that
-  action's unranked share of an outcome's value from the shared residual. -/
   deviations : Vector (Managed (criterion.config .demon) (rankDimension dimension))
     Acorn.FeatureConstants.metaActionCount
 
-/-- A fresh transition part models no slot and has learned nothing. -/
 def Transition.initial (dimension : Dimension) (criterion : Criterion) :
     Transition dimension criterion :=
   ⟨.empty dimension, Vector.replicate _ (Managed.initial _ _),
     Vector.replicate _ (Managed.initial _ _)⟩
 
-/-- Reset what was learned about the given positions: each such row starts fresh,
-and every other row forgets its weight from each such position as an input, through
-the learner's own retirement entry. Rows at other positions keep everything else. -/
 def Transition.forget {dimension : Dimension} {criterion : Criterion}
     (rows : Vector (Managed (criterion.config .demon) (rankDimension dimension))
       (rankDimension dimension).capacity) (positions : List (RankIdx dimension)) :
@@ -314,9 +200,6 @@ def Transition.forget {dimension : Dimension} {criterion : Criterion}
     if positions.contains ⟨index, bound⟩ then Managed.initial _ _
     else positions.foldl (fun learner position => learner.retire position) row
 
-/-- Every learner forgets its weight from each given position as an input, through its
-own retirement entry. The deviation learners read the ranked positions and model none
-of them, so a changed position costs them one input column each. -/
 def Transition.forgetColumns {dimension : Dimension} {criterion : Criterion} {count : Nat}
     (learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) count)
     (positions : List (RankIdx dimension)) :
@@ -324,9 +207,6 @@ def Transition.forgetColumns {dimension : Dimension} {criterion : Criterion} {co
   learners.map fun learner =>
     positions.foldl (fun current position => current.retire position) learner
 
-/-- Install a ranking of distinct slots. A slot that stays ranked keeps its position,
-its row and its weights from every other retained slot; every changed position is
-forgotten. -/
 def Transition.rerank {dimension : Dimension} {criterion : Criterion}
     (transition : Transition dimension criterion) (order : List (FeatIdx dimension))
     (fresh : order.Nodup) : Transition dimension criterion :=
@@ -335,9 +215,6 @@ def Transition.rerank {dimension : Dimension} {criterion : Criterion}
   ⟨ranked, Transition.forget transition.rows changed,
     Transition.forgetColumns transition.deviations changed⟩
 
-/-- Retire a feature slot. A slot that is not ranked leaves the part unchanged; a
-ranked one vacates every position that holds it, whose rows and input columns are
-forgotten, so a replacement unit at that slot inherits nothing. -/
 def Transition.retire {dimension : Dimension} {criterion : Criterion}
     (transition : Transition dimension criterion) (feature : FeatIdx dimension) :
     Transition dimension criterion :=
@@ -348,30 +225,23 @@ def Transition.retire {dimension : Dimension} {criterion : Criterion}
       Transition.forget transition.rows (position :: more),
       Transition.forgetColumns transition.deviations (position :: more)⟩
 
-/-- Optional duration storage follows the criterion by construction. Every model
-also stores the transition part of its expectation model. -/
 inductive Model (dimension : Dimension) : Criterion → Type where
-  /-- Discounted models store reward and continuation learners. -/
   | discounted (reward continuation : Managed (Criterion.config .discounted .demon) dimension)
       (transition : Transition dimension .discounted) : Model dimension .discounted
-  /-- Differential models additionally store duration. -/
   | differential (reward continuation duration : Managed (Criterion.config .differential .demon) dimension)
       (transition : Transition dimension .differential) : Model dimension .differential
 
-/-- Fresh complete model storage. -/
 def Model.initial (dimension : Dimension) : (criterion : Criterion) → Model dimension criterion
   | .discounted => .discounted (Managed.initial _ _) (Managed.initial _ _) (.initial _ _)
   | .differential =>
     .differential (Managed.initial _ _) (Managed.initial _ _) (Managed.initial _ _) (.initial _ _)
 
-/-- The transition part of either criterion's model. -/
 def Model.transition {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : Transition dimension criterion :=
   match model with
   | .discounted _ _ transition => transition
   | .differential _ _ _ transition => transition
 
-/-- Install a new ranking in the transition part, keeping every full-width learner. -/
 def Model.rerank {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) (order : List (FeatIdx dimension))
     (fresh : order.Nodup) : Model dimension criterion :=
@@ -381,23 +251,18 @@ def Model.rerank {dimension : Dimension} {criterion : Criterion}
   | .differential reward continuation duration transition =>
     .differential reward continuation duration (transition.rerank order fresh)
 
-/-- All three reader positions; discounted duration deliberately aliases reward.
-Transition rows hold weights at ranked positions and read no feature slot. -/
 def Model.readers {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : List (PackedLearner dimension) :=
   match model with
   | .discounted reward continuation _ => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, reward⟩]
   | .differential reward continuation duration _ => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, duration⟩]
 
-/-- Each physically stored full-width learner once, without reader aliases. -/
 def Model.stored {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : List (PackedLearner dimension) :=
   match model with
   | .discounted reward continuation _ => [⟨_, reward⟩, ⟨_, continuation⟩]
   | .differential reward continuation duration _ => [⟨_, reward⟩, ⟨_, continuation⟩, ⟨_, duration⟩]
 
-/-- Exhaustive model reset, including the optional duration state and the
-transition part's row and input column for a ranked slot. -/
 def Model.retire {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) (feature : FeatIdx dimension) : Model dimension criterion :=
   match model with
@@ -407,164 +272,117 @@ def Model.retire {dimension : Dimension} {criterion : Criterion}
     .differential (reward.retire feature) (continuation.retire feature) (duration.retire feature)
       (transition.retire feature)
 
-/-- Heterogeneous prediction storage follows the supplied closed horizon layout.
-The layout is immutable and supplied by the declared composition boundary. -/
 inductive DemonBank (dimension : Dimension) : List Discount → Type where
-  /-- No further prediction channels. -/
   | nil : DemonBank dimension []
-  /-- One configured prediction learner and the remaining channels. -/
   | cons {discount : Discount} {rest : List Discount}
       (learner : Managed ⟨.demon, .discounted discount⟩ dimension)
       (tail : DemonBank dimension rest) : DemonBank dimension (discount :: rest)
 
-/-- Initialize the complete supplied prediction layout. -/
 def DemonBank.initial (dimension : Dimension) : (discounts : List Discount) → DemonBank dimension discounts
   | [] => .nil
   | _ :: rest => .cons (Managed.initial _ _) (DemonBank.initial dimension rest)
 
-/-- Every demon once, in canonical channel order. -/
 def DemonBank.readers {dimension : Dimension} {discounts : List Discount}
     (demons : DemonBank dimension discounts) : List (PackedLearner dimension) :=
   match demons with
   | .nil => []
   | .cons learner rest => ⟨_, learner⟩ :: rest.readers
 
-/-- Every demon uses the same receiver-derived feature reset. -/
 def DemonBank.retire {dimension : Dimension} {discounts : List Discount}
     (demons : DemonBank dimension discounts) (feature : FeatIdx dimension) : DemonBank dimension discounts :=
   match demons with
   | .nil => .nil
   | .cons learner rest => .cons (learner.retire feature) (rest.retire feature)
 
-/-- A learned target or an explicitly declared opaque potential choice.
-The learned module never interprets the declared tag as host vocabulary. -/
 inductive Interest (config : Config) where
-  /-- Learned objective. -/
   | learned (assignment : Assignment config)
-  /-- Declared composition choice, with its register witness. -/
   | declared (origin : Departure) (tag : Fin Acorn.FeatureConstants.skillCount)
 
-/-- The learned objective a slot holds; a declared choice holds none. -/
 def Interest.held {config : Config} : Interest config → Assignment config
   | .learned assignment => assignment
   | .declared _ _ => .neutral
 
-/-- Off-policy trajectory of an option that is not executing. It links the option's
-learners to the preceding frame of the stream the agent actually followed. -/
 structure Following where
-  /-- Actions followed since the trajectory began, capped by the option duration:
-  the age the option would have reached had it started there. -/
   age : Fin (Acorn.FeatureConstants.optionMaxDuration + 1)
-  /-- Whether the model has a live trajectory: the preceding frame's action was
-  selected with the option's own distribution. -/
   live : Bool
-  /-- Potential observed at the preceding frame. -/
   previous : Bool
 
-/-- Complete storage belonging to one option assignment. `discounts` is the prediction channel
-layout of the ensemble that holds the skill; no field of the skill reads it. -/
 structure Skill (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) where
-  /-- Objective identity, retained by feature-slot retirement. -/
   interest : Interest config
-  /-- Current option-policy consumers. -/
   policy : Controller (criterion.config .optionSkill) dimension actions.word.toNat
-  /-- Current model consumers. -/
   model : Model dimension criterion
-  /-- Off-policy trajectory of these learners while the option is not executing.
-  Fresh storage has none, so no frame is credited to a later objective; a checkpoint image
-  stores it. -/
   following : Option Following
 
-/-- Fresh policy and model for the selected target, linked to no earlier frame. -/
 def Skill.initial (config : Config) (criterion : Criterion) (dimension : Dimension)
     {discounts : List Discount} (interest : Interest config) :
     Skill actions config criterion dimension discounts :=
   ⟨interest, Controller.initial _ _ _, Model.initial _ _, none⟩
 
-/-- Each policy reader followed by its three model reader positions. -/
 def Skill.readers {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (skill : Skill actions config criterion dimension discounts) :
     List (PackedLearner dimension) :=
   skill.policy.readers ++ skill.model.readers
 
-/-- Reset knowledge in the complete skill while retaining its target identity. -/
 def Skill.retire {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (skill : Skill actions config criterion dimension discounts)
     (feature : FeatIdx dimension) : Skill actions config criterion dimension discounts :=
   let ⟨interest, policy, model, following⟩ := skill
   ⟨interest, policy.retire feature, model.retire feature, following⟩
 
-/-- All current learned consumers; dimensions, criteria and channel layout are nominal. -/
 structure Ensemble (actions : Word.Count) (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) where
-  /-- Primitive-action controller. -/
   control : Controller (criterion.config .control) dimension actions.word.toNat
-  /-- Meta controller, including the primitive delegation action. -/
   metaController : Controller (criterion.config .control) dimension Acorn.FeatureConstants.metaActionCount
-  /-- Every current skill and its model. -/
   skills : Vector (Skill actions config criterion dimension discounts) Acorn.FeatureConstants.skillCount
-  /-- Every configured prediction channel. -/
   demons : DemonBank dimension discounts
 
-/-- Complete reader traversal, with the current alias-preserving model positions. -/
 def Ensemble.readers {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts) :
     List (PackedLearner dimension) :=
   let ⟨control, metaController, skills, demons⟩ := ensemble
   control.readers ++ metaController.readers ++ skills.toList.flatMap Skill.readers ++ demons.readers
 
-/-- Complete structural reset of every stored family the readers traverse. -/
 def Ensemble.retire {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (feature : FeatIdx dimension) : Ensemble actions config criterion dimension discounts :=
   let ⟨control, metaController, skills, demons⟩ := ensemble
   ⟨control.retire feature, metaController.retire feature, skills.map (·.retire feature), demons.retire feature⟩
 
-/-- Each policy learner followed by the physically stored model learners. -/
 def Skill.stored {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (skill : Skill actions config criterion dimension discounts) :
     List (PackedLearner dimension) :=
   skill.policy.readers ++ skill.model.stored
 
-/-- Every physically stored learner once, in reader order. A discounted model's
-duration position aliases its reward learner and adds no outgoing weight. -/
 def Ensemble.stored {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts) :
     List (PackedLearner dimension) :=
   let ⟨control, metaController, skills, demons⟩ := ensemble
   control.readers ++ metaController.readers ++ skills.toList.flatMap Skill.stored ++ demons.readers
 
-/-- Σ_k |w_k| over the supplied learners' weights at one feature slot: the sum of
-a unit's outgoing weight magnitudes in Dohare et al. (2024), eq. (2). -/
 def outgoing {dimension : Dimension} (readers : List (PackedLearner dimension))
     (feature : FeatIdx dimension) : Binary32 :=
   Binary32.sumMap .zero readers (fun learner => (learner.2.state.weights.get feature).value.abs)
 
-/-- Initial storage includes every action, model and supplied prediction channel. -/
 def Ensemble.initial (config : Config) (criterion : Criterion) (dimension : Dimension)
     (discounts : List Discount) (interests : Vector (Interest config) Acorn.FeatureConstants.skillCount) :
     Ensemble actions config criterion dimension discounts :=
   ⟨Controller.initial _ _ _, Controller.initial _ _ _,
     interests.map (Skill.initial config criterion dimension), DemonBank.initial dimension discounts⟩
 
-/-- Reader count follows the controller's type-level action count. -/
 theorem Controller.reader_count {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) : controller.readers.length = actions := by
   simp [Controller.readers]
 
-/-- Both model criteria expose the same three canonical reader positions. -/
 theorem Model.reader_count {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) : model.readers.length = 3 := by
   cases model <;> rfl
 
-/-- A discounted model's aliased duration reader does not imply additional storage. -/
 theorem Model.storage_count {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) :
     model.stored.length = (match criterion with | .discounted => 2 | .differential => 3) := by
   cases model <;> rfl
 
-/-- Every physically stored model learner is also a model reader. -/
 theorem Model.stored_covered {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) (learner : PackedLearner dimension)
     (member : learner ∈ model.stored) : learner ∈ model.readers := by
@@ -574,20 +392,17 @@ theorem Model.stored_covered {dimension : Dimension} {criterion : Criterion}
     exact member.elim Or.inl (fun h => Or.inr (Or.inl h))
   | differential reward continuation duration transition => exact member
 
-/-- Heterogeneous storage and traversal have exactly the supplied channel count. -/
 theorem DemonBank.reader_count {dimension : Dimension} {discounts : List Discount}
     (bank : DemonBank dimension discounts) : bank.readers.length = discounts.length := by
   induction bank with
   | nil => rfl
   | cons learner rest ih => simp [DemonBank.readers, ih]
 
-/-- Each skill's coverage is derived from its policy shape and model interface. -/
 theorem Skill.reader_count {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (skill : Skill actions config criterion dimension discounts) :
     skill.readers.length = actions.word.toNat + 3 := by
   simp [Skill.readers, Controller.reader_count, Model.reader_count]
 
-/-- The complete reader count is derived from the actual nested storage shapes. -/
 theorem Ensemble.reader_count {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts) :
     ensemble.readers.length = actions.word.toNat + Acorn.FeatureConstants.metaActionCount +
@@ -599,20 +414,17 @@ theorem Ensemble.reader_count {config : Config} {criterion : Criterion} {dimensi
     | cons head tail ih => simp [Skill.reader_count, ih, Nat.add_mul, Nat.add_comm]
   simp [Ensemble.readers, Controller.reader_count, DemonBank.reader_count, skillCount, Nat.add_assoc]
 
-/-- Controller scanning and reset cannot have different learner coverage. -/
 theorem Controller.retire_readers {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) (feature : FeatIdx dimension) :
     (controller.retire feature).readers = controller.readers.map (PackedLearner.retire feature) := by
   simp [Controller.retire_def, Controller.readers, Vector.toList_map, List.map_map, Function.comp_def,
     PackedLearner.retire]
 
-/-- Model scanning preserves its intentional alias under the actual reset. -/
 theorem Model.retire_readers {dimension : Dimension} {criterion : Criterion}
     (model : Model dimension criterion) (feature : FeatIdx dimension) :
     (model.retire feature).readers = model.readers.map (PackedLearner.retire feature) := by
   cases model <;> rfl
 
-/-- Every prediction reader is reset by the same traversal. -/
 theorem DemonBank.retire_readers {dimension : Dimension} {discounts : List Discount}
     (demons : DemonBank dimension discounts) (feature : FeatIdx dimension) :
     (demons.retire feature).readers = demons.readers.map (PackedLearner.retire feature) := by
@@ -620,15 +432,12 @@ theorem DemonBank.retire_readers {dimension : Dimension} {discounts : List Disco
   | nil => rfl
   | cons learner rest ih => simp [DemonBank.retire, DemonBank.readers, PackedLearner.retire, ih]
 
-/-- Skill scanning and reset include both policy and model state. -/
 theorem Skill.retire_readers {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (skill : Skill actions config criterion dimension discounts)
     (feature : FeatIdx dimension) :
     (skill.retire feature).readers = skill.readers.map (PackedLearner.retire feature) := by
   simp [Skill.retire, Skill.readers, Controller.retire_readers, Model.retire_readers]
 
-/-- Complete reset commutes with the complete reader traversal, for all criteria,
-channel layouts, dimensions and states. No enumerated current consumer is omitted. -/
 theorem Ensemble.retire_readers {config : Config} {criterion : Criterion} {dimension : Dimension}
     {discounts : List Discount} (ensemble : Ensemble actions config criterion dimension discounts)
     (feature : FeatIdx dimension) :

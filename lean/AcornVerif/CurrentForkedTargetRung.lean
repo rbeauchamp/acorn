@@ -1,88 +1,34 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentConcealedTargetRung
 import AcornVerif.CurrentExplorer
 import AcornVerif.CurrentForkedTarget
 import AcornVerif.CurrentFrameSlots
 import AcornVerif.CurrentTerrain
 
-/-!
-# The rung of concealed targets by day and by night
-
-This module fixes the class of `AcornVerif.CurrentForkedTarget.forkedFind` in the first rung's
-world and proves that its promises can be met.
-
-**The two situations.** The first is the first rung's start, `witnessLive`: the host's empty
-world of the witness configuration, whose clock reads zero, the first phase of the day. The
-second, `duskLive`, is the same world with its clock at 1024, the day's midpoint, where the
-fifth of the day's eight phases begins. The two differ in the clock alone, so the body stands on
-one tile in both (`dusk_start`). A frame carries the phase of the day as a word on the channel
-`0x41` (`Acorn.Handcrafted.sensorWords`), and `showsDusk` reads it: at a start of the first
-situation it is not set, and at a start of the second it is (`dawn_shown`, `dusk_shown`). The
-second needs the host's observation to succeed there, which it does at every world of the
-configuration whose body stands at the center (`centered_observes`): each tile of the window
-translates inside the signed range and the value noise admits it. The kernel evaluates the
-quotients of eleven coordinates by four scales (`window_admits`), and no terrain.
-
-**The members.** `rungForks mode` is the class with visits of seven steps. `rungPairs` lists 147
-of its members with 147 different first targets (`rungPairs_card`, `rungPairs_distinct`): each
-tile within three of the three end tiles of the witness's walks is a first target, paired with a
-second target chosen so that the two ask together for eight moves, one more than a visit has.
-A first target east of the start is paired with the tile fourteen to its west, one to the west
-with the tile fourteen to its east, and one to the south, at `(x, y)`, with the tile
-`(78 - y, x)` to the east (`partner`). Each second target is met from `duskLive` by seven steps
-east or west, reusing the witness's elevation-only terrain checks (`dusk_walk`).
-
-**An agent that meets both promises.** `forkWitness` is the switch of
-`AcornVerif.Kernel.switch` over two replaying agents, one for each situation, with `showsDusk` as
-its reading of the situation and the achievement flag as the replaying agents' signal. It keeps
-with no lapse before every horizon (`witness_keeps`), and under the order that alternates the two
-situations it solves, on visit 5, each of the 147 members in both situations (`witness_masters`).
-It is evidence that the promises are satisfiable, built for that purpose: it reads the percept at
-the first decision of each visit and follows a stored route by its own count for the rest, and it
-chooses by no learned value.
--/
-
 namespace AcornVerif.CurrentForkedTargetRung
 open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.Coverage AcornVerif.CurrentGoals AcornVerif.CurrentGridWorld
 open AcornVerif.CurrentConcealedTarget AcornVerif.CurrentForkedTarget
 
-/-! ## The second situation -/
-
-/-- The live state of the second situation: the witness's world with its clock at the day's
-midpoint, and an empty carried result. -/
 def duskLive : Live witnessConfig :=
   ⟨{ Host.World.empty witnessConfig with time := 1024 }, {}⟩
 
-/-- In the second situation the body starts on the first's tile, the center `(32, 32)`. -/
 theorem dusk_start : tile duskLive.world.body.position.position = (32, 32) := by
   decide +kernel
 
-/-- The first situation starts in the day's first phase. -/
 theorem dawn_phase : witnessLive.world.dayPhase.val = 0 := by
   decide +kernel
 
-/-- The second situation starts in the day's fifth phase, the first of its second half. -/
 theorem dusk_phase : duskLive.world.dayPhase.val = 4 := by
   decide +kernel
 
-/-- The two situations carry one result. -/
 theorem dusk_carried : witnessLive.carried = duskLive.carried := rfl
 
-/-! ## The host observes at the center -/
-
-/-- A success holds a value. -/
 theorem ok_of_isOk {ε α : Type} {result : Except ε α} (accepted : result.isOk = true) :
     ∃ value, result = .ok value := by
   cases result with
   | error error => exact absurd accepted (by simp [Except.isOk, Except.toBool])
   | ok value => exact ⟨value, rfl⟩
 
-/-- A vector made by a fallible function succeeds where each of its entries succeeds. -/
 theorem ofFnM_isOk {ε α : Type} {n : Nat} (f : Fin n → Except ε α)
     (each : ∀ index, (f index).isOk = true) : (Vector.ofFnM f).isOk = true := by
   have values : f = fun index => pure (Classical.choose (ok_of_isOk (each index))) :=
@@ -90,9 +36,6 @@ theorem ofFnM_isOk {ε α : Type} {n : Nat} (f : Fin n → Except ε α)
   rw [values, Vector.ofFnM_pure]
   rfl
 
-/-- The observation of a world succeeds where each tile of its window translates inside the
-signed range and the value noise admits the tile at the noise scale of the world
-(`CurrentTerrain.tileKind_isOk`). -/
 theorem observe_isOk {config : Host.WorldConfig} (world : Host.World config)
     (window : ∀ row column : Fin Host.patchSide, ∃ tile,
       world.body.position.position.translate ((column.val : Int) - (Host.patchSide / 2 : Nat))
@@ -111,18 +54,12 @@ theorem observe_isOk {config : Host.WorldConfig} (world : Host.World config)
   simp only [built, bind, Except.bind, pure, Except.pure]
   rfl
 
-/-- Each coordinate of the window around the center, 27 to 37, has a quotient by each octave
-scale of the witness's noise scale that is not past the last coordinate. The kernel evaluates the
-forty-four quotients. -/
 theorem window_admits : ∀ offset : Fin Host.patchSide, ∀ octave : Fin 4,
     ¬CurrentTerrain.PastLast
       ((Host.coordinateFloatWord (Int64.ofInt (27 + offset.val))).div
         (CurrentTerrain.octaveScale ⟨0x41000000⟩ octave.val)) := by
   decide +kernel
 
-/-- **The host observes every world of the witness configuration whose body stands at the
-center**, whatever its clock, its goal and what it holds: each tile of the window translates
-inside the signed range, and the value noise admits it. No terrain is evaluated. -/
 theorem centered_observes (world : Host.World witnessConfig)
     (centered : world.body.position = (Host.World.empty witnessConfig).body.position) :
     world.observe.isOk = true := by
@@ -147,7 +84,6 @@ theorem centered_observes (world : Host.World witnessConfig)
     rw [center.2]
     omega
 
-/-- An observation the host makes reports the world's day phase. -/
 theorem observe_day {config : Host.WorldConfig} (world : Host.World config)
     (observation : Host.Observation) (seen : world.observe = .ok observation) :
     observation.day = world.dayPhase.val.toUInt8 := by
@@ -160,17 +96,12 @@ theorem observe_day {config : Host.WorldConfig} (world : Host.World config)
     cases seen
     rfl
 
-/-! ## Reading the situation from a percept -/
-
-/-- The value of the first word a percept's frame carries on the channel of the day's phase. -/
 def dayWord (percept : Percept Grid.interface) : Option UInt64 :=
   (percept.frame.words.find? (fun word => word.channel == 0x41)).map (·.value)
 
-/-- Whether a percept shows the day's fifth phase, in which the second situation starts. -/
 def showsDusk (percept : Percept Grid.interface) : Bool :=
   dayWord percept == some 4
 
-/-- No word of a tile is on the channel of the day's phase. -/
 theorem tileWords_channel (row col : Fin Host.patchSide) (tile : Host.TileObservation)
     (word : SensorWord) (member : word ∈ tileWords row col tile) :
     (word.channel == 0x41) = false := by
@@ -189,9 +120,6 @@ theorem tileWords_channel (row col : Fin Host.patchSide) (tile : Host.TileObserv
       rfl
     · cases deer
 
-/-- **A grid percept's day word is its observation's day phase.** The frame's first word on the
-channel of the day's phase is the one the observation's phase supplies: the words before it are
-those of the window's tiles and of the body's energy. -/
 theorem dayWord_percept (mode : TaskFeatureMode) (observation : Host.Observation)
     (reward : Binary32) (achieved : Bool) :
     dayWord (Grid.percept mode observation reward achieved) =
@@ -212,16 +140,11 @@ theorem dayWord_percept (mode : TaskFeatureMode) (observation : Host.Observation
   rw [List.append_assoc, List.append_assoc, List.find?_append, tiles]
   rfl
 
-/-- A percept of a live state whose sensed observation reports a day phase carries that phase as
-its day word. -/
 theorem dayWord_live (mode : TaskFeatureMode) (live : Live witnessConfig) :
     dayWord ((gridWorld witnessConfig mode).percept (some live)) =
       some (sensed live.world).day.toUInt64 :=
   dayWord_percept mode (sensed live.world) live.carried.reward live.carried.events.done
 
-/-- At a start of the first situation the sensed observation reports the day's first phase: the
-host's observation reports it, and the blank observation that stands in where the host refuses
-reports it too. -/
 theorem dawn_day (target : Host.Position) :
     (sensed (witnessLive.world.setGoal (.find target))).day = 0 := by
   rcases CurrentFrameSlots.sensed_day (witnessLive.world.setGoal (.find target)) with day | day
@@ -231,9 +154,6 @@ theorem dawn_day (target : Host.Position) :
     rfl
   · exact day
 
-/-- **A start of the first situation does not show the fifth phase.** Whatever target is
-installed, the percept at the first situation's start carries the word of the day's first
-phase. -/
 theorem dawn_shown (mode : TaskFeatureMode) (target : Host.Position) :
     showsDusk ((gridWorld witnessConfig mode).percept (member witnessLive target)) = false := by
   change (dayWord ((gridWorld witnessConfig mode).percept
@@ -241,9 +161,6 @@ theorem dawn_shown (mode : TaskFeatureMode) (target : Host.Position) :
   rw [dayWord_live, dawn_day]
   rfl
 
-/-- **A start of the second situation shows the fifth phase.** Whatever target is installed, the
-host observes the second situation's start (`centered_observes`), and its observation reports the
-day's fifth phase. -/
 theorem dusk_shown (mode : TaskFeatureMode) (target : Host.Position) :
     showsDusk ((gridWorld witnessConfig mode).percept (member duskLive target)) = true := by
   obtain ⟨observation, seen⟩ := ok_of_isOk
@@ -258,19 +175,12 @@ theorem dusk_shown (mode : TaskFeatureMode) (target : Host.Position) :
   rw [dayWord_live, day]
   rfl
 
-/-! ## The rung's class and 147 of its members -/
-
-/-- The rung's class: concealed targets in the two situations, with visits of seven steps. -/
 abbrev rungForks (mode : TaskFeatureMode) : Kernel.TurnClass Grid.interface :=
   forkedFind witnessConfig mode witnessLive duskLive 7
 
-/-- The goal of every member of the rung's class, in both situations. -/
 abbrev rungForkGoals (mode : TaskFeatureMode) : (rungForks mode).Goals :=
   forkedGoals witnessConfig mode witnessLive duskLive 7
 
-/-- Seven steps east, and seven steps west, carry the body from the second situation's start to
-the end tiles of the witness's first two walks, reusing the witness's elevation-only terrain checks
-from `CurrentConcealedTarget`. -/
 theorem dusk_walk (visit : ℕ) (within : visit ≤ 1) :
     (physicalPath (physical duskLive.world) (witnessExplore visit) 7).map
       (fun world => tile world.body.position.position) = some (witnessEnd visit) := by
@@ -293,22 +203,16 @@ theorem dusk_walk (visit : ℕ) (within : visit ≤ 1) :
       witness_physicalPath_const (physical duskLive.world) .west 7 hen hwin
         (hstart ▸ witness_west_walkable)
 
-/-- The tile of the second target paired with a first target's tile. East of the start it is the
-tile fourteen to the west, west of the start the tile fourteen to the east, and south of the
-start, at `(x, y)`, the tile `(78 - y, x)` to the east. -/
 def partner (point : ℤ × ℤ) : ℤ × ℤ :=
   if 36 ≤ point.1 then (point.1 - 14, point.2)
   else if point.1 ≤ 28 then (point.1 + 14, point.2)
   else (78 - point.2, point.1)
 
-/-- A lattice point near the box is the tile of its position. -/
 theorem tile_point (point : ℤ × ℤ)
     (small : -100 ≤ point.1 ∧ point.1 ≤ 100 ∧ -100 ≤ point.2 ∧ point.2 ≤ 100) :
     tile (pointPosition point) = point := by
   refine Prod.ext ?_ ?_ <;> simp only [tile, pointPosition, clampCoordinate] <;> omega
 
-/-- Where a tile of the witness lies, and where its partner then lies: east of the start with
-its partner west, west with its partner east, or south with its partner east. -/
 theorem partner_cases (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
     (36 ≤ point.1 ∧ point.1 ≤ 42 ∧ 29 ≤ point.2 ∧ point.2 ≤ 35 ∧
         partner point = (point.1 - 14, point.2)) ∨
@@ -330,8 +234,6 @@ theorem partner_cases (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
     unfold partner
     rw [ite_eq_right (by omega), ite_eq_right (by omega)]
 
-/-- A partner is the tile of its position, lies more than three tiles from the start, and lies
-within three tiles of the end tile of the witness's walk east or west. -/
 theorem partner_spec (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
     tile (pointPosition (partner point)) = partner point ∧ partner point ∉ box 3 (32, 32) ∧
       ∃ visit, visit ≤ 1 ∧ partner point ∈ box 3 (witnessEnd visit) := by
@@ -362,14 +264,11 @@ theorem partner_spec (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
       simp only [witnessEnd]
       omega
 
-/-- A tile of the witness is a concealed target of the first situation: the start's goal box
-does not hold it. -/
 theorem first_admitted (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
     ¬ InGoalBox (pointPosition point) witnessLive.world.body.position.position := by
   rw [member_tile, witness_start, (witnessTiles_admitted point inside).1]
   exact (witnessTiles_admitted point inside).2
 
-/-- A tile of the witness is met within a visit from the first situation's start. -/
 theorem first_feasible (mode : TaskFeatureMode) (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
     Kernel.Feasible (completion witnessConfig mode 7)
       (member witnessLive (pointPosition point)) := by
@@ -379,13 +278,11 @@ theorem first_feasible (mode : TaskFeatureMode) (point : ℤ × ℤ) (inside : p
   rw [(witnessTiles_admitted point inside).1]
   exact near
 
-/-- A partner is a concealed target of the second situation. -/
 theorem second_admitted (point : ℤ × ℤ) (inside : point ∈ witnessTiles) :
     ¬ InGoalBox (pointPosition (partner point)) duskLive.world.body.position.position := by
   rw [member_tile, dusk_start, (partner_spec point inside).1]
   exact (partner_spec point inside).2.1
 
-/-- A partner is met within a visit from the second situation's start. -/
 theorem second_feasible (mode : TaskFeatureMode) (point : ℤ × ℤ)
     (inside : point ∈ witnessTiles) :
     Kernel.Feasible (completion witnessConfig mode 7)
@@ -397,10 +294,6 @@ theorem second_feasible (mode : TaskFeatureMode) (point : ℤ × ℤ)
   rw [same]
   exact near
 
-/-- **A tile of the witness and its partner are apart.** No single action sequence meets, within
-a visit, the tile's target from the first situation's start and its partner's from the second's:
-the two ask together for eight actions that name two different directions, and a visit has
-seven. -/
 theorem pair_apart (mode : TaskFeatureMode) (point : ℤ × ℤ) (inside : point ∈ witnessTiles)
     (actions : ℕ → Kernel.Act Grid.interface) :
     ¬ ((completion witnessConfig mode 7).MetBy (member witnessLive (pointPosition point))
@@ -420,25 +313,19 @@ theorem pair_apart (mode : TaskFeatureMode) (point : ℤ × ℤ) (inside : point
     dsimp only at first second
     omega
 
-/-- The member of the first situation's feasible targets at a tile of the witness. -/
 def firstIndex (mode : TaskFeatureMode) (point : { point // point ∈ witnessTiles }) :
     (feasibleFind witnessConfig mode witnessLive 7).Index :=
   ⟨⟨pointPosition point.1, first_admitted point.1 point.2⟩, first_feasible mode point.1 point.2⟩
 
-/-- The member of the second situation's feasible targets at the partner of a tile of the
-witness. -/
 def secondIndex (mode : TaskFeatureMode) (point : { point // point ∈ witnessTiles }) :
     (feasibleFind witnessConfig mode duskLive 7).Index :=
   ⟨⟨pointPosition (partner point.1), second_admitted point.1 point.2⟩,
     second_feasible mode point.1 point.2⟩
 
-/-- The member of the rung's class whose first target is a tile of the witness and whose second
-is that tile's partner. -/
 def rungPair (mode : TaskFeatureMode) (point : { point // point ∈ witnessTiles }) :
     (rungForks mode).Index :=
   ⟨(firstIndex mode point, secondIndex mode point), pair_apart mode point.1 point.2⟩
 
-/-- Members at different tiles of the witness have different first targets. -/
 theorem rungPair_key (mode : TaskFeatureMode) (one two : { point // point ∈ witnessTiles })
     (same : firstTarget mode witnessLive duskLive 7 (rungPair mode one) =
       firstTarget mode witnessLive duskLive 7 (rungPair mode two)) : one = two := by
@@ -448,21 +335,16 @@ theorem rungPair_key (mode : TaskFeatureMode) (one two : { point // point ∈ wi
   rw [(witnessTiles_admitted one.1 one.2).1, (witnessTiles_admitted two.1 two.2).1] at tiles
   exact Subtype.ext tiles
 
-/-- Different tiles of the witness give different members. -/
 theorem rungPair_injective (mode : TaskFeatureMode) : Function.Injective (rungPair mode) :=
   fun one two same => rungPair_key mode one two
     (congrArg (firstTarget mode witnessLive duskLive 7) same)
 
-/-- 147 members of the rung's class: one for each tile within three of the end tiles of the
-witness's three walks. -/
 def rungPairs (mode : TaskFeatureMode) : Finset (rungForks mode).Index :=
   witnessTiles.attach.map ⟨rungPair mode, rungPair_injective mode⟩
 
-/-- The listed members number 147, more than the covering bound of 98. -/
 theorem rungPairs_card (mode : TaskFeatureMode) : (rungPairs mode).card = 147 := by
   rw [rungPairs, Finset.card_map, Finset.card_attach, card_witnessTiles]
 
-/-- No two of the listed members have one first target. -/
 theorem rungPairs_distinct (mode : TaskFeatureMode) :
     ∀ one ∈ rungPairs mode, ∀ two ∈ rungPairs mode,
       firstTarget mode witnessLive duskLive 7 one =
@@ -472,17 +354,10 @@ theorem rungPairs_distinct (mode : TaskFeatureMode) :
   obtain ⟨second, -, rfl⟩ := Finset.mem_map.mp inTwo
   exact congrArg (rungPair mode) (rungPair_key mode first second same)
 
-/-! ## An agent that meets both promises -/
-
-/-- Evidence that the promises are satisfiable, built for that purpose: the switch over two
-replaying agents, one for each situation, each exploring east, then west, then south on its own
-visits. It reads the situation from the first percept of each visit and follows a stored route by
-its own count for the rest. -/
 def forkWitness : Kernel.Agent Grid.interface :=
   Kernel.switch showsDusk 7
     (fun _ => Kernel.replay Grid.interface 7 achievedSignal witnessExplore)
 
-/-- The percept at each start of each member shows its situation. -/
 theorem witness_reads (mode : TaskFeatureMode) (pair : (rungForks mode).Index)
     (situation : Bool) :
     showsDusk (((rungForks mode).world pair).percept ((rungForks mode).start pair situation)) =
@@ -491,8 +366,6 @@ theorem witness_reads (mode : TaskFeatureMode) (pair : (rungForks mode).Index)
   · exact dawn_shown mode pair.1.1.1.1
   · exact dusk_shown mode pair.1.2.1.1
 
-/-- **The witness keeps with no lapse**, before every horizon: under every order, a member it
-has solved on a visit it solves on every later visit that brings the same situation. -/
 theorem witness_keeps (mode : TaskFeatureMode) (horizon : ℕ) :
     Kernel.KeepsBut (rungForks mode) (rungForkGoals mode) 7 horizon 0 forkWitness :=
   Kernel.switch_keeps (rungForks mode) (rungForkGoals mode) 7 showsDusk _ (witness_reads mode)
@@ -502,14 +375,9 @@ theorem witness_keeps (mode : TaskFeatureMode) (horizon : ℕ) :
         after solved)
     horizon
 
-/-- The order that alternates the two situations, the first on the even visits. -/
 def alternate (visit : ℕ) : Bool :=
   decide (visit % 2 = 1)
 
-/-- **The witness masters.** Under the alternating order, on visit 5, it solves each of the 147
-listed members whichever situation that visit brings: by then each situation's replaying agent
-has explored east, west and, in the first situation, south, and replays what met the target. So
-the two promises hold together of one agent, at the covering bound 98 and before visit 6. -/
 theorem witness_masters (mode : TaskFeatureMode) :
     Kernel.MastersBy (rungForks mode) (rungForkGoals mode) 7 (49 + 7 * 7)
       (firstTarget mode witnessLive duskLive 7) 6 forkWitness := by

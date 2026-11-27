@@ -1,8 +1,3 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.Supervision
 import Acorn.Host.Viewer.SupervisedProcess
 import Acorn.Host.Viewer.MapCodec
@@ -15,25 +10,16 @@ inductive ChildProgram where
   | fixed
   | ranked (atStart : Option ProgramReading) (read : IO (Option ProgramReading))
 
-/-- Native bootstrap supplies fixed executable configuration and a fresh seed source.
-Only launch identity and the owned checkpoint path vary between processes. -/
 structure SupervisorConfig where
-  /-- Actual executable, resolved before supervision. -/
   executable : System.FilePath
-  /-- Pure argument construction from the admitted launch and run-owned path. -/
   arguments : CoreLaunch → System.FilePath → Array String
   child : Option (List String)
   program : ChildProgram
-  /-- A configuration that cannot preserve whole-run ownership disables Clear. -/
   clearDisabled : Option String
-  /-- Actual native source of new terrain seeds, called only for Clear. -/
   freshSeed : IO UInt64
 
-/-- Bounded lifecycle mailbox; there is one actor consumer. -/
 def commandCapacity : Nat := 4
 
-/-- HTTP command admission: a Clear that the configuration disables is refused, a full queue
-refuses any command, and any other command is queued. -/
 def admitCommand (clearDisabled : Option String) (queue : Buffer Command commandCapacity)
     (command : Command) : ControlResult × Buffer Command commandCapacity :=
   if command == .clear && clearDisabled.isSome then (.clearUnavailable, queue)
@@ -41,21 +27,30 @@ def admitCommand (clearDisabled : Option String) (queue : Buffer Command command
     | none => (.busy, queue)
     | some queue => (.accepted, queue)
 
-/-- **A disabled Clear never enters the queue.** -/
 theorem admitCommand_clearDisabled (reason : String) (queue : Buffer Command commandCapacity) :
     admitCommand (some reason) queue .clear = (.clearUnavailable, queue) := rfl
+
+private abbrev StopWaiter := IO.Promise ControlResult
+
+private structure Mailbox where
+  commands : Buffer Command commandCapacity
+  waiters : Array StopWaiter
+  closing : Bool
+
+private def Mailbox.empty : Mailbox :=
+  ⟨.empty, #[], false⟩
 
 private structure Actor (clearDisabled : Option String) where
   supervision : Supervision clearDisabled
   directory : RunDirectory
+  activeStop : Option StopWaiter
 
-/-- Native supervisor owns its command queue and serializes complete actor turns. -/
 structure Supervisor where
   private mk ::
   private config : SupervisorConfig
   private broadcast : Broadcast
   private process : SupervisedProcess
-  private queue : Std.Mutex (Buffer Command commandCapacity)
+  private queue : Std.Mutex Mailbox
   private actor : Std.Mutex (Actor config.clearDisabled)
 
 private def Supervisor.perform (supervisor : Supervisor) (directory : RunDirectory) :
@@ -69,9 +64,34 @@ private def Supervisor.perform (supervisor : Supervisor) (directory : RunDirecto
   | .follow .announceCleared => do
     if let .error refusal := ← supervisor.broadcast.announceCleared then
       throw (IO.userError refusal)
+  | .follow .ackStop => pure ()
+  | .follow (.refuseStop reason) =>
+    try
+      IO.eprintln s!"viewer stop: persistence unconfirmed: {reason}"
+      (← IO.getStderr).flush
+    catch _ => pure ()
   | .follow (.attach generation) => supervisor.process.attach generation directory
   | .follow (.say text) => try IO.println text catch _ => pure ()
   | .follow (.complain text) => try IO.eprintln s!"viewer shutdown: {text}" catch _ => pure ()
+
+private def Supervisor.settleStop (supervisor : Supervisor) (result : ControlResult) :
+    Std.AtomicT (Actor supervisor.config.clearDisabled) IO Unit := do
+  let actor ← get
+  if let some waiter := actor.activeStop then
+    waiter.resolve result
+    set { actor with activeStop := none }
+
+private def Supervisor.performInActor (supervisor : Supervisor) (effect : Effect) :
+    Std.AtomicT (Actor supervisor.config.clearDisabled) IO Unit := do
+  match effect with
+  | .follow .ackStop => supervisor.settleStop .accepted
+  | .follow (.refuseStop reason) =>
+    let actor ← get
+    supervisor.perform actor.directory (.follow (.refuseStop reason))
+    supervisor.settleStop (.unconfirmed "stop persistence could not be confirmed")
+  | other =>
+    let actor ← get
+    supervisor.perform actor.directory other
 
 def childDiffers : String :=
   "the core's program differs from what this viewer read when it started (the file at its " ++
@@ -133,20 +153,15 @@ private def Supervisor.call (supervisor : Supervisor) (directory : RunDirectory)
     try return (Except.ok (), ← RunDirectory.open directory.rootPath)
     catch error => return (Except.error error.toString, directory)
 
-/-- The longest chain of calls one event makes: Clear's seed, archival, replacement directory
-and replacement state, or a map write, a launch, a spawn and a wind-up. A longer chain goes on
-at the next turn, before any event is read. -/
 def callChainBound : Nat := 8
 
-/-- Perform the effects of the stored state's step, then each call it waits for, storing each
-outcome's state before performing that outcome's effects. -/
 private def Supervisor.drive (supervisor : Supervisor) (effects : List Effect) :
     Std.AtomicT (Actor supervisor.config.clearDisabled) IO Unit := do
   let mut effects := effects
   for _ in [0:callChainBound] do
-    let actor ← get
-    for effect in effects do supervisor.perform actor.directory effect
+    for effect in effects do supervisor.performInActor effect
     effects := []
+    let actor ← get
     match waiting : actor.supervision.core.pending with
     | none => return
     | some pending =>
@@ -156,10 +171,10 @@ private def Supervisor.drive (supervisor : Supervisor) (effects : List Effect) :
       let (result, directory) ← supervisor.call actor.directory launching
         (pending.call actor.supervision.core.lifecycle)
       let (supervision, next) := actor.supervision.resume waiting (← IO.monoMsNow) result
-      set ({ supervision, directory } : Actor supervisor.config.clearDisabled)
+      let current ← get
+      set ({ current with supervision, directory } : Actor supervisor.config.clearDisabled)
       effects := next
-  let actor ← get
-  for effect in effects do supervisor.perform actor.directory effect
+  for effect in effects do supervisor.performInActor effect
 
 private def Supervisor.handle (supervisor : Supervisor) (event : Event) :
     Std.AtomicT (Actor supervisor.config.clearDisabled) IO Unit := do
@@ -207,74 +222,117 @@ def Supervisor.new (config : SupervisorConfig) (directory : RunDirectory)
   let (supervision, effects) :=
     Supervision.start config.clearDisabled persisted reason (← IO.monoMsNow)
   let supervisor : Supervisor := ⟨config, broadcast, ← SupervisedProcess.new broadcast,
-    ← Std.Mutex.new .empty, ← Std.Mutex.new ⟨supervision, directory⟩⟩
+    ← Std.Mutex.new .empty, ← Std.Mutex.new ⟨supervision, directory, none⟩⟩
   for effect in effects do supervisor.perform directory effect
   return supervisor
 
-/-- HTTP may retain only the three closed lifecycle commands, with no process handle. -/
 def Supervisor.submit (supervisor : Supervisor) (command : Command) : BaseIO ControlResult :=
-  supervisor.queue.atomically do
-    let (result, queue) := admitCommand supervisor.config.clearDisabled (← get) command
-    set queue
-    return result
+  match command with
+  | .stop => return .refused "stop requires durable control dispatch"
+  | .start | .clear =>
+    supervisor.queue.atomically do
+      let mailbox ← get
+      if mailbox.closing then
+        return .unavailable
+      let (result, commands) := admitCommand supervisor.config.clearDisabled mailbox.commands command
+      set { mailbox with commands }
+      return result
 
-/-- One consistent registration snapshot supplies control, map and subsequent replay. -/
+def Supervisor.submitControl (supervisor : Supervisor) (command : Command) :
+    BaseIO ControlDispatch :=
+  supervisor.queue.atomically do
+    let mailbox ← get
+    if mailbox.closing then
+      return .immediate (.refused "viewer is closing")
+    let (result, commands) := admitCommand supervisor.config.clearDisabled mailbox.commands command
+    match command, result with
+    | .stop, .accepted =>
+      let promise ← IO.Promise.new
+      set { mailbox with commands, waiters := mailbox.waiters.push promise }
+      return .pending promise.result?
+    | _, _ =>
+      set { mailbox with commands }
+      return .immediate result
+
 def supervisorInitial (snapshot : ReplaySnapshot) : BaseIO InitialFrames := do
   let map := snapshot.world.bind fun ⟨_, memory⟩ => memory.frame.toOption
   return ⟨snapshot.control, map⟩
 
-/-- HTTP and process output use this actor's exact same broadcaster. -/
-def Supervisor.http (supervisor : Supervisor) (assets : ViewerAssets) : IO HttpViewer :=
-  HttpViewer.new supervisor.broadcast assets supervisorInitial supervisor.submit
+private def Supervisor.popCommand (supervisor : Supervisor) :
+    BaseIO (Option (Command × Option StopWaiter)) :=
+  supervisor.queue.atomically do
+    let mailbox ← get
+    match mailbox.commands.pop with
+    | none => return none
+    | some (command, commands) =>
+      if command == .stop then
+        let waiter := mailbox.waiters[0]?
+        let waiters :=
+          if mailbox.waiters.isEmpty then #[]
+          else mailbox.waiters.extract 1 mailbox.waiters.size
+        set { mailbox with commands, waiters }
+        return some (command, waiter)
+      else
+        set { mailbox with commands }
+        return some (command, none)
 
-/-- One actor turn. It never waits for pipe EOF. Native state and map IO can block this actor
-but cannot block HTTP queue admission or the core's output pipe readers. -/
+private def Supervisor.closeMailbox (supervisor : Supervisor) (reason : String) : BaseIO Unit := do
+  let waiters ← supervisor.queue.atomically do
+    let mailbox ← get
+    set { mailbox with commands := .empty, waiters := #[], closing := true }
+    return mailbox.waiters
+  for waiter in waiters do
+    waiter.resolve (.unconfirmed reason)
+
+def Supervisor.http (supervisor : Supervisor) (assets : ViewerAssets) : IO HttpViewer :=
+  HttpViewer.new supervisor.broadcast assets supervisorInitial supervisor.submitControl
+
 def Supervisor.step (supervisor : Supervisor) : IO Unit :=
   supervisor.actor.atomically do
-    supervisor.drive []
-    supervisor.attribute
-    if ← supervisor.ready then
-      let command ← supervisor.queue.atomically do
-        match (← get).pop with
-        | none => return none
-        | some (command, queue) => set queue; return some command
-      if let some command := command then supervisor.handle (.command command)
-    supervisor.observe
-    supervisor.attribute
-    if ← supervisor.ready then supervisor.handle .tick
+    try
+      supervisor.drive []
+      supervisor.attribute
+      if ← supervisor.ready then
+        if let some (command, waiter) ← supervisor.popCommand then
+          if let some promise := waiter then
+            modify fun actor => { actor with activeStop := some promise }
+          supervisor.handle (.command command)
+      supervisor.observe
+      supervisor.attribute
+      if ← supervisor.ready then supervisor.handle .tick
+    finally
+      supervisor.settleStop (.unconfirmed "stop confirmation did not complete before step ended")
 
-/-- One turn of a closing viewer: the close is handed once, then the process is watched, the
-identity its readers delivered is attributed, and a tick closes the viewer once no process
-remains. The result is whether the viewer closed with a failure, once it has closed. -/
 private def Supervisor.closeTurn (supervisor : Supervisor) : IO (Option Bool) :=
   supervisor.actor.atomically do
-    supervisor.drive []
-    if (← supervisor.ready) && (← get).supervision.core.closing == .open then
-      supervisor.handle .close
-    supervisor.attribute
-    supervisor.observe
-    supervisor.attribute
-    if ← supervisor.ready then supervisor.handle .tick
-    match (← get).supervision.core.closing with
-    | .closed failed => return some failed
-    | .open | .closing _ => return none
+    try
+      supervisor.drive []
+      if (← supervisor.ready) && (← get).supervision.core.closing == .open then
+        supervisor.handle .close
+      supervisor.attribute
+      supervisor.observe
+      supervisor.attribute
+      if ← supervisor.ready then supervisor.handle .tick
+      match (← get).supervision.core.closing with
+      | .closed failed => return some failed
+      | .open | .closing _ => return none
+    finally
+      supervisor.closeMailbox "viewer is closing"
 
-/-- Graceful viewer shutdown winds the core up and keeps the process slot until reap and pipe
-drain. The original durable run intent is preserved for the next viewer start. Host signal
-delivery and eventual pipe closure remain native liveness assumptions. A native error in a turn
-is reported and the next turn goes on from the stored state, so it cannot skip wind-up;
-terminal failures are reported after it. -/
 def Supervisor.shutdown (supervisor : Supervisor) : IO Unit := do
   let failed ← IO.mkRef false
-  for _ in forever do
-    let closed ← try supervisor.closeTurn catch error => do
-      failed.set true
-      try IO.eprintln s!"viewer shutdown: {error}" catch _ => pure ()
-      pure none
-    if let some closeFailed := closed then
-      if closeFailed || (← failed.get) then
-        throw (IO.userError "viewer closed with failures; see the diagnostics above")
-      return
-    IO.sleep 50
+  try
+    for _ in forever do
+      let closed ← try supervisor.closeTurn catch error => do
+        failed.set true
+        try IO.eprintln s!"viewer shutdown: {error}" catch _ => pure ()
+        pure none
+      if let some closeFailed := closed then
+        if closeFailed || (← failed.get) then
+          throw (IO.userError "viewer closed with failures; see the diagnostics above")
+        return
+      IO.sleep 50
+  finally
+    supervisor.closeMailbox "viewer is closing"
 
 end Acorn.Host.Viewer

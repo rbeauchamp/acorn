@@ -1,67 +1,20 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Certificate
 import AcornVerif.CurrentGoals
 
-/-!
-# Soundness of the certificate checkers
-
-The checkers of `Acorn.Host.Certificate` decide selecting properties: facts about
-one generated world that are not theorems about every seed and may hold for one
-seed and fail for another. Each theorem
-here takes the executed checker's acceptance of a certificate as its hypothesis
-and concludes a statement about the executed `World.step`. No checker is
-complete: a rejected certificate establishes nothing.
-
-An accepted replay certificate shows a goal `Feasible`: some run of at least one
-and at most `cap` executed steps, from the checked world with the goal installed,
-ends in a world that satisfies the goal (`replay_feasible`), and the last step of
-that run reports completion (`feasible_done`). For a reach goal the run ends in the
-goal box (`reach_path`); for a collect goal it ends holding the count
-(`collect_path`). The statement is about the checked start world. It says nothing
-about the world a campaign leaves at the start of a later attempt, and it is a
-statement about `World.step`, not about the attempt loop an agent drives.
-
-An accepted blocked certificate shows that no run of steps and goal installations,
-in any order, from a world whose body is on the checked start tile puts the body
-in the goal box (`blocked_outside`). A region that counts water as impassable
-covers only runs that end without a boat. A region that counts mountains alone
-makes the reach goal infeasible at every cap (`blocked_infeasible`).
-
-An accepted stance certificate shows that a paid harvest from the stance yields
-the named item in every world, for wood provided the tree is standing
-(`stance_harvest`), and that a paid move from the tile behind the stance enters it
-facing the resource (`stance_enter`), where that tile is in the box and walkable
-(`stance_approach`). Stone and ore have no standing condition: no step depletes
-them.
-
-A successful step is a hypothesis of the blocked and stance theorems, as in
-`AcornVerif.CurrentStep`: a step the world refuses returns no successor.
--/
 namespace AcornVerif.CurrentCertificates
 open Acorn Acorn.Host
 open AcornVerif.CurrentStep AcornVerif.CurrentGoals
 
-/-! ## Replay -/
-
-/-- A goal is feasible from a world within a cap: some run of at least one and at most
-`cap` executed steps, from the world with the goal installed, ends in a world that
-satisfies the goal. -/
 def Feasible {config : WorldConfig} (world : World config) (goal : Goal) (cap : Nat) : Prop :=
   ∃ (trace : List (Action × StepResult)) (final : World config),
     Trace (world.setGoal goal) trace final ∧ 0 < trace.length ∧ trace.length ≤ cap ∧
       final.goalSatisfied = true
 
-/-- A run keeps the goal it started with. -/
 theorem trace_goal {config : WorldConfig} {world final : World config}
     {trace : List (Action × StepResult)} (run : Trace world trace final) :
     final.goal = world.goal :=
   (World.advanceActions_goal _ _ _ (trace_actions run)).1
 
-/-- The last step of a nonempty run reports the completion flag of the run's final world. -/
 theorem trace_last {config : WorldConfig} {world final : World config}
     {trace : List (Action × StepResult)} (run : Trace world trace final)
     (nonempty : 0 < trace.length) :
@@ -75,8 +28,6 @@ theorem trace_last {config : WorldConfig} {world final : World config}
       obtain ⟨entry, last, flag⟩ := ih (by simp)
       exact ⟨entry, by rw [List.getLast?_cons_cons]; exact last, flag⟩
 
-/-- An action list the replay checker accepts shows its goal feasible from its world
-within its cap. -/
 theorem replay_feasible {config : WorldConfig} {world : World config} {goal : Goal} {cap : Nat}
     {actions : List Action} (accepted : replayCertified world goal cap actions = true) :
     Feasible world goal cap := by
@@ -100,7 +51,6 @@ theorem replay_feasible {config : WorldConfig} {world : World config} {goal : Go
     · rw [length]
       exact short
 
-/-- A feasible goal is reported complete by the last step of some run within the cap. -/
 theorem feasible_done {config : WorldConfig} {world : World config} {goal : Goal} {cap : Nat}
     (feasible : Feasible world goal cap) :
     ∃ (trace : List (Action × StepResult)) (final : World config) (entry : Action × StepResult),
@@ -110,8 +60,6 @@ theorem feasible_done {config : WorldConfig} {world : World config} {goal : Goal
   obtain ⟨entry, last, flag⟩ := trace_last run nonempty
   exact ⟨trace, final, entry, run, short, last, flag.trans satisfied⟩
 
-/-- An action list the replay checker accepts for a reach goal: a run of at least one and
-at most `cap` executed steps from the world ends with the body in the goal box. -/
 theorem reach_path {config : WorldConfig} {world : World config} {target : Position} {cap : Nat}
     {actions : List Action}
     (accepted : replayCertified world (.reach target) cap actions = true) :
@@ -122,8 +70,6 @@ theorem reach_path {config : WorldConfig} {world : World config} {target : Posit
   exact ⟨trace, final, run, nonempty, short,
     (reach_goal_iff final target (trace_goal run)).mp satisfied⟩
 
-/-- An action list the replay checker accepts for a collect goal: a run of at least one
-and at most `cap` executed steps from the world ends holding the requested count. -/
 theorem collect_path {config : WorldConfig} {world : World config} {item : Item}
     {count : UInt32} {cap : Nat} {actions : List Action}
     (accepted : replayCertified world (.collect item count) cap actions = true) :
@@ -134,9 +80,6 @@ theorem collect_path {config : WorldConfig} {world : World config} {item : Item}
   rw [goalSatisfied_eq final _ (trace_goal run)] at satisfied
   exact ⟨trace, final, run, nonempty, short, (collect_satisfied_iff _ _ _ _ _).mp satisfied⟩
 
-/-! ## Translation -/
-
-/-- Coordinate admission returns a coordinate's own value. -/
 theorem checked_val (coordinate : Coordinate) :
     Coordinate.checked coordinate.val = some coordinate := by
   unfold Coordinate.checked
@@ -145,7 +88,6 @@ theorem checked_val (coordinate : Coordinate) :
   · rename_i outside
     exact absurd coordinate.property outside
 
-/-- A successful translation adds its offsets exactly. -/
 theorem translate_some (origin tile : Position) (dx dy : Int)
     (h : origin.translate dx dy = some tile) :
     tile.x.val = origin.x.val + dx ∧ tile.y.val = origin.y.val + dy := by
@@ -161,7 +103,6 @@ theorem translate_some (origin tile : Position) (dx dy : Int)
       subst h
       exact ⟨Coordinate.checked_exact _ _ hx, Coordinate.checked_exact _ _ hy⟩
 
-/-- A translation whose exact sums are a position's coordinates returns that position. -/
 theorem translate_of_eq (origin tile : Position) (dx dy : Int)
     (hx : tile.x.val = origin.x.val + dx) (hy : tile.y.val = origin.y.val + dy) :
     origin.translate dx dy = some tile := by
@@ -169,7 +110,6 @@ theorem translate_of_eq (origin tile : Position) (dx dy : Int)
   rw [← hx, ← hy, checked_val, checked_val]
   rfl
 
-/-- A move in a direction is undone by a move in some direction. -/
 theorem translate_back (origin tile : Position) (direction : Direction)
     (h : origin.translate direction.delta.1 direction.delta.2 = some tile) :
     ∃ back, back ∈ Direction.all ∧ tile.translate back.delta.1 back.delta.2 = some origin := by
@@ -188,19 +128,14 @@ theorem translate_back (origin tile : Position) (direction : Direction)
       translate_of_eq _ _ _ _ (by simp only [Direction.delta]; omega)
         (by simp only [Direction.delta]; omega)⟩
 
-/-! ## Blocked goal box -/
-
-/-- Region membership is list membership. -/
 theorem inRegion_iff (cells : List Position) (tile : Position) :
     inRegion cells tile = true ↔ tile ∈ cells := by
   simp [inRegion]
 
-/-- A body position is inside the box. -/
 theorem inBox_position {config : WorldConfig} (position : BoxPosition config) :
     inBox config position.position = true := by
   simp [inBox, BoxPosition.checked_position]
 
-/-- Every offset within the reach radius is one of the goal box's offsets. -/
 theorem offset_mem (offset : Int) (low : -(FeatureConstants.reachRadius : Int) ≤ offset)
     (high : offset ≤ FeatureConstants.reachRadius) : offset ∈ boxOffsets := by
   unfold boxOffsets
@@ -209,7 +144,6 @@ theorem offset_mem (offset : Int) (low : -(FeatureConstants.reachRadius : Int) �
   · omega
   · omega
 
-/-- An accepted region contains every body position of the goal box. -/
 theorem box_in_region {config : WorldConfig} {boat : Bool} {target start : Position}
     {cells : List Position} (accepted : regionBlocked config boat target cells start = true)
     (position : BoxPosition config) (inside : InGoalBox target position.position) :
@@ -224,8 +158,6 @@ theorem box_in_region {config : WorldConfig} {boat : Bool} {target start : Posit
   rw [translate_of_eq target position.position _ _ (by omega) (by omega)] at listed
   simpa [covered, inBox_position] using listed
 
-/-- One step keeps the body outside an accepted region, for a body that owns no boat
-when the region counts water as impassable. -/
 theorem blocked_step {config : WorldConfig} {boat : Bool} {target start : Position}
     {cells : List Position} (accepted : regionBlocked config boat target cells start = true)
     (world next : World config) (action : Action) (events : StepResult)
@@ -258,9 +190,6 @@ theorem blocked_step {config : WorldConfig} {boat : Bool} {target start : Positi
         rw [returned] at held
         simp [covered, outside, inBox_position] at held
 
-/-- No run of steps and goal installations moves the body into an accepted region from
-outside it, for a run that ends without a boat when the region counts water as
-impassable. -/
 theorem blocked_later {config : WorldConfig} {boat : Bool} {target start : Position}
     {cells : List Position} (accepted : regionBlocked config boat target cells start = true)
     {world final : World config} (later : Later world final)
@@ -280,16 +209,12 @@ theorem blocked_later {config : WorldConfig} {boat : Bool} {target start : Posit
       exact absurd kept (by simp)
   | install goal rest ih => exact ih boatless outside
 
-/-- A run of steps is a run of steps and goal installations. -/
 theorem trace_later {config : WorldConfig} {world final : World config}
     {trace : List (Action × StepResult)} (run : Trace world trace final) : Later world final := by
   induction run with
   | done world => exact .here world
   | step stepped later ih => exact .step stepped ih
 
-/-- A region the blocked checker accepts for a world's body tile: after any run of steps
-and goal installations from that world, the body is outside the goal box. A region that
-counts water as impassable covers the runs that end without a boat. -/
 theorem blocked_outside {config : WorldConfig} {boat : Bool} {target : Position}
     {cells : List Position} {world final : World config}
     (accepted : regionBlocked config boat target cells world.body.position.position = true)
@@ -305,9 +230,6 @@ theorem blocked_outside {config : WorldConfig} {boat : Bool} {target : Position}
   rw [box_in_region accepted final.body.position inside] at kept
   exact absurd kept (by simp)
 
-/-- A region the blocked checker accepts for a world's body tile: a world reached from it
-by any run of steps and goal installations, with the reach goal installed, does not
-satisfy it. -/
 theorem blocked_unsatisfied {config : WorldConfig} {boat : Bool} {target : Position}
     {cells : List Position} {world final : World config}
     (accepted : regionBlocked config boat target cells world.body.position.position = true)
@@ -319,8 +241,6 @@ theorem blocked_unsatisfied {config : WorldConfig} {boat : Bool} {target : Posit
     exact absurd ((reach_goal_iff final target installed).mp satisfied)
       (blocked_outside accepted later boatless)
 
-/-- A region of mountains alone that the blocked checker accepts for a world's body tile
-makes the reach goal infeasible from that world at every cap. -/
 theorem blocked_infeasible {config : WorldConfig} {target : Position} {cells : List Position}
     {world : World config}
     (accepted : regionBlocked config true target cells world.body.position.position = true)
@@ -332,9 +252,6 @@ theorem blocked_infeasible {config : WorldConfig} {target : Position} {cells : L
   rw [satisfied] at unsatisfied
   exact absurd unsatisfied (by simp)
 
-/-! ## Harvest stance -/
-
-/-- A walkable tile is enterable in every world, with or without a boat. -/
 theorem walkable_enterable {config : WorldConfig} (world : World config) (tile : Position)
     (walkable : walkableTile config tile = true) : world.enterable tile = .ok true := by
   rw [enterable_static]
@@ -347,8 +264,6 @@ theorem walkable_enterable {config : WorldConfig} (world : World config) (tile :
     rw [located] at walkable
     cases kind <;> simp_all [Except.map, passable, TileKind.walkable]
 
-/-- A paid move toward an enterable in-box tile puts the body on it, facing the move's
-direction. -/
 theorem perform_move {config : WorldConfig} (world : World config) (action : Action)
     (direction : Direction) (position : BoxPosition config)
     (heading : action.direction = some direction)
@@ -363,7 +278,6 @@ theorem perform_move {config : WorldConfig} (world : World config) (action : Act
   subst h
   exact ⟨rfl, rfl⟩
 
-/-- The static terrain an accepted stance faces yields the item. -/
 theorem stance_yield {config : WorldConfig} {stance : BoxPosition config}
     {direction : Direction} {item : Item}
     (accepted : stanceCertified config stance direction item = true) :
@@ -381,8 +295,6 @@ theorem stance_yield {config : WorldConfig} {stance : BoxPosition config}
     rw [located] at yields
     exact ⟨kind, rfl, by simpa using yields⟩
 
-/-- The tile behind an accepted stance is in the box and walkable, and a move in the
-facing direction leads from it to the stance. -/
 theorem stance_approach {config : WorldConfig} {stance : BoxPosition config}
     {direction : Direction} {item : Item}
     (accepted : stanceCertified config stance direction item = true) :
@@ -409,8 +321,6 @@ theorem stance_approach {config : WorldConfig} {stance : BoxPosition config}
       exact ⟨approach, by rw [same]; exact translate_of_eq _ _ _ _ (by omega) (by omega),
         by rw [same]; exact walkable⟩
 
-/-- Entering a stance. From the tile behind a stance the checker accepts, a paid move in
-the facing direction puts the body on the stance facing the resource, in every world. -/
 theorem stance_enter {config : WorldConfig} {stance : BoxPosition config}
     {direction : Direction} {item : Item}
     (accepted : stanceCertified config stance direction item = true)
@@ -434,10 +344,6 @@ theorem stance_enter {config : WorldConfig} {stance : BoxPosition config}
     exact perform_move { world with body := { world.body with energy := energy } } action
       direction stance heading behind (walkable_enterable _ _ walkable) active acted
 
-/-- Harvesting from a stance. In every world whose body stands on a stance the checker
-accepts, facing its direction, a paid harvest yields the item and adds it to the
-inventory: three wood with an axe, one item otherwise. A wood stance needs its tree
-standing; stone and ore have no such condition. -/
 theorem stance_harvest {config : WorldConfig} {stance : BoxPosition config}
     {direction : Direction} {item : Item}
     (accepted : stanceCertified config stance direction item = true)

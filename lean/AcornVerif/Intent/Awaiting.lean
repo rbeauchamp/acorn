@@ -1,63 +1,19 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.LeanIntentBridge
-
-/-!
-# Deliverables awaiting an implementation
-
-lean-intent's implementation check (`LeanIntent.Implementation.findings`) finds nothing only when
-every declared deliverable has exactly one `LeanIntent.Implementation` value recording its
-implementation or one `LeanIntent.AwaitingImplementation` value declaring it awaiting one. The
-intent-first method confirms a record before its implementation exists, so a declared deliverable
-is unimplemented for a while by design. Acorn's merge gate therefore accepts from that check
-exactly the unimplemented findings of the deliverables it lists as awaiting an implementation, in
-one closed list kept in the gate's code (`AcornIntentCheck.awaiting`), requires the check's
-reported `awaiting` list to be empty (refusing `LeanIntent.AwaitingImplementation` declarations
-while the closed list governs), and accepts nothing else. This module states that acceptance and
-proves what it decides.
-
-`onlyAwaiting awaiting fs` holds exactly when the findings `fs` are, as a set, the unimplemented
-findings of the deliverables listed (`onlyAwaiting_iff`): another finding of any kind refuses, and
-so does a listed name with no unimplemented finding, which is a name that is no declared
-deliverable or a deliverable the check finds implemented or declared awaiting. Together with
-`(report ds vs as).awaiting = []`, applied to lean-intent's decision, it gives
-`implemented_of_onlyAwaiting`: no `LeanIntent.AwaitingImplementation` value exists (`as = []`);
-there is a declared deliverable; each listed name is a declared deliverable that no value
-implements; each declared deliverable not listed has exactly one value recording its
-implementation; and each value names a declared deliverable and records a constant.
-
-The acceptance was decided on the owner's behalf by the agent supervising Acorn's research, on
-2026-11-03. The closed list remains until the listed deliverables migrate to lean-intent's
-`LeanIntent.AwaitingImplementation` declaration (rbeauchamp/lean-intent#52).
--/
 
 namespace AcornVerif.Intent
 
 open LeanIntent LeanIntent.Implementation
 
-/-- The implementation check's findings `fs` are exactly the unimplemented findings of the
-deliverables `awaiting`: each finding is one of them, and each of them is found. -/
 def onlyAwaiting (awaiting : List Lean.Name) (fs : List Finding) : Bool :=
   fs.all (fun f => awaiting.any fun d => f == .unimplemented d) &&
     awaiting.all fun d => fs.contains (.unimplemented d)
 
-/-- **What the acceptance decides**: the findings, as a set, are the unimplemented findings of the
-deliverables listed. -/
 theorem onlyAwaiting_iff {awaiting : List Lean.Name} {fs : List Finding} :
     onlyAwaiting awaiting fs = true ↔
       (∀ f ∈ fs, ∃ d ∈ awaiting, f = .unimplemented d) ∧
         ∀ d ∈ awaiting, Finding.unimplemented d ∈ fs := by
   simp [onlyAwaiting]
 
-/-- **What it establishes of lean-intent's decision.** When the acceptance holds of the findings of
-the deliverables `ds`, the implementation entries `vs` and the awaiting entries `as`, and the
-report lists no awaiting entry: no awaiting entry exists (`as = []`); there is a deliverable; each
-listed name is one of them that no entry implements; each deliverable not listed has exactly one
-entry recording its implementation; and each entry names one of the deliverables and records a
-constant. -/
 theorem implemented_of_onlyAwaiting {awaiting ds : List Lean.Name} {vs : List Entry}
     {as : List AwaitingEntry} (h : onlyAwaiting awaiting (findings ds vs as) = true)
     (hno : (report ds vs as).awaiting = []) :

@@ -1,34 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Mathlib.Tactic.GCongr
 import Mathlib.Algebra.Order.Monoid.Unbundled.Basic
 import Mathlib.Algebra.Order.GroupWithZero.Defs
 import Mathlib.Algebra.Order.Ring.Nat
 import Acorn.Handcrafted.TemporalControl
 import AcornVerif.Resource.ModelWork
-
-/-!
-# Work of the options
-
-The bounds of the costed definitions of an option's operations in `Acorn.Options`, of its
-operations with its model in `Acorn.Temporal`, of one slot's share of a followed frame
-(`Handcrafted.followSlot`) and of the following of the option table
-(`Handcrafted.TemporalControl.followOptions`) with the rates, the value function and the stopping
-estimate it computes, at the model operations of `modelOperations`, the ones the agent runs, with
-the adapters the twins read. An option is a policy controller over the world's actions, an
-option model and an interest; `Acorn.Cost` names each costed definition.
-
-Each `_within` theorem bounds a costed definition directly. Where that bound grows with an active
-set's length, a `_within_capacity` theorem bounds the definition by a function of the configuration
-alone, with the capacity of the dimension in place of the length: every active set fits the
-dimension (`AcornVerif.CurrentLearner.active_cardinality`), and the set of every index fills it
-(`AcornVerif.CurrentLearner.active_cardinality_attained`). An adapter pairs the executed
-definition's value with that bound, and its `_costed` theorem checks the bound against the costed
-definition.
--/
 
 namespace AcornVerif.Resource.Twin
 
@@ -37,10 +12,6 @@ open Acorn Acorn.Features
 variable {actions : Word.Count} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} {discounts : List Discount} {mode : Bool}
 
-/-! ## Rates, policies and potentials -/
-
-/-- The rate an option's source resolves to: its own learner's rate, or a fixed one, which reads
-nothing. -/
 theorem skillRateCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts) (rate : ConsumerRate) :
     (rate.resolveCosted fun _ => skill.policy.exploreRateCosted (count := actions)).Within κ
@@ -49,7 +20,6 @@ theorem skillRateCosted_within (κ : Costs)
   · exact exploreRateCosted_within κ skill.policy
   · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
 
-/-- Bound of an option's frozen policy over `width` features. -/
 abbrev frozenBound (κ : Costs) (rows capacity width : Nat) : Nat :=
   rateBound κ rows capacity + (predictAllBound κ rows width + κ .snapshot)
 
@@ -61,15 +31,12 @@ theorem frozenPolicyCosted_within (κ : Costs)
   Acorn.Costed.bind_within (skillRateCosted_within κ skill rate)
     (snapshotCosted_within κ skill.policy features _)
 
-/-- An option's frozen policy's bound grows with the number of features. -/
 theorem frozenBound_mono (κ : Costs) (rows capacity : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     frozenBound κ rows capacity width ≤ frozenBound κ rows capacity limit :=
   Nat.add_le_add_left (Nat.add_le_add_right (Library.vectorMap.work_mono (Nat.le_refl _)
     (Library.foldl.work_mono fits (Nat.le_refl _))) _) _
 
-/-- An option's frozen policy is within a function of the configuration alone: the number of
-actions, the capacity of the dimension and the cost model. -/
 theorem frozenPolicyCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (rate : ConsumerRate) :
@@ -78,13 +45,10 @@ theorem frozenPolicyCosted_within_capacity (κ : Costs)
   (frozenPolicyCosted_within κ skill features rate).mono
     (frozenBound_mono κ _ _ (CurrentLearner.active_cardinality features))
 
-/-- Bound of a potential over `width` features. -/
 abbrev potentialBound (κ : Costs) (width : Nat) : Nat :=
   κ .assignmentPotential + Library.contains.control (κ .visit + κ .compare) width +
     κ .declaredPotential
 
-/-- An assignment's potential: its feature slot, then, when it has one, its membership test of
-the frame. -/
 theorem assignmentPotentialCosted_within (κ : Costs) (assignment : Assignment config)
     (active : SwiftTd.ActiveSet dimension) :
     (assignment.potentialCosted active).Within κ
@@ -96,7 +60,6 @@ theorem assignmentPotentialCosted_within (κ : Costs) (assignment : Assignment c
   · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
   · exact Acorn.Costed.mem_within _ _ _ κ
 
-/-- An interest's potential: a learned assignment's potential, or a declared value read. -/
 theorem potentialCosted_within (κ : Costs) (interest : Interest config)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
     (interest.potentialCosted features declared).Within κ
@@ -108,7 +71,6 @@ theorem potentialCosted_within (κ : Costs) (interest : Interest config)
   | declared origin tag =>
     exact (Acorn.Costed.op_within _ _ κ).mono (by simp only [potentialBound]; omega)
 
-/-- `Interest.potential` with its bound. -/
 def interestPotential (κ : Costs) (interest : Interest config)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) :
     Costed (Option Potential) :=
@@ -131,9 +93,6 @@ theorem interestPotential_costed (κ : Costs) (interest : Interest config)
       (interestPotential κ interest features declared).work :=
   potentialCosted_within κ interest features declared
 
-/-! ## Decisions and starts -/
-
-/-- Bound of an option's termination decision over `width` features. -/
 abbrev decideBound (κ : Costs) (rows capacity width : Nat) : Nat :=
   frozenBound κ rows capacity width + (κ .decide + comparisonBound κ rows)
 
@@ -159,8 +118,6 @@ theorem decideOptionCosted_within (κ : Costs)
     (Acorn.Costed.ite_within (fun _ => Acorn.Costed.pure_within _ κ)
       fun _ => Acorn.Costed.pure_within _ κ)
 
-/-- An option's termination decision is within a function of the configuration alone: the number
-of actions, the capacity of the dimension and the cost model. -/
 theorem decideOptionCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
@@ -171,7 +128,6 @@ theorem decideOptionCosted_within_capacity (κ : Costs)
     (Nat.add_le_add_right
       (frozenBound_mono κ _ _ (CurrentLearner.active_cardinality features)) _)
 
-/-- `Skill.decideOption` with its bound. -/
 def decideOption (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate) :
@@ -200,7 +156,6 @@ theorem decideOption_costed (κ : Costs)
       (decideOption κ skill activation features potential goal estimate rate).work :=
   decideOptionCosted_within κ skill activation features potential goal estimate rate
 
-/-- Bound of an option start's policy work over `width` features. -/
 abbrev beginOptionBound (κ : Costs) (rows capacity width : Nat) : Nat :=
   clearBound κ rows capacity + (κ .beginOption + frozenBound κ rows capacity width)
 
@@ -224,8 +179,6 @@ theorem beginOptionCosted_within (κ : Costs)
     (Acorn.Costed.bind_within (snapshotCosted_within κ _ features _)
       (Acorn.Costed.pure_within _ κ)))
 
-/-- An option's start is within a function of the configuration alone: the number of actions, the
-capacity of the dimension and the cost model. -/
 theorem beginOptionCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool)
@@ -236,7 +189,6 @@ theorem beginOptionCosted_within_capacity (κ : Costs)
     (Nat.add_le_add_left (Nat.add_le_add_left
       (frozenBound_mono κ _ _ (CurrentLearner.active_cardinality features)) _) _)
 
-/-- `Skill.beginOption` with its bound. -/
 def beginOption (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool)
     (rate : ConsumerRate) :
@@ -265,9 +217,6 @@ theorem beginOption_costed (κ : Costs) (skill : Skill actions config criterion 
       (beginOption κ skill features potential learning rate).work :=
   beginOptionCosted_within κ skill features potential learning rate
 
-/-! ## Steps and ends -/
-
-/-- Bound of an option step's policy work over `width` features. -/
 abbrev optionStepBound (κ : Costs) (rows capacity width : Nat) : Nat :=
   persistentBound κ rows + (κ .optionStep + policyStepBound κ rows capacity width)
 
@@ -290,7 +239,6 @@ theorem optionStepCosted_within (κ : Costs)
       fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)))
     (Acorn.Costed.pure_within _ κ)
 
-/-- A frozen-decision credit's bound grows with the number of features. -/
 theorem policyStepBound_mono (κ : Costs) (rows capacity : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     policyStepBound κ rows capacity width ≤ policyStepBound κ rows capacity limit := by
@@ -298,8 +246,6 @@ theorem policyStepBound_mono (κ : Costs) (rows capacity : Nat) {width limit : N
   simp only [policyStepBound, creditStepBound]
   omega
 
-/-- An option step is within a function of the configuration alone: the number of actions, the
-capacity of the dimension and the cost model. -/
 theorem optionStepCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
@@ -310,7 +256,6 @@ theorem optionStepCosted_within_capacity (κ : Costs)
     (Nat.add_le_add_left (Nat.add_le_add_left
       (policyStepBound_mono κ _ _ (CurrentLearner.active_cardinality next.features)) _) _)
 
-/-- `Skill.optionStep` with its bound. -/
 def optionStep (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
@@ -339,8 +284,6 @@ theorem optionStep_costed (κ : Costs) (skill : Skill actions config criterion d
       (optionStep κ skill activation next reward gain rng).work :=
   optionStepCosted_within κ skill activation next reward gain rng
 
-/-- The credit of a drawn decision: the step's records and a learning option's credit, the step's
-work without its draw. -/
 theorem optionCreditCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
@@ -354,8 +297,6 @@ theorem optionCreditCosted_within (κ : Costs)
       (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _)))
     fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
 
-/-- The credit of a drawn decision is within a function of the configuration alone: the number of
-actions, the capacity of the dimension and the cost model. -/
 theorem optionCreditCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
@@ -367,7 +308,6 @@ theorem optionCreditCosted_within_capacity (κ : Costs)
     (Nat.add_le_add_left
       (policyStepBound_mono κ _ _ (CurrentLearner.active_cardinality next.features)) _)
 
-/-- An option's termination: its records and a learning option's terminal credit. -/
 theorem terminateOptionCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (potential : Potential) (reward terminal : Binary32)
@@ -379,7 +319,6 @@ theorem terminateOptionCosted_within (κ : Costs)
       (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _)))
     fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _))
 
-/-- `Skill.terminateOption` with its bound. -/
 def terminateOption (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (potential : Potential) (reward terminal : Binary32)
     (gain : RewardRate) : Costed (Skill actions config criterion dimension discounts) :=
@@ -408,23 +347,15 @@ theorem terminateOption_costed (κ : Costs)
       (terminateOption κ skill activation potential reward terminal gain).work :=
   terminateOptionCosted_within κ skill activation potential reward terminal gain
 
-/-! ## With the option's model
-
-The operations of `Acorn.Temporal` at the model operations of `modelOperations`, the ones the
-agent runs. -/
-
-/-- A started option's continuation holds the start frame. -/
 theorem beginTemporal_frame (skill : Skill actions config criterion dimension discounts)
     (models : OptionModelOps criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (learning : Bool) (rate : ConsumerRate) :
     (skill.beginTemporal models features potential learning rate).2.2.features = features := by
   cases learning <;> rfl
 
-/-- Bound of an option start over `width` features. -/
 abbrev beginTemporalBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   beginOptionBound κ rows capacity width + modelBeginBound κ capacity positions width
 
-/-- An option's start: the option start, then a learning start's model start. -/
 theorem beginTemporalCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool)
@@ -444,12 +375,9 @@ theorem beginTemporalCosted_within (κ : Costs)
   exact Acorn.Costed.Within.mono (Acorn.Costed.bind_within (modelBeginCosted_within κ _ features)
     (Acorn.Costed.pure_within _ κ)) (Nat.le_of_eq (Nat.add_zero _))
 
-/-- Bound of an option step over `width` features. -/
 abbrev stepTemporalBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   optionStepBound κ rows capacity width + modelStepBound κ capacity positions width
 
-/-- An option's step: the option step, then a learning option's model credit of the completed
-transition. -/
 theorem stepTemporalCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
@@ -467,13 +395,10 @@ theorem stepTemporalCosted_within (κ : Costs)
       activation.age reward) (Acorn.Costed.pure_within _ κ)).mono (Nat.le_refl _))
     fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
 
-/-- Bound of the credit of a drawn decision over `width` features. -/
 abbrev creditTemporalBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   (κ .optionStep + policyStepBound κ rows capacity width) +
     modelStepBound κ capacity positions width
 
-/-- The credit of a drawn decision: the option's credit, then a learning option's model credit of
-the completed transition. -/
 theorem creditTemporalCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
@@ -491,12 +416,10 @@ theorem creditTemporalCosted_within (κ : Costs)
       activation.age reward) (Acorn.Costed.pure_within _ κ)).mono (Nat.le_refl _))
     fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
 
-/-- Bound of an option's end over `width` features. -/
 abbrev endTemporalBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   (κ .terminateOption + terminalCreditBound κ rows capacity) +
     modelTerminalWorkBound κ capacity positions width
 
-/-- An option's end: its termination, then a learning option's model's terminal step. -/
 theorem endTemporalCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -514,12 +437,9 @@ theorem endTemporalCosted_within (κ : Costs)
       (Acorn.Costed.pure_within _ κ)).mono (Nat.le_refl _))
     fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
 
-/-- Bound of a stopped off-policy trajectory over `width` features. -/
 abbrev stopFollowingBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   stopBound κ rows capacity + (κ .stopFollowing + modelStopBound κ capacity positions width)
 
-/-- A stopped off-policy trajectory: the stopping credit of the policy and, along a live run, the
-model's stopped trajectory. -/
 theorem stopFollowingCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -536,14 +456,11 @@ theorem stopFollowingCosted_within (κ : Costs)
         fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)))
       (Acorn.Costed.pure_within _ κ)) (Nat.le_of_eq (Nat.add_zero _)))
 
-/-- Bound of a settled off-policy trajectory over `width` features. -/
 abbrev settleBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   decideBound κ rows capacity width + ((κ .settleFollowing + backupErrorBound κ rows) +
     (stopBound κ rows capacity + modelStepBound κ capacity positions width) +
     stopFollowingBound κ rows capacity positions width)
 
-/-- A settled off-policy trajectory: the stopping decision of the stored trajectory, then its
-tree-backup stopping credit and a live run's model step, or its stop. -/
 theorem settleFollowingCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -574,7 +491,6 @@ theorem settleFollowingCosted_within (κ : Costs)
     · exact (stopFollowingCosted_within κ _ value features following potential estimate reward
         gain).mono (Nat.le_add_left _ _)
 
-/-- An invocation start's settling: a learning start settles the stored trajectory. -/
 theorem settleTemporalCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -586,14 +502,11 @@ theorem settleTemporalCosted_within (κ : Costs)
   Acorn.Costed.ite_within (fun _ => settleFollowingCosted_within κ skill value features potential
     goal estimate rate reward gain) fun _ => (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
 
-/-- Bound of a start whose first action is drawn, over `width` features. -/
 abbrev startTemporalBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   settleBound κ rows capacity positions width +
     (beginTemporalBound κ rows capacity positions width +
       creditTemporalBound κ rows capacity positions width)
 
-/-- A start whose first action is drawn: the settling, the start, then the drawn action's credit
-over the start frame. -/
 theorem startTemporalCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -610,14 +523,11 @@ theorem startTemporalCosted_within (κ : Costs)
     (congrArg (fun active : SwiftTd.ActiveSet dimension => creditTemporalBound κ _ _ _
       active.indices.length) (beginTemporal_frame _ _ features potential learning rate)))
 
-/-- Bound of the start of a followed trajectory over `width` features. -/
 abbrev startFollowingBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   frozenBound κ rows capacity width + (consistentBound κ rows +
     (startStepBound κ rows capacity width +
       (modelRestartBound κ capacity positions width + κ .startFollowing)))
 
-/-- The start of a followed trajectory: the frozen policy, the consistency test, the policy's start
-and, on a consistent frame, the model's restart. -/
 theorem startFollowingCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (rate : ConsumerRate)
@@ -639,7 +549,6 @@ theorem startFollowingCosted_within (κ : Costs)
   simp only [startFollowingBound, frozenBound]
   omega
 
-/-- Bound of a followed frame over `width` features. -/
 abbrev followTemporalBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   decideBound κ rows capacity width + (((consistentBound κ rows +
     (modelStepBound κ capacity positions width + (backupStepBound κ rows rows capacity width +
@@ -647,9 +556,6 @@ abbrev followTemporalBound (κ : Costs) (rows capacity positions width : Nat) : 
     stopFollowingBound κ rows capacity positions width) +
     startFollowingBound κ rows capacity positions width)
 
-/-- A followed frame: a start where no trajectory is stored, otherwise the stored trajectory's
-stopping decision, then the consistency test, a live run's model step, the tree-backup credit and
-a restart, or the stop and a new start. -/
 theorem followTemporalCosted_within (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -683,9 +589,6 @@ theorem followTemporalCosted_within (κ : Costs)
         (stopFollowingCosted_within κ _ value features following potential estimate reward gain)
         (startFollowingCosted_within κ _ features potential rate action behaviour)) (by omega)
 
-/-! ### Bounds of the configuration -/
-
-/-- A model start's bound grows with the number of features. -/
 theorem modelBeginBound_mono (κ : Costs) (capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     modelBeginBound κ capacity positions width ≤ modelBeginBound κ capacity positions limit := by
@@ -693,7 +596,6 @@ theorem modelBeginBound_mono (κ : Costs) (capacity positions : Nat) {width limi
     rowInputBound, updateRowsBound, pass, Library.work, Library.control, Library.passes]
   gcongr
 
-/-- A model step's bound grows with the number of features. -/
 theorem modelStepBound_mono (κ : Costs) (capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     modelStepBound κ capacity positions width ≤ modelStepBound κ capacity positions limit := by
@@ -701,7 +603,6 @@ theorem modelStepBound_mono (κ : Costs) (capacity positions : Nat) {width limit
     rowInputBound, updateRowsBound, pass, Library.work, Library.control, Library.passes]
   gcongr
 
-/-- A model's terminal step's bound grows with the number of features. -/
 theorem modelTerminalWorkBound_mono (κ : Costs) (capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     modelTerminalWorkBound κ capacity positions width ≤
@@ -710,7 +611,6 @@ theorem modelTerminalWorkBound_mono (κ : Costs) (capacity positions : Nat) {wid
     Library.control, Library.passes]
   gcongr
 
-/-- A model's stopped trajectory's bound grows with the number of features. -/
 theorem modelStopBound_mono (κ : Costs) (capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     modelStopBound κ capacity positions width ≤ modelStopBound κ capacity positions limit := by
@@ -718,7 +618,6 @@ theorem modelStopBound_mono (κ : Costs) (capacity positions : Nat) {width limit
     Library.control, Library.passes]
   gcongr
 
-/-- An option start's bound grows with the number of features. -/
 theorem beginTemporalBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     beginTemporalBound κ rows capacity positions width ≤
@@ -728,7 +627,6 @@ theorem beginTemporalBound_mono (κ : Costs) (rows capacity positions : Nat) {wi
   simp only [beginTemporalBound, beginOptionBound]
   omega
 
-/-- The bound of the credit of a drawn decision grows with the number of features. -/
 theorem creditTemporalBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     creditTemporalBound κ rows capacity positions width ≤
@@ -738,7 +636,6 @@ theorem creditTemporalBound_mono (κ : Costs) (rows capacity positions : Nat) {w
   simp only [creditTemporalBound]
   omega
 
-/-- The bound of a settled off-policy trajectory grows with the number of features. -/
 theorem settleBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     settleBound κ rows capacity positions width ≤ settleBound κ rows capacity positions limit := by
@@ -748,8 +645,6 @@ theorem settleBound_mono (κ : Costs) (rows capacity positions : Nat) {width lim
   simp only [settleBound, decideBound, stopFollowingBound]
   omega
 
-/-- An option's start is within a function of the configuration alone: the number of actions, the
-capacities of the dimension and of its ranked positions, and the cost model. -/
 theorem beginTemporalCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool)
@@ -760,7 +655,6 @@ theorem beginTemporalCosted_within_capacity (κ : Costs)
   (beginTemporalCosted_within κ skill features potential learning rate).mono
     (beginTemporalBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
 
-/-- An option's step is within a function of the configuration alone. -/
 theorem stepTemporalCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
@@ -773,8 +667,6 @@ theorem stepTemporalCosted_within_capacity (κ : Costs)
       (policyStepBound_mono κ _ _ (CurrentLearner.active_cardinality next.features)) _) _)
       (modelStepBound_mono κ _ _ (CurrentLearner.active_cardinality next.features)))
 
-/-- The credit of a drawn decision with the option's model is within a function of the
-configuration alone. -/
 theorem creditTemporalCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
@@ -785,7 +677,6 @@ theorem creditTemporalCosted_within_capacity (κ : Costs)
   (creditTemporalCosted_within κ skill activation next drawn reward gain).mono
     (creditTemporalBound_mono κ _ _ _ (CurrentLearner.active_cardinality next.features))
 
-/-- An option's end is within a function of the configuration alone. -/
 theorem endTemporalCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -797,7 +688,6 @@ theorem endTemporalCosted_within_capacity (κ : Costs)
     (Nat.add_le_add_left
       (modelTerminalWorkBound_mono κ _ _ (CurrentLearner.active_cardinality features)) _)
 
-/-- A stopped off-policy trajectory is within a function of the configuration alone. -/
 theorem stopFollowingCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -810,7 +700,6 @@ theorem stopFollowingCosted_within_capacity (κ : Costs)
     gain).mono (Nat.add_le_add_left (Nat.add_le_add_left
       (modelStopBound_mono κ _ _ (CurrentLearner.active_cardinality features)) _) _)
 
-/-- A settled off-policy trajectory is within a function of the configuration alone. -/
 theorem settleFollowingCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -822,7 +711,6 @@ theorem settleFollowingCosted_within_capacity (κ : Costs)
   (settleFollowingCosted_within κ skill value features potential goal estimate rate reward
     gain).mono (settleBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
 
-/-- An invocation start's settling is within a function of the configuration alone. -/
 theorem settleTemporalCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -834,7 +722,6 @@ theorem settleTemporalCosted_within_capacity (κ : Costs)
   (settleTemporalCosted_within κ skill value features potential goal estimate rate reward gain
     learning).mono (settleBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
 
-/-- A start whose first action is drawn is within a function of the configuration alone. -/
 theorem startTemporalCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -849,7 +736,6 @@ theorem startTemporalCosted_within_capacity (κ : Costs)
       (Nat.add_le_add (beginTemporalBound_mono κ _ _ _ fits)
         (creditTemporalBound_mono κ _ _ _ fits)))
 
-/-- A model restart's bound grows with the number of features. -/
 theorem modelRestartBound_mono (κ : Costs) (capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     modelRestartBound κ capacity positions width ≤
@@ -859,7 +745,6 @@ theorem modelRestartBound_mono (κ : Costs) (capacity positions : Nat) {width li
     Library.passes]
   gcongr
 
-/-- The bound of the start of a followed trajectory grows with the number of features. -/
 theorem startFollowingBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     startFollowingBound κ rows capacity positions width ≤
@@ -870,7 +755,6 @@ theorem startFollowingBound_mono (κ : Costs) (rows capacity positions : Nat) {w
   simp only [startFollowingBound, startStepBound, creditStepBound]
   omega
 
-/-- The bound of a followed frame grows with the number of features. -/
 theorem followTemporalBound_mono (κ : Costs) (rows capacity positions : Nat) {width limit : Nat}
     (fits : width ≤ limit) :
     followTemporalBound κ rows capacity positions width ≤
@@ -885,7 +769,6 @@ theorem followTemporalBound_mono (κ : Costs) (rows capacity positions : Nat) {w
     stopFollowingBound]
   omega
 
-/-- The start of a followed trajectory is within a function of the configuration alone. -/
 theorem startFollowingCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (rate : ConsumerRate)
@@ -896,7 +779,6 @@ theorem startFollowingCosted_within_capacity (κ : Costs)
   (startFollowingCosted_within κ skill features potential rate action behaviour).mono
     (startFollowingBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
 
-/-- A followed frame is within a function of the configuration alone. -/
 theorem followTemporalCosted_within_capacity (κ : Costs)
     (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
@@ -911,20 +793,13 @@ theorem followTemporalCosted_within_capacity (κ : Costs)
     behaviour reward gain).mono
     (followTemporalBound_mono κ _ _ _ (CurrentLearner.active_cardinality features))
 
-/-! ## One slot's share of a followed frame -/
-
 section Slot
 
 variable {interface : Interface}
 
-/-- Bound of one slot's share of a followed frame: its interest's potential, then its off-policy
-following or its unlinked record. -/
 abbrev followSlotBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   potentialBound κ width + (followTemporalBound κ rows capacity positions width + κ .unlinkSlot)
 
-/-- One slot's share of a followed frame: the executing slot's unlinked record, otherwise its
-interest's potential and, when the potential has a source, the slot's off-policy following, or
-else its unlinked record. -/
 theorem followSlotCosted_within (κ : Costs) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (action : Action interface.actions.word.toNat)
@@ -953,7 +828,6 @@ theorem followSlotBound_mono (κ : Costs) (rows capacity positions : Nat) {width
   simp only [followSlotBound, potentialBound]
   omega
 
-/-- One slot's share of a followed frame is within a function of the configuration alone. -/
 theorem followSlotCosted_within_capacity (κ : Costs) (value : ValueFunction criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (goal : Bool)
     (estimate : Binary32) (rate : ConsumerRate) (action : Action interface.actions.word.toNat)
@@ -970,20 +844,15 @@ theorem followSlotCosted_within_capacity (κ : Costs) (value : ValueFunction cri
 
 end Slot
 
-/-! ## The option table's following -/
-
 section Table
 
 open Acorn.Handcrafted
 
 variable {interface : Interface} {profile : FeatureProfile}
 
-/-- Bound of any controller rate of a state. -/
 abbrev metaRateBound (κ : Costs) (rows capacity : Nat) : Nat :=
   rateBound κ metaCount.word.toNat capacity + rateBound κ rows capacity
 
-/-- A controller's rate under a rate policy is within a bound of both of its sources that covers
-the projection of an annealed rate. -/
 theorem controllerCosted_within {policy : RatePolicy} (κ : Costs) (rate : RateState policy)
     {own primitive : Unit → Acorn.Costed SwiftTd.ExploreRate} {bound : Nat}
     (ownFits : (own ()).Within κ bound) (primitiveFits : (primitive ()).Within κ bound)
@@ -994,7 +863,6 @@ theorem controllerCosted_within {policy : RatePolicy} (κ : Costs) (rate : RateS
   · exact primitiveFits
   · exact (Acorn.Costed.op_within _ _ κ).mono close
 
-/-- The options' rate source under a rate policy is within a bound of the primitive rate. -/
 theorem skillCosted_within {policy : RatePolicy} (κ : Costs) (rate : RateState policy)
     {primitive : Unit → Acorn.Costed SwiftTd.ExploreRate} {bound : Nat}
     (primitiveFits : (primitive ()).Within κ bound) :
@@ -1006,14 +874,12 @@ theorem skillCosted_within {policy : RatePolicy} (κ : Costs) (rate : RateState 
       (Nat.le_of_eq (Nat.add_zero _))
   · exact (Acorn.Costed.pure_within _ κ).mono (Nat.zero_le _)
 
-/-- The primitive rate is within the bound of the primitive controller's derived rate. -/
 theorem primitiveRateCosted_within (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.primitiveRateCosted.Within κ
       (rateBound κ interface.actions.word.toNat dimension.capacity) :=
   exploreRateCosted_within κ _
 
-/-- The meta rate is within the bound of both controllers' derived rates. -/
 theorem metaRateCosted_within (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.metaRateCosted.Within κ
@@ -1023,14 +889,12 @@ theorem metaRateCosted_within (κ : Costs)
     ((primitiveRateCosted_within κ state).mono (Nat.le_add_left _ _))
     (by simp only [metaRateBound, rateBound]; omega)
 
-/-- The options' rate source is within the bound of the primitive controller's derived rate. -/
 theorem skillSourceCosted_within (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.skillRateCosted.Within κ
       (rateBound κ interface.actions.word.toNat dimension.capacity) :=
   skillCosted_within κ state.rate (primitiveRateCosted_within κ state)
 
-/-- The value function is within the bound of the meta rate. -/
 theorem valueFunctionCosted_within (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension) :
     state.valueFunctionCosted.Within κ
@@ -1038,13 +902,9 @@ theorem valueFunctionCosted_within (κ : Costs)
   (Acorn.Costed.bind_within (metaRateCosted_within κ state)
     (Acorn.Costed.pure_within _ κ)).mono (Nat.le_of_eq (Nat.add_zero _))
 
-/-- Bound of the stopping estimate: the meta rate, then a comparison value over the meta
-actions. -/
 abbrev stoppingEstimateBound (κ : Costs) (rows capacity : Nat) : Nat :=
   metaRateBound κ rows capacity + comparisonBound κ metaCount.word.toNat
 
-/-- The stopping estimate: the comparison value of a drawn decision's snapshot, or the meta rate
-and the comparison value of the frame's meta values. -/
 theorem stoppingEstimateCosted_within (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (decision : TemporalDecision interface.actions) :
@@ -1056,17 +916,12 @@ theorem stoppingEstimateCosted_within (κ : Costs)
   · exact Acorn.Costed.bind_within (metaRateCosted_within κ state)
       (comparisonValueCosted_within κ criterion _)
 
-/-- Bound of the following of the option table: the stopping estimate, the options' rate source
-and the value function, then the indexed map at one slot's share for each of the table's slots
-and the state's record. -/
 abbrev followOptionsBound (κ : Costs) (rows capacity positions width : Nat) : Nat :=
   stoppingEstimateBound κ rows capacity + (rateBound κ rows capacity +
     (metaRateBound κ rows capacity +
       (Library.mapFinIdx.work (κ .visit) Acorn.FeatureConstants.skillCount
         (followSlotBound κ rows capacity positions width) + κ .followTable)))
 
-/-- The following of the option table is within its bound at any width that bounds every slot's
-share of the frame. -/
 theorem followOptionsCosted_within_slots (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -1091,9 +946,6 @@ theorem followOptionsCosted_within_slots (κ : Costs)
   exact Acorn.Costed.bind_within
     (Acorn.Costed.mapFinIdx_within fun _ => slots _ _ _ _ _ _) (Acorn.Costed.op_within _ _ κ)
 
-/-- The following of the option table: where options learn, the stopping estimate, the options'
-rate source and the value function, then every slot's share and the state's record; otherwise
-the unchanged state. -/
 theorem followOptionsCosted_within (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -1107,7 +959,6 @@ theorem followOptionsCosted_within (κ : Costs)
       followSlotCosted_within κ value features declared goal estimate rate decision.action
         decision.probabilities reward gain executing skill
 
-/-- The following of the option table is within a function of the configuration alone. -/
 theorem followOptionsCosted_within_capacity (κ : Costs)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (declared : DeclaredPotentials) (reward : Binary32)
@@ -1123,9 +974,6 @@ theorem followOptionsCosted_within_capacity (κ : Costs)
 
 end Table
 
-/-! ## Adapters -/
-
-/-- `Skill.beginTemporal` at the model operations the agent runs, with its bound. -/
 def beginTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (features : SwiftTd.ActiveSet dimension) (potential : Potential) (learning : Bool)
     (rate : ConsumerRate) :
@@ -1158,7 +1006,6 @@ theorem beginTemporal_costed (κ : Costs)
       rate).Within κ (beginTemporal κ skill features potential learning rate).work :=
   beginTemporalCosted_within κ skill features potential learning rate
 
-/-- `Skill.stepTemporal` at the model operations the agent runs, with its bound. -/
 def stepTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (activation : OptionActivation mode) (next : OptionContinuation actions dimension activation)
     (reward : Binary32) (gain : RewardRate) (rng : Rng.Xoshiro256) :
@@ -1190,7 +1037,6 @@ theorem stepTemporal_costed (κ : Costs) (skill : Skill actions config criterion
       rng).Within κ (stepTemporal κ skill activation next reward gain rng).work :=
   stepTemporalCosted_within κ skill activation next reward gain rng
 
-/-- `Skill.endTemporal` at the model operations the agent runs, with its bound. -/
 def endTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (ending : EndingPayload mode) (reward terminal : Binary32) (gain : RewardRate) :
@@ -1224,7 +1070,6 @@ theorem endTemporal_costed (κ : Costs) (skill : Skill actions config criterion 
       (endTemporal κ skill value features ending reward terminal gain).work :=
   endTemporalCosted_within κ skill value features ending reward terminal gain
 
-/-- `Skill.settleTemporal` at the model operations the agent runs, with its bound. -/
 def settleTemporal (κ : Costs) (skill : Skill actions config criterion dimension discounts)
     (value : ValueFunction criterion dimension) (features : SwiftTd.ActiveSet dimension)
     (potential : Potential) (goal : Bool) (estimate : Binary32) (rate : ConsumerRate)

@@ -1,23 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AgentInterface
 import Acorn.Host.Viewer.TelemetryValue
 
-/-!
-# Lifetime telemetry projections
-
-Every sum, count, return and error is read from the actual lifetime owner.
-Channel-indexed records are traversed in their storage order; cycle aggregates
-are family-major. No observer accumulator is substituted for the agent's
-checkpoint-persistent experience record.
--/
 namespace Acorn.Host.Viewer
 open Features Handcrafted Lifetime
 
-/-- Read one same-typed projection from every horizon-indexed durable record. -/
 def demonLifetimeValues {α : Type} {discounts : List Discount}
     (read : (discount : Discount) → DemonDurable discount → α)
     (records : DemonRecords discounts) : Vector α discounts.length :=
@@ -25,7 +11,6 @@ def demonLifetimeValues {α : Type} {discounts : List Discount}
   | .nil => #v[]
   | .cons head tail => (#v[read _ head.durable] ++ demonLifetimeValues read tail).cast (by simp [Nat.add_comm])
 
-/-- Read authoritative process-local channels in their exact typed inventory order. -/
 def demonProcessValues {α : Type} {discounts : List Discount}
     (read : (discount : Discount) → DemonStats discount → α)
     (records : DemonRecords discounts) : Vector α discounts.length :=
@@ -43,7 +28,6 @@ private def agreementStatus {discount : Discount} (state : DemonStats discount) 
     else if state.pendingCount > 0 then "pending"
     else if state.agreement.total.count.val > 0 then "complete" else "empty"
 
-/-- Process-session score and coverage are projected from the core, never accumulated by a browser. -/
 def agreementTelemetry {config : Features.Config} {dimension : Dimension}
     (agent : AgentObservation config dimension) : List TelemetryField :=
   let life := agent.lifetime
@@ -96,7 +80,6 @@ private def sumArray {quantity : Quantity} {count : Nat} (name : String)
     (values : Vector (SumCount quantity) count) : TelemetryField :=
   ⟨name, .array count .binary64, values.map (·.sum)⟩
 
-/-- Emit all lifetime totals and settlement diagnostics, preserving their exact stored shapes. -/
 def lifetimeTelemetry {config : Features.Config} {dimension : Dimension}
     (agent : AgentObservation config dimension) : List TelemetryField :=
   let life := agent.lifetime

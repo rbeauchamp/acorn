@@ -1,44 +1,18 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Intent.Hash
 import AcornVerif.Intent.Delegation
-
-/-!
-# The hash record's consequences
-
-Each consequence of the record that a design decision settles is proved to hold of the record,
-and `hashesExplained` glosses every statement of the record in plain words, recording each
-consequence it shows as answered by the agents under the owner's delegation
-(`AcornVerif.Intent.agentsAnswer`) and its restatement as unconfirmed by the owner; the decisions,
-made on the owner's behalf, are recorded in `AcornVerif.Intent.Decisions`. A second, blind
-formalization of the same words by a model of another provider wrote "about as rarely as pure
-chance" as a bound on a collision probability whose tolerance and whose relevant patterns it left
-open, allowed a single changed input to collide at that rate, and left open whether the two
-functions share their spots; `oneChangeMoves` and `noFixedRule` record how this record decides
-the first two, and the record leaves the third unasked because the two never share spots in
-Acorn.
--/
 
 namespace AcornVerif.Intent.Hash
 
 open LeanIntent
 
-/-- Combining the three inputs by exclusive or. -/
 def xorAll (x : Inputs) : UInt64 := x.1 ^^^ x.2.1 ^^^ x.2.2
 
-/-- Combining the three inputs by addition. -/
 def addAll (x : Inputs) : UInt64 := x.1 + x.2.1 + x.2.2
 
-/-- The rule that exchanges the first two inputs and shifts nothing. -/
 def exchangeFirstTwo : Rule := ⟨.bac, .flip, (0, 0, 0)⟩
 
 theorem exchangeFirstTwo_moves : exchangeFirstTwo.Moves := fun h => nomatch h.1
 
-/-- A function that gives every input the spot of the same input with its first two exchanged
-meets no part of `noRuleKeepsSpots`. -/
 theorem not_noRuleKeepsSpots_of_symmetric {f : Inputs → UInt64}
     (hsym : ∀ a b c, f (b, a, c) = f (a, b, c)) : ¬ NoRuleKeepsSpots f := fun h =>
   let ⟨(a, b, c), hx⟩ := h exchangeFirstTwo exchangeFirstTwo_moves
@@ -47,8 +21,6 @@ theorem not_noRuleKeepsSpots_of_symmetric {f : Inputs → UInt64}
     rw [UInt64.xor_zero, UInt64.xor_zero, UInt64.xor_zero]
     exact hsym a b c)
 
-/-- The record rules out combining the inputs by exclusive or or by addition, in either function:
-exchanging the first two inputs keeps every spot. -/
 def rulesOutPlainCombinations : Consequence Hashes :=
   ⟨"neither function combines its inputs by plain exclusive or or plain addition", .entailment,
     fun w => w.hash2 ≠ xorAll ∧ w.hash2 ≠ addAll ∧ w.hash3 ≠ xorAll ∧ w.hash3 ≠ addAll⟩
@@ -67,7 +39,6 @@ theorem rulesOutPlainCombinations_holds : rulesOutPlainCombinations.HoldsOf hash
     fun he => not_noRuleKeepsSpots_of_symmetric hx (he ▸ h3),
     fun he => not_noRuleKeepsSpots_of_symmetric hp (he ▸ h3)⟩
 
-/-- Changing any one input always moves the spot, in both functions. -/
 def oneChangeMoves : Consequence Hashes :=
   ⟨"changing any one input always moves the spot", .entailment,
     fun w => OneInputMoves w.hash2 ∧ OneInputMoves w.hash3⟩
@@ -75,7 +46,6 @@ def oneChangeMoves : Consequence Hashes :=
 theorem oneChangeMoves_holds : oneChangeMoves.HoldsOf hashes :=
   fun _ hw => (hashes_meets.mp hw).1
 
-/-- No fixed rule of reordering and shifting keeps every spot of either function. -/
 def noFixedRule : Consequence Hashes :=
   ⟨"no fixed rule of reordering and shifting the inputs keeps every spot", .entailment,
     fun w => NoRuleKeepsSpots w.hash2 ∧ NoRuleKeepsSpots w.hash3⟩
@@ -83,17 +53,12 @@ def noFixedRule : Consequence Hashes :=
 theorem noFixedRule_holds : noFixedRule.HoldsOf hashes :=
   fun _ hw => (hashes_meets.mp hw).2
 
-/-- The same inputs always give the same spot. It holds of every pair of functions, the record's
-models among them: a Lean function gives one result for each input. -/
 def replay : Consequence Hashes :=
   ⟨"the same inputs always give the same spot", .entailment,
     fun w => ∀ x y, x = y → w.hash2 x = w.hash2 y ∧ w.hash3 x = w.hash3 y⟩
 
 theorem replay_holds : replay.HoldsOf hashes := fun _ _ _ _ h => h ▸ ⟨rfl, rfl⟩
 
-/-! ## The record explained -/
-
-/-- The hash record explained in plain words, with its consequences. -/
 def hashesExplained : Explanation hashes where
   shape :=
     { requires := "The subject is the pair of hash functions, each taking three 64-bit inputs \

@@ -1,38 +1,15 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Checkpoint.Schema
 import Acorn.Rng
 
-/-!
-# Complete checkpoint framing
-
-Magic, signed header and body, and final FNV word have disjoint roles. The checksum
-covers every signed byte, the clock and identity header included. It detects accidental
-mutation, not authenticity or correctness. The last eight bytes are the checksum, so the frame
-does not establish that the body is complete: the body of one payload can end with the
-checksum word of a shorter one, and that frame truncated by eight bytes is the shorter
-payload's valid frame. Completeness is established by image admission, which reads the body
-as exactly one image's encoding with no byte left (`admitPayload`); an admitted payload is the
-payload of the image that admission returns (`AcornVerif.Decisions.payload_admit`, from the
-canonical decoding of `AcornVerif.CurrentImage.imageFormat_exact`).
--/
 namespace Acorn.Checkpoint
 
-/-- OAKCKPT followed by the fixed magic suffix byte one. -/
 def magic : List UInt8 := Acorn.FeatureConstants.checkpointMagic
 
-/-- The signed bytes of a payload: its header, then its body. -/
 def Payload.signed (payload : Payload) : List UInt8 := headerCodec.encode payload.header ++ payload.body
 
-/-- Complete file encoding; the version remains inside the signed bytes. -/
 @[noinline] def encode (payload : Payload) : List UInt8 :=
   magic ++ payload.signed ++ u64Codec.encode (Rng.fnv payload.signed)
 
-/-- The bytes after the magic are the signed bytes and the eight-byte checksum of them; the
-header is read from the front of the signed bytes and the body is the rest. -/
 @[noinline] def decode (bytes : List UInt8) : Option Payload := do
   if bytes.take magic.length != magic then none else do
     let rest := bytes.drop magic.length
@@ -42,12 +19,9 @@ header is read from the front of the signed bytes and the body is the rest. -/
       let (header, body) ← headerCodec.decode signed
       some ⟨header, body⟩
 
-/-- The checksum word has eight bytes. -/
 theorem checksum_length (word : UInt64) : (u64Codec.encode word).length = 8 := by
   simp [u64Codec, Codec.iso, wordCodec, encodeNat]
 
-/-- A frame of signed bytes and a checksum word decodes when the word is the checksum of the
-signed bytes and the header codec reads the front of them. -/
 theorem decode_frame (signed : List UInt8) (checksum : UInt64) :
     decode (magic ++ signed ++ u64Codec.encode checksum) =
       if checksum = Rng.fnv signed then
@@ -72,14 +46,10 @@ theorem decode_frame (signed : List UInt8) (checksum : UInt64) :
     cases headerCodec.decode signed <;> rfl
   · simp [same]
 
-/-- The actual complete writer/parser round trip covers every raw format value. -/
 theorem roundtrip (payload : Payload) : decode (encode payload) = some payload := by
   rw [encode, decode_frame]
   simp [Payload.signed, headerCodec.roundtrip]
 
-/-- Decoding reads only the bytes that the writer writes: an accepted byte list is the
-encoding of the payload that decoding returns (`headerCodec_canonical`, and the checksum and
-the empty suffix that decoding requires). -/
 theorem decode_written (bytes : List UInt8) (payload : Payload)
     (decoded : decode bytes = some payload) : bytes = encode payload := by
   unfold decode at decoded

@@ -1,86 +1,16 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentCreditHorizon
 import AcornVerif.CurrentGridWorld
-
-/-!
-# The first reward's credit along the executed agent's run
-
-`AcornVerif.CurrentCreditHorizon` proves, of a primitive controller's own run, that a slot laid at
-most 81 steps before a first reward of one has a weight the reward moves. This module carries
-that to the executed agent and gives an amount. In a kernel run, after the agent's step on the
-first rewarded percept, every slot of a frame it laid at most 81 steps before holds, in the row
-of the action taken on that frame, a weight that reads at least the least laid trace decayed once
-for each step between (`loop_first_credit`).
-
-An agent's step is one controller step followed by the tester's retirements
-(`AcornVerif.CurrentCreditHorizon.learning_step`), and a retirement clears a slot's weight and
-trace. So the statement is of the agent's run before a unit of its feature bank matures, when the
-tester retires nothing. The names here call such an agent, step or run young.
-
-- **The tester before a unit matures.** A unit is eligible for replacement once its age exceeds
-  the tester's maturity threshold (`Acorn.Features.Lifecycle.mature`). While the clock is at most
-  that threshold no unit is eligible (`young_ineligible`), a test replaces no unit, writes no
-  learner and keeps the feature bank (`idle_test`, `idle_test_bank`), and the tester leaves the
-  primitive controller as it was (`young_retire`). The declared tester's threshold is 1000 steps
-  (`Acorn.Handcrafted.declaredTester`).
-- **The clock.** Under the default order, a step of a profile with no hierarchy advances the
-  agent's clock once, before its tester runs (`step_clock`): its selection and its learning part
-  keep the representation that holds the clock, and its tester keeps the clock (`retire_clock`).
-- **One step.** So before a unit matures, one agent step is exactly one controller step at the
-  encoded frame, the executed action and the centred reward (`young_step`). Under the discounted
-  criterion the centred reward is the percept's reward word.
-- **What the next frame reads of the step.** A frame is encoded under the feature bank, and it
-  feeds back the predictions the step before stored. Before a unit matures, a step of a profile
-  with no hierarchy at the default order keeps the bank (`young_bank`). A step of a learning
-  profile stores the predictions its prediction demons made before they learned
-  (`step_predictions`), and a fresh demon predicts positive zero
-  (`AcornVerif.CurrentPreReward.initial_prediction`, `initial_bank_predictions`). So the first
-  step of a cold agent of a learning profile stores the predictions it started with
-  (`cold_step_predictions`).
-- **A list of percepts.** Over percepts whose reward word is the zero word, the controller stays
-  quiet against what it laid (`traced_young`), and a recent slot stays recent, decayed once for
-  each step (`traced_recent`).
-- **A kernel run.** A kernel run of the executed agent is its traced run over the percepts it
-  receives (`traced_loop`), and the steps that run lays are the steps of the traced run
-  (`laidAt`, `traced_laid`). So in a kernel run the controller stays quiet while the rewards are
-  zero (`loop_quiet`), each of those steps is one controller step at reward zero
-  (`loop_silent`), a laid slot stays recent (`loop_recent`), and the step that learns a
-  reward of one is one controller step at reward one (`loop_paid`). That step writes at least a
-  recent slot's least trace into its weight
-  (`AcornVerif.CurrentCreditHorizon.recent_credited`), which gives `loop_first_credit`.
-
-Scope. A profile with no hierarchy under per-step credit and the discounted criterion, at the
-default step order, from cold initialization; reward words that are the zero word until a first
-one that is the word one; frames of at most 1999 slots, the laid one of at most 1900; and the
-whole run, the reward step included, within the tester's maturity threshold.
-
-Not covered. A run past the first maturing unit: a replaced unit's slot is retired, and a slot of
-a frame that coincides with it loses its credit. The differential criterion, whose centred reward
-is a difference. What later steps do to the weight: the statement is of the state right after
-the reward step. And the bound is a lower one: nothing here bounds the weight from above.
-
-Trust. The statements are about executed binary32 words. Lean's kernel, its model of binary32
-arithmetic and the agreement of the native operations with that model on finite operands remain
-trusted, as for every proof of executed words in this library.
--/
 
 namespace AcornVerif.CurrentFirstCredit
 open Acorn Acorn.Features Acorn.Handcrafted
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentCreditHorizon AcornVerif.CurrentGridWorld
 open AcornVerif.CurrentPreReward
 
-/-! ## The tester before a unit matures -/
-
 section Tester
 
 variable {shape : PatchShape} {actions : Word.Count} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {discounts : List Discount}
 
-/-- While the clock is at most the maturity threshold, no unit is eligible for replacement. -/
 theorem young_ineligible (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (young : state.progress.clock.toNat ≤ config.tester.maturity) :
     state.eligibleCount free = 0 := by
@@ -91,7 +21,6 @@ theorem young_ineligible (state : Lifecycle shape actions config criterion dimen
   intro mature
   omega
 
-/-- A test with no eligible unit replaces no unit and writes no learner. -/
 theorem idle_test (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count)
     (none : state.eligibleCount free = 0) :
@@ -118,8 +47,6 @@ theorem idle_test (state : Lifecycle shape actions config criterion dimension di
     rw [unchanged]
     exact ⟨rfl, rfl⟩
 
-/-- A test with no eligible unit keeps the bank: it rescores the units and stores the credit, and
-replaces none. -/
 theorem idle_test_bank (state : Lifecycle shape actions config criterion dimension discounts)
     (free : Bool) (active : Vector Bool config.units.count)
     (none : state.eligibleCount free = 0) :
@@ -148,15 +75,10 @@ theorem idle_test_bank (state : Lifecycle shape actions config criterion dimensi
 
 end Tester
 
-/-! ## What a fresh demon bank predicts -/
-
 section Demons
 
 variable {dimension : Dimension}
 
-/-- **A step of the fresh demon bank returns the cold prediction cache.** Each demon returns the
-prediction it made before it learned, which for a fresh learner is positive zero
-(`AcornVerif.CurrentPreReward.initial_prediction`), the word the cold cache holds. -/
 theorem initial_bank_predictions (features : SwiftTd.ActiveSet dimension) :
     ∀ (discounts : List Discount) (cumulants : Cumulants discounts),
       ((DemonBank.initial dimension discounts).step features cumulants).predictions =
@@ -172,15 +94,11 @@ theorem initial_bank_predictions (features : SwiftTd.ActiveSet dimension) :
 
 end Demons
 
-/-! ## One step of the agent before a unit matures -/
-
 section Step
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
 
-/-- While the agent's clock is at most the tester's maturity threshold, the tester writes no
-primitive row. -/
 theorem young_retire (agent : Agent interface profile config criterion dimension planning)
     (active : Vector Bool config.units.count)
     (young : agent.clock.toNat ≤ config.tester.maturity) :
@@ -196,7 +114,6 @@ theorem young_retire (agent : Agent interface profile config criterion dimension
     rw [idle.1, idle.2]
     rfl
 
-/-- The tester keeps the agent's clock. -/
 theorem retire_clock (agent : Agent interface profile config criterion dimension planning)
     (active : Vector Bool config.units.count) : (agent.retire active).clock = agent.clock := by
   unfold Agent.retire
@@ -205,7 +122,6 @@ theorem retire_clock (agent : Agent interface profile config criterion dimension
   · exact agent.control.runtime.lifecycle.test_clock
       agent.control.runtime.references.phase.free active
 
-/-- Interrupting a held option keeps the representation. -/
 theorem interrupt_representation
     (state : TemporalControl interface profile config criterion dimension)
     (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
@@ -220,7 +136,6 @@ theorem interrupt_representation
     dsimp only
     split <;> rfl
 
-/-- A served step keeps the representation. -/
 theorem serve_representation
     (state next : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (decision : TemporalDecision interface.actions)
@@ -241,7 +156,6 @@ theorem serve_representation
       repeat' split
       all_goals exact interrupt_representation state committed.origin
 
-/-- The executed selection of a profile with no hierarchy keeps the representation. -/
 theorem select_representation
     (state next : TemporalControl interface profile config criterion dimension)
     (primitive : profile.usesHierarchy = false) (models : OptionModelOps criterion dimension)
@@ -274,7 +188,6 @@ theorem select_representation
     · rename_i hierarchy
       simp [primitive] at hierarchy
 
-/-- The learning part of a local transition keeps the representation. -/
 theorem learn_representation
     (selected : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
@@ -299,8 +212,6 @@ theorem learn_representation
     rw [TemporalControl.closeSpan_eq]
     rfl
 
-/-- Under the default order, a step of a profile with no hierarchy advances the agent's clock
-once, before its tester runs. -/
 theorem step_clock (agent : Agent interface profile config criterion dimension planning)
     (primitive : profile.usesHierarchy = false) (percept : Percept interface) :
     (agent.choose .learnThenAct percept).learned.clock = advanceClock agent.clock ∧
@@ -329,7 +240,6 @@ theorem step_clock (agent : Agent interface profile config criterion dimension p
     rfl
   exact ⟨learned, (retire_clock _ _).trans learned⟩
 
-/-- The completion boundary of a learning profile stores the predictions its demons return. -/
 theorem finish_predictions (learning : profile.mode ≠ .frozen)
     (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
@@ -340,7 +250,6 @@ theorem finish_predictions (learning : profile.mode ≠ .frozen)
   simp [TemporalControl.finish_eq, TemporalControl.predictionView,
     PredictionControl.advanceWith, TemporalControl.recordEpisodes, learning]
 
-/-- The tester keeps the stored predictions. -/
 theorem retire_predictions (agent : Agent interface profile config criterion dimension planning)
     (active : Vector Bool config.units.count) :
     (agent.retire active).control.runtime.references.demonPredictions =
@@ -348,9 +257,6 @@ theorem retire_predictions (agent : Agent interface profile config criterion dim
   unfold Agent.retire
   split <;> rfl
 
-/-- **A step of a learning profile stores what its demons predicted before they learned.** The
-predictions the next frame feeds back are the ones the demons the step started from return on
-the step's frame. -/
 theorem step_predictions (learning : profile.mode ≠ .frozen)
     (agent : Agent interface profile config criterion dimension planning) (order : StepOrder)
     (percept : Percept interface) :
@@ -363,9 +269,6 @@ theorem step_predictions (learning : profile.mode ≠ .frozen)
     _).runtime.references.demonPredictions = _
   rw [finish_predictions learning, finishInput_demons, choose_percept]
 
-/-- **The cold agent's first step stores the predictions it started with.** For a learning
-profile, under every step order and on every percept: the fresh demons return the cold cache
-(`initial_bank_predictions`). -/
 theorem cold_step_predictions (learning : profile.mode ≠ .frozen) (order : StepOrder)
     (percept : Percept interface) :
     ((Agent.initial interface profile config criterion dimension planning).choose order
@@ -375,9 +278,6 @@ theorem cold_step_predictions (learning : profile.mode ≠ .frozen) (order : Ste
   rw [step_predictions learning]
   exact initial_bank_predictions _ _ _
 
-/-- **Before a unit matures, a step of a profile with no hierarchy keeps the bank.** At the
-default step order, while the agent's clock is below the tester's maturity threshold: selection
-and learning keep the representation, and the tester replaces no unit. -/
 theorem young_bank (primitive : profile.usesHierarchy = false)
     (agent : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) (young : agent.clock.toNat < config.tester.maturity) :
@@ -422,23 +322,15 @@ theorem young_bank (primitive : profile.usesHierarchy = false)
 
 end Step
 
-/-! ## A run before a unit matures -/
-
 section Run
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {dimension : Dimension} {planning : PlanningSelection}
 
-/-- A profile with no hierarchy is a learning profile. -/
 theorem primitive_learns (primitive : profile.usesHierarchy = false) : profile.mode ≠ .frozen := by
   intro frozen
   simp [FeatureProfile.usesHierarchy, frozen] at primitive
 
-/-- **Before a unit matures, one agent step is one controller step.** For a profile with no
-hierarchy under per-step credit, at the default step order, while the agent's clock is below the
-tester's maturity threshold: the step leaves the primitive controller that one controller step
-leaves, at the encoded frame, the executed action and the centred reward. No retirement follows
-it. -/
 theorem young_step {criterion : Criterion} (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config criterion dimension planning)
@@ -461,10 +353,6 @@ theorem young_step {criterion : Criterion} (primitive : profile.usesHierarchy = 
   rw [finish_control perStep, finishInput_control, choose_percept]
   simp only [learning, ↓reduceIte]
 
-/-- One reward-free step before a unit matures, under the discounted criterion: it is the
-controller's step at the zero reward word, it keeps the agent's learners at rest and its primitive
-controller quiet against the history extended by the step, and it advances the clock by at most
-one. -/
 theorem young_quiet_step (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -493,8 +381,6 @@ theorem young_quiet_step (primitive : profile.usesHierarchy = false)
   · rw [(step_clock agent primitive percept).2, advanceClock_exact]
     exact Nat.min_le_left _ _
 
-/-- **A reward-free run before a unit matures** keeps the agent's learners at rest and its
-primitive controller quiet against what it laid, and advances the clock by at most its length. -/
 theorem traced_young (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) :
     ∀ (percepts : List (Percept interface))
@@ -530,8 +416,6 @@ theorem traced_young (primitive : profile.usesHierarchy = false)
     · simp only [traced, List.length_cons]
       omega
 
-/-- **Over a reward-free run before a unit matures, a recent slot stays recent**, decayed once
-for each step, while the decayed least laid trace stays above the pruning threshold. -/
 theorem traced_recent (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (row : Action interface.actions.word.toNat)
     (slot : FeatIdx dimension) :
@@ -571,15 +455,11 @@ theorem traced_recent (primitive : profile.usesHierarchy = false)
 
 end Run
 
-/-! ## A kernel run as a traced run -/
-
 section Loop
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
 
-/-- In a kernel run, the executed agent's memory one time later is the agent its step returns on
-the percept of that time. -/
 theorem loop_step (agent : Agent interface profile config criterion dimension planning)
     (world : Kernel.World interface) (start : world.State) (time : ℕ) :
     Kernel.memoryAt world (executedAgent agent) start (time + 1) =
@@ -588,9 +468,6 @@ theorem loop_step (agent : Agent interface profile config criterion dimension pl
   congrArg Prod.fst (Agent.act_parts (Kernel.memoryAt world (executedAgent agent) start time)
     (Kernel.perceptAt world (executedAgent agent) start time))
 
-/-- **A kernel run of the executed agent is its traced run over the percepts it receives.** From
-its memory at one time, the traced run over the percepts of the next `count` times ends in its
-memory `count` times later. -/
 theorem traced_loop (agent : Agent interface profile config criterion dimension planning)
     (world : Kernel.World interface) (start : world.State) :
     ∀ (count origin : ℕ),
@@ -613,8 +490,6 @@ theorem traced_loop (agent : Agent interface profile config criterion dimension 
     exact congrArg (Kernel.memoryAt world (executedAgent agent) start)
       (show origin + 1 + count = origin + (count + 1) by omega)
 
-/-- What the executed agent's step at a time of a kernel run lays: the frame it encodes and the
-action it takes. -/
 def laidAt (agent : Agent interface profile config criterion dimension planning)
     (world : Kernel.World interface) (start : world.State) (time : ℕ) :
     Laid dimension interface.actions.word.toNat :=
@@ -623,7 +498,6 @@ def laidAt (agent : Agent interface profile config criterion dimension planning)
     ((Kernel.memoryAt world (executedAgent agent) start time).choose .learnThenAct
       (Kernel.perceptAt world (executedAgent agent) start time)).decision.action⟩
 
-/-- The row a step of a kernel run lays is the action the run takes at that time. -/
 theorem laidAt_row (agent : Agent interface profile config criterion dimension planning)
     (world : Kernel.World interface) (start : world.State) (time : ℕ) :
     (laidAt agent world start time).row =
@@ -632,7 +506,6 @@ theorem laidAt_row (agent : Agent interface profile config criterion dimension p
     (Agent.act_parts (Kernel.memoryAt world (executedAgent agent) start time)
       (Kernel.perceptAt world (executedAgent agent) start time))).symm
 
-/-- The steps a traced run over the percepts of a kernel run lays are the steps of the run. -/
 theorem traced_laid (agent : Agent interface profile config criterion dimension planning)
     (world : Kernel.World interface) (start : world.State) :
     ∀ (count origin : ℕ),
@@ -653,7 +526,6 @@ theorem traced_laid (agent : Agent interface profile config criterion dimension 
         (Kernel.perceptAt world (executedAgent agent) start))).2 = _
     rw [← loop_step, ih (origin + 1)]
 
-/-- In a kernel run the clock of a profile with no hierarchy advances by at most one each time. -/
 theorem loop_clock (primitive : profile.usesHierarchy = false)
     (agent : Agent interface profile config criterion dimension planning)
     (world : Kernel.World interface) (start : world.State) (time : ℕ) :
@@ -671,13 +543,6 @@ theorem loop_clock (primitive : profile.usesHierarchy = false)
     rw [next, advanceClock_exact]
     exact Nat.le_trans (Nat.min_le_left _ _) (by omega)
 
-/-- **A reward-free kernel run before a unit matures.** For a profile with no hierarchy under
-per-step credit and the discounted criterion, from an agent state whose learners are at rest and
-whose primitive controller is quiet against a history: in a kernel run in which every reward word
-before a time is the zero word, over frames of at most 1999 slots and before a unit of the
-feature bank matures, the agent's learners are still at rest at that time and its primitive
-controller is quiet against the history extended by the steps of the run. It is `traced_young`
-on the percepts of the run. -/
 theorem loop_quiet (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -715,12 +580,6 @@ theorem loop_quiet (primitive : profile.usesHierarchy = false)
   rw [laid, reached] at run
   exact ⟨run.1, run.2.1⟩
 
-/-- **In a kernel run a laid slot stays recent while the rewards are zero.** Under the
-hypotheses of `loop_quiet`, every slot of a frame of at most 1900 slots that the run laid at one
-time is, `gap` steps after the step that laid it and for a `gap` of at most 80, still eligible in
-the row of the action taken on that frame, with a trace at least the least laid trace decayed
-`gap` times. It is `AcornVerif.CurrentCreditHorizon.recent_laid` at the laying step and
-`traced_recent` on the percepts after it. -/
 theorem loop_recent (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -767,10 +626,6 @@ theorem loop_recent (primitive : profile.usesHierarchy = false)
   rw [List.length_map, List.length_range', Nat.zero_add, traced_loop] at later
   exact later
 
-/-- **A reward-free step of a kernel run, before a unit matures.** Under the hypotheses of
-`loop_quiet` up to and including a time: the primitive controller before the step of that time is
-quiet against the frames laid so far, and the step leaves the controller that one controller step
-at reward zero leaves, at the frame and the action of that time. -/
 theorem loop_silent (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -800,12 +655,6 @@ theorem loop_silent (primitive : profile.usesHierarchy = false)
     dimension planning => controlOf memory) (loop_step agent world start time)).trans
       equation⟩
 
-/-- **The step that learns a reward of one, before a unit matures.** For a profile with no
-hierarchy under per-step credit and the discounted criterion, in a kernel run: when the percept
-of a time carries the reward word one and the agent's clock is still below the tester's maturity
-threshold, the step of that time leaves the primitive controller that one controller step at
-reward one leaves, at the frame and the action of that time. It is `young_step` on that percept:
-under the discounted criterion the centred reward is the reward word. -/
 theorem loop_paid (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -828,17 +677,6 @@ theorem loop_paid (primitive : profile.usesHierarchy = false)
   exact (congrArg (fun memory : Agent interface profile config .discounted dimension planning =>
     controlOf memory) (loop_step agent world start paid)).trans stepped
 
-/-- **The first reward's credit in a kernel run.** For a profile with no hierarchy under per-step
-credit and the discounted criterion, from cold initialization, in every world of the agent's
-interface and from every start: if, for a `gap` of at most 80, every reward word up to the time
-`laid + gap` is the zero word and the next one is the word one, all before a unit of the feature
-bank matures, over frames of at most 1999 slots and the one laid at the time `laid` of at most
-1900, then right after the step that learns that reward, every slot of the frame laid at the
-time `laid` holds, in the row of the action taken on it, a weight that reads at least the least
-laid trace decayed `gap` times. The slot is recent when the reward comes (`loop_recent`), the
-step that learns the reward is one controller step at reward one (`loop_paid`), and that step
-writes at least a recent slot's least trace into its weight
-(`AcornVerif.CurrentCreditHorizon.recent_credited`). -/
 theorem loop_first_credit (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (planning : PlanningSelection)
     (world : Kernel.World interface) (start : world.State) (laid gap : ℕ) (near : gap ≤ 80)

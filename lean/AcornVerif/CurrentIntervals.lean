@@ -1,19 +1,4 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentDivision
-/-!
-# Numerical interval consequences
-
-These contracts compose the actual standard-model arithmetic and conversion
-connections. Signed multiplication preserves its numerical direction. The
-spacing immediately above one, combined with the derived rounding radius,
-proves the closed upper endpoint for addition. Raw-word order then supplies
-finite narrowing on a containing local domain. Exceptional numerical values
-remain excluded and native primitive/compiler correspondence stays trusted.
--/
 open Acorn
 open Float.Model (Format totalExponent UnpackedFloat)
 open Float.Model.UnpackedFloat
@@ -21,8 +6,6 @@ open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmeti
 open AcornVerif.CurrentOrder AcornVerif.CurrentOperations AcornVerif.CurrentDivision
 namespace AcornVerif.CurrentIntervals
 
-/-- Subtracting positive zero preserves every unpacked constructor and sign in the standard model.
--/
 theorem model_sub_positive_zero (spec : Format) (value : UnpackedFloat) :
     UnpackedFloat.sub spec value (.zero .positive) = value := by
   cases value with
@@ -31,8 +14,6 @@ theorem model_sub_positive_zero (spec : Format) (value : UnpackedFloat) :
   | infinity sign => rfl
   | finite sign m e hp => rfl
 
-/-- The actual finite binary64 subtraction of positive zero preserves its numerical value and
-finiteness, including signed zero. -/
 theorem binary64_sub_zero_value (value : Binary64) (finite : value.Finite) :
     (value.sub ⟨0⟩).Finite ∧ numerical64 (value.sub ⟨0⟩) = numerical64 value := by
   have normal := model_unpack_format Format.binary64 (by decide) value.bits.toBitVec
@@ -49,8 +30,6 @@ theorem binary64_sub_zero_value (value : Binary64) (finite : value.Finite) :
     exact (model_decoded64_finite _).mpr finite
   · simp only [numerical64,decoded]
 
-/-- The actual finite normalized model multiplication preserves a nonpositive product sign through
-residual rounding. -/
 theorem model_mul_nonpositive (spec : Format) (left right : UnpackedFloat)
     (leftNormal : ModelNormalized spec left) (rightNormal : ModelNormalized spec right)
     (direction : unpackedValue left * unpackedValue right ≤ 0) :
@@ -87,8 +66,6 @@ theorem model_mul_nonpositive (spec : Format) (left right : UnpackedFloat)
         (mul_nonpos_of_nonpos_of_nonneg signNonpositive (Nat.cast_nonneg _))
         (le_of_lt (zpow_pos (by norm_num : (0:ℚ)<2) _))
 
-/-- Actual binary64 multiplication with exact product magnitude at most 2^16 stays finite and
-preserves a nonpositive numerical direction. -/
 theorem binary64_mul_nonpositive (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (bound : |numerical64 left * numerical64 right| ≤ 65536)
     (direction : numerical64 left * numerical64 right ≤ 0) :
@@ -115,8 +92,6 @@ theorem binary64_mul_nonpositive (left right : Binary64) (leftFinite : left.Fini
   · simpa only [numerical64,decoded] using
       model_mul_nonpositive Format.binary64 (decoded64 left) (decoded64 right) ln rn direction
 
-/-- Every finite binary64 value strictly above one is separated from one by at least 2^-52, as
-derived from the actual raw key order. -/
 theorem numerical64_above_one_gap (value : Binary64) (finite : value.Finite)
     (above : 1 < numerical64 value) :
     1 + 1 / 4503599627370496 ≤ numerical64 value := by
@@ -143,8 +118,6 @@ theorem numerical64_above_one_gap (value : Binary64) (finite : value.Finite)
   have order := (numerical64_order next value nextFinite finite).mpr nextKey
   simpa only [nextValue] using order
 
-/-- Actual binary64 addition with exact sum magnitude at most one stays finite and cannot cross
-the upper endpoint one. -/
 theorem binary64_add_unit_upper (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (bound : |numerical64 left + numerical64 right| ≤ 1) :
     (left.add right).Finite ∧ numerical64 (left.add right) ≤ 1 := by
@@ -184,7 +157,6 @@ theorem binary64_add_unit_upper (left right : Binary64) (leftFinite : left.Finit
   have limit := (abs_le.mp bound).2
   linarith only [gap,upper,limit]
 
-/-- Every raw word below the sign bit has a key equal to its unsigned word value. -/
 theorem binary64_key_nonnegative_word (value : Binary64) (bound : value.bits.toNat < 2 ^ 63) :
     value.key = (value.bits.toNat : Int) := by
   have mask : value.bits &&& 0x8000000000000000=0 := by
@@ -197,7 +169,6 @@ theorem binary64_key_nonnegative_word (value : Binary64) (bound : value.bits.toN
     rw [Nat.and_two_pow_sub_one_eq_mod,Nat.mod_eq_of_lt bound]
   simp only [Binary64.key,mask,bne_self_eq_false,Bool.false_eq_true,↓reduceIte,magnitude]
 
-/-- A strictly positive raw key implies an unset sign bit and equals the unsigned stored word. -/
 theorem binary64_positive_key_word (value : Binary64) (positive : 0 < value.key) :
     value.bits.toNat < 2 ^ 63 ∧ value.key = (value.bits.toNat : Int) := by
   have mask : value.bits &&& 0x8000000000000000=0 := by
@@ -211,7 +182,6 @@ theorem binary64_positive_key_word (value : Binary64) (positive : 0 < value.key)
   have bound : value.bits.toNat<2^63 := by omega
   exact ⟨bound,binary64_key_nonnegative_word value bound⟩
 
-/-- Actual narrowing stays finite for every finite binary64 value of magnitude at most 2^16. -/
 theorem narrow_finite_local (value : Binary64) (finite : value.Finite)
     (bound : |numerical64 value| ≤ 65536) : (Conversion.narrow value).Finite := by
   let limit : Binary64 := ⟨0x40f0000000000000⟩

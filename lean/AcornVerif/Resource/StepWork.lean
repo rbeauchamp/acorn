@@ -1,52 +1,8 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Mathlib.Tactic.GCongr
 import Mathlib.Algebra.Order.Monoid.Unbundled.Basic
 import Mathlib.Algebra.Order.GroupWithZero.Defs
 import Mathlib.Algebra.Order.Ring.Nat
 import AcornVerif.Resource.SelectionWork
-
-/-!
-# Work of the first part of the step
-
-The first part of the step under an order whose first part is selection
-(`Agent.chooseSelected`): the clock, the encoding of the percept's frame and selection with
-the planning that order places before the action. The work of its twin is bounded by a
-function of the interface, the feature configuration and the dimension alone, for every cost
-of the sites (`AcornVerif.Resource.Twin.choose_work`): the frame's active features are bounded
-by the configuration (`Agent.frame_length`), every learner's eligible entries by the capacity of
-its dimension, every stored frame by the same capacity, and every other loop by a count the
-type of its collection fixes.
-
-**What the bound covers.** The theorems bound the accounting of the first part's twin, which
-counts each loop as the passes of its runtime implementation, with one visit for each pass's
-end. None of them is a bound of the executed first part's work: reading them as one rests on a
-trust assumption and correspondences that no theorem checks, part of obligation 7 of
-`docs/mission-contract.md`. The trust assumption is that the compiler erases a
-costed definition's work, so the definition compiles to the code of its value (`Acorn.Cost`).
-The learner's, the learner record's, the policy's, the controllers' costed parts (those
-`Acorn.Cost` names), the encoding's and the option models' input, ranked features,
-prediction and updates, apart from the exceptions `AcornVerif.Resource.Work` states, are the work of
-their executed functions, whose definitions are the values of
-their costed definitions, under the cost discipline of `Acorn.Cost`: every value a costed definition
-passes in, the uncosted entry points that `Acorn.Cost` lists, is computed without a costed
-definition and with no loop except those `Acorn.Cost` lists as left inside a segment, whose trip
-counts are bounded by constants of the code (the at most 33 steps of `Portable.pow` among them),
-which is checked by reading, and no check enforces it. The other parts, among them the
-controllers' initial value and reset (`Controller.initial`, `Controller.resetAction`) and selection,
-are twins (`AcornVerif.Resource.Work`) whose charges were compared with the compiled call multisets
-of one build by a one-time inventory, an observation of that build which no gate repeats.
-
-**Word operations.** A site's cost in word operations is not derived from the compiled code.
-`AcornVerif.Resource.Twin.choose_words` bounds the accounting of the first part's twin charged at
-a cost model `words` by `chooseBound κ`, under the hypothesis `SiteBounds words κ`, which states
-only `words site ≤ κ site` for every site. That `words site` counts the word operations of a
-segment of the executed code, as `Acorn.Cost` defines segments, is the intended reading of
-`words` and is part of no checked statement.
--/
 
 namespace AcornVerif.Resource.Twin
 
@@ -55,8 +11,6 @@ open Acorn Acorn.Features Acorn.Handcrafted
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
 
-/-- The costed run of `Agent.chooseSelected`: the clock, the frame's encoding, and selection
-with the planning the order places before the action. -/
 def chooseRun (κ : Costs) (state : Agent interface profile config criterion dimension planning)
     (order : StepOrder) (percept : Percept interface) : Costed Unit := do
   Costed.op (κ .choose) ()
@@ -66,18 +20,14 @@ def chooseRun (κ : Costs) (state : Agent interface profile config criterion dim
     (prepared.frame percept.frame).active percept.frame.declared percept.reward
     percept.frame.achieved
 
-/-- Twin of `Agent.chooseSelected`. -/
 def chooseSelected (κ : Costs) (state : Agent interface profile config criterion dimension planning)
     (order : StepOrder) (selects : order ≠ .actThenLearn) (percept : Percept interface) :
     Costed (Chosen interface profile config criterion dimension planning) :=
   Costed.via (state.chooseSelected order selects percept) (chooseRun κ state order percept)
 
-/-- The most active features a frame of an interface has under a feature configuration
-(`Agent.frame_length`). -/
 abbrev frameWidth (interface : Interface) (config : Features.Config) : Nat :=
   config.tilings.toNat * (interface.words + interface.layout.length) + config.units.count
 
-/-- Selection's bound grows with the width of the frame. -/
 theorem selectBound_mono (κ : Costs) (rows capacity positions units : Nat)
     {width limit : Nat} (fits : width ≤ limit) :
     selectBound κ rows capacity positions units width ≤
@@ -94,9 +44,6 @@ theorem selectBound_mono (κ : Costs) (rows capacity positions units : Nat)
     Library.work, Library.control, Library.passes]
   gcongr
 
-/-- **The bound of the accounting of the first part's twin under an order whose first part is
-selection**, for every cost of the sites, every agent state and every percept: a function of the
-interface, the feature configuration and the dimension. -/
 abbrev chooseBound (κ : Costs) (interface : Interface) (config : Features.Config)
     (dimension : Dimension) : Nat :=
   κ .choose + (frameBound κ interface dimension.capacity config +
@@ -114,18 +61,11 @@ theorem chooseSelected_work (κ : Costs)
       Nat.le_trans (selectRun_work κ _ _ _ _ _ _)
         (selectBound_mono κ _ _ _ _ (Agent.frame_length _ percept.frame))
 
-/-- `SiteBounds words κ`: `words site ≤ κ site` for every site, a relation between two cost
-models. Nothing in it ties `words` to execution, and two zero cost models satisfy it. The intended
-reading of `words site` is the largest number of word operations, on the word machine of
-`AcornVerif.Resource.WordKernel` with one for each instruction, of a segment at a charge point of
-that site, as `Acorn.Cost` defines segments; no checked statement contains that reading. -/
 def SiteBounds (words κ : Costs) : Prop := ∀ site, words site ≤ κ site
 
-/-- Helper: a monotone step for `Library.work` of any loop helper when visit and body costs grow. -/
 private theorem add_le {a b c d : Nat} (h1 : a ≤ b) (h2 : c ≤ d) : a + c ≤ b + d :=
   Nat.add_le_add h1 h2
 
-/-- Helper: `frameBound` grows with the cost of each site. -/
 private theorem frameBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (interface : Interface) (capacity : Nat) (config : Features.Config) :
     frameBound words interface capacity config ≤ frameBound κ interface capacity config := by
@@ -133,7 +73,6 @@ private theorem frameBound_costs {words κ : Costs} (bounds : SiteBounds words �
     pass, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `predictBound` grows with the cost of each site. -/
 private theorem predictBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (positions width : Nat) :
     predictBound words positions width ≤ predictBound κ positions width := by
@@ -142,19 +81,16 @@ private theorem predictBound_costs {words κ : Costs} (bounds : SiteBounds words
     Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `predictAllBound` grows with the cost of each site. -/
 private theorem predictAllBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows width : Nat) : predictAllBound words rows width ≤ predictAllBound κ rows width := by
   simp only [predictAllBound, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `metaRateBound` grows with the cost of each site. -/
 private theorem metaRateBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows width : Nat) : metaRateBound words rows width ≤ metaRateBound κ rows width := by
   simp only [metaRateBound, rateBound, normalizedBound, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `modelBeginBound` grows with the cost of each site. -/
 private theorem modelBeginBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (capacity positions width : Nat) :
     modelBeginBound words capacity positions width ≤
@@ -163,7 +99,6 @@ private theorem modelBeginBound_costs {words κ : Costs} (bounds : SiteBounds wo
     updateRowsBound, zeroBound, secondLoopBound, pass, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `modelStepBound` grows with the cost of each site. -/
 private theorem modelStepBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (capacity positions width : Nat) :
     modelStepBound words capacity positions width ≤ modelStepBound κ capacity positions width := by
@@ -171,7 +106,6 @@ private theorem modelStepBound_costs {words κ : Costs} (bounds : SiteBounds wor
     stepBound, firstLoopBound, secondLoopBound, pass, firstVisit, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `modelTerminalWorkBound` grows with the cost of each site. -/
 private theorem modelTerminalWorkBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (capacity positions width : Nat) :
     modelTerminalWorkBound words capacity positions width ≤
@@ -182,7 +116,6 @@ private theorem modelTerminalWorkBound_costs {words κ : Costs} (bounds : SiteBo
     Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `modelStopBound` grows with the cost of each site. -/
 private theorem modelStopBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (capacity positions width : Nat) :
     modelStopBound words capacity positions width ≤ modelStopBound κ capacity positions width := by
@@ -191,7 +124,6 @@ private theorem modelStopBound_costs {words κ : Costs} (bounds : SiteBounds wor
     bestBound, occupiedBound, predictAllBound, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `optionStepBound` grows with the cost of each site. -/
 private theorem optionStepBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity width : Nat) :
     optionStepBound words rows capacity width ≤ optionStepBound κ rows capacity width := by
@@ -200,7 +132,6 @@ private theorem optionStepBound_costs {words κ : Costs} (bounds : SiteBounds wo
     candidatesBound, bestBound, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `stepOptionBound` grows with the cost of each site. -/
 private theorem stepOptionBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity positions width : Nat) :
     stepOptionBound words rows capacity positions width ≤
@@ -208,7 +139,6 @@ private theorem stepOptionBound_costs {words κ : Costs} (bounds : SiteBounds wo
   add_le (bounds _) (add_le (optionStepBound_costs bounds rows capacity width)
     (modelStepBound_costs bounds capacity positions width))
 
-/-- Helper: `closeOptionBound` grows with the cost of each site. -/
 private theorem closeOptionBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity positions width : Nat) :
     closeOptionBound words rows capacity positions width ≤
@@ -221,7 +151,6 @@ private theorem closeOptionBound_costs {words κ : Costs} (bounds : SiteBounds w
     (add_le (add_le (bounds _) credit)
       (modelTerminalWorkBound_costs bounds capacity positions width)))
 
-/-- Helper: `decideBound` grows with the cost of each site. -/
 private theorem decideBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity width : Nat) :
     decideBound words rows capacity width ≤ decideBound κ rows capacity width := by
@@ -229,7 +158,6 @@ private theorem decideBound_costs {words κ : Costs} (bounds : SiteBounds words 
     bestBound, predictAllBound, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `settleBound` grows with the cost of each site. -/
 private theorem settleBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity positions width : Nat) :
     settleBound words rows capacity positions width ≤
@@ -248,7 +176,6 @@ private theorem settleBound_costs {words κ : Costs} (bounds : SiteBounds words 
     (add_le (add_le (add_le (bounds _) err)
       (add_le stopB (modelStepBound_costs bounds capacity positions width))) stopF)
 
-/-- Helper: `planFreeBound` grows with the cost of each site. -/
 private theorem planFreeBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity positions width : Nat) :
     planFreeBound words rows capacity positions width ≤
@@ -272,7 +199,6 @@ private theorem planFreeBound_costs {words κ : Costs} (bounds : SiteBounds word
   exact add_le (bounds _) (add_le (metaRateBound_costs bounds rows capacity)
     (add_le (add_le backup sweep) (bounds _)))
 
-/-- Helper: `refreshFreeBound` grows with the cost of each site. -/
 private theorem refreshFreeBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity positions units : Nat) :
     refreshFreeBound words rows capacity positions units ≤
@@ -285,7 +211,6 @@ private theorem refreshFreeBound_costs {words κ : Costs} (bounds : SiteBounds w
     Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `primitiveBound` grows with the cost of each site. -/
 private theorem primitiveBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity width : Nat) :
     primitiveBound words rows capacity width ≤ primitiveBound κ rows capacity width := by
@@ -297,19 +222,16 @@ private theorem primitiveBound_costs {words κ : Costs} (bounds : SiteBounds wor
     (add_le (add_le (predictAllBound_costs bounds rows width) (bounds _))
       (add_le pers (bounds _)))
 
-/-- Helper: `potentialBound` grows with the cost of each site. -/
 private theorem potentialBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (width : Nat) : potentialBound words width ≤ potentialBound κ width := by
   simp only [potentialBound, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `comparisonBound` grows with the cost of each site. -/
 private theorem comparisonBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (count : Nat) : comparisonBound words count ≤ comparisonBound κ count := by
   simp only [comparisonBound, expectedBound, bestBound, Library.work, Library.control]
   gcongr <;> exact bounds _
 
-/-- Helper: `dispatchBound` grows with the cost of each site. -/
 private theorem dispatchBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity positions width : Nat) :
     dispatchBound words rows capacity positions width ≤
@@ -331,7 +253,6 @@ private theorem dispatchBound_costs {words κ : Costs} (bounds : SiteBounds word
             (add_le (add_le beginO (modelBeginBound_costs bounds capacity positions width))
               (stepOptionBound_costs bounds rows capacity positions width)))))))))
 
-/-- Helper: `atBoundaryBound` grows with the cost of each site. -/
 private theorem atBoundaryBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity positions units width : Nat) :
     atBoundaryBound words rows capacity positions units width ≤
@@ -350,7 +271,6 @@ private theorem atBoundaryBound_costs {words κ : Costs} (bounds : SiteBounds wo
         (add_le (closeOptionBound_costs bounds rows capacity positions width)
           (dispatchBound_costs bounds rows capacity positions width)))))
 
-/-- Helper: `selectBound` grows with the cost of each site. -/
 private theorem selectBound_costs {words κ : Costs} (bounds : SiteBounds words κ)
     (rows capacity positions units width : Nat) :
     selectBound words rows capacity positions units width ≤
@@ -386,7 +306,6 @@ private theorem selectBound_costs {words κ : Costs} (bounds : SiteBounds words 
     (add_le (primitiveBound_costs bounds rows capacity width)
       (add_le (atBoundaryBound_costs bounds rows capacity positions units width) optB))))
 
-/-- The first part's bound grows with the cost of each site. -/
 theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (interface : Interface)
     (config : Features.Config) (dimension : Dimension) :
     chooseBound words interface config dimension ≤ chooseBound κ interface config dimension :=
@@ -394,23 +313,11 @@ theorem chooseBound_mono {words κ : Costs} (bounds : SiteBounds words κ) (inte
     (selectBound_costs bounds interface.actions.word.toNat dimension.capacity
       (rankDimension dimension).capacity config.units.count (frameWidth interface config)))
 
-/-- The first part under the default order is `Agent.chooseSelected` at `learnThenAct`. -/
 theorem choose_learnThenAct (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
     state.choose .learnThenAct percept = state.chooseSelected .learnThenAct (by decide) percept :=
   rfl
 
-/-- **The work bound of the first part's twin under `learnThenAct`.** The twin's value is the
-executed first part, and its accounting is at most `chooseBound`, for every cost model, agent state
-and percept. It is not a bound of the executed first part's work: that reading rests on the
-compiler's erasure of the work of the costed definitions of the learner, of a learner's record (its
-entry, retirement and credit), of the controllers (their predictions, clear, release, snapshot,
-derived rate and the updates `Acorn.Cost` names), of the frozen policy and of its
-exploration, of the encoding of a frame and of an option model's input, ranked features, prediction
-and updates, a trust assumption, on the cost discipline of the same costed definitions, checked by
-reading, and on the twins' correspondence with the executed selection, the controllers' initial
-value and reset among them, observed in one build by a one-time inventory of its compiled calls;
-this linkage is part of obligation 7 of `docs/mission-contract.md`. -/
 theorem choose_work (κ : Costs)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :
@@ -420,19 +327,6 @@ theorem choose_work (κ : Costs)
         chooseBound κ interface config dimension :=
   ⟨rfl, chooseSelected_work κ state .learnThenAct (by decide) percept⟩
 
-/-- **The twin accounting of the first part under `learnThenAct` at a second cost model.** Under
-`SiteBounds words κ`, the accounting of the first part's twin charged at `words` is at most
-`chooseBound κ`, for every agent state and percept. It is not a bound of executed word operations:
-that reading needs `words` to count the segments of the executed code, the intended reading of
-`SiteBounds` that no checked statement contains, and in addition the compiler's erasure of the work
-of the costed definitions of the learner, of a learner's record (its entry, retirement and credit),
-of the controllers (their predictions, clear, release, snapshot, derived rate and the updates
-`Acorn.Cost` names), of the frozen policy and of its exploration and of the encoding
-of a frame and of an option model's input, ranked features, prediction and updates, a trust
-assumption, the cost discipline of the same costed definitions, checked by reading, and the twins'
-correspondence with the executed selection, the controllers' initial value and reset among them,
-observed in one build by a one-time inventory of its compiled calls; this linkage is part of
-obligation 7 of `docs/mission-contract.md`. -/
 theorem choose_words {words κ : Costs} (bounds : SiteBounds words κ)
     (state : Agent interface profile config criterion dimension planning)
     (percept : Percept interface) :

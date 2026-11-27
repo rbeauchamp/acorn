@@ -1,69 +1,39 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import NativeApp.Build
 import Acorn.Host.AuditPins
 import NativeApp.Report
 
-/-!
-# Fixed current-agent mutation audits
-
-Each arm executes the current full agent, with the retained seed, world and
-campaign limits. Both the action digest and knowledge checksum must match.
-The fixed executions are compared through these paired digests.
--/
 namespace NativeApp
 open Acorn Acorn.Host Acorn.Host.Viewer Acorn.Handcrafted
 
-/-- The complete retained audit-arm domain. -/
 inductive AuditArm where
-  /-- Ranked profile, declared exploration rate, discounted control. -/
   | declared
-  /-- Retained annealed schedule with spatial subtask interests. -/
   | annealed
-  /-- Ranked profile, declared exploration rate, differential control. -/
   | differential
   deriving DecidableEq
 
-/-- Every audit arm, in the order of the constructors. -/
 def AuditArm.all : List AuditArm := [.declared, .annealed, .differential]
 
-/-- `AuditArm.all` omits no arm, so its length is the number of arms. -/
 theorem AuditArm.mem_all (arm : AuditArm) : arm ∈ AuditArm.all := by
   cases arm <;> decide
 
-/-- A receipt pairs the ordered action digest with the knowledge checksum. -/
 structure AuditReceipt where
-  /-- Ordered action/outcome/retirement digest. -/
   digest : UInt64
-  /-- Complete current knowledge checksum. -/
   checksum : UInt64
   deriving DecidableEq, BEq
 
-/-- Retained mutation pins; changing a value requires an explicit dynamics decision. -/
 def AuditArm.receipt : AuditArm → AuditReceipt
   | .declared => ⟨AuditPins.declaredDigest, AuditPins.declaredChecksum⟩
   | .annealed => ⟨AuditPins.annealedDigest, AuditPins.annealedChecksum⟩
   | .differential => ⟨AuditPins.differentialDigest, AuditPins.differentialChecksum⟩
 
-/-- Stable labels keep each mutation result attached to its actual arm. -/
 def AuditArm.label : AuditArm → String
   | .declared => "deployed declared-rate arm"
   | .annealed => "annealed incumbent arm"
   | .differential => "differential research arm"
 
-/-- An audit digest in its one form, which the audit prints and `--expect` reads: `0x`, then the
-sixteen lowercase hexadecimal digits of `hexWord`. -/
 def auditWord (word : UInt64) : String :=
   "0x" ++ hexWord word
 
-/-- The expected digest of `--expect` in its one form: `0x`, then exactly sixteen lowercase
-hexadecimal digits, the form that `auditWord` prints. A digest is a
-hash identifier, not a quantity, so it is not read as a command-line number
-(`Acorn.Digits.natural`): digit-only text such as `10`, uppercase digits and a shorter or longer
-word are refused. Sixteen hexadecimal digits are below `2 ^ 64`, so the word never wraps. -/
 def auditHex (text : String) : Option UInt64 :=
   match text.toList with
   | '0' :: 'x' :: digits =>
@@ -76,12 +46,10 @@ def auditHex (text : String) : Option UInt64 :=
     else none
   | _ => none
 
-/-- The arguments of the audit command, with the one form of an expected digest. -/
 def auditUsage : String :=
   "usage: acorn-core audit [--arm declared|annealed|differential] [--expect DIGEST]\n" ++
     "DIGEST is 0x and exactly sixteen lowercase hexadecimal digits, as the audit prints it."
 
-/-- Audit selectors and expectation are validated before construction or execution. -/
 def auditOptions (arguments : List String) : Except Cli.Error AuditArm := do
   Cli.scan [("--expect", true), ("--arm", true), ("--explore-rate", true)] arguments []
   let selected ← Cli.value arguments "--arm"
@@ -99,8 +67,6 @@ def auditOptions (arguments : List String) : Except Cli.Error AuditArm := do
     if expected != arm.receipt.digest then .error (.invalid "--expect" "does not match compiled pin")
   return arm
 
-/-- Fixed campaign dimensions and public selection metadata. The incumbent's
-spatial subtask construction is owned by `AuditArm.construction`. -/
 def AuditArm.options (arm : AuditArm) : Except Cli.Error Cli.Streaming := do
   let world ← (WorldConfig.standard 0x00a6000000000001 ⟨512, by decide⟩).mapError Cli.Error.world
   return {
@@ -111,27 +77,19 @@ def AuditArm.options (arm : AuditArm) : Except Cli.Error Cli.Streaming := do
     csv := none, controlStdin := false, runId := 0, agentEpoch := 0, newAgentEpoch := 0, cleared := false
     order := .learnThenAct }
 
-/-- The incumbent combines annealed rates with spatial subtasks. The deployed
-and differential arms retain the ordinary native construction. -/
 @[noinline] def AuditArm.construction (arm : AuditArm) (options : Cli.Streaming) : AgentConstruction :=
   { nativeConstruction options with profile := match arm with
     | .declared | .differential => (nativeConstruction options).profile
     | .annealed => ⟨.final, .perStep, .annealed, .spatial⟩ }
 
-/-- Every incumbent construction carries all four retained discriminants,
-independently of the public research-profile metadata. -/
 theorem AuditArm.incumbent_profile (options : Cli.Streaming) :
     (AuditArm.annealed.construction options).profile =
       ⟨.final, .perStep, .annealed, .spatial⟩ := rfl
 
-/-- Both non-incumbent arms use the ordinary native constructor unchanged. -/
 theorem AuditArm.ordinary_construction (arm : AuditArm) (options : Cli.Streaming)
     (ordinary : arm ≠ .annealed) : arm.construction options = nativeConstruction options := by
   cases arm <;> simp_all [AuditArm.construction]
 
-/-- Ordinary audit arms traverse the public native campaign. The incumbent
-uses the same stream runner with its explicit fresh spatial construction,
-without telemetry or checkpoint authority. -/
 def AuditArm.executeCampaign (arm : AuditArm) (options : Cli.Streaming)
     (build : TelemetryBuild) (syncProgram : System.FilePath) (sink : IO.FS.Stream)
     (outcome : GoalOutcome → IO Unit) (stop : StopFlag) :
@@ -145,7 +103,6 @@ def AuditArm.executeCampaign (arm : AuditArm) (options : Cli.Streaming)
       options.common.world.raw.seed (nativeSelection options) options.campaign
       { StreamObserver.none with onOutcome := outcome } none stop.requested
 
-/-- Execute the fixed audit once; scientific capture may retain its actual receipt. -/
 def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO AuditReceipt := do
   let options ← match arm.options with
     | .ok options => pure options
@@ -168,7 +125,6 @@ def executeMutationAudit (arm : AuditArm) (printReport : Bool := false) : IO Aud
     return ⟨streamingAudit result.outcomes result.run.behavior result.totalSteps events,
       agentChecksum result.run.agent.agent⟩
 
-/-- Success requires both retained words; the command line cannot replace either pin. -/
 def runMutationAudit (arguments : List String) : IO UInt32 := do
   let arm ← match auditOptions arguments with
     | .ok arm => pure arm

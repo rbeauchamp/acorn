@@ -1,37 +1,12 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Capacity
 import AcornVerif.MuteDoors
 import Mathlib.Data.Fintype.Pigeonhole
-
-/-!
-# Capacity dependence has a witness, and the witness needs no learning
-
-The press world shows one percept at every state. Its goal is met by pressing at step `wait`
-exactly, having pressed at no earlier step. With `wait = 2 ^ bits`:
-
-* `press_beyond`: no agent whose memory fits `bits` bits achieves the goal. Its memory repeats
-  among the first `2 ^ bits + 1` steps, and from a repeated memory under one percept it presses
-  early or never.
-* `press_dependent`: the decision "no agent of this width achieves the goal" holds at `bits` and
-  fails at `bits + 1` (for `bits ≥ 1`), so it is `CapacityDependent`; and the agent that refutes
-  it at the looser width is an open-loop clock that reads nothing.
-
-So capacity dependence, and with it every statement that a class is beyond a memory width, is met
-by a task of pure counting. It says that memory matters; it does not say that learning does.
-Contract 2 (c) is what excludes this task: one action sequence solves it.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-- The press world: a clock, whether a press came too early, and whether the press came on time.
-It shows one percept at every state. -/
 abbrev pressWorld (interface : Interface) (shown : Percept interface) (wait : ℕ) :
     World interface where
   State := ℕ × Bool × Bool
@@ -41,17 +16,12 @@ abbrev pressWorld (interface : Interface) (shown : Percept interface) (wait : �
       state.2.2 || (decide (state.1 = wait) && decide (action.val = 1) && !state.2.1))
   percept := fun _ => shown
 
-/-- The press world's goal: the press came on time, within `wait + 1` steps. -/
 def pressGoal (shown : Percept interface) (wait : ℕ) :
     AttemptGoal (pressWorld interface shown wait) :=
   ⟨fun (state : ℕ × Bool × Bool) => state.2.2 = true, wait + 1⟩
 
-/-- The press world's start: no step taken, no press. -/
 def pressStart : ℕ × Bool × Bool := (0, false, false)
 
-/-- Along every action sequence the press world's clock reads the time; while no press came too
-early, no action before the wait was a press; and once the press has come on time, the action at
-the wait was a press and no earlier one was. -/
 theorem press_path (shown : Percept interface) (wait : ℕ) (actions : ℕ → Act interface)
     (time : ℕ) :
     (path (pressWorld interface shown wait) pressStart actions time).1 = time ∧
@@ -98,10 +68,6 @@ theorem press_path (shown : Percept interface) (wait : ℕ) (actions : ℕ → A
         exact ⟨here ▸ of_decide_eq_true press, fun earlier before =>
           clean still earlier (here ▸ before) before⟩
 
-/-! ## An agent under one percept -/
-
-/-- From two times with one memory on a sequence that repeats one percept, the memories stay
-equal. -/
 theorem driven_shift (agent : Agent interface) (shown : Percept interface) {first second : ℕ}
     (equal : driven agent (fun _ => shown) first = driven agent (fun _ => shown) second)
     (more : ℕ) :
@@ -111,7 +77,6 @@ theorem driven_shift (agent : Agent interface) (shown : Percept interface) {firs
   | zero => exact equal
   | succ more ih => exact congrArg (fun memory => (agent.act memory shown).2) ih
 
-/-- **No agent whose memory fits `bits` bits waits `2 ^ bits` steps and then presses.** -/
 theorem press_beyond (shown : Percept interface) (bits : ℕ) (agent : Agent interface)
     (fits : MemoryWithin agent bits) :
     ¬ Achieves agent (pressGoal (interface := interface) shown (2 ^ bits)) pressStart := by
@@ -141,13 +106,9 @@ theorem press_beyond (shown : Percept interface) (bits : ℕ) (agent : Agent int
   · exact clash first.val second.val before (Nat.le_of_lt_succ second.isLt) equal
   · exact clash second.val first.val after (Nat.le_of_lt_succ first.isLt) equal.symm
 
-/-! ## The clock that solves it -/
-
-/-- The plan that waits and then presses. -/
 def pressPlan (two : 2 ≤ interface.actions.word.toNat) (wait : ℕ) : ℕ → Act interface :=
   fun time => if time = wait then pick two true else pick two false
 
-/-- Under the plan the press world counts, unspoiled and unpressed, up to the wait. -/
 theorem pressPlan_path (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface)
     (wait time : ℕ) (within : time ≤ wait) :
     path (pressWorld interface shown wait) pressStart (pressPlan two wait) time =
@@ -162,7 +123,6 @@ theorem pressPlan_path (two : 2 ≤ interface.actions.word.toNat) (shown : Perce
     rw [ih (Nat.le_of_succ_le within)]
     simp [pressWorld, pressPlan, early, pick]
 
-/-- The plan meets the press world's goal. -/
 theorem pressPlan_met (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface)
     (wait : ℕ) : (pressGoal shown wait).MetBy pressStart (pressPlan two wait) := by
   refine ⟨wait + 1, Nat.succ_le_succ (Nat.zero_le wait), Nat.le_refl _, ?_⟩
@@ -172,10 +132,6 @@ theorem pressPlan_met (two : 2 ≤ interface.actions.word.toNat) (shown : Percep
   rw [pressPlan_path two shown wait wait (Nat.le_refl wait)]
   simp [pressPlan, pick]
 
-/-- **Capacity dependence is met by a task of pure counting.** For `bits ≥ 1`, over an interface
-with two actions: that no agent of a memory width achieves the press world's goal at the wait
-`2 ^ bits` holds at the width `bits` and fails at `bits + 1`; and an open-loop agent, which reads
-no percept, achieves the goal within `bits + 1` bits. -/
 theorem press_dependent (two : 2 ≤ interface.actions.word.toNat) (shown : Percept interface)
     (bits : ℕ) (positive : 1 ≤ bits) :
     CapacityDependent (fun width => ∀ agent : Agent interface, MemoryWithin agent width →
