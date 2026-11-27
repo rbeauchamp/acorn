@@ -973,12 +973,14 @@ the documentation package is refused as a root target as no source of this
 package, and any tracked entry below the package directory that is neither a
 regular file nor below regular directories fails the inventory and the check
 with it. So a compiled file left behind by an earlier build or shadowed on
-Lean's search path is neither deserialized nor read in place of the tree's
-sources, as far as Lake's record of what is current is right: that record, and
-that nothing but Lake has altered the compiled files without invalidating
-Lake's traces, remain trusted, together with toolchain binaries (including
-Elan), dependency checkouts lacking `.git` metadata, and the stability of the
-file system while the check runs, which the
+Lean's search path is neither deserialized by the frame import nor read in place
+of the tree's sources, as far as Lake's record of what is current is right: that
+record, and that nothing but Lake has altered the compiled files without
+invalidating Lake's traces, remain trusted, together with toolchain binaries
+(including Elan), dependency checkouts lacking `.git` metadata, Git's
+working-tree comparison as configured (its filters and stat cache), the module
+search path of the Lake query launched through the bootstrap, and the stability
+of the file system while the check runs, which the
 [compiler and execution boundary](#compiler-and-execution-boundary) lists among
 the trusted boundaries. The check then computes
 that list from the compiled module and fails when a
