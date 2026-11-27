@@ -846,11 +846,11 @@ loads any environment, for the check and for `frame-check print` alike, it
 calls AcornFrameCheck.current and consumes the admission that call returns.
 AcornFrameCheck.current first admits the Lean sysroot by resolving the expected
 prefix directly from the Git-tracked regular file `lean/lean-toolchain` through
-Elan independently of ambient toolchain selection (refusing mismatched
-`LEAN_SYSROOT` or ambient `lean` prefixes and verifying non-symlink `lib/lean`
-directories; AcornFrameCheck.run initializes Lean's search path from that
-admitted prefix), verifies tracked regular-file admission for
-`lean/Bootstrap.lean`, `lean/lakefile.lean`, and `lean/lake-manifest.json`,
+Elan independently of ambient toolchain selection (refusing a mismatched
+prefix from `$LEAN_SYSROOT` or the ambient Lean command,
+and verifying non-symlink `lib/lean` directories; AcornFrameCheck.run initializes
+Lean's search path from that admitted prefix), verifies tracked regular-file
+admission for `lean/Bootstrap.lean`, `lean/lakefile.lean`, and `lean/lake-manifest.json`,
 admits non-symlink directories across `lean/.lake` and `lean/.lake/packages`
 and each locked dependency checkout (rejecting ambient package-override
 manifests, and whenever `.git` metadata is present running Git with replacement
@@ -884,8 +884,8 @@ module's header declares the Lean module system, it additionally queries Lake's
 companion inventory, preserving each companion kind through verification, and
 requires all four Lake answers and the sibling files beside Lean's resolved
 `.olean` to satisfy the same lexical non-symlink regular-file containment and
-canonical real-path equality. AcornFrameCheck.current also admits the core
-toolchain modules (`Init`, `Std`, `Lean`, `Lake`) directly under the admitted
+canonical real-path equality. AcornFrameCheck.current also admits core modules
+with the Init, Std, Lean, and Lake prefixes directly under the admitted
 sysroot library directory (verifying absence of root-library shadows for those
 prefixes, non-symlink directories, exact on-disk casing, and non-symlink
 regular `.olean` and companion files, with no collision against workspace
