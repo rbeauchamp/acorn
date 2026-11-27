@@ -651,17 +651,17 @@ private def requireHeaderIsModule (label : String) (json : Json) : IO Bool :=
   IO.ofExcept ((json.getObjValAs? Bool "isModule").mapError fun e =>
     s!"{label}: malformed Lake module header: {e}")
 
-private def parseTransImports (label : String) (json : Json) : IO (Array Name) := do
+private def parseTransImports (label : String) (json : Json) : IO (Array (Name × String)) := do
   let arr ← IO.ofExcept ((json.getArr?).mapError fun e =>
     s!"{label}: malformed Lake transImports array: {e}")
-  let mut mods := #[]
+  let mut mods : Array (Name × String) := #[]
   for item in arr do
     let s ← IO.ofExcept ((item.getStr?).mapError fun e =>
       s!"{label}: malformed Lake transImports entry: {e}")
     let mod := s.toName
     unless requestText mod == some s do
       throw (IO.userError s!"{label}: unsupported transitive import name from Lake: {s}")
-    mods := mods.push mod
+    mods := mods.push (mod, s)
   return mods
 
 private def verifyRootFiles (mod : Name) (text : String)
@@ -803,11 +803,9 @@ private def verifyClosure (ctx : GuardContext) (module : Name) : IO (NameMap Ver
 
   let mut seen : NameSet := ({} : NameSet).insert module
   let mut pending : Array (Name × String × Bool) := #[]
-  for imp in transImports do
+  for (imp, impText) in transImports do
     if seen.contains imp then continue
     seen := seen.insert imp
-    let some impText := requestText imp
-      | throw (IO.userError s!"module {text}: invalid transitive import {imp}")
     let isRoot := ctx.allModules.contains imp
     pending := pending.push (imp, impText, isRoot)
 
