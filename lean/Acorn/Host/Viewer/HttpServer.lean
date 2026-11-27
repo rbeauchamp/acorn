@@ -345,8 +345,156 @@ def viewerHttpConfig : Http.Config where
   generateDate := false
   serverName := none
 
+private inductive SendWaitOutcome where
+  | finished (result : Option (Except IO.Error Unit))
+  | cancelled
+  | timedOut
+
+private structure CancellableTransport where
+  client : TCP.Socket.Client
+  context : Std.CancellationContext
+  closed : IO.Ref Bool
+  writeTimeout : Std.Time.Millisecond.Offset
+
+private def CancellableTransport.abort (t : CancellableTransport) : IO Unit := do
+  t.closed.set true
+  try t.client.native.cancelRecv catch _ => pure ()
+
+private def CancellableTransport.sendAll (t : CancellableTransport) (data : Array ByteArray) :
+    Async Unit := do
+  if (← t.closed.get) || (← t.context.isCancelled) then
+    t.abort
+    throw (IO.userError "connection closed")
+  let sendPromise ← t.client.native.send data
+  let outcome ←
+    if ← IO.hasFinished sendPromise.result? then
+      let res ← (show BaseIO (Option (Except IO.Error Unit)) from IO.wait sendPromise.result?)
+      pure (SendWaitOutcome.finished res)
+    else
+      Selectable.one #[
+        .case t.context.doneSelector (fun _ => pure .cancelled),
+        .case (promiseSelector sendPromise.result?) (fun res => pure (SendWaitOutcome.finished res)),
+        .case (← Selector.sleep t.writeTimeout) (fun _ => pure .timedOut)
+      ]
+  match outcome with
+  | .finished (some (.ok ())) => pure ()
+  | .finished (some (.error err)) =>
+    t.abort
+    throw err
+  | .finished none =>
+    t.abort
+    throw (IO.userError "connection write interrupted")
+  | .cancelled =>
+    t.abort
+    throw (IO.userError "connection write cancelled")
+  | .timedOut =>
+    t.abort
+    throw (IO.userError "connection write timed out")
+
+private instance : Http.Transport CancellableTransport where
+  recv t expect := do
+    if (← t.closed.get) || (← t.context.isCancelled) then
+      return none
+    t.client.recv? expect
+  sendAll := CancellableTransport.sendAll
+  recvSelector t expect := t.client.recvSelector expect
+  close := CancellableTransport.abort
+
+private def finishTracked (server : Http.Server) (releasePermit : Bool) : ContextAsync Unit := do
+  if releasePermit then
+    if let some limit := server.connectionLimit then
+      limit.release
+  server.activeConnections.atomically do
+    modify (· - 1)
+    if (← get) = 0 ∧ (← server.context.isCancelled) then
+      discard <| server.shutdownPromise.send ()
+
+private def acquirePermit (server : Http.Server) : ContextAsync (Option Bool) := do
+  if ← server.context.isCancelled then
+    return none
+  if let some limit := server.connectionLimit then
+    let permit ← limit.acquire
+    let acquired ← Selectable.one #[
+      .case (← ContextAsync.doneSelector) (fun _ => pure false),
+      .case (promiseSelector permit.result?) (fun res => pure res.isSome)
+    ]
+    if acquired then
+      return some true
+    else
+      discard <| BaseIO.chainTask permit.result? fun
+        | some () => limit.release
+        | none => pure ()
+      return none
+  else
+    return some false
+
+private def serveCancellable {σ : Type} [Http.Server.Handler σ]
+    (addr : Net.SocketAddress) (handler : σ) (config : Http.Config)
+    (backlog : UInt32 := 1024) : Async Http.Server := do
+  let listener ← TCP.Socket.Server.mk
+  listener.bind addr
+  listener.listen backlog
+  listener.noDelay
+  let localAddr ← listener.getSockName
+  let httpServer ← Http.Server.new config (some localAddr)
+  httpServer.activeConnections.atomically (modify (· + 1))
+  let runServer : ContextAsync Unit := do
+    try
+      ContextAsync.forIn () fun _ _ => do
+        if ← httpServer.context.isCancelled then
+          return .done ()
+        let some releasePermit ← acquirePermit httpServer | return .done ()
+        let accepted : Except IO.Error (Option TCP.Socket.Client) ←
+          try
+            pure (.ok (← Selectable.one #[
+              .case (← ContextAsync.doneSelector) (fun _ => pure none),
+              .case listener.acceptSelector (fun client => pure (some client))
+            ]))
+          catch e =>
+            pure (.error e)
+        match accepted with
+        | .error _ =>
+          if releasePermit then
+            if let some limit := httpServer.connectionLimit then
+              limit.release
+          if ← httpServer.context.isCancelled then
+            return .done ()
+          let stillRunning ← Selectable.one #[
+            .case (← ContextAsync.doneSelector) (fun _ => pure false),
+            .case (← Selector.sleep 10) (fun _ => pure true)
+          ]
+          if stillRunning then return .yield () else return .done ()
+        | .ok none =>
+          if releasePermit then
+            if let some limit := httpServer.connectionLimit then
+              limit.release
+          return .done ()
+        | .ok (some client) =>
+          let extensions ← do
+            match (← EIO.toBaseIO client.getPeerName) with
+            | .ok peerAddr => pure (Extensions.empty.insert (Http.Server.RemoteAddr.mk peerAddr))
+            | .error _ => pure Extensions.empty
+          let closed ← IO.mkRef false
+          let transport : CancellableTransport := {
+            client := client
+            context := httpServer.context
+            closed := closed
+            writeTimeout := config.lingeringTimeout
+          }
+          httpServer.activeConnections.atomically (modify (· + 1))
+          ContextAsync.background do
+            try
+              Http.Server.serveConnection transport handler config extensions
+            finally
+              finishTracked httpServer releasePermit
+          return .yield ()
+    finally
+      finishTracked httpServer false
+  Async.background (runServer httpServer.context)
+  return httpServer
+
 def HttpViewer.serve (viewer : HttpViewer) (port : UInt16) : Async Http.Server :=
-  Http.Server.serve (.v4 ⟨Net.IPv4Addr.ofParts 127 0 0 1, port⟩)
+  serveCancellable (.v4 ⟨Net.IPv4Addr.ofParts 127 0 0 1, port⟩)
     (Http.Server.Handler.ofFns viewer.request (fun _ => pure ()) (fun _ => pure false))
     viewerHttpConfig
 
