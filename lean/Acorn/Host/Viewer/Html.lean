@@ -573,4 +573,151 @@ theorem Document.render_no_script (doc : Document) : ¬ ContainsScriptTag doc.re
   simp only [Document.render, String.toList_ofList]
   exact (NoScTag.append doctype_noScTag (Node.renderChars_noScTag _)).not_containsScriptTag
 
+def forbiddenJsExtensions : List String :=
+  ["js", "ts", "jsx", "tsx", "mjs", "cjs", "mts", "cts"]
+
+def hasForbiddenJsExtension (ext : String) : Bool :=
+  forbiddenJsExtensions.contains ext.toLower
+
+theorem hasForbiddenJsExtension_iff (ext : String) :
+    hasForbiddenJsExtension ext = true ↔ ext.toLower ∈ forbiddenJsExtensions := by
+  simp [hasForbiddenJsExtension]
+
+def startsWithScriptTag : List Char → Bool
+  | c0 :: c1 :: c2 :: c3 :: c4 :: c5 :: c6 :: _ =>
+    c0.toLower == '<' && c1.toLower == 's' && c2.toLower == 'c' &&
+      c3.toLower == 'r' && c4.toLower == 'i' && c5.toLower == 'p' &&
+      c6.toLower == 't'
+  | _ => false
+
+def containsScriptTagChars : List Char → Bool
+  | [] => false
+  | c :: rest =>
+    if startsWithScriptTag (c :: rest) then true
+    else containsScriptTagChars rest
+
+theorem startsWithScriptTag_iff (cs : List Char) :
+    startsWithScriptTag cs = true ↔ (cs.take 7).map Char.toLower = scriptPrefix := by
+  rcases cs with _ | ⟨c0, _ | ⟨c1, _ | ⟨c2, _ | ⟨c3, _ | ⟨c4, _ | ⟨c5, _ | ⟨c6, rest⟩⟩⟩⟩⟩⟩⟩ <;>
+    simp [startsWithScriptTag, scriptPrefix, and_assoc]
+
+theorem containsScriptTagChars_iff (cs : List Char) :
+    containsScriptTagChars cs = true ↔ ContainsScriptTag cs := by
+  induction cs with
+  | nil =>
+    constructor
+    · intro h
+      simp [containsScriptTagChars] at h
+    · rintro ⟨before, after, hEq, hPref⟩
+      have hNil : after = [] := by
+        cases before <;> cases after <;> simp at hEq ⊢
+      simp [hNil, scriptPrefix] at hPref
+  | cons c rest ih =>
+    unfold containsScriptTagChars
+    constructor
+    · intro h
+      by_cases hs : startsWithScriptTag (c :: rest) = true
+      · exact ⟨[], c :: rest, rfl, (startsWithScriptTag_iff (c :: rest)).mp hs⟩
+      · rw [ite_eq_right hs] at h
+        obtain ⟨before, after, hRest, hPref⟩ := ih.mp h
+        exact ⟨c :: before, after, by simp [hRest], hPref⟩
+    · rintro ⟨before, after, hEq, hPref⟩
+      cases before with
+      | nil =>
+        simp only [List.nil_append] at hEq
+        rw [← hEq] at hPref
+        have hs : startsWithScriptTag (c :: rest) = true :=
+          (startsWithScriptTag_iff (c :: rest)).mpr hPref
+        rw [ite_eq_left hs]
+      | cons b bs =>
+        simp only [List.cons_append, List.cons.injEq] at hEq
+        have hRec : containsScriptTagChars rest = true :=
+          ih.mpr ⟨bs, after, hEq.2, hPref⟩
+        by_cases hs : startsWithScriptTag (c :: rest) = true
+        · rw [ite_eq_left hs]
+        · rw [ite_eq_right hs]
+          exact hRec
+
+inductive ZeroJsRefusal where
+  | forbiddenExtension
+  | nulByte
+  | invalidUtf8
+  | scriptTag
+  deriving DecidableEq, BEq
+
+def hasNulByte (bytes : ByteArray) : Bool :=
+  bytes.data.contains (0 : UInt8)
+
+theorem hasNulByte_iff (bytes : ByteArray) :
+    hasNulByte bytes = true ↔ (0 : UInt8) ∈ bytes.data.toList := by
+  simp [hasNulByte]
+
+def admitZeroJsBytes (bytes : ByteArray) : Except ZeroJsRefusal String :=
+  if hasNulByte bytes then .error .nulByte
+  else
+    match String.fromUTF8? bytes with
+    | none => .error .invalidUtf8
+    | some text =>
+      if containsScriptTagChars text.toList then .error .scriptTag
+      else .ok text
+
+def admitZeroJsFile (ext : String) (bytes : ByteArray) : Except ZeroJsRefusal String :=
+  if hasForbiddenJsExtension ext then .error .forbiddenExtension
+  else admitZeroJsBytes bytes
+
+theorem admitZeroJsBytes_iff (bytes : ByteArray) (text : String) :
+    admitZeroJsBytes bytes = .ok text ↔
+      (0 : UInt8) ∉ bytes.data.toList ∧
+      String.fromUTF8? bytes = some text ∧
+      ¬ ContainsScriptTag text.toList := by
+  unfold admitZeroJsBytes
+  by_cases hNul : hasNulByte bytes = true
+  · rw [ite_eq_left hNul]
+    have hMem : (0 : UInt8) ∈ bytes.data.toList := (hasNulByte_iff bytes).mp hNul
+    simp [hMem]
+  · rw [ite_eq_right hNul]
+    have hNoNul : (0 : UInt8) ∉ bytes.data.toList := fun hMem =>
+      hNul ((hasNulByte_iff bytes).mpr hMem)
+    cases hUtf : String.fromUTF8? bytes with
+    | none => simp [hNoNul]
+    | some decoded =>
+      dsimp only
+      by_cases hSc : containsScriptTagChars decoded.toList = true
+      · rw [ite_eq_left hSc]
+        have hContains : ContainsScriptTag decoded.toList :=
+          (containsScriptTagChars_iff decoded.toList).mp hSc
+        constructor
+        · intro h
+          cases h
+        · rintro ⟨_, hEq, hNot⟩
+          cases Option.some.inj hEq
+          exact False.elim (hNot hContains)
+      · rw [ite_eq_right hSc]
+        have hNoScript : ¬ ContainsScriptTag decoded.toList := fun hContains =>
+          hSc ((containsScriptTagChars_iff decoded.toList).mpr hContains)
+        constructor
+        · intro h
+          cases Except.ok.inj h
+          exact ⟨hNoNul, rfl, hNoScript⟩
+        · rintro ⟨_, hEq, _⟩
+          cases Option.some.inj hEq
+          rfl
+
+theorem admitZeroJsFile_iff (ext : String) (bytes : ByteArray) (text : String) :
+    admitZeroJsFile ext bytes = .ok text ↔
+      ext.toLower ∉ forbiddenJsExtensions ∧
+      (0 : UInt8) ∉ bytes.data.toList ∧
+      String.fromUTF8? bytes = some text ∧
+      ¬ ContainsScriptTag text.toList := by
+  unfold admitZeroJsFile
+  by_cases hExt : hasForbiddenJsExtension ext = true
+  · rw [ite_eq_left hExt]
+    have hMem : ext.toLower ∈ forbiddenJsExtensions := (hasForbiddenJsExtension_iff ext).mp hExt
+    simp [hMem]
+  · rw [ite_eq_right hExt]
+    have hNoExt : ext.toLower ∉ forbiddenJsExtensions := fun hMem =>
+      hExt ((hasForbiddenJsExtension_iff ext).mpr hMem)
+    rw [admitZeroJsBytes_iff]
+    simp [hNoExt]
+
 end Acorn.Host.Viewer.Html

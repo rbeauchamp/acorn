@@ -727,6 +727,8 @@ def anchors : Array (Name × Name × Name) := #[
     `Acorn.Host.Viewer.Html.Node.render),
   (`Acorn.Host.Viewer.Html, `Acorn.Host.Viewer.Html.Document.render_no_script,
     `Acorn.Host.Viewer.Html.Document.render),
+  (`Acorn.Host.Viewer.Html, `Acorn.Host.Viewer.Html.admitZeroJsFile_iff,
+    `Acorn.Host.Viewer.Html.admitZeroJsFile),
   (`Acorn.Host.Viewer.ServerView, `Acorn.Host.Viewer.renderViewerPage_no_script,
     `Acorn.Host.Viewer.renderViewerPage),
   (`Acorn.Host.Viewer.ControlRequest, `Acorn.Host.Viewer.AuthorizedFormCommand.post,

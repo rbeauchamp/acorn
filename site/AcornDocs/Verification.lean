@@ -591,9 +591,15 @@ external prose names strictly by exact equality with
 namespace or type admits no other member of its namespace (every qualified
 external name must be listed in full), and the module imports only Lean's
 prelude so the Regula proof claim covers it and `AcornDocument.external_listed`.
-In `lean/AcornTools/Corpus/Audit.lean`, `AcornCorpus.language` forbids JavaScript
-and TypeScript file extensions repo-wide and scans every tracked file's raw bytes
-for case-insensitive HTML script start tags with zero carve-outs. In
+In `lean/AcornTools/Corpus/Audit.lean`, `AcornCorpus.check` and
+`AcornCorpus.language` audit the full Git-tracked regular-file inventory with
+zero directory carve-outs through `Acorn.Host.Viewer.Html.admitZeroJsFile`,
+whose exact admission boundary is proved by
+`Acorn.Host.Viewer.Html.admitZeroJsFile_iff`: rejecting JavaScript and
+TypeScript extensions, failing closed on any NUL byte or non-UTF-8 encoding
+outside the admitted UTF-8 text boundary (excluding UTF-16, UTF-32, and binary
+payloads), and rejecting any decoded UTF-8 file satisfying
+`Acorn.Host.Viewer.Html.ContainsScriptTag`. In
 `lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.check` verifies the
 specification table in `docs/viewer-ux.md`: it requires a unique line containing
 the Appendix A title with exact heading

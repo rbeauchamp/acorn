@@ -50,9 +50,12 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   `Acorn.Host.Viewer.Html`, emit `Content-Security-Policy` containing
   `script-src 'none'`, and carry zero script elements or inline event handlers
   (`Html.Document.render_no_script`, `renderViewerPage_no_script`,
-  `Html.AttrName.no_event_handler`). The corpus audit (`AcornCorpus.language`)
-  rejects any tracked JavaScript/TypeScript file or case-insensitive HTML script
-  start tag with zero carve-outs. Live updates are delivered without client code
+  `Html.AttrName.no_event_handler`). The corpus audit (`AcornCorpus.check` and
+  `AcornCorpus.language`, via `Html.admitZeroJsFile` and
+  `Html.admitZeroJsFile_iff`) scans the full Git-tracked regular-file inventory
+  with zero directory carve-outs, rejecting any JavaScript/TypeScript extension,
+  any NUL byte or non-UTF-8 encoding outside the admitted UTF-8 text boundary,
+  and any case-insensitive HTML script start tag. Live updates are delivered without client code
   via standard HTML meta refresh and browser-native `multipart/x-mixed-replace`
   BMP streaming on `/stream/stage.bmp` (throttled to `READ_MS`). The earlier
   SSE/EventSource transport, JS timer inventory, `requestAnimationFrame` render

@@ -940,21 +940,121 @@ private def learnerDetailNode (title : String) (alphas : Array Scalar) (credits 
     el .pre [] [txt (String.intercalate "\n" lines)]
   ]
 
+inductive GoalHeadlineState where
+  | invalid
+  | waiting (cycle : Nat) (goalCount : Nat) (stopped : Bool)
+  | firstIncomplete (score : Nat) (cycle achieved resolved goalCount : Nat) (stopped : Bool)
+  | completed (score : Nat) (completedCycle completedAchieved goalCount : Nat)
+      (currentCycle currentResolved currentAchieved : Nat) (stopped : Bool)
+  | unavailable
+  deriving DecidableEq, BEq
+
+def classifyGoalHeadline (gp : GoalProgressSnapshot) (stopped : Bool) : GoalHeadlineState :=
+  if gp.invalid then .invalid
+  else if gp.goalCount == 0 then .unavailable
+  else
+    match gp.completedCycle, gp.completedAchieved, gp.score with
+    | some compCycle, some compAch, some sc =>
+      .completed sc compCycle compAch gp.goalCount gp.cycle gp.resolved gp.achieved stopped
+    | none, none, _ =>
+      if gp.resolved == 0 then .waiting gp.cycle gp.goalCount stopped
+      else match gp.score with
+        | some sc => .firstIncomplete sc gp.cycle gp.achieved gp.resolved gp.goalCount stopped
+        | none => .unavailable
+    | _, _, _ => .unavailable
+
+theorem classifyGoalHeadline_first_incomplete (gp : GoalProgressSnapshot) (stopped : Bool) (sc : Nat)
+    (hValid : gp.invalid = false) (hGoals : 0 < gp.goalCount)
+    (hNoCompCycle : gp.completedCycle = none) (hNoCompAch : gp.completedAchieved = none)
+    (hResolved : 0 < gp.resolved) (hScore : gp.score = some sc) :
+    classifyGoalHeadline gp stopped =
+      .firstIncomplete sc gp.cycle gp.achieved gp.resolved gp.goalCount stopped := by
+  have hGoalsNe : (gp.goalCount == 0) = false := beq_false_of_ne (Nat.ne_of_gt hGoals)
+  have hResNe : (gp.resolved == 0) = false := beq_false_of_ne (Nat.ne_of_gt hResolved)
+  simp [classifyGoalHeadline, hValid, hGoalsNe, hNoCompCycle, hNoCompAch, hResNe, hScore]
+
+theorem classifyGoalHeadline_waiting (gp : GoalProgressSnapshot) (stopped : Bool)
+    (hValid : gp.invalid = false) (hGoals : 0 < gp.goalCount)
+    (hNoCompCycle : gp.completedCycle = none) (hNoCompAch : gp.completedAchieved = none)
+    (hResolved : gp.resolved = 0) :
+    classifyGoalHeadline gp stopped = .waiting gp.cycle gp.goalCount stopped := by
+  have hGoalsNe : (gp.goalCount == 0) = false := beq_false_of_ne (Nat.ne_of_gt hGoals)
+  simp [classifyGoalHeadline, hValid, hGoalsNe, hNoCompCycle, hNoCompAch, hResolved]
+
+theorem classifyGoalHeadline_completed (gp : GoalProgressSnapshot) (stopped : Bool)
+    (compCycle compAch sc : Nat)
+    (hValid : gp.invalid = false) (hGoals : 0 < gp.goalCount)
+    (hCompCycle : gp.completedCycle = some compCycle)
+    (hCompAch : gp.completedAchieved = some compAch)
+    (hScore : gp.score = some sc) :
+    classifyGoalHeadline gp stopped =
+      .completed sc compCycle compAch gp.goalCount gp.cycle gp.resolved gp.achieved stopped := by
+  have hGoalsNe : (gp.goalCount == 0) = false := beq_false_of_ne (Nat.ne_of_gt hGoals)
+  simp [classifyGoalHeadline, hValid, hGoalsNe, hCompCycle, hCompAch, hScore]
+
+private structure GoalHeadlineDisplay where
+  value : String
+  scoreBar : Option Nat
+  population : String
+  tileCaption : String
+  currentProgress : String
+
+private def goalHeadlineDisplay (gp : GoalProgressSnapshot) (stopped : Bool) : GoalHeadlineDisplay :=
+  let stopTag := if stopped then " · stopped" else ""
+  match classifyGoalHeadline gp stopped with
+  | .invalid =>
+    { value := "invalid"
+      scoreBar := none
+      population := "Invalid outcome order — score suppressed"
+      tileCaption := "Outcome order invalid"
+      currentProgress := s!"Current pass {gp.cycle + 1}{stopTag}: accounting suppressed" }
+  | .waiting cycle goalCount _ =>
+    { value := "Waiting"
+      scoreBar := none
+      population := s!"Waiting for first resolved goal (0/{goalCount} resolved)"
+      tileCaption := s!"Waiting · Pass {cycle + 1}{stopTag}"
+      currentProgress := s!"Current pass {cycle + 1}{stopTag}: 0/{goalCount} resolved (0.0%)" }
+  | .firstIncomplete sc cycle achieved resolved goalCount _ =>
+    let pct := formatPercent1 resolved goalCount
+    { value := formatPermilleScore (some sc) 1000
+      scoreBar := some sc
+      population := s!"{achieved}/{goalCount} achieved so far · first pass incomplete (unresolved goals unknown)"
+      tileCaption := s!"so far · first pass incomplete ({achieved}/{goalCount})"
+      currentProgress := s!"Current pass {cycle + 1}{stopTag}: {resolved}/{goalCount} resolved ({pct})" }
+  | .completed sc compCycle compAch goalCount curCycle curResolved curAchieved _ =>
+    let pct := formatPercent1 curResolved goalCount
+    let completedCount := compCycle + 1
+    let progressLine :=
+      if curCycle > compCycle then
+        s!"Current pass {curCycle + 1}{stopTag}: {curResolved}/{goalCount} resolved ({pct}) · {curAchieved} achieved so far · {completedCount} completed"
+      else
+        s!"Current pass {curCycle + 1}{stopTag}: {curResolved}/{goalCount} resolved ({pct}) · {completedCount} completed"
+    { value := formatPermilleScore (some sc) 1000
+      scoreBar := some sc
+      population := s!"Pass {compCycle + 1} complete · {compAch}/{goalCount} achieved"
+      tileCaption := s!"Pass {compCycle + 1} complete · {compAch}/{goalCount}"
+      currentProgress := progressLine }
+  | .unavailable =>
+    { value := "—"
+      scoreBar := none
+      population := "Goal progress unavailable"
+      tileCaption := "Unavailable"
+      currentProgress := "Current pass progress unavailable" }
+
 private def renderGoalSidebar (agOpt : Option AgreementSnapshot) (selectedIsEarlier : Bool) : Node :=
   match agOpt with
   | none =>
     el .div [kv .cls "panel goal-summary"] [
       el .h2 [] [txt "Goal achievement"],
       el .div [kv .cls "agreement-primary goal-primary"] [
-        el .strong [] [txt "—"],
-        el .p [kv .cls "lede"] [txt "No completed curriculum reading yet. Start the core to observe goal achievement."]
+        el .strong [] [txt "Waiting"],
+        el .p [kv .cls "lede"] [txt "No curriculum snapshot yet. Start the core to observe goal achievement."]
       ]
     ]
   | some ag =>
     let gp := ag.goalProgress
-    let scoreText := if gp.invalid then "invalid" else formatPermilleScore gp.score 1000
-    let scoreCls := if gp.score.isSome && !gp.invalid then "has-score" else ""
-    let stopSuffix := if ag.stopped then " · stopped" else ""
+    let disp := goalHeadlineDisplay gp ag.stopped
+    let scoreCls := if disp.scoreBar.isSome then "has-score" else ""
     let goalRows := (List.range gp.goalCount).map fun idx =>
       let nm := gp.curriculumNames[idx]?.getD s!"Goal {idx + 1}"
       let failed := gp.curriculumFailed[idx]?.getD 0
@@ -977,15 +1077,17 @@ private def renderGoalSidebar (agOpt : Option AgreementSnapshot) (selectedIsEarl
       whenNode selectedIsEarlier
         (el .div [kv .cls "scope-note"] [txt "Scope: latest core process snapshot (independent of paused frame)."]),
       el .div [kv .cls "agreement-primary goal-primary"] [
-        el .strong (if scoreCls.isEmpty then [] else [kv .cls scoreCls]) [txt scoreText],
-        whenNode (gp.score.isSome && !gp.invalid)
-          (el .progress [kv .value (toString (gp.score.getD 0)), kv .max "1000"] []),
-        el .div [kv .cls "lede"] [txt s!"Cycle {gp.cycle + 1} · {gp.achieved}/{gp.resolved} resolved achieved ({gp.goalCount} curriculum goals){stopSuffix}"]
+        el .strong (if scoreCls.isEmpty then [] else [kv .cls scoreCls]) [txt disp.value],
+        match disp.scoreBar with
+        | some sc => el .progress [kv .value (toString sc), kv .max "1000"] []
+        | none => .empty,
+        el .div [kv .cls "lede"] [txt disp.population]
       ],
+      el .div [kv .cls "scope-note"] [txt disp.currentProgress],
       el .details [kv .cls "cite"] [
         el .summary [] [txt "scope & citation"],
         el .div [kv .cls "body"] [
-          txt "Truncated permille across the latest completed curriculum pass (1000 * achieved / goals), reading directly from Acorn.Host.Viewer.GoalAchievement without browser-side recomputation."
+          txt "Truncated permille (1000 * achieved / goals) over the latest completed curriculum pass once available, or achieved/assigned so far during an incomplete first pass (unresolved goals unknown), reading directly from Acorn.Host.Viewer.GoalAchievement without browser-side recomputation."
         ]
       ],
       el .div [kv .id "goals"] goalRows
@@ -1517,9 +1619,11 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       let agScoreStr := match observer.agreement with
         | some ag => ag.text.getD (formatPermilleScore ag.score ag.scale)
         | none => "—"
-      let gpScoreStr := match observer.agreement with
-        | some ag => if ag.goalProgress.invalid then "invalid" else formatPermilleScore ag.goalProgress.score 1000
-        | none => "—"
+      let (gpScoreStr, gpTileCaption) := match observer.agreement with
+        | some ag =>
+          let disp := goalHeadlineDisplay ag.goalProgress ag.stopped
+          (disp.value, disp.tileCaption)
+        | none => ("—", "No curriculum snapshot")
       let plastStr := match displaySummary with
         | some s => s.aCtl.formatCompact 4
         | none => "—"
@@ -1563,7 +1667,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         el .div [kv .cls "panel"] [
           el .h2 [] [txt "Headline readouts"],
           el .div [kv .cls "tiles"] [
-            el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Goal achievement"], el .div [kv .cls "v"] [txt gpScoreStr], el .div [kv .cls "d"] [txt "Latest process snapshot"]],
+            el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Goal achievement"], el .div [kv .cls "v"] [txt gpScoreStr], el .div [kv .cls "d"] [txt gpTileCaption]],
             el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Agreement"], el .div [kv .cls "v"] [txt agScoreStr], el .div [kv .cls "d"] [txt "Process-local GVFs"]],
             el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Control α"], el .div [kv .cls "v"] [txt plastStr], el .div [kv .cls "d"] [txt plastCaption]],
             el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Frames"], el .div [kv .cls "v"] [txt (formatCompactNat observer.admittedCount)], el .div [kv .cls "d"] [txt "Admitted in run"]]
