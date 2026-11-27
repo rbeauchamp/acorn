@@ -44,20 +44,19 @@ structure ViewQuery where
   watch : Bool := false
   deriving DecidableEq, BEq
 
-private def lookupQuery (pairs : List (String × String)) (key : String) : Option String :=
-  (pairs.find? fun p => p.1 == key).map Prod.snd
-
 def ViewQuery.ofPairs (pairs : List (String × String)) : ViewQuery :=
-  let mode := match lookupQuery pairs "view" with
-    | some "paused" => ViewMode.paused
-    | _ => ViewMode.live
-  let frame := (lookupQuery pairs "frame").bind Digits.read
-  let refresh := match lookupQuery pairs "refresh" with
+  let stream := formLookup pairs "stream" == some "1"
+  let mode :=
+    if stream then ViewMode.live
+    else match formLookup pairs "view" with
+      | some "paused" => ViewMode.paused
+      | _ => ViewMode.live
+  let frame := if mode == .paused then (formLookup pairs "frame").bind Digits.read else none
+  let refresh := match formLookup pairs "refresh" with
     | some raw => RefreshMode.parse raw
     | none => .auto
-  let inside := lookupQuery pairs "inside" == some "1"
-  let stream := lookupQuery pairs "stream" == some "1"
-  let watch := lookupQuery pairs "watch" == some "1"
+  let inside := formLookup pairs "inside" == some "1"
+  let watch := formLookup pairs "watch" == some "1"
   { mode, frame, refresh, inside, stream, watch }
 
 def ViewQuery.parseRaw (rawQuery : String) : ViewQuery :=
@@ -65,18 +64,6 @@ def ViewQuery.parseRaw (rawQuery : String) : ViewQuery :=
   match parseFormPairs trimmed with
   | some pairs => ViewQuery.ofPairs pairs
   | none => {}
-
-def ViewQuery.ofFormPayload (payload : FormPayload) (watch : Bool) : ViewQuery :=
-  let mode := match payload.viewMode with
-    | some "paused" => ViewMode.paused
-    | _ => ViewMode.live
-  let frame := payload.frame.bind Digits.read
-  let refresh := match payload.refresh with
-    | some raw => RefreshMode.parse raw
-    | none => .auto
-  let inside := payload.inside == some "1"
-  let stream := payload.stream == some "1"
-  { mode, frame, refresh, inside, stream, watch }
 
 def ViewQuery.href (q : ViewQuery) : String :=
   let parts : List String :=
@@ -87,6 +74,59 @@ def ViewQuery.href (q : ViewQuery) : String :=
     (if q.stream then ["stream=1"] else []) ++
     (if q.watch then ["watch=1"] else [])
   if parts.isEmpty then "/" else "/?" ++ String.intercalate "&" parts
+
+structure DisplayProjection where
+  clampedIdx : Option Nat
+  displaySummary : Option FrameSummary
+  selectedFull : Option ServerFrame
+  trailSummaries : List FrameSummary
+  selectedIsEarlier : Bool
+
+def projectDisplay (summaries : List FrameSummary) (latest : Option ServerFrame)
+    (query : ViewQuery) : DisplayProjection :=
+  let bufferedCount := summaries.length
+  if bufferedCount == 0 then
+    { clampedIdx := none
+      displaySummary := latest.map (·.summary)
+      selectedFull := latest
+      trailSummaries := []
+      selectedIsEarlier := false }
+  else
+    let idx := match query.mode, query.frame with
+      | .paused, some req => max 1 (min bufferedCount req) - 1
+      | _, _ => bufferedCount - 1
+    let sel := summaries[idx]?
+    let displaySummary := sel.or (latest.map (·.summary))
+    let selectedIsEarlier := query.mode == .paused && idx + 1 < bufferedCount
+    let selectedFull :=
+      if selectedIsEarlier then none
+      else match latest, sel with
+        | some f, some s =>
+          if f.summary.lifetimeStep == s.lifetimeStep &&
+              f.summary.worldStep == s.worldStep &&
+              f.summary.terminal == s.terminal then some f
+          else none
+        | _, _ => none
+    { clampedIdx := some idx
+      displaySummary
+      selectedFull
+      trailSummaries := summaries.take (idx + 1)
+      selectedIsEarlier }
+
+theorem projectDisplay_paused_earlier (summaries : List FrameSummary)
+    (latest : Option ServerFrame) (query : ViewQuery) (req : Nat)
+    (hMode : query.mode = .paused) (hFrame : query.frame = some req)
+    (hNonEmpty : 0 < summaries.length)
+    (hEarlier : max 1 (min summaries.length req) < summaries.length) :
+    let proj := projectDisplay summaries latest query
+    proj.selectedFull = none ∧ proj.selectedIsEarlier = true ∧
+      proj.trailSummaries = summaries.take (max 1 (min summaries.length req)) := by
+  have hNeZero : (summaries.length == 0) = false := beq_false_of_ne (Nat.ne_of_gt hNonEmpty)
+  have hPos : 1 ≤ max 1 (min summaries.length req) := Nat.le_max_left _ _
+  have hSubAdd : max 1 (min summaries.length req) - 1 + 1 = max 1 (min summaries.length req) := by
+    omega
+  have hPaused : (ViewMode.paused == ViewMode.paused) = true := rfl
+  simp [projectDisplay, hNeZero, hMode, hFrame, hSubAdd, hPaused, hEarlier]
 
 inductive ControlNotice where
   | forbidden
@@ -131,11 +171,19 @@ def viewerStylesheet : String :=
   ".pill.reset{color:var(--bad);border-color:#5a2a28;background:#231212;}\n" ++
   ".pill.live{color:var(--accent);border-color:#28502f;background:#0f2114;}\n" ++
   ".pill.fresh{color:var(--dim);border-color:#2d3744;background:#0d1218;}\n" ++
+  ".pill.unknown{color:var(--faint);border-color:#242c38;background:#0a0e14;}\n" ++
   ".pill.resumed{color:var(--accent2);border-color:#1c3a5a;background:#0d1b2a;}\n" ++
   ".pill.cleared{color:var(--gold);border-color:#594a17;background:#211b0b;}\n" ++
   ".broken{color:var(--bad)!important;font-weight:700;}\n" ++
   ".notice-banner{margin:10px 10px 0;padding:10px 12px;border-radius:8px;border:1px solid #5a2a28;" ++
   "background:#231212;color:var(--bad);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;}\n" ++
+  ".diag-banner{margin:10px 10px 0;padding:9px 12px;border-radius:8px;border:1px solid #4a3417;" ++
+  "background:#17130c;color:var(--warn);display:flex;flex-direction:column;gap:5px;}\n" ++
+  ".diag-banner.fault{border-color:#5a2a28;background:#231212;color:var(--bad);}\n" ++
+  ".diag-banner .diag-head{font-weight:600;overflow-wrap:anywhere;}\n" ++
+  ".diag-banner .diag-warn{color:var(--bad);font-weight:600;overflow-wrap:anywhere;}\n" ++
+  ".stage-caption{padding:6px 12px;border-top:1px solid var(--border);background:#0d1218;color:var(--dim);font-size:10.5px;display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;}\n" ++
+  ".scope-note{color:var(--faint);font-size:10px;margin:0 0 6px;line-height:1.4;}\n" ++
   "#welcome{display:flex;gap:24px;align-items:center;justify-content:space-between;padding:14px 20px 6px;}\n" ++
   "#welcome>*{min-width:0;}#welcome h2{font-size:21px;color:var(--ink);letter-spacing:-.5px;}\n" ++
   "#welcome p{margin:5px 0;color:var(--dim);max-width:80ch;}#welcome>p{max-width:34ch;flex-shrink:0;}\n" ++
@@ -294,7 +342,7 @@ private def hiddenViewInputs (q : ViewQuery) : List Node :=
   (if q.inside then [vd .input [kv .type "hidden", kv .name "inside", kv .value "1"]] else []) ++
   (if q.stream then [vd .input [kv .type "hidden", kv .name "stream", kv .value "1"]] else [])
 
-private def effectiveRefreshSeconds (phase : Phase) (q : ViewQuery) : Option Nat :=
+def effectiveRefreshSeconds (phase : Phase) (q : ViewQuery) : Option Nat :=
   match q.refresh with
   | .off => none
   | .sec1 => some 1
@@ -305,8 +353,16 @@ private def effectiveRefreshSeconds (phase : Phase) (q : ViewQuery) : Option Nat
     else
       match phase with
       | .starting _ | .stopping _ | .archiving => some 1
-      | .running _ => if q.mode == .live && !q.stream then some 2 else none
+      | .running _ =>
+        if q.stream then some 5
+        else if q.mode == .live then some 2
+        else none
       | .idle => none
+
+theorem effectiveRefreshSeconds_stream_running (gen : UInt64) (q : ViewQuery)
+    (hRefresh : q.refresh = .auto) (hStream : q.stream = true) (hWatch : q.watch = false) :
+    effectiveRefreshSeconds (.running gen) q = some 5 := by
+  simp [effectiveRefreshSeconds, hRefresh, hStream, hWatch]
 
 private def formatPermilleScore (score : Option Nat) (scale : Nat) : String :=
   match score with
@@ -323,7 +379,8 @@ private def kvRow (label value : String) (broken : Bool := false) : Node :=
   ]
 
 private def renderStageSvg (world : Option ((key : MapKey) × WorldMemory key))
-    (frame : ServerFrame) (summary : FrameSummary) (summaries : List FrameSummary) : Node := Id.run do
+    (selectedFull : Option ServerFrame) (summary : FrameSummary)
+    (trailSummaries : List FrameSummary) : Node := Id.run do
   let cols : Nat := 96
   let rows : Nat := 54
   let tilePx : Nat := 12
@@ -343,12 +400,19 @@ private def renderStageSvg (world : Option ((key : MapKey) × WorldMemory key))
       let wx := cx - halfW + (rx : Int)
       let cellKind : Option Nat :=
         if 0 ≤ wx && wx < side && 0 ≤ wy && wy < side then
-          let dx := wx - frame.summary.x
-          let dy := wy - frame.summary.y
-          if -5 ≤ dx && dx ≤ 5 && -5 ≤ dy && dy ≤ 5 then
-            let idx := (dy + 5).toNat * 11 + (dx + 5).toNat
-            frame.tiles[idx]?
-          else
+          let sensorKind : Option Nat :=
+            match selectedFull with
+            | some f =>
+              let dx := wx - f.summary.x
+              let dy := wy - f.summary.y
+              if -5 ≤ dx && dx ≤ 5 && -5 ≤ dy && dy ≤ 5 then
+                let idx := (dy + 5).toNat * 11 + (dx + 5).toNat
+                f.tiles[idx]?
+              else none
+            | none => none
+          match sensorKind with
+          | some k => some k
+          | none =>
             match world with
             | some ⟨key, mem⟩ =>
               match mapIndex key.side wx wy with
@@ -390,7 +454,7 @@ private def renderStageSvg (world : Option ((key : MapKey) × WorldMemory key))
       kv .x "0", kv .y "0", kv .width (toString svgW), kv .height (toString svgH),
       kv .fill "#081230", kv .fillOpacity nightOp
     ] [])
-  let trailPoints := (summaries.drop (summaries.length - 80)).filterMap fun s =>
+  let trailPoints := (trailSummaries.drop (trailSummaries.length - 80)).filterMap fun s =>
     let rx := s.x - (cx - halfW)
     let ry := s.y - (cy - halfH)
     if 0 ≤ rx && rx < cols && 0 ≤ ry && ry < rows then
@@ -401,58 +465,59 @@ private def renderStageSvg (world : Option ((key : MapKey) × WorldMemory key))
       kv .points (String.intercalate " " trailPoints),
       kv .fill "none", kv .stroke "#79c0ff", kv .strokeWidth "2", kv .strokeOpacity "0.65"
     ] [])
-  let sensorLeft := (frame.summary.x - 5) - (cx - halfW)
-  let sensorTop := (frame.summary.y - 5) - (cy - halfH)
-  if -11 ≤ sensorLeft && sensorLeft < cols && -11 ≤ sensorTop && sensorTop < rows then
-    overlayNodes := overlayNodes.push (el .rect [
-      kv .x (toString (sensorLeft * tilePx)),
-      kv .y (toString (sensorTop * tilePx)),
-      kv .width (toString (11 * tilePx)),
-      kv .height (toString (11 * tilePx)),
-      kv .fill "none", kv .stroke "#79c0ff", kv .strokeWidth "1.5", kv .strokeDasharray "4 3",
-      kv .strokeOpacity "0.75"
-    ] [])
-    for idx in [:121] do
-      let extra := frame.tileExtra[idx]?.getD 0
-      if extra > 0 then
-        let ox := sensorLeft + (idx % 11 : Nat)
-        let oy := sensorTop + (idx / 11 : Nat)
-        if 0 ≤ ox && ox < cols && 0 ≤ oy && oy < rows then
-          let px := ox.toNat * tilePx + tilePx / 2
-          let py := oy.toNat * tilePx + tilePx / 2
-          if extra % 2 == 1 then
-            overlayNodes := overlayNodes.push (el .circle [
-              kv .cx (toString px), kv .cy (toString py), kv .r "3.5", kv .fill "#f0883e"
-            ] [])
-          if (extra / 2) % 2 == 1 then
-            overlayNodes := overlayNodes.push (el .circle [
-              kv .cx (toString px), kv .cy (toString py), kv .r "4", kv .fill "#c68b59",
-              kv .stroke "#ffffff", kv .strokeWidth "1"
-            ] [])
-  if frame.gkind == 1 then
-    let tx := frame.gx - (cx - halfW)
-    let ty := frame.gy - (cy - halfH)
-    if 0 ≤ tx && tx < cols && 0 ≤ ty && ty < rows then
-      let px := tx.toNat * tilePx + tilePx / 2
-      let py := ty.toNat * tilePx + tilePx / 2
-      overlayNodes := overlayNodes.push (el .circle [
-        kv .cx (toString px), kv .cy (toString py), kv .r "9",
-        kv .fill "none", kv .stroke "#ffd24a", kv .strokeWidth "2.5"
+  if let some f := selectedFull then
+    let sensorLeft := (f.summary.x - 5) - (cx - halfW)
+    let sensorTop := (f.summary.y - 5) - (cy - halfH)
+    if -11 ≤ sensorLeft && sensorLeft < cols && -11 ≤ sensorTop && sensorTop < rows then
+      overlayNodes := overlayNodes.push (el .rect [
+        kv .x (toString (sensorLeft * tilePx)),
+        kv .y (toString (sensorTop * tilePx)),
+        kv .width (toString (11 * tilePx)),
+        kv .height (toString (11 * tilePx)),
+        kv .fill "none", kv .stroke "#79c0ff", kv .strokeWidth "1.5", kv .strokeDasharray "4 3",
+        kv .strokeOpacity "0.75"
       ] [])
-      overlayNodes := overlayNodes.push (el .circle [
-        kv .cx (toString px), kv .cy (toString py), kv .r "3.5", kv .fill "#ffd24a"
-      ] [])
-    else
-      let clampedX := max 24 (min (svgW - 24 : Int) (tx * tilePx))
-      let clampedY := max 24 (min (svgH - 24 : Int) (ty * tilePx))
-      overlayNodes := overlayNodes.push (el .circle [
-        kv .cx (toString clampedX), kv .cy (toString clampedY), kv .r "10",
-        kv .fill "#211b0b", kv .stroke "#ffd24a", kv .strokeWidth "2"
-      ] [])
-      overlayNodes := overlayNodes.push (el .text [
-        kv .x (toString clampedX), kv .y (toString (clampedY + 4)),
-        kv .fill "#ffd24a", kv .fontSize "11", kv .fontWeight "700", kv .textAnchor "middle"
-      ] [txt "★"])
+      for idx in [:121] do
+        let extra := f.tileExtra[idx]?.getD 0
+        if extra > 0 then
+          let ox := sensorLeft + (idx % 11 : Nat)
+          let oy := sensorTop + (idx / 11 : Nat)
+          if 0 ≤ ox && ox < cols && 0 ≤ oy && oy < rows then
+            let px := ox.toNat * tilePx + tilePx / 2
+            let py := oy.toNat * tilePx + tilePx / 2
+            if extra % 2 == 1 then
+              overlayNodes := overlayNodes.push (el .circle [
+                kv .cx (toString px), kv .cy (toString py), kv .r "3.5", kv .fill "#f0883e"
+              ] [])
+            if (extra / 2) % 2 == 1 then
+              overlayNodes := overlayNodes.push (el .circle [
+                kv .cx (toString px), kv .cy (toString py), kv .r "4", kv .fill "#c68b59",
+                kv .stroke "#ffffff", kv .strokeWidth "1"
+              ] [])
+    if f.gkind == 1 then
+      let tx := f.gx - (cx - halfW)
+      let ty := f.gy - (cy - halfH)
+      if 0 ≤ tx && tx < cols && 0 ≤ ty && ty < rows then
+        let px := tx.toNat * tilePx + tilePx / 2
+        let py := ty.toNat * tilePx + tilePx / 2
+        overlayNodes := overlayNodes.push (el .circle [
+          kv .cx (toString px), kv .cy (toString py), kv .r "9",
+          kv .fill "none", kv .stroke "#ffd24a", kv .strokeWidth "2.5"
+        ] [])
+        overlayNodes := overlayNodes.push (el .circle [
+          kv .cx (toString px), kv .cy (toString py), kv .r "3.5", kv .fill "#ffd24a"
+        ] [])
+      else
+        let clampedX := max 24 (min (svgW - 24 : Int) (tx * tilePx))
+        let clampedY := max 24 (min (svgH - 24 : Int) (ty * tilePx))
+        overlayNodes := overlayNodes.push (el .circle [
+          kv .cx (toString clampedX), kv .cy (toString clampedY), kv .r "10",
+          kv .fill "#211b0b", kv .stroke "#ffd24a", kv .strokeWidth "2"
+        ] [])
+        overlayNodes := overlayNodes.push (el .text [
+          kv .x (toString clampedX), kv .y (toString (clampedY + 4)),
+          kv .fill "#ffd24a", kv .fontSize "11", kv .fontWeight "700", kv .textAnchor "middle"
+        ] [txt "★"])
   let agentPx : Int := halfW * tilePx + tilePx / 2
   let agentPy : Int := halfH * tilePx + tilePx / 2
   overlayNodes := overlayNodes.push (el .circle [
@@ -474,14 +539,20 @@ private def renderStageSvg (world : Option ((key : MapKey) × WorldMemory key))
     terrainNodes.toList ++ overlayNodes.toList
   )
 
-private def renderSensorSvg (frame : Option ServerFrame) : Node := Id.run do
+private def renderSensorSvg (frame : Option ServerFrame) (emptyCaption : String) : Node := Id.run do
   let tilePx : Nat := 18
   let sidePx := 11 * tilePx
   let mut nodes : Array Node := #[
     el .rect [kv .x "0", kv .y "0", kv .width (toString sidePx), kv .height (toString sidePx),
       kv .fill "#080b10"] []
   ]
-  if let some f := frame then
+  match frame with
+  | none =>
+    nodes := nodes.push (el .text [
+      kv .x (toString (sidePx / 2)), kv .y (toString (sidePx / 2 + 4)),
+      kv .fill "#7d8997", kv .fontSize "10", kv .textAnchor "middle"
+    ] [txt emptyCaption])
+  | some f =>
     for idx in [:121] do
       let rx := idx % 11
       let ry := idx / 11
@@ -519,7 +590,8 @@ private def renderSensorSvg (frame : Option ServerFrame) : Node := Id.run do
   ] nodes.toList
 
 private def renderWorldOverviewSvg (world : Option ((key : MapKey) × WorldMemory key))
-    (frame : Option ServerFrame) : Node := Id.run do
+    (summary : Option FrameSummary) (selectedFull : Option ServerFrame)
+    (emptyCaption : String) : Node := Id.run do
   let grid : Nat := 40
   let cellPx : Nat := 5
   let sidePx := grid * cellPx
@@ -527,7 +599,13 @@ private def renderWorldOverviewSvg (world : Option ((key : MapKey) × WorldMemor
     el .rect [kv .x "0", kv .y "0", kv .width (toString sidePx), kv .height (toString sidePx),
       kv .fill "#080b10"] []
   ]
-  if let some ⟨key, mem⟩ := world then
+  match world with
+  | none =>
+    nodes := nodes.push (el .text [
+      kv .x (toString (sidePx / 2)), kv .y (toString (sidePx / 2 + 4)),
+      kv .fill "#7d8997", kv .fontSize "10", kv .textAnchor "middle"
+    ] [txt emptyCaption])
+  | some ⟨key, mem⟩ =>
     let side := key.side.val
     for gy in [:grid] do
       let wy := gy * side / grid
@@ -542,7 +620,7 @@ private def renderWorldOverviewSvg (world : Option ((key : MapKey) × WorldMemor
               kv .width (toString cellPx), kv .height (toString cellPx),
               kv .fill (terrainHex byte.toNat)
             ] [])
-    if let some f := frame then
+    if let some f := selectedFull then
       if f.gkind == 1 && f.gx ≥ 0 && f.gy ≥ 0 then
         let tx := min (sidePx - 3) (f.gx.toNat * sidePx / side)
         let ty := min (sidePx - 3) (f.gy.toNat * sidePx / side)
@@ -550,9 +628,10 @@ private def renderWorldOverviewSvg (world : Option ((key : MapKey) × WorldMemor
           kv .cx (toString tx), kv .cy (toString ty), kv .r "4",
           kv .fill "none", kv .stroke "#ffd24a", kv .strokeWidth "1.5"
         ] [])
-      if f.summary.x ≥ 0 && f.summary.y ≥ 0 then
-        let ax := min (sidePx - 3) (f.summary.x.toNat * sidePx / side)
-        let ay := min (sidePx - 3) (f.summary.y.toNat * sidePx / side)
+    if let some s := summary then
+      if s.x ≥ 0 && s.y ≥ 0 then
+        let ax := min (sidePx - 3) (s.x.toNat * sidePx / side)
+        let ay := min (sidePx - 3) (s.y.toNat * sidePx / side)
         nodes := nodes.push (el .circle [
           kv .cx (toString ax), kv .cy (toString ay), kv .r "3.5",
           kv .fill "#ffffff", kv .stroke "#080b10", kv .strokeWidth "1"
@@ -564,7 +643,7 @@ private def renderWorldOverviewSvg (world : Option ((key : MapKey) × WorldMemor
     kv .ariaLabel "Overview of explored world tiles"
   ] nodes.toList
 
-private def renderRibbonSvg (summaries : List FrameSummary) : Node := Id.run do
+private def renderRibbonSvg (summaries : List FrameSummary) (cursorIdx : Option Nat) : Node := Id.run do
   let width : Nat := 1120
   let height : Nat := 54
   let mut nodes : Array Node := #[
@@ -615,6 +694,12 @@ private def renderRibbonSvg (summaries : List FrameSummary) : Node := Id.run do
               kv .stroke "#bc8cff", kv .strokeWidth "1.2", kv .strokeOpacity "0.8"
             ] [])
         prevGoal := some s.goal
+    if let some idx := cursorIdx then
+      let cx := idx * width / n
+      nodes := nodes.push (el .line [
+        kv .x1 (toString cx), kv .y1 "0", kv .x2 (toString cx), kv .y2 (toString height),
+        kv .stroke "#ffffff", kv .strokeWidth "2"
+      ] [])
   return el .svg [
     kv .cls "block", kv .viewBox s!"0 0 {width} {height}",
     kv .role "img", kv .ariaLabel "Options execution ribbon across buffered frames"
@@ -855,7 +940,7 @@ private def learnerDetailNode (title : String) (alphas : Array Scalar) (credits 
     el .pre [] [txt (String.intercalate "\n" lines)]
   ]
 
-private def renderGoalSidebar (agOpt : Option AgreementSnapshot) : Node :=
+private def renderGoalSidebar (agOpt : Option AgreementSnapshot) (selectedIsEarlier : Bool) : Node :=
   match agOpt with
   | none =>
     el .div [kv .cls "panel goal-summary"] [
@@ -869,6 +954,7 @@ private def renderGoalSidebar (agOpt : Option AgreementSnapshot) : Node :=
     let gp := ag.goalProgress
     let scoreText := if gp.invalid then "invalid" else formatPermilleScore gp.score 1000
     let scoreCls := if gp.score.isSome && !gp.invalid then "has-score" else ""
+    let stopSuffix := if ag.stopped then " · stopped" else ""
     let goalRows := (List.range gp.goalCount).map fun idx =>
       let nm := gp.curriculumNames[idx]?.getD s!"Goal {idx + 1}"
       let failed := gp.curriculumFailed[idx]?.getD 0
@@ -888,11 +974,13 @@ private def renderGoalSidebar (agOpt : Option AgreementSnapshot) : Node :=
       ]
     el .div [kv .cls "panel goal-summary"] [
       el .h2 [] [txt "Goal achievement"],
+      whenNode selectedIsEarlier
+        (el .div [kv .cls "scope-note"] [txt "Scope: latest core process snapshot (independent of paused frame)."]),
       el .div [kv .cls "agreement-primary goal-primary"] [
         el .strong (if scoreCls.isEmpty then [] else [kv .cls scoreCls]) [txt scoreText],
         whenNode (gp.score.isSome && !gp.invalid)
           (el .progress [kv .value (toString (gp.score.getD 0)), kv .max "1000"] []),
-        el .div [kv .cls "lede"] [txt s!"Cycle {gp.cycle + 1} · {gp.achieved}/{gp.resolved} resolved achieved ({gp.goalCount} curriculum goals)"]
+        el .div [kv .cls "lede"] [txt s!"Cycle {gp.cycle + 1} · {gp.achieved}/{gp.resolved} resolved achieved ({gp.goalCount} curriculum goals){stopSuffix}"]
       ],
       el .details [kv .cls "cite"] [
         el .summary [] [txt "scope & citation"],
@@ -935,21 +1023,24 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
   let observer := snapshot.observer
   let summaries := observer.summaries.values
   let bufferedCount := summaries.length
-  let clampedIdx : Option Nat :=
-    if bufferedCount == 0 then none
-    else
-      match query.mode, query.frame with
-      | .paused, some req =>
-        let oneBased := max 1 (min bufferedCount req)
-        some (oneBased - 1)
-      | _, _ => some (bufferedCount - 1)
-  let selectedSummary : Option FrameSummary :=
-    clampedIdx.bind fun idx => summaries[idx]?
   let latestFrame := observer.latest
-  let displaySummary : Option FrameSummary :=
-    selectedSummary.or (latestFrame.map (·.summary))
+  let proj := projectDisplay summaries latestFrame query
+  let clampedIdx := proj.clampedIdx
+  let displaySummary := proj.displaySummary
+  let curOneBased := (clampedIdx.map (· + 1)).getD 1
   let isRunning := match phase with | .running _ => true | _ => false
-  let isStale := observer.isStale isRunning nowMonoMs
+  let detailReason := match snapshot.detail with
+    | some d => controlReason lifecycle d
+    | none => ""
+  let termWarning := snapshot.detail.bind (controlWarning lifecycle)
+  let tailLines := match snapshot.detail with
+    | some d => controlTail lifecycle d
+    | none => []
+  let clearDisabled := snapshot.detail.bind (·.clearDisabled)
+  let unaskedStop := match snapshot.detail with
+    | some d => unaskedStops.contains d.transition
+    | none => false
+  let liveness := observer.streamLiveness lifecycle unaskedStop snapshot.runningSinceMonoMs nowMonoMs
   let refreshSecs := effectiveRefreshSeconds phase query
   let refreshTarget := { query with
     watch := match phase with | .starting _ | .stopping _ | .archiving => query.watch | _ => false
@@ -969,40 +1060,55 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
   let lifeStat := match displaySummary with
     | some s => formatNatCommas s.lifetimeStep
     | none => "—"
-  let rateStat := match observer.framesPerSecondTenths nowMonoMs with
-    | some tenths => formatDecimal1 tenths ++ " frames/s"
-    | none => "— frames/s"
+  let worldStatLabel := if proj.selectedIsEarlier then s!"world · #{curOneBased}" else "world"
+  let lifeStatLabel := if proj.selectedIsEarlier then s!"lifetime · #{curOneBased}" else "agent lifetime"
+  let rateStat :=
+    if !isRunning then "— frames/s"
+    else match observer.framesPerSecondTenths nowMonoMs with
+      | some tenths => formatNatCommas (tenths / 10) ++ "." ++ toString (tenths % 10) ++ " frames/s"
+      | none => "— frames/s"
   let seenStat := match snapshot.world with
     | some ⟨key, mem⟩ =>
       let seen := mem.seen
       let total := key.side.val * key.side.val
       let pct := formatPercent1 seen total
-      let suffix := if mem.isIncomplete then " (partial)" else ""
+      let suffix := if mem.isIncomplete || snapshot.observation.mapPartial then " (partial)" else ""
       s!"{formatNatCommas seen} / {formatNatCommas total} ({pct}){suffix}"
-    | none => "—"
-  let originWord := observer.lastFreshOrigin.getD "fresh"
-  let originCls := match originWord with
-    | "resumed" => "pill resumed"
-    | "cleared" => "pill cleared"
-    | _ => "pill fresh"
+    | none =>
+      match latestFrame with
+      | some f =>
+        if f.summary.side > mapSideCapacity then
+          s!"unretained (side {formatNatCommas f.summary.side} > {formatNatCommas mapSideCapacity})"
+        else "—"
+      | none => "—"
+  let (originWord, originCls, originTitle) := match observer.lastFreshOrigin with
+    | some "fresh" => ("fresh", "pill fresh", "Authoritative origin reported by the latest fresh frame.")
+    | some "resumed" => ("resumed", "pill resumed", "Authoritative origin reported by the latest fresh frame (checkpoint resumed).")
+    | some "cleared" => ("cleared", "pill cleared", "Authoritative origin reported by the latest fresh frame (cleared run).")
+    | some other => (other, "pill fresh", "Authoritative origin reported by the latest fresh frame.")
+    | none => ("origin unreported", "pill unknown", "No fresh frame has reported this process's origin yet.")
   let idText := s!"{originWord} · {runHex lifecycle.identityValue.run} · ep {lifecycle.identityValue.agentEpoch}"
-  let detailReason := match snapshot.detail with
-    | some d => controlReason lifecycle d
-    | none => ""
-  let termWarning := snapshot.detail.bind (controlWarning lifecycle)
-  let tailLines := match snapshot.detail with
-    | some d => controlTail lifecycle d
-    | none => []
-  let clearDisabled := snapshot.detail.bind (·.clearDisabled)
-  let unaskedStop := match snapshot.detail with
-    | some d => unaskedStops.contains d.transition
-    | none => false
   let connBadge : String × String :=
-    if unaskedStop then ("dead", if lifecycle.exhausted then "failed (exhausted)" else "restarting / failed")
-    else if isStale then ("wait", "stale")
-    else if isRunning then ("live", "live")
-    else if label.busy then ("wait", label.state)
-    else ("wait", "stopped")
+    match liveness with
+    | .fault exhausted =>
+      let fallback := if exhausted then "core stopped — gave up after 3 failed starts in a row"
+        else "core stopped — unexpected exit"
+      ("dead", if detailReason.isEmpty then fallback else s!"core stopped — {detailReason}")
+    | .stale true => ("dead", "stale — no fresh frames")
+    | .stale false => ("dead", "stale — no capture received")
+    | .live => ("live", "live")
+    | .waitingForCapture => ("wait", "awaiting first frame")
+    | .busy s => ("wait", s)
+    | .idle =>
+      if termWarning.isSome then
+        ("dead", if detailReason.isEmpty then "core stopped — warning" else s!"core stopped — {detailReason}")
+      else ("wait", "core stopped")
+  let restartPillAttrs :=
+    [kv .cls "pill reset", kv .id "s_restarted"] ++
+    (if detailReason.isEmpty then [] else [kv .title detailReason])
+  let restartPillText :=
+    if isRunning then s!"⟲ restarted after unexpected exit ({lifecycle.failureCount}/{failureLimit})"
+    else s!"failed starts: {lifecycle.failureCount}/{failureLimit}"
   let healthPills : List Node :=
     [whenNode (observer.nonFiniteCount > 0)
       (el .span [kv .cls "pill reset", kv .id "s_broken"]
@@ -1014,8 +1120,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       (el .span [kv .cls "pill reset", kv .id "s_nosave"]
         [txt (termWarning.getD "checkpoint refused")]),
      whenNode (lifecycle.failureCount > 0)
-      (el .span [kv .cls "pill reset", kv .id "s_restarted"]
-        [txt s!"failed starts: {lifecycle.failureCount}/{failureLimit}"]),
+      (el .span restartPillAttrs [txt restartPillText]),
      whenNode notice.isSome
       (el .span [kv .cls "pill reset", kv .id "s_ctlfault"]
         [txt "control fault"])]
@@ -1029,16 +1134,21 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       else match clearDisabled with
         | some why => [flg .disabled, kv .title why]
         | none => [kv .title "Archive the current run directory and start a fresh agent"])
+  let runstateAttrs :=
+    [kv .id "runstate", kv .cls s!"runstate {label.style}"] ++
+    (if detailReason.isEmpty then [] else [kv .title detailReason])
   let topBar := el .div [kv .id "top"] [
     el .h1 [] [txt "◈ OAK"],
     el .span [kv .cls "pill live", kv .id "evidence-mode"] [txt "LIVE RUN · zero-JS"],
-    el .div [kv .cls "stat"] [el .span [kv .cls "k"] [txt "world"], el .span [kv .cls "v", kv .id "s_world"] [txt worldStat]],
+    el .div [kv .cls "stat"] [el .span [kv .cls "k"] [txt worldStatLabel], el .span [kv .cls "v", kv .id "s_world"] [txt worldStat]],
     el .div [kv .cls "stat", kv .title "Total agent steps, restored from its saved checkpoint on resume."]
-      [el .span [kv .cls "k"] [txt "agent lifetime"], el .span [kv .cls "v", kv .id "s_life"] [txt lifeStat]],
-    el .div [kv .cls "stat"] [el .span [kv .cls "k"] [txt "core"], el .span [kv .cls "v", kv .id "s_rate"] [txt rateStat]],
-    el .div [kv .cls "stat"] [el .span [kv .cls "k"] [txt "seen"], el .span [kv .cls "v", kv .id "s_seen"] [txt seenStat]],
+      [el .span [kv .cls "k"] [txt lifeStatLabel], el .span [kv .cls "v", kv .id "s_life"] [txt lifeStat]],
+    el .div [kv .cls "stat", kv .title "Newly admitted fresh capture envelopes per second over the recent 1–2s window."]
+      [el .span [kv .cls "k"] [txt "core"], el .span [kv .cls "v", kv .id "s_rate"] [txt rateStat]],
+    el .div [kv .cls "stat", kv .title "Retained terrain memory sensed across the current run."]
+      [el .span [kv .cls "k"] [txt "seen"], el .span [kv .cls "v", kv .id "s_seen"] [txt seenStat]],
     el .div [kv .id "topright"] [
-      el .span [kv .cls originCls, kv .id "agentstate"] [txt idText],
+      el .span [kv .cls originCls, kv .id "agentstate", kv .title originTitle] [txt idText],
       el .div [kv .id "streamhealth"] healthPills,
       el .div [kv .id "runctl"] [
         el .form [kv .method "POST", kv .action "/control/form", kv .cls "ctl-form"]
@@ -1051,7 +1161,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             vd .input [kv .type "hidden", kv .name "cmd", kv .value "clear"]] ++
             hiddenViewInputs query ++
             [el .button clearBtnAttrs [txt "Clear"]]),
-        el .span [kv .id "runstate", kv .cls s!"runstate {label.style}"] [txt label.state]
+        el .span runstateAttrs [txt label.state]
       ],
       el .span [kv .id "conn", kv .cls connBadge.1] [txt connBadge.2]
     ]
@@ -1066,6 +1176,26 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       el .div [kv .cls "notice-banner", kv .role "alert"] [
         el .span [] [txt msg],
         el .a [kv .cls "btn", kv .href query.href] [txt "Dismiss"]
+      ]
+  let showDiagnostic :=
+    (phase == .idle || unaskedStop || termWarning.isSome || !tailLines.isEmpty) &&
+    (!detailReason.isEmpty || termWarning.isSome || !tailLines.isEmpty)
+  let diagFault := unaskedStop || termWarning.isSome
+  let lifecycleDiagnosticNode :=
+    if !showDiagnostic then .empty
+    else
+      el .div [kv .id "lifecycle-diagnostic",
+        kv .cls (if diagFault then "diag-banner fault" else "diag-banner"),
+        kv .role (if diagFault then "alert" else "status")] [
+        el .div [kv .cls "diag-head"] [
+          txt (if detailReason.isEmpty then s!"Lifecycle: {label.state}"
+            else s!"Lifecycle ({label.state}): {detailReason}")
+        ],
+        match termWarning with
+        | some warn => el .div [kv .cls "diag-warn"] [txt s!"⚠ {warn}"]
+        | none => .empty,
+        whenNode (!tailLines.isEmpty)
+          (el .pre [kv .cls "tail"] [txt (String.intercalate "\n" tailLines)])
       ]
   let insideHref := { query with inside := true }.href ++ "#research"
   let welcomeSection := el .section [kv .id "welcome", kv .ariaLabel "Welcome to Acorn"] [
@@ -1083,13 +1213,20 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       el .a [kv .href insideHref] [txt "Explore what's happening inside ↓"]
     ]
   ]
-  let hudGoalText := match latestFrame with
-    | some f => goalText f.gkind f.gitem f.gx f.gy f.gn
-    | none => "—"
-  let hudGoalMeta := match latestFrame with
-    | some f =>
-      s!"goal {f.summary.goal + 1}/{f.agreement.goalProgress.goalCount} · attempt {f.attempt + 1}/{f.agreement.goalProgress.attemptCap} · tier {f.tier} · cycle {f.summary.cycle + 1}"
-    | none => "Waiting for frames from acorn-core"
+  let (hudGoalLbl, hudGoalText, hudGoalMeta) := match proj.selectedFull, displaySummary with
+    | some f, _ =>
+      ("current goal",
+       goalText f.gkind f.gitem f.gx f.gy f.gn,
+       s!"goal {f.summary.goal + 1}/{f.agreement.goalProgress.goalCount} · attempt {f.attempt + 1}/{f.agreement.goalProgress.attemptCap} · tier {f.tier} · cycle {f.summary.cycle + 1}")
+    | none, some s =>
+      let gName := (observer.agreement.bind (·.goalProgress.curriculumNames[s.goal]?)).getD s!"Goal {s.goal + 1}"
+      let gCount := match observer.agreement with | some ag => toString ag.goalProgress.goalCount | none => "?"
+      let termTag := (if s.terminal then " · terminal" else "") ++ (if s.done then " · done" else "")
+      (s!"goal at frame #{curOneBased}",
+       gName,
+       s!"goal {s.goal + 1}/{gCount} · cycle {s.cycle + 1}{termTag} (attempt/tier & target coordinates retained for newest frame only)")
+    | none, none =>
+      ("current goal", "—", "Waiting for frames from acorn-core")
   let hudTod := match displaySummary with
     | some s =>
       if s.dayLength > 0 then
@@ -1097,28 +1234,63 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       else "—"
     | none => "—"
   let modeLabel :=
-    if query.stream then "STREAM"
+    if query.stream then "BMP STREAM · HTML SNAPSHOT"
     else match query.mode, clampedIdx with
-      | .paused, some idx => s!"PAUSED #{idx + 1}/{bufferedCount}"
-      | _, _ => "LIVE"
+      | .paused, some idx =>
+        let behind := bufferedCount - 1 - idx
+        if behind > 0 then s!"PAUSED #{idx + 1}/{bufferedCount} · {behind} behind newest"
+        else s!"PAUSED #{idx + 1}/{bufferedCount} (newest)"
+      | _, _ =>
+        match liveness with
+        | .live =>
+          match refreshSecs with
+          | some _ => "LIVE (HTML SNAPSHOT)"
+          | none => "LIVE · REFRESH OFF"
+        | .waitingForCapture => "WAITING FOR FIRST FRAME"
+        | .stale _ => "STREAM STALE"
+        | .fault _ => "CORE FAILED"
+        | .busy s => s.toUpper
+        | .idle => if bufferedCount == 0 then "WAITING FOR FIRST FRAME" else "CORE STOPPED"
+  let htmlSnapshotDesc := match refreshSecs with
+    | some s => s!"as-of HTML snapshot (auto-refreshing every {s}s)"
+    | none =>
+      if isRunning then "static as-of HTML snapshot (auto-refresh off — reload for updated lifecycle status or metrics)"
+      else "as-of HTML snapshot (core not running)"
   let mapSurfaceChild : Node :=
     if query.stream then
-      el .img [
-        kv .cls "stage-img", kv .src "/stream/stage.bmp",
-        kv .width "1152", kv .height "640",
-        kv .alt "Live zero-JS aerial world map stream"
-      ] []
-    else
-      match latestFrame, displaySummary with
-      | some f, some s => renderStageSvg snapshot.world f s summaries
-      | _, _ =>
-        el .div [kv .cls "empty-stage"] [
-          el .h3 [] [txt s!"Viewer is {label.state}"],
-          el .p [] [txt (if detailReason.isEmpty then "Press Start in the top bar to launch acorn-core." else detailReason)],
-          whenNode (!tailLines.isEmpty)
-            (el .pre [kv .cls "tail"] [txt (String.intercalate "\n" tailLines)])
+      el .div [] [
+        el .img [
+          kv .cls "stage-img", kv .src "/stream/stage.bmp",
+          kv .width "1152", kv .height "640",
+          kv .alt "Live zero-JS aerial world map stream"
+        ] [],
+        el .div [kv .cls "stage-caption"] [
+          el .span [] [txt "Stage image: live multipart/x-mixed-replace BMP stream (250 ms cadence; shows unavailable, stopped, failed, or stale banner)."],
+          el .span [] [txt s!"Controls, badge & panels: {htmlSnapshotDesc}."]
         ]
-  let (energyVal, invNodes, skillLabel, skillCls, skillSub) := match latestFrame with
+      ]
+    else
+      match displaySummary with
+      | some s =>
+        el .div [] [
+          renderStageSvg snapshot.world proj.selectedFull s proj.trailSummaries,
+          whenNode proj.selectedIsEarlier
+            (el .div [kv .cls "stage-caption"] [
+              el .span [] [txt s!"Historical frame #{curOneBased}: pose, facing, trail up to frame #{curOneBased}, and daylight over retained run terrain memory."],
+              el .span [] [txt "11 × 11 sensor overlay, transient entities, and target coordinates are retained for newest frame only."]
+            ])
+        ]
+      | none =>
+        el .div [kv .cls "empty-stage"] [
+          el .h3 [] [txt "No frames from this run yet"],
+          el .p [] [txt (match liveness with
+            | .waitingForCapture => "Core is running — waiting for the first fresh telemetry frame."
+            | .stale false => "Core is running, but no fresh telemetry capture arrived within the stale window."
+            | .fault _ => "Core exited before emitting a telemetry frame; see the lifecycle diagnostic above."
+            | .busy s => s!"Core is {s}."
+            | _ => "Core is stopped. Press Start in the top bar to launch acorn-core.")]
+        ]
+  let vitalsNodes : List Node := match proj.selectedFull with
     | some f =>
       let inv := [
         el .span (if f.wood == 0 then [kv .cls "off"] else []) [txt s!"wood {f.wood}"],
@@ -1128,18 +1300,37 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         el .span (if !f.axe then [kv .cls "off"] else []) [txt (if f.axe then "axe ✓" else "axe —")],
         el .span (if !f.boat then [kv .cls "off"] else []) [txt (if f.boat then "boat ✓" else "boat —")]
       ]
+      [el .span [kv .title "energy"] [txt "⚡"],
+       el .progress [kv .cls "energy-bar", kv .value (toString (min 100 f.energy)), kv .max "100"] [],
+       el .span [kv .cls "inv"] inv]
+    | none =>
+      let msg := if proj.selectedIsEarlier then
+          "vitals & inventory retained for newest frame only"
+        else
+          "energy — · inventory — (unavailable until first frame)"
+      [el .span [kv .title "energy"] [txt "⚡"],
+       el .span [kv .cls "inv"] [el .span [kv .cls "off"] [txt msg]]]
+  let (skillLabel, skillCls, skillSub) := match proj.selectedFull, displaySummary with
+    | some f, _ =>
       let skName := if f.summary.skill < f.skillNames.size then
         f.skillNames[f.summary.skill]?.getD "—"
         else "primitive"
       let skSub := if f.summary.skill < 3 then
         s!"elapsed {f.optionElapsed} · {f.summary.decisionSource}"
         else s!"{f.summary.decisionSource}"
-      (min 100 f.energy, inv, skName, optionClass f.summary.skill, skSub)
-    | none => (0, [el .span [kv .cls "off"] [txt "—"]], "—", "v none", "idle")
+      (skName, optionClass f.summary.skill, skSub)
+    | none, some s =>
+      let skName :=
+        if s.skill < 3 then
+          (latestFrame.bind (·.skillNames[s.skill]?)).getD s!"option {s.skill + 1}"
+        else "primitive"
+      let skSub := if s.explored then s!"{s.decisionSource} · explored" else s.decisionSource
+      (skName, optionClass s.skill, skSub)
+    | none, none => ("—", "v none", "no frame yet")
   let stagePanel := el .div [kv .id "stage"] [
     el .div [kv .id "hud-head", kv .cls "hudrow"] [
       el .div [kv .cls "hudbox", kv .id "hud-goal"] [
-        el .div [kv .cls "lbl"] [txt "current goal"],
+        el .div [kv .cls "lbl"] [txt hudGoalLbl],
         el .div [kv .cls "txt"] [txt hudGoalText],
         el .div [kv .cls "meta"] [txt hudGoalMeta]
       ],
@@ -1151,24 +1342,25 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     ],
     el .div [kv .id "map-surface"] [mapSurfaceChild],
     el .div [kv .id "hud-foot", kv .cls "hudrow"] [
-      el .div [kv .cls "hudbox", kv .id "hud-vitals"] [
-        el .span [kv .title "energy"] [txt "⚡"],
-        el .progress [kv .cls "energy-bar", kv .value (toString energyVal), kv .max "100"] [],
-        el .span [kv .cls "inv"] invNodes
-      ],
+      el .div [kv .cls "hudbox", kv .id "hud-vitals"] vitalsNodes,
       el .div [kv .cls "hudbox", kv .id "hud-skill"] [
-        el .div [kv .cls "lbl"] [txt "running option"],
+        el .div [kv .cls "lbl"] [txt (if proj.selectedIsEarlier then s!"option at frame #{curOneBased}" else "running option")],
         el .div [kv .cls skillCls] [txt skillLabel],
         el .div [kv .cls "sub2"] [txt skillSub]
       ]
     ]
   ]
-  let curOneBased := (clampedIdx.map (· + 1)).getD 1
   let stepHref (target : Nat) : String :=
     let bounded := if bufferedCount == 0 then 1 else max 1 (min bufferedCount target)
     { query with mode := .paused, frame := some bounded, stream := false }.href
   let liveHref := { query with mode := .live, frame := none }.href
   let pauseHref := { query with mode := .paused, frame := some curOneBased, stream := false }.href
+  let transportSummary :=
+    if bufferedCount == 0 then "0 buffered frames"
+    else if proj.selectedIsEarlier then
+      s!"Showing buffered frame {curOneBased} of {bufferedCount} ({bufferedCount - curOneBased} behind newest · {formatNatCommas observer.admittedCount} admitted) — summary fields reflect frame #{curOneBased}; full-frame panels are labelled newest frame or lifetime"
+    else
+      s!"Showing buffered frame {curOneBased} of {bufferedCount} ({formatNatCommas observer.admittedCount} admitted)"
   let transportPanel := el .div [kv .cls "panel"] [
     el .h2 [] [txt "Transport & zero-JS view controls"],
     el .div [kv .id "transport"] [
@@ -1210,14 +1402,15 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       el .a [kv .cls "btn", kv .href "/stage.bmp"] [txt "BMP Snapshot"]
     ],
     el .div [kv .cls "legend-row"] [
-      el .span [kv .cls (if query.mode == .paused then "lag" else "lag ok")] [
-        txt (if bufferedCount == 0 then "0 buffered frames"
-          else s!"Showing buffered frame {curOneBased} of {bufferedCount} ({formatNatCommas observer.admittedCount} admitted)")
-      ],
+      el .span [kv .cls (if query.mode == .paused then "lag" else "lag ok")] [txt transportSummary],
       el .span [kv .cls "legend"] [
         txt (match refreshSecs with
-          | some s => s!"Auto-refresh: every {s}s (HTML meta refresh)"
-          | none => if query.stream then "Live stage via multipart/x-mixed-replace BMP" else "Auto-refresh: off")
+          | some s =>
+            if query.stream then s!"Live BMP stream · HTML auto-refresh: every {s}s"
+            else s!"Auto-refresh: every {s}s (HTML meta refresh)"
+          | none =>
+            if query.stream then "Live BMP stream · HTML auto-refresh: off (as-of snapshot)"
+            else "Auto-refresh: off")
       ]
     ]
   ]
@@ -1234,7 +1427,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         el .sup [] [txt "μ"], txt "(s)); Dabney, Ostrovski & Barreto, arXiv:2006.01782v1 §4.2 (exploratory runs)."
       ]
     ],
-    renderRibbonSvg summaries,
+    renderRibbonSvg summaries (if query.mode == .paused then clampedIdx else none),
     el .div [kv .cls "legend-row"] [
       el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-opt1"] [], txt "option 1"],
       el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-opt2"] [], txt "option 2"],
@@ -1242,16 +1435,47 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-goal"] [], txt "goal change"]
     ]
   ]
+  let mapHistoryText := match snapshot.world with
+    | some ⟨_, mem⟩ =>
+      if snapshot.observation.mapPartial || mem.isIncomplete then
+        "partial (observations may be missing around stops, restarts, or drops)"
+      else
+        "complete since start"
+    | none =>
+      if snapshot.observation.mapPartial then
+        "unavailable (no retained map; history may be partial)"
+      else match latestFrame with
+        | some f =>
+          if f.summary.side > mapSideCapacity then
+            s!"unavailable (world side {formatNatCommas f.summary.side} exceeds {formatNatCommas mapSideCapacity} server map limit)"
+          else
+            "unavailable (no terrain observed yet)"
+        | none => "unavailable (no terrain observed yet)"
+  let worldSideText := match snapshot.world with
+    | some ⟨key, _⟩ => s!"{key.side.val} × {key.side.val}"
+    | none =>
+      match latestFrame with
+      | some f =>
+        if f.summary.side > mapSideCapacity then s!"{f.summary.side} × {f.summary.side} (unretained)"
+        else s!"{f.summary.side} × {f.summary.side}"
+      | none => "—"
+  let sensorEmptyCaption :=
+    if proj.selectedIsEarlier then "Newest frame only" else "No sensor frame yet"
+  let overviewEmptyCaption := match latestFrame with
+    | some f =>
+      if f.summary.side > mapSideCapacity then "Exceeds 4,096 map limit"
+      else "No terrain map yet"
+    | none => "No terrain map yet"
   let worldPanels := el .div [kv .id "world-panels"] [
     el .div [kv .cls "panel"] [
-      el .h2 [] [txt "What the agent sees (11 × 11 sensor)"],
-      el .div [kv .cls "lede"] [txt "Egocentric terrain, food (orange) and deer (brown) within the 11 × 11 sensor patch."],
+      el .h2 [] [txt (if proj.selectedIsEarlier then s!"What the agent sees · frame #{curOneBased} summary" else "What the agent sees (11 × 11 sensor)")],
+      el .div [kv .cls "lede"] [txt (if proj.selectedIsEarlier then s!"Position, facing, and action reflect frame #{curOneBased}. The 11 × 11 sensor patch is retained for newest frame #{bufferedCount} only." else "Egocentric terrain, food (orange) and deer (brown) within the 11 × 11 sensor patch.")],
       kvRow "position" (match displaySummary with | some s => s!"({s.x}, {s.y})" | none => "—"),
       kvRow "facing" (match displaySummary with
         | some s => match s.facing with | 0 => "north" | 1 => "south" | 2 => "east" | _ => "west"
         | none => "—"),
-      kvRow "last action" (match latestFrame with
-        | some f => f.actionNames[f.summary.action]?.getD (toString f.summary.action)
+      kvRow "last action" (match displaySummary with
+        | some s => (latestFrame.bind (·.actionNames[s.action]?)).getD (toString s.action)
         | none => "—"),
       el .div [kv .cls "legend-row"] [
         el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-w0"] [], txt "water"],
@@ -1261,27 +1485,28 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-w5"] [], txt "rock"],
         el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-w7"] [], txt "gold"]
       ],
-      renderSensorSvg latestFrame
+      renderSensorSvg proj.selectedFull sensorEmptyCaption
     ],
     el .div [kv .cls "panel"] [
       el .h2 [] [txt "Big world overview"],
-      el .div [kv .cls "lede"] [txt "Retained terrain memory across the world (persisted in explored.map)."],
+      el .div [kv .cls "lede"] [txt (if proj.selectedIsEarlier then s!"Retained run terrain memory (through newest frame #{bufferedCount}); white marker shows selected frame #{curOneBased} pose." else "Retained terrain memory across the world (persisted in explored.map).")],
       kvRow "explored" seenStat,
-      kvRow "world side" (match snapshot.world with | some ⟨key, _⟩ => s!"{key.side.val} × {key.side.val}" | none => "—"),
-      kvRow "map history" (if snapshot.observation.mapPartial then "partial (gaps in stream)" else "complete since start"),
+      kvRow "world side" worldSideText,
+      kvRow "map history" mapHistoryText,
       kvRow "seed" (toString lifecycle.identityValue.seed),
-      renderWorldOverviewSvg snapshot.world latestFrame
+      renderWorldOverviewSvg snapshot.world displaySummary proj.selectedFull overviewEmptyCaption
     ]
   ]
   let insideNodes : List Node :=
+    let liveLit := liveness == .live && query.mode == .live && !proj.selectedIsEarlier
     let missionStrip :=
       let (fOn, sOn, oOn, mOn, pOn, fVal, sVal, oVal, mVal, pVal) := match latestFrame with
         | some f =>
-          let fLive : Bool := observer.retireChangedAt == some observer.admittedCount
-          let sLive : Bool := observer.subtaskChangedAt == some observer.admittedCount
-          let oLive : Bool := decide (f.summary.skill < 3)
-          let mLive : Bool := decide (f.summary.optionEndSkill < 3)
-          let pLive : Bool := observer.planningChangedAt == some observer.admittedCount
+          let fLive : Bool := liveLit && observer.retireChangedAt == some observer.admittedCount
+          let sLive : Bool := liveLit && observer.subtaskChangedAt == some observer.admittedCount
+          let oLive : Bool := liveLit && decide (f.summary.skill < 3)
+          let mLive : Bool := liveLit && decide (f.summary.optionEndSkill < 3)
+          let pLive : Bool := liveLit && observer.planningChangedAt == some observer.admittedCount
           (fLive, sLive, oLive, mLive, pLive,
            s!"{formatNatCommas f.imprintUnits} units · {formatNatCommas f.retireCount} retired",
            s!"{f.subtaskPolicy}",
@@ -1295,9 +1520,15 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       let gpScoreStr := match observer.agreement with
         | some ag => if ag.goalProgress.invalid then "invalid" else formatPermilleScore ag.goalProgress.score 1000
         | none => "—"
-      let plastStr := match latestFrame with
-        | some f => f.summary.aCtl.formatCompact 4
+      let plastStr := match displaySummary with
+        | some s => s.aCtl.formatCompact 4
         | none => "—"
+      let oakHeading := if proj.selectedIsEarlier then
+          s!"OaK loop (FC-STOMP · newest frame #{bufferedCount})"
+        else "OaK loop (FC-STOMP)"
+      let plastCaption := if proj.selectedIsEarlier then
+          s!"SwiftTD step size · frame #{curOneBased}"
+        else "SwiftTD step size"
       el .div [kv .id "mission"] [
         el .div [kv .cls "panel thesis"] [
           el .div [kv .cls "q"] [txt "One continual learner in a big world."],
@@ -1305,7 +1536,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           el .p [kv .cls "fine"] [txt "Read-only observer: zero client scripting, zero simulation shortcuts."]
         ],
         el .div [kv .cls "panel"] [
-          el .h2 [] [txt "OaK loop (FC-STOMP)"],
+          el .h2 [] [txt oakHeading],
           el .div [kv .id "loop"] [
             el .div [kv .cls (if fOn then "node on" else "node")] [
               el .div [kv .cls "t"] [txt "1. Features"], el .div [kv .cls "v"] [txt fVal],
@@ -1332,9 +1563,9 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         el .div [kv .cls "panel"] [
           el .h2 [] [txt "Headline readouts"],
           el .div [kv .cls "tiles"] [
-            el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Goal achievement"], el .div [kv .cls "v"] [txt gpScoreStr], el .div [kv .cls "d"] [txt "Completed pass"]],
-            el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Agreement"], el .div [kv .cls "v"] [txt agScoreStr], el .div [kv .cls "d"] [txt "Settled GVFs"]],
-            el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Control α"], el .div [kv .cls "v"] [txt plastStr], el .div [kv .cls "d"] [txt "SwiftTD step size"]],
+            el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Goal achievement"], el .div [kv .cls "v"] [txt gpScoreStr], el .div [kv .cls "d"] [txt "Latest process snapshot"]],
+            el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Agreement"], el .div [kv .cls "v"] [txt agScoreStr], el .div [kv .cls "d"] [txt "Process-local GVFs"]],
+            el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Control α"], el .div [kv .cls "v"] [txt plastStr], el .div [kv .cls "d"] [txt plastCaption]],
             el .div [kv .cls "tile"] [el .div [kv .cls "k"] [txt "Frames"], el .div [kv .cls "v"] [txt (formatCompactNat observer.admittedCount)], el .div [kv .cls "d"] [txt "Admitted in run"]]
           ]
         ]
@@ -1343,6 +1574,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       match observer.agreement, latestFrame with
       | some ag, some f =>
         let agScoreText := ag.text.getD (formatPermilleScore ag.score ag.scale)
+        let agStopTag := if ag.stopped then " · stopped" else ""
         let cards := (List.range 11).map fun idx =>
           let name := ag.demonNames[idx]?.getD s!"GVF {idx + 1}"
           let policy := ag.demonTargetPolicy[idx]?.getD "—"
@@ -1360,20 +1592,22 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             el .h3 [] [txt name],
             el .strong (if hasSc then [kv .cls "has-score"] else []) [txt sc],
             el .p [] [txt s!"status: {status} · policy: {policy} · settled: {settled} · pending: {pend} · censored: {cens}"],
-            el .p [] [txt s!"pred: {pred} · cum: {cum} · return: {ret} · err: {err}"]
+            el .p [] [txt s!"newest frame — pred: {pred} · cum: {cum} · return: {ret} · err: {err}"]
           ]
         el .div [kv .cls "panel"] [
           el .h2 [] [txt "Knowledge — predictive agreement & GVFs"],
+          whenNode proj.selectedIsEarlier
+            (el .div [kv .cls "scope-note"] [txt s!"Scope: process-local agreement snapshot and newest-frame (#{bufferedCount}) GVF/lifetime readouts (independent of paused frame #{curOneBased})."]),
           el .div [kv .cls "agreement-primary"] [
             el .strong (if ag.score.isSome then [kv .cls "has-score"] else []) [txt agScoreText],
             whenNode ag.score.isSome
               (el .progress [kv .value (toString (ag.score.getD 0)), kv .max (toString (max 1 ag.scale))] []),
-            el .div [kv .cls "lede"] [txt s!"Clock {formatNatCommas ag.clock} · stride {ag.settleStride} · source {(ag.sourceSha.take 12).toString} · build {(ag.buildSha.take 12).toString}"]
+            el .div [kv .cls "lede"] [txt s!"Clock {formatNatCommas ag.clock}{agStopTag} · stride {ag.settleStride} · source {(ag.sourceSha.take 12).toString} · build {(ag.buildSha.take 12).toString}"]
           ],
           renderAgreementHistorySvg ag,
-          el .h3 [] [txt "Lifetime error (blue) & reward (green)"],
+          el .h3 [] [txt "Lifetime error (blue) & reward (green) · checkpoint-persistent"],
           renderLifetimeHistorySvg f,
-          el .h3 [] [txt "11 General Value Functions"],
+          el .h3 [] [txt (if proj.selectedIsEarlier then s!"11 General Value Functions · process snapshot & newest frame #{bufferedCount}" else "11 General Value Functions")],
           el .div [kv .cls "agreement-channels"] cards
         ]
       | _, _ =>
@@ -1382,8 +1616,8 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           el .div [kv .cls "lede"] [txt "No frames admitted yet."]
         ]
     let behaviourCol :=
-      match latestFrame with
-      | some f =>
+      match latestFrame, displaySummary with
+      | some f, some s =>
         let optRows := (List.range 3).map fun idx =>
           let nm := f.skillNames[idx]?.getD s!"Option {idx + 1}"
           let started := f.lifetimeOptionStarted[idx]?.getD 0
@@ -1401,35 +1635,44 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             el .td [] [txt mCont],
             el .td [] [txt mDur]
           ]
-        el .div [kv .cls "panel"] [
-          el .h2 [] [txt "Behaviour — values, options & surprise"],
-          kvRow "decision source" f.summary.decisionSource,
-          kvRow "exploration (ε)" (f.summary.eps.formatCompact 4) (!f.summary.eps.isFinite),
-          kvRow "reward / rate" s!"{f.summary.reward.formatCompact 3} / {f.rewardRate.formatCompact 4}" (!f.summary.reward.isFinite || !f.rewardRate.isFinite),
-          kvRow "control criterion" (if f.controlCriterion == 0 then "average reward" else "discounted"),
-          el .h3 [] [txt "Primitive actions (value & probability)"],
-          renderDivergingBarsSvg f.actionNames f.controlValues f.actionProbs "Primitive action values and probabilities",
-          el .h3 [] [txt "Meta-controller (value & probability)"],
-          renderDivergingBarsSvg f.metaNames f.metaValues f.metaProbs "Meta-action values and probabilities",
-          el .h3 [] [txt "Option models & lifetime execution"],
-          el .table [kv .cls "data"] [
-            el .thead [] [el .tr [] [
-              el .th [] [txt "Option"], el .th [] [txt "Start/End"], el .th [] [txt "Mean dur"],
-              el .th [] [txt "Model R"], el .th [] [txt "Model γ"], el .th [] [txt "Model d"]
-            ]],
-            el .tbody [] optRows
-          ],
-          el .h3 [] [txt "TD surprise across sampled steps"],
-          renderSurpriseSvg observer.samples.values
-        ]
-      | none =>
+        let newestTag := if proj.selectedIsEarlier then s!" · newest frame #{bufferedCount}" else ""
+        let rewardRows : List Node :=
+          if proj.selectedIsEarlier then
+            [kvRow s!"reward (frame #{curOneBased})" (s.reward.formatCompact 3) (!s.reward.isFinite),
+             kvRow s!"reward rate (newest frame #{bufferedCount})" (f.rewardRate.formatCompact 4) (!f.rewardRate.isFinite)]
+          else
+            [kvRow "reward / rate" s!"{s.reward.formatCompact 3} / {f.rewardRate.formatCompact 4}" (!s.reward.isFinite || !f.rewardRate.isFinite)]
+        el .div [kv .cls "panel"] (
+          [el .h2 [] [txt "Behaviour — values, options & surprise"],
+           whenNode proj.selectedIsEarlier
+             (el .div [kv .cls "scope-note"] [txt s!"Decision source, ε, and reward reflect selected frame #{curOneBased}; reward rate, value bars, and option models reflect newest frame #{bufferedCount}."]),
+           kvRow "decision source" s.decisionSource,
+           kvRow "exploration (ε)" (s.eps.formatCompact 4) (!s.eps.isFinite)] ++
+          rewardRows ++
+          [kvRow "control criterion" (if f.controlCriterion == 0 then "average reward" else "discounted"),
+           el .h3 [] [txt s!"Primitive actions (value & probability{newestTag})"],
+           renderDivergingBarsSvg f.actionNames f.controlValues f.actionProbs "Primitive action values and probabilities",
+           el .h3 [] [txt s!"Meta-controller (value & probability{newestTag})"],
+           renderDivergingBarsSvg f.metaNames f.metaValues f.metaProbs "Meta-action values and probabilities",
+           el .h3 [] [txt s!"Option models{newestTag} & lifetime execution"],
+           el .table [kv .cls "data"] [
+             el .thead [] [el .tr [] [
+               el .th [] [txt "Option"], el .th [] [txt "Start/End"], el .th [] [txt "Mean dur"],
+               el .th [] [txt "Model R"], el .th [] [txt "Model γ"], el .th [] [txt "Model d"]
+             ]],
+             el .tbody [] optRows
+           ],
+           el .h3 [] [txt "TD surprise across sampled run steps (independent of cursor)"],
+           renderSurpriseSvg observer.samples.values]
+        )
+      | _, _ =>
         el .div [kv .cls "panel"] [
           el .h2 [] [txt "Behaviour — values, options & surprise"],
           el .div [kv .cls "lede"] [txt "No frames admitted yet."]
         ]
     let col3 :=
-      match latestFrame with
-      | some f =>
+      match latestFrame, displaySummary with
+      | some f, some s =>
         let famRows := (List.range 4).map fun idx =>
           let nm := f.goalFamilyNames[idx]?.getD s!"Family {idx}"
           let att := f.lifetimeGoalAttempts[idx]?.getD 0
@@ -1441,9 +1684,13 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             el .td [] [txt (formatPercent1 suc att)],
             el .td [] [txt (if suc > 0 then formatNatCommas (stp / suc) else "—")]
           ]
+        let headScope := if proj.selectedIsEarlier then s!" · newest frame #{bufferedCount}" else ""
+        let aMetaStr := match s.aMeta with | some d => d.formatCompact 4 | none => "⚠ non-finite"
+        let aOptStr := match s.aOpt with | some d => d.formatCompact 4 | none => "⚠ non-finite"
         el .div [kv .id "col3"] [
           el .div [kv .cls "panel"] [
             el .h2 [] [txt "Curriculum & cycle buckets"],
+            el .div [kv .cls "scope-note"] [txt (if proj.selectedIsEarlier then s!"Scope: checkpoint-persistent lifetime totals (as of newest frame #{bufferedCount})." else "Scope: checkpoint-persistent lifetime totals.")],
             el .table [kv .cls "data"] [
               el .thead [] [el .tr [] [
                 el .th [] [txt "Family"], el .th [] [txt "Solved"], el .th [] [txt "Rate"], el .th [] [txt "Mean steps"]
@@ -1455,6 +1702,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           ],
           el .div [kv .cls "panel"] [
             el .h2 [] [txt "Plasticity — SwiftTD step sizes"],
+            el .div [kv .cls "scope-note"] [txt (if proj.selectedIsEarlier then s!"Curve: sampled intake history (independent of cursor). Family means below reflect frame #{curOneBased}; per-head tables reflect newest frame #{bufferedCount}." else "Curve: sampled intake history (independent of cursor).")],
             renderPlasticitySvg observer.samples.values,
             el .div [kv .cls "legend-row"] [
               el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-dem"] [], txt "demons"],
@@ -1462,15 +1710,21 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
               el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-met"] [], txt "meta"],
               el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-opt"] [], txt "options"]
             ],
-            learnerDetailNode "Control heads" f.alphaControl f.creditControl,
-            learnerDetailNode "Meta heads" f.alphaMeta f.creditMeta,
-            learnerDetailNode "Option heads" f.alphaOptions f.creditOptions,
-            learnerDetailNode "Demon heads" f.alphaDemons f.creditDemons,
-            learnerDetailNode "Model heads" f.alphaModels f.creditModels
+            kvRow (if proj.selectedIsEarlier then s!"frame #{curOneBased} α (dem / ctl)" else "α (dem / ctl)")
+              s!"{s.aDem.formatCompact 4} / {s.aCtl.formatCompact 4}" (!s.aDem.isFinite || !s.aCtl.isFinite),
+            kvRow (if proj.selectedIsEarlier then s!"frame #{curOneBased} α (meta / opt)" else "α (meta / opt)")
+              s!"{aMetaStr} / {aOptStr}" (s.aMeta.isNone || s.aOpt.isNone),
+            learnerDetailNode s!"Control heads{headScope}" f.alphaControl f.creditControl,
+            learnerDetailNode s!"Meta heads{headScope}" f.alphaMeta f.creditMeta,
+            learnerDetailNode s!"Option heads{headScope}" f.alphaOptions f.creditOptions,
+            learnerDetailNode s!"Demon heads{headScope}" f.alphaDemons f.creditDemons,
+            learnerDetailNode s!"Model heads{headScope}" f.alphaModels f.creditModels
           ],
           el .div [kv .cls "panel"] [
             el .h2 [] [txt "Resources & telemetry health"],
-            kvRow "update / env" s!"{formatNatCommas f.summary.updateUs} µs / {formatNatCommas f.summary.environmentUs} µs",
+            whenNode proj.selectedIsEarlier
+              (el .div [kv .cls "scope-note"] [txt s!"Update/env latencies reflect selected frame #{curOneBased}; remaining figures are newest-frame process observations."]),
+            kvRow "update / env" s!"{formatNatCommas s.updateUs} µs / {formatNatCommas s.environmentUs} µs",
             kvRow "process uptime" (formatDurationMs f.processUptimeMs),
             kvRow "core RSS" (match f.coreRssBytes with | some b => formatBytes b | none => "—"),
             kvRow "checkpoint size" (match f.checkpointBytes with | some b => formatBytes b | none => "—"),
@@ -1482,7 +1736,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             kvRow "audit digest" f.auditDigest
           ]
         ]
-      | none =>
+      | _, _ =>
         el .div [kv .id "col3"] [
           el .div [kv .cls "panel"] [
             el .h2 [] [txt "Resources & process health"],
@@ -1506,10 +1760,11 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     body := [
       topBar,
       noticeNode,
+      lifecycleDiagnosticNode,
       welcomeSection,
       el .div [kv .id "main"] [
         el .div [kv .id "left"] [stagePanel, ribbonPanel, transportPanel],
-        el .div [kv .id "right"] [renderGoalSidebar observer.agreement]
+        el .div [kv .id "right"] [renderGoalSidebar observer.agreement proj.selectedIsEarlier]
       ],
       worldPanels,
       researchDetails

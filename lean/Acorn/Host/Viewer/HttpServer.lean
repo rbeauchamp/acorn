@@ -158,7 +158,7 @@ private def HttpViewer.controlForm (viewer : HttpViewer) (request : Request Body
   let .ok authorized := authorizeFormCommand headers viewer.token body
     | return ← viewer.renderPage .forbidden {} (some .forbidden)
   let payload := authorized.payload
-  let query := ViewQuery.ofFormPayload payload true
+  let query := { ViewQuery.ofPairs payload.pairs with watch := true }
   let outcome ← match ← viewer.submit payload.command with
     | .immediate result => pure result
     | .pending task => awaitControl task
@@ -219,7 +219,8 @@ private def liveStageFrames (subscription : Subscription) (cancel : Std.Cancella
     if !(← waitForPace lastSent cancel BrowserConstant.readPace.value) then
       return false
     let some snapshot ← subscription.snapshot | return false
-    let bmp := StageBmp.render snapshot.world snapshot.observer.latest
+    let nowMonoMs ← IO.monoMsNow
+    let bmp := StageBmp.render (StageBmp.fromSnapshot snapshot nowMonoMs)
     stream.send (.ofByteArray (bmpMultipartChunk bmp))
     lastSent.set (some (← IO.monoMsNow))
     return true
@@ -285,7 +286,8 @@ private def HttpViewer.request (viewer : HttpViewer) (request : Request Body.Str
     response .ok (.mk "text/css; charset=utf-8") viewer.assets.stylesheet.toUTF8
   | "/stage.bmp" =>
     let snapshot ← viewer.broadcast.snapshot
-    response .ok (.mk "image/bmp") (StageBmp.render snapshot.world snapshot.observer.latest)
+    let nowMonoMs ← IO.monoMsNow
+    response .ok (.mk "image/bmp") (StageBmp.render (StageBmp.fromSnapshot snapshot nowMonoMs))
   | "/stream/stage.bmp" => viewer.stageStream
   | "/" | "/index.html" =>
     let query := ViewQuery.parseRaw (extractRawQuery (toString request.line.uri))

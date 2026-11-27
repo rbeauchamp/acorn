@@ -104,14 +104,10 @@ def parseFormPairs (text : String) : Option (List (String × String)) := do
 structure FormPayload where
   token : String
   command : Command
-  viewMode : Option String
-  refresh : Option String
-  inside : Option String
-  stream : Option String
-  frame : Option String
+  pairs : List (String × String)
   deriving DecidableEq, BEq
 
-private def formLookup (pairs : List (String × String)) (key : String) : Option String :=
+def formLookup (pairs : List (String × String)) (key : String) : Option String :=
   (pairs.find? fun p => p.1 == key).map Prod.snd
 
 def formControlPayload (body : ControlBody) : Except String FormPayload := do
@@ -120,14 +116,7 @@ def formControlPayload (body : ControlBody) : Except String FormPayload := do
   let some token := formLookup pairs "token" | throw "missing control token"
   let some word := formLookup pairs "cmd" | throw "missing lifecycle command"
   let some command := Command.parse word | throw "unknown lifecycle command"
-  return {
-    token, command
-    viewMode := formLookup pairs "view"
-    refresh := formLookup pairs "refresh"
-    inside := formLookup pairs "inside"
-    stream := formLookup pairs "stream"
-    frame := formLookup pairs "frame"
-  }
+  return { token, command, pairs }
 
 structure FormControlHeaders where
   method : String

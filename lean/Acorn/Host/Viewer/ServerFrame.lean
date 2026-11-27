@@ -198,7 +198,68 @@ def historySampleCapacity : Nat := 400
 
 def verifyStride : Nat := 24
 
-def rateWindowCapacity : Nat := 64
+structure CaptureRate where
+  bucketSec : Nat := 0
+  currentCount : Nat := 0
+  previousCount : Nat := 0
+  hasBucket : Bool := false
+  hasPrevious : Bool := false
+  firstMonoMs : Nat := 0
+  deriving DecidableEq, BEq
+
+def CaptureRate.record (r : CaptureRate) (nowMonoMs : Nat) : CaptureRate :=
+  let sec := nowMonoMs / 1000
+  if !r.hasBucket then
+    { bucketSec := sec
+      currentCount := 1
+      previousCount := 0
+      hasBucket := true
+      hasPrevious := false
+      firstMonoMs := nowMonoMs }
+  else if sec == r.bucketSec then
+    { r with currentCount := r.currentCount + 1 }
+  else if sec == r.bucketSec + 1 then
+    { r with
+      bucketSec := sec
+      currentCount := 1
+      previousCount := r.currentCount
+      hasPrevious := true }
+  else if sec > r.bucketSec + 1 then
+    { r with
+      bucketSec := sec
+      currentCount := 1
+      previousCount := 0
+      hasPrevious := true }
+  else
+    { r with currentCount := r.currentCount + 1 }
+
+def CaptureRate.framesPerSecondTenths (r : CaptureRate) (nowMonoMs : Nat) : Option Nat :=
+  if !r.hasBucket then none
+  else
+    let nowSec := nowMonoMs / 1000
+    let elapsedInSec := nowMonoMs % 1000
+    if nowSec == r.bucketSec then
+      if r.hasPrevious then
+        some ((r.previousCount + r.currentCount) * 10000 / (1000 + elapsedInSec))
+      else
+        let spanMs := nowMonoMs - r.firstMonoMs
+        if r.currentCount < 2 || spanMs < 250 then none
+        else some ((r.currentCount - 1) * 10000 / spanMs)
+    else if nowSec == r.bucketSec + 1 then
+      some (r.currentCount * 10000 / (1000 + elapsedInSec))
+    else if nowSec > r.bucketSec + 1 then
+      some 0
+    else
+      none
+
+inductive StreamLiveness where
+  | idle
+  | busy (label : String)
+  | waitingForCapture
+  | stale (hasCapture : Bool)
+  | live
+  | fault (exhausted : Bool)
+  deriving DecidableEq, BEq
 
 structure ServerObserverState where
   identity : Identity
@@ -215,7 +276,7 @@ structure ServerObserverState where
   lastNonFiniteKey : Option String := none
   lastFreshMonoMs : Option Nat := none
   lastFreshOrigin : Option String := none
-  rateTimestamps : Buffer Nat rateWindowCapacity := .empty
+  captureRate : CaptureRate := {}
   lastRetireCount : Option Nat := none
   retireChangedAt : Option Nat := none
   lastSubtaskSig : Option String := none
@@ -688,30 +749,44 @@ def decodeServerFrame (value : Json.Value) : Except (BrowserRefusal × String) S
     lifetimeCycleSuccesses, lifetimeCycleSteps, agreement
   }
 
+def agreementSnapshotFollows (prev next : AgreementSnapshot) : Bool :=
+  let n := next.goalProgress
+  let p := prev.goalProgress
+  ClockProgram.snapshotFollows.eval fun i =>
+    match i.val with
+    | 0 => next.processStartedMs
+    | 1 => next.clock
+    | 2 => if next.stopped then 1 else 0
+    | 3 => n.cycle
+    | 4 => n.resolved
+    | 5 => n.attempt
+    | 6 => if n.invalid then 1 else 0
+    | 7 => prev.processStartedMs
+    | 8 => prev.clock
+    | 9 => if prev.stopped then 1 else 0
+    | 10 => p.cycle
+    | 11 => p.resolved
+    | 12 => p.attempt
+    | _ => if p.invalid then 1 else 0
+
 def admitAgreementSnapshot (previous : Option AgreementSnapshot) (next : AgreementSnapshot) :
     AgreementSnapshot :=
   match previous with
   | none => next
-  | some prev =>
-    let n := next.goalProgress
-    let p := prev.goalProgress
-    let follows := ClockProgram.snapshotFollows.eval fun i =>
-      match i.val with
-      | 0 => next.processStartedMs
-      | 1 => next.clock
-      | 2 => if next.stopped then 1 else 0
-      | 3 => n.cycle
-      | 4 => n.resolved
-      | 5 => n.attempt
-      | 6 => if n.invalid then 1 else 0
-      | 7 => prev.processStartedMs
-      | 8 => prev.clock
-      | 9 => if prev.stopped then 1 else 0
-      | 10 => p.cycle
-      | 11 => p.resolved
-      | 12 => p.attempt
-      | _ => if p.invalid then 1 else 0
-    if follows then next else prev
+  | some prev => if agreementSnapshotFollows prev next then next else prev
+
+theorem agreementSnapshotFollows_final (prev next : AgreementSnapshot)
+    (hProc : next.processStartedMs = prev.processStartedMs)
+    (hClock : next.clock = prev.clock)
+    (hPrevOpen : prev.stopped = false)
+    (hNextStopped : next.stopped = true) :
+    agreementSnapshotFollows prev next = true := by
+  have h7 : (7 : Fin 14).val = 7 := rfl
+  have h8 : (8 : Fin 14).val = 8 := rfl
+  have h9 : (9 : Fin 14).val = 9 := rfl
+  simp [agreementSnapshotFollows, ClockProgram.snapshotFollows,
+    ClockProgram.Predicate.eval, ClockProgram.Term.eval,
+    h7, h8, h9, hProc, hClock, hPrevOpen, hNextStopped]
 
 private def subtaskSignature (frame : ServerFrame) : String :=
   frame.subtaskPolicy ++ "|" ++
@@ -778,7 +853,7 @@ def ServerObserverState.observe (state : ServerObserverState) (decoded : Decoded
   let state := if freshCapture then
     { state with
       lastFreshMonoMs := some nowMonoMs
-      rateTimestamps := state.rateTimestamps.retain nowMonoMs }
+      captureRate := state.captureRate.record nowMonoMs }
     else state
   match decoded.frame with
   | none => state
@@ -787,95 +862,272 @@ def ServerObserverState.observe (state : ServerObserverState) (decoded : Decoded
       refusedCount := state.refusedCount + 1
       lastRefusal := some ⟨reason, key⟩ }
   | some (.ok frame) =>
-    let capture : Capture := {
-      run := state.identity.run
-      epoch := frame.summary.agentEpoch.toUInt64
-      timestamp := frame.summary.timestampMs.toUInt64
-      lifetime := frame.summary.lifetimeStep.toUInt64
-      world := frame.summary.worldStep.toUInt64
-      terminal := frame.summary.terminal
-    }
-    let state :=
-      if frame.summary.runId != runHex state.identity.run ||
-          frame.summary.agentEpoch != state.identity.agentEpoch.toNat then
-        state
-      else
-        let (intake, admission) := state.admission.receive capture
-        let state := { state with admission }
-        let state := if freshCapture && (intake == .stored || intake == .rewound) then
-            { state with lastFreshOrigin := some frame.summary.origin }
-          else state
-        match intake with
-        | .skipped => state
-        | .rewound | .stored =>
-          let admittedCount := state.admittedCount + 1
-          let nonFiniteCount := state.nonFiniteCount +
-            if frame.summary.nonFiniteKey.isSome then 1 else 0
-          let lastNonFiniteKey := frame.summary.nonFiniteKey.or state.lastNonFiniteKey
-          let agreement := some (admitAgreementSnapshot state.agreement frame.agreement)
-          let retireChangedAt :=
-            match state.lastRetireCount with
-            | some prev => if prev != frame.retireCount then some admittedCount else state.retireChangedAt
-            | none => state.retireChangedAt
-          let sig := decoded.subtaskSig.getD (subtaskSignature frame)
-          let subtaskChangedAt :=
-            match state.lastSubtaskSig with
-            | some prev => if prev != sig then some admittedCount else state.subtaskChangedAt
-            | none => state.subtaskChangedAt
-          let planningChangedAt :=
-            match state.lastPlanningSteps with
-            | some prev => if prev != frame.planningSteps then some admittedCount else state.planningChangedAt
-            | none => state.planningChangedAt
-          let samples :=
-            if admittedCount % verifyStride == 1 then
-              let aDem := match frame.summary.aDem with
-                | .finite d => if d.isPositive then some d else none
-                | .nonFinite => none
-              let aCtl := match frame.summary.aCtl with
-                | .finite d => if d.isPositive then some d else none
-                | .nonFinite => none
-              let sample : HistorySample := {
-                aDem, aCtl, aMeta := frame.summary.aMeta, aOpt := frame.summary.aOpt,
-                surprise := computeSurprise state.prevDemons frame
-              }
-              state.samples.retain sample
-            else state.samples
-          let summaries := if intake == .stored then state.summaries.retain frame.summary else state.summaries
-          { state with
-            summaries
-            latest := if intake == .stored || state.latest.isNone then some frame else state.latest
-            agreement
-            samples
-            admittedCount
-            nonFiniteCount
-            lastNonFiniteKey
-            lastRetireCount := some frame.retireCount
-            retireChangedAt
-            lastSubtaskSig := some sig
-            subtaskChangedAt
-            lastPlanningSteps := some frame.planningSteps
-            planningChangedAt
-            prevDemons := some (frame.summary.worldStep, frame.demons) }
-    state
+    if frame.summary.runId != runHex state.identity.run ||
+        frame.summary.agentEpoch != state.identity.agentEpoch.toNat then
+      state
+    else
+      let capture : Capture := {
+        run := state.identity.run
+        epoch := frame.summary.agentEpoch.toUInt64
+        timestamp := frame.summary.timestampMs.toUInt64
+        lifetime := frame.summary.lifetimeStep.toUInt64
+        world := frame.summary.worldStep.toUInt64
+        terminal := frame.summary.terminal
+      }
+      let (intake, admission) := state.admission.receive capture
+      let agreement := some (admitAgreementSnapshot state.agreement frame.agreement)
+      let state := { state with admission, agreement }
+      let state := if freshCapture && (intake == .stored || intake == .rewound) then
+          { state with lastFreshOrigin := some frame.summary.origin }
+        else state
+      match intake with
+      | .skipped | .rewound => state
+      | .stored =>
+        let admittedCount := state.admittedCount + 1
+        let nonFiniteCount := state.nonFiniteCount +
+          if frame.summary.nonFiniteKey.isSome then 1 else 0
+        let lastNonFiniteKey := frame.summary.nonFiniteKey.or state.lastNonFiniteKey
+        let retireChangedAt :=
+          match state.lastRetireCount with
+          | some prev => if prev != frame.retireCount then some admittedCount else state.retireChangedAt
+          | none => state.retireChangedAt
+        let sig := decoded.subtaskSig.getD (subtaskSignature frame)
+        let subtaskChangedAt :=
+          match state.lastSubtaskSig with
+          | some prev => if prev != sig then some admittedCount else state.subtaskChangedAt
+          | none => state.subtaskChangedAt
+        let planningChangedAt :=
+          match state.lastPlanningSteps with
+          | some prev => if prev != frame.planningSteps then some admittedCount else state.planningChangedAt
+          | none => state.planningChangedAt
+        let samples :=
+          if admittedCount % verifyStride == 1 then
+            let aDem := match frame.summary.aDem with
+              | .finite d => if d.isPositive then some d else none
+              | .nonFinite => none
+            let aCtl := match frame.summary.aCtl with
+              | .finite d => if d.isPositive then some d else none
+              | .nonFinite => none
+            let sample : HistorySample := {
+              aDem, aCtl, aMeta := frame.summary.aMeta, aOpt := frame.summary.aOpt,
+              surprise := computeSurprise state.prevDemons frame
+            }
+            state.samples.retain sample
+          else state.samples
+        { state with
+          summaries := state.summaries.retain frame.summary
+          latest := some frame
+          samples
+          admittedCount
+          nonFiniteCount
+          lastNonFiniteKey
+          lastRetireCount := some frame.retireCount
+          retireChangedAt
+          lastSubtaskSig := some sig
+          subtaskChangedAt
+          lastPlanningSteps := some frame.planningSteps
+          planningChangedAt
+          prevDemons := some (frame.summary.worldStep, frame.demons) }
 
 def ServerObserverState.framesPerSecondTenths (state : ServerObserverState) (nowMonoMs : Nat) :
     Option Nat :=
-  let recent := state.rateTimestamps.values.filter fun ts => nowMonoMs - ts ≤ 4000
-  if recent.length < 2 then none
-  else
-    let oldest := recent.headD nowMonoMs
-    let spanMs := max 250 (nowMonoMs - oldest)
-    some ((recent.length - 1) * 10000 / spanMs)
+  state.captureRate.framesPerSecondTenths nowMonoMs
 
-def ServerObserverState.isStale (state : ServerObserverState) (running : Bool) (nowMonoMs : Nat) :
-    Bool :=
-  if !running then false
-  else match state.lastFreshMonoMs with
-    | none => false
-    | some last => nowMonoMs - last ≥ BrowserConstant.staleAfter.value
+def ServerObserverState.streamLiveness (state : ServerObserverState)
+    (lifecycle : Lifecycle) (unaskedStop : Bool) (runningSinceMonoMs : Option Nat)
+    (nowMonoMs : Nat) : StreamLiveness :=
+  if unaskedStop then .fault lifecycle.exhausted
+  else
+    match lifecycle.phaseValue with
+    | .running _ =>
+      match state.lastFreshMonoMs with
+      | some last =>
+        if nowMonoMs - last ≥ BrowserConstant.staleAfter.value then .stale true
+        else .live
+      | none =>
+        match runningSinceMonoMs with
+        | some started =>
+          if nowMonoMs - started ≥ BrowserConstant.staleAfter.value then .stale false
+          else .waitingForCapture
+        | none => .waitingForCapture
+    | .starting _ => .busy "starting…"
+    | .stopping _ => .busy "stopping…"
+    | .archiving => .busy "clearing…"
+    | .idle => .idle
+
+def ServerObserverState.beginRunningGeneration (state : ServerObserverState) :
+    ServerObserverState :=
+  { state with
+    lastFreshMonoMs := none
+    lastFreshOrigin := none
+    captureRate := {} }
 
 def ServerObserverState.resetIdentity (state : ServerObserverState) (identity : Identity) :
     ServerObserverState :=
   if state.identity == identity then state else .empty identity
+
+private theorem capture_follows_same_clocks (next prev : Capture)
+    (hLife : next.lifetime = prev.lifetime) (hWorld : next.world = prev.world) :
+    next.follows prev = false := by
+  have h3 : (3 : Fin 6).val = 3 := rfl
+  have h4 : (4 : Fin 6).val = 4 := rfl
+  simp [Capture.follows, ClockProgram.follows, ClockProgram.Predicate.eval,
+    ClockProgram.Term.eval, h3, h4, hLife, hWorld]
+
+theorem ServerObserverState.observe_same_clock_final_agreement
+    (state : ServerObserverState) (decoded : DecodedTelemetry) (frame : ServerFrame)
+    (prevCap : Capture) (prevAg : AgreementSnapshot) (nowMonoMs : Nat)
+    (hFrame : decoded.frame = some (.ok frame))
+    (hRun : frame.summary.runId = runHex state.identity.run)
+    (hEpoch : frame.summary.agentEpoch = state.identity.agentEpoch.toNat)
+    (hPrevCap : state.admission.previous = some prevCap)
+    (hLife : frame.summary.lifetimeStep.toUInt64 = prevCap.lifetime)
+    (hWorld : frame.summary.worldStep.toUInt64 = prevCap.world)
+    (hPrevAg : state.agreement = some prevAg)
+    (hProc : frame.agreement.processStartedMs = prevAg.processStartedMs)
+    (hClock : frame.agreement.clock = prevAg.clock)
+    (hPrevOpen : prevAg.stopped = false)
+    (hNextStopped : frame.agreement.stopped = true) :
+    let next := state.observe decoded nowMonoMs
+    next.agreement = some frame.agreement ∧
+      next.summaries = state.summaries ∧
+      next.samples = state.samples ∧
+      next.admittedCount = state.admittedCount ∧
+      next.latest = state.latest ∧
+      next.prevDemons = state.prevDemons ∧
+      next.admission.previous = state.admission.previous := by
+  dsimp only
+  unfold ServerObserverState.observe
+  have hIdOk : (frame.summary.runId != runHex state.identity.run ||
+      frame.summary.agentEpoch != state.identity.agentEpoch.toNat) = false := by
+    simp [hRun, hEpoch]
+  have hAgOk : admitAgreementSnapshot state.agreement frame.agreement = frame.agreement := by
+    simp [admitAgreementSnapshot, hPrevAg,
+      agreementSnapshotFollows_final prevAg frame.agreement hProc hClock hPrevOpen hNextStopped]
+  have hEpochEq : frame.summary.agentEpoch.toUInt64 = state.identity.agentEpoch := by
+    rw [hEpoch]
+    exact UInt64.ofNat_toNat
+  let cap : Capture := {
+    run := state.identity.run
+    epoch := frame.summary.agentEpoch.toUInt64
+    timestamp := frame.summary.timestampMs.toUInt64
+    lifetime := frame.summary.lifetimeStep.toUInt64
+    world := frame.summary.worldStep.toUInt64
+    terminal := frame.summary.terminal
+  }
+  have hMatches : cap.matches state.identity = true := by
+    simp [Capture.matches, cap, hEpochEq]
+  have hNotFollows : cap.follows prevCap = false :=
+    capture_follows_same_clocks cap prevCap hLife hWorld
+  have hReceiveRew :
+      state.admission.newestTimestamp.all (cap.timestamp > ·) = true →
+      state.admission.receive cap = (.rewound, state.admission.noteTimestamp cap.timestamp) := by
+    intro hFresh
+    unfold Admission.receive
+    simp [hMatches, hPrevCap, hNotFollows, hFresh]
+  have hReceiveSkip :
+      state.admission.newestTimestamp.all (cap.timestamp > ·) = false →
+      state.admission.receive cap = (.skipped, state.admission.noteTimestamp cap.timestamp) := by
+    intro hFresh
+    unfold Admission.receive
+    simp [hMatches, hPrevCap, hNotFollows, hFresh]
+  rcases hHealth :
+      (match decoded.health with
+       | some capture => state.healthAdmission.receive capture
+       | none => (false, state.healthAdmission)) with ⟨freshCap, healthAdm⟩
+  rw [hHealth, hFrame]
+  cases freshCap with
+  | false =>
+    dsimp only
+    rw [ite_eq_right Bool.false_ne_true]
+    dsimp only
+    rw [ite_eq_right (by simp [hIdOk])]
+    cases hFreshTs : state.admission.newestTimestamp.all (cap.timestamp > ·) with
+    | true =>
+      have hRec := hReceiveRew hFreshTs
+      dsimp only [cap] at hRec
+      rw [hRec]
+      dsimp only
+      rw [ite_eq_right (by decide)]
+      simp [hAgOk, Admission.noteTimestamp, hPrevCap]
+    | false =>
+      have hRec := hReceiveSkip hFreshTs
+      dsimp only [cap] at hRec
+      rw [hRec]
+      dsimp only
+      rw [ite_eq_right (by decide)]
+      simp [hAgOk, Admission.noteTimestamp, hPrevCap]
+  | true =>
+    dsimp only
+    rw [ite_eq_left rfl]
+    dsimp only
+    rw [ite_eq_right (by simp [hIdOk])]
+    cases hFreshTs : state.admission.newestTimestamp.all (cap.timestamp > ·) with
+    | true =>
+      have hRec := hReceiveRew hFreshTs
+      dsimp only [cap] at hRec
+      rw [hRec]
+      dsimp only
+      rw [ite_eq_left (by decide)]
+      simp [hAgOk, Admission.noteTimestamp, hPrevCap]
+    | false =>
+      have hRec := hReceiveSkip hFreshTs
+      dsimp only [cap] at hRec
+      rw [hRec]
+      dsimp only
+      rw [ite_eq_right (by decide)]
+      simp [hAgOk, Admission.noteTimestamp, hPrevCap]
+
+theorem CaptureRate.framesPerSecondTenths_unbounded (r : CaptureRate) (sec count : Nat)
+    (hBucket : r.hasBucket = true) (hPrev : r.hasPrevious = true)
+    (hSec : r.bucketSec = sec) (hPrevCount : r.previousCount = count)
+    (hCurCount : r.currentCount = 0) :
+    r.framesPerSecondTenths (sec * 1000) = some (count * 10) := by
+  have hDiv : (sec * 1000) / 1000 = sec := Nat.mul_div_cancel sec (by decide)
+  have hMod : (sec * 1000) % 1000 = 0 := Nat.mul_mod_left sec 1000
+  simp only [CaptureRate.framesPerSecondTenths, hBucket, hPrev, hSec, hPrevCount, hCurCount,
+    hDiv, hMod, Bool.not_true, Bool.false_eq_true, ↓reduceIte, beq_self_eq_true, Nat.add_zero]
+  have hArith : count * 10000 / 1000 = count * 10 := by
+    rw [show count * 10000 = (count * 10) * 1000 by rw [Nat.mul_assoc]]
+    exact Nat.mul_div_cancel (count * 10) (by decide)
+  rw [hArith]
+
+theorem ServerObserverState.streamLiveness_live_requires_fresh
+    (state : ServerObserverState) (lifecycle : Lifecycle) (unaskedStop : Bool)
+    (runningSinceMonoMs : Option Nat) (nowMonoMs : Nat)
+    (hLive : state.streamLiveness lifecycle unaskedStop runningSinceMonoMs nowMonoMs = .live) :
+    unaskedStop = false ∧ (∃ gen, lifecycle.phaseValue = .running gen) ∧
+      ∃ last, state.lastFreshMonoMs = some last ∧ nowMonoMs - last < BrowserConstant.staleAfter.value := by
+  unfold ServerObserverState.streamLiveness at hLive
+  cases hUnasked : unaskedStop with
+  | true => simp [hUnasked] at hLive
+  | false =>
+    simp only [hUnasked, Bool.false_eq_true, ↓reduceIte] at hLive
+    cases hPhase : lifecycle.phaseValue with
+    | idle | starting _ | stopping _ | archiving => simp [hPhase] at hLive
+    | running gen =>
+      simp only [hPhase] at hLive
+      cases hLast : state.lastFreshMonoMs with
+      | none =>
+        simp only [hLast] at hLive
+        cases runningSinceMonoMs with
+        | none => cases hLive
+        | some started =>
+          dsimp only at hLive
+          split at hLive <;> cases hLive
+      | some last =>
+        simp only [hLast] at hLive
+        split at hLive
+        · cases hLive
+        · rename_i hNotStale
+          exact ⟨rfl, ⟨gen, rfl⟩, ⟨last, rfl, Nat.lt_of_not_le hNotStale⟩⟩
+
+theorem ServerObserverState.streamLiveness_no_capture_stale
+    (state : ServerObserverState) (lifecycle : Lifecycle) (gen : UInt64) (started nowMonoMs : Nat)
+    (hPhase : lifecycle.phaseValue = .running gen)
+    (hNoFresh : state.lastFreshMonoMs = none)
+    (hElapsed : nowMonoMs - started ≥ BrowserConstant.staleAfter.value) :
+    state.streamLiveness lifecycle false (some started) nowMonoMs = .stale false := by
+  simp [ServerObserverState.streamLiveness, hPhase, hNoFresh, hElapsed]
 
 end Acorn.Host.Viewer

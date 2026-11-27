@@ -54,6 +54,7 @@ private structure BroadcastState where
   worldPartial : Bool := false
   worldRevision : Nat := 0
   observer : ServerObserverState
+  runningSinceMonoMs : Option Nat := none
   subscribers : Buffer Subscriber connectionCapacity := .empty
   sequence : UInt64 := 0
   version : Nat := 0
@@ -64,6 +65,7 @@ structure BroadcastSnapshot where
   detail : Option ControlDetail
   world : Option ((key : MapKey) × WorldMemory key)
   observer : ServerObserverState
+  runningSinceMonoMs : Option Nat := none
 
 structure Broadcast where
   private mk ::
@@ -169,7 +171,8 @@ private def sameControlState (prevLifecycle nextLifecycle : Lifecycle)
 def Broadcast.snapshot (broadcast : Broadcast) : BaseIO BroadcastSnapshot :=
   broadcast.state.atomically do
     let state ← get
-    return ⟨state.lifecycle, state.observation, state.detail, state.world, state.observer⟩
+    return ⟨state.lifecycle, state.observation, state.detail, state.world, state.observer,
+      state.runningSinceMonoMs⟩
 
 def Broadcast.commitIdentity (broadcast : Broadcast) (generation : UInt64) (actual : CoreIdentity)
     (lifecycle : Lifecycle) (detail : ControlDetail) : BaseIO (Except String Nat) := do
@@ -222,16 +225,27 @@ private def BroadcastState.change (state : BroadcastState) : Change → Broadcas
 def Broadcast.settle (broadcast : Broadcast) (lifecycle : Lifecycle) (changes : List Change)
     (detail : ControlDetail) : BaseIO (Except String Unit) := do
   let isNewRun := changes.any fun change => match change with | .newRun => true | _ => false
+  let nowMonoMs ← IO.monoMsNow
   let wakes : List (IO.Promise Unit) ← broadcast.state.atomically do
     let prev ← get
     let changed := changes.foldl BroadcastState.change prev
+    let enteredRunning : Bool := match lifecycle.phaseValue with
+      | .running gen => prev.lifecycle.phaseValue != .running gen
+      | _ => false
+    let runningSinceMonoMs := match lifecycle.phaseValue with
+      | .running _ =>
+        if enteredRunning then some nowMonoMs
+        else prev.runningSinceMonoMs.or (some nowMonoMs)
+      | _ => none
     let observer := if isNewRun then .empty lifecycle.identityValue
-      else changed.observer.resetIdentity lifecycle.identityValue
+      else
+        let reset := changed.observer.resetIdentity lifecycle.identityValue
+        if enteredRunning then reset.beginRunningGeneration else reset
     let nextObs := changed.observation
     let modified := !changes.isEmpty ||
       !sameControlState prev.lifecycle lifecycle prev.observation nextObs prev.detail detail
     let state := { changed with
-      lifecycle, detail := some detail, observer
+      lifecycle, detail := some detail, observer, runningSinceMonoMs
       version := if modified then changed.version + 1 else changed.version }
     set state
     return if modified then state.subscribers.values.map (·.wake) else []
@@ -332,7 +346,8 @@ def Subscription.snapshot (subscription : Subscription) : BaseIO (Option Broadca
     let subscribers := state.subscribers.values.map fun current =>
       if current.id == subscription.id then { current with seenVersion := state.version } else current
     set { state with subscribers := ⟨subscribers, by simpa [subscribers] using state.subscribers.bounded⟩ }
-    return some ⟨state.lifecycle, state.observation, state.detail, state.world, state.observer⟩
+    return some ⟨state.lifecycle, state.observation, state.detail, state.world, state.observer,
+      state.runningSinceMonoMs⟩
 
 inductive SubscriptionRead where
   | closed
