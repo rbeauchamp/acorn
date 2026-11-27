@@ -899,53 +899,77 @@ reads declarations
 from compiled modules, never from sources, and running it builds the checking
 program and no module that program reads. So before AcornFrameCheck.imported
 loads any environment, for the check and for `frame-check print` alike,
-AcornFrameCheck.current first admits the Lean sysroot against the pinned
-toolchain prefix (refusing sysroot overrides), verifies tracked regular-file
-admission for `lean/lean-toolchain`, `lean/Bootstrap.lean`,
-`lean/lakefile.lean`, and `lean/lake-manifest.json`, admits non-symlink
-directories across `lean/.lake` and `lean/.lake/packages` and each locked
-dependency checkout (verifying locked Git revisions whenever `.git` metadata is
-present and rejecting ambient package-override manifests), and requires the
-named root module to be, under exactly its name, one of the package's Lean
-source files in AcornModuleInventory.allModules. It then asks Lake, through
-the bootstrap and building nothing, for the root module's source file, compiled
-file, module header, and transitive workspace imports. For the root module and
-every transitive root-package import in that closure, it requires membership in
+AcornFrameCheck.current first admits the Lean sysroot by resolving the expected
+prefix directly from the Git-tracked regular file `lean/lean-toolchain` through
+Elan independently of ambient toolchain selection (refusing mismatched
+`LEAN_SYSROOT` or ambient `lean` prefixes and verifying non-symlink `lib/lean`
+directories; AcornFrameCheck.run initializes Lean's search path from that
+admitted prefix), verifies tracked regular-file admission for
+`lean/Bootstrap.lean`, `lean/lakefile.lean`, and `lean/lake-manifest.json`,
+admits non-symlink directories across `lean/.lake` and `lean/.lake/packages`
+and each locked dependency checkout (rejecting ambient package-override
+manifests, and whenever `.git` metadata is present verifying that the checkout
+is a Git repository root at the locked revision with clean index, clean index
+flags, no untracked non-ignored files, no working-tree divergence from that
+revision apart from exact-blob materialization of non-Lean, non-config,
+non-manifest tracked symlinks, and stage-0 tracked regular-file membership for
+its configuration and manifest files), and requires the named root module to
+be, under exactly its name, one of the package's Lean source files in
+AcornModuleInventory.allModules. It then asks Lake, through the bootstrap and
+building nothing, for the root module's source file, compiled file, module
+header, and transitive workspace imports. For the root module and every
+transitive root-package import in that closure, it requires membership in
 AcornModuleInventory.allModules, currency reported by Lake against the present
-sources, non-symlink regular-file real-path equality between Lake's source
-answer and the inventoried `.lean` file, and non-symlink regular-file real-path
-equality among Lean's resolved compiled `.olean`, Lake's answer, and the root
-build library path. For every non-root workspace module in Lake's transitive
-imports, it requires absence of any shadowing `.olean` in the root build
-library and non-symlink regular-file containment of both Lake's source and
-compiled answers (matching Lean's resolved `.olean`) inside a locked dependency
-checkout under `lean/.lake/packages`. Whenever a workspace module's header
-declares the Lean module system, it additionally queries Lake's `.olean.server`,
-`.olean.private`, `.ir.sig`, and `.ir` outputs and requires all four to exist
-as non-symlink regular files matching the sibling artifacts beside Lean's
-resolved `.olean`. After importModules constructs the environment and before any
-frame walk reads declarations from it, AcornFrameCheck.imported re-checks every
-entry of the loaded module header against its metadata: loaded workspace
-modules must match the Lake-verified closure, module-system flag, and regular
-`.olean` (plus regular companion artifacts when the module system is enabled),
-and every remaining loaded module must carry a core toolchain prefix (Init,
-Std, Lean, or Lake) outside AcornModuleInventory.allModules whose resolved
-`.olean` (and companion artifacts when the module system is enabled) is a regular
-file matching the admitted sysroot library directory. It fails, naming the
-module, when any tree source is absent or differs in letter case, when the root
-package lacks the root module, when Lake does not report the module and its
-workspace import closure current, when any source, compiled `.olean`, or module
-companion artifact resolves elsewhere or through a symbolic link, or when an
-unverified or shadowed module enters the loaded environment. A module of a
-dependency or of the documentation package is refused as a root target as no
-source of this package, and any tracked entry below the package directory that
-is neither a regular file nor below regular directories fails the inventory and
-the check with it. So a compiled file left behind by an earlier build or
-shadowed on Lean's search path is not read in place of the tree's sources, as
-far as Lake's record of what is current is right: that record, and that nothing
-but Lake has altered the compiled files without invalidating Lake's traces,
-remain trusted, together with toolchain binaries and the stability of the file
-system while the check runs, which the
+sources, and lexical containment under the root directory with no parent
+traversal or symbolic links along the candidate path itself: Lake's source
+answer must walk directly to the exact case-sensitive inventoried `.lean` file,
+and both Lake's compiled answer and Lean's resolved `.olean` must walk directly
+to the exact case-sensitive path under `.lake/build/lib/lean` with equal
+canonical real paths. For every non-root workspace module in Lake's transitive
+imports, it requires absence of any shadowing entry in `.lake/build/lib/lean`,
+lexical non-symlink regular-file containment of Lake's source answer inside a
+locked dependency checkout under `lean/.lake/packages` with exact module
+`.lean` suffix (and stage-0 tracked regular-file membership when `.git`
+metadata is present), and lexical non-symlink regular-file containment of both
+Lake's compiled answer and Lean's resolved `.olean` under that dependency's
+`.lake/build/lib/lean` with equal canonical real paths. Whenever a workspace
+module's header declares the Lean module system, it additionally queries Lake's
+`.olean.server`, `.olean.private`, `.ir.sig`, and `.ir` outputs from one closed
+companion inventory and requires all four Lake answers and the sibling files
+beside Lean's resolved `.olean` to satisfy the same lexical non-symlink
+regular-file containment and canonical real-path equality. AcornFrameCheck.imported
+builds a per-import artifact map strictly from that closure's passed workspace
+admissions (with no cross-pin environment or verification cache) and supplies
+it to importModules, binding legacy workspace modules to their admitted
+`.olean` alone with empty IR parts so Lean's private importer cannot open
+unverified `.ir.sig` or `.ir` siblings, and binding module-system workspace
+modules to their admitted `.olean` and four companion artifacts. After
+importModules constructs the environment and before any frame walk reads
+declarations from it, AcornFrameCheck.imported re-checks every entry of the
+loaded module header against its metadata: loaded workspace modules must match
+the current closure's verified map, module-system flag, and lexically contained
+regular `.olean` (plus the four companion artifacts when the module system is
+enabled), and every remaining loaded module must carry a core toolchain prefix
+(Init, Std, Lean, or Lake) outside AcornModuleInventory.allModules whose
+resolved `.olean` (plus its four companions when the module system is enabled,
+or `.ir.sig` and `.ir` when `.ir.sig` is present beside a non-module core
+`.olean`) is a lexically contained non-symlink regular file under the admitted
+sysroot library directory. It fails, naming the module, when any tree source is
+absent or differs in letter case, when the root package lacks the root module,
+when Lake does not report the module and its workspace import closure current,
+when any source, compiled `.olean`, or companion artifact resolves elsewhere,
+uses a symbolic link along its path, or diverges from a Git-tracked locked
+dependency checkout, or when an unverified or shadowed module enters the loaded
+environment. A module of a dependency or of the documentation package is
+refused as a root target as no source of this package, and any tracked entry
+below the package directory that is neither a regular file nor below regular
+directories fails the inventory and the check with it. So a compiled file left
+behind by an earlier build or shadowed on Lean's search path is not read in
+place of the tree's sources, as far as Lake's record of what is current is
+right: that record, and that nothing but Lake has altered the compiled files
+without invalidating Lake's traces, remain trusted, together with toolchain
+binaries (including Elan), dependency checkouts lacking `.git` metadata, and
+the stability of the file system while the check runs, which the
 [compiler and execution boundary](#compiler-and-execution-boundary) lists among
 the trusted boundaries. The check then computes
 that list from the compiled module and fails when a
