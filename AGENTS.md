@@ -118,9 +118,10 @@ changes and by whether it passed the maintainers' validation pipeline, never by
 who wrote it. A pull request that claims a result gets the referee's review; one
 that claims no result counts the validation pipeline's review where it passed
 that pipeline, and gets the referee's review or the short review where it did
-not. Any model reviewer must belong to another model family than every model
-that did or fixed the work, and the applicable assignment rule determines when
-an uninvolved person is eligible. Every review is bounded by
+not. Any model reviewer must run in an independent fresh session that took no
+part in writing, fixing, or advising on the work (no same-session self-review),
+and the applicable assignment rule determines when an uninvolved person is
+eligible. Every review is bounded by
 [three rounds of review](CONTRIBUTING.md#three-rounds-of-review).
 Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
 rendered-state inspection. The skills under .agents/skills are maintained

@@ -18,8 +18,9 @@ says which review the pull request gets: the referee's review or the short
 review, from a reviewer assigned under the protocol's rule of assignment
 (with that rule governing when an uninvolved person is eligible and how the
 single-maintainer standing designation applies), or the maintainers'
-validation pipeline's review. Any model reviewer must belong to another model
-family than every model that did or fixed the work. That review, a comment
+validation pipeline's review. Any model reviewer must run in an independent
+fresh session that took no part in writing, fixing, or advising on the work
+(no same-session self-review). That review, a comment
 on the pull request, decides whether the work is accepted. Never report work as complete on the
 strength of this review.
 
