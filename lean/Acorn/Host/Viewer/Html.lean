@@ -6,8 +6,6 @@ inductive VoidTag where
   | metaTag
   | link
   | input
-  | br
-  | hr
   deriving DecidableEq, BEq
 
 inductive NormalTag where
@@ -15,10 +13,7 @@ inductive NormalTag where
   | head
   | title
   | body
-  | header
-  | main
   | section
-  | nav
   | div
   | span
   | p
@@ -27,17 +22,12 @@ inductive NormalTag where
   | h3
   | strong
   | b
-  | small
-  | code
-  | em
-  | i
   | sub
   | sup
   | pre
   | a
   | form
   | button
-  | label
   | progress
   | details
   | summary
@@ -47,19 +37,14 @@ inductive NormalTag where
   | tr
   | th
   | td
-  | ul
-  | li
   | img
   | svg
-  | g
   | rect
   | circle
   | line
   | polyline
   | polygon
-  | path
   | text
-  | svgTitle
   deriving DecidableEq, BEq
 
 inductive AttrName where
@@ -74,7 +59,6 @@ inductive AttrName where
   | cls
   | title
   | ariaLabel
-  | ariaHidden
   | role
   | action
   | method
@@ -82,17 +66,11 @@ inductive AttrName where
   | value
   | min
   | max
-  | step
-  | placeholder
-  | size
   | disabled
   | openAttr
-  | forAttr
-  | target
   | width
   | height
   | viewBox
-  | preserveAspectRatio
   | x
   | y
   | x1
@@ -102,42 +80,31 @@ inductive AttrName where
   | cx
   | cy
   | r
-  | rx
-  | ry
   | points
-  | d
   | fill
   | fillOpacity
   | stroke
   | strokeWidth
   | strokeDasharray
   | strokeOpacity
-  | opacity
   | fontSize
   | fontWeight
   | textAnchor
-  | dominantBaseline
   | src
   | alt
-  | xmlns
   deriving DecidableEq, BEq
 
 def VoidTag.render : VoidTag → String
   | .metaTag => "meta"
   | .link => "link"
   | .input => "input"
-  | .br => "br"
-  | .hr => "hr"
 
 def NormalTag.render : NormalTag → String
   | .html => "html"
   | .head => "head"
   | .title => "title"
   | .body => "body"
-  | .header => "header"
-  | .main => "main"
   | .section => "section"
-  | .nav => "nav"
   | .div => "div"
   | .span => "span"
   | .p => "p"
@@ -146,17 +113,12 @@ def NormalTag.render : NormalTag → String
   | .h3 => "h3"
   | .strong => "strong"
   | .b => "b"
-  | .small => "small"
-  | .code => "code"
-  | .em => "em"
-  | .i => "i"
   | .sub => "sub"
   | .sup => "sup"
   | .pre => "pre"
   | .a => "a"
   | .form => "form"
   | .button => "button"
-  | .label => "label"
   | .progress => "progress"
   | .details => "details"
   | .summary => "summary"
@@ -166,19 +128,14 @@ def NormalTag.render : NormalTag → String
   | .tr => "tr"
   | .th => "th"
   | .td => "td"
-  | .ul => "ul"
-  | .li => "li"
   | .img => "img"
   | .svg => "svg"
-  | .g => "g"
   | .rect => "rect"
   | .circle => "circle"
   | .line => "line"
   | .polyline => "polyline"
   | .polygon => "polygon"
-  | .path => "path"
   | .text => "text"
-  | .svgTitle => "title"
 
 def AttrName.render : AttrName → String
   | .lang => "lang"
@@ -192,7 +149,6 @@ def AttrName.render : AttrName → String
   | .cls => "class"
   | .title => "title"
   | .ariaLabel => "aria-label"
-  | .ariaHidden => "aria-hidden"
   | .role => "role"
   | .action => "action"
   | .method => "method"
@@ -200,17 +156,11 @@ def AttrName.render : AttrName → String
   | .value => "value"
   | .min => "min"
   | .max => "max"
-  | .step => "step"
-  | .placeholder => "placeholder"
-  | .size => "size"
   | .disabled => "disabled"
   | .openAttr => "open"
-  | .forAttr => "for"
-  | .target => "target"
   | .width => "width"
   | .height => "height"
   | .viewBox => "viewBox"
-  | .preserveAspectRatio => "preserveAspectRatio"
   | .x => "x"
   | .y => "y"
   | .x1 => "x1"
@@ -220,24 +170,18 @@ def AttrName.render : AttrName → String
   | .cx => "cx"
   | .cy => "cy"
   | .r => "r"
-  | .rx => "rx"
-  | .ry => "ry"
   | .points => "points"
-  | .d => "d"
   | .fill => "fill"
   | .fillOpacity => "fill-opacity"
   | .stroke => "stroke"
   | .strokeWidth => "stroke-width"
   | .strokeDasharray => "stroke-dasharray"
   | .strokeOpacity => "stroke-opacity"
-  | .opacity => "opacity"
   | .fontSize => "font-size"
   | .fontWeight => "font-weight"
   | .textAnchor => "text-anchor"
-  | .dominantBaseline => "dominant-baseline"
   | .src => "src"
   | .alt => "alt"
-  | .xmlns => "xmlns"
 
 def contentSecurityPolicy : String :=
   "default-src 'self'; script-src 'none'; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -262,12 +206,6 @@ def escapeTextChars (cs : List Char) : List Char :=
 def escapeAttrChars (cs : List Char) : List Char :=
   cs.flatMap escapeAttrChar
 
-def escapeText (s : String) : String :=
-  String.ofList (escapeTextChars s.toList)
-
-def escapeAttr (s : String) : String :=
-  String.ofList (escapeAttrChars s.toList)
-
 inductive Attr where
   | kv (attrName : AttrName) (value : String)
   | flag (attrName : AttrName)
@@ -286,7 +224,6 @@ inductive Node where
   | text (content : String)
   | void (tag : VoidTag) (attrs : List Attr)
   | elem (tag : NormalTag) (attrs : List Attr) (children : List Node)
-  | seq (nodes : List Node)
 
 mutual
   def Node.renderChars : Node → List Char
@@ -296,7 +233,6 @@ mutual
     | .elem tag attrs children =>
       '<' :: tag.render.toList ++ renderAttrsChars attrs ++ ['>'] ++
         renderNodesChars children ++ ['<', '/'] ++ tag.render.toList ++ ['>']
-    | .seq nodes => renderNodesChars nodes
 
   def renderNodesChars : List Node → List Char
     | [] => []
@@ -607,7 +543,6 @@ mutual
       have hClose := closeTag_noScTag tag.render.toList hNoLt
       have hAll := NoScTag.append (NoScTag.append hOpen hChildren) hClose
       simpa only [Node.renderChars, List.cons_append, List.append_assoc] using hAll
-    | .seq nodes => renderNodesChars_noScTag nodes
 
   theorem renderNodesChars_noScTag : (nodes : List Node) → NoScTag (renderNodesChars nodes)
     | [] => NoScTag.of_no_lt (by simp [renderNodesChars])

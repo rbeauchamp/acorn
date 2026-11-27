@@ -2,6 +2,8 @@ import Acorn.Host.Viewer.BrowserStore
 import Acorn.Host.Viewer.BrowserNat
 import Acorn.Host.Viewer.ClockProgram
 import Acorn.Host.Viewer.DecimalText
+import Acorn.Host.Viewer.IdentityHandshake
+import Acorn.Host.Viewer.Sensed
 import Acorn.Host.Viewer.Wire
 
 namespace Acorn.Host.Viewer
@@ -733,8 +735,12 @@ private def computeSurprise (prev : Option (Nat × Array Scalar)) (frame : Serve
           if h4 : idx < prevDemons.size then
             match frame.cums[idx], frame.agreement.demonGamma[idx], frame.demons[idx], prevDemons[idx] with
             | .finite c, .finite g, .finite pNow, .finite pPrev =>
-              let prod := (g.scaled 6 * pNow.scaled 6) / 1000000
-              let residual := c.scaled 6 + prod - pPrev.scaled 6
+              let some cs := c.scaled? 6 | failure
+              let some gs := g.scaled? 6 | failure
+              let some pNowS := pNow.scaled? 6 | failure
+              let some pPrevS := pPrev.scaled? 6 | failure
+              let prod := (gs * pNowS) / 1000000
+              let residual := cs + prod - pPrevS
               sumAbs := sumAbs + (residual.natAbs : Int)
               count := count + 1
             | _, _, _, _ => failure
@@ -743,23 +749,44 @@ private def computeSurprise (prev : Option (Nat × Array Scalar)) (frame : Serve
     let avg := sumAbs / (count : Int)
     some ⟨false, avg.natAbs, -6⟩
 
-def ServerObserverState.observe (state : ServerObserverState) (parsed : Json.Value)
+structure DecodedTelemetry where
+  identity : Option CoreIdentity
+  health : Option Capture
+  frame : Option (Except (BrowserRefusal × String) ServerFrame)
+  subtaskSig : Option String
+  sensed : Option Sensed
+
+def decodeTelemetry (text : WireText) : DecodedTelemetry :=
+  match (Json.parse text.val).toOption with
+  | none => ⟨none, none, none, none, none⟩
+  | some value =>
+    let identity := (coreIdentityFromJson value).toOption
+    let health := (healthFromJson value).toOption
+    let frame := decodeServerFrame value
+    let subtaskSig := match frame with
+      | .ok f => some (subtaskSignature f)
+      | .error _ => none
+    let sensed := (sensedFromJson value).toOption
+    ⟨identity, health, some frame, subtaskSig, sensed⟩
+
+def ServerObserverState.observe (state : ServerObserverState) (decoded : DecodedTelemetry)
     (nowMonoMs : Nat) : ServerObserverState :=
-  let (freshCapture, healthAdmission) := match healthFromJson parsed with
-    | .ok capture => state.healthAdmission.receive capture
-    | .error _ => (false, state.healthAdmission)
+  let (freshCapture, healthAdmission) := match decoded.health with
+    | some capture => state.healthAdmission.receive capture
+    | none => (false, state.healthAdmission)
   let state := { state with healthAdmission }
   let state := if freshCapture then
     { state with
       lastFreshMonoMs := some nowMonoMs
       rateTimestamps := state.rateTimestamps.retain nowMonoMs }
     else state
-  match decodeServerFrame parsed with
-  | .error (reason, key) =>
+  match decoded.frame with
+  | none => state
+  | some (.error (reason, key)) =>
     { state with
       refusedCount := state.refusedCount + 1
       lastRefusal := some ⟨reason, key⟩ }
-  | .ok frame =>
+  | some (.ok frame) =>
     let capture : Capture := {
       run := state.identity.run
       epoch := frame.summary.agentEpoch.toUInt64
@@ -790,7 +817,7 @@ def ServerObserverState.observe (state : ServerObserverState) (parsed : Json.Val
             match state.lastRetireCount with
             | some prev => if prev != frame.retireCount then some admittedCount else state.retireChangedAt
             | none => state.retireChangedAt
-          let sig := subtaskSignature frame
+          let sig := decoded.subtaskSig.getD (subtaskSignature frame)
           let subtaskChangedAt :=
             match state.lastSubtaskSig with
             | some prev => if prev != sig then some admittedCount else state.subtaskChangedAt

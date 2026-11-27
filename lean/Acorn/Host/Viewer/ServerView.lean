@@ -770,7 +770,7 @@ private def renderSurpriseSvg (samples : List HistorySample) : Node := Id.run do
     el .rect [kv .x "0", kv .y "0", kv .width (toString width), kv .height (toString height),
       kv .fill "#080b10"] []
   ]
-  let vals : List Int := samples.filterMap fun s => s.surprise.map (·.scaled 6)
+  let vals : List Int := samples.filterMap fun s => s.surprise.bind (·.scaled? 6)
   if vals.isEmpty then
     nodes := nodes.push (el .text [
       kv .x "180", kv .y "40", kv .fill "#7d8997", kv .fontSize "10", kv .textAnchor "middle"

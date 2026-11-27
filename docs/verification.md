@@ -2081,14 +2081,17 @@ zero-JS streaming images from `/stream/stage.bmp` via HttpViewer.stageStream, wh
 Broadcast.subscribe (returning HTTP `503` on capacity or sequence exhaustion) and owns one
 dedicated `multipart/x-mixed-replace` Body.stream delivery task per subscription driven by
 liveStageFrames: using EAsync.forIn rather than partial\_fixpoint because async task continuations
-admit no fixed point, calling Subscription.poll directly (not Subscription.receive), waiting via
-Selectable.one on the payload-free wake task or 2500 ms keepalive timer, throttling BMP emission
-by `BrowserConstant.readPace` (250 ms), and reading snapshots and writing frames only after
-Subscription.poll releases the broadcast mutex so a slow browser cannot block publication;
-liveStageFrames exits on disconnect (`.closed`) or a dropped wake promise (`some none`), and
-stream exit (finally), context cancellation (context.doneSelector), and response body.close each
-call Subscription.close (also closing the stream on cancellation or body.close) to remove the
-subscriber queue and wake an idle producer. RunDirectory.lean
+admit no fixed point, calling Subscription.poll directly to detect coalesced version advances and
+waiting via Selectable.one on a cancellation token, the payload-free wake task, or a 2500 ms
+keepalive timer, routing every emission (initial, update-triggered, and heartbeat) through a single
+send boundary paced by waitForPace and `Acorn.Host.Viewer.paceRemainingMs` at
+`BrowserConstant.readPace` (250 ms, proved in `Acorn.Host.Viewer.paceRemainingMs_spacing`),
+and reading snapshots via Subscription.snapshot and writing BMP frames only outside the broadcast
+mutex so a slow browser cannot block publication; liveStageFrames exits on cancellation, disconnect
+(`.closed`), or a dropped wake promise (`some none`), and stream exit (finally), context
+cancellation (context.doneSelector), and response body.close each cancel the token and call
+Subscription.close (also closing the stream on cancellation or body.close) to remove the
+subscriber entry and wake an idle waiter. RunDirectory.lean
 (`lean/Acorn/Host/Viewer/RunDirectory.lean`) owns control-token minting through
 `Acorn.Host.Viewer.mintControlToken`, which reads 16 bytes from the fixed OS entropy device
 `/dev/urandom` in read mode via entropyBytes (failing on premature EOF or over-read, with no
@@ -2110,42 +2113,45 @@ exact Content-Length within `controlBodyCapacity`, and `tokenMatches` against th
 (proved in `Acorn.Host.Viewer.AuthorizedFormCommand.post`,
 `Acorn.Host.Viewer.AuthorizedFormCommand.token_eq`, and
 `Acorn.Host.Viewer.authorizeFormCommand_spec`), returning `303 See Other` on `.accepted`
-and rendering a `403`/`503` HTML notice page on refusal or unconfirmed Stop. Broadcast.lean
-serializes replay publication, generation/identity admission, lifecycle settlement, notices,
-disconnect, dequeue/wake registration, and subscriber registration behind one mutex with
-connectionCapacity 16, sliding 500-frame replay history via Buffer.retain, IdentityWait overflow
-marking worldPartial, and per-subscriber FIFO queues of capacity 4096 (subscriberCapacity) with
-two overflow policies: Subscriber.enqueue delivers telemetry frames via Buffer.offer (refusing a
-new frame without disturbing queued items when full), whereas Subscriber.enqueueControl delivers
-control records (from Broadcast.settle and Broadcast.commitIdentity) and lifecycle notices (from
-Broadcast.notice, backing Broadcast.announceCleared and Broadcast.announceExit) via Buffer.retain
-without deduplicating, appending the new item and evicting the oldest queued item when full;
-Broadcast.settle separately suppresses a byte-identical repeat of the current control record
-before calling Subscriber.enqueueControl (whereas Broadcast.commitIdentity and Broadcast.notice do
-not deduplicate). Broadcast.subscribe performs subscriber registration and ReplaySnapshot capture
-(`identity`, `control`, `world`, and `frames`) under that same publication mutex, closing the
-replay-to-live handoff gap so a published frame or control record cannot slip between the captured
-replay snapshot and subsequent live-queue delivery, and refuses registration before retaining a
-queue on capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion. Each subscriber
-has one bounded queue and one payload-free wake promise (`IO.Promise Unit`), with one delivery
-task serving as each subscription's sole reader; publishers resolve collected wake promises only
-after releasing the mutex, so a publisher never waits for a network reader, and native
-mutex/promise scheduling and allocator overhead remain trusted infrastructure without a liveness
-guarantee. Subscription.close removes the subscriber queue under the mutex before resolving its
-wake promise outside the mutex; Subscription.poll performs one serialized dequeue (`.item`),
-closed check (`.closed`), or payload-free wake registration (`.wait`) under the mutex so waiting
-and network writes occur strictly outside it; and Subscription.receive (unused by
-liveFrames in HttpServer.lean, which calls Subscription.poll directly) wraps Subscription.poll in a
-`forever` loop without a break (ending only by returning), waiting on `.wait` outside the mutex
-via IO.wait and returning `none` on either explicit disconnect (`.closed`) or a dropped wake
-promise (isNone). Line.lean bounds LineDecoder lines at
+and rendering a `403`/`503` HTML notice page on refusal or unconfirmed Stop. DecimalText.lean
+(`lean/Acorn/Host/Viewer/DecimalText.lean`) preserves exact base-10 exponents at admission without
+clamping (`Acorn.Host.Viewer.DecimalText.Decimal.parse_wireDecimal`,
+`Acorn.Host.Viewer.DecimalText.Scalar.fromJson_binary32`,
+`Acorn.Host.Viewer.DecimalText.Scalar.fromJson_binary64`) and separates exact rounding at
+display and arithmetic boundaries (`Acorn.Host.Viewer.DecimalText.Decimal.scaled?_iff`),
+short-circuiting arbitrarily negative shifts via `natDecimalLen` and refusing positive shifts above
+`maxPositiveScaleShift` (400) rather than substituting a smaller scale. Broadcast.lean
+serializes observer-state updates, generation/identity admission, lifecycle settlement, notices,
+disconnect, coalesced version polling, and subscriber registration behind one mutex with
+connectionCapacity 16, sliding 500-frame `FrameSummary` history via `ServerObserverState.summaries`,
+and pre-decoded `IdentityWait` buffers of capacity `replayCapacity` (500) whose overflow marks
+worldPartial. Each subscriber holds only its id, last seen monotonic version, and a payload-free
+wake promise (`IO.Promise Unit`) with no per-subscriber payload queue; publishers decode telemetry
+outside the mutex via `decodeTelemetry`, perform only bounded in-memory state updates under the
+mutex, advance the monotonic version, and resolve collected wake promises outside the mutex, so
+neither browser consumption nor JSON/decimal decoding stalls the broadcast lock.
+Broadcast.subscribe registers a subscriber at the current version and refuses registration on
+capacity (`connectionCapacity` 16) or sequence (`2^64 - 1`) exhaustion; Broadcast.settle
+deduplicates unchanged lifecycle/detail/observation state before advancing the version;
+Subscription.snapshot reads the current `BroadcastSnapshot` and marks the current version seen in
+one mutex acquisition; Subscription.poll checks `Acorn.Host.Viewer.pollVersionState`
+(proved idempotent by `Acorn.Host.Viewer.pollVersionState_coalesces`) to coalesce any number
+of intervening updates into a single `.updated` result or install a fresh wake promise (`.wait`);
+and Subscription.close removes the subscriber entry under the mutex before resolving its wake
+promise outside the mutex, with native mutex/promise scheduling and allocator overhead remaining
+trusted infrastructure without a liveness guarantee. Line.lean bounds LineDecoder lines at
 lineCapacity (1 MiB, discarding oversize suffixes through newline and refusing incomplete oversized
 EOF), and readLines reads one byte at a time (input.read 1) because Lean v4.36.0 Handle.read
 calls buffered C fread (Lean runtime `io.cpp` lines 593–615), where multi-byte reads can block past
 newline waiting for a full request or EOF; callbacks must enqueue locally and IO errors propagate
-instead of synthesizing EOF. PipePump.lean filters stdout lines starting with `{`, surfaces
-`"writing disabled this run"` alongside checkpointRefusalNotice, and waits for inherited-descriptor
-EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
+instead of synthesizing EOF. PipePump.lean decouples stdout pipe reading from full telemetry
+decoding by enqueueing `{`-prefixed `WireText` lines with capture timestamps into a private bounded
+`Buffer.retain` queue of capacity `outputQueueCapacity` (256) under its own mutex and decoding them
+on a dedicated `consumeOutput` task outside both mutexes (evicting oldest unread lines under
+backpressure rather than blocking the child's synchronous stdout flush, reporting evictions via
+Broadcast.recordIngressDrop to mark worldPartial, and draining queued lines before PipePump.finish),
+surfaces `"writing disabled this run"` alongside checkpointRefusalNotice on stderr, and waits for
+inherited-descriptor EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
 ProcessOwner.lean consumes lastGeneration before IO.Process.spawn to avoid generation reuse on
 failed spawns, relies on Lean refcounting in ProcessOwner.windUp to close stdin on drop even after
 write error (no kill or wall-clock deadline), and in ProcessOwner.poll saturates uptime in Nat

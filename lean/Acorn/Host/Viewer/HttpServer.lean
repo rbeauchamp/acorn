@@ -179,56 +179,78 @@ private def bmpMultipartChunk (bytes : ByteArray) : ByteArray :=
   ("--acornframe\r\nContent-Type: image/bmp\r\nContent-Length: " ++
     toString bytes.size ++ "\r\n\r\n").toUTF8 ++ bytes ++ "\r\n".toUTF8
 
-private def drainSubscription (subscription : Subscription) : BaseIO Bool := do
-  for _ in [:subscriberCapacity] do
-    match ← subscription.poll with
-    | .closed => return false
-    | .item _ => continue
-    | .wait _ => return true
-  return true
+def paceRemainingMs (lastSent : Option Nat) (nowMs : Nat) (paceMs : Nat) : Nat :=
+  match lastSent with
+  | none => 0
+  | some prev => paceMs - (nowMs - prev)
 
-private def liveStageFrames (broadcast : Broadcast) (subscription : Subscription)
+theorem paceRemainingMs_initial (nowMs paceMs : Nat) :
+    paceRemainingMs none nowMs paceMs = 0 := rfl
+
+theorem paceRemainingMs_bounded (lastSent : Option Nat) (nowMs paceMs : Nat) :
+    paceRemainingMs lastSent nowMs paceMs ≤ paceMs := by
+  cases lastSent with
+  | none => exact Nat.zero_le _
+  | some prev => exact Nat.sub_le _ _
+
+theorem paceRemainingMs_spacing (prev nowMs paceMs : Nat)
+    (hPos : 0 < paceMs) (hZero : paceRemainingMs (some prev) nowMs paceMs = 0) :
+    prev + paceMs ≤ nowMs := by
+  simp only [paceRemainingMs] at hZero
+  omega
+
+private def waitForPace (lastSent : IO.Ref (Option Nat)) (cancel : Std.CancellationToken)
+    (paceMs : Nat) : Async Bool :=
+  EAsync.forIn false fun _ _ => do
+    if ← cancel.isCancelled then return .done false
+    let waitMs := paceRemainingMs (← lastSent.get) (← IO.monoMsNow) paceMs
+    if waitMs == 0 then return .done true
+    let delay : Std.Time.Millisecond.Offset :=
+      Std.Time.Millisecond.Offset.ofInt (Int.ofNat waitMs)
+    let proceed ← Selectable.one #[
+      .case cancel.selector (fun _ => pure false),
+      .case (← Selector.sleep delay) (fun _ => pure true)]
+    if proceed then return .yield false else return .done false
+
+private def liveStageFrames (subscription : Subscription) (cancel : Std.CancellationToken)
     (stream : Body.Stream) : Async Unit := do
-  let sendCurrent : Async Unit := do
-    let snapshot ← broadcast.snapshot
+  let lastSent ← IO.mkRef (none : Option Nat)
+  let sendCurrent : Async Bool := do
+    if !(← waitForPace lastSent cancel BrowserConstant.readPace.value) then
+      return false
+    let some snapshot ← subscription.snapshot | return false
     let bmp := StageBmp.render snapshot.world snapshot.observer.latest
     stream.send (.ofByteArray (bmpMultipartChunk bmp))
-  sendCurrent
-  let pace : Std.Time.Millisecond.Offset :=
-    Std.Time.Millisecond.Offset.ofInt (Int.ofNat BrowserConstant.readPace.value)
+    lastSent.set (some (← IO.monoMsNow))
+    return true
+  unless ← sendCurrent do return ()
   EAsync.forIn () fun _ _ => do
+    if ← cancel.isCancelled then return .done ()
     match ← subscription.poll with
     | .closed => return .done ()
-    | .item _ =>
-      let alive ← drainSubscription subscription
-      unless alive do return .done ()
-      sendCurrent
-      let _ ← Selectable.one #[.case (← Selector.sleep pace) (fun _ => pure ())]
-      return .yield ()
+    | .updated =>
+      if ← sendCurrent then return .yield () else return .done ()
     | .wait task =>
       let result ← Selectable.one #[
+        .case cancel.selector (fun _ => pure (some none)),
         .case (promiseSelector task) (fun wake => pure (some wake)),
         .case (← Selector.sleep 2500) (fun _ => pure none)]
       match result with
       | some none => return .done ()
       | some (some ()) =>
-        let alive ← drainSubscription subscription
-        unless alive do return .done ()
-        sendCurrent
-        let _ ← Selectable.one #[.case (← Selector.sleep pace) (fun _ => pure ())]
-        return .yield ()
+        if ← sendCurrent then return .yield () else return .done ()
       | none =>
-        sendCurrent
-        return .yield ()
+        if ← sendCurrent then return .yield () else return .done ()
 
 private def HttpViewer.stageStream (viewer : HttpViewer) : ContextAsync (Response Body.Any) := do
   let context ← ContextAsync.getContext
-  let some (subscription, _) ← viewer.broadcast.subscribe |
+  let some subscription ← viewer.broadcast.subscribe |
     return ← response .serviceUnavailable (.mk "text/plain") "subscriber capacity reached\n".toUTF8
+  let cancel ← Std.CancellationToken.new
   let finished ← Std.CancellationToken.new
   let stream ← Body.stream fun stream => do
     try
-      liveStageFrames viewer.broadcast subscription stream
+      liveStageFrames subscription cancel stream
     finally
       subscription.close
       finished.cancel
@@ -237,10 +259,11 @@ private def HttpViewer.stageStream (viewer : HttpViewer) : ContextAsync (Respons
       .case context.doneSelector (fun _ => pure true),
       .case finished.selector (fun _ => pure false)]
     if cancelled then
+      cancel.cancel
       subscription.close
       stream.close
   let erased := Body.Any.ofBody stream
-  let body := { erased with close := do subscription.close; stream.close; finished.cancel }
+  let body := { erased with close := do cancel.cancel; subscription.close; stream.close; finished.cancel }
   return (Response.new
     |>.header (.mk "content-type") (.mk "multipart/x-mixed-replace; boundary=acornframe")
     |>.header (.mk "x-content-type-options") (.mk "nosniff")
