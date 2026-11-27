@@ -25,7 +25,7 @@ for an unrelated copy or code change.
 
 Use supported browser tools. Read DOM values/styles alongside pixels when they
 resolve the question. Derive contrast from actual colors and inspect font sizes,
-timers and redraw behavior where relevant; do not infer these from screenshots.
+refresh/stream cadence and redraw behavior where relevant; do not infer these from screenshots.
 If using headless Chrome, note that `?stream=1` keeps `/stream/stage.bmp` open
 (`multipart/x-mixed-replace`), so use a wall-clock timeout rather than virtual time
 when inspecting stream mode.
