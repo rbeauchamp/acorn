@@ -58,9 +58,11 @@ export -f admit_tracked_helper
 acorn_verify_checks() {
   local admit_clean=1
   local sc_pin='scripts/shellcheck.pin'
-  local sc_line1='' sc_line2='' sc_line3='' sc_line4='' sc_line5='' sc_extra=''
-  local sc_version='' sc_path='' sc_version_output='' sc_vline='' sc_found=''
-  local sc_found_count=0
+  local sc_line1='' sc_line2='' sc_line3='' sc_line4='' sc_line5=''
+  local sc_line6='' sc_line7='' sc_line8='' sc_line9='' sc_extra=''
+  local sc_version='' sc_binary_sha256='' sc_actual_sha256=''
+  local sc_dir='' sc_path='' sc_version_output='' sc_vline='' sc_found=''
+  local sc_found_count=0 real_root='' real_dir='' dir=''
   local -a admit_args
   if [[ $("$2" --version) != *"GNU coreutils"* ]]; then
     echo "verification requires GNU coreutils timeout" >&2
@@ -93,6 +95,10 @@ acorn_verify_checks() {
       IFS= read -r sc_line3 &&
       IFS= read -r sc_line4 &&
       IFS= read -r sc_line5 &&
+      IFS= read -r sc_line6 &&
+      IFS= read -r sc_line7 &&
+      IFS= read -r sc_line8 &&
+      IFS= read -r sc_line9 &&
       ! IFS= read -r sc_extra &&
       [[ -z "$sc_extra" ]]
   } < "$sc_pin" || {
@@ -100,17 +106,74 @@ acorn_verify_checks() {
     exit 1
   }
   if [[ ! $sc_line1 =~ ^VERSION=([0-9]+\.[0-9]+\.[0-9]+)$ ]] ||
-      [[ ! $sc_line2 =~ ^DARWIN_ARM64_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line3 =~ ^DARWIN_X86_64_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line4 =~ ^LINUX_X86_64_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line5 =~ ^LINUX_ARM64_SHA256=([0-9a-f]{64})$ ]]; then
+      [[ ! $sc_line2 =~ ^DARWIN_ARM64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line3 =~ ^DARWIN_ARM64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line4 =~ ^DARWIN_X86_64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line5 =~ ^DARWIN_X86_64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line6 =~ ^LINUX_X86_64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line7 =~ ^LINUX_X86_64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line8 =~ ^LINUX_ARM64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
+      [[ ! $sc_line9 =~ ^LINUX_ARM64_BINARY_SHA256=([0-9a-f]{64})$ ]]; then
     echo "verify.sh: malformed pin values in $sc_pin" >&2
     exit 1
   fi
   sc_version="${sc_line1#VERSION=}"
-  if ! sc_path=$(type -P shellcheck 2>/dev/null); then
-    echo "verify.sh: ShellCheck $sc_version is required (found none on PATH, admitted $sc_version)" >&2
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) sc_binary_sha256="${sc_line3#DARWIN_ARM64_BINARY_SHA256=}" ;;
+    Darwin-x86_64) sc_binary_sha256="${sc_line5#DARWIN_X86_64_BINARY_SHA256=}" ;;
+    Linux-x86_64) sc_binary_sha256="${sc_line7#LINUX_X86_64_BINARY_SHA256=}" ;;
+    Linux-aarch64) sc_binary_sha256="${sc_line9#LINUX_ARM64_BINARY_SHA256=}" ;;
+    *)
+      echo "verify.sh: unsupported platform for pinned ShellCheck: $(uname -s)-$(uname -m)" >&2
+      exit 1 ;;
+  esac
+  sc_dir="lean/.lake/packages/.shellcheck/$sc_version"
+  sc_path="$sc_dir/shellcheck"
+  real_root=$(pwd -P) || {
+    echo "verify.sh: failed to resolve repository root" >&2
+    exit 1
+  }
+  for dir in lean lean/.lake lean/.lake/packages lean/.lake/packages/.shellcheck "$sc_dir"; do
+    if [[ -L "$dir" ]]; then
+      echo "verify.sh: refusing symlinked ShellCheck cache directory: $dir" >&2
+      exit 1
+    elif [[ ! -e "$dir" ]]; then
+      echo "verify.sh: pinned ShellCheck $sc_version is required at $sc_path (run ./scripts/gate.sh provision or see docs/verification.md#platform-setup)" >&2
+      exit 127
+    elif [[ ! -d "$dir" ]]; then
+      echo "verify.sh: refusing non-directory ShellCheck cache path: $dir" >&2
+      exit 1
+    fi
+  done
+  real_dir=$(cd "$sc_dir" && pwd -P) || {
+    echo "verify.sh: failed to resolve ShellCheck cache directory: $sc_dir" >&2
+    exit 1
+  }
+  if [[ "$real_dir" != "$real_root/$sc_dir" ]]; then
+    echo "verify.sh: ShellCheck cache directory resolves outside workspace: $sc_dir" >&2
+    exit 1
+  fi
+  if [[ -L "$sc_path" ]]; then
+    echo "verify.sh: refusing symlinked ShellCheck binary: $sc_path" >&2
+    exit 1
+  elif [[ ! -e "$sc_path" ]]; then
+    echo "verify.sh: pinned ShellCheck $sc_version is required at $sc_path (run ./scripts/gate.sh provision or see docs/verification.md#platform-setup)" >&2
     exit 127
+  elif [[ ! -f "$sc_path" || ! -x "$sc_path" ]]; then
+    echo "verify.sh: pinned ShellCheck at $sc_path must be an executable regular file" >&2
+    exit 1
+  fi
+  if ! command -v openssl >/dev/null 2>&1; then
+    echo "verify.sh: OpenSSL is required for ShellCheck SHA-256 verification" >&2
+    exit 127
+  fi
+  if ! sc_actual_sha256=$(openssl dgst -sha256 -r "$sc_path" | awk '{print $1}'); then
+    echo "verify.sh: failed to compute SHA-256 for $sc_path" >&2
+    exit 1
+  fi
+  if [[ "$sc_actual_sha256" != "$sc_binary_sha256" ]]; then
+    echo "verify.sh: ShellCheck SHA-256 mismatch at $sc_path (found ${sc_actual_sha256:-unknown}, admitted $sc_binary_sha256)" >&2
+    exit 1
   fi
   if ! sc_version_output=$(SHELLCHECK_OPTS='' "$sc_path" --version 2>&1); then
     echo "verify.sh: failed to query ShellCheck version at $sc_path (admitted $sc_version): $sc_version_output" >&2

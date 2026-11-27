@@ -126,62 +126,6 @@ jobs:
             echo "::error::elan is not the pinned release $ELAN_VERSION."
             exit 1
           fi
-      - name: Provision pinned ShellCheck
-        timeout-minutes: 2
-        # Read the pinned ShellCheck release and SHA-256 from scripts/shellcheck.pin,
-        # admit the archive by its SHA-256 before extracting or running anything, and
-        # place the binary ahead of the runner image's distro package on PATH.
-        run: |
-          sc_pin='scripts/shellcheck.pin'
-          if [[ -L "$sc_pin" || ! -f "$sc_pin" ]]; then
-            echo "::error::Missing or non-regular pin file: $sc_pin"
-            exit 1
-          fi
-          {
-            IFS= read -r sc_line1 &&
-              IFS= read -r sc_line2 &&
-              IFS= read -r sc_line3 &&
-              IFS= read -r sc_line4 &&
-              IFS= read -r sc_line5 &&
-              ! IFS= read -r sc_extra &&
-              [[ -z "$sc_extra" ]]
-          } < "$sc_pin" || {
-            echo "::error::Malformed pin file: $sc_pin"
-            exit 1
-          }
-          if [[ ! $sc_line1 =~ ^VERSION=([0-9]+\.[0-9]+\.[0-9]+)$ ]] ||
-              [[ ! $sc_line2 =~ ^DARWIN_ARM64_SHA256=([0-9a-f]{64})$ ]] ||
-              [[ ! $sc_line3 =~ ^DARWIN_X86_64_SHA256=([0-9a-f]{64})$ ]] ||
-              [[ ! $sc_line4 =~ ^LINUX_X86_64_SHA256=([0-9a-f]{64})$ ]] ||
-              [[ ! $sc_line5 =~ ^LINUX_ARM64_SHA256=([0-9a-f]{64})$ ]]; then
-            echo "::error::Malformed pin values in $sc_pin"
-            exit 1
-          fi
-          sc_version="${sc_line1#VERSION=}"
-          sc_sha256="${sc_line4#LINUX_X86_64_SHA256=}"
-          archive="$RUNNER_TEMP/shellcheck.tar.gz"
-          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-            --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 --retry-max-time 60 \
-            --output "$archive" \
-            "https://github.com/koalaman/shellcheck/releases/download/v${sc_version}/shellcheck-v${sc_version}.linux.x86_64.tar.gz"
-          sha256sum --check --strict <<< "$sc_sha256  $archive"
-          extract_dir="$RUNNER_TEMP/shellcheck-extract"
-          bin_dir="$HOME/.local/bin"
-          mkdir -p "$extract_dir" "$bin_dir"
-          tar -xzf "$archive" -C "$extract_dir" "shellcheck-v${sc_version}/shellcheck"
-          extracted="$extract_dir/shellcheck-v${sc_version}/shellcheck"
-          if [[ -L "$extracted" || ! -f "$extracted" ]]; then
-            echo "::error::Missing or non-regular extracted ShellCheck binary."
-            exit 1
-          fi
-          install -m 0755 "$extracted" "$bin_dir/shellcheck"
-          echo "$bin_dir" >> "$GITHUB_PATH"
-          version_output="$(SHELLCHECK_OPTS='' "$bin_dir/shellcheck" --version)"
-          echo "$version_output"
-          if ! grep -qx "version: $sc_version" <<< "$version_output"; then
-            echo "::error::shellcheck is not the pinned release $sc_version."
-            exit 1
-          fi
       # The pinned dependencies, by the script of the commit under verification, as that
       # commit's Lake configuration and lock files name them. The 12-minute limit bounds a
       # stalled download and is no check's deadline; no check runs in this step.

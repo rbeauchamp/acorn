@@ -87,13 +87,13 @@ The [verification workflow](../.github/workflows/verify.yml) runs the
 [merge gate](#build-and-source-inventory) when a pull request is opened or
 reopened and at every push to it, and at no other time, on GitHub's standard
 `ubuntu-24.04` x64 image. It installs no
-system package: it admits by name the packages that image provides, and takes
-elan and ShellCheck (`0.11.0`, `scripts/shellcheck.pin`) from releases pinned by the SHA-256 of their archives. Every workflow step
+system package: it admits by name the packages that image provides, takes
+elan from a release pinned by the SHA-256 of its archive, and provisions pinned ShellCheck (`0.11.0`, `scripts/shellcheck.pin`) into `lean/.lake/packages` through `./scripts/gate.sh provision` after verifying both archive and binary SHA-256 digests. Every workflow step
 that reaches the network before the gate, the merge-gate step itself and the
 overall job each carry an explicit time limit, so a stalled download or a
 duration regression fails promptly. The workflow keeps no cache: each run provisions the
 dependencies from their pinned sources. Automatic local setup supports macOS and
-Ubuntu/Debian Linux and downloads pinned ShellCheck (`0.11.0`) from `scripts/shellcheck.pin` with SHA-256 verification when not already on PATH.
+Ubuntu/Debian Linux and provisions pinned ShellCheck (`0.11.0`, `scripts/shellcheck.pin`) into `lean/.lake/packages` after archive and binary SHA-256 verification without modifying existing user or system ShellCheck binaries.
 
 For manual setup, which changes the machine's package manager state and so is
 done by an agent only where the person it works for has agreed to it, install
@@ -104,11 +104,12 @@ macOS command-line tools and the packages below
 brew install coreutils openssl@3 elan
 ```
 
-Then install pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`, `shellcheck-v0.11.0.darwin.aarch64.tar.gz` on Apple silicon or `shellcheck-v0.11.0.darwin.x86_64.tar.gz` with its matching SHA-256 from `scripts/shellcheck.pin` on Intel) after verifying its SHA-256 digest before extracting:
+Then provision pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`, `shellcheck-v0.11.0.darwin.aarch64.tar.gz` on Apple silicon or `shellcheck-v0.11.0.darwin.x86_64.tar.gz` with its archive and binary SHA-256 digests from `scripts/shellcheck.pin` on Intel) into `lean/.lake/packages` from the repository root (alternatively, `./scripts/gate.sh provision` provisions all pinned dependencies, including ShellCheck), verifying both archive and extracted binary SHA-256 digests before installing without modifying user or system binaries:
 
 ```sh
 (
   set -eu
+  dest="$PWD/lean/.lake/packages/.shellcheck/0.11.0"
   tmp=$(mktemp -d)
   trap 'rm -rf -- "$tmp"' EXIT
   cd "$tmp"
@@ -116,9 +117,10 @@ Then install pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`, `shellcheck-v
     https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.gz
   printf '%s  shellcheck.tar.gz\n' 339b930feb1ea764467013cc1f72d09cd6b869ebf1013296ba9055ab2ffbd26f | shasum -a 256 -c
   tar -xzf shellcheck.tar.gz shellcheck-v0.11.0/shellcheck
-  mkdir -p "$HOME/.local/bin"
-  install -m 0755 shellcheck-v0.11.0/shellcheck "$HOME/.local/bin/shellcheck"
-) && export PATH="$HOME/.local/bin:$PATH"
+  printf '%s  shellcheck-v0.11.0/shellcheck\n' 61c17246d69f012cd458ae82f244c46023dac75d1b69733ca1cc7d28fb270fd7 | shasum -a 256 -c
+  mkdir -p "$dest"
+  install -m 0755 shellcheck-v0.11.0/shellcheck "$dest/shellcheck"
+)
 ```
 
 For Ubuntu, under the same condition, install:
@@ -128,11 +130,12 @@ sudo apt-get update
 sudo apt-get install -y build-essential curl git libgmp-dev openssl coreutils elan
 ```
 
-Then install pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`) on x86-64 ahead of any distro package on PATH:
+Then provision pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`, `shellcheck-v0.11.0.linux.x86_64.tar.gz` on x86-64 or `shellcheck-v0.11.0.linux.aarch64.tar.gz` with its archive and binary SHA-256 digests from `scripts/shellcheck.pin` on arm64) into `lean/.lake/packages` from the repository root without modifying user or system binaries:
 
 ```sh
 (
   set -eu
+  dest="$PWD/lean/.lake/packages/.shellcheck/0.11.0"
   tmp=$(mktemp -d)
   trap 'rm -rf -- "$tmp"' EXIT
   cd "$tmp"
@@ -140,7 +143,9 @@ Then install pinned ShellCheck `0.11.0` (`scripts/shellcheck.pin`) on x86-64 ahe
     https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz
   printf '%s  shellcheck.tar.gz\n' b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6 | sha256sum --check --strict
   tar -xzf shellcheck.tar.gz shellcheck-v0.11.0/shellcheck
-  sudo install -m 0755 shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
+  printf '%s  shellcheck-v0.11.0/shellcheck\n' 4da528ddb3a4d1b7b24a59d4e16eb2f5fd960f4bd9a3708a15baddbdf1d5a55b | sha256sum --check --strict
+  mkdir -p "$dest"
+  install -m 0755 shellcheck-v0.11.0/shellcheck "$dest/shellcheck"
 )
 ```
 
@@ -582,10 +587,11 @@ atomically through an exclusive temporary file (while `lean/Bootstrap.lean` and
 (`-f lakefile.lean` through `Bootstrap.lean`, `-f lakefile.toml` under `site/`,
 and default workspace resolution after shadow-config refusal for
 `scripts/regula.sh`), while `scripts/verify.sh` admits `scripts/shellcheck.pin`,
-requires `shellcheck --version` to match the pinned `0.11.0` release (failing
-closed with both the found and admitted versions on any mismatch or absence),
-and invokes `SHELLCHECK_OPTS='' shellcheck --norc` so ambient configuration cannot alter
-script checks. The checks take their file lists from Git's stage-0 tracked
+resolves only the dedicated pinned binary inside `lean/.lake/packages` (never searching `PATH`),
+verifies real-directory workspace containment, the platform binary's SHA-256 digest and a
+successful `--version` match against the pinned `0.11.0` release (failing closed on any
+absence, symlink, digest mismatch, or version failure), and invokes that binary with
+`SHELLCHECK_OPTS=''` and `--norc` so ambient configuration cannot alter script checks. The checks take their file lists from Git's stage-0 tracked
 regular-file index without materializing a separate HEAD checkout or hashing
 every tracked file independently against HEAD; verdict-producing commands
 (`./scripts/gate.sh`, `./scripts/verify.sh` outside `site write` and
@@ -931,7 +937,7 @@ head commit from the event, fails before any check when the event names none,
 checks out full history (so `origin` holds the pull request base branch), and
 never falls back to the merge of the head with its base. From that checkout
 it runs `./scripts/gate.sh provision` to provision the pinned dependencies
-(including the SHA-256-verified `no-comments` binary into `lean/.lake/packages`),
+(including the SHA-256-verified `no-comments` and ShellCheck `0.11.0` binaries into `lean/.lake/packages`),
 then runs `./scripts/gate.sh` with `ACORN_BASE_REF` set to `refs/remotes/origin/`
 and the pull request's base branch name (which the script passes through
 `--base-ref` to the pinned checker, which resolves it and refuses an
@@ -949,8 +955,8 @@ head, and nothing runs after a merge. Because `no-comments` compares against
 retargeting from a base with a looser ratchet when the head already contains main
 relies on the owner re-running `./scripts/gate.sh` against main before merge.
 
-The arrangement on GitHub differs from the pipeline's as follows. Separate steps of
-the workflow download elan's and ShellCheck's (`0.11.0`, `scripts/shellcheck.pin`) pinned releases in every run and install each only
+The arrangement on GitHub differs from the pipeline's as follows. A step of
+the workflow downloads elan's pinned release in every run and installs it only
 after its archive's SHA-256 matches. The script's provisioning runs in a step
 of its own, whose 12-minute limit bounds a stalled download and is no check's
 deadline, and the script's provisioning in the last step then finds the
