@@ -78,8 +78,7 @@ cleanup() {
     while kill -0 "$viewer_pid" 2>/dev/null; do wait "$viewer_pid" || true; done
   fi
   if [[ "$control_open" == 1 ]]; then exec 3>&-; fi
-  rm -f "$lock/control" "$lock/pid" "$lock/installer.sh" "$lock/shellcheck.tar.gz"
-  rm -rf "$lock/shellcheck-extract"
+  rm -f "$lock/control" "$lock/pid" "$lock/installer.sh"
   rmdir "$lock"
   if [[ "$status" -ne 0 ]]; then
     printf 'Acorn stopped during %s; the diagnostic is above. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.\n' "$phase" >&2
@@ -142,148 +141,6 @@ install_linux() {
   fi
 }
 
-verify_shellcheck_version() {
-  local sc_bin="$1" expected="$2" out='' line='' found='' count=0
-  out=$(SHELLCHECK_OPTS='' "$sc_bin" --version 2>&1) || return 1
-  while IFS= read -r line; do
-    line="${line%$'\r'}"
-    if [[ "$line" =~ ^version:[[:space:]]*([^[:space:]]+)[[:space:]]*$ ]]; then
-      found="${BASH_REMATCH[1]}"
-      count=$((count + 1))
-    fi
-  done <<< "$out"
-  [[ "$count" == 1 && "$found" == "$expected" ]]
-}
-
-provision_shellcheck() {
-  local sc_pin="$root/scripts/shellcheck.pin"
-  local sc_line1='' sc_line2='' sc_line3='' sc_line4='' sc_line5=''
-  local sc_line6='' sc_line7='' sc_line8='' sc_line9='' sc_extra=''
-  local sc_version='' sc_platform='' sc_archive_sha256='' sc_binary_sha256=''
-  local archive="$lock/shellcheck.tar.gz" extract_dir="$lock/shellcheck-extract"
-  local actual_sha256='' extracted='' sc_pkg_dir="$root/lean/.lake/packages"
-  local sc_root='' dest_dir='' dest='' stage='' dir='' real_dir=''
-
-  if [[ -L "$root/scripts" || ! -d "$root/scripts" || -L "$sc_pin" || ! -f "$sc_pin" ]]; then
-    fail "Missing or non-regular ShellCheck pin file: scripts/shellcheck.pin"
-  fi
-  {
-    IFS= read -r sc_line1 &&
-      IFS= read -r sc_line2 &&
-      IFS= read -r sc_line3 &&
-      IFS= read -r sc_line4 &&
-      IFS= read -r sc_line5 &&
-      IFS= read -r sc_line6 &&
-      IFS= read -r sc_line7 &&
-      IFS= read -r sc_line8 &&
-      IFS= read -r sc_line9 &&
-      ! IFS= read -r sc_extra &&
-      [[ -z "$sc_extra" ]]
-  } < "$sc_pin" || fail "Malformed ShellCheck pin file: scripts/shellcheck.pin"
-  if [[ ! $sc_line1 =~ ^VERSION=([0-9]+\.[0-9]+\.[0-9]+)$ ]] ||
-      [[ ! $sc_line2 =~ ^DARWIN_ARM64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line3 =~ ^DARWIN_ARM64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line4 =~ ^DARWIN_X86_64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line5 =~ ^DARWIN_X86_64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line6 =~ ^LINUX_X86_64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line7 =~ ^LINUX_X86_64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line8 =~ ^LINUX_ARM64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
-      [[ ! $sc_line9 =~ ^LINUX_ARM64_BINARY_SHA256=([0-9a-f]{64})$ ]]; then
-    fail "Malformed ShellCheck pin values in scripts/shellcheck.pin"
-  fi
-  sc_version="${sc_line1#VERSION=}"
-  case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64)
-      sc_platform='darwin.aarch64'
-      sc_archive_sha256="${sc_line2#DARWIN_ARM64_ARCHIVE_SHA256=}"
-      sc_binary_sha256="${sc_line3#DARWIN_ARM64_BINARY_SHA256=}" ;;
-    Darwin-x86_64)
-      sc_platform='darwin.x86_64'
-      sc_archive_sha256="${sc_line4#DARWIN_X86_64_ARCHIVE_SHA256=}"
-      sc_binary_sha256="${sc_line5#DARWIN_X86_64_BINARY_SHA256=}" ;;
-    Linux-x86_64)
-      sc_platform='linux.x86_64'
-      sc_archive_sha256="${sc_line6#LINUX_X86_64_ARCHIVE_SHA256=}"
-      sc_binary_sha256="${sc_line7#LINUX_X86_64_BINARY_SHA256=}" ;;
-    Linux-aarch64)
-      sc_platform='linux.aarch64'
-      sc_archive_sha256="${sc_line8#LINUX_ARM64_ARCHIVE_SHA256=}"
-      sc_binary_sha256="${sc_line9#LINUX_ARM64_BINARY_SHA256=}" ;;
-    *)
-      fail "Unsupported platform for pinned ShellCheck: $(uname -s)-$(uname -m)" ;;
-  esac
-
-  sc_root="$sc_pkg_dir/.shellcheck"
-  dest_dir="$sc_root/$sc_version"
-  dest="$dest_dir/shellcheck"
-  for dir in "$root/lean" "$root/lean/.lake" "$sc_pkg_dir"; do
-    [[ ! -L "$dir" && -d "$dir" ]] || fail "ShellCheck cache parent must be a real directory: $dir"
-  done
-  real_dir=$(cd "$sc_pkg_dir" && pwd -P) || fail "Failed to resolve ShellCheck cache parent: $sc_pkg_dir"
-  [[ "$real_dir" == "$sc_pkg_dir" ]] || fail "ShellCheck cache parent resolves outside workspace: $sc_pkg_dir"
-  for dir in "$sc_root" "$dest_dir"; do
-    if [[ -L "$dir" ]]; then
-      fail "Refusing symlinked ShellCheck cache directory: $dir"
-    elif [[ -e "$dir" && ! -d "$dir" ]]; then
-      fail "Refusing non-directory ShellCheck cache path: $dir"
-    elif [[ -d "$dir" ]]; then
-      real_dir=$(cd "$dir" && pwd -P) || fail "Failed to resolve ShellCheck cache directory: $dir"
-      [[ "$real_dir" == "$dir" ]] || fail "ShellCheck cache directory resolves outside workspace: $dir"
-    fi
-  done
-
-  if [[ -L "$dest" || ( -e "$dest" && ! -f "$dest" ) ]]; then
-    fail "Refusing symlinked or non-regular ShellCheck cache entry: $dest"
-  fi
-  if [[ -f "$dest" ]]; then
-    actual_sha256=$(openssl dgst -sha256 -r "$dest" | awk '{print $1}') || fail "Failed to compute cached ShellCheck SHA-256."
-    if [[ "$actual_sha256" == "$sc_binary_sha256" ]]; then
-      [[ -x "$dest" ]] || chmod 755 "$dest"
-      verify_shellcheck_version "$dest" "$sc_version" || fail "Cached ShellCheck at $dest failed version verification (expected $sc_version)."
-      return 0
-    fi
-  fi
-
-  printf 'Installing pinned ShellCheck %s to %s…\n' "$sc_version" "$dest"
-  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-    --connect-timeout 10 --max-time 120 --retry 2 --retry-delay 2 --retry-max-time 180 \
-    --output "$archive" \
-    "https://github.com/koalaman/shellcheck/releases/download/v${sc_version}/shellcheck-v${sc_version}.${sc_platform}.tar.gz"
-  actual_sha256=$(openssl dgst -sha256 -r "$archive" | awk '{print $1}') || fail "Failed to compute ShellCheck archive SHA-256."
-  [[ "$actual_sha256" == "$sc_archive_sha256" ]] || fail "Downloaded ShellCheck archive failed SHA-256 verification."
-  rm -rf "$extract_dir"
-  mkdir -p "$extract_dir"
-  tar -xzf "$archive" -C "$extract_dir" "shellcheck-v${sc_version}/shellcheck"
-  extracted="$extract_dir/shellcheck-v${sc_version}/shellcheck"
-  [[ ! -L "$extracted" && -f "$extracted" ]] || fail "Extracted ShellCheck binary is missing or non-regular."
-  actual_sha256=$(openssl dgst -sha256 -r "$extracted" | awk '{print $1}') || fail "Failed to compute extracted ShellCheck SHA-256."
-  [[ "$actual_sha256" == "$sc_binary_sha256" ]] || fail "Extracted ShellCheck binary failed SHA-256 verification."
-  chmod 755 "$extracted"
-  verify_shellcheck_version "$extracted" "$sc_version" || fail "Extracted ShellCheck binary failed version verification (expected $sc_version)."
-
-  [[ -d "$sc_root" ]] || mkdir "$sc_root"
-  [[ -d "$dest_dir" ]] || mkdir "$dest_dir"
-  for dir in "$sc_root" "$dest_dir"; do
-    [[ ! -L "$dir" && -d "$dir" ]] || fail "ShellCheck cache directory must be a real directory: $dir"
-    real_dir=$(cd "$dir" && pwd -P) || fail "Failed to resolve ShellCheck cache directory: $dir"
-    [[ "$real_dir" == "$dir" ]] || fail "ShellCheck cache directory resolves outside workspace: $dir"
-  done
-  stage=$(mktemp "$dest_dir/shellcheck.XXXXXX")
-  if ! cp "$extracted" "$stage" || ! chmod 755 "$stage"; then
-    rm -f "$stage"
-    fail "Failed to stage ShellCheck binary in $dest_dir."
-  fi
-  if [[ -L "$dest" || ( -e "$dest" && ! -f "$dest" ) ]]; then
-    rm -f "$stage"
-    fail "Refusing symlinked or non-regular ShellCheck cache entry: $dest"
-  fi
-  if ! mv -f "$stage" "$dest"; then
-    rm -f "$stage"
-    fail "Failed to install ShellCheck binary at $dest."
-  fi
-  rm -rf "$archive" "$extract_dir"
-}
-
 printf 'Preparing Acorn…\n'
 case "$(uname -s)" in
   Darwin) install_macos ;;
@@ -314,7 +171,9 @@ case "$dependency_status" in
     (cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface leanIntentBridge leanIntentNative) ;;
   *) fail 'Dependency admission failed; the diagnostic above must be resolved before provisioning.' ;;
 esac
-provision_shellcheck
+[[ ! -L "$root/scripts" && -d "$root/scripts" && ! -L "$root/scripts/shellcheck.sh" && -f "$root/scripts/shellcheck.sh" && -x "$root/scripts/shellcheck.sh" ]] ||
+  fail 'Missing or non-executable ShellCheck helper: scripts/shellcheck.sh'
+"$root/scripts/shellcheck.sh" provision
 phase='build'
 printf 'Building Acorn (subsequent launches reuse unchanged build outputs)…\n'
 ./scripts/lean.sh build acorn-viewer

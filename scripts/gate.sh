@@ -58,7 +58,7 @@ admit_tracked_helper . 1 || {
   exit 1
 }
 ./scripts/tracked-files.sh admit-file --clean . \
-  scripts/tracked-files.sh scripts/gate.sh scripts/lean.sh scripts/verify.sh scripts/regula.sh "$nc_pin" "$sc_pin"
+  scripts/tracked-files.sh scripts/gate.sh scripts/lean.sh scripts/verify.sh scripts/regula.sh scripts/shellcheck.sh "$nc_pin" "$sc_pin"
 if [[ -L lean || ! -d lean || ! -f "$nc_pin" || -L "$nc_pin" ]]; then
   echo "gate: missing or non-regular pin file: $nc_pin" >&2
   exit 1
@@ -95,61 +95,6 @@ case "$(uname -s)-$(uname -m)" in
     exit 1 ;;
 esac
 
-if [[ -L scripts || ! -d scripts || ! -f "$sc_pin" || -L "$sc_pin" ]]; then
-  echo "gate: missing or non-regular pin file: $sc_pin" >&2
-  exit 1
-fi
-{
-  IFS= read -r sc_line1 &&
-    IFS= read -r sc_line2 &&
-    IFS= read -r sc_line3 &&
-    IFS= read -r sc_line4 &&
-    IFS= read -r sc_line5 &&
-    IFS= read -r sc_line6 &&
-    IFS= read -r sc_line7 &&
-    IFS= read -r sc_line8 &&
-    IFS= read -r sc_line9 &&
-    ! IFS= read -r sc_extra &&
-    [[ -z "$sc_extra" ]]
-} < "$sc_pin" || {
-  echo "gate: malformed pin file: $sc_pin" >&2
-  exit 1
-}
-if [[ ! $sc_line1 =~ ^VERSION=([0-9]+\.[0-9]+\.[0-9]+)$ ]] ||
-    [[ ! $sc_line2 =~ ^DARWIN_ARM64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
-    [[ ! $sc_line3 =~ ^DARWIN_ARM64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
-    [[ ! $sc_line4 =~ ^DARWIN_X86_64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
-    [[ ! $sc_line5 =~ ^DARWIN_X86_64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
-    [[ ! $sc_line6 =~ ^LINUX_X86_64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
-    [[ ! $sc_line7 =~ ^LINUX_X86_64_BINARY_SHA256=([0-9a-f]{64})$ ]] ||
-    [[ ! $sc_line8 =~ ^LINUX_ARM64_ARCHIVE_SHA256=([0-9a-f]{64})$ ]] ||
-    [[ ! $sc_line9 =~ ^LINUX_ARM64_BINARY_SHA256=([0-9a-f]{64})$ ]]; then
-  echo "gate: malformed pin values in $sc_pin" >&2
-  exit 1
-fi
-sc_version="${sc_line1#VERSION=}"
-case "$(uname -s)-$(uname -m)" in
-  Darwin-arm64)
-    sc_platform='darwin.aarch64'
-    sc_archive_sha256="${sc_line2#DARWIN_ARM64_ARCHIVE_SHA256=}"
-    sc_binary_sha256="${sc_line3#DARWIN_ARM64_BINARY_SHA256=}" ;;
-  Darwin-x86_64)
-    sc_platform='darwin.x86_64'
-    sc_archive_sha256="${sc_line4#DARWIN_X86_64_ARCHIVE_SHA256=}"
-    sc_binary_sha256="${sc_line5#DARWIN_X86_64_BINARY_SHA256=}" ;;
-  Linux-x86_64)
-    sc_platform='linux.x86_64'
-    sc_archive_sha256="${sc_line6#LINUX_X86_64_ARCHIVE_SHA256=}"
-    sc_binary_sha256="${sc_line7#LINUX_X86_64_BINARY_SHA256=}" ;;
-  Linux-aarch64)
-    sc_platform='linux.aarch64'
-    sc_archive_sha256="${sc_line8#LINUX_ARM64_ARCHIVE_SHA256=}"
-    sc_binary_sha256="${sc_line9#LINUX_ARM64_BINARY_SHA256=}" ;;
-  *)
-    echo "gate: unsupported platform for ShellCheck: $(uname -s)-$(uname -m)" >&2
-    exit 1 ;;
-esac
-
 verify_sha256() {
   local expected="$1" file="$2" actual
   [[ -f "$file" && ! -L "$file" ]] || return 1
@@ -159,19 +104,6 @@ verify_sha256() {
   fi
   actual=$(openssl dgst -sha256 -r "$file" | awk '{print $1}') || return 1
   [[ "$actual" == "$expected" ]]
-}
-
-verify_shellcheck_version() {
-  local bin="$1" expected="$2" out='' line='' found='' count=0
-  out=$(SHELLCHECK_OPTS='' "$bin" --version 2>&1) || return 1
-  while IFS= read -r line; do
-    line="${line%$'\r'}"
-    if [[ "$line" =~ ^version:[[:space:]]*([^[:space:]]+)[[:space:]]*$ ]]; then
-      found="${BASH_REMATCH[1]}"
-      count=$((count + 1))
-    fi
-  done <<< "$out"
-  [[ "$count" == 1 && "$found" == "$expected" ]]
 }
 
 nc_pkg_dir='lean/.lake/packages'
@@ -206,51 +138,6 @@ ensure_nc_cache_dirs() {
   [[ -d "$nc_root" ]] || mkdir "$nc_root" || return 1
   [[ -d "$nc_dir" ]] || mkdir "$nc_dir" || return 1
   check_nc_cache_dirs require-present
-}
-
-sc_root="$nc_pkg_dir/.shellcheck"
-sc_dir="$sc_root/$sc_version"
-sc_bin="$sc_dir/shellcheck"
-
-check_sc_cache_dirs() {
-  local mode="$1" dir real_root real_dir
-  real_root=$(pwd -P) || return 1
-  for dir in lean lean/.lake "$nc_pkg_dir"; do
-    if [[ -L "$dir" || ! -d "$dir" ]]; then
-      echo "gate: cache parent must be a real directory: $dir" >&2
-      return 1
-    fi
-  done
-  real_dir=$(cd "$nc_pkg_dir" && pwd -P) || return 1
-  if [[ "$real_dir" != "$real_root/$nc_pkg_dir" ]]; then
-    echo "gate: cache parent resolves outside workspace: $nc_pkg_dir" >&2
-    return 1
-  fi
-  for dir in "$sc_root" "$sc_dir"; do
-    if [[ -L "$dir" ]]; then
-      echo "gate: refusing symlinked cache directory: $dir" >&2
-      return 1
-    elif [[ -e "$dir" && ! -d "$dir" ]]; then
-      echo "gate: refusing non-directory cache path: $dir" >&2
-      return 1
-    elif [[ -d "$dir" ]]; then
-      real_dir=$(cd "$dir" && pwd -P) || return 1
-      if [[ "$real_dir" != "$real_root/$dir" ]]; then
-        echo "gate: cache directory resolves outside workspace: $dir" >&2
-        return 1
-      fi
-    elif [[ "$mode" != allow-missing ]]; then
-      echo "gate: missing cache directory: $dir" >&2
-      return 1
-    fi
-  done
-}
-
-ensure_sc_cache_dirs() {
-  check_sc_cache_dirs allow-missing || return 1
-  [[ -d "$sc_root" ]] || mkdir "$sc_root" || return 1
-  [[ -d "$sc_dir" ]] || mkdir "$sc_dir" || return 1
-  check_sc_cache_dirs require-present
 }
 
 gate_scratch=''
@@ -1056,65 +943,7 @@ else
   mv -f "$nc_dl_dir/no-comments" "$nc_bin"
   rm -rf "$nc_dl_dir"
 fi
-check_sc_cache_dirs allow-missing
-if [[ ! -L "$sc_bin" && -e "$sc_bin" && ! -f "$sc_bin" ]]; then
-  echo "gate: refusing unexpected non-regular cache entry: $sc_bin" >&2
-  exit 1
-fi
-if verify_sha256 "$sc_binary_sha256" "$sc_bin"; then
-  [[ -x "$sc_bin" ]] || chmod 755 "$sc_bin"
-  if ! verify_shellcheck_version "$sc_bin" "$sc_version"; then
-    echo "gate: cached $sc_bin failed version verification (expected $sc_version)" >&2
-    exit 1
-  fi
-else
-  if [[ -L "$sc_bin" ]]; then
-    echo "gate: removing symlinked $sc_bin; re-downloading" >&2
-    rm -f "$sc_bin"
-  elif [[ -f "$sc_bin" ]]; then
-    echo "gate: cached $sc_bin failed SHA-256 verification; re-downloading" >&2
-  fi
-  sc_dl_dir="$gate_scratch/sc-download"
-  mkdir -p "$sc_dl_dir"
-  run_fg_exec "$sc_dl_dir" curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-    --connect-timeout 10 --max-time 180 --retry 2 --retry-delay 2 --retry-max-time 300 \
-    --output "$sc_dl_dir/shellcheck.tar.gz" \
-    "https://github.com/koalaman/shellcheck/releases/download/v${sc_version}/shellcheck-v${sc_version}.${sc_platform}.tar.gz"
-  if ! verify_sha256 "$sc_archive_sha256" "$sc_dl_dir/shellcheck.tar.gz"; then
-    echo "gate: downloaded shellcheck-v${sc_version}.${sc_platform}.tar.gz failed SHA-256 verification" >&2
-    exit 1
-  fi
-  mkdir -p "$sc_dl_dir/extract"
-  run_fg_exec "$sc_dl_dir" tar -xzf "$sc_dl_dir/shellcheck.tar.gz" -C "$sc_dl_dir/extract" "shellcheck-v${sc_version}/shellcheck"
-  sc_extracted="$sc_dl_dir/extract/shellcheck-v${sc_version}/shellcheck"
-  if ! verify_sha256 "$sc_binary_sha256" "$sc_extracted"; then
-    echo "gate: extracted ShellCheck binary failed SHA-256 verification" >&2
-    exit 1
-  fi
-  chmod 755 "$sc_extracted"
-  if ! verify_shellcheck_version "$sc_extracted" "$sc_version"; then
-    echo "gate: extracted ShellCheck binary failed version verification (expected $sc_version)" >&2
-    exit 1
-  fi
-  ensure_sc_cache_dirs
-  sc_stage=$(mktemp "$sc_dir/shellcheck.XXXXXX")
-  if ! cp "$sc_extracted" "$sc_stage" || ! chmod 755 "$sc_stage"; then
-    rm -f "$sc_stage"
-    echo "gate: failed to stage ShellCheck binary in $sc_dir" >&2
-    exit 1
-  fi
-  if [[ -L "$sc_bin" || ( -e "$sc_bin" && ! -f "$sc_bin" ) ]]; then
-    rm -f "$sc_stage"
-    echo "gate: refusing unexpected non-regular cache entry: $sc_bin" >&2
-    exit 1
-  fi
-  if ! mv -f "$sc_stage" "$sc_bin"; then
-    rm -f "$sc_stage"
-    echo "gate: failed to install ShellCheck binary at $sc_bin" >&2
-    exit 1
-  fi
-  rm -rf "$sc_dl_dir"
-fi
+run_fg_exec "$gate_scratch/prov-tmp" ./scripts/shellcheck.sh provision
 provision_dur=$((SECONDS - provision_start))
 provision_state='0'
 step 'provisioned'
