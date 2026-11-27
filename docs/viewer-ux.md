@@ -513,9 +513,10 @@ Rules that apply to every number, label and colour on the page.
   log failures produce a nonzero launcher exit after cleanup. EOF is not a stop request.
   The launcher owns terminal SIGINT and forwards this request, so Ctrl-C does
   not interrupt the viewer/core process group. No kill deadline is introduced.
-  Shutdown retains the durable intent; browser Stop remains the operation that
-  persists stopped intent and returns HTTP `202` only after `state.json` has
-  been written, flushed and renamed on disk.
+  Shutdown retains the durable intent; Stop remains the operation that persists
+  stopped intent and confirms (`303` on browser form `POST /control/form`, or
+  `202` on JSON `POST /control`) only after `state.json` has been written,
+  flushed and renamed on disk.
 - **UX-23 · Clear is one click: stop → archive → reseed → restore.** The
   whole run directory is renamed into the archive (UX-43) and a new random
   seed is taken. Cooperative stop happens first and attempts an armed save.
@@ -1044,9 +1045,10 @@ What each panel must show. How it draws it is the code's.
   file, or a file of the current schema that says stopped, it is printed after
   the ready line and not under `--start`. Under `--start` the Start is
   submitted once the listener is bound. The viewer announces nothing of this
-  kind when the state it starts with is running. Browser Stop (`POST /control`
-  with `{"cmd":"stop"}`) returns HTTP `202` only after `state.json` has been
-  written, flushed and renamed on disk with `desired: "stopped"` — confirming
+  kind when the state it starts with is running. Stop (browser form
+  `POST /control/form` returning HTTP `303`, or JSON `POST /control` with
+  `{"cmd":"stop"}` returning HTTP `202`) confirms only after `state.json` has
+  been written, flushed and renamed on disk with `desired: "stopped"` — confirming
   that earlier publication — and returns HTTP `503` without acknowledging if
   refused before admission (queue full, unavailable, or mailbox already
   closing) or if persistence is unconfirmed (writing fails, or the 10-second
@@ -1077,8 +1079,8 @@ What each panel must show. How it draws it is the code's.
   after the first viewer acknowledges Stop. The no-later-Start condition is
   ordered in supervisor processing order starting from that acknowledging
   resolution (not browser HTTP receipt time, so a concurrent Start processed
-  by the supervisor after that resolution — even before the browser receives
-  `202` — supersedes it): under exclusive single-viewer run-directory
+  by the supervisor after that resolution — even before the caller receives
+  `303` or `202` — supersedes it): under exclusive single-viewer run-directory
   ownership, stable run-directory paths without external state-file mutation,
   and with no later Start admitted by the supervisor while open, a viewer
   process crash at any step leaves the on-disk state stopped — or absent
