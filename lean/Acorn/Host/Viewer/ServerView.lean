@@ -878,7 +878,7 @@ private def renderRibbonSvg (summaries : List FrameSummary) (cursorIdx : Option 
   if n == 0 then
     nodes := nodes.push (el .text [
       kv .x "560", kv .y "31", kv .fill "#7d8997", kv .fontSize "11", kv .textAnchor "middle"
-    ] [txt "No buffered frames yet — start the core to observe temporal options."])
+    ] [txt "No buffered frames yet — press Start to observe temporal options."])
   else
     let arr := summaries.toArray
     let mut prevGoal : Option Nat := none
@@ -1461,7 +1461,7 @@ private def renderGoalSidebar (agOpt : Option AgreementSnapshot) (selectedIsEarl
       el .h2 [] [txt "Goal achievement"],
       el .div [kv .cls "agreement-primary goal-primary"] [
         el .strong [] [txt "Waiting"],
-        el .p [kv .cls "lede"] [txt "No curriculum snapshot yet. Start the core to observe goal achievement."]
+        el .p [kv .cls "lede"] [txt "No curriculum snapshot yet. Press Start to observe goal achievement."]
       ]
     ]
   | some ag =>
@@ -1813,7 +1813,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
        gName,
        s!"goal {s.goal + 1}/{gCount} · cycle {s.cycle + 1}{termTag} (attempt/tier & target coordinates retained for newest capture only)")
     | none, none =>
-      ("current goal", "—", "Waiting for frames from acorn-core")
+      ("current goal", "—", "Waiting for telemetry frames")
   let hudTod := match displaySummary with
     | some s =>
       if s.dayLength > 0 then
@@ -1842,7 +1842,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     | some s => s!"as-of HTML snapshot (auto-refreshing every {s}s)"
     | none =>
       if isRunning then "static as-of HTML snapshot (auto-refresh off — reload for updated lifecycle status or metrics)"
-      else "as-of HTML snapshot (core not running)"
+      else "as-of HTML snapshot (not running)"
   let mapSurfaceChild : Node :=
     if query.stream then
       el .div [] [
@@ -1871,11 +1871,11 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         el .div [kv .cls "empty-stage"] [
           el .h3 [] [txt "No frames from this run yet"],
           el .p [] [txt (match liveness with
-            | .waitingForCapture => "Core is running — waiting for the first fresh telemetry frame."
-            | .stale false => "Core is running, but no fresh telemetry capture arrived within the stale window."
-            | .fault _ => "Core exited before emitting a telemetry frame; see the lifecycle diagnostic above."
-            | .busy s => s!"Core is {s}."
-            | _ => "Core is stopped. Press Start in the top bar to launch acorn-core.")]
+            | .waitingForCapture => "Configured child is running — waiting for the first fresh telemetry frame."
+            | .stale false => "Configured child is running, but no fresh telemetry capture arrived within the stale window."
+            | .fault _ => "Configured child exited before emitting a telemetry frame; see the lifecycle diagnostic above."
+            | .busy s => s!"Run is {s}."
+            | _ => "Run is stopped. Press Start in the top bar to start the configured child.")]
         ]
   let vitalsNodes : List Node := match proj.selectedFull with
     | some f =>
