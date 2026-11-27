@@ -267,20 +267,9 @@ def Broadcast.announceCleared (broadcast : Broadcast) : BaseIO (Except String Un
 def Broadcast.announceExit (broadcast : Broadcast) (_reason : String) : BaseIO (Except String Unit) :=
   broadcast.notify
 
-def Broadcast.recordIngressDrop (broadcast : Broadcast) (generation : UInt64) (count : Nat) :
-    BaseIO Unit := do
-  if count == 0 then return
-  broadcast.state.atomically do
-    let state ← get
-    if let some waiting := state.waiting then
-      if waiting.generation == generation then
-        set { state with waiting := some { waiting with dropped := waiting.dropped + count } }
-        return
-    if state.lifecycle.phaseValue.accepts generation then
-      set state.loseWorldTail
-
-def Broadcast.publishDecoded (broadcast : Broadcast) (generation : UInt64)
-    (decoded : DecodedTelemetry) (nowMonoMs : Nat) : BaseIO Bool := do
+def Broadcast.publish (broadcast : Broadcast) (generation : UInt64) (text : WireText) : BaseIO Bool := do
+  let decoded := decodeTelemetry text
+  let nowMonoMs ← IO.monoMsNow
   let wakes ← broadcast.state.atomically do
     let state ← get
     if let some waiting := state.waiting then
@@ -305,11 +294,6 @@ def Broadcast.publishDecoded (broadcast : Broadcast) (generation : UInt64)
   | some wakes =>
     for wake in wakes do wake.resolve ()
     return true
-
-def Broadcast.publish (broadcast : Broadcast) (generation : UInt64) (text : WireText) : BaseIO Bool := do
-  let decoded := decodeTelemetry text
-  let nowMonoMs ← IO.monoMsNow
-  broadcast.publishDecoded generation decoded nowMonoMs
 
 structure Subscription where
   private mk ::

@@ -30,8 +30,7 @@ private def pythonToken (text : String) : Bool :=
 
 private def zeroJs (path : String) : IO String := do
   let bytes ← IO.FS.readBinFile path
-  let ext := ((System.FilePath.mk path).extension.getD "").toLower
-  match Acorn.Host.Viewer.Html.admitZeroJsFile ext bytes with
+  match Acorn.Host.Viewer.Html.admitZeroJsFile path bytes with
   | .ok text => return text
   | .error .forbiddenExtension =>
     throw (IO.userError s!"{path}: JavaScript/TypeScript source is forbidden")

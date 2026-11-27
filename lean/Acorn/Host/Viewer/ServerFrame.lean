@@ -61,7 +61,41 @@ structure AgreementSnapshot where
   demonHorizon : Array Scalar
   goalProgress : GoalProgressSnapshot
 
+inductive ControlCriterion where
+  | discounted
+  | differential
+  deriving DecidableEq, BEq
+
+def ControlCriterion.ofWire? : Nat → Option ControlCriterion
+  | 0 => some .discounted
+  | 1 => some .differential
+  | _ => none
+
+theorem ControlCriterion.ofWire_codes :
+    ControlCriterion.ofWire? 0 = some .discounted ∧
+      ControlCriterion.ofWire? 1 = some .differential :=
+  ⟨rfl, rfl⟩
+
+inductive SubtaskPolicy where
+  | learned
+  | handAuthored
+  deriving DecidableEq, BEq
+
+def SubtaskPolicy.ofWire? : String → Option SubtaskPolicy
+  | "learned" => some .learned
+  | "hand_authored" => some .handAuthored
+  | _ => none
+
+def SubtaskPolicy.tag : SubtaskPolicy → String
+  | .learned => "learned"
+  | .handAuthored => "hand_authored"
+
+theorem SubtaskPolicy.ofWire_roundtrip (p : SubtaskPolicy) :
+    SubtaskPolicy.ofWire? p.tag = some p := by
+  cases p <;> rfl
+
 structure FrameSummary where
+  admittedId : Nat := 0
   runId : String
   agentEpoch : Nat
   origin : String
@@ -118,7 +152,7 @@ structure ServerFrame where
   tiles : Array Nat
   tileExtra : Array Nat
   rewardRate : Scalar
-  controlCriterion : Nat
+  controlCriterion : ControlCriterion
   processUptimeMs : Nat
   coreRssBytes : Option Nat
   checkpointBytes : Option Nat
@@ -132,7 +166,7 @@ structure ServerFrame where
   retireStep : Option Nat
   retireUnit : Option Nat
   retireCount : Nat
-  subtaskPolicy : String
+  subtaskPolicy : SubtaskPolicy
   subtaskUnit : Array (Option Nat)
   subtaskBonus : Array Scalar
   actionNames : Array String
@@ -636,8 +670,9 @@ def decodeServerFrame (value : Json.Value) : Except (BrowserRefusal × String) S
   let agHistScore ← reqOptNatArr fields "agreement_history_score" (some 64)
   checkBound "agreement_history_score" (agHistScore.all (·.all (· ≤ Agreement.displayScale)))
   let _ckptFmt ← reqNat fields "checkpoint_format"
-  let controlCriterion ← reqNat fields "control_criterion"
-  checkBound "control_criterion" (controlCriterion < 2)
+  let controlCriterionRaw ← reqNat fields "control_criterion"
+  let some controlCriterion := ControlCriterion.ofWire? controlCriterionRaw
+    | .error (.malformed, "control_criterion")
   let weightSpace ← reqNat fields "weight_space"
   checkExact "primitive_count" (← reqNat fields "primitive_count") FeatureConstants.primitiveCount
   checkExact "meta_count" (← reqNat fields "meta_count") FeatureConstants.metaActionCount
@@ -657,8 +692,9 @@ def decodeServerFrame (value : Json.Value) : Except (BrowserRefusal × String) S
   let retireUnit ← reqOptNat fields "retire_unit"
   checkBound "retire_unit" (retireUnit.all (· < imprintUnits))
   let retireCount ← reqNat fields "retire_count"
-  let subtaskPolicy ← reqStr fields "subtask_policy"
-  checkBound "subtask_policy" (["learned", "hand_authored"].contains subtaskPolicy)
+  let subtaskPolicyRaw ← reqStr fields "subtask_policy"
+  let some subtaskPolicy := SubtaskPolicy.ofWire? subtaskPolicyRaw
+    | .error (.malformed, "subtask_policy")
   let subtaskUnit ← reqOptNatArr fields "subtask_unit" (some 3)
   checkBound "subtask_unit" (subtaskUnit.all fun u => u.all fun idx => idx < imprintUnits && idx < 2 ^ 31)
   let subtaskBonus ← reqScalarArr fields "subtask_bonus" (some 3)
@@ -789,7 +825,7 @@ theorem agreementSnapshotFollows_final (prev next : AgreementSnapshot)
     h7, h8, h9, hProc, hClock, hPrevOpen, hNextStopped]
 
 private def subtaskSignature (frame : ServerFrame) : String :=
-  frame.subtaskPolicy ++ "|" ++
+  frame.subtaskPolicy.tag ++ "|" ++
     String.intercalate "," (frame.subtaskUnit.toList.map fun u =>
       match u with | none => "-" | some n => toString n) ++ "|" ++
     String.intercalate "," (frame.subtaskBonus.toList.map fun s => s.formatFixed 3)
@@ -914,9 +950,11 @@ def ServerObserverState.observe (state : ServerObserverState) (decoded : Decoded
             }
             state.samples.retain sample
           else state.samples
+        let summary := { frame.summary with admittedId := admittedCount }
+        let storedFrame := { frame with summary }
         { state with
-          summaries := state.summaries.retain frame.summary
-          latest := some frame
+          summaries := state.summaries.retain summary
+          latest := some storedFrame
           samples
           admittedCount
           nonFiniteCount

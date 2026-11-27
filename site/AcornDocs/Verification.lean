@@ -594,12 +594,13 @@ prelude so the Regula proof claim covers it and `AcornDocument.external_listed`.
 In `lean/AcornTools/Corpus/Audit.lean`, `AcornCorpus.check` and
 `AcornCorpus.language` audit the full Git-tracked regular-file inventory with
 zero directory carve-outs through `Acorn.Host.Viewer.Html.admitZeroJsFile`,
-whose exact admission boundary is proved by
-`Acorn.Host.Viewer.Html.admitZeroJsFile_iff`: rejecting JavaScript and
-TypeScript extensions, failing closed on any NUL byte or non-UTF-8 encoding
-outside the admitted UTF-8 text boundary (excluding UTF-16, UTF-32, and binary
-payloads), and rejecting any decoded UTF-8 file satisfying
-`Acorn.Host.Viewer.Html.ContainsScriptTag`. In
+whose exact admission boundary over tracked paths is proved by
+`Acorn.Host.Viewer.Html.admitZeroJsFile_iff`: rejecting any lowercase basename
+ending in a JavaScript or TypeScript suffix (including exact dot-basenames,
+proved by `Acorn.Host.Viewer.Html.hasForbiddenJsPath_dot_basename`), failing
+closed on any NUL byte or non-UTF-8 encoding outside the admitted UTF-8 text
+boundary (excluding UTF-16, UTF-32, and binary payloads), and rejecting any
+decoded UTF-8 file satisfying `Acorn.Host.Viewer.Html.ContainsScriptTag`. In
 `lean/AcornTools/Corpus/Browser.lean`, `AcornBrowserAudit.check` verifies the
 specification table in `docs/viewer-ux.md`: it requires a unique line containing
 the Appendix A title with exact heading
@@ -2115,12 +2116,13 @@ lineCapacity (1 MiB, discarding oversize suffixes through newline and refusing i
 EOF), and readLines reads one byte at a time (input.read 1) because Lean v4.36.0 Handle.read
 calls buffered C fread (Lean runtime `io.cpp` lines 593–615), where multi-byte reads can block past
 newline waiting for a full request or EOF; callbacks must enqueue locally and IO errors propagate
-instead of synthesizing EOF. PipePump.lean decouples stdout pipe reading from full telemetry
-decoding by enqueueing `{`-prefixed `WireText` lines with capture timestamps into a private bounded
-`Buffer.retain` queue of capacity `outputQueueCapacity` (256) under its own mutex and decoding them
-on a dedicated `consumeOutput` task outside both mutexes (evicting oldest unread lines under
-backpressure rather than blocking the child's synchronous stdout flush, reporting evictions via
-Broadcast.recordIngressDrop to mark worldPartial, and draining queued lines before PipePump.finish),
+instead of synthesizing EOF. PipePump.lean forwards each `{`-prefixed stdout
+`WireText` line synchronously through `Broadcast.publish` with the shared
+generation check (decoding telemetry outside the broadcast mutex and waking
+coalesced browser subscribers outside the mutex so slow browsers never stall
+publication, without any lossy ingress queue that could evict terrain
+observations or delay the final censor record past generation retirement, while
+the stdout reader task parses each record inline before reading the next line),
 surfaces `"writing disabled this run"` alongside checkpointRefusalNotice on stderr, and waits for
 inherited-descriptor EOF; LogPump.lean bounds queues with logTailCapacity 200 and logQueueCapacity 256.
 ProcessOwner.lean consumes lastGeneration before IO.Process.spawn to avoid generation reuse on

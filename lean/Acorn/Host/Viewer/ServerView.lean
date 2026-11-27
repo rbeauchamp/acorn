@@ -38,6 +38,8 @@ def RefreshMode.parse : String → RefreshMode
 structure ViewQuery where
   mode : ViewMode := .live
   frame : Option Nat := none
+  run : Option UInt64 := none
+  epoch : Option Nat := none
   refresh : RefreshMode := .auto
   inside : Bool := false
   stream : Bool := false
@@ -52,12 +54,16 @@ def ViewQuery.ofPairs (pairs : List (String × String)) : ViewQuery :=
       | some "paused" => ViewMode.paused
       | _ => ViewMode.live
   let frame := if mode == .paused then (formLookup pairs "frame").bind Digits.read else none
+  let run := if mode == .paused then
+      (formLookup pairs "run").bind fun s => (runWord (.string s)).toOption
+    else none
+  let epoch := if mode == .paused then (formLookup pairs "epoch").bind Digits.read else none
   let refresh := match formLookup pairs "refresh" with
     | some raw => RefreshMode.parse raw
     | none => .auto
   let inside := formLookup pairs "inside" == some "1"
   let watch := formLookup pairs "watch" == some "1"
-  { mode, frame, refresh, inside, stream, watch }
+  { mode, frame, run, epoch, refresh, inside, stream, watch }
 
 def ViewQuery.parseRaw (rawQuery : String) : ViewQuery :=
   let trimmed := if rawQuery.startsWith "?" then (rawQuery.drop 1).toString else rawQuery
@@ -65,15 +71,160 @@ def ViewQuery.parseRaw (rawQuery : String) : ViewQuery :=
   | some pairs => ViewQuery.ofPairs pairs
   | none => {}
 
+private def joinQueryParts : List String → String
+  | [] => ""
+  | [x] => x
+  | x :: rest => x ++ "&" ++ joinQueryParts rest
+
+private def ViewQuery.queryParts (q : ViewQuery) : List String :=
+  (if q.mode == .paused then ["view=paused"] else []) ++
+  (match q.frame with | some n => ["frame=" ++ toString n] | none => []) ++
+  (match q.run with | some r => ["run=" ++ runHex r] | none => []) ++
+  (match q.epoch with | some e => ["epoch=" ++ toString e] | none => []) ++
+  (if q.refresh != .auto then ["refresh=" ++ q.refresh.tag] else []) ++
+  (if q.inside then ["inside=1"] else []) ++
+  (if q.stream then ["stream=1"] else []) ++
+  (if q.watch then ["watch=1"] else [])
+
 def ViewQuery.href (q : ViewQuery) : String :=
-  let parts : List String :=
-    (if q.mode == .paused then ["view=paused"] else []) ++
-    (match q.frame with | some n => [s!"frame={n}"] | none => []) ++
-    (if q.refresh != .auto then [s!"refresh={q.refresh.tag}"] else []) ++
-    (if q.inside then ["inside=1"] else []) ++
-    (if q.stream then ["stream=1"] else []) ++
-    (if q.watch then ["watch=1"] else [])
-  if parts.isEmpty then "/" else "/?" ++ String.intercalate "&" parts
+  match q.queryParts with
+  | [] => "/"
+  | parts => "/?" ++ joinQueryParts parts
+
+private theorem visibleAscii_append (a b : String)
+    (ha : ∀ c ∈ a.toList, '!' ≤ c ∧ c ≤ '~')
+    (hb : ∀ c ∈ b.toList, '!' ≤ c ∧ c ≤ '~') :
+    ∀ c ∈ (a ++ b).toList, '!' ≤ c ∧ c ≤ '~' := by
+  intro c hc
+  rw [String.toList_append, List.mem_append] at hc
+  rcases hc with h | h
+  · exact ha c h
+  · exact hb c h
+
+private theorem digitChar_visibleAscii (d : Nat) (h : d < 10) :
+    '!' ≤ Nat.digitChar d ∧ Nat.digitChar d ≤ '~' := by
+  have hd : d = 0 ∨ d = 1 ∨ d = 2 ∨ d = 3 ∨ d = 4 ∨ d = 5 ∨ d = 6 ∨ d = 7 ∨ d = 8 ∨ d = 9 := by
+    omega
+  rcases hd with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+
+private theorem toDigitsCore_visibleAscii (fuel n : Nat) (acc : List Char)
+    (hAcc : ∀ c ∈ acc, '!' ≤ c ∧ c ≤ '~') :
+    ∀ c ∈ Nat.toDigitsCore 10 fuel n acc, '!' ≤ c ∧ c ≤ '~' := by
+  induction fuel generalizing n acc with
+  | zero => exact hAcc
+  | succ fuel ih =>
+    unfold Nat.toDigitsCore
+    dsimp only
+    have hd := digitChar_visibleAscii (n % 10) (Nat.mod_lt n (by decide))
+    split
+    · intro c hc
+      rcases List.mem_cons.mp hc with rfl | hIn
+      · exact hd
+      · exact hAcc c hIn
+    · exact ih (n / 10) (Nat.digitChar (n % 10) :: acc) fun c hc => by
+        rcases List.mem_cons.mp hc with rfl | hIn
+        · exact hd
+        · exact hAcc c hIn
+
+private theorem nat_toString_visibleAscii (n : Nat) :
+    ∀ c ∈ (toString n).toList, '!' ≤ c ∧ c ≤ '~' := by
+  have hEq : (toString n).toList = Nat.toDigitsCore 10 (n + 1) n [] := by
+    simp [toString, Nat.repr, Nat.toDigits]
+  rw [hEq]
+  exact toDigitsCore_visibleAscii (n + 1) n [] (fun _ h => nomatch h)
+
+private theorem hexDigit_visibleAscii (d : Nat) (h : d < 16) :
+    '!' ≤ Char.ofNat (if d < 10 then 48 + d else 87 + d) ∧
+      Char.ofNat (if d < 10 then 48 + d else 87 + d) ≤ '~' := by
+  have hd : d = 0 ∨ d = 1 ∨ d = 2 ∨ d = 3 ∨ d = 4 ∨ d = 5 ∨ d = 6 ∨ d = 7 ∨
+      d = 8 ∨ d = 9 ∨ d = 10 ∨ d = 11 ∨ d = 12 ∨ d = 13 ∨ d = 14 ∨ d = 15 := by omega
+  rcases hd with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+    rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+
+private theorem runHex_visibleAscii (word : UInt64) :
+    ∀ c ∈ (runHex word).toList, '!' ≤ c ∧ c ≤ '~' := by
+  intro c hc
+  simp only [runHex, String.toList_ofList, List.mem_map] at hc
+  obtain ⟨index, _, rfl⟩ := hc
+  exact hexDigit_visibleAscii (word.toNat / 16 ^ index % 16) (Nat.mod_lt _ (by decide))
+
+private theorem refreshTag_visibleAscii (r : RefreshMode) :
+    ∀ c ∈ r.tag.toList, '!' ≤ c ∧ c ≤ '~' := by
+  cases r <;> decide
+
+private theorem joinQueryParts_visibleAscii (parts : List String)
+    (hAll : ∀ p ∈ parts, ∀ c ∈ p.toList, '!' ≤ c ∧ c ≤ '~') :
+    ∀ c ∈ (joinQueryParts parts).toList, '!' ≤ c ∧ c ≤ '~' := by
+  induction parts with
+  | nil => intro c hc; simp [joinQueryParts] at hc
+  | cons x rest ih =>
+    cases rest with
+    | nil =>
+      exact hAll x (List.mem_cons_self ..)
+    | cons y ys =>
+      simp only [joinQueryParts]
+      refine visibleAscii_append _ _ (visibleAscii_append _ _ (hAll x (List.mem_cons_self ..)) (by decide)) ?_
+      exact ih fun p hp => hAll p (List.mem_cons_of_mem x hp)
+
+private theorem queryParts_visibleAscii (q : ViewQuery) :
+    ∀ p ∈ q.queryParts, ∀ c ∈ p.toList, '!' ≤ c ∧ c ≤ '~' := by
+  intro p hp
+  unfold ViewQuery.queryParts at hp
+  simp only [List.mem_append] at hp
+  rcases hp with ((((((hMode | hFrame) | hRun) | hEpoch) | hRef) | hIn) | hStr) | hWatch
+  · split at hMode
+    · simp only [List.mem_singleton] at hMode; subst hMode; decide
+    · cases hMode
+  · cases hF : q.frame with
+    | none => simp [hF] at hFrame
+    | some n =>
+      simp only [hF, List.mem_singleton] at hFrame; subst hFrame
+      exact visibleAscii_append _ _ (by decide) (nat_toString_visibleAscii n)
+  · cases hR : q.run with
+    | none => simp [hR] at hRun
+    | some r =>
+      simp only [hR, List.mem_singleton] at hRun; subst hRun
+      exact visibleAscii_append _ _ (by decide) (runHex_visibleAscii r)
+  · cases hE : q.epoch with
+    | none => simp [hE] at hEpoch
+    | some e =>
+      simp only [hE, List.mem_singleton] at hEpoch; subst hEpoch
+      exact visibleAscii_append _ _ (by decide) (nat_toString_visibleAscii e)
+  · split at hRef
+    · simp only [List.mem_singleton] at hRef; subst hRef
+      exact visibleAscii_append _ _ (by decide) (refreshTag_visibleAscii q.refresh)
+    · cases hRef
+  · split at hIn
+    · simp only [List.mem_singleton] at hIn; subst hIn; decide
+    · cases hIn
+  · split at hStr
+    · simp only [List.mem_singleton] at hStr; subst hStr; decide
+    · cases hStr
+  · split at hWatch
+    · simp only [List.mem_singleton] at hWatch; subst hWatch; decide
+    · cases hWatch
+
+theorem ViewQuery.href_visibleAscii (q : ViewQuery) :
+    ∀ c ∈ q.href.toList, '!' ≤ c ∧ c ≤ '~' := by
+  unfold ViewQuery.href
+  cases hParts : q.queryParts with
+  | nil =>
+    dsimp only
+    decide
+  | cons p rest =>
+    dsimp only
+    refine visibleAscii_append _ _ (by decide) (joinQueryParts_visibleAscii (p :: rest) ?_)
+    intro s hs
+    exact queryParts_visibleAscii q s (hParts ▸ hs)
+
+inductive SelectionStatus where
+  | live
+  | matched (admittedId : Nat)
+  | identityReset (requestedRun : Option UInt64) (requestedEpoch : Option Nat)
+  | evicted (requestedId : Nat) (oldestId : Nat) (newestId : Nat)
+  | outOfRange (requestedId : Nat) (oldestId : Nat) (newestId : Nat)
+  | emptyBuffer (requestedId : Option Nat)
+  deriving DecidableEq, BEq
 
 structure DisplayProjection where
   clampedIdx : Option Nat
@@ -81,28 +232,20 @@ structure DisplayProjection where
   selectedFull : Option ServerFrame
   trailSummaries : List FrameSummary
   selectedIsEarlier : Bool
+  selectionStatus : SelectionStatus
 
-def projectDisplay (summaries : List FrameSummary) (latest : Option ServerFrame)
-    (query : ViewQuery) : DisplayProjection :=
+def projectDisplay (identity : Identity) (summaries : List FrameSummary)
+    (latest : Option ServerFrame) (query : ViewQuery) : DisplayProjection :=
   let bufferedCount := summaries.length
-  if bufferedCount == 0 then
-    { clampedIdx := none
-      displaySummary := latest.map (·.summary)
-      selectedFull := latest
-      trailSummaries := []
-      selectedIsEarlier := false }
-  else
-    let idx := match query.mode, query.frame with
-      | .paused, some req => max 1 (min bufferedCount req) - 1
-      | _, _ => bufferedCount - 1
+  let buildAt (idx : Nat) (status : SelectionStatus) (isEarlier : Bool) : DisplayProjection :=
     let sel := summaries[idx]?
     let displaySummary := sel.or (latest.map (·.summary))
-    let selectedIsEarlier := query.mode == .paused && idx + 1 < bufferedCount
     let selectedFull :=
-      if selectedIsEarlier then none
+      if isEarlier then none
       else match latest, sel with
         | some f, some s =>
-          if f.summary.lifetimeStep == s.lifetimeStep &&
+          if f.summary.admittedId == s.admittedId &&
+              f.summary.lifetimeStep == s.lifetimeStep &&
               f.summary.worldStep == s.worldStep &&
               f.summary.terminal == s.terminal then some f
           else none
@@ -111,22 +254,97 @@ def projectDisplay (summaries : List FrameSummary) (latest : Option ServerFrame)
       displaySummary
       selectedFull
       trailSummaries := summaries.take (idx + 1)
-      selectedIsEarlier }
+      selectedIsEarlier := isEarlier
+      selectionStatus := status }
+  let emptyWith (status : SelectionStatus) : DisplayProjection :=
+    { clampedIdx := none
+      displaySummary := latest.map (·.summary)
+      selectedFull := latest
+      trailSummaries := []
+      selectedIsEarlier := false
+      selectionStatus := status }
+  match query.mode with
+  | .live =>
+    if bufferedCount == 0 then emptyWith .live
+    else buildAt (bufferedCount - 1) .live false
+  | .paused =>
+    let runMismatch := query.run.any (· != identity.run)
+    let epochMismatch := query.epoch.any (· != identity.agentEpoch.toNat)
+    if runMismatch || epochMismatch then
+      if bufferedCount == 0 then emptyWith (.identityReset query.run query.epoch)
+      else buildAt (bufferedCount - 1) (.identityReset query.run query.epoch) false
+    else if bufferedCount == 0 then
+      emptyWith (.emptyBuffer query.frame)
+    else
+      let oldestId := (summaries[0]?.map (·.admittedId)).getD 0
+      let newestId := (summaries[bufferedCount - 1]?.map (·.admittedId)).getD 0
+      match query.frame with
+      | none =>
+        buildAt (bufferedCount - 1) (.matched newestId) false
+      | some reqId =>
+        match summaries.findIdx? (·.admittedId == reqId) with
+        | some idx =>
+          buildAt idx (.matched reqId) (idx + 1 < bufferedCount)
+        | none =>
+          if reqId < oldestId then
+            buildAt 0 (.evicted reqId oldestId newestId) (1 < bufferedCount)
+          else
+            buildAt (bufferedCount - 1) (.outOfRange reqId oldestId newestId) false
 
-theorem projectDisplay_paused_earlier (summaries : List FrameSummary)
-    (latest : Option ServerFrame) (query : ViewQuery) (req : Nat)
-    (hMode : query.mode = .paused) (hFrame : query.frame = some req)
+theorem projectDisplay_stable_selection (identity : Identity) (summaries : List FrameSummary)
+    (latest : Option ServerFrame) (query : ViewQuery) (reqId idx : Nat) (target : FrameSummary)
+    (hMode : query.mode = .paused) (hFrame : query.frame = some reqId)
+    (hRun : query.run = some identity.run)
+    (hEpoch : query.epoch = some identity.agentEpoch.toNat)
     (hNonEmpty : 0 < summaries.length)
-    (hEarlier : max 1 (min summaries.length req) < summaries.length) :
-    let proj := projectDisplay summaries latest query
-    proj.selectedFull = none ∧ proj.selectedIsEarlier = true ∧
-      proj.trailSummaries = summaries.take (max 1 (min summaries.length req)) := by
+    (hFind : summaries.findIdx? (·.admittedId == reqId) = some idx)
+    (hAt : summaries[idx]? = some target) :
+    let proj := projectDisplay identity summaries latest query
+    proj.selectionStatus = .matched reqId ∧
+      proj.clampedIdx = some idx ∧
+      proj.displaySummary = some target := by
   have hNeZero : (summaries.length == 0) = false := beq_false_of_ne (Nat.ne_of_gt hNonEmpty)
-  have hPos : 1 ≤ max 1 (min summaries.length req) := Nat.le_max_left _ _
-  have hSubAdd : max 1 (min summaries.length req) - 1 + 1 = max 1 (min summaries.length req) := by
-    omega
-  have hPaused : (ViewMode.paused == ViewMode.paused) = true := rfl
-  simp [projectDisplay, hNeZero, hMode, hFrame, hSubAdd, hPaused, hEarlier]
+  simp [projectDisplay, hMode, hFrame, hRun, hEpoch, hNeZero, hFind, hAt]
+
+theorem projectDisplay_paused_earlier (identity : Identity) (summaries : List FrameSummary)
+    (latest : Option ServerFrame) (query : ViewQuery) (reqId idx : Nat)
+    (hMode : query.mode = .paused) (hFrame : query.frame = some reqId)
+    (hRun : query.run = some identity.run)
+    (hEpoch : query.epoch = some identity.agentEpoch.toNat)
+    (hNonEmpty : 0 < summaries.length)
+    (hFind : summaries.findIdx? (·.admittedId == reqId) = some idx)
+    (hEarlier : idx + 1 < summaries.length) :
+    let proj := projectDisplay identity summaries latest query
+    proj.selectedFull = none ∧ proj.selectedIsEarlier = true ∧
+      proj.trailSummaries = summaries.take (idx + 1) := by
+  have hNeZero : (summaries.length == 0) = false := beq_false_of_ne (Nat.ne_of_gt hNonEmpty)
+  simp [projectDisplay, hMode, hFrame, hRun, hEpoch, hNeZero, hFind, hEarlier]
+
+theorem projectDisplay_identity_reset (identity : Identity) (summaries : List FrameSummary)
+    (latest : Option ServerFrame) (query : ViewQuery) (otherRun : UInt64)
+    (hMode : query.mode = .paused) (hRun : query.run = some otherRun)
+    (hNe : otherRun ≠ identity.run) :
+    (projectDisplay identity summaries latest query).selectionStatus =
+      .identityReset (some otherRun) query.epoch := by
+  have hBne : (otherRun != identity.run) = true := bne_iff_ne.mpr hNe
+  unfold projectDisplay
+  simp [hMode, hRun, hBne]
+  split <;> rfl
+
+theorem projectDisplay_evicted (identity : Identity) (summaries : List FrameSummary)
+    (latest : Option ServerFrame) (query : ViewQuery) (reqId oldestId newestId : Nat)
+    (hMode : query.mode = .paused) (hFrame : query.frame = some reqId)
+    (hRun : query.run = some identity.run)
+    (hEpoch : query.epoch = some identity.agentEpoch.toNat)
+    (hNonEmpty : 0 < summaries.length)
+    (hOldest : (summaries[0]?.map (·.admittedId)).getD 0 = oldestId)
+    (hNewest : (summaries[summaries.length - 1]?.map (·.admittedId)).getD 0 = newestId)
+    (hMissing : summaries.findIdx? (·.admittedId == reqId) = none)
+    (hBefore : reqId < oldestId) :
+    (projectDisplay identity summaries latest query).selectionStatus =
+      .evicted reqId oldestId newestId := by
+  have hNeZero : (summaries.length == 0) = false := beq_false_of_ne (Nat.ne_of_gt hNonEmpty)
+  simp [projectDisplay, hMode, hFrame, hRun, hEpoch, hNeZero, hOldest, hNewest, hMissing, hBefore]
 
 inductive ControlNotice where
   | forbidden
@@ -267,7 +485,7 @@ def viewerStylesheet : String :=
   ".goal{display:flex;gap:7px;align-items:center;font-size:11px;padding:2.5px 5px;border-radius:4px;}\n" ++
   ".goal.cur{background:#132030;box-shadow:inset 2px 0 0 var(--accent2);}\n" ++
   ".goal .st{width:9px;height:9px;border-radius:2px;flex:none;}\n" ++
-  ".st.ok{background:#3fb950;}.st.no{background:var(--bad);}.st.wait{background:#242c38;}.st.run{background:var(--gold);}\n" ++
+  ".st.ok{background:#3fb950;}.st.no{background:var(--bad);}.st.wait{background:#242c38;}.st.run{background:var(--gold);}.st.invalid{background:transparent;border:1px solid var(--faint);}\n" ++
   ".goal .nm{flex:1;min-width:0;overflow-wrap:anywhere;}.goal .at{max-width:50%;color:var(--faint);font-size:10px;text-align:right;}\n" ++
   ".goal.cur .nm{color:#fff;}\n" ++
   ".agreement-primary{margin:10px 0 12px;padding:10px 12px;border:1px solid #344253;border-radius:8px;background:rgba(126,231,135,.04);}\n" ++
@@ -337,6 +555,12 @@ private def hiddenViewInputs (q : ViewQuery) : List Node :=
   (if q.mode == .paused then [vd .input [kv .type "hidden", kv .name "view", kv .value "paused"]] else []) ++
   (match q.frame with
     | some n => [vd .input [kv .type "hidden", kv .name "frame", kv .value (toString n)]]
+    | none => []) ++
+  (match q.run with
+    | some r => [vd .input [kv .type "hidden", kv .name "run", kv .value (runHex r)]]
+    | none => []) ++
+  (match q.epoch with
+    | some e => [vd .input [kv .type "hidden", kv .name "epoch", kv .value (toString e)]]
     | none => []) ++
   (if q.refresh != .auto then [vd .input [kv .type "hidden", kv .name "refresh", kv .value q.refresh.tag]] else []) ++
   (if q.inside then [vd .input [kv .type "hidden", kv .name "inside", kv .value "1"]] else []) ++
@@ -757,9 +981,17 @@ private def renderDivergingBarsSvg (names : Array String) (values : Array Scalar
     kv .role "img", kv .ariaLabel aria
   ] nodes.toList
 
+private def log10Clock100 (clk : Nat) : Nat :=
+  ((Decimal.log10Scaled100 ⟨false, max 1 clk, 0⟩).getD 0).toNat
+
 private def renderAgreementHistorySvg (ag : AgreementSnapshot) : Node := Id.run do
   let width : Nat := 400
-  let height : Nat := 96
+  let height : Nat := 106
+  let xLeft : Nat := 24
+  let xRight : Nat := 386
+  let yTop : Nat := 10
+  let yBot : Nat := 80
+  let ySpan : Nat := yBot - yTop
   let mut points : List (Nat × Nat) := []
   for idx in [:ag.historyClock.size] do
     if let some clk := ag.historyClock[idx]?.join then
@@ -769,36 +1001,74 @@ private def renderAgreementHistorySvg (ag : AgreementSnapshot) : Node := Id.run 
   let mut nodes : Array Node := #[
     el .rect [kv .x "0", kv .y "0", kv .width (toString width), kv .height (toString height),
       kv .fill "#080b10"] [],
-    el .line [kv .x1 "8", kv .y1 "86", kv .x2 "392", kv .y2 "86", kv .stroke "#242c38", kv .strokeWidth "1"] [],
-    el .line [kv .x1 "8", kv .y1 "10", kv .x2 "392", kv .y2 "10", kv .stroke "#242c38", kv .strokeDasharray "3 3"] []
+    el .line [kv .x1 (toString xLeft), kv .y1 (toString yBot), kv .x2 (toString xRight), kv .y2 (toString yBot),
+      kv .stroke "#242c38", kv .strokeWidth "1"] [],
+    el .line [kv .x1 (toString xLeft), kv .y1 (toString yTop), kv .x2 (toString xRight), kv .y2 (toString yTop),
+      kv .stroke "#242c38", kv .strokeDasharray "3 3"] [],
+    el .text [kv .x (toString (xLeft - 4)), kv .y (toString (yTop + 3)),
+      kv .fill "#7d8997", kv .fontSize "8", kv .textAnchor "end"] [txt "100"],
+    el .text [kv .x (toString (xLeft - 4)), kv .y (toString (yBot + 3)),
+      kv .fill "#7d8997", kv .fontSize "8", kv .textAnchor "end"] [txt "0"]
   ]
   if ordered.isEmpty then
     nodes := nodes.push (el .text [
-      kv .x "200", kv .y "52", kv .fill "#7d8997", kv .fontSize "10.5", kv .textAnchor "middle"
+      kv .x "205", kv .y "50", kv .fill "#7d8997", kv .fontSize "10.5", kv .textAnchor "middle"
     ] [txt "Waiting for settled predictive agreement history."])
   else
-    let n := ordered.length
+    let firstClk := (ordered.headD (0, 0)).1
+    let minClk := ordered.foldl (fun a p => min a p.1) firstClk
+    let maxClk := ordered.foldl (fun a p => max a p.1) firstClk
+    let minLog := log10Clock100 minClk
+    let maxLog := log10Clock100 maxClk
+    let logSpan := maxLog - minLog
+    let xSpan := xRight - xLeft
+    let xOf (clk : Nat) : Nat :=
+      if logSpan == 0 then (xLeft + xRight) / 2
+      else
+        let cl := log10Clock100 clk
+        let off := if cl ≥ minLog then cl - minLog else 0
+        xLeft + min xSpan (off * xSpan / logSpan)
+    if logSpan > 0 then
+      let firstDec := (minLog + 99) / 100
+      let lastDec := maxLog / 100
+      for dec in [firstDec : lastDec + 1] do
+        let decLog := dec * 100
+        if minLog < decLog && decLog < maxLog then
+          let tx := xLeft + min xSpan ((decLog - minLog) * xSpan / logSpan)
+          nodes := nodes.push (el .line [
+            kv .x1 (toString tx), kv .y1 (toString yTop), kv .x2 (toString tx), kv .y2 (toString yBot),
+            kv .stroke "#1b222c", kv .strokeWidth "1"
+          ] [])
     let scale := max 1 ag.scale
-    let coords := (List.range n).filterMap fun i =>
-      match ordered[i]? with
-      | some (_, sc) =>
-        let px := if n ≤ 1 then 200 else 10 + i * 380 / (n - 1)
-        let py := 86 - min 76 (sc * 76 / scale)
-        some s!"{px},{py}"
-      | none => none
+    let coords := ordered.map fun (clk, sc) =>
+      let px := xOf clk
+      let py := yBot - min ySpan (sc * ySpan / scale)
+      s!"{px},{py}"
     if coords.length ≥ 2 then
       nodes := nodes.push (el .polyline [
         kv .points (String.intercalate " " coords),
         kv .fill "none", kv .stroke "#7ee787", kv .strokeWidth "2"
       ] [])
-    else if let some (_, sc) := ordered.head? then
-      let py := 86 - min 76 (sc * 76 / scale)
+    else if let some (clk, sc) := ordered.head? then
+      let px := xOf clk
+      let py := yBot - min ySpan (sc * ySpan / scale)
       nodes := nodes.push (el .circle [
-        kv .cx "200", kv .cy (toString py), kv .r "3.5", kv .fill "#7ee787"
+        kv .cx (toString px), kv .cy (toString py), kv .r "3.5", kv .fill "#7ee787"
       ] [])
+    let minLabel := formatNatCommas minClk
+    let maxLabel := formatNatCommas maxClk
+    nodes := nodes.push (el .text [
+      kv .x (toString xLeft), kv .y "96", kv .fill "#7d8997", kv .fontSize "8.5", kv .textAnchor "start"
+    ] [txt s!"step {minLabel}"])
+    nodes := nodes.push (el .text [
+      kv .x (toString ((xLeft + xRight) / 2)), kv .y "96", kv .fill "#7d8997", kv .fontSize "8.5", kv .textAnchor "middle"
+    ] [txt "log₁₀ lifetime clock"])
+    nodes := nodes.push (el .text [
+      kv .x (toString xRight), kv .y "96", kv .fill "#7d8997", kv .fontSize "8.5", kv .textAnchor "end"
+    ] [txt s!"step {maxLabel}"])
   return el .svg [
     kv .cls "block", kv .viewBox s!"0 0 {width} {height}",
-    kv .role "img", kv .ariaLabel "Predictive agreement score over lifetime buckets"
+    kv .role "img", kv .ariaLabel "Cumulative predictive agreement score on a logarithmic lifetime-clock axis"
   ] nodes.toList
 
 private def renderPlasticitySvg (samples : List HistorySample) : Node := Id.run do
@@ -930,13 +1200,89 @@ private def renderLifetimeHistorySvg (frame : ServerFrame) : Node := Id.run do
     kv .role "img", kv .ariaLabel "Lifetime error and reward across logarithmic step buckets"
   ] nodes.toList
 
-private def learnerDetailNode (title : String) (alphas : Array Scalar) (credits : Array Nat) : Node :=
+structure OptionLabel where
+  shortName : String
+  target : String
+  fullLabel : String
+
+def optionSlotLabel (policy : SubtaskPolicy) (skillNames : Array String)
+    (subtaskUnit : Array (Option Nat)) (subtaskBonus : Array Scalar)
+    (idx : Nat) : OptionLabel :=
+  match policy with
+  | .handAuthored =>
+    let raw := skillNames[idx]?.getD s!"option {idx + 1}"
+    let target := "hand-authored potential"
+    { shortName := raw, target, fullLabel := s!"{raw} ({target})" }
+  | .learned =>
+    let shortName := s!"option {idx + 1}"
+    let target := match subtaskUnit[idx]?.join with
+      | some unit =>
+        let bonus := (subtaskBonus[idx]?.getD .nonFinite).formatFixed 3
+        s!"→ unit {formatNatCommas unit} · bonus {bonus}"
+      | none => "neutral · no ranked feature yet"
+    { shortName, target, fullLabel := s!"{shortName} · {target}" }
+
+theorem optionSlotLabel_learned_ignores_skillNames (skillNames1 skillNames2 : Array String)
+    (subtaskUnit : Array (Option Nat)) (subtaskBonus : Array Scalar) (idx : Nat) :
+    optionSlotLabel .learned skillNames1 subtaskUnit subtaskBonus idx =
+      optionSlotLabel .learned skillNames2 subtaskUnit subtaskBonus idx := rfl
+
+private def metaActionLabels (f : ServerFrame) : Array String :=
+  #["primitive",
+    (optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus 0).shortName,
+    (optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus 1).shortName,
+    (optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus 2).shortName]
+
+private def formatMillionths (u : Nat) : String :=
+  toString (u / 1000000) ++ "." ++ padLeftZero 6 (toString (u % 1000000))
+
+private def formatStepRange (first last : Option Nat) : String :=
+  match first, last with
+  | some a, some b =>
+    if a == b then formatNatCommas a else s!"{formatNatCommas a}–{formatNatCommas b}"
+  | some a, none => formatNatCommas a
+  | none, some b => formatNatCommas b
+  | none, none => "—"
+
+private def formatEnvelope (horizon : Scalar) : String :=
+  match horizon with
+  | .nonFinite => "⚠ non-finite"
+  | .finite d => (Scalar.finite { d with mantissa := 2 * d.mantissa }).formatCompact 3
+
+private def namedLearnerDetailNode (title : String) (names : Array String)
+    (alphas : Array Scalar) (credits : Array Nat) : Node :=
   let lines := (List.range alphas.size).map fun idx =>
+    let nm := names[idx]?.getD s!"#{idx + 1}"
     let a := (alphas[idx]?.getD .nonFinite).formatCompact 4
     let c := formatNatCommas (credits[idx]?.getD 0)
-    s!"#{idx + 1}: α={a} · credit={c}"
+    s!"{nm}: α={a} · credit={c}"
   el .details [kv .cls "learner-detail"] [
     el .summary [] [txt s!"{title} ({alphas.size} heads)"],
+    el .pre [] [txt (String.intercalate "\n" lines)]
+  ]
+
+private def modelLearnerDetailNode (title : String) (f : ServerFrame) : Node :=
+  let slotKind (s : Nat) : String :=
+    match s with
+    | 0 => "reward"
+    | 1 => "continuation"
+    | _ => "duration"
+  let lines := (List.range f.alphaModels.size).map fun idx =>
+    let optIdx := idx / 3
+    let slot := idx % 3
+    let optName := (optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus optIdx).shortName
+    let kind := slotKind slot
+    if f.controlCriterion == .discounted && slot == 2 then
+      s!"{optName} {kind}: unused (discounted)"
+    else
+      let a := (f.alphaModels[idx]?.getD .nonFinite).formatCompact 4
+      let c := formatNatCommas (f.creditModels[idx]?.getD 0)
+      s!"{optName} {kind}: α={a} · credit={c}"
+  let countLabel := match f.controlCriterion with
+    | .discounted => "6 active, 3 unused discounted"
+    | .differential => s!"{f.alphaModels.size} heads"
+  el .details [kv .cls "learner-detail"] [
+    el .summary [] [txt s!"{title} ({countLabel})"],
     el .pre [] [txt (String.intercalate "\n" lines)]
   ]
 
@@ -1041,6 +1387,56 @@ private def goalHeadlineDisplay (gp : GoalProgressSnapshot) (stopped : Bool) : G
       tileCaption := "Unavailable"
       currentProgress := "Current pass progress unavailable" }
 
+inductive CurriculumRowState where
+  | invalid
+  | achieved (steps : Nat) (failed : Nat)
+  | failed (attempts : Nat)
+  | active (attempt : Nat) (attemptCap : Nat) (failed : Nat)
+  | stoppedUnresolved (failed : Nat)
+  | queued
+  deriving DecidableEq, BEq
+
+def classifyCurriculumRow (invalid stopped : Bool) (idx resolved attempt attemptCap failed : Nat)
+    (succ : Option Nat) : CurriculumRowState :=
+  if invalid then .invalid
+  else if idx < resolved then
+    match succ with
+    | some steps => .achieved steps failed
+    | none => .failed failed
+  else if stopped then
+    .stoppedUnresolved failed
+  else if idx == resolved then
+    .active attempt attemptCap failed
+  else
+    .queued
+
+theorem classifyCurriculumRow_invalid (stopped : Bool) (idx resolved attempt attemptCap failed : Nat)
+    (succ : Option Nat) :
+    classifyCurriculumRow true stopped idx resolved attempt attemptCap failed succ = .invalid := rfl
+
+theorem classifyCurriculumRow_resolved_failed (stopped : Bool)
+    (idx resolved attempt attemptCap failed : Nat) (hRes : idx < resolved) :
+    classifyCurriculumRow false stopped idx resolved attempt attemptCap failed none = .failed failed := by
+  simp [classifyCurriculumRow, hRes]
+
+theorem classifyCurriculumRow_resolved_achieved (stopped : Bool)
+    (idx resolved attempt attemptCap failed steps : Nat) (hRes : idx < resolved) :
+    classifyCurriculumRow false stopped idx resolved attempt attemptCap failed (some steps) =
+      .achieved steps failed := by
+  simp [classifyCurriculumRow, hRes]
+
+theorem classifyCurriculumRow_stopped_not_active (invalid : Bool)
+    (idx resolved attempt attemptCap failed : Nat) (succ : Option Nat)
+    (a cap f : Nat) :
+    classifyCurriculumRow invalid true idx resolved attempt attemptCap failed succ ≠
+      .active a cap f := by
+  cases invalid with
+  | true => simp [classifyCurriculumRow]
+  | false =>
+    by_cases hRes : idx < resolved
+    · cases succ <;> simp [classifyCurriculumRow, hRes]
+    · simp [classifyCurriculumRow, hRes]
+
 private def renderGoalSidebar (agOpt : Option AgreementSnapshot) (selectedIsEarlier : Bool) : Node :=
   match agOpt with
   | none =>
@@ -1059,14 +1455,20 @@ private def renderGoalSidebar (agOpt : Option AgreementSnapshot) (selectedIsEarl
       let nm := gp.curriculumNames[idx]?.getD s!"Goal {idx + 1}"
       let failed := gp.curriculumFailed[idx]?.getD 0
       let succ := gp.curriculumSuccessSteps[idx]?.join
-      let isCur := idx == gp.activeGoal
-      let (stCls, statusText) :=
-        match succ with
-        | some steps => ("st ok", s!"solved in {formatNatCommas steps} steps")
-        | none =>
-          if isCur then ("st run", s!"attempt {gp.attempt + 1}/{gp.attemptCap}")
-          else if failed ≥ gp.attemptCap then ("st no", s!"{failed} failed")
-          else ("st wait", if failed > 0 then s!"{failed} failed" else "queued")
+      let rowState := classifyCurriculumRow gp.invalid ag.stopped idx gp.resolved
+        gp.attempt gp.attemptCap failed succ
+      let (isCur, stCls, statusText) := match rowState with
+        | .invalid => (false, "st invalid", "unavailable (invalid)")
+        | .achieved steps f =>
+          let failSuffix := if f > 0 then s!" ({f} failed)" else ""
+          (false, "st ok", s!"solved in {formatNatCommas steps} steps{failSuffix}")
+        | .failed f => (false, "st no", s!"failed ({f}/{gp.attemptCap})")
+        | .active att cap f =>
+          let failSuffix := if f > 0 then s!" · {f} failed" else ""
+          (true, "st run", s!"attempt {att + 1}/{cap}{failSuffix}")
+        | .stoppedUnresolved f =>
+          (false, "st wait", if f > 0 then s!"{f} failed · stopped" else "not reached · stopped")
+        | .queued => (false, "st wait", "queued")
       el .div [kv .cls (if isCur then "goal cur" else "goal")] [
         el .span [kv .cls stCls] [],
         el .span [kv .cls "nm"] [txt s!"{idx + 1}. {nm}"],
@@ -1126,10 +1528,24 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
   let summaries := observer.summaries.values
   let bufferedCount := summaries.length
   let latestFrame := observer.latest
-  let proj := projectDisplay summaries latestFrame query
+  let proj := projectDisplay lifecycle.identityValue summaries latestFrame query
   let clampedIdx := proj.clampedIdx
   let displaySummary := proj.displaySummary
-  let curOneBased := (clampedIdx.map (· + 1)).getD 1
+  let curIdx := clampedIdx.getD 0
+  let curPosOneBased := (clampedIdx.map (· + 1)).getD 1
+  let oldestId := (summaries[0]?.map (·.admittedId)).getD 0
+  let newestId := (summaries[bufferedCount - 1]?.map (·.admittedId)).getD 0
+  let curAdmittedId := (displaySummary.map (·.admittedId)).getD 0
+  let curIdLabel := if curAdmittedId > 0 then s!"#{formatNatCommas curAdmittedId}" else s!"#{curPosOneBased}"
+  let newestIdLabel := if newestId > 0 then s!"#{formatNatCommas newestId}" else s!"#{bufferedCount}"
+  let pinnedQuery : ViewQuery :=
+    match query.mode, proj.selectionStatus with
+    | .paused, .matched id =>
+      { query with
+        frame := some id
+        run := some lifecycle.identityValue.run
+        epoch := some lifecycle.identityValue.agentEpoch.toNat }
+    | _, _ => query
   let isRunning := match phase with | .running _ => true | _ => false
   let detailReason := match snapshot.detail with
     | some d => controlReason lifecycle d
@@ -1144,7 +1560,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     | none => false
   let liveness := observer.streamLiveness lifecycle unaskedStop snapshot.runningSinceMonoMs nowMonoMs
   let refreshSecs := effectiveRefreshSeconds phase query
-  let refreshTarget := { query with
+  let refreshTarget := { pinnedQuery with
     watch := match phase with | .starting _ | .stopping _ | .archiving => query.watch | _ => false
   }
   let headNodes : List Node :=
@@ -1162,8 +1578,8 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
   let lifeStat := match displaySummary with
     | some s => formatNatCommas s.lifetimeStep
     | none => "—"
-  let worldStatLabel := if proj.selectedIsEarlier then s!"world · #{curOneBased}" else "world"
-  let lifeStatLabel := if proj.selectedIsEarlier then s!"lifetime · #{curOneBased}" else "agent lifetime"
+  let worldStatLabel := if proj.selectedIsEarlier then s!"world · {curIdLabel}" else "world"
+  let lifeStatLabel := if proj.selectedIsEarlier then s!"lifetime · {curIdLabel}" else "agent lifetime"
   let rateStat :=
     if !isRunning then "— frames/s"
     else match observer.framesPerSecondTenths nowMonoMs with
@@ -1256,18 +1672,26 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         el .form [kv .method "POST", kv .action "/control/form", kv .cls "ctl-form"]
           ([vd .input [kv .type "hidden", kv .name "token", kv .value token],
             vd .input [kv .type "hidden", kv .name "cmd", kv .value primaryCmd]] ++
-            hiddenViewInputs query ++
+            hiddenViewInputs pinnedQuery ++
             [el .button primaryBtnAttrs [txt label.action]]),
         el .form [kv .method "POST", kv .action "/control/form", kv .cls "ctl-form"]
           ([vd .input [kv .type "hidden", kv .name "token", kv .value token],
             vd .input [kv .type "hidden", kv .name "cmd", kv .value "clear"]] ++
-            hiddenViewInputs query ++
+            hiddenViewInputs pinnedQuery ++
             [el .button clearBtnAttrs [txt "Clear"]]),
         el .span runstateAttrs [txt label.state]
       ],
       el .span [kv .id "conn", kv .cls connBadge.1] [txt connBadge.2]
     ]
   ]
+  let liveHref := { query with mode := .live, frame := none, run := none, epoch := none }.href
+  let pauseCurrentHref :=
+    { query with
+      mode := .paused
+      frame := if curAdmittedId > 0 then some curAdmittedId else none
+      run := some lifecycle.identityValue.run
+      epoch := some lifecycle.identityValue.agentEpoch.toNat
+      stream := false }.href
   let noticeNode := match notice with
     | none => .empty
     | some n =>
@@ -1277,7 +1701,51 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         | .unconfirmed reason => s!"Stop durability unconfirmed: {reason}"
       el .div [kv .cls "notice-banner", kv .role "alert"] [
         el .span [] [txt msg],
-        el .a [kv .cls "btn", kv .href query.href] [txt "Dismiss"]
+        el .a [kv .cls "btn", kv .href pinnedQuery.href] [txt "Dismiss"]
+      ]
+  let selectionNoticeNode : Node := match proj.selectionStatus with
+    | .live | .matched _ | .emptyBuffer none => .empty
+    | .identityReset reqRun reqEpoch =>
+      let reqRunText := match reqRun with | some r => runHex r | none => "any"
+      let reqEpText := match reqEpoch with | some e => toString e | none => "any"
+      el .div [kv .id "selection-notice", kv .cls "diag-banner fault", kv .role "alert"] [
+        el .div [kv .cls "diag-head"] [
+          txt s!"Paused selection reset: URL targeted run {reqRunText} · ep {reqEpText}, but the active run is {runHex lifecycle.identityValue.run} · ep {lifecycle.identityValue.agentEpoch}. Displaying current run state."
+        ],
+        el .div [kv .cls "legend-row"] [
+          el .a [kv .cls "btn", kv .href liveHref] [txt "Switch to Live"],
+          whenNode (curAdmittedId > 0)
+            (el .a [kv .cls "btn", kv .href pauseCurrentHref] [txt s!"Pause on {curIdLabel}"])
+        ]
+      ]
+    | .evicted reqId oldId newId =>
+      el .div [kv .id "selection-notice", kv .cls "diag-banner", kv .role "alert"] [
+        el .div [kv .cls "diag-head"] [
+          txt s!"Capture #{formatNatCommas reqId} was evicted from the {bufferedCount}-frame buffer (retained captures: #{formatNatCommas oldId}–#{formatNatCommas newId}); displaying oldest retained capture #{formatNatCommas oldId}."
+        ],
+        el .div [kv .cls "legend-row"] [
+          el .a [kv .cls "btn", kv .href pauseCurrentHref] [txt s!"Pin #{formatNatCommas oldId}"],
+          el .a [kv .cls "btn", kv .href liveHref] [txt "Switch to Live"]
+        ]
+      ]
+    | .outOfRange reqId oldId newId =>
+      el .div [kv .id "selection-notice", kv .cls "diag-banner", kv .role "alert"] [
+        el .div [kv .cls "diag-head"] [
+          txt s!"Capture #{formatNatCommas reqId} is outside the retained buffer (#{formatNatCommas oldId}–#{formatNatCommas newId}); displaying newest retained capture #{formatNatCommas newId}."
+        ],
+        el .div [kv .cls "legend-row"] [
+          el .a [kv .cls "btn", kv .href pauseCurrentHref] [txt s!"Pin #{formatNatCommas newId}"],
+          el .a [kv .cls "btn", kv .href liveHref] [txt "Switch to Live"]
+        ]
+      ]
+    | .emptyBuffer (some reqId) =>
+      el .div [kv .id "selection-notice", kv .cls "diag-banner", kv .role "alert"] [
+        el .div [kv .cls "diag-head"] [
+          txt s!"Capture #{formatNatCommas reqId} is unavailable because no frames are buffered for this run yet."
+        ],
+        el .div [kv .cls "legend-row"] [
+          el .a [kv .cls "btn", kv .href liveHref] [txt "Switch to Live"]
+        ]
       ]
   let showDiagnostic :=
     (phase == .idle || unaskedStop || termWarning.isSome || !tailLines.isEmpty) &&
@@ -1299,7 +1767,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         whenNode (!tailLines.isEmpty)
           (el .pre [kv .cls "tail"] [txt (String.intercalate "\n" tailLines)])
       ]
-  let insideHref := { query with inside := true }.href ++ "#research"
+  let insideHref := { pinnedQuery with inside := true }.href ++ "#research"
   let welcomeSection := el .section [kv .id "welcome", kv .ariaLabel "Welcome to Acorn"] [
     el .div [] [
       el .h2 [] [txt "Watch an agent find its way."],
@@ -1324,9 +1792,9 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       let gName := (observer.agreement.bind (·.goalProgress.curriculumNames[s.goal]?)).getD s!"Goal {s.goal + 1}"
       let gCount := match observer.agreement with | some ag => toString ag.goalProgress.goalCount | none => "?"
       let termTag := (if s.terminal then " · terminal" else "") ++ (if s.done then " · done" else "")
-      (s!"goal at frame #{curOneBased}",
+      (s!"goal at capture {curIdLabel}",
        gName,
-       s!"goal {s.goal + 1}/{gCount} · cycle {s.cycle + 1}{termTag} (attempt/tier & target coordinates retained for newest frame only)")
+       s!"goal {s.goal + 1}/{gCount} · cycle {s.cycle + 1}{termTag} (attempt/tier & target coordinates retained for newest capture only)")
     | none, none =>
       ("current goal", "—", "Waiting for frames from acorn-core")
   let hudTod := match displaySummary with
@@ -1340,8 +1808,8 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     else match query.mode, clampedIdx with
       | .paused, some idx =>
         let behind := bufferedCount - 1 - idx
-        if behind > 0 then s!"PAUSED #{idx + 1}/{bufferedCount} · {behind} behind newest"
-        else s!"PAUSED #{idx + 1}/{bufferedCount} (newest)"
+        if behind > 0 then s!"PAUSED {curIdLabel} ({idx + 1}/{bufferedCount} · {behind} behind newest)"
+        else s!"PAUSED {curIdLabel} (newest)"
       | _, _ =>
         match liveness with
         | .live =>
@@ -1378,8 +1846,8 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           renderStageSvg snapshot.world proj.selectedFull s proj.trailSummaries,
           whenNode proj.selectedIsEarlier
             (el .div [kv .cls "stage-caption"] [
-              el .span [] [txt s!"Historical frame #{curOneBased}: pose, facing, trail up to frame #{curOneBased}, and daylight over retained run terrain memory."],
-              el .span [] [txt "11 × 11 sensor overlay, transient entities, and target coordinates are retained for newest frame only."]
+              el .span [] [txt s!"Historical capture {curIdLabel}: pose, facing, trail up to capture {curIdLabel}, and daylight over retained run terrain memory."],
+              el .span [] [txt "11 × 11 sensor overlay, transient entities, and target coordinates are retained for newest capture only."]
             ])
         ]
       | none =>
@@ -1394,6 +1862,9 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         ]
   let vitalsNodes : List Node := match proj.selectedFull with
     | some f =>
+      let maxEnergy := Acorn.FeatureConstants.energyMax
+      let energyLow := f.energy ≤ Acorn.FeatureConstants.energyLow
+      let exhausted := (f.ev &&& 16) != 0
       let inv := [
         el .span (if f.wood == 0 then [kv .cls "off"] else []) [txt s!"wood {f.wood}"],
         el .span (if f.stone == 0 then [kv .cls "off"] else []) [txt s!"stone {f.stone}"],
@@ -1402,31 +1873,47 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         el .span (if !f.axe then [kv .cls "off"] else []) [txt (if f.axe then "axe ✓" else "axe —")],
         el .span (if !f.boat then [kv .cls "off"] else []) [txt (if f.boat then "boat ✓" else "boat —")]
       ]
-      [el .span [kv .title "energy"] [txt "⚡"],
-       el .progress [kv .cls "energy-bar", kv .value (toString (min 100 f.energy)), kv .max "100"] [],
-       el .span [kv .cls "inv"] inv]
+      [el .span [kv .title s!"energy {formatNatCommas f.energy} / {formatNatCommas maxEnergy}"] [txt "⚡"],
+       el .progress [
+         kv .cls "energy-bar",
+         kv .value (toString (min maxEnergy f.energy)),
+         kv .max (toString maxEnergy),
+         kv .title s!"{formatNatCommas f.energy} / {formatNatCommas maxEnergy} ({formatPercent1 f.energy maxEnergy})"
+       ] [],
+       el .span [kv .cls (if energyLow then "broken" else "legend")]
+         [txt s!"{formatNatCommas f.energy}/{formatNatCommas maxEnergy}"],
+       el .span [kv .cls "inv"] inv,
+       whenNode exhausted
+         (el .span [kv .cls "pill cleared", kv .title "Exhausted — resting to recover energy"] [txt "💤 resting"])]
     | none =>
       let msg := if proj.selectedIsEarlier then
-          "vitals & inventory retained for newest frame only"
+          "vitals & inventory retained for newest capture only"
         else
           "energy — · inventory — (unavailable until first frame)"
       [el .span [kv .title "energy"] [txt "⚡"],
        el .span [kv .cls "inv"] [el .span [kv .cls "off"] [txt msg]]]
   let (skillLabel, skillCls, skillSub) := match proj.selectedFull, displaySummary with
     | some f, _ =>
-      let skName := if f.summary.skill < f.skillNames.size then
-        f.skillNames[f.summary.skill]?.getD "—"
-        else "primitive"
-      let skSub := if f.summary.skill < 3 then
-        s!"elapsed {f.optionElapsed} · {f.summary.decisionSource}"
-        else s!"{f.summary.decisionSource}"
-      (skName, optionClass f.summary.skill, skSub)
+      if f.summary.skill < 3 then
+        let lbl := optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus f.summary.skill
+        (lbl.shortName, optionClass f.summary.skill,
+         s!"{lbl.target} · elapsed {f.optionElapsed} · {f.summary.decisionSource}")
+      else
+        ("primitive", optionClass f.summary.skill, s!"{f.summary.decisionSource}")
     | none, some s =>
       let skName :=
         if s.skill < 3 then
-          (latestFrame.bind (·.skillNames[s.skill]?)).getD s!"option {s.skill + 1}"
+          match latestFrame with
+          | some f =>
+            match f.subtaskPolicy with
+            | .handAuthored => (optionSlotLabel .handAuthored f.skillNames f.subtaskUnit f.subtaskBonus s.skill).shortName
+            | .learned => s!"option {s.skill + 1}"
+          | none => s!"option {s.skill + 1}"
         else "primitive"
-      let skSub := if s.explored then s!"{s.decisionSource} · explored" else s.decisionSource
+      let expTag := if s.explored then " · explored" else ""
+      let skSub :=
+        if s.skill < 3 then s!"{s.decisionSource}{expTag} · target retained for newest capture only"
+        else s!"{s.decisionSource}{expTag}"
       (skName, optionClass s.skill, skSub)
     | none, none => ("—", "v none", "no frame yet")
   let stagePanel := el .div [kv .id "stage"] [
@@ -1446,61 +1933,67 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     el .div [kv .id "hud-foot", kv .cls "hudrow"] [
       el .div [kv .cls "hudbox", kv .id "hud-vitals"] vitalsNodes,
       el .div [kv .cls "hudbox", kv .id "hud-skill"] [
-        el .div [kv .cls "lbl"] [txt (if proj.selectedIsEarlier then s!"option at frame #{curOneBased}" else "running option")],
+        el .div [kv .cls "lbl"] [txt (if proj.selectedIsEarlier then s!"option at capture {curIdLabel}" else "running option")],
         el .div [kv .cls skillCls] [txt skillLabel],
         el .div [kv .cls "sub2"] [txt skillSub]
       ]
     ]
   ]
-  let stepHref (target : Nat) : String :=
-    let bounded := if bufferedCount == 0 then 1 else max 1 (min bufferedCount target)
-    { query with mode := .paused, frame := some bounded, stream := false }.href
-  let liveHref := { query with mode := .live, frame := none }.href
-  let pauseHref := { query with mode := .paused, frame := some curOneBased, stream := false }.href
+  let stepHref (targetIdx : Nat) : String :=
+    let boundedIdx := if bufferedCount == 0 then 0 else min (bufferedCount - 1) targetIdx
+    let targetId := summaries[boundedIdx]?.map (·.admittedId)
+    { query with
+      mode := .paused
+      frame := targetId
+      run := some lifecycle.identityValue.run
+      epoch := some lifecycle.identityValue.agentEpoch.toNat
+      stream := false }.href
   let transportSummary :=
     if bufferedCount == 0 then "0 buffered frames"
     else if proj.selectedIsEarlier then
-      s!"Showing buffered frame {curOneBased} of {bufferedCount} ({bufferedCount - curOneBased} behind newest · {formatNatCommas observer.admittedCount} admitted) — summary fields reflect frame #{curOneBased}; full-frame panels are labelled newest frame or lifetime"
+      s!"Showing capture {curIdLabel} (buffer {curPosOneBased}/{bufferedCount} · {bufferedCount - curPosOneBased} behind newest {newestIdLabel} · {formatNatCommas observer.admittedCount} admitted) — summary fields reflect capture {curIdLabel}; full-frame panels are labelled newest capture or lifetime"
     else
-      s!"Showing buffered frame {curOneBased} of {bufferedCount} ({formatNatCommas observer.admittedCount} admitted)"
+      s!"Showing capture {curIdLabel} (buffer {curPosOneBased}/{bufferedCount} · {formatNatCommas observer.admittedCount} admitted)"
   let transportPanel := el .div [kv .cls "panel"] [
     el .h2 [] [txt "Transport & zero-JS view controls"],
     el .div [kv .id "transport"] [
       el .a [kv .cls (if query.mode == .live then "btn livebtn active" else "btn livebtn"),
         kv .href liveHref] [txt "Live"],
       el .a [kv .cls (if query.mode == .paused then "btn active" else "btn"),
-        kv .href pauseHref] [txt "Pause"],
-      el .a [kv .cls "btn", kv .href (stepHref 1)] [txt "⏮"],
-      el .a [kv .cls "btn", kv .href (stepHref (curOneBased - 10))] [txt "◀ -10"],
-      el .a [kv .cls "btn", kv .href (stepHref (curOneBased - 1))] [txt "◀ -1"],
-      el .a [kv .cls "btn", kv .href (stepHref (curOneBased + 1))] [txt "+1 ▶"],
-      el .a [kv .cls "btn", kv .href (stepHref (curOneBased + 10))] [txt "+10 ▶"],
-      el .a [kv .cls "btn", kv .href (stepHref (max 1 bufferedCount))] [txt "⏭"],
+        kv .href pauseCurrentHref] [txt "Pause"],
+      el .a [kv .cls "btn", kv .href (stepHref 0)] [txt "⏮"],
+      el .a [kv .cls "btn", kv .href (stepHref (curIdx - 10))] [txt "◀ -10"],
+      el .a [kv .cls "btn", kv .href (stepHref (curIdx - 1))] [txt "◀ -1"],
+      el .a [kv .cls "btn", kv .href (stepHref (curIdx + 1))] [txt "+1 ▶"],
+      el .a [kv .cls "btn", kv .href (stepHref (curIdx + 10))] [txt "+10 ▶"],
+      el .a [kv .cls "btn", kv .href (stepHref (bufferedCount - 1))] [txt "⏭"],
       el .form [kv .method "GET", kv .action "/", kv .cls "jump-form"] [
         vd .input [kv .type "hidden", kv .name "view", kv .value "paused"],
+        vd .input [kv .type "hidden", kv .name "run", kv .value (runHex lifecycle.identityValue.run)],
+        vd .input [kv .type "hidden", kv .name "epoch", kv .value (toString lifecycle.identityValue.agentEpoch)],
         whenNode (query.refresh != .auto)
           (vd .input [kv .type "hidden", kv .name "refresh", kv .value query.refresh.tag]),
         whenNode query.inside (vd .input [kv .type "hidden", kv .name "inside", kv .value "1"]),
         vd .input [kv .type "number", kv .name "frame", kv .cls "jump-input",
-          kv .min "1", kv .max (toString (max 1 bufferedCount)),
-          kv .value (toString curOneBased), kv .ariaLabel "Buffered frame index"],
+          kv .min (toString (max 1 oldestId)), kv .max (toString (max 1 newestId)),
+          kv .value (toString (max 1 curAdmittedId)), kv .ariaLabel "Admitted capture ID"],
         el .button [kv .type "submit", kv .cls "btn"] [txt "Jump"]
       ],
       el .span [kv .cls "legend"] [txt "Refresh:"],
       el .a [kv .cls (if query.refresh == .auto then "btn active" else "btn"),
-        kv .href { query with refresh := .auto }.href] [txt "Auto"],
+        kv .href { pinnedQuery with refresh := .auto }.href] [txt "Auto"],
       el .a [kv .cls (if query.refresh == .sec1 then "btn active" else "btn"),
-        kv .href { query with refresh := .sec1 }.href] [txt "1s"],
+        kv .href { pinnedQuery with refresh := .sec1 }.href] [txt "1s"],
       el .a [kv .cls (if query.refresh == .sec2 then "btn active" else "btn"),
-        kv .href { query with refresh := .sec2 }.href] [txt "2s"],
+        kv .href { pinnedQuery with refresh := .sec2 }.href] [txt "2s"],
       el .a [kv .cls (if query.refresh == .sec5 then "btn active" else "btn"),
-        kv .href { query with refresh := .sec5 }.href] [txt "5s"],
+        kv .href { pinnedQuery with refresh := .sec5 }.href] [txt "5s"],
       el .a [kv .cls (if query.refresh == .off then "btn active" else "btn"),
-        kv .href { query with refresh := .off }.href] [txt "Off"],
+        kv .href { pinnedQuery with refresh := .off }.href] [txt "Off"],
       el .a [kv .cls (if !query.stream then "btn active" else "btn"),
-        kv .href { query with stream := false }.href] [txt "SVG Stage"],
+        kv .href { pinnedQuery with stream := false }.href] [txt "SVG Stage"],
       el .a [kv .cls (if query.stream then "btn active" else "btn"),
-        kv .href { query with stream := true, mode := .live, frame := none }.href] [txt "Live Stream (BMP)"],
+        kv .href { query with stream := true, mode := .live, frame := none, run := none, epoch := none }.href] [txt "Live Stream (BMP)"],
       el .a [kv .cls "btn", kv .href "/stage.bmp"] [txt "BMP Snapshot"]
     ],
     el .div [kv .cls "legend-row"] [
@@ -1516,6 +2009,13 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       ]
     ]
   ]
+  let ribbonOptionLegend : List Node :=
+    (List.range 3).map fun idx =>
+      let swatchCls := match idx with | 0 => "swatch sw-opt1" | 1 => "swatch sw-opt2" | _ => "swatch sw-opt3"
+      let text := match latestFrame with
+        | some f => (optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus idx).fullLabel
+        | none => s!"option {idx + 1}"
+      el .span [kv .cls "legend"] [el .span [kv .cls swatchCls] [], txt text]
   let ribbonPanel := el .div [kv .cls "panel"] [
     el .h2 [] [txt "Temporal abstraction — which option is running, and for how long"],
     el .div [kv .cls "lede"] [
@@ -1530,12 +2030,9 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       ]
     ],
     renderRibbonSvg summaries (if query.mode == .paused then clampedIdx else none),
-    el .div [kv .cls "legend-row"] [
-      el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-opt1"] [], txt "option 1"],
-      el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-opt2"] [], txt "option 2"],
-      el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-opt3"] [], txt "option 3"],
+    el .div [kv .cls "legend-row"] (ribbonOptionLegend ++ [
       el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-goal"] [], txt "goal change"]
-    ]
+    ])
   ]
   let mapHistoryText := match snapshot.world with
     | some ⟨_, mem⟩ =>
@@ -1570,8 +2067,8 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     | none => "No terrain map yet"
   let worldPanels := el .div [kv .id "world-panels"] [
     el .div [kv .cls "panel"] [
-      el .h2 [] [txt (if proj.selectedIsEarlier then s!"What the agent sees · frame #{curOneBased} summary" else "What the agent sees (11 × 11 sensor)")],
-      el .div [kv .cls "lede"] [txt (if proj.selectedIsEarlier then s!"Position, facing, and action reflect frame #{curOneBased}. The 11 × 11 sensor patch is retained for newest frame #{bufferedCount} only." else "Egocentric terrain, food (orange) and deer (brown) within the 11 × 11 sensor patch.")],
+      el .h2 [] [txt (if proj.selectedIsEarlier then s!"What the agent sees · capture {curIdLabel} summary" else "What the agent sees (11 × 11 sensor)")],
+      el .div [kv .cls "lede"] [txt (if proj.selectedIsEarlier then s!"Position, facing, and action reflect capture {curIdLabel}. The 11 × 11 sensor patch is retained for newest capture {newestIdLabel} only." else "Egocentric terrain, food (orange) and deer (brown) within the 11 × 11 sensor patch.")],
       kvRow "position" (match displaySummary with | some s => s!"({s.x}, {s.y})" | none => "—"),
       kvRow "facing" (match displaySummary with
         | some s => match s.facing with | 0 => "north" | 1 => "south" | 2 => "east" | _ => "west"
@@ -1591,7 +2088,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     ],
     el .div [kv .cls "panel"] [
       el .h2 [] [txt "Big world overview"],
-      el .div [kv .cls "lede"] [txt (if proj.selectedIsEarlier then s!"Retained run terrain memory (through newest frame #{bufferedCount}); white marker shows selected frame #{curOneBased} pose." else "Retained terrain memory across the world (persisted in explored.map).")],
+      el .div [kv .cls "lede"] [txt (if proj.selectedIsEarlier then s!"Retained run terrain memory (through newest capture {newestIdLabel}); white marker shows selected capture {curIdLabel} pose." else "Retained terrain memory across the world (persisted in explored.map).")],
       kvRow "explored" seenStat,
       kvRow "world side" worldSideText,
       kvRow "map history" mapHistoryText,
@@ -1602,20 +2099,28 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
   let insideNodes : List Node :=
     let liveLit := liveness == .live && query.mode == .live && !proj.selectedIsEarlier
     let missionStrip :=
-      let (fOn, sOn, oOn, mOn, pOn, fVal, sVal, oVal, mVal, pVal) := match latestFrame with
+      let (fOn, sOn, oOn, mOn, pOn, fVal, sVal, oVal, oCap, mVal, mCap, pVal) := match latestFrame with
         | some f =>
           let fLive : Bool := liveLit && observer.retireChangedAt == some observer.admittedCount
           let sLive : Bool := liveLit && observer.subtaskChangedAt == some observer.admittedCount
           let oLive : Bool := liveLit && decide (f.summary.skill < 3)
           let mLive : Bool := liveLit && decide (f.summary.optionEndSkill < 3)
           let pLive : Bool := liveLit && observer.planningChangedAt == some observer.admittedCount
+          let (optName, optCap) :=
+            if f.summary.skill < 3 then
+              let lbl := optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus f.summary.skill
+              (lbl.shortName, lbl.target)
+            else ("primitive", "Committed temporal skills")
+          let modCap := match f.controlCriterion with
+            | .discounted => "Reward & γ (discounted)"
+            | .differential => "Reward, γ & duration"
           (fLive, sLive, oLive, mLive, pLive,
            s!"{formatNatCommas f.imprintUnits} units · {formatNatCommas f.retireCount} retired",
-           s!"{f.subtaskPolicy}",
-           if f.summary.skill < 3 then f.skillNames[f.summary.skill]?.getD "active" else "primitive",
-           s!"3 option models",
+           f.subtaskPolicy.tag,
+           optName, optCap,
+           "3 option models", modCap,
            s!"{formatNatCommas f.planningSteps} backups")
-        | none => (false, false, false, false, false, "—", "—", "—", "—", "—")
+        | none => (false, false, false, false, false, "—", "—", "—", "Committed temporal skills", "—", "Reward & γ", "—")
       let agScoreStr := match observer.agreement with
         | some ag => ag.text.getD (formatPermilleScore ag.score ag.scale)
         | none => "—"
@@ -1628,10 +2133,10 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
         | some s => s.aCtl.formatCompact 4
         | none => "—"
       let oakHeading := if proj.selectedIsEarlier then
-          s!"OaK loop (FC-STOMP · newest frame #{bufferedCount})"
+          s!"OaK loop (FC-STOMP · newest capture {newestIdLabel})"
         else "OaK loop (FC-STOMP)"
       let plastCaption := if proj.selectedIsEarlier then
-          s!"SwiftTD step size · frame #{curOneBased}"
+          s!"SwiftTD step size · capture {curIdLabel}"
         else "SwiftTD step size"
       el .div [kv .id "mission"] [
         el .div [kv .cls "panel thesis"] [
@@ -1652,11 +2157,11 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             ],
             el .div [kv .cls (if oOn then "node on" else "node")] [
               el .div [kv .cls "t"] [txt "3. Options"], el .div [kv .cls "v"] [txt oVal],
-              el .div [kv .cls "c"] [txt "Committed temporal skills"]
+              el .div [kv .cls "c"] [txt oCap]
             ],
             el .div [kv .cls (if mOn then "node on" else "node")] [
               el .div [kv .cls "t"] [txt "4. Models"], el .div [kv .cls "v"] [txt mVal],
-              el .div [kv .cls "c"] [txt "Reward, gamma & duration"]
+              el .div [kv .cls "c"] [txt mCap]
             ],
             el .div [kv .cls (if pOn then "node on" else "node"), kv .id "n_planning"] [
               el .div [kv .cls "t"] [txt "5. Planning"], el .div [kv .cls "v"] [txt pVal],
@@ -1677,7 +2182,22 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     let knowledgeCol :=
       match observer.agreement, latestFrame with
       | some ag, some f =>
-        let agScoreText := ag.text.getD (formatPermilleScore ag.score ag.scale)
+        let settledChannels := (List.range 11).countP fun i => (ag.channelScore[i]?.join).isSome
+        let hasInvalid := ag.status.any (· == "invalid")
+        let hasSaturated := ag.status.any (· == "saturated")
+        let agScoreText := match ag.score with
+          | some _ => ag.text.getD (formatPermilleScore ag.score ag.scale)
+          | none =>
+            if hasInvalid then "invalid"
+            else if hasSaturated then "saturated"
+            else if ag.stopped then s!"incomplete {settledChannels}/11"
+            else s!"waiting {settledChannels}/11"
+        let agErrText := match ag.error with
+          | some e => formatMillionths e
+          | none => "—"
+        let agStartedText := match ag.started with
+          | some st => s!"step {formatNatCommas st}"
+          | none => "waiting"
         let agStopTag := if ag.stopped then " · stopped" else ""
         let cards := (List.range 11).map fun idx =>
           let name := ag.demonNames[idx]?.getD s!"GVF {idx + 1}"
@@ -1685,9 +2205,24 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           let status := ag.status[idx]?.getD "—"
           let sc := ag.channelText[idx]?.join.getD (formatPermilleScore (ag.channelScore[idx]?.join) ag.scale)
           let hasSc := (ag.channelScore[idx]?.join).isSome
+          let chErr := match ag.channelError[idx]?.join with
+            | some e => formatMillionths e
+            | none => "—"
+          let gammaStr := (ag.demonGamma[idx]?.getD .nonFinite).formatCompact 4
+          let horizonSteps := ag.horizon[idx]?.getD 0
+          let effHorizon := ag.demonHorizon[idx]?.getD .nonFinite
+          let envStr := formatEnvelope effHorizon
           let settled := ag.count[idx]?.getD "0"
           let pend := ag.pending[idx]?.getD 0
           let cens := ag.censored[idx]?.getD "0"
+          let startRange := formatStepRange (ag.startFirst[idx]?.join) (ag.startLast[idx]?.join)
+          let settleRange := formatStepRange (ag.settlementFirst[idx]?.join) (ag.settlementLast[idx]?.join)
+          let tailStr := match ag.tail[idx]?.join with
+            | some t => formatMillionths t
+            | none => "—"
+          let roundStr := match ag.rounding[idx]?.join with
+            | some r => formatMillionths r
+            | none => "—"
           let pred := (f.demons[idx]?.getD .nonFinite).formatCompact 3
           let cum := (f.cums[idx]?.getD .nonFinite).formatCompact 3
           let ret := (f.settledReturn[idx]?.getD .nonFinite).formatCompact 3
@@ -1695,23 +2230,34 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           el .div [kv .cls "agreement-card"] [
             el .h3 [] [txt name],
             el .strong (if hasSc then [kv .cls "has-score"] else []) [txt sc],
-            el .p [] [txt s!"status: {status} · policy: {policy} · settled: {settled} · pending: {pend} · censored: {cens}"],
-            el .p [] [txt s!"newest frame — pred: {pred} · cum: {cum} · return: {ret} · err: {err}"]
+            el .p [] [txt s!"status: {status} · norm. RMSE: {chErr} (lower better)"],
+            el .p [] [txt s!"target: {policy} (actual: evolving behavior) · γ={gammaStr} · H={formatNatCommas horizonSteps} (eff. {effHorizon.formatCompact 2}) · envelope E={envStr}"],
+            el .p [] [txt s!"settled: {settled} · pending: {pend} · censored: {cens}"],
+            el .p [] [txt s!"forecasts: {startRange} · settlements: {settleRange}"],
+            el .p [] [txt s!"allowances — tail: {tailStr} · rounding: {roundStr}"],
+            el .p [] [txt s!"newest capture — pred: {pred} · cum: {cum} · latest settled return: {ret} · err: {err}"]
           ]
         el .div [kv .cls "panel"] [
           el .h2 [] [txt "Knowledge — predictive agreement & GVFs"],
           whenNode proj.selectedIsEarlier
-            (el .div [kv .cls "scope-note"] [txt s!"Scope: process-local agreement snapshot and newest-frame (#{bufferedCount}) GVF/lifetime readouts (independent of paused frame #{curOneBased})."]),
+            (el .div [kv .cls "scope-note"] [txt s!"Scope: process-local agreement snapshot and newest-capture ({newestIdLabel}) GVF/lifetime readouts (independent of paused capture {curIdLabel})."]),
           el .div [kv .cls "agreement-primary"] [
             el .strong (if ag.score.isSome then [kv .cls "has-score"] else []) [txt agScoreText],
             whenNode ag.score.isSome
               (el .progress [kv .value (toString (ag.score.getD 0)), kv .max (toString (max 1 ag.scale))] []),
-            el .div [kv .cls "lede"] [txt s!"Clock {formatNatCommas ag.clock}{agStopTag} · stride {ag.settleStride} · source {(ag.sourceSha.take 12).toString} · build {(ag.buildSha.take 12).toString}"]
+            el .div [kv .cls "lede"] [txt s!"Prediction diagnostic · higher agreement is better (0–100 pts) · norm. RMSE: {agErrText} (lower better)"],
+            el .div [kv .cls "scope-note"] [txt s!"Evaluator start: {agStartedText} · clock: step {formatNatCommas ag.clock}{agStopTag} · stride: {ag.settleStride} · process marker: {formatNatCommas ag.processStartedMs} ms · source {(ag.sourceSha.take 12).toString} · build {(ag.buildSha.take 12).toString}"]
+          ],
+          el .details [kv .cls "cite"] [
+            el .summary [] [txt "scope, envelope & allowances"],
+            el .div [kv .cls "body"] [
+              txt "Process-local cumulative agreement since evaluator start, equal-weighted across all 11 GVF questions normalized by Eᵢ = 2 × admitted binary32 horizon. Finite truncation tail γᴴ/(1−γ) and binary32 return arithmetic allowances are shown separately as upward-rounded normalized bounds (not confidence intervals or outcome-noise estimates). Display text uses hundredths of points (>99.99 / <0.01 near nonzero endpoints; literal 100.00 only for exact zero discrepancy)."
+            ]
           ],
           renderAgreementHistorySvg ag,
           el .h3 [] [txt "Lifetime error (blue) & reward (green) · checkpoint-persistent"],
           renderLifetimeHistorySvg f,
-          el .h3 [] [txt (if proj.selectedIsEarlier then s!"11 General Value Functions · process snapshot & newest frame #{bufferedCount}" else "11 General Value Functions")],
+          el .h3 [] [txt (if proj.selectedIsEarlier then s!"11 General Value Functions · process snapshot & newest capture {newestIdLabel}" else "11 General Value Functions")],
           el .div [kv .cls "agreement-channels"] cards
         ]
       | _, _ =>
@@ -1723,41 +2269,49 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       match latestFrame, displaySummary with
       | some f, some s =>
         let optRows := (List.range 3).map fun idx =>
-          let nm := f.skillNames[idx]?.getD s!"Option {idx + 1}"
+          let lbl := optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus idx
           let started := f.lifetimeOptionStarted[idx]?.getD 0
           let comp := f.lifetimeOptionCompleted[idx]?.getD 0
           let dur := f.lifetimeOptionDuration[idx]?.getD 0
           let meanDur := if comp > 0 then formatDecimal1 (dur * 10 / comp) else "—"
           let mRew := (f.optionModelRewards[idx]?.getD .nonFinite).formatCompact 3
           let mCont := (f.optionModelContinuations[idx]?.getD .nonFinite).formatCompact 3
-          let mDur := (f.optionModelDurations[idx]?.getD .nonFinite).formatCompact 2
+          let mDur := match f.controlCriterion with
+            | .discounted => "N/A (unused)"
+            | .differential => (f.optionModelDurations[idx]?.getD .nonFinite).formatCompact 2
           el .tr [] [
-            el .td [] [txt nm],
+            el .td [] [txt lbl.fullLabel],
             el .td [] [txt s!"{formatNatCommas started}/{formatNatCommas comp}"],
             el .td [] [txt meanDur],
             el .td [] [txt mRew],
             el .td [] [txt mCont],
             el .td [] [txt mDur]
           ]
-        let newestTag := if proj.selectedIsEarlier then s!" · newest frame #{bufferedCount}" else ""
+        let newestTag := if proj.selectedIsEarlier then s!" · newest capture {newestIdLabel}" else ""
+        let (gainText, gainBroken) := match f.controlCriterion with
+          | .discounted => ("N/A (discounted)", false)
+          | .differential => (f.rewardRate.formatCompact 4, !f.rewardRate.isFinite)
+        let criterionLabel := match f.controlCriterion with
+          | .discounted => "discounted"
+          | .differential => "differential (average reward)"
         let rewardRows : List Node :=
           if proj.selectedIsEarlier then
-            [kvRow s!"reward (frame #{curOneBased})" (s.reward.formatCompact 3) (!s.reward.isFinite),
-             kvRow s!"reward rate (newest frame #{bufferedCount})" (f.rewardRate.formatCompact 4) (!f.rewardRate.isFinite)]
+            [kvRow s!"reward (capture {curIdLabel})" (s.reward.formatCompact 3) (!s.reward.isFinite),
+             kvRow s!"reward rate / gain (newest capture {newestIdLabel})" gainText gainBroken]
           else
-            [kvRow "reward / rate" s!"{s.reward.formatCompact 3} / {f.rewardRate.formatCompact 4}" (!s.reward.isFinite || !f.rewardRate.isFinite)]
+            [kvRow "reward / gain" s!"{s.reward.formatCompact 3} / {gainText}" (!s.reward.isFinite || gainBroken)]
         el .div [kv .cls "panel"] (
           [el .h2 [] [txt "Behaviour — values, options & surprise"],
            whenNode proj.selectedIsEarlier
-             (el .div [kv .cls "scope-note"] [txt s!"Decision source, ε, and reward reflect selected frame #{curOneBased}; reward rate, value bars, and option models reflect newest frame #{bufferedCount}."]),
+             (el .div [kv .cls "scope-note"] [txt s!"Decision source, ε, and reward reflect selected capture {curIdLabel}; gain, value bars, and option models reflect newest capture {newestIdLabel}."]),
            kvRow "decision source" s.decisionSource,
            kvRow "exploration (ε)" (s.eps.formatCompact 4) (!s.eps.isFinite)] ++
           rewardRows ++
-          [kvRow "control criterion" (if f.controlCriterion == 0 then "average reward" else "discounted"),
+          [kvRow "control criterion" criterionLabel,
            el .h3 [] [txt s!"Primitive actions (value & probability{newestTag})"],
            renderDivergingBarsSvg f.actionNames f.controlValues f.actionProbs "Primitive action values and probabilities",
            el .h3 [] [txt s!"Meta-controller (value & probability{newestTag})"],
-           renderDivergingBarsSvg f.metaNames f.metaValues f.metaProbs "Meta-action values and probabilities",
+           renderDivergingBarsSvg (metaActionLabels f) f.metaValues f.metaProbs "Meta-action values and probabilities",
            el .h3 [] [txt s!"Option models{newestTag} & lifetime execution"],
            el .table [kv .cls "data"] [
              el .thead [] [el .tr [] [
@@ -1788,13 +2342,19 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             el .td [] [txt (formatPercent1 suc att)],
             el .td [] [txt (if suc > 0 then formatNatCommas (stp / suc) else "—")]
           ]
-        let headScope := if proj.selectedIsEarlier then s!" · newest frame #{bufferedCount}" else ""
+        let headScope := if proj.selectedIsEarlier then s!" · newest capture {newestIdLabel}" else ""
         let aMetaStr := match s.aMeta with | some d => d.formatCompact 4 | none => "⚠ non-finite"
         let aOptStr := match s.aOpt with | some d => d.formatCompact 4 | none => "⚠ non-finite"
+        let optionHeadNames : Array String := ((List.range f.alphaOptions.size).map fun idx =>
+          let optIdx := idx / FeatureConstants.primitiveCount
+          let actIdx := idx % FeatureConstants.primitiveCount
+          let optName := (optionSlotLabel f.subtaskPolicy f.skillNames f.subtaskUnit f.subtaskBonus optIdx).shortName
+          let actName := f.actionNames[actIdx]?.getD s!"a{actIdx}"
+          s!"{optName}/{actName}").toArray
         el .div [kv .id "col3"] [
           el .div [kv .cls "panel"] [
             el .h2 [] [txt "Curriculum & cycle buckets"],
-            el .div [kv .cls "scope-note"] [txt (if proj.selectedIsEarlier then s!"Scope: checkpoint-persistent lifetime totals (as of newest frame #{bufferedCount})." else "Scope: checkpoint-persistent lifetime totals.")],
+            el .div [kv .cls "scope-note"] [txt (if proj.selectedIsEarlier then s!"Scope: checkpoint-persistent lifetime totals (as of newest capture {newestIdLabel})." else "Scope: checkpoint-persistent lifetime totals.")],
             el .table [kv .cls "data"] [
               el .thead [] [el .tr [] [
                 el .th [] [txt "Family"], el .th [] [txt "Solved"], el .th [] [txt "Rate"], el .th [] [txt "Mean steps"]
@@ -1806,7 +2366,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           ],
           el .div [kv .cls "panel"] [
             el .h2 [] [txt "Plasticity — SwiftTD step sizes"],
-            el .div [kv .cls "scope-note"] [txt (if proj.selectedIsEarlier then s!"Curve: sampled intake history (independent of cursor). Family means below reflect frame #{curOneBased}; per-head tables reflect newest frame #{bufferedCount}." else "Curve: sampled intake history (independent of cursor).")],
+            el .div [kv .cls "scope-note"] [txt (if proj.selectedIsEarlier then s!"Curve: sampled intake history (independent of cursor). Family means below reflect capture {curIdLabel}; per-head tables reflect newest capture {newestIdLabel}." else "Curve: sampled intake history (independent of cursor).")],
             renderPlasticitySvg observer.samples.values,
             el .div [kv .cls "legend-row"] [
               el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-dem"] [], txt "demons"],
@@ -1814,20 +2374,20 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
               el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-met"] [], txt "meta"],
               el .span [kv .cls "legend"] [el .span [kv .cls "swatch sw-opt"] [], txt "options"]
             ],
-            kvRow (if proj.selectedIsEarlier then s!"frame #{curOneBased} α (dem / ctl)" else "α (dem / ctl)")
+            kvRow (if proj.selectedIsEarlier then s!"capture {curIdLabel} α (dem / ctl)" else "α (dem / ctl)")
               s!"{s.aDem.formatCompact 4} / {s.aCtl.formatCompact 4}" (!s.aDem.isFinite || !s.aCtl.isFinite),
-            kvRow (if proj.selectedIsEarlier then s!"frame #{curOneBased} α (meta / opt)" else "α (meta / opt)")
+            kvRow (if proj.selectedIsEarlier then s!"capture {curIdLabel} α (meta / opt)" else "α (meta / opt)")
               s!"{aMetaStr} / {aOptStr}" (s.aMeta.isNone || s.aOpt.isNone),
-            learnerDetailNode s!"Control heads{headScope}" f.alphaControl f.creditControl,
-            learnerDetailNode s!"Meta heads{headScope}" f.alphaMeta f.creditMeta,
-            learnerDetailNode s!"Option heads{headScope}" f.alphaOptions f.creditOptions,
-            learnerDetailNode s!"Demon heads{headScope}" f.alphaDemons f.creditDemons,
-            learnerDetailNode s!"Model heads{headScope}" f.alphaModels f.creditModels
+            namedLearnerDetailNode s!"Control heads{headScope}" f.actionNames f.alphaControl f.creditControl,
+            namedLearnerDetailNode s!"Meta heads{headScope}" (metaActionLabels f) f.alphaMeta f.creditMeta,
+            namedLearnerDetailNode s!"Option heads{headScope}" optionHeadNames f.alphaOptions f.creditOptions,
+            namedLearnerDetailNode s!"Demon heads{headScope}" f.agreement.demonNames f.alphaDemons f.creditDemons,
+            modelLearnerDetailNode s!"Model heads{headScope}" f
           ],
           el .div [kv .cls "panel"] [
             el .h2 [] [txt "Resources & telemetry health"],
             whenNode proj.selectedIsEarlier
-              (el .div [kv .cls "scope-note"] [txt s!"Update/env latencies reflect selected frame #{curOneBased}; remaining figures are newest-frame process observations."]),
+              (el .div [kv .cls "scope-note"] [txt s!"Update/env latencies reflect selected capture {curIdLabel}; remaining figures are newest-capture process observations."]),
             kvRow "update / env" s!"{formatNatCommas s.updateUs} µs / {formatNatCommas s.environmentUs} µs",
             kvRow "process uptime" (formatDurationMs f.processUptimeMs),
             kvRow "core RSS" (match f.coreRssBytes with | some b => formatBytes b | none => "—"),
@@ -1865,6 +2425,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
       topBar,
       noticeNode,
       lifecycleDiagnosticNode,
+      selectionNoticeNode,
       welcomeSection,
       el .div [kv .id "main"] [
         el .div [kv .id "left"] [stagePanel, ribbonPanel, transportPanel],

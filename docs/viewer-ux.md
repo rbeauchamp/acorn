@@ -53,7 +53,9 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   `Html.AttrName.no_event_handler`). The corpus audit (`AcornCorpus.check` and
   `AcornCorpus.language`, via `Html.admitZeroJsFile` and
   `Html.admitZeroJsFile_iff`) scans the full Git-tracked regular-file inventory
-  with zero directory carve-outs, rejecting any JavaScript/TypeScript extension,
+  with zero directory carve-outs, rejecting any lowercase basename ending in a
+  JavaScript/TypeScript suffix (`.js`/`.ts`/`.jsx`/`.tsx`/`.mjs`/`.cjs`/`.mts`/`.cts`,
+  including exact dot-basenames, proved by `Html.hasForbiddenJsPath_dot_basename`),
   any NUL byte or non-UTF-8 encoding outside the admitted UTF-8 text boundary,
   and any case-insensitive HTML script start tag. Live updates are delivered without client code
   via standard HTML meta refresh and browser-native `multipart/x-mixed-replace`
@@ -225,45 +227,33 @@ What a newcomer must be able to say without scrolling.
 
 Rules that apply to every number, label and colour on the page.
 
-- **UX-8 · Reading cadence and windowed means.** The core lives at about a
-  thousand steps a second; a per-step scalar redrawn on every animation frame
+- **UX-8 · Reading cadence and exact capture readouts.** The core lives at about
+  a thousand steps a second; a per-step scalar redrawn on every animation frame
   is noise, and a reader cannot tell a value from its flicker. Two rules:
   - **Text readouts and live stage cadence.** The server renders full HTML/SVG
     snapshots on demand and, in live mode, offers standard HTML meta refresh
     (*Auto*, `1s`, `2s`, `5s`, or *Off*) alongside `/stream/stage.bmp`
     (`multipart/x-mixed-replace`, throttled to `READ_MS` = 250 ms) for live
-    aerial motion without JavaScript. Buffered frames can be inspected one by
+    aerial motion without JavaScript. Buffered captures can be inspected one by
     one via zero-JS anchor and form transport links (UX-26), without client
     animation loops.
-  - **Fast means windowed.** The cursor is *fast* when it is pinned live or
-    replaying at 250 frames/s or more; then those readouts show arithmetic
-    means and shares over the last `WIN` (1,000) buffered frames ending at the
-    cursor, and each says so: the Behaviour mode line reads `live · means over
-    the last N frames` (or `fast replay · …`), the decision chain becomes shares
-    by selecting layer (the `exploration_start` share is labelled `primitive
-    exploration start`, because that tag counts only the runs primitive control
-    drew: the first step of a run an option's draw begins is counted under
-    `option`, and every served step under `exploration continuation`, UX-14),
-    the selected-action probability becomes the mean
-    probability of the actions taken, the option boundary line counts starts
-    and ends by reason, the option-model and planning lines show per-slot
-    means, the policy mass is the mean mass, the value bars are mean values,
-    the big-world action, reward and ε lines are the window's most frequent
-    action, mean reward and mean ε with `· last N frames` on their labels, the
-    Plasticity family means are means over the window of each family's
-    per-frame mean (finite zero means idle; a non-finite member propagates),
-    and the Resources latencies are means marked `(means)`. Paused or replaying
-    slowly, the same readouts show the exact frame and the mode reads `selected
-    frame`, as do those labels. `N` is the number of frames actually buffered in
-    the window, so a fresh connection says `means over the last 500 frames`
-    until the ring holds more. Nothing is invented: a mean of stream values,
-    labelled with its window, is the observer's own arithmetic. These are
-    frame-weighted means and shares, including terminal snapshots; the reward
-    line therefore says `reward / frame`. Only boundary-event counts exclude
-    the repeated terminal decision record. The all-zero
-    verdict of UX-36 is decided over every frame in the window, not over the
-    means: a mean of zeros hides nothing, but the exact-zero *state* is a
-    property of each frame.
+  - **Exact selected-capture and newest-capture readouts.** Under the zero-JS
+    server architecture, the earlier 1,000-frame client window-mean aggregator
+    (`WIN` remains owned in `BrowserStore` for protocol reference) is retired in
+    favour of exact server-rendered readouts with explicit per-panel scope.
+    In live mode, every panel renders exact values from the newest admitted
+    capture, the process-local agreement/curriculum snapshot, or the
+    checkpoint-persistent lifetime totals, with the scope stated on the panel.
+    When paused on an earlier buffered capture `#N`, summary-retained fields
+    (world and lifetime clocks, pose, facing, trail up to `#N`, action, reward,
+    decision source, primitive `ε`, active option slot, SwiftTD family means,
+    and update/environment latencies) render exact values from capture `#N`,
+    while full-frame fields (11×11 sensor patch, vitals and inventory, action
+    and meta value bars, option models, per-head α/credit tables, and process
+    resource observations) explicitly label their newest-capture,
+    process-local, or checkpoint-persistent scope. Nothing is invented or
+    interpolated: finite zero means idle, and any non-finite member propagates
+    as `⚠ non-finite` without rounding to zero.
 - **UX-9 · One scope per number.** A count says whether it is the run's or
   this browser's, and never says one scope and then qualifies it with another.
   The world-seen figure is `sensed in this run` once the run's map has arrived
@@ -568,15 +558,21 @@ Rules that apply to every number, label and colour on the page.
   rather than only the diagnosis.
 - **UX-26 · Transport (zero-JS navigation).** Anchor links and a GET frame-jump
   form drive all transport state through query parameters (`ViewQuery`): *Live*
-  (`?view=live`), *Pause* (`?view=paused&frame=N`), step/jump links (`⏮`,
-  `◀ -10`, `◀ -1`, `+1 ▶`, `+10 ▶`, `⏭`), a frame-number GET form, refresh
+  (`/`), *Pause* (`?view=paused&frame=N&run=<hex>&epoch=<ep>`), step/jump links
+  (`⏮`, `◀ -10`, `◀ -1`, `+1 ▶`, `+10 ▶`, `⏭`), a capture-ID GET form, refresh
   cadence links (*Auto*, `1s`, `2s`, `5s`, *Off*), and stage mode toggles
   (`SVG Stage`, `Live Stream (BMP)` via `/stream/stage.bmp`, and `/stage.bmp`
-  snapshot) over the server's `replayCapacity` (500) buffered frames. The
-  transport shows one-based ordinal and buffer count, or `0 buffered frames`
-  when empty. Client-side single-key hotkeys (`Space`, `L`, `←`, `→`) and the
-  30,000-frame browser ring (`CAP` remains owned in `BrowserStore` for protocol
-  reference) are intentionally retired under INV-2.
+  snapshot) over the server's `replayCapacity` (500) buffered captures. Paused
+  URLs bind selection to the immutable monotonic admitted capture ID (`ViewQuery.frame`)
+  and run/epoch identity (`ViewQuery.run`, `ViewQuery.epoch`) rather than a shifting buffer ordinal:
+  arriving captures cannot redirect a paused click or refresh to a different
+  capture, and eviction from the 500-frame window or a run/epoch change after
+  Clear renders an explicit alert notice instead of silently substituting
+  another capture or run. The transport shows the capture ID and buffer
+  position, or `0 buffered frames` when empty. Client-side single-key hotkeys
+  (`Space`, `L`, `←`, `→`) and the 30,000-frame browser ring (`CAP` remains
+  owned in `BrowserStore` for protocol reference) are intentionally retired
+  under INV-2.
 - **UX-27 · Staleness and the frames/s counter.** If no new frame arrives for
   `STALE_MS` (8,000 ms) while the control state says the core is running, the
   label reads `stale — reconnecting…`, the page reopens the connection (the
@@ -642,7 +638,7 @@ What each panel must show. How it draws it is the code's.
   boat badges dimmed when absent, and `💤 resting` while the agent is
   exhausted. The footer's right side shows the running option — `—` when none, else the slot's
   name in the slot's colour — with a second line saying what the slot is
-  pursuing (UX-16) and, in fast mode, the share of the window an option ran.
+  pursuing (UX-16).
   Header and footer items wrap at narrow widths; neither overlays the map or
   obscures its target.
 - **UX-30 · What the agent senses.** The 11×11 sensor view shows exactly what
@@ -652,9 +648,8 @@ What each panel must show. How it draws it is the code's.
   agent's sight.
 - **UX-31 · The big world.** The whole explored map, the camera rectangle,
   the goal and the agent as a white dot; a meter labelled `sensed` reporting
-  `seen / 1,048,576 tiles` with a progress bar; the run's position; and, at the
-  reading cadence, the most frequent action, mean reward per frame and mean
-  primitive ε over the window, each label carrying its window (UX-8). The lede
+  `seen / 1,048,576 tiles` with a progress bar; the run's position; and the
+  exact action, reward, and primitive ε at the selected capture (UX-8). The lede
   states the coverage caveat (UX-13). The ε line's hover text says what the
   emitted rate is and is not (§10).
 - **UX-32 · Predictive agreement.** The supporting Knowledge panel displays
@@ -715,8 +710,8 @@ What each panel must show. How it draws it is the code's.
   both meanings. The axis has separated labels at its actual ends and readable
   interior decades. Curves hold up to 400 newest intake samples, one per
   `verifyStride` (24) admitted frames, independently of the replay cursor;
-  their caption names the actual count and interval. Legend values separately
-  name their frame window in fast mode or the selected frame when paused/slow.
+  their caption names the actual count and interval. Family means separately
+  name the selected capture when paused or the newest capture when live (UX-8).
   Expandable rows expose the active step size and eligible-feature count for
   every learner that adapts one, including each option/action pair: a family mean never
   substitutes for the selective-credit state it summarises. The panel is that
@@ -746,8 +741,8 @@ What each panel must show. How it draws it is the code's.
   and meta probabilities, selected-action probability, exploration branch,
   option boundary (β = 1 at an end, β = 0 while continuing, with the elapsed
   steps and the end reason; an end by an exploratory run is named as that
-  interruption, without β = 1, UX-38), reward, prediction error and credit state at the
-  cursor, or their window means in fast mode (UX-8). It never calls a value
+  interruption, without β = 1, UX-38), reward, prediction error and credit state
+  at the selected or newest capture with explicit scope (UX-8). It never calls a value
   difference an advantage, because this implementation has no
   option-advantage quantity, and initiation is explicitly the trivial
   all-states set, so no eligibility visualisation is invented. A value
@@ -766,8 +761,9 @@ What each panel must show. How it draws it is the code's.
   otherwise the predictions across the three slots. Differential research also
   shows predicted start duration in primitive steps. Every differential model
   query is for a fresh activation at age zero, including while an option runs;
-  start duration is not remaining duration. Fast mode uses the same labelled
-  window means as the other model readouts. The planning line shows
+  start duration is not remaining duration. Under zero-JS server rendering,
+  model readouts report exact newest-capture predictions alongside
+  checkpoint-persistent lifetime option execution totals (UX-8). The planning line shows
   backups since the agent began, which a checkpoint resume continues
   (`planning_steps`), and the Bellman planning error per slot
   (`planning_errors`), named `Bellman error` wherever it appears. Sources are
@@ -815,9 +811,8 @@ What each panel must show. How it draws it is the code's.
   exact, later buckets labelled by their logarithmic range — drawn from the
   cursor's frame and written only when its text changes.
 - **UX-40 · Resources.** Readings name their scope. The core reports
-  agent-update and environment-transition microseconds (means over the window
-  in fast mode, marked `frame means`, and from the selected frame when
-  paused/slow). Remaining core resource figures are the latest process
+  agent-update and environment-transition microseconds from the selected
+  capture (UX-8). Remaining core resource figures are the latest process
   observations: uptime, sampled resident set, last checkpoint size and write
   time, checkpoint failures, and telemetry
   drops and refusals; the browser separately reports its own render

@@ -576,12 +576,80 @@ theorem Document.render_no_script (doc : Document) : ¬ ContainsScriptTag doc.re
 def forbiddenJsExtensions : List String :=
   ["js", "ts", "jsx", "tsx", "mjs", "cjs", "mts", "cts"]
 
-def hasForbiddenJsExtension (ext : String) : Bool :=
-  forbiddenJsExtensions.contains ext.toLower
+def pathBasenameChars (path : String) : List Char :=
+  (path.toList.reverse.takeWhile (fun c => c != '/' && c != '\\')).reverse
 
-theorem hasForbiddenJsExtension_iff (ext : String) :
-    hasForbiddenJsExtension ext = true ↔ ext.toLower ∈ forbiddenJsExtensions := by
-  simp [hasForbiddenJsExtension]
+def endsWithLowerChars (base suffix : List Char) : Bool :=
+  suffix.reverse.isPrefixOf (base.map Char.toLower).reverse
+
+def hasForbiddenJsPath (path : String) : Bool :=
+  let base := pathBasenameChars path
+  forbiddenJsExtensions.any fun ext => endsWithLowerChars base ('.' :: ext.toList)
+
+theorem hasForbiddenJsPath_iff (path : String) :
+    hasForbiddenJsPath path = true ↔
+      ∃ ext ∈ forbiddenJsExtensions,
+        endsWithLowerChars (pathBasenameChars path) ('.' :: ext.toList) = true := by
+  simp [hasForbiddenJsPath]
+
+private theorem takeWhile_all_true (p : Char → Bool) (xs : List Char)
+    (hXs : ∀ c ∈ xs, p c = true) :
+    xs.takeWhile p = xs := by
+  induction xs with
+  | nil => rfl
+  | cons x rest ih =>
+    have hx : p x = true := hXs x (List.mem_cons_self ..)
+    have hRest : ∀ c ∈ rest, p c = true := fun c hc => hXs c (List.mem_cons_of_mem x hc)
+    simp [hx, ih hRest]
+
+private theorem takeWhile_append_sep (p : Char → Bool) (xs ys : List Char) (sep : Char)
+    (hXs : ∀ c ∈ xs, p c = true) (hSep : p sep = false) :
+    (xs ++ sep :: ys).takeWhile p = xs := by
+  induction xs with
+  | nil => simp [hSep]
+  | cons x rest ih =>
+    have hx : p x = true := hXs x (List.mem_cons_self ..)
+    have hRest : ∀ c ∈ rest, p c = true := fun c hc => hXs c (List.mem_cons_of_mem x hc)
+    simp [hx, ih hRest]
+
+theorem hasForbiddenJsPath_dot_basename (dir ext : String)
+    (hExt : ext ∈ forbiddenJsExtensions) :
+    hasForbiddenJsPath (if dir.isEmpty then "." ++ ext else dir ++ "/." ++ ext) = true := by
+  have hCheck : ∀ e ∈ forbiddenJsExtensions,
+      (∀ c ∈ e.toList, (c != '/' && c != '\\') = true) ∧
+        endsWithLowerChars ('.' :: e.toList) ('.' :: e.toList) = true := by
+    intro e he
+    simp only [forbiddenJsExtensions, List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+  obtain ⟨hNoSep, hEnds⟩ := hCheck ext hExt
+  have hDotNoSep : ∀ c ∈ ('.' :: ext.toList).reverse, (c != '/' && c != '\\') = true := by
+    intro c hc
+    rw [List.mem_reverse] at hc
+    rcases List.mem_cons.mp hc with rfl | hInExt
+    · decide
+    · exact hNoSep c hInExt
+  have hBase : pathBasenameChars (if dir.isEmpty then "." ++ ext else dir ++ "/." ++ ext) =
+      '.' :: ext.toList := by
+    cases hDir : dir.isEmpty with
+    | true =>
+      simp only [↓reduceIte, pathBasenameChars]
+      have hLit : ("." ++ ext).toList = '.' :: ext.toList := by
+        simp [String.toList_append]
+      rw [hLit]
+      have hTake := takeWhile_all_true (fun c => c != '/' && c != '\\')
+        ('.' :: ext.toList).reverse hDotNoSep
+      rw [hTake, List.reverse_reverse]
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte, pathBasenameChars]
+      have hRev : (dir ++ "/." ++ ext).toList.reverse =
+          ('.' :: ext.toList).reverse ++ '/' :: dir.toList.reverse := by
+        simp [String.toList_append, List.reverse_append, List.append_assoc]
+      rw [hRev]
+      have hTake := takeWhile_append_sep (fun c => c != '/' && c != '\\')
+        ('.' :: ext.toList).reverse dir.toList.reverse '/' hDotNoSep (by decide)
+      rw [hTake, List.reverse_reverse]
+  rw [hasForbiddenJsPath_iff]
+  exact ⟨ext, hExt, by rw [hBase]; exact hEnds⟩
 
 def startsWithScriptTag : List Char → Bool
   | c0 :: c1 :: c2 :: c3 :: c4 :: c5 :: c6 :: _ =>
@@ -661,8 +729,8 @@ def admitZeroJsBytes (bytes : ByteArray) : Except ZeroJsRefusal String :=
       if containsScriptTagChars text.toList then .error .scriptTag
       else .ok text
 
-def admitZeroJsFile (ext : String) (bytes : ByteArray) : Except ZeroJsRefusal String :=
-  if hasForbiddenJsExtension ext then .error .forbiddenExtension
+def admitZeroJsFile (path : String) (bytes : ByteArray) : Except ZeroJsRefusal String :=
+  if hasForbiddenJsPath path then .error .forbiddenExtension
   else admitZeroJsBytes bytes
 
 theorem admitZeroJsBytes_iff (bytes : ByteArray) (text : String) :
@@ -703,21 +771,32 @@ theorem admitZeroJsBytes_iff (bytes : ByteArray) (text : String) :
           cases Option.some.inj hEq
           rfl
 
-theorem admitZeroJsFile_iff (ext : String) (bytes : ByteArray) (text : String) :
-    admitZeroJsFile ext bytes = .ok text ↔
-      ext.toLower ∉ forbiddenJsExtensions ∧
+theorem admitZeroJsFile_iff (path : String) (bytes : ByteArray) (text : String) :
+    admitZeroJsFile path bytes = .ok text ↔
+      (∀ ext ∈ forbiddenJsExtensions,
+        endsWithLowerChars (pathBasenameChars path) ('.' :: ext.toList) = false) ∧
       (0 : UInt8) ∉ bytes.data.toList ∧
       String.fromUTF8? bytes = some text ∧
       ¬ ContainsScriptTag text.toList := by
   unfold admitZeroJsFile
-  by_cases hExt : hasForbiddenJsExtension ext = true
-  · rw [ite_eq_left hExt]
-    have hMem : ext.toLower ∈ forbiddenJsExtensions := (hasForbiddenJsExtension_iff ext).mp hExt
-    simp [hMem]
-  · rw [ite_eq_right hExt]
-    have hNoExt : ext.toLower ∉ forbiddenJsExtensions := fun hMem =>
-      hExt ((hasForbiddenJsExtension_iff ext).mpr hMem)
+  by_cases hPath : hasForbiddenJsPath path = true
+  · rw [ite_eq_left hPath]
+    obtain ⟨ext, hMem, hEnds⟩ := (hasForbiddenJsPath_iff path).mp hPath
+    constructor
+    · intro h
+      cases h
+    · rintro ⟨hAll, _⟩
+      have hFalse := hAll ext hMem
+      rw [hEnds] at hFalse
+      cases hFalse
+  · rw [ite_eq_right hPath]
+    have hAll : ∀ ext ∈ forbiddenJsExtensions,
+        endsWithLowerChars (pathBasenameChars path) ('.' :: ext.toList) = false := by
+      intro ext hMem
+      cases hEnds : endsWithLowerChars (pathBasenameChars path) ('.' :: ext.toList) with
+      | false => rfl
+      | true => exact False.elim (hPath ((hasForbiddenJsPath_iff path).mpr ⟨ext, hMem, hEnds⟩))
     rw [admitZeroJsBytes_iff]
-    simp [hNoExt]
+    exact ⟨fun h => ⟨hAll, h⟩, fun ⟨_, h⟩ => h⟩
 
 end Acorn.Host.Viewer.Html

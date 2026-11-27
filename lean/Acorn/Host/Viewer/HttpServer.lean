@@ -61,11 +61,43 @@ private def response (status : Status) (contentType : Header.Value) (bytes : Byt
     |>.header (.mk "referrer-policy") (.mk "no-referrer")
     |>.header (.mk "cache-control") (.mk "no-store")).body (Body.Any.ofBody body)
 
+set_option maxRecDepth 4096 in
 private def cspHeaderValue : Header.Value :=
-  (Header.Value.ofString? Html.contentSecurityPolicy).getD (.mk "script-src 'none'")
+  .mk Html.contentSecurityPolicy (by decide)
 
-private def locationHeaderValue (location : String) : Header.Value :=
-  (Header.Value.ofString? location).getD (.mk "/")
+private theorem mem_of_getLast?_some : ∀ {l : List Char} {c : Char}, l.getLast? = some c → c ∈ l
+  | [], _, h => by cases h
+  | [x], c, h => by
+    simp only [List.getLast?_singleton, Option.some.injEq] at h
+    subst h
+    exact List.mem_cons_self ..
+  | _ :: y :: rest, c, h =>
+    List.mem_cons_of_mem _ (mem_of_getLast?_some (l := y :: rest) (by simpa using h))
+
+private theorem visibleAscii_validHeaderValue (s : String)
+    (hVis : ∀ c ∈ s.toList, '!' ≤ c ∧ c ≤ '~') :
+    Header.IsValidHeaderValue s := by
+  have hVchar : ∀ c ∈ s.toList, Std.Http.Internal.Char.fieldVchar c = true := by
+    intro c hc
+    obtain ⟨hLo, hHi⟩ := hVis c hc
+    simp [Std.Http.Internal.Char.fieldVchar, Std.Http.Internal.Char.vchar, hLo, hHi]
+  refine ⟨?_, ?_, ?_⟩
+  · rw [List.all_eq_true]
+    intro c hc
+    simp [Std.Http.Internal.Char.fieldContent, hVchar c hc]
+  · cases hList : s.toList with
+    | nil => rfl
+    | cons c cs =>
+      simp only [List.head?_cons, Option.map_some, Option.getD_some]
+      exact hVchar c (hList ▸ List.mem_cons_self ..)
+  · cases hLast : s.toList.getLast? with
+    | none => rfl
+    | some c =>
+      simp only [Option.map_some, Option.getD_some]
+      exact hVchar c (mem_of_getLast?_some hLast)
+
+private def locationHeaderValue (query : ViewQuery) : Header.Value :=
+  .mk query.href (visibleAscii_validHeaderValue query.href (ViewQuery.href_visibleAscii query))
 
 private def htmlResponse (status : Status) (doc : Html.Document) :
     Async (Response Body.Any) := do
@@ -77,10 +109,10 @@ private def htmlResponse (status : Status) (doc : Html.Document) :
     |>.header (.mk "referrer-policy") (.mk "no-referrer")
     |>.header (.mk "cache-control") (.mk "no-store")).body (Body.Any.ofBody body)
 
-private def redirectResponse (location : String) : Async (Response Body.Any) := do
+private def redirectResponse (query : ViewQuery) : Async (Response Body.Any) := do
   let body ← Body.Full.ofByteArray ByteArray.empty
   return (Response.new.status .seeOther
-    |>.header (.mk "location") (locationHeaderValue location)
+    |>.header (.mk "location") (locationHeaderValue query)
     |>.header (.mk "x-content-type-options") (.mk "nosniff")
     |>.header (.mk "referrer-policy") (.mk "no-referrer")
     |>.header (.mk "cache-control") (.mk "no-store")).body (Body.Any.ofBody body)
@@ -163,7 +195,12 @@ private def HttpViewer.controlForm (viewer : HttpViewer) (request : Request Body
     | .immediate result => pure result
     | .pending task => awaitControl task
   match outcome with
-  | .accepted => redirectResponse query.href
+  | .accepted =>
+    let redirectQuery :=
+      if payload.command == .clear then
+        { query with mode := .live, frame := none, run := none, epoch := none }
+      else query
+    redirectResponse redirectQuery
   | .clearUnavailable => viewer.renderPage .forbidden { query with watch := false } (some .forbidden)
   | .unavailable | .busy =>
     viewer.renderPage .serviceUnavailable { query with watch := false }
