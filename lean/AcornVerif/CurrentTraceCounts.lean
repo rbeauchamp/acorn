@@ -251,7 +251,8 @@ def Leads (lead : Binary32) (copies : Nat) (trail : Binary32) (fewer : Nat) : Pr
 
 theorem counted_lead (lead trail : Binary32) (leadFinite : lead.Finite)
     (trailFinite : trail.Finite) (leadNonneg : 0 ≤ numerical32 lead)
-    (trailNonneg : 0 ≤ numerical32 trail) (leadSmall : numerical32 lead ≤ (2 : ℚ) ^ (-14 : Int))
+    (trailNonneg : 0 ≤ numerical32 trail)
+    (leadSmall : numerical32 lead ≤ (2 : ℚ) ^ (-14 : Int))
     (trailSmall : numerical32 trail ≤ (2 : ℚ) ^ (-14 : Int)) (copies fewer : Nat)
     (fitsCopies : copies ≤ 1999) (fitsFewer : fewer ≤ 1999)
     (margin : Leads lead copies trail fewer) :
@@ -383,7 +384,8 @@ theorem fresh_after {history : List (Laid dimension actions)}
     (fun idx absent inside => absent (fresh.1 idx inside).1)
   · refine ⟨fun slot held => ?_, fun slot absent => ?_⟩
     · have member : slot ∈ ((controller.learners.get row).state.learnFirstLoop
-          (criterion.config .control) δ controller.vDelta (decayOf criterion)).transient.eligible :=
+          (criterion.config .control) δ controller.vDelta
+          (decayOf criterion)).transient.eligible :=
         by_contra fun gone => result.2.2.2 slot gone held
       exact ⟨member, result.2.2.1 slot member⟩
     · exact (first_loop_dormant _ δ controller.vDelta (decayOf criterion) slot
@@ -470,9 +472,10 @@ theorem fresh_one_value :
 theorem share_counts (fewer copies : Nat) (share : 223 * fewer < 250 * copies)
     (positive : 1 ≤ copies) : fewer * 391898848 + 8828861 < copies * 439772032 := by
   rcases Nat.lt_or_ge fewer 19 with small | large
-  · have listed : fewer = 0 ∨ fewer = 1 ∨ fewer = 2 ∨ fewer = 3 ∨ fewer = 4 ∨ fewer = 5 ∨
-        fewer = 6 ∨ fewer = 7 ∨ fewer = 8 ∨ fewer = 9 ∨ fewer = 10 ∨ fewer = 11 ∨ fewer = 12 ∨
-        fewer = 13 ∨ fewer = 14 ∨ fewer = 15 ∨ fewer = 16 ∨ fewer = 17 ∨ fewer = 18 := by omega
+  · have listed : fewer = 0 ∨ fewer = 1 ∨ fewer = 2 ∨ fewer = 3 ∨ fewer = 4 ∨
+        fewer = 5 ∨ fewer = 6 ∨ fewer = 7 ∨ fewer = 8 ∨ fewer = 9 ∨ fewer = 10 ∨
+        fewer = 11 ∨ fewer = 12 ∨ fewer = 13 ∨ fewer = 14 ∨ fewer = 15 ∨
+        fewer = 16 ∨ fewer = 17 ∨ fewer = 18 := by omega
     rcases listed with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
       rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> omega
   · omega
@@ -564,7 +567,8 @@ theorem later_leads (age more copies fewer : Nat) (recent : age ≤ 14) (newer :
   have powLe : (89 / 100 : ℚ) ^ more ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
   have fewerLe : (fewer : ℚ) ≤ (copies : ℚ) - 1 :=
     shareLe.trans (mul_le_of_le_one_left restNonneg powLe)
-  have split : (89 / 100 : ℚ) ^ more = (89000 / 89099 : ℚ) ^ more * (89099 / 100000) ^ more := by
+  have split : (89 / 100 : ℚ) ^ more =
+      (89000 / 89099 : ℚ) ^ more * (89099 / 100000) ^ more := by
     rw [← mul_pow]
     norm_num
   have shrink : (89000 / 89099 : ℚ) ^ more ≤ 89000 / 89099 :=
@@ -874,7 +878,8 @@ theorem leading_candidate (primitive : profile.usesHierarchy = false)
     · refine ⟨.zero, 0, by decide, le_of_eq zero_value.symm, ?_, Nat.zero_le _, ?_, alone⟩
       · rw [zero_value]
         positivity
-      · rw [zero_reads (untaken action fun earlier before same => once ⟨earlier, before, same⟩),
+      · rw [zero_reads (untaken action fun earlier before same =>
+            once ⟨earlier, before, same⟩),
           repeatSum_zero, zero_value]
 
 theorem first_choice_leading (primitive : profile.usesHierarchy = false)
