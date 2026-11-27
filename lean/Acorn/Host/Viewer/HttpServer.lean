@@ -348,13 +348,12 @@ def viewerHttpConfig : Http.Config where
 private inductive SendWaitOutcome where
   | finished (result : Option (Except IO.Error Unit))
   | cancelled
-  | timedOut
 
 private structure CancellableTransport where
   client : TCP.Socket.Client
   context : Std.CancellationContext
   closed : IO.Ref Bool
-  writeTimeout : Std.Time.Millisecond.Offset
+  pendingWrite : IO.Ref (Option (Task (Option (Except IO.Error Unit))))
 
 private def CancellableTransport.abort (t : CancellableTransport) : IO Unit := do
   t.closed.set true
@@ -362,34 +361,36 @@ private def CancellableTransport.abort (t : CancellableTransport) : IO Unit := d
 
 private def CancellableTransport.sendAll (t : CancellableTransport) (data : Array ByteArray) :
     Async Unit := do
-  if (← t.closed.get) || (← t.context.isCancelled) then
+  if (← t.closed.get) || (← t.context.isCancelled) || (← t.pendingWrite.get).isSome then
     t.abort
     throw (IO.userError "connection closed")
   let sendPromise ← t.client.native.send data
+  let sendTask := sendPromise.result?
+  t.pendingWrite.set (some sendTask)
   let outcome ←
-    if ← IO.hasFinished sendPromise.result? then
-      let res ← (show BaseIO (Option (Except IO.Error Unit)) from IO.wait sendPromise.result?)
+    if ← IO.hasFinished sendTask then
+      let res ← (show BaseIO (Option (Except IO.Error Unit)) from IO.wait sendTask)
       pure (SendWaitOutcome.finished res)
     else
       Selectable.one #[
         .case t.context.doneSelector (fun _ => pure .cancelled),
-        .case (promiseSelector sendPromise.result?) (fun res => pure (SendWaitOutcome.finished res)),
-        .case (← Selector.sleep t.writeTimeout) (fun _ => pure .timedOut)
+        .case (promiseSelector sendTask) (fun res => pure (SendWaitOutcome.finished res))
       ]
   match outcome with
-  | .finished (some (.ok ())) => pure ()
+  | .finished (some (.ok ())) =>
+    t.pendingWrite.set none
+    pure ()
   | .finished (some (.error err)) =>
+    t.pendingWrite.set none
     t.abort
     throw err
   | .finished none =>
+    t.pendingWrite.set none
     t.abort
     throw (IO.userError "connection write interrupted")
   | .cancelled =>
     t.abort
     throw (IO.userError "connection write cancelled")
-  | .timedOut =>
-    t.abort
-    throw (IO.userError "connection write timed out")
 
 private instance : Http.Transport CancellableTransport where
   recv t expect := do
@@ -400,10 +401,18 @@ private instance : Http.Transport CancellableTransport where
   recvSelector t expect := t.client.recvSelector expect
   close := CancellableTransport.abort
 
-private def finishTracked (server : Http.Server) (releasePermit : Bool) : ContextAsync Unit := do
+private def releasePermitWhenIdle (server : Http.Server) (releasePermit : Bool)
+    (pendingWrite : Option (Task (Option (Except IO.Error Unit)))) : BaseIO Unit := do
   if releasePermit then
     if let some limit := server.connectionLimit then
-      limit.release
+      match pendingWrite with
+      | none => limit.release
+      | some writeTask =>
+        discard <| BaseIO.chainTask writeTask fun _ => limit.release
+
+private def finishTracked (server : Http.Server) (releasePermit : Bool)
+    (pendingWrite : Option (Task (Option (Except IO.Error Unit))) := none) : ContextAsync Unit := do
+  releasePermitWhenIdle server releasePermit pendingWrite
   server.activeConnections.atomically do
     modify (· - 1)
     if (← get) = 0 ∧ (← server.context.isCancelled) then
@@ -475,18 +484,19 @@ private def serveCancellable {σ : Type} [Http.Server.Handler σ]
             | .ok peerAddr => pure (Extensions.empty.insert (Http.Server.RemoteAddr.mk peerAddr))
             | .error _ => pure Extensions.empty
           let closed ← IO.mkRef false
+          let pendingWrite ← IO.mkRef (none : Option (Task (Option (Except IO.Error Unit))))
           let transport : CancellableTransport := {
             client := client
             context := httpServer.context
             closed := closed
-            writeTimeout := config.lingeringTimeout
+            pendingWrite := pendingWrite
           }
           httpServer.activeConnections.atomically (modify (· + 1))
           ContextAsync.background do
             try
               Http.Server.serveConnection transport handler config extensions
             finally
-              finishTracked httpServer releasePermit
+              finishTracked httpServer releasePermit (← pendingWrite.get)
           return .yield ()
     finally
       finishTracked httpServer false
