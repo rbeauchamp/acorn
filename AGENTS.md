@@ -1,10 +1,13 @@
 # Working on Acorn
 
-Acorn pursues Oak Lab's mission: agents that learn from experience to achieve
-goals in big worlds. The Alberta Plan guides its work on continual learning and
+Acorn's mission is to discover and implement algorithms that enable agents to
+achieve goals in big worlds. The Alberta Plan guides its work on continual learning and
 planning in Lean. [Design](docs/design.md) owns implementation coverage;
 [prior-art review](docs/prior-art-review.md) owns technical admission and default
-qualification; [learned-only binding](docs/learned-only-binding.md) owns departures.
+qualification; [learned-only binding](docs/learned-only-binding.md) owns departures;
+[architectural intent](docs/architectural-intent.md) and
+[architectural foundation](docs/architecture-foundation.md) own the modular 4-layer
+federated and always-on live-upgrade target architecture.
 Core calls select an explicit research profile. The prior-art register records
 current qualification decisions.
 
@@ -44,7 +47,23 @@ test or a diagnostic that only chooses a direction. What deterministic code does
 at a fixed seed is a mathematical question. Before proposing a run, state the
 question and why derivation or proof cannot answer it effectively and
 efficiently, with the cost of each, and obtain the owner's authorization.
-Computing data that a proof then checks is proof search, not a run.
+Stepping the agent or one of its learners over a sequence of percepts by any
+means, whether the binary, evaluation inside Lean or a re-implementation in any
+language, is a run. Proof search is computing a value that a theorem in the
+pull request then checks, and nothing else is.
+[What counts as a run](CONTRIBUTING.md#what-counts-as-a-run) gives the cases
+and what every pull request lists of the computations made on the agent.
+No step of work on a change starts a program that steps the agent or one of its
+learners over percepts, whatever the step is for, unless the owner's
+authorization for that run is stated in the change's intent;
+[running a program](CONTRIBUTING.md#running-a-program) says where the
+invocations that may be driven without that authorization are listed, and where
+to read which files that such a run produced no step opens.
+
+The habit of evaluation returns through specifications. When a specification
+seems to need a run to check it, treat that first as a defect in the
+specification and restate it as what the algorithm must maintain, as
+[proof-shaped specifications](CONTRIBUTING.md#proof-shaped-specifications) says.
 
 - Measure only irreducibly empirical claims with explicit scope, budget,
   uncertainty and prospective decision criteria.
@@ -60,7 +79,9 @@ Computing data that a proof then checks is proof search, not a run.
 
 ## Learned-only and research admission
 
-Every hand-authored action-path bias requires its actual departure declaration.
+Every hand-authored action-path bias requires its actual departure declaration,
+except as [learned-only binding](docs/learned-only-binding.md) says of a state
+mechanism submitted under the frame of a learned-state result.
 Review checks each provenance declaration against the producing code. Source and
 compiled ownership enforce the learned/host/handcrafted boundary and explicit
 composition roots. The viewer observes telemetry and sends lifecycle stop only;
@@ -68,10 +89,17 @@ it cannot alter learning decisions.
 
 Verify citations against the actual source before adding them. Paper-based code
 and proofs must identify author, work, venue/year and exact equation, section or
-theorem in source documentation. Reproduce derivations and explain material
-adaptations, their rationale, semantic consequences and composition compatibility.
-Fix defects found in prior art, with a characterization theorem or identity and
+theorem in Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`,
+all checked by `corpus-audit` via `AcornCorpus.prose`, or
+`site/AcornDocs/Verification.lean`, checked through `docs/verification.md`),
+rather than adding comments in Lean files. Reproduce derivations
+and explain material adaptations, their rationale, semantic consequences and
+composition compatibility there. Fix defects found in prior art, with a characterization theorem or identity and
 present-tense explanation. Do not replicate a known error for fidelity.
+Implementing a published algorithm is prior-art work and is never called or
+counted as a discovery;
+[prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery)
+states both terms and how work between them is judged.
 
 Technical admission requires soundness, fit to the continuing setting, semantic
 compatibility/nondegeneracy, affordable work/storage and sufficient specification.
@@ -81,12 +109,34 @@ negative and inconclusive evidence honest; exclusion is not a positive result.
 ## Review and delivery
 
 Use the shipped proof-review standard and pr-review-toolkit for review-and-fix.
-One independent reviewer is the default; add a specialist only for a concrete
-uncertainty. Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
+For that review, which the author runs, one independent reviewer is the
+default; add a specialist only for a concrete uncertainty. It does not decide
+when work is complete and discharges no review that Acorn requires. The
+[review protocol](CONTRIBUTING.md#review-protocol) does, for every author:
+every pull request requires an independent review, chosen by what it claims or
+changes and by whether it passed the maintainers' validation pipeline, never by
+who wrote it. A pull request that claims a result gets the referee's review; one
+that claims no result counts the validation pipeline's review where it passed
+that pipeline, and gets the referee's review or the short review where it did
+not. Any model reviewer must belong to another model family than every model
+that did or fixed the work, and the applicable assignment rule determines when
+an uninvolved person is eligible. Every review is bounded by
+[three rounds of review](CONTRIBUTING.md#three-rounds-of-review).
+Use ux-review for viewer behavior or [viewer specification](docs/viewer-ux.md) changes, including
 rendered-state inspection. The skills under .agents/skills are maintained
 contributor interfaces.
 
-Keep comments about current semantics and rationale; Git records chronology.
+Lean source files across `lean/` (including `lean/lakefile.lean`) and `site/`
+code (`site/AcornSite.lean`, `site/AcornSite/`, and `site/Main.lean`, excluding
+`site/AcornDocs.lean` and `site/AcornDocs/` Verso `#doc` prose) are governed by
+the `no-comments` ban
+(`.no-comments.json`, `comment-ratchet.json` empty at `[]`, pinned in
+`lean/no-comments.pin`): do not add `--`, `/- -/`, `/-- -/`, or `/-! -/`
+comments to scoped `.lean` files. Record semantics, decision records, and rationale in `docs/`
+(`docs/design.md`, `docs/prior-art-review.md`, automatically
+checked by `corpus-audit` via `AcornCorpus.prose`, or
+`site/AcornDocs/Verification.lean`, checked via `docs/verification.md`) rather
+than in Lean source comments; Git records chronology.
 Name files and modules for their current role; rename or remove artifacts named
 for a retired implementation.
 Fix authorized concrete defects, preserve unrelated work and ask before materially
@@ -94,7 +144,7 @@ broader scope or new follow-up issues. Prefer small coherent changes over rewrit
 Apply [performance engineering](docs/performance-engineering.md) to performance-sensitive work; preserve proofs and
 admission predicates. Do not replace unresolved proof obligations with measurements.
 
-Provision pinned Lean/Mathlib v4.35.0, FloatLib, lean-intent, Verso, OpenSSL 3, GNU coreutils, ShellCheck and a C
+Provision pinned Lean/Mathlib v4.36.0, FloatLib, lean-intent, Verso, OpenSSL 3, GNU coreutils, ShellCheck and a C
 compiler first. A fresh worktree has no `lean/.lake` dependencies; run
 `(cd lean && lake exe cache get && lake build Mathlib regula/lint floatlibBridge regulaInterface leanIntentBridge leanIntentNative)` and then
 `(cd site && lake build verso/VersoManual verso/VersoManual:shared)` there before verifying.
@@ -116,12 +166,20 @@ Then run the complete command in the actual Git checkout:
 - FloatLib is a proof dependency: only the proof bridge imports it, and no
   executing module may.
 
-Sign commits and preserve license notices. The merge gate, `./scripts/gate.sh`,
-which the no-mistakes pipeline runs on the exact proposed head before a pull
-request opens, runs the same command and, outside that deadline, the Regula
-audit `./scripts/regula.sh` and lean-intent's confirmation and implementation
-checks (`lean/AcornTools/Intent.lean`); GitHub Actions runs no check on a pull
-request. Resolve required checks,
+Sign commits and keep `LICENSE` as Acorn's copyright and license notice (do not
+add per-file MIT headers to Lean sources under the `no-comments` policy;
+existing non-Lean notices such as `lean/os/checkpoint-sync.c` stay). The merge
+gate, `./scripts/gate.sh`, which the no-mistakes pipeline runs on the exact
+proposed head before a pull request opens, runs the same command and, outside
+`verify.sh`'s deadline under individual hard deadlines, the Regula audit
+`./scripts/regula.sh`, lean-intent's confirmation and implementation checks
+(`lean/AcornTools/Intent.lean`), the check of each target's pinned frame
+(`lean/AcornTools/Frame.lean`), and the pinned `no-comments` ratchet check
+(`.no-comments.json`, `comment-ratchet.json`, `lean/no-comments.pin`); GitHub
+runs the same checks on a pull request's head commit when it is opened or
+reopened and at every push to it (`.github/workflows/verify.yml`), bounded by
+explicit job and step `timeout-minutes` limits with per-phase
+`$GITHUB_STEP_SUMMARY` timings and `::warning::` budget alerts. Resolve required checks,
 signature/PR protections and review conversations before merging; never bypass
 protections. Record actual results and material limits in one concise PR.
 Proof/module counts describe scope, not correctness. Successful raw logs need

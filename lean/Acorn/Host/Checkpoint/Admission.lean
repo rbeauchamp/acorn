@@ -1,61 +1,24 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Checkpoint.Frame
 import Acorn.Host.Checkpoint.Image
 
-/-!
-# Receiver-bound checkpoint admission
-
-Parsing has no receiver write capability. Exact header identity, including the step
-order the image was saved under, is admitted first; the body is then read as the exact
-image of an agent of the receiving construction (`imageFormat`), which admits every stored
-word in its own domain and the invariants of every learner and of the agent. No word is
-projected or repaired: an image is admitted whole or refused.
--/
 namespace Acorn.Checkpoint
 open Features Handcrafted Lifetime
 
-/-- Explicit file, identity, profile and numeric refusal domains. -/
 inductive Error where
-  /-- Magic or minimum header framing is absent. -/
   | notACheckpoint
-  /-- Unsupported layout or invariant generation. -/
   | version (found expected : UInt32)
-  /-- The receiving Bellman criterion differs. -/
   | criterion (found expected : UInt32)
-  /-- Feature capacity or complete primary count differs. -/
   | shape (foundCapacity expectedCapacity foundLearners expectedLearners : UInt32)
-  /-- Feature seed differs. -/
   | seed (found expected : UInt64)
-  /-- Sensory tilings or initial bank capacity differs. -/
   | representation
-  /-- The image was saved under a different step order than the receiver declares. -/
   | order (found expected : UInt32)
-  /-- This profile has no resumable image. -/
   | unsupportedPolicy
-  /-- Length, checksum or image admission failed. -/
   | corrupt
-  /-- The image is longer than the receiving construction's read limit (`maximumBytes`), so
-  no file of it is written. -/
   | oversized
   deriving DecidableEq, Repr
 
-/-- The currently supported generation. Every earlier generation is refused with its word.
-An image of generation 20 stores, after each option slot's trajectory, that option's off-policy
-questions, which the agent no longer holds (PAR-18, retired), so this generation reads no
-image of it. An image of generation 19 has the layout of generation 20, but its weights were
-placed by the hashes that read their first two words only through their XOR. This generation's
-hashes differ from those (`Rng.hash3_not_xor`, `Rng.hash2_not_xor`), so a feature can have
-another slot than generation 19 gave it, and a load could read a saved weight as the weight of
-another feature. An image of generation 18 or earlier holds no option model, primitive credit,
-rate schedule or process-local reference, so no load of it could return the agent that was
-saved. -/
 def formatVersion : UInt32 := Acorn.FeatureConstants.checkpointFormatVersion.toUInt32
 
-/-- Header validation precedes large shape-dependent decoding. -/
 def admitHeader (construction : AgentConstruction) (header : Header) : Except Error RewardRate := do
   if header.version != formatVersion then throw (.version header.version formatVersion)
   let criterion := construction.criterion.tag.toUInt32
@@ -72,44 +35,22 @@ def admitHeader (construction : AgentConstruction) (header : Header) : Except Er
   if header.order != construction.order.tag then throw (.order header.order construction.order.tag)
   return gain
 
-/-- The complete specification of header admission: every condition under which a header
-is the header of an image that the receiving construction admits, with the reward rate it
-yields. Each field is stated on the stored words and on the typed values, and calls no
-function that the admission executes: the words are numerals, the receiver's choices are
-its constructors, and the reward rate is the returned typed value. -/
 structure HeaderAdmitted (construction : AgentConstruction) (header : Header)
     (gain : RewardRate) : Prop where
-  /-- The format generation is 21. -/
   version : header.version = 21
-  /-- The criterion word is the word of the receiver's criterion: 0 for the discounted
-  criterion and 1 for the differential one. -/
   criterion : (header.criterion = 0 ∧ construction.criterion = .discounted) ∨
     (header.criterion = 1 ∧ construction.criterion = .differential)
-  /-- The returned rate holds the stored reward-rate word. A rate is a word of the reward
-  range by its type, so a stored word outside that range has no rate. -/
   gain : gain.value = header.gain
-  /-- The stored capacity has the value of the receiver's weight space. -/
   capacity : header.capacity.toNat = construction.dimension.capacity
-  /-- The stored learner count is 51: 9 primitive learners, 4 meta learners, 3 times 9
-  option learners and 11 demon learners. -/
   learners : header.learners = 51
-  /-- The feature salt is the receiver's. -/
   seed : header.seed = construction.config.seed
-  /-- The receiving profile is the full learned profile with the declared rate, which is
-  the one profile that has a resumable image. -/
   supported : construction.profile.mode = .final ∧ construction.profile.credit = .perStep ∧
     construction.profile.rate = .declared ∧ construction.profile.subtasks = .learned
-  /-- The image was saved by a profile that has a resumable image. -/
   policy : header.supported = 1
-  /-- The tiling count is the receiver's. -/
   tilings : header.tilings = construction.config.tilings
-  /-- The stored unit capacity has the value of the receiver's. -/
   units : header.units.toNat = construction.config.units.count
-  /-- The step order word is the stored word of the receiver's order. -/
   order : StepOrder.Stored header.order construction.order
 
-/-- The checks of header admission in the terms the implementation writes them. This is
-a step of the proof of `admitHeader_iff`; the specification is `HeaderAdmitted`. -/
 theorem admitHeader_checks (construction : AgentConstruction) (header : Header)
     (gain : RewardRate) :
     admitHeader construction header = .ok gain ↔
@@ -138,9 +79,6 @@ theorem admitHeader_checks (construction : AgentConstruction) (header : Header)
     simp [admitHeader, version, criterion, admittedGain, capacity, learners, seed, supported,
       policy, tilings, units, order, pure, Except.pure]
 
-/-- **Header admission is exactly its specification.** For every construction, header
-and reward rate, the executed admission returns the rate exactly when the header meets
-every condition of `HeaderAdmitted`. -/
 theorem admitHeader_iff (construction : AgentConstruction) (header : Header) (gain : RewardRate) :
     admitHeader construction header = .ok gain ↔ HeaderAdmitted construction header gain := by
   rw [admitHeader_checks]
@@ -179,20 +117,11 @@ theorem admitHeader_iff (construction : AgentConstruction) (header : Header) (ga
       rw [specified.capacity]
       exact (Nat.mod_eq_of_lt construction.dimension.wordBound).symm
 
-/-- **An admitted header was saved under the receiver's step order.** For every
-construction and header, header admission succeeds only when the stored order word is
-the stored word of the receiver's order; `StepOrder.stored_injective` makes the two
-orders one. -/
 theorem admitHeader_order (construction : AgentConstruction) (header : Header) (gain : RewardRate)
     (admitted : admitHeader construction header = .ok gain) :
     StepOrder.Stored header.order construction.order :=
   ((admitHeader_iff construction header gain).mp admitted).order
 
-/-- Read the body as the exact image of an agent of the receiving construction: the whole
-body is the image's encoding, and the header's clock and reward-rate words are the image's
-own. This is where this project makes an image of a construction from bytes. The order word
-it compares with the receiving construction is the word of the payload's own header
-(`admitHeader`); it takes no order word beside the payload. -/
 @[noinline] def admitPayload (construction : AgentConstruction) (payload : Payload) :
     Except Error construction.Image := do
   let _ ← admitHeader construction payload.header
@@ -206,7 +135,6 @@ it compares with the receiving construction is the word of the payload's own hea
       return image
     else throw .corrupt
 
-/-- Decode a complete candidate under the immutable receiver context. -/
 @[noinline] def loadCandidate (construction : AgentConstruction) (bytes : List UInt8) :
     Except Error construction.Image := do
   if bytes.length < 72 || bytes.take magic.length != magic then throw .notACheckpoint
@@ -215,11 +143,6 @@ it compares with the receiving construction is the word of the payload's own hea
   let some payload := decode bytes | throw .corrupt
   admitPayload construction payload
 
-/-- **A candidate is admitted only from bytes whose own header the receiver admits.**
-For every construction, byte list and image: when the loader returns the image, the
-header that the header codec reads from those bytes is admitted for the construction
-(`HeaderAdmitted`). In particular the order word in the bytes is the word of the
-receiving construction's order. The loader takes no order word from its caller. -/
 theorem loadCandidate_header (construction : AgentConstruction) (bytes : List UInt8)
     (image : construction.Image) (loaded : loadCandidate construction bytes = .ok image) :
     ∃ header rest gain, headerCodec.decode (bytes.drop magic.length) = some (header, rest) ∧

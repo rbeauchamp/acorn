@@ -1,32 +1,15 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Lean
 import AcornVerif.Resource.WordKernel
-
-/-!
-# Admission of actual numerical compiler IR
-
-The extractor admits finite scalar execution and a checked u32 halving loop.
-It constructs the
-formal resource tree from the compiler's own declarations. It is a trusted
-build-time extraction boundary, not a verified compiler. Native lowering and
-the pinned scalar primitives remain trusted. No source-name blacklist or
-separately authored numerical evaluator stands in for the extracted body.
--/
+import AcornTools.Boundary.Audit
+import AcornTools.TrackedFiles
 
 namespace AcornNativeResourceAudit
 open Lean Lean.IR AcornVerif.Resource
 
-/-- Only unboxed fixed-width words, booleans and native floats enter this resource boundary. -/
 def wordType : IRType → Bool
   | .uint8 | .uint32 | .uint64 | .float | .float32 => true
   | _ => false
 
-/-- Closed pinned-runtime primitive domain. Declaration signatures are checked
-as well; all other external operations fail admission. -/
 def primitive (name : Name) : Bool :=
   #[`UInt64.land, `UInt64.lor, `UInt64.xor, `UInt64.add, `UInt64.sub,
     `UInt64.div, `UInt64.mod, `UInt64.log2, `UInt32.toUInt64,
@@ -36,23 +19,16 @@ def primitive (name : Name) : Bool :=
     `UInt64.shiftLeft, `UInt64.shiftRight, `UInt64.decLt, `UInt64.decLe,
     `UInt64.decEq, `UInt64.toUInt32, `Int32.neg, `Int64.toInt, `Int64.ofInt, `UInt32.toNat, `Int64.neg, `Int32.sub, `Int32.toInt64].contains name
 
-/-- These interval consumers borrow the compiler's two-u32 endpoint record.
-Allocation and ownership transfer remain outside the numerical kernel. -/
 def intervalReader (name : Name) : Bool :=
   #[`Acorn.Interval32.instDecidableContains, `Acorn.Interval32.saturate].contains name
 
-/-- Only these fixed-width conversions may produce an integer object.
-Their allocation-capable native costs stay explicit in the primitive model. -/
 def integerEgress (name : Name) : Bool :=
   #[`Int64.toInt, `Int64.ofInt, `UInt32.toNat, `Acorn.Conversion.toI64,
     `Acorn.Host.coordinateCast, `Acorn.Features.durationRemaining].contains name
 
-/-- Bounded coordinate values cross one native signed conversion at ingress.
-The source Coordinate refinement and coordinateIngress_exact own its domain. -/
 def integerIngress (name : Name) : Bool :=
   #[`Int64.ofInt, `Acorn.Host.coordinateFloat, `Acorn.Host.coordinateWord].contains name
 
-/-- The admitted borrowed-record signature is exact, not a general object exemption. -/
 def admittedSignature (declaration : Decl) : Bool :=
   if integerIngress declaration.name then
     declaration.params.size == 1 && declaration.params[0]!.ty == .tobject &&
@@ -65,21 +41,13 @@ def admittedSignature (declaration : Decl) : Bool :=
     (wordType declaration.resultType ||
       (integerEgress declaration.name && declaration.resultType == .tobject))
 
-/-- Lexically visible join bodies; jumps are expanded with cycle detection. -/
 abbrev Joins := List (JoinPointId × Array Param × FnBody)
 
-/-- Extraction requests share one decreasing admission budget. The budget
-bounds the checker, never serves as a claimed program execution bound. -/
 inductive Request where
-  /-- Expand a direct declaration with its current call ancestry. -/
   | decl (name : Name) (calls : List Name)
-  /-- Expand a body with its lexical joins and current jump ancestry. -/
   | body (owner : Name) (body : FnBody) (calls : List Name)
       (joins : Joins) (jumps : List JoinPointId)
 
-/-- Fail-closed extraction from typed native compiler IR. Every accepted
-instruction contributes to the formal tree; join declarations themselves do
-not execute, while their reachable bodies are accounted at each jump. -/
 def extract (env : Environment) (onceSymbols globalSymbols : List String) (startup : Bool) (cutTail : Option Name) (power : Option WordTree) : Nat → Request → Except String WordTree
   | 0, _ => .error "resource extraction depth exceeded"
   | fuel + 1, request => do
@@ -174,29 +142,20 @@ def extract (env : Environment) (onceSymbols globalSymbols : List String) (start
       | .ret (.var _) => return .step .transfer .done
       | _ => throw s!"unadmitted control or heap operation in {owner}: {Lean.IR.formatFnBodyHead body}"
 
-/-- Dataflow facts admitted for the one fixed-width halving recurrence. -/
 inductive CounterOrigin where
-  /-- The original u32 counter argument. -/
   | counter
-  /-- A scalar literal, retaining its value. -/
   | literal (value : Nat)
-  /-- Exactly the original counter shifted right by one. -/
   | half
-  /-- Exactly the original counter compared equal to zero. -/
   | zeroGuard
-  /-- No useful counter fact. -/
   | other
   deriving BEq
 
-/-- Lexically available scalar dataflow facts. -/
 abbrev Origins := List (VarId × CounterOrigin)
 
-/-- Read a fact only from the compiler variable actually supplied as an argument. -/
 def origin (facts : Origins) : Arg → CounterOrigin
   | .var id => (facts.find? (fun entry => entry.1 == id)).map Prod.snd |>.getD .other
   | _ => .other
 
-/-- Recognize the exact fixed-width recurrence and its zero predicate. -/
 def expressionOrigin (facts : Origins) : IR.Expr → CounterOrigin
   | .lit (.num value) => .literal value
   | .fap name args =>
@@ -208,8 +167,6 @@ def expressionOrigin (facts : Origins) : IR.Expr → CounterOrigin
     else .other
   | _ => .other
 
-/-- Validate every return and back edge against the dominating counter guard.
-Join arguments propagate facts; unrecognized control fails closed. -/
 def checkHalving (owner : Name) : Nat → FnBody → Origins → Joins →
     List JoinPointId → Option Bool → Except String Nat
   | 0, _, _, _, _, _ => .error "halving extraction depth exceeded"
@@ -262,8 +219,6 @@ def checkHalving (owner : Name) : Nat → FnBody → Origins → Joins →
       return 0
     | _ => throw "unadmitted halving control"
 
-/-- Extract the admitted loop body only after proving its counter dataflow at
-the trusted compiler boundary. The mathematical owner supplies 33 body visits. -/
 def extractHalving (env : Environment) (onceSymbols globalSymbols : List String) (owner : Name) : Except String WordTree := do
   let some (.fdecl _ parameters result body _) := Lean.IR.findEnvDecl env owner
     | throw "missing halving compiler declaration"
@@ -274,15 +229,12 @@ def extractHalving (env : Environment) (onceSymbols globalSymbols : List String)
   unless 0 < edges do throw "halving declaration has no recurrence"
   extract env onceSymbols globalSymbols false (some owner) none 4096 (.decl owner [])
 
-/-- Once-cell dependencies are collected from the extracted execution tree. -/
 def onceNames : WordTree → List String
   | .done => []
   | .step (.cacheRead name _) next => name :: onceNames next
   | .step _ next => onceNames next
   | .seq first next | .branch first next => onceNames first ++ onceNames next
 
-/-- Close and deduplicate first-use dependencies by their compiler identities.
-All initializer bodies pass the same scalar admission as recurring execution. -/
 def initializerClosure (env : Environment) (onceSymbols globalSymbols : List String) : Nat → List (String × List String) → List InitCell →
     Except String (List InitCell)
   | 0, _, _ => .error "initializer closure depth exceeded"
@@ -299,8 +251,6 @@ def initializerClosure (env : Environment) (onceSymbols globalSymbols : List Str
           ((onceNames tree).map (fun child => (child, name :: ancestors)) ++ rest)
           (⟨name, tree⟩ :: admitted)
 
-/-- Concrete roots correspond to the actual numerical implementations consumed
-by the exponential path; native routing is checked separately. -/
 def roots : Array (Name × Nat) :=
   #[(`Acorn.Binary32.add, 9), (`Acorn.Binary32.sub, 9),
     (`Acorn.Binary32.mul, 9), (`Acorn.Binary32.div, 9), (`Acorn.Binary32.ofUInt64, 5),
@@ -324,46 +274,40 @@ def roots : Array (Name × Nat) :=
     (`Acorn.Interval32.instDecidableContains, 113), (`Acorn.Interval32.saturate, 114), (`Acorn.Conversion.toI64, 64),
     (`Acorn.Host.coordinateCast, 143), (`Acorn.Features.durationRemaining, 132)]
 
-/-- Read actual compiler-owned once declarations. The closed-term cache is
-not persistent across imports, so the standalone audit uses emitted C and the
-pinned compiler's symbol mangling. Scalar types are checked again against IR. -/
-def readOnceSymbols : Nat → System.FilePath → IO (List String)
-  | 0, _ => throw (IO.userError "compiler directory depth exceeded")
-  | fuel + 1, directory => do
-    let mut result := []
-    for entry in ← directory.readDir do
-      let kind := (← entry.path.symlinkMetadata).type
-      if kind == .dir then result := result ++ (← readOnceSymbols fuel entry.path)
-      else if entry.path.extension == some "c" then
-        unless kind == .file do throw (IO.userError s!"non-regular compiler source: {entry.path}")
-        let lines := (← IO.FS.readFile entry.path).splitOn "\n"
-        -- A declaration `static {ty} {symbol};` holds no line break, so the source holds it
-        -- exactly when one of the lines that hold `static {ty} ` does. Each symbol is then
-        -- sought in those lines alone, not in the whole source once per type.
-        let declarations := ["uint8_t", "uint32_t", "uint64_t", "float", "double", "lean_object*"].map
-          fun ty => (ty, lines.filter (·.contains s!"static {ty} "))
-        for line in lines do
-          let declarationStart := "static lean_once_cell_t "
-          let suffix := "_once = LEAN_ONCE_CELL_INITIALIZER;"
-          if line.startsWith declarationStart && line.endsWith suffix then
-            let symbol := ((line.drop declarationStart.length).toString.dropEnd suffix.length).toString
-            unless declarations.any (fun (ty, held) =>
-                held.any (·.contains s!"static {ty} {symbol};")) do
-              continue
-            result := symbol :: result
-    return result
+private def irCPath (owner : Name) : String :=
+  ".lake/build/ir/" ++ owner.toString.replace "." "/" ++ ".c"
 
+def readOnceSymbols (env : Environment) (admitted : Array Name) : IO (List String) := do
+  let mut result := []
+  for owner in admitted do
+    if (`Acorn).isPrefixOf owner && (env.getModuleIdx? owner).isSome then
+      let rel := irCPath owner
+      AcornTrackedFiles.ensureRegular "." rel
+      let lines := (← IO.FS.readFile rel).splitOn "\n"
+      let declarations := ["uint8_t", "uint32_t", "uint64_t", "float", "double", "lean_object*"].map
+        fun ty => (ty, lines.filter (·.contains s!"static {ty} "))
+      for line in lines do
+        let declarationStart := "static lean_once_cell_t "
+        let suffix := "_once = LEAN_ONCE_CELL_INITIALIZER;"
+        if line.startsWith declarationStart && line.endsWith suffix then
+          let symbol := ((line.drop declarationStart.length).toString.dropEnd suffix.length).toString
+          unless declarations.any (fun (ty, held) =>
+              held.any (·.contains s!"static {ty} {symbol};")) do
+            continue
+          result := symbol :: result
+  return result
 
-/-- Compiler-emitted eager numerical initializers are startup roots. Match
-both the assigned symbol and the actual initializer call, then require its IR. -/
-def eagerInitializers (env : Environment) : IO (List Name × List String) := do
+def eagerInitializers (env : Environment) (admitted : Array Name) : IO (List Name × List String) := do
   let mut names := []
   let mut symbols := []
   for owner in ["Encoding", "Admission", "Arithmetic", "Rounding", "Conversion", "Portable",
       "Word", "Host/Terrain", "Exploration"] do
-    let path : System.FilePath := s!".lake/build/ir/Acorn/{owner}.c"
-    unless (← path.symlinkMetadata).type == .file do throw (IO.userError s!"invalid artifact {path}")
-    let source ← IO.FS.readFile path
+    let mod := (("Acorn/" ++ owner).splitOn "/").foldl Name.str .anonymous
+    unless admitted.contains mod && (env.getModuleIdx? mod).isSome do
+      throw (IO.userError s!"unadmitted initializer module {mod}")
+    let rel := irCPath mod
+    AcornTrackedFiles.ensureRegular "." rel
+    let source ← IO.FS.readFile rel
     for line in source.splitOn "\n" do
       let parts := line.splitOn " = _init_"
       if parts.length == 2 then
@@ -379,14 +323,14 @@ def eagerInitializers (env : Environment) : IO (List Name × List String) := do
         symbols := symbol :: symbols
   return (names, symbols)
 
-/-- Load current compiler declarations and reject any root leaving the admitted
-fragment. Lake freshness and module-origin gates run in the enclosing suite. -/
-unsafe def audit : IO Unit := do
-  initSearchPath (← findSysroot)
-  -- IR and symbol queries read imported metadata; no project initializer runs.
-  withImportModules #[{ module := `Acorn }] {} fun env => do
-    let (eagerNames, globalSymbols) ← eagerInitializers env
-    let onceSymbols ← readOnceSymbols 16 ".lake/build/ir/Acorn"
+unsafe def audit (admitted : Array Name) : IO Unit := do
+  AcornTrackedFiles.admitLeanToolchain
+  let sysroot ← findSysroot
+  initSearchPath sysroot
+  let library ← getLibDir sysroot
+  AcornBoundaryAudit.withScopedImportModules library #[{ module := `Acorn }] {} fun env => do
+    let (eagerNames, globalSymbols) ← eagerInitializers env admitted
+    let onceSymbols ← readOnceSymbols env admitted
     let loop ← match extractHalving env onceSymbols globalSymbols `Acorn.Portable.powLoopWord with
       | .ok tree => pure tree
       | .error reason => throw (IO.userError s!"native resource: {reason}")

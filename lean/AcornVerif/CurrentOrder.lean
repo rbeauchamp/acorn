@@ -1,19 +1,4 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentArithmetic
-/-!
-# Numerical interpretation and machine order
-
-The pinned Lean 4.35.0 standard `UnpackedFloat` decoder defines the finite
-numerical reading. A strictly increasing integer significand scale connects
-that reading to the executing raw keys and comparisons, including signed zero.
-Existing assembled conversion theorems supply exact widening and integer-value
-links. Numerical claims require finite inputs; no exceptional payload or native
-compiler correspondence is inferred from the total rational extension.
--/
 open Acorn
 open Float.Model (Format totalExponent UnpackedFloat)
 open Float.Model.UnpackedFloat
@@ -21,18 +6,14 @@ open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmeti
 
 namespace AcornVerif.CurrentOrder
 
-/-- Unsigned field interpretation in least-subnormal units, with the implicit bit derived from the
-exponent field. -/
 def fieldUnits (precision magnitude : Nat) : Nat :=
   let exponent := magnitude / 2^precision
   let fraction := magnitude % 2^precision
   if exponent = 0 then fraction else (2^precision+fraction)*2^(exponent-1)
 
-/-- The unsigned interpretation sends zero to zero at every precision. -/
 theorem fieldUnits_zero (precision : Nat) : fieldUnits precision 0 = 0 := by
   simp [fieldUnits]
 
-/-- Unsigned encoding order is strictly preserved by the derived significand scale. -/
 theorem fieldUnits_strict (precision left right : Nat) (ordered : left < right) :
     fieldUnits precision left < fieldUnits precision right := by
   let unit := 2^precision
@@ -80,13 +61,11 @@ theorem fieldUnits_strict (precision left right : Nat) (ordered : left < right) 
         _ ≤ unit*2^(re-1) := Nat.mul_le_mul_left _ scale
         _ ≤ (unit+rf)*2^(re-1) := Nat.mul_le_mul_right _ (by omega)
 
-/-- Unsigned numerical units and encoding magnitudes have exactly the same non-strict order. -/
 theorem fieldUnits_order (precision left right : Nat) :
     fieldUnits precision left ≤ fieldUnits precision right ↔ left ≤ right := by
   exact (show StrictMono (fieldUnits precision) from
     fun _ _ h => fieldUnits_strict precision _ _ h).le_iff_le
 
-/-- Positive encodings denote positive units, and zero is the only zero magnitude. -/
 theorem fieldUnits_positive (precision magnitude : Nat) :
     0 < fieldUnits precision magnitude ↔ 0 < magnitude := by
   constructor
@@ -98,8 +77,6 @@ theorem fieldUnits_positive (precision magnitude : Nat) :
   · intro h
     simpa only [fieldUnits_zero] using fieldUnits_strict precision 0 magnitude h
 
-/-- The actual standard decoder agrees with the signed dyadic reading of finite exponent and
-fraction fields. -/
 theorem model_finite_fields_value (spec : Format) (bits : BitVec spec.numBits)
     (finite : (unpack spec bits).isFinite = true) :
     unpackedValue (unpack spec bits) =
@@ -156,8 +133,6 @@ theorem model_finite_fields_value (spec : Format) (bits : BitVec spec.numBits)
     simp only [unpackedValue,mantissa]
     ring
 
-
-/-- Assembling bounded fields recovers their exact unsigned unit interpretation. -/
 theorem fieldUnits_fields (precision exponent fraction : Nat) (bound : fraction < 2 ^ precision) :
     fieldUnits precision (exponent * 2 ^ precision + fraction) =
       if exponent=0 then fraction else (2 ^ precision + fraction) * 2 ^ (exponent - 1) := by
@@ -168,8 +143,6 @@ theorem fieldUnits_fields (precision exponent fraction : Nat) (bound : fraction 
     simp [Nat.add_mod,Nat.mod_eq_of_lt bound]
   simp only [fieldUnits,quotient,remainder]
 
-/-- The actual finite standard-model reading equals the integer field scale times the format
-subnormal unit. -/
 theorem model_finite_fieldUnits_value (spec : Format) (bits : BitVec spec.numBits)
     (finite : (unpack spec bits).isFinite = true) :
     unpackedValue (unpack spec bits) =
@@ -192,8 +165,6 @@ theorem model_finite_fieldUnits_value (spec : Format) (bits : BitVec spec.numBit
     simp only [Nat.cast_mul,Nat.cast_pow,Nat.cast_ofNat]
     ring
 
-/-- Every finite binary64 word has the exact signed rational value determined by its magnitude
-fields. -/
 theorem numerical64_fieldUnits (value : Binary64) (finite : value.Finite) :
     numerical64 value = signCoefficient (Sign.ofBitVec (unpackSign
       (spec := Format.binary64) value.bits.toBitVec)) *
@@ -207,8 +178,6 @@ theorem numerical64_fieldUnits (value : Binary64) (finite : value.Finite) :
   rw [model_exponent_word,frac,←Conversion.fields64_decomposition value] at proof
   exact proof
 
-/-- Every finite binary32 word has the exact signed rational value determined by its magnitude
-fields. -/
 theorem numerical32_fieldUnits (value : Binary32) (finite : value.Finite) :
     numerical32 value = signCoefficient (Sign.ofBitVec (unpackSign
       (spec := Format.binary32) value.bits.toBitVec)) *
@@ -226,14 +195,10 @@ theorem numerical32_fieldUnits (value : Binary32) (finite : value.Finite) :
   rw [exp,frac,←Conversion.fields32_decomposition value] at proof
   exact proof
 
-
-/-- Signed extension of the strictly increasing magnitude scale, identifying both zero encodings.
--/
 def signedFieldUnits (precision : Nat) (key : Int) : Int :=
   if key < 0 then -(fieldUnits precision key.natAbs : Int)
   else fieldUnits precision key.toNat
 
-/-- The signed scale commutes with attaching either sign to any magnitude, including zero. -/
 theorem signedFieldUnits_sign (precision magnitude : Nat) (negative : Bool) :
     signedFieldUnits precision (if negative then - (magnitude : Int) else magnitude) =
       if negative then - (fieldUnits precision magnitude : Int) else fieldUnits precision
@@ -249,7 +214,6 @@ theorem signedFieldUnits_sign (precision magnitude : Nat) (negative : Bool) :
       rw [ite_eq_left hn]
       simp only [Int.natAbs_neg,Int.natAbs_natCast]
 
-/-- The signed unit interpretation is strictly increasing over every integer key. -/
 theorem signedFieldUnits_strict (precision : Nat) (left right : Int) (ordered : left < right) :
     signedFieldUnits precision left < signedFieldUnits precision right := by
   cases left with
@@ -280,13 +244,11 @@ theorem signedFieldUnits_strict (precision : Nat) (left right : Int) (ordered : 
         (show -(fieldUnits precision (left+1):Int) <
           -(fieldUnits precision (right+1):Int) from by omega)
 
-/-- Signed units and raw signed keys induce the same non-strict order. -/
 theorem signedFieldUnits_order (precision : Nat) (left right : Int) :
     signedFieldUnits precision left ≤ signedFieldUnits precision right ↔ left ≤ right := by
   exact (show StrictMono (signedFieldUnits precision) from
     fun _ _ h => signedFieldUnits_strict precision _ _ h).le_iff_le
 
-/-- The standard binary64 sign decoder agrees with the executing raw sign mask. -/
 theorem model_word64_sign (word : UInt64) :
     Sign.ofBitVec (unpackSign (spec := Format.binary64) word.toBitVec) =
       if word &&& 0x8000000000000000 != 0 then .negative else .positive := by
@@ -318,8 +280,6 @@ theorem model_word64_sign (word : UInt64) :
       contradiction
     simp [Sign.ofBitVec,hv,zero]
 
-/-- Every finite binary64 numerical reading is the signed key interpretation at the exact
-subnormal scale. -/
 theorem numerical64_key_units (value : Binary64) (finite : value.Finite) :
     numerical64 value = (signedFieldUnits 52 value.key : ℚ) * (2 : ℚ) ^ ( - 1074 : Int) := by
   rw [numerical64_fieldUnits value finite,model_word64_sign]
@@ -330,7 +290,6 @@ theorem numerical64_key_units (value : Binary64) (finite : value.Finite) :
   · ring
   · ring
 
-/-- Numerical and executing key order agree for every pair of finite binary64 words. -/
 theorem numerical64_order (left right : Binary64) (leftFinite : left.Finite) (rightFinite :
   right.Finite) :
     numerical64 left ≤ numerical64 right ↔ left.key ≤ right.key := by
@@ -338,8 +297,6 @@ theorem numerical64_order (left right : Binary64) (leftFinite : left.Finite) (ri
   rw [mul_le_mul_iff_left₀ (zpow_pos (by norm_num : (0:ℚ)<2) _)]
   rw [Int.cast_le,signedFieldUnits_order]
 
-
-/-- The binary32 sign mask extracts exactly the top bit as a word magnitude. -/
 theorem word32_sign_exact (word : UInt32) :
     ((word &&& 0x80000000) : UInt32).toNat=(word.toNat / 2 ^ 31) * 2 ^ 31 := by
   have hb := word.toNat_lt
@@ -353,7 +310,6 @@ theorem word32_sign_exact (word : UInt32) :
     rw [Nat.and_mod_two_pow,Nat.mod_self,Nat.and_zero]
   omega
 
-/-- The standard binary32 sign decoder agrees with the executing raw sign mask. -/
 theorem model_word32_sign (word : UInt32) :
     Sign.ofBitVec (unpackSign (spec := Format.binary32) word.toBitVec) =
       if word &&& 0x80000000 != 0 then .negative else .positive := by
@@ -385,8 +341,6 @@ theorem model_word32_sign (word : UInt32) :
       contradiction
     simp [Sign.ofBitVec,hv,zero]
 
-/-- Every finite binary32 numerical reading is the signed key interpretation at the exact
-subnormal scale. -/
 theorem numerical32_key_units (value : Binary32) (finite : value.Finite) :
     numerical32 value = (signedFieldUnits 23 value.key : ℚ) * (2 : ℚ) ^ ( - 149 : Int) := by
   rw [numerical32_fieldUnits value finite,model_word32_sign]
@@ -399,7 +353,6 @@ theorem numerical32_key_units (value : Binary32) (finite : value.Finite) :
   · ring
   · ring
 
-/-- Numerical and executing key order agree for every pair of finite binary32 words. -/
 theorem numerical32_order (left right : Binary32) (leftFinite : left.Finite) (rightFinite :
   right.Finite) :
     numerical32 left ≤ numerical32 right ↔ left.key ≤ right.key := by
@@ -407,17 +360,14 @@ theorem numerical32_order (left right : Binary32) (leftFinite : left.Finite) (ri
   rw [mul_le_mul_iff_left₀ (zpow_pos (by norm_num : (0:ℚ)<2) _)]
   rw [Int.cast_le,signedFieldUnits_order]
 
-/-- Finite binary64 strict numerical order agrees with the raw key comparison. -/
 theorem numerical64_strict_order (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) : numerical64 left < numerical64 right ↔ left.key < right.key := by
   rw [←not_le,←not_le,(numerical64_order right left rightFinite leftFinite)]
 
-/-- Finite binary32 strict numerical order agrees with the raw key comparison. -/
 theorem numerical32_strict_order (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) : numerical32 left < numerical32 right ↔ left.key < right.key := by
   rw [←not_le,←not_le,(numerical32_order right left rightFinite leftFinite)]
 
-/-- The actual binary64 comparison computes strict numerical order on all finite encodings. -/
 theorem numerical64_less (left right : Binary64) (leftFinite : left.Finite) (rightFinite :
   right.Finite) :
     left.less right = decide (numerical64 left < numerical64 right) := by
@@ -434,7 +384,6 @@ theorem numerical64_less (left right : Binary64) (leftFinite : left.Finite) (rig
   simp only [Binary64.less_eq_key,ln,rn,Bool.not_false,Bool.true_and]
   simp only [numerical64_strict_order left right leftFinite rightFinite]
 
-/-- The actual binary32 comparison computes strict numerical order on all finite encodings. -/
 theorem numerical32_less (left right : Binary32) (leftFinite : left.Finite) (rightFinite :
   right.Finite) :
     left.less right = decide (numerical32 left < numerical32 right) := by
@@ -442,10 +391,7 @@ theorem numerical32_less (left right : Binary32) (leftFinite : left.Finite) (rig
     Binary32.finite_not_nan right rightFinite,Bool.not_false,Bool.true_and]
   simp only [numerical32_strict_order left right leftFinite rightFinite]
 
-
 set_option exponentiation.threshold 2048 in
-/-- The shared conversion scale is exactly the binary32 least-subnormal scale multiplied by 2^925.
--/
 theorem magnitudeUnits32_fieldUnits (value : Binary32) :
     Conversion.magnitudeUnits32 value = fieldUnits 23 value.magnitude * 2 ^ 925 := by
   dsimp only [Conversion.magnitudeUnits32,fieldUnits]
@@ -455,16 +401,12 @@ theorem magnitudeUnits32_fieldUnits (value : Binary32) :
     have exponent : value.magnitude/2^23+924 = value.magnitude/2^23-1+925 := by omega
     rw [exponent,Nat.pow_add,Nat.mul_assoc]
 
-/-- The finite binary64 reading agrees with the conversion module integer magnitude units and
-exact sign. -/
 theorem numerical64_units (value : Binary64) (finite : value.Finite) :
     numerical64 value = signCoefficient (Sign.ofBitVec (unpackSign
       (spec := Format.binary64) value.bits.toBitVec)) *
       (Conversion.magnitudeUnits64 value : ℚ) * (2:ℚ)^(-1074:Int) :=
   numerical64_fieldUnits value finite
 
-/-- The finite binary32 reading agrees with the conversion module shared integer units and exact
-sign. -/
 theorem numerical32_units (value : Binary32) (finite : value.Finite) :
     numerical32 value = signCoefficient (Sign.ofBitVec (unpackSign
       (spec := Format.binary32) value.bits.toBitVec)) *
@@ -476,8 +418,6 @@ theorem numerical32_units (value : Binary32) (finite : value.Finite) :
   simp only [Nat.cast_mul,Nat.cast_pow,Nat.cast_ofNat]
   simp only [mul_assoc,power]
 
-/-- Actual widening preserves the complete finite signed dyadic value, including either zero sign.
--/
 theorem numerical_widen_exact (value : Binary32) (finite : value.Finite) :
     numerical64 (Conversion.widen value)=numerical32 value := by
   rw [numerical64_units _ (Conversion.widen_finite value finite),numerical32_units value finite,
@@ -490,7 +430,6 @@ theorem numerical_widen_exact (value : Binary32) (finite : value.Finite) :
     rw [Conversion.widen_sign value finite]
   rw [signs]
 
-/-- Either sign has the same nonnegative dyadic magnitude, including a zero significand. -/
 theorem sign_dyadic_abs (sign : Sign) (mantissa : Nat) (exponent : Int) :
     |signCoefficient sign * mantissa * (2 : ℚ) ^ exponent| = mantissa * (2 : ℚ) ^ exponent := by
   have positive : (0:ℚ) ≤ (mantissa:ℚ)*(2:ℚ)^exponent :=
@@ -498,34 +437,28 @@ theorem sign_dyadic_abs (sign : Sign) (mantissa : Nat) (exponent : Int) :
   cases sign <;> simp only [signCoefficient,one_mul,neg_mul,abs_neg] <;>
     exact abs_of_nonneg positive
 
-/-- Finite binary64 absolute value is exactly its unsigned magnitude scale. -/
 theorem numerical64_abs_units (value : Binary64) (finite : value.Finite) :
     |numerical64 value|=(fieldUnits 52 value.magnitude : ℚ) * (2 : ℚ) ^ ( - 1074 : Int) := by
   rw [numerical64_fieldUnits value finite]
   exact sign_dyadic_abs _ _ _
 
-/-- Finite binary32 absolute value is exactly its unsigned magnitude scale. -/
 theorem numerical32_abs_units (value : Binary32) (finite : value.Finite) :
     |numerical32 value|=(fieldUnits 23 value.magnitude : ℚ) * (2 : ℚ) ^ ( - 149 : Int) := by
   rw [numerical32_fieldUnits value finite]
   exact sign_dyadic_abs _ _ _
 
-/-- Absolute numerical order agrees with raw magnitude order for finite binary64 encodings. -/
 theorem numerical64_magnitude_order (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     |numerical64 left| ≤ |numerical64 right| ↔ left.magnitude ≤ right.magnitude := by
   rw [numerical64_abs_units left leftFinite,numerical64_abs_units right rightFinite]
   rw [mul_le_mul_iff_left₀ (zpow_pos (by norm_num : (0:ℚ)<2) _),Nat.cast_le,fieldUnits_order]
 
-/-- Absolute numerical order agrees with raw magnitude order for finite binary32 encodings. -/
 theorem numerical32_magnitude_order (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) :
     |numerical32 left| ≤ |numerical32 right| ↔ left.magnitude ≤ right.magnitude := by
   rw [numerical32_abs_units left leftFinite,numerical32_abs_units right rightFinite]
   rw [mul_le_mul_iff_left₀ (zpow_pos (by norm_num : (0:ℚ)<2) _),Nat.cast_le,fieldUnits_order]
 
-/-- The actual signed conversion denotes the exact source integer throughout the 53-bit magnitude
-domain. -/
 theorem numerical64_ofInt (value : Int) (bound : value.natAbs < 2 ^ 53) :
     numerical64 (Conversion.ofInt value) = value := by
   rw [numerical64_units _ (ofInt_finite value bound),ofInt_magnitude_exact value bound,
@@ -547,8 +480,6 @@ theorem numerical64_ofInt (value : Int) (bound : value.natAbs < 2 ^ 53) :
     have hc := congrArg (fun n:Int => (n:ℚ)) (Int.natAbs_of_nonneg (by omega : 0 ≤ value))
     simpa only [Int.cast_natCast] using hc
 
-/-- The actual unsigned conversion denotes the exact source integer throughout the 53-bit domain.
--/
 theorem numerical64_ofUInt64 (word : UInt64) (bound : word.toNat < 2 ^ 53) :
     numerical64 (Binary64.ofUInt64 word) = word.toNat := by
   have signed : Conversion.ofInt (word.toNat:Int)=Binary64.ofUInt64 word := by

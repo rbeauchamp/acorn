@@ -46,7 +46,9 @@ workaround or preferred design into a universal rule.
 
 Name the implementation and proof owners to inspect, the intended deliverables,
 and the evidence that will satisfy each acceptance criterion. Define completion
-through the applicable delivery path, including independent review, local
+through the applicable delivery path, including the
+[review protocol](../../../../CONTRIBUTING.md#review-protocol), which decides
+when the work is complete and which review it gets, local
 `./scripts/verify.sh`, the merge gate `./scripts/gate.sh` that the no-mistakes
 pipeline runs on the exact proposed head, signed commits and protected merge
 when implementation is included. Preserve the current AGENTS.md hard
@@ -58,8 +60,9 @@ code, ownership/gate updates, persistence compatibility and documentation of
 changed semantics. Consider skill or gate updates only when a concrete reusable
 gap requires one; do not mandate changes merely to populate a checklist. Point
 to the relevant canonical docs and shipped review skill instead of duplicating
-whole policies. Keep source comments about current meaning, and the PR/issue
-about the decision and verified result.
+whole policies. Record current meaning and decision rationale in repository
+documentation rather than Lean source comments (see `AGENTS.md`), and keep the
+PR/issue about the decision and verified result.
 
 State what the resulting proofs/checks will not establish. An irreducibly
 empirical quantity stays UNKNOWN with an explanation of why deduction cannot

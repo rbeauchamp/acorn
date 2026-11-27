@@ -1,51 +1,24 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornTools.Boundary.Audit
 import AcornTools.Ownership
-
-/-!
-# Compiler-backed theorem inventory
-
-Count `.thmInfo` declarations by the module index recorded in compiled Lean
-environments, and refuse a native replacement on any project declaration. Source
-filenames discover the owned modules, including modules outside either library
-root's import closure; source text never decides whether a declaration is a
-theorem. Imported Lean and Mathlib theorems are excluded by their owning module,
-even if their declaration names resemble project names.
-
-The inventory includes compiler-generated auxiliary theorem declarations and
-private theorems. Counts report this complete scope of compiled declarations.
-The axioms of each declaration, project axioms, and `unsafe` and `partial`
-declarations are checked by the Regula audit of the claimed modules, not here.
-The replacement refusal stays: the Regula audit reads no replacement or extern.
--/
+import AcornTools.TrackedFiles
+import Regula.Load
 
 namespace AcornTheoremCount
 
 open Lean
 
-/-- Counts of compiled declarations whose owning module belongs to each project. -/
 structure Counts where
-  /-- Theorem declarations owned by `AcornVerif` modules. -/
   verification : Nat := 0
-  /-- Theorem declarations owned by current executable `Acorn` modules. -/
   current : Nat := 0
-  /-- Theorem declarations owned by native application bootstrap modules. -/
   application : Nat := 0
-  /-- Theorem declarations owned by the document vocabulary, `AcornDocument`. -/
   document : Nat := 0
 
-/-- Sum disjoint owning-module inventories. -/
 def Counts.add (a b : Counts) : Counts :=
   { verification := a.verification + b.verification
     current := a.current + b.current
     application := a.application + b.application
     document := a.document + b.document }
 
-/-- Report declaration scope, not a correctness score. -/
 def Counts.report (counts : Counts) : IO Unit := do
   IO.println s!"theorem-count AcornVerif={counts.verification}"
   IO.println s!"theorem-count Acorn={counts.current}"
@@ -54,16 +27,33 @@ def Counts.report (counts : Counts) : IO Unit := do
   let total := counts.verification + counts.current + counts.application + counts.document
   IO.println s!"theorem-count total={total}"
 
-/-- Count the selected owning modules in one compiled environment. A declaration of a
-selected module with `implemented_by` or `extern` is refused. -/
+def isCompilerCtorIdx (env : Environment) (library : System.FilePath) (owner name : Name)
+    (info : ConstantInfo) : IO Bool := do
+  if (getExternAttrData? env name).isSome then return false
+  let .defn ind := Regula.Load.ctorIdxFormOf env name info | return false
+  let implName := Name.str name "_impl"
+  unless Compiler.getImplementedBy? env name == some implName do return false
+  unless (← AcornBoundaryAudit.declarationOwner env ind) == owner do return false
+  let some implInfo := env.find? implName | return false
+  unless (← AcornBoundaryAudit.declarationOwner env implName) == owner do return false
+  unless Regula.Load.ctorIdxFormOf env implName implInfo == .impl ind do return false
+  if (Compiler.getImplementedBy? env implName).isSome then return false
+  if (getExternAttrData? env implName).isSome then return false
+  let tagOwner ← AcornBoundaryAudit.declarationOwner env `getObjTagNat
+  unless (`Init).isPrefixOf tagOwner do return false
+  AcornBoundaryAudit.checkOrigin library tagOwner
+  return true
+
 def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
+  let library ← getLibDir (← findSysroot)
   let selected := owners.foldl (fun selected owner => selected.insert owner) ({} : NameSet)
   let mut counts : Counts := {}
   for (name, info) in env.constants do
     let owner ← AcornBoundaryAudit.declarationOwner env name
     if !selected.contains owner then continue
     if (Compiler.getImplementedBy? env name).isSome || (getExternAttrData? env name).isSome then
-      throw (IO.userError s!"{owner}: native replacement for {name}")
+      unless (← isCompilerCtorIdx env library owner name info) do
+        throw (IO.userError s!"{owner}: native replacement for {name}")
     if let .thmInfo _ := info then
       if (`AcornVerif).isPrefixOf owner then
         counts := { counts with verification := counts.verification + 1 }
@@ -77,10 +67,8 @@ def countEnvironment (env : Environment) (owners : Array Name) : IO Counts := do
         throw (IO.userError s!"{owner}: unexpected project module")
   pure counts
 
-/-- Import every non-entry project module together, including isolated leaves. Executable
-modules are imported separately because their top-level `main` names overlap.
-Each owning module is counted once, regardless of how many roots import it. -/
 unsafe def inventory : IO Counts := do
+  AcornTrackedFiles.admitLeanToolchain
   initSearchPath (← findSysroot)
   enableInitializersExecution
   let modules ← AcornModuleInventory.projectModules

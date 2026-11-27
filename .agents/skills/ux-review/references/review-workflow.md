@@ -1,8 +1,10 @@
 # UX review prompts
 
 Use the questions relevant to the changed viewer behavior; one reviewer can
-cover them together. Inspect the rendered build and DOM, not a remembered image.
-A missing relevant state is a limitation to disclose, not an assumed pass.
+cover them together. Inspect the rendered build and DOM, not a remembered image,
+served as [capture guidance](capture-evidence.md) says, which starts no core.
+A missing relevant state is a limitation to disclose, not an assumed pass, and
+never a reason to start the agent without the owner's authorization for that run.
 
 | Prompt | Audience | Question |
 |---|---|---|
@@ -13,7 +15,7 @@ A missing relevant state is a limitation to disclose, not an assumed pass.
 | Motion and live data | Nielsen | What redraws, how often, whether it can be read; nothing blinks without meaning; what every readout does when the cursor pauses, scrubs, or goes live. |
 | Interaction and state | Nielsen | Each control says what it will do and why it is disabled; every lifecycle state is visibly distinct with its remedy; the keyboard works. |
 | Chart integrity | Tufte | Ranges, floors, pads and log scales stated; series told apart by more than hue; the thing the lede points at is visible at the scale drawn. |
-| Prior-art faithfulness | Oak Lab | Terms used as the sources use them; every algorithm surface pinned; the mission quoted, not paraphrased; a hand-authored departure never presented as learned. |
+| Prior-art faithfulness | Oak Lab | Terms used as the sources use them; every algorithm surface pinned; the mission stated in the owner's exact sentence as Acorn's own, neither quoted from another source nor paraphrased; a hand-authored departure never presented as learned. |
 | Copy | editor | Plain English first, jargon defined at first use, no marketing, names consistent with the spec, no typographic errors. |
 
 

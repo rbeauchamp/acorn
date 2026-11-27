@@ -1,28 +1,14 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Terrain
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Linarith
 
-/-!
-# Exact executing raw binary32 floor
-
-Finite values are interpreted in the existing exact binary64-subnormal units.
-An integral result and a one-unit half-open enclosure characterize floor
-uniquely. Field arithmetic establishes that characterization without native
-reflection, input enumeration or a trusted floating floor primitive.
--/
 set_option exponentiation.threshold 2048
 set_option maxRecDepth 2048
 
 namespace AcornVerif.CurrentFloor
 open Acorn Acorn.Host
 
-/-- Extracting the binary32 high bit is exact unsigned division. -/
 theorem word32_sign_exact (word : UInt32) :
     ((word &&& 0x80000000) : UInt32).toNat = (word.toNat / 2 ^ 31)*2 ^ 31 := by
   have hb := word.toNat_lt
@@ -36,7 +22,6 @@ theorem word32_sign_exact (word : UInt32) :
     rw [Nat.and_mod_two_pow, Nat.mod_self, Nat.and_zero]
   omega
 
-/-- Assembly neither wraps the word nor lets magnitude bits reach the sign. -/
 theorem assemble_fields (negative : Bool) (exponent fraction : Nat)
     (hfit : exponent * 2 ^ 23 + fraction < 2 ^ 31) :
     (assemble32 negative exponent fraction).magnitude = exponent * 2 ^ 23 + fraction ∧
@@ -71,7 +56,6 @@ theorem assemble_fields (negative : Bool) (exponent fraction : Nat)
         norm_num at hs
       simpa [Binary32.negative] using hn
 
-/-- Field assembly permits the one exponent carry made by integral rounding. -/
 theorem assemble_units (negative : Bool) (exponent fraction : Nat)
     (he : 0 < exponent) (hemax : exponent < 254) (hf : fraction ≤ 2 ^ 23) :
     Conversion.magnitudeUnits32 (assemble32 negative exponent fraction) =
@@ -91,7 +75,6 @@ theorem assemble_units (negative : Bool) (exponent fraction : Nat)
     have hr : (exponent * 2 ^ 23 + fraction) % 2 ^ 23 = fraction := by omega
     rw [hd, hr, ite_eq_right (by omega)]
 
-/-- Rounding to a divisor of the significand width needs at most one carry. -/
 theorem fraction_bound (negative : Bool) (fraction divisor : Nat)
     (hf : fraction < 2 ^ 23) (hd : 0 < divisor) (hdiv : divisor ∣ 2 ^ 23) :
     floorFraction negative fraction divisor ≤ 2 ^ 23 := by
@@ -111,13 +94,11 @@ theorem fraction_bound (negative : Bool) (fraction divisor : Nat)
     calc fraction / divisor * divisor ≤ fraction := Nat.div_mul_le_self _ _
          _ ≤ 2 ^ 23 := by omega
 
-/-- The actual fraction has no residual fractional lattice units. -/
 theorem fraction_divisible (negative : Bool) (fraction divisor : Nat) :
     divisor ∣ floorFraction negative fraction divisor := by
   unfold floorFraction
   exact dvd_mul_left _ _
 
-/-- Fraction rounding brackets the original fraction within one integral lattice step. -/
 theorem fraction_enclosure (negative : Bool) (fraction divisor : Nat) (hd : 0 < divisor) :
     if negative then
       fraction ≤ floorFraction negative fraction divisor ∧
@@ -134,12 +115,10 @@ theorem fraction_enclosure (negative : Bool) (fraction divisor : Nat) (hd : 0 < 
     · simp [floorFraction, hr]; omega
     · simp [floorFraction, hr, Nat.add_mul]; omega
 
-/-- The raw magnitude always fits below the sign bit. -/
 theorem magnitude_bound (value : Binary32) : value.magnitude < 2 ^ 31 := by
   change (value.bits.toNat &&& (2 ^ 31 - 1)) < 2 ^ 31
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
-/-- Every finite subunit magnitude is strictly below one exact integer unit. -/
 theorem subunit_bound (value : Binary32) (he : value.magnitude / 2 ^ 23 < 127) :
     Conversion.magnitudeUnits32 value < 2 ^ 1074 := by
   let e := value.magnitude / 2 ^ 23
@@ -158,7 +137,6 @@ theorem subunit_bound (value : Binary32) (he : value.magnitude / 2 ^ 23 < 127) :
         (Nat.pow_le_pow_right (by decide) (by dsimp [e]; omega))
       _ = 2 ^ 1074 := by rw [← Nat.pow_add]
 
-/-- A nonzero raw magnitude has strictly positive dyadic magnitude units. -/
 theorem units_positive (value : Binary32) (h : value.magnitude ≠ 0) :
     0 < Conversion.magnitudeUnits32 value := by
   unfold Conversion.magnitudeUnits32
@@ -169,7 +147,6 @@ theorem units_positive (value : Binary32) (h : value.magnitude ≠ 0) :
     exact Nat.mul_pos hf (Nat.two_pow_pos _)
   · exact Nat.mul_pos (by omega) (Nat.two_pow_pos _)
 
-/-- Zero field assembly preserves the sign and has zero numerical magnitude. -/
 theorem zero_fields (negative : Bool) :
     (assemble32 negative 0 0).Finite ∧
     (assemble32 negative 0 0).negative = negative ∧
@@ -181,7 +158,6 @@ theorem zero_fields (negative : Bool) :
     decide
   · simp [Conversion.magnitudeUnits32, hf.1]
 
-/-- The negative unit encoding has the exact integral magnitude and sign. -/
 theorem negative_one_fields :
     (Binary32.mk 0xbf800000).Finite ∧ (Binary32.mk 0xbf800000).negative = true ∧
     Conversion.magnitudeUnits32 (Binary32.mk 0xbf800000) = 2 ^ 1074 := by
@@ -189,7 +165,6 @@ theorem negative_one_fields :
   change 2 ^ 23 * 2 ^ 1051 = 2 ^ 1074
   rw [← Nat.pow_add]
 
-/-- Normal subintegral exponents round onto the exact integer lattice. -/
 theorem middle_magnitude (negative : Bool) (exponent fraction : Nat)
     (hlow : 127 ≤ exponent) (hhigh : exponent < 150) (hf : fraction < 2 ^ 23) :
     let result := assemble32 negative exponent
@@ -238,7 +213,6 @@ theorem middle_magnitude (negative : Bool) (exponent fraction : Nat)
       · have h := Nat.mul_lt_mul_of_pos_right (Nat.add_lt_add_left he.2 (2 ^ 23)) hb
         simpa only [← Nat.add_assoc, Nat.add_mul, hscale] using h
 
-/-- Every finite input produces a finite integral magnitude within one unit of the input. -/
 theorem floor_magnitude (value : Binary32) (finite : value.Finite) :
     (floor32 value).Finite ∧ (floor32 value).negative = value.negative ∧
     2 ^ 1074 ∣ Conversion.magnitudeUnits32 (floor32 value) ∧
@@ -305,14 +279,10 @@ theorem floor_magnitude (value : Binary32) (finite : value.Finite) :
       rw [hnormal (by omega)]
       exact middle_magnitude value.negative exponent fraction (by omega) (by omega) hf
 
-/-- Exact signed dyadic interpretation; exceptional words are classified separately. -/
 def signedUnits (value : Binary32) : Int :=
   if value.negative then -(Conversion.magnitudeUnits32 value : Int)
   else Conversion.magnitudeUnits32 value
 
-/-- Universal floor semantics on the actual finite binary32 domain.
-The result is integral and lies below the input by strictly less than one;
-zero signs are preserved separately, and exceptional words use the identity theorem. -/
 theorem floor32_spec (value : Binary32) (finite : value.Finite) :
     (floor32 value).Finite ∧ (floor32 value).negative = value.negative ∧
     (2 ^ 1074 : Int) ∣ signedUnits (floor32 value) ∧

@@ -1,59 +1,21 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.WorldGeneration
 
-/-!
-# Executed spawn selection
-
-`selectSpawn` walks a square spiral around the center of the box and applies
-`considerSpawn` to each candidate. The rule scores a walkable candidate by trees
-plus stone within four tiles, keeps the earlier candidate on a tie, and reports an
-early exit when the candidate it was given has at least two trees. The search then
-returns the best-scoring candidate it holds, which need not be the candidate that
-triggered the exit.
-
-`considerSpawn_contract` states what one application of the rule guarantees.
-`selectSpawn_post` is the postcondition of the whole search, for every configuration
-and world in which it returns a spawn. The spiral's schedule contains every tile of
-the box (`spiral_covers`). Either the spawn is a walkable tile whose trees plus stone
-are at least two; or no walkable tile has two trees nearby, and the spawn is a walkable
-tile whose score no scored candidate of the box exceeds, or the center when no tile is
-walkable. The first case holds whenever some walkable tile has two trees nearby
-(`spawn_of_rich`). The guarantee is trees plus stone: nothing bounds the trees near the
-spawn alone.
-
-The trees and the stone of a tile are `countKindNear`'s results, and
-`countKindNear_eq` shows that a result is the number of tiles reading as the kind
-among the 81 tiles within four of the position on both axes. A refused terrain or
-count evaluation is a refusal of the search, which then returns no spawn; no theorem
-here shows that the search succeeds.
--/
 namespace AcornVerif.CurrentSpawn
 open Acorn Acorn.Host
 
-/-- A tile the body can stand on without a boat. -/
 def Walkable {config : WorldConfig} (world : World config) (tile : BoxPosition config) : Prop :=
   ∃ kind, world.tileKind tile.position = .ok kind ∧ kind.walkable = true
 
-/-- A tile that ends the spawn search: walkable, with at least two trees within four tiles. -/
 def Rich {config : WorldConfig} (world : World config) (tile : BoxPosition config) : Prop :=
   Walkable world tile ∧ ∃ trees, countKindNear world tile.position 4 .tree = .ok trees ∧ 2 ≤ trees
 
-/-- A candidate the spawn search may hold: an in-box walkable tile whose score is its
-trees plus its stone within four tiles. -/
 structure Scored {config : WorldConfig} (world : World config)
     (candidate : SpawnCandidate config) : Prop where
-  /-- The candidate's tile is walkable without a boat. -/
   walkable : Walkable world candidate.position
-  /-- The score is the sum of the two radius-four neighborhood counts. -/
   scored : ∃ trees stone, countKindNear world candidate.position.position 4 .tree = .ok trees ∧
     countKindNear world candidate.position.position 4 .stone = .ok stone ∧
     candidate.score = trees + stone
 
-/-- A tile whose terrain is not walkable is not `Walkable`: the terrain read is a function. -/
 theorem not_walkable {config : WorldConfig} {world : World config} {tile : BoxPosition config}
     {kind : TileKind} (located : world.tileKind tile.position = .ok kind)
     (blocked : kind.walkable = false) : ¬ Walkable world tile := by
@@ -63,7 +25,6 @@ theorem not_walkable {config : WorldConfig} {world : World config} {tile : BoxPo
   rw [blocked] at walk
   cases walk
 
-/-- A tile with fewer than two trees nearby is not `Rich`: the count is a function. -/
 theorem not_rich {config : WorldConfig} {world : World config} {tile : BoxPosition config}
     {trees : Nat} (counted : countKindNear world tile.position 4 .tree = .ok trees)
     (few : ¬ 2 ≤ trees) : ¬ Rich world tile := by
@@ -72,7 +33,6 @@ theorem not_rich {config : WorldConfig} {world : World config} {tile : BoxPositi
   cases Except.ok.inj same
   exact few enough
 
-/-- A scored candidate's score is determined by its tile: the counts are functions. -/
 theorem scored_score {config : WorldConfig} {world : World config}
     {candidate : SpawnCandidate config} {trees stone : Nat} (scored : Scored world candidate)
     (treeCount : countKindNear world candidate.position.position 4 .tree = .ok trees)
@@ -85,21 +45,14 @@ theorem scored_score {config : WorldConfig} {world : World config}
   cases Except.ok.inj stoneSame
   exact total
 
-/-! ## One application of the rule -/
-
-/-- The three outcomes of a successful application of the spawn rule. -/
 inductive Considered {config : WorldConfig} (world : World config) (x y : Int)
     (best selected : Option (SpawnCandidate config)) (finished : Bool) : Prop where
-  /-- The candidate is outside the box: nothing changes. -/
   | outside (refused : BoxPosition.checked config x y = none) (same : selected = best)
       (continues : finished = false)
-  /-- The candidate's tile is not walkable: nothing changes. -/
   | blocked (position : BoxPosition config) (kind : TileKind)
       (admitted : BoxPosition.checked config x y = some position)
       (located : world.tileKind position.position = .ok kind) (walk : kind.walkable = false)
       (same : selected = best) (continues : finished = false)
-  /-- A walkable candidate replaces a strictly lower-scoring best, and ends the search
-  exactly when it has two trees nearby. -/
   | scored (position : BoxPosition config) (kind : TileKind) (trees stone : Nat)
       (admitted : BoxPosition.checked config x y = some position)
       (located : world.tileKind position.position = .ok kind) (walk : kind.walkable = true)
@@ -111,7 +64,6 @@ inductive Considered {config : WorldConfig} (world : World config) (x y : Int)
         (∃ old, best = some old ∧ trees + stone ≤ old.score ∧ selected = some old))
       (flag : finished = decide (trees ≥ 2))
 
-/-- Every successful application of the spawn rule is one of the `Considered` outcomes. -/
 theorem considerSpawn_outcome {config : WorldConfig} (world : World config) (x y : Int)
     (best selected : Option (SpawnCandidate config)) (finished : Bool)
     (h : considerSpawn world x y best = .ok (selected, finished)) :
@@ -151,10 +103,6 @@ theorem considerSpawn_outcome {config : WorldConfig} (world : World config) (x y
               · exact Or.inr (Or.inl ⟨old, rfl, better, ite_eq_left better⟩)
               · exact Or.inr (Or.inr ⟨old, rfl, by omega, ite_eq_right better⟩)
 
-/-- One application of the spawn rule. Every candidate it holds afterwards is scored;
-a held candidate is never replaced by a lower score; and when it reports an early exit,
-the candidate it was given is a `Rich` in-box tile, while the candidate it holds has
-trees plus stone of at least two. -/
 theorem considerSpawn_contract {config : WorldConfig} (world : World config) (x y : Int)
     (best selected : Option (SpawnCandidate config)) (finished : Bool)
     (h : considerSpawn world x y best = .ok (selected, finished))
@@ -196,24 +144,14 @@ theorem considerSpawn_contract {config : WorldConfig} (world : World config) (x 
       have enough : 2 ≤ trees := of_decide_eq_true exit
       exact ⟨position, old, admitted, rich exit, rfl, by omega⟩
 
-/-! ## The search invariant -/
-
-/-- What the search knows while it has not exited, over the in-box tiles `seen` so far:
-its best is scored, no seen tile is `Rich`, with no best no seen tile is walkable, and no
-scored candidate on a seen tile outscores the best. -/
 structure Searching {config : WorldConfig} (world : World config)
     (seen : BoxPosition config → Prop) (best : Option (SpawnCandidate config)) : Prop where
-  /-- The held best is a scored candidate. -/
   scored : ∀ candidate, best = some candidate → Scored world candidate
-  /-- No seen tile would have ended the search. -/
   poor : ∀ tile, seen tile → ¬ Rich world tile
-  /-- With no best, no seen tile is walkable. -/
   barren : best = none → ∀ tile, seen tile → ¬ Walkable world tile
-  /-- No scored candidate on a seen tile outscores the held best. -/
   greatest : ∀ other, Scored world other → seen other.position →
     ∃ kept, best = some kept ∧ other.score ≤ kept.score
 
-/-- The invariant passes to any smaller set of seen tiles. -/
 theorem Searching.mono {config : WorldConfig} {world : World config}
     {seen fewer : BoxPosition config → Prop} {best : Option (SpawnCandidate config)}
     (searching : Searching world seen best) (subset : ∀ tile, fewer tile → seen tile) :
@@ -222,8 +160,6 @@ theorem Searching.mono {config : WorldConfig} {world : World config}
     fun empty tile member => searching.barren empty tile (subset tile member),
     fun other scored member => searching.greatest other scored (subset _ member)⟩
 
-/-- One application of the rule keeps the invariant over one more seen candidate, or
-ends the search holding a candidate with trees plus stone of at least two. -/
 theorem search_step {config : WorldConfig} {world : World config} {x y : Int}
     {seen : BoxPosition config → Prop} {best selected : Option (SpawnCandidate config)}
     {finished : Bool} (searching : Searching world seen best)
@@ -328,25 +264,18 @@ theorem search_step {config : WorldConfig} {world : World config} {x y : Int}
       · exact ⟨_, picked, fresh, by change 2 ≤ trees + stone; omega⟩
       · exact ⟨old, picked, searching.scored old was, by omega⟩
 
-/-! ## The spiral -/
-
-/-- Horizontal coordinate of the spiral's candidate at a radius, direction index and offset. -/
 def spiralX (config : WorldConfig) (radius directionIndex offset : Nat) : Int :=
   (config.side / 2 : Nat) +
     (Direction.fromIndex ⟨directionIndex % 4, Nat.mod_lt _ (by decide)⟩).delta.1 * radius +
     (Direction.fromIndex ⟨directionIndex % 4, Nat.mod_lt _ (by decide)⟩).delta.2 *
       ((offset : Int) - radius)
 
-/-- Vertical coordinate of the spiral's candidate at a radius, direction index and offset. -/
 def spiralY (config : WorldConfig) (radius directionIndex offset : Nat) : Int :=
   (config.side / 2 : Nat) +
     (Direction.fromIndex ⟨directionIndex % 4, Nat.mod_lt _ (by decide)⟩).delta.2 * radius +
     (Direction.fromIndex ⟨directionIndex % 4, Nat.mod_lt _ (by decide)⟩).delta.1 *
       ((offset : Int) - radius)
 
-/-- The spiral's schedule contains every tile of the box: a tile at Chebyshev distance r
-from the center lies on the north, south, east or west edge of ring r. The statement
-concerns the schedule, not the tiles a search considers before it returns. -/
 theorem spiral_covers (config : WorldConfig) (tile : BoxPosition config) :
     ∃ radius directionIndex offset, radius < config.side ∧ directionIndex < 4 ∧
       offset < 2 * radius + 1 ∧
@@ -398,13 +327,10 @@ theorem spiral_covers (config : WorldConfig) (tile : BoxPosition config) :
     · change _ + (0 : Int) * _ + (-1 : Int) * _ = _
       omega
 
-/-- Candidate (radius', direction', offset') is visited before position
-(radius, direction, offset) of the search. -/
 def Before (radius direction offset radius' direction' offset' : Nat) : Prop :=
   radius' < radius ∨ (radius' = radius ∧ (direction' < direction ∨
     (direction' = direction ∧ offset' < offset)))
 
-/-- The in-box tiles the search has considered before a position of the spiral. -/
 def Seen (config : WorldConfig) (radius direction offset : Nat) (tile : BoxPosition config) :
     Prop :=
   ∃ radius' direction' offset', direction' < 4 ∧ offset' < 2 * radius' + 1 ∧
@@ -412,14 +338,12 @@ def Seen (config : WorldConfig) (radius direction offset : Nat) (tile : BoxPosit
     BoxPosition.checked config (spiralX config radius' direction' offset')
       (spiralY config radius' direction' offset') = some tile
 
-/-- Nothing is seen before the search starts. -/
 theorem seen_start (config : WorldConfig) (tile : BoxPosition config) :
     ¬ Seen config 0 0 0 tile := by
   rintro ⟨radius', direction', offset', -, -, before, -⟩
   unfold Before at before
   omega
 
-/-- One more offset adds exactly the candidate at the current position. -/
 theorem seen_offset (config : WorldConfig) (radius direction offset : Nat)
     (tile : BoxPosition config) (seen : Seen config radius direction (offset + 1) tile) :
     Seen config radius direction offset tile ∨
@@ -432,7 +356,6 @@ theorem seen_offset (config : WorldConfig) (radius direction offset : Nat)
     exact Or.inr admitted
   · exact Or.inl ⟨radius', direction', offset', bounded, inside, by unfold Before; omega, admitted⟩
 
-/-- A finished edge is everything before the next direction. -/
 theorem seen_direction (config : WorldConfig) (radius direction : Nat) (tile : BoxPosition config)
     (seen : Seen config radius (direction + 1) 0 tile) :
     Seen config radius direction (2 * radius + 1) tile := by
@@ -440,26 +363,20 @@ theorem seen_direction (config : WorldConfig) (radius direction : Nat) (tile : B
   unfold Before at before
   exact ⟨radius', direction', offset', bounded, inside, by unfold Before; omega, admitted⟩
 
-/-- A finished ring is everything before the next radius. -/
 theorem seen_radius (config : WorldConfig) (radius : Nat) (tile : BoxPosition config)
     (seen : Seen config (radius + 1) 0 0 tile) : Seen config radius 4 0 tile := by
   obtain ⟨radius', direction', offset', bounded, inside, before, admitted⟩ := seen
   unfold Before at before
   exact ⟨radius', direction', offset', bounded, inside, by unfold Before; omega, admitted⟩
 
-/-- A search that reaches the end of the schedule has seen every tile of the box. -/
 theorem seen_all (config : WorldConfig) (tile : BoxPosition config) :
     Seen config config.side 0 0 tile := by
   obtain ⟨radius, direction, offset, ring, bounded, inside, admitted⟩ := spiral_covers config tile
   exact ⟨radius, direction, offset, bounded, inside, Or.inl ring, admitted⟩
 
-/-- What an early exit guarantees of the spawn it returns: the position of a scored
-candidate whose trees plus stone are at least two. -/
 def Exited {config : WorldConfig} (world : World config) (spawn : BoxPosition config) : Prop :=
   ∃ chosen, Scored world chosen ∧ chosen.position = spawn ∧ 2 ≤ chosen.score
 
-/-- The search at one position of the spiral: applying the rule to that position's
-candidate keeps the invariant up to the next offset, or exits with the held best. -/
 theorem offset_step {config : WorldConfig} (world : World config)
     (radius direction offset : Nat) (best selected : Option (SpawnCandidate config))
     (finished : Bool) (x y : Int) (horizontal : x = spiralX config radius direction offset)
@@ -481,11 +398,6 @@ theorem offset_step {config : WorldConfig} (world : World config)
     subst picked
     exact ⟨chosen, scored, rfl, enough⟩
 
-/-! ## Loop rules -/
-
-/-- Loop rule for a counted list loop in `Except` with an early exit: an invariant
-indexed by the next element that each continuing step advances, and an exit condition
-that each exiting step establishes. -/
 theorem forIn_range'_indexed {ε σ : Type} (count : Nat) (inv : Nat → σ → Prop) (exit : σ → Prop)
     (body : Nat → σ → Except ε (ForInStep σ))
     (step : ∀ index state next, index < count → inv index state → body index state = .ok next →
@@ -515,7 +427,6 @@ theorem forIn_range'_indexed {ε σ : Type} (count : Nat) (inv : Nat → σ → 
         exact forIn_range'_indexed count inv exit body step remaining (start + 1) after result
           (by omega) (continues _ rfl) h
 
-/-- The same rule for the range loops the spawn search runs. -/
 theorem forIn_range_indexed {ε σ : Type} (count : Nat) (inv : Nat → σ → Prop) (exit : σ → Prop)
     (body : Nat → σ → Except ε (ForInStep σ))
     (step : ∀ index state next, index < count → inv index state → body index state = .ok next →
@@ -528,7 +439,6 @@ theorem forIn_range_indexed {ε σ : Type} (count : Nat) (inv : Nat → σ → P
   rw [size] at h
   exact forIn_range'_indexed count inv exit body step count 0 init result (by omega) start h
 
-/-- A successful `Except` bind ran its first part successfully and then its rest. -/
 theorem bind_ok {ε α β : Type} (first : Except ε α) (rest : α → Except ε β) (result : β)
     (h : (first >>= rest) = .ok result) :
     ∃ middle, first = .ok middle ∧ rest middle = .ok result := by
@@ -536,9 +446,6 @@ theorem bind_ok {ε α β : Type} (first : Except ε α) (rest : α → Except �
   | error refusal => simp [bind, Except.bind] at h
   | ok middle => exact ⟨middle, rfl, h⟩
 
-/-! ## The neighborhood count -/
-
-/-- Whether the tile at one offset of the square around a position reads as the kind. -/
 def reads {config : WorldConfig} (world : World config) (position : Position) (radius : Nat)
     (kind : TileKind) (row column : Nat) : Bool :=
   match position.translate ((column : Int) - radius) ((row : Int) - radius) with
@@ -548,22 +455,18 @@ def reads {config : WorldConfig} (world : World config) (position : Position) (r
     | .error _ => false
   | none => false
 
-/-- The tiles of one row of the square, below a column bound, that read as the kind. -/
 def rowCount {config : WorldConfig} (world : World config) (position : Position) (radius : Nat)
     (kind : TileKind) (row : Nat) : Nat → Nat
   | 0 => 0
   | columns + 1 => rowCount world position radius kind row columns +
       if reads world position radius kind row columns then 1 else 0
 
-/-- The tiles of the square, below a row bound, that read as the kind. -/
 def squareCount {config : WorldConfig} (world : World config) (position : Position)
     (radius : Nat) (kind : TileKind) : Nat → Nat
   | 0 => 0
   | rows + 1 => squareCount world position radius kind rows +
       rowCount world position radius kind rows (2 * radius + 1)
 
-/-- A successful neighborhood count is the number of tiles that read as the kind among
-the `(2 r + 1) × (2 r + 1)` tiles within `r` of the position on both axes. -/
 theorem countKindNear_eq {config : WorldConfig} (world : World config) (position : Position)
     (radius count : Nat) (kind : TileKind)
     (h : countKindNear world position radius kind = .ok count) :
@@ -622,24 +525,14 @@ theorem countKindNear_eq {config : WorldConfig} (world : World config) (position
       · cases eq
   · simp [bind, Except.bind] at taken
 
-/-! ## The whole search -/
-
-/-- The search between candidates: no early return yet, and the invariant over the
-tiles seen so far. -/
 def Open {config : WorldConfig} (world : World config) (seen : BoxPosition config → Prop)
     (state : Option (BoxPosition config) × Option (SpawnCandidate config)) : Prop :=
   state.1 = none ∧ Searching world seen state.2
 
-/-- The search after an early return: the returned spawn is an `Exited` one. -/
 def Closed {config : WorldConfig} (world : World config)
     (state : Option (BoxPosition config) × Option (SpawnCandidate config)) : Prop :=
   ∃ spawn, state.1 = some spawn ∧ Exited world spawn
 
-/-- What the spawn search guarantees, for every world in which it returns a spawn.
-Either the spawn is a walkable tile whose trees plus stone within four tiles are at
-least two; or no tile of the box is `Rich`, and the spawn is a walkable tile whose
-score no scored candidate of the box exceeds, or the center when no tile of the box is
-walkable. -/
 theorem selectSpawn_post {config : WorldConfig} (world : World config)
     (spawn : BoxPosition config) (h : selectSpawn world = .ok spawn) :
     Exited world spawn ∨
@@ -732,37 +625,27 @@ theorem selectSpawn_post {config : WorldConfig} (world : World config)
     (fun offset state => Open world (Seen config radius direction offset) state)
     (Closed world) _ ?_ _ edge start inner
   intro offset state next _ held taken
-  split at taken
-  · rename_i x horizontal
-    split at taken
-    · rename_i y vertical
-      obtain ⟨pair, considered, rest⟩ := bind_ok _ _ _ taken
-      obtain ⟨selected, finished⟩ := pair
-      dsimp only at rest
-      have step := offset_step world radius direction offset state.2 selected finished
-        x.val y.val (Coordinate.checked_exact _ _ horizontal)
-        (Coordinate.checked_exact _ _ vertical) held.2 considered
-      cases finished with
-      | false =>
-        simp only [Bool.false_eq_true, ↓reduceIte, pure, Except.pure, Except.ok.injEq] at rest
-        subst rest
-        refine ⟨fun after same => ?_, fun after same => ?_⟩
-        · cases same
-          exact ⟨rfl, step.1 rfl⟩
-        · cases same
-      | true =>
-        simp only [↓reduceIte, pure, Except.pure, Except.ok.injEq] at rest
-        subst rest
-        refine ⟨fun after same => ?_, fun after same => ?_⟩
-        · cases same
-        · cases same
-          exact ⟨_, rfl, step.2 rfl⟩
-    · simp [bind, Except.bind] at taken
-  · simp [bind, Except.bind] at taken
+  obtain ⟨pair, considered, rest⟩ := bind_ok _ _ _ taken
+  obtain ⟨selected, finished⟩ := pair
+  dsimp only at rest
+  have step := offset_step world radius direction offset state.2 selected finished
+    _ _ rfl rfl held.2 considered
+  cases finished with
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte, pure, Except.pure, Except.ok.injEq] at rest
+    subst rest
+    refine ⟨fun after same => ?_, fun after same => ?_⟩
+    · cases same
+      exact ⟨rfl, step.1 rfl⟩
+    · cases same
+  | true =>
+    simp only [↓reduceIte, pure, Except.pure, Except.ok.injEq] at rest
+    subst rest
+    refine ⟨fun after same => ?_, fun after same => ?_⟩
+    · cases same
+    · cases same
+      exact ⟨_, rfl, step.2 rfl⟩
 
-/-- If any tile of the box would end the search, the spawn is a walkable tile whose
-trees plus stone within four tiles are at least two. Two trees near the spawn itself do
-not follow. -/
 theorem spawn_of_rich {config : WorldConfig} (world : World config) (spawn : BoxPosition config)
     (h : selectSpawn world = .ok spawn) (tile : BoxPosition config) (rich : Rich world tile) :
     Exited world spawn := by
@@ -770,7 +653,6 @@ theorem spawn_of_rich {config : WorldConfig} (world : World config) (spawn : Box
   · exact exited
   · exact absurd rich (poor tile)
 
-/-- If any tile of the box is walkable, the spawn is walkable. -/
 theorem spawn_walkable {config : WorldConfig} (world : World config) (spawn : BoxPosition config)
     (h : selectSpawn world = .ok spawn) (tile : BoxPosition config)
     (walkable : Walkable world tile) : Walkable world spawn := by
@@ -780,19 +662,22 @@ theorem spawn_walkable {config : WorldConfig} (world : World config) (spawn : Bo
   · exact same ▸ scored.walkable
   · exact absurd walkable (barren tile)
 
-/-- World generation places the body at the search's result on the empty world. -/
 theorem initial_spawn (config : WorldConfig) (world : World config)
     (h : World.initial config = .ok world) :
     selectSpawn (World.empty config) = .ok world.body.position := by
   unfold World.initial at h
-  cases hs : selectSpawn (World.empty config) with
-  | error error => simp [hs, bind, Except.bind] at h
-  | ok position =>
-    simp only [hs, bind, Except.bind] at h
-    cases hd : initializeDeer (World.empty config) with
-    | error error => simp [hd] at h
-    | ok pair =>
-      simp only [hd, pure, Except.pure, Except.ok.injEq] at h
-      rw [← h]
+  cases hadm : config.raw.admissible with
+  | false => simp [hadm, bind, Except.bind] at h
+  | true =>
+    simp only [hadm, Bool.not_true, Bool.false_eq_true, ↓reduceIte, bind, Except.bind] at h
+    cases hs : selectSpawn (World.empty config) with
+    | error error => simp [hs] at h
+    | ok position =>
+      simp only [hs] at h
+      cases hd : initializeDeer (World.empty config) with
+      | error error => simp [hd] at h
+      | ok pair =>
+        simp only [hd, pure, Except.pure, Except.ok.injEq] at h
+        rw [← h]
 
 end AcornVerif.CurrentSpawn

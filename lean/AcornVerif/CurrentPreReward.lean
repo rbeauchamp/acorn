@@ -1,62 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentAccounting
 import AcornVerif.CurrentArithmetic
-
-/-!
-# Control weights before the first reward
-
-`pre_reward_weights_zero` states that, from cold initialization, over any list of percepts
-whose reward words are zero words, the executed agent's primitive controller and
-meta-controller hold only zero weight words, and so does every option policy when the
-subtasks are learned. It holds for every interface, feature profile, feature configuration,
-criterion, dimension, planning selection and step order, of `Agent.initial` and
-`Agent.actOrdered` over the executed binary32 words. Its `final` is
-`AcornVerif.CurrentColdStart.reached` by definition.
-
-The proof needs no bound on any trace register. Call a word inert when it is a zero word of
-either sign or a NaN (`Inert32`). In the kernel's float model (`Float32.Model`) a sum or a
-difference of two inert words is inert, and so is a product or quotient whose first factor
-is inert, or a product whose second factor is inert (`Inert32.add`, `Inert32.sub`,
-`Inert32.mulLeft`, `Inert32.mulRight`, `Inert32.divLeft`): a zero times an infinity is a
-NaN, never an infinity. Every weight write projects through `Binary32.project`, which stores
-positive zero for a NaN and keeps a zero word, so it stores a zero word for every inert word
-(`Inert32.project`). A learner whose weights are zero words and whose per-weight update
-words and shared lags are inert (`Calm`) keeps that state through every entry of
-`SwiftTd.Entry` whose error, reward or target is inert (`Calm.apply`), whatever its traces
-hold.
-
-The invariant `Quiet` carries this through the composed step. Both controllers are at rest
-(`Still`); every option model's reward, continuation and deviation learners are at rest
-(`ModelCalm`), since the reward learner learns the reward word, and the continuation and
-deviation learners learn zero cumulants and terminal and stopping targets that read only the
-meta-controller's weights; the meta span's reward, the deferred primitive credit's reward
-and the average-reward rate are inert. Under learned subtasks Demon 0 is at rest as well, so
-assignment ranking admits no candidate (`rankAssignments_rest`): every objective stays
-neutral, every potential is unattained, and every option policy is at rest (`SkillCalm`).
-Values read from controllers at rest are zero words, and so is every value read from them by
-selection, comparison, saturation or a binary64 sum (`Settled`, `zeroWord_saturate`,
-`zeroWord_outcome`); a planning target projects such words, or multiplies the inert gain by
-the predicted duration and adds such words, so it is inert (`ModelCalm.target`). Every
-operation of selection, the draw-first dispatch and its owed writes, deferred planning,
-off-policy option learning, the span close, the completion boundary and the tester keeps
-`Quiet` (`Quiet.selectWithOperations`, `Quiet.drawFirst`, `Quiet.deferred`, `Quiet.learn`,
-`Quiet.retire`), and `Quiet.actOrdered` composes them for each step order.
-
-The duration learners, the transition rows, the prediction demons other than Demon 0 and,
-under spatial subtasks, the option policies can move on a reward-free stream; the theorem
-claims nothing of them. Lean's kernel, its float model of binary32 and binary64 arithmetic
-and the native replacements of that arithmetic remain trusted, as for every proof of
-executed words in this library.
--/
 
 namespace AcornVerif.CurrentPreReward
 open Acorn Acorn.Features Acorn.Handcrafted
 
-/-- Every weight of every row of a controller is a zero word. -/
 def Resting {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
     (controller : Controller config dimension actions) : Prop :=
   ∀ (row : Fin actions) (slot : FeatIdx dimension),
@@ -67,24 +14,15 @@ section Zero
 open Acorn
 open Float.Model (Format UnpackedFloat)
 
-/-! ## Zero words and NaNs -/
-
-/-- An unpacked float that is a zero of either sign or the NaN. -/
 def Inert (value : UnpackedFloat) : Prop :=
   value = .notANumber ∨ ∃ sign, value = .zero sign
 
-/-- A binary32 word that is a zero word of either sign or a NaN. Every sum and difference of
-two such words is one, and so is every product and quotient whose left factor is one, in the
-kernel's float model; the weight projection stores a zero word for each of them. -/
 def Inert32 (word : Binary32) : Prop := word.isZero = true ∨ word.isNaN = true
 
-/-- A zero word is inert. -/
 theorem Inert32.ofZero {word : Binary32} (zero : word.isZero = true) : Inert32 word := Or.inl zero
 
-/-- Positive zero is inert. -/
 theorem Inert32.zero : Inert32 Binary32.zero := Or.inl (by decide)
 
-/-- The two zero words are the words whose magnitude field is zero. -/
 theorem isZero_bits (word : Binary32) (zero : word.isZero = true) :
     word.bits = 0 ∨ word.bits = 0x80000000 := by
   have bound := word.bits.toNat_lt
@@ -95,7 +33,6 @@ theorem isZero_bits (word : Binary32) (zero : word.isZero = true) :
   change word.bits.toNat = 0 ∨ word.bits.toNat = 2 ^ 31
   omega
 
-/-- A NaN word unpacks to the NaN. -/
 theorem nan_unpack (word : Binary32) (nan : word.isNaN = true) :
     UnpackedFloat.unpack Format.binary32 word.bits.toBitVec = .notANumber := by
   have fields := (Binary32.isNaN_iff word).mp nan
@@ -123,7 +60,6 @@ theorem nan_unpack (word : Binary32) (nan : word.isNaN = true) :
   unfold UnpackedFloat.unpack
   simp only [exponent, mantissa, ite_true, ite_false]
 
-/-- The model's view of an inert word is inert. -/
 theorem Inert32.model {word : Binary32} (inert : Inert32 word) :
     Inert (Float32.ofBits word.bits).toModel.unpack := by
   rcases inert with zero | nan
@@ -137,7 +73,6 @@ theorem Inert32.model {word : Binary32} (inert : Inert32 word) :
     rw [nan_unpack word nan]
     rfl
 
-/-- The word that packs an inert unpacked float is inert. -/
 theorem Inert.word {value : UnpackedFloat} (inert : Inert value) :
     Inert32 ⟨(Float32.Model.pack value).toBits⟩ := by
   rcases inert with rfl | ⟨sign, rfl⟩
@@ -146,7 +81,6 @@ theorem Inert.word {value : UnpackedFloat} (inert : Inert value) :
     · exact Or.inl (by decide)
     · exact Or.inl (by decide)
 
-/-- An inert sum of inert operands. -/
 theorem Inert.add {left right : UnpackedFloat} (hl : Inert left) (hr : Inert right) :
     Inert (UnpackedFloat.add Format.binary32 left right) := by
   rcases hl with rfl | ⟨sl, rfl⟩ <;> rcases hr with rfl | ⟨sr, rfl⟩
@@ -155,7 +89,6 @@ theorem Inert.add {left right : UnpackedFloat} (hl : Inert left) (hr : Inert rig
   · exact Or.inl rfl
   · cases sl <;> cases sr <;> exact Or.inr ⟨_, rfl⟩
 
-/-- An inert difference of inert operands. -/
 theorem Inert.sub {left right : UnpackedFloat} (hl : Inert left) (hr : Inert right) :
     Inert (UnpackedFloat.sub Format.binary32 left right) := by
   rcases hl with rfl | ⟨sl, rfl⟩ <;> rcases hr with rfl | ⟨sr, rfl⟩
@@ -164,7 +97,6 @@ theorem Inert.sub {left right : UnpackedFloat} (hl : Inert left) (hr : Inert rig
   · exact Or.inl rfl
   · cases sl <;> cases sr <;> exact Or.inr ⟨_, rfl⟩
 
-/-- A product with an inert left factor is inert, whatever the right factor. -/
 theorem Inert.mulLeft {left : UnpackedFloat} (hl : Inert left) (right : UnpackedFloat) :
     Inert (UnpackedFloat.mul Format.binary32 left right) := by
   rcases hl with rfl | ⟨sl, rfl⟩
@@ -175,7 +107,6 @@ theorem Inert.mulLeft {left : UnpackedFloat} (hl : Inert left) (right : Unpacked
     | zero _ => exact Or.inr ⟨_, rfl⟩
     | finite _ _ _ _ => exact Or.inr ⟨_, rfl⟩
 
-/-- A product with an inert right factor is inert, whatever the left factor. -/
 theorem Inert.mulRight (left : UnpackedFloat) {right : UnpackedFloat} (hr : Inert right) :
     Inert (UnpackedFloat.mul Format.binary32 left right) := by
   rcases hr with rfl | ⟨sr, rfl⟩
@@ -186,7 +117,6 @@ theorem Inert.mulRight (left : UnpackedFloat) {right : UnpackedFloat} (hr : Iner
     | zero _ => exact Or.inr ⟨_, rfl⟩
     | finite _ _ _ _ => exact Or.inr ⟨_, rfl⟩
 
-/-- A quotient with an inert dividend is inert, whatever the divisor. -/
 theorem Inert.divLeft {left : UnpackedFloat} (hl : Inert left) (right : UnpackedFloat) :
     Inert (UnpackedFloat.div Format.binary32 left right) := by
   rcases hl with rfl | ⟨sl, rfl⟩
@@ -197,32 +127,26 @@ theorem Inert.divLeft {left : UnpackedFloat} (hl : Inert left) (right : Unpacked
     | zero _ => exact Or.inl rfl
     | finite _ _ _ _ => exact Or.inr ⟨_, rfl⟩
 
-/-- An inert sum. -/
 theorem Inert32.add {left right : Binary32} (hl : Inert32 left) (hr : Inert32 right) :
     Inert32 (left.add right) :=
   (Inert.add hl.model hr.model).word
 
-/-- An inert difference. -/
 theorem Inert32.sub {left right : Binary32} (hl : Inert32 left) (hr : Inert32 right) :
     Inert32 (left.sub right) :=
   (Inert.sub hl.model hr.model).word
 
-/-- An inert product of an inert left factor. -/
 theorem Inert32.mulLeft {left : Binary32} (hl : Inert32 left) (right : Binary32) :
     Inert32 (left.mul right) :=
   (Inert.mulLeft hl.model _).word
 
-/-- An inert product of an inert right factor. -/
 theorem Inert32.mulRight (left : Binary32) {right : Binary32} (hr : Inert32 right) :
     Inert32 (left.mul right) :=
   (Inert.mulRight _ hr.model).word
 
-/-- An inert quotient of an inert dividend. -/
 theorem Inert32.divLeft {left : Binary32} (hl : Inert32 left) (right : Binary32) :
     Inert32 (left.div right) :=
   (Inert.divLeft hl.model _).word
 
-/-- An ordered sum of inert terms from an inert start is inert. -/
 theorem Inert32.foldlAdd (values : List Binary32) (initial : Binary32) (start : Inert32 initial)
     (terms : ∀ value ∈ values, Inert32 value) : Inert32 (values.foldl Binary32.add initial) := by
   induction values generalizing initial with
@@ -231,13 +155,11 @@ theorem Inert32.foldlAdd (values : List Binary32) (initial : Binary32) (start : 
     exact ih _ (start.add (terms value (List.mem_cons_self ..)))
       (fun other held => terms other (List.mem_cons_of_mem _ held))
 
-/-- A machine sum of inert terms from an inert start is inert. -/
 theorem Inert32.sumFrom (values : List Binary32) (initial : Binary32) (start : Inert32 initial)
     (terms : ∀ value ∈ values, Inert32 value) : Inert32 (Binary32.sumFrom initial values) := by
   rw [Binary32.sumFrom_def]
   exact Inert32.foldlAdd values initial start terms
 
-/-- Symmetric projection stores a zero word for every inert word, under every rule. -/
 theorem Inert32.project {word : Binary32} (inert : Inert32 word) (rule : ValueRule) :
     (Weight.project rule word).value.isZero = true := by
   rw [Weight.project_eq]
@@ -254,21 +176,16 @@ theorem Inert32.project {word : Binary32} (inert : Inert32 word) (rule : ValueRu
   · simp only [nan, ite_true]
     decide
 
-/-! ## Zero words -/
-
-/-- The model's view of a zero word is a zero. -/
 theorem zeroWord_model {word : Binary32} (zero : word.isZero = true) :
     ∃ sign, (Float32.ofBits word.bits).toModel.unpack = .zero sign := by
   rcases isZero_bits word zero with bits | bits
   · exact ⟨.positive, by rw [bits]; rfl⟩
   · exact ⟨.negative, by rw [bits]; rfl⟩
 
-/-- The word that packs a zero is a zero word. -/
 theorem zeroWord_pack (sign : UnpackedFloat.Sign) :
     (⟨(Float32.Model.pack (.zero sign)).toBits⟩ : Binary32).isZero = true := by
   cases sign <;> decide
 
-/-- A sum of zero words is a zero word. -/
 theorem zeroWord_add {left right : Binary32} (hl : left.isZero = true) (hr : right.isZero = true) :
     (left.add right).isZero = true := by
   obtain ⟨sl, el⟩ := zeroWord_model hl
@@ -279,7 +196,6 @@ theorem zeroWord_add {left right : Binary32} (hl : left.isZero = true) (hr : rig
   rw [el, er]
   cases sl <;> cases sr <;> exact zeroWord_pack _
 
-/-- A difference of zero words is a zero word. -/
 theorem zeroWord_sub {left right : Binary32} (hl : left.isZero = true) (hr : right.isZero = true) :
     (left.sub right).isZero = true := by
   obtain ⟨sl, el⟩ := zeroWord_model hl
@@ -290,7 +206,6 @@ theorem zeroWord_sub {left right : Binary32} (hl : left.isZero = true) (hr : rig
   rw [el, er]
   cases sl <;> cases sr <;> exact zeroWord_pack _
 
-/-- An ordered sum of zero words from a zero word is a zero word. -/
 theorem zeroWord_foldlAdd (values : List Binary32) (initial : Binary32) (start : initial.isZero =
     true)
     (terms : ∀ value ∈ values, value.isZero = true) :
@@ -301,8 +216,6 @@ theorem zeroWord_foldlAdd (values : List Binary32) (initial : Binary32) (start :
     exact ih _ (zeroWord_add start (terms value (List.mem_cons_self ..)))
       (fun other held => terms other (List.mem_cons_of_mem _ held))
 
-/-- An ordered sum of positive zeros from positive zero is positive zero: the word itself, where
-`zeroWord_foldlAdd` gives a zero word of either sign. -/
 theorem sumFrom_zeros (values : List Binary32) (zeros : ∀ value ∈ values, value = Binary32.zero) :
     Binary32.sumFrom .zero values = .zero := by
   rw [Binary32.sumFrom_def]
@@ -312,7 +225,6 @@ theorem sumFrom_zeros (values : List Binary32) (zeros : ∀ value ∈ values, va
     rw [List.foldl_cons, zeros head (List.mem_cons_self ..)]
     exact ih fun value member => zeros value (List.mem_cons_of_mem _ member)
 
-/-- A saturation between two zero words is a zero word, whatever the saturated word. -/
 theorem zeroWord_saturate (value : Binary32) {lower upper : Binary32}
     (hl : lower.isZero = true) (hu : upper.isZero = true) :
     (value.saturate lower upper).isZero = true := by
@@ -359,26 +271,16 @@ open Acorn.SwiftTd (ActiveSet Entry)
 
 variable {config : Acorn.Config} {dimension : Dimension}
 
-/-! ## One learner at rest -/
-
-/-- A learner at rest: every weight is a zero word, and every per-weight update word and both
-shared lags are inert. -/
 structure Calm (state : NumericState config dimension) : Prop where
-  /-- Every weight is a zero word. -/
   weights : ∀ idx : FeatIdx dimension, (state.weights.get idx).value.isZero = true
-  /-- Every per-weight update word is inert. -/
   deltaWeight : ∀ idx : FeatIdx dimension, Inert32 (state.transient.deltaWeight.get idx).value
-  /-- The previous prediction is inert. -/
   vOld : Inert32 state.transient.vOld
-  /-- The weight-change accumulator is inert. -/
   vDelta : Inert32 state.transient.vDelta
 
-/-- Fin-indexed vector reads are bounded reads. -/
 theorem vec_get {α : Type} {capacity : Nat} (values : Vector α capacity) (idx : Fin capacity) :
     values.get idx = values[idx.val] := by
   simp only [Vector.get, Fin.val_cast, Vector.getElem_toArray]
 
-/-- A read of a written vector is the written value at the written index. -/
 theorem get_set_vec {α : Type} {capacity : Nat} (values : Vector α capacity) (idx other : Fin
     capacity)
     (value : α) :
@@ -392,12 +294,10 @@ theorem get_set_vec {α : Type} {capacity : Nat} (values : Vector α capacity) (
   · have distinct : idx.val ≠ other.val := fun equal => same (Fin.ext equal)
     simp [same, distinct]
 
-/-- A read of a replicated vector is its element. -/
 theorem get_replicate_vec {α : Type} {capacity : Nat} (value : α) (idx : Fin capacity) :
     (Vector.replicate capacity value).get idx = value := by
   rw [vec_get, Vector.getElem_replicate]
 
-/-- An inert sum over a list read. -/
 theorem Inert32.sumMap {α : Type} (values : List α) (read : α → Binary32)
     (terms : ∀ value ∈ values, Inert32 (read value)) :
     Inert32 (Binary32.sumMap .zero values read) := by
@@ -407,13 +307,11 @@ theorem Inert32.sumMap {α : Type} (values : List α) (read : α → Binary32)
   obtain ⟨source, member, rfl⟩ := List.mem_map.mp held
   exact terms source member
 
-/-- A prediction of a learner at rest is inert. -/
 theorem Calm.predict {state : NumericState config dimension} (calm : Calm state)
     (features : ActiveSet dimension) : Inert32 (state.linearPrediction features) := by
   rw [NumericState.linearPrediction_def]
   exact Inert32.sumMap _ _ fun idx _ => Inert32.ofZero (calm.weights idx)
 
-/-- The fresh learner is at rest. -/
 theorem Calm.initial : Calm (NumericState.initial config dimension) where
   weights idx := by
     change ((Vector.replicate _ (Weight.project config.rule .zero)).get idx).value.isZero = true
@@ -426,7 +324,6 @@ theorem Calm.initial : Calm (NumericState.initial config dimension) where
   vOld := Inert32.zero
   vDelta := Inert32.zero
 
-/-- A weight write of an inert word keeps a learner at rest. -/
 theorem Calm.writeWeight {state : NumericState config dimension} (calm : Calm state)
     (idx : FeatIdx dimension) {raw : Binary32} (inert : Inert32 raw) :
     Calm (state.writeWeight idx raw) where
@@ -439,13 +336,11 @@ theorem Calm.writeWeight {state : NumericState config dimension} (calm : Calm st
   vOld := calm.vOld
   vDelta := calm.vDelta
 
-/-- A log-step write keeps a learner at rest. -/
 theorem Calm.writeBetaValue {state : NumericState config dimension} (calm : Calm state)
     (idx : FeatIdx dimension) (value : LogStepSize state.rails) :
     Calm (state.writeBetaValue idx value) :=
   ⟨calm.weights, calm.deltaWeight, calm.vOld, calm.vDelta⟩
 
-/-- A transient write that keeps the update words and both lags keeps a learner at rest. -/
 theorem Calm.ofTransient {state next : NumericState config dimension} (calm : Calm state)
     (weights : next.weights = state.weights)
     (deltaWeight : next.transient.deltaWeight = state.transient.deltaWeight)
@@ -456,7 +351,6 @@ theorem Calm.ofTransient {state next : NumericState config dimension} (calm : Ca
   vOld := vOld ▸ calm.vOld
   vDelta := vDelta ▸ calm.vDelta
 
-/-- An inert update-word write keeps a learner at rest. -/
 theorem Calm.writeDeltaWeight {state : NumericState config dimension} (calm : Calm state)
     (idx : FeatIdx dimension) {word : Binary32} (inert : Inert32 word) :
     Calm (state.writeDeltaWeight idx word) where
@@ -469,7 +363,6 @@ theorem Calm.writeDeltaWeight {state : NumericState config dimension} (calm : Ca
   vOld := calm.vOld
   vDelta := calm.vDelta
 
-/-- Clearing one feature's registers keeps a learner at rest. -/
 theorem Calm.clearFeatureRegisters {state : NumericState config dimension} (calm : Calm state)
     (idx : FeatIdx dimension) : Calm (state.clearFeatureRegisters idx) := by
   unfold NumericState.clearFeatureRegisters
@@ -478,7 +371,6 @@ theorem Calm.clearFeatureRegisters {state : NumericState config dimension} (calm
     calm.ofTransient rfl rfl rfl rfl
   exact (written.writeDeltaWeight idx Inert32.zero).ofTransient rfl rfl rfl rfl
 
-/-- A fresh transient record keeps a learner at rest. -/
 theorem Calm.clearTransient {state : NumericState config dimension} (calm : Calm state) :
     Calm state.clearTransient where
   weights := calm.weights
@@ -489,7 +381,6 @@ theorem Calm.clearTransient {state : NumericState config dimension} (calm : Calm
   vOld := Inert32.zero
   vDelta := Inert32.zero
 
-/-- One first-loop element at an inert error and accumulator keeps a learner at rest. -/
 theorem Calm.firstLoopElement {state : NumericState config dimension} (calm : Calm state)
     (idx : FeatIdx dimension) {delta vDelta : Binary32} (hd : Inert32 delta)
     (hv : Inert32 vDelta) (decay : Binary32) :
@@ -512,7 +403,6 @@ theorem Calm.firstLoopElement {state : NumericState config dimension} (calm : Ca
       · exact dw
     · exact calm.deltaWeight other
 
-/-- Every first-loop traversal at an inert error and accumulator keeps a learner at rest. -/
 theorem Calm.learnFirstLoopGo {delta vDelta : Binary32} (hd : Inert32 delta)
     (hv : Inert32 vDelta) (decay : Binary32) (state : NumericState config dimension)
     (work : Array (FeatIdx dimension)) (pos : Nat) (calm : Calm state) :
@@ -535,7 +425,6 @@ theorem Calm.learnFirstLoopGo {delta vDelta : Binary32} (hd : Inert32 delta)
     rw [NumericState.learnFirstLoopGo_def, dite_eq_right finished]
     exact ⟨calm.weights, calm.deltaWeight, calm.vOld, calm.vDelta⟩
 
-/-- A first loop at an inert error and accumulator keeps a learner at rest. -/
 theorem Calm.learnFirstLoop {state : NumericState config dimension} (calm : Calm state)
     {delta vDelta : Binary32} (hd : Inert32 delta) (hv : Inert32 vDelta) (decay : Binary32) :
     Calm (state.learnFirstLoop config delta vDelta decay) := by
@@ -543,7 +432,6 @@ theorem Calm.learnFirstLoop {state : NumericState config dimension} (calm : Calm
   exact Calm.learnFirstLoopGo hd hv decay _ _ _ ⟨calm.weights, calm.deltaWeight, calm.vOld,
     calm.vDelta⟩
 
-/-- One second-loop element keeps a learner at rest, and an inert accumulator inert. -/
 theorem Calm.secondLoopElementAt {state : NumericState config dimension} (calm : Calm state)
     (overshoot : Bool) (scale oneSubT alpha vDelta : Binary32) (idx : FeatIdx dimension) :
     Calm (NumericState.secondLoopElementAt overshoot scale oneSubT alpha state vDelta idx).1 ∧
@@ -556,7 +444,6 @@ theorem Calm.secondLoopElementAt {state : NumericState config dimension} (calm :
   · refine Calm.writeBetaValue ?_ _ _
     exact calm.ofTransient rfl rfl rfl rfl
 
-/-- Every second-loop traversal keeps a learner at rest, and an inert accumulator inert. -/
 theorem Calm.learnSecondLoopGo (overshoot : Bool) (scale oneSubT : Binary32) :
     ∀ (indices : List (FeatIdx dimension)) (alphas : List Binary32)
       (state : NumericState config dimension) (vDelta : Binary32), Calm state →
@@ -578,7 +465,6 @@ theorem Calm.learnSecondLoopGo (overshoot : Bool) (scale oneSubT : Binary32) :
     rw [NumericState.learnSecondLoopGo_def]
     exact ⟨calm, id⟩
 
-/-- A second loop keeps a learner at rest, and an inert accumulator inert. -/
 theorem Calm.learnSecondLoop {state : NumericState config dimension} (calm : Calm state)
     (features : ActiveSet dimension) (vDelta : Binary32) :
     Calm (state.learnSecondLoop config features vDelta).1 ∧
@@ -586,7 +472,6 @@ theorem Calm.learnSecondLoop {state : NumericState config dimension} (calm : Cal
   rw [NumericState.learnSecondLoop_def]
   exact Calm.learnSecondLoopGo _ _ _ _ _ _ _ calm
 
-/-- A full update at an inert reward keeps a learner at rest. -/
 theorem Calm.step {state : NumericState config dimension} (calm : Calm state)
     (features : ActiveSet dimension) {reward : Binary32} (hr : Inert32 reward) :
     Calm (state.step config features reward).1 := by
@@ -598,7 +483,6 @@ theorem Calm.step {state : NumericState config dimension} (calm : Calm state)
   have second := first.learnSecondLoop features .zero
   exact ⟨second.1.weights, second.1.deltaWeight, v, second.2 Inert32.zero⟩
 
-/-- A trajectory's start keeps a learner at rest. -/
 theorem Calm.beginTrajectory {state : NumericState config dimension} (calm : Calm state)
     (features : ActiveSet dimension) : Calm (state.beginTrajectory config features) := by
   rw [NumericState.beginTrajectory_def]
@@ -606,13 +490,11 @@ theorem Calm.beginTrajectory {state : NumericState config dimension} (calm : Cal
   have second := cleared.learnSecondLoop features .zero
   exact ⟨second.1.weights, second.1.deltaWeight, cleared.predict features, second.2 Inert32.zero⟩
 
-/-- A terminal update toward an inert target keeps a learner at rest. -/
 theorem Calm.terminalStep {state : NumericState config dimension} (calm : Calm state)
     {target : Binary32} (ht : Inert32 target) : Calm (state.terminalStep config target).1 := by
   rw [NumericState.terminalStep_def]
   exact (calm.learnFirstLoop (ht.sub calm.vOld) calm.vDelta _).clearTransient
 
-/-- Every planning weight traversal of an inert error keeps a learner at rest. -/
 theorem Calm.planWeightsGo (scale : Binary32) {delta : Binary32} (hd : Inert32 delta) :
     ∀ (indices : List (FeatIdx dimension)) (alphas : List Binary32)
       (state : NumericState config dimension), Calm state →
@@ -629,7 +511,6 @@ theorem Calm.planWeightsGo (scale : Binary32) {delta : Binary32} (hd : Inert32 d
     rw [NumericState.planWeightsGo_def]
     exact calm
 
-/-- A planning update toward an inert target keeps a learner at rest. -/
 theorem Calm.planStep {state : NumericState config dimension} (calm : Calm state)
     (features : ActiveSet dimension) {target : Binary32} (ht : Inert32 target) :
     Calm (state.planStep config features target).1 := by
@@ -639,7 +520,6 @@ theorem Calm.planStep {state : NumericState config dimension} (calm : Calm state
   · exact calm
   · exact Calm.planWeightsGo _ (ht.sub (calm.predict features)) _ _ _ calm
 
-/-- Retiring a feature keeps a learner at rest. -/
 theorem Calm.retireIndex {state : NumericState config dimension} (calm : Calm state)
     (idx : FeatIdx dimension) : Calm (state.retireIndex idx) := by
   rw [NumericState.retireIndex_def]
@@ -652,7 +532,6 @@ theorem Calm.retireIndex {state : NumericState config dimension} (calm : Calm st
     · exact calm
   exact ((removed.clearFeatureRegisters idx).writeWeight idx Inert32.zero).writeBetaValue _ _
 
-/-- Releasing every eligible trace keeps a learner at rest. -/
 theorem Calm.releaseEligible {state : NumericState config dimension} (calm : Calm state) :
     Calm state.releaseEligible := by
   rw [NumericState.releaseEligible_def]
@@ -670,7 +549,6 @@ theorem Calm.releaseEligible {state : NumericState config dimension} (calm : Cal
   rw [Array.foldl_toList] at cleared
   exact cleared.ofTransient rfl rfl rfl rfl
 
-/-- The inputs an entry reads that decide its writes are inert. -/
 def Entry.Quiet : Entry dimension → Prop
   | .first delta vDelta _ => Inert32 delta ∧ Inert32 vDelta
   | .second _ _ => True
@@ -682,7 +560,6 @@ def Entry.Quiet : Entry dimension → Prop
   | .clear => True
   | .release => True
 
-/-- Every entry of the learner interface with quiet inputs keeps a learner at rest. -/
 theorem Calm.apply {state : NumericState config dimension} (calm : Calm state)
     (entry : Entry dimension) (quiet : Entry.Quiet entry) : Calm (entry.apply state) := by
   cases entry with
@@ -713,9 +590,6 @@ open Acorn.SwiftTd (ActiveSet Entry)
 
 variable {config : Acorn.Config} {dimension : Dimension} {actions : Nat}
 
-/-! ## Predictions of a learner at rest -/
-
-/-- A prediction of a learner at rest is a zero word. -/
 theorem Calm.predict_zero {state : NumericState config dimension} (calm : Calm state)
     (features : ActiveSet dimension) : (state.linearPrediction features).isZero = true := by
   rw [NumericState.linearPrediction_eq_sumFrom, Binary32.sumFrom_def]
@@ -724,8 +598,6 @@ theorem Calm.predict_zero {state : NumericState config dimension} (calm : Calm s
   obtain ⟨idx, _, rfl⟩ := List.mem_map.mp held
   exact calm.weights idx
 
-/-- The fresh learner predicts positive zero on every frame: its weights are positive zeros.
-`Calm.predict_zero` gives a zero word of either sign for every learner at rest. -/
 theorem initial_prediction (features : ActiveSet dimension) :
     (NumericState.initial config dimension).linearPrediction features = .zero := by
   rw [NumericState.linearPrediction_eq_sumFrom]
@@ -735,33 +607,23 @@ theorem initial_prediction (features : ActiveSet dimension) :
   change ((Vector.replicate _ (Weight.project config.rule .zero)).get idx).value = .zero
   rw [get_replicate_vec, Weight.project_zero]
 
-/-- An applied entry with quiet inputs keeps a managed learner at rest. -/
 theorem Calm.managed {learner : Managed config dimension} (calm : Calm learner.state)
     (entry : Entry dimension) (permitted : SwiftTd.Permitted entry learner.phase)
     (quiet : Entry.Quiet entry) : Calm (learner.apply entry permitted).state :=
   (Managed.apply_state learner entry permitted) ▸ calm.apply entry quiet
 
-/-! ## A controller at rest -/
-
-/-- A controller at rest: every row at rest and both shared lags inert. -/
 structure Still (controller : Controller config dimension actions) : Prop where
-  /-- Every row is at rest. -/
   rows : ∀ row : Fin actions, Calm (controller.learners.get row).state
-  /-- The shared previous prediction is inert. -/
   vOld : Inert32 controller.vOld
-  /-- The shared weight-change accumulator is inert. -/
   vDelta : Inert32 controller.vDelta
 
-/-- A controller at rest rests. -/
 theorem Still.resting {controller : Controller config dimension actions} (still : Still controller)
     :
     Resting controller := fun row slot => (still.rows row).weights slot
 
-/-- Every value of a snapshot is a zero word. -/
 def Settled {count : Word.Count} (snapshot : PolicySnapshot count) : Prop :=
   ∀ action : Action count.word.toNat, (snapshot.values.get action).isZero = true
 
-/-- The fresh controller is at rest. -/
 theorem Still.initial : Still (Controller.initial config dimension actions) where
   rows row := by
     change Calm ((Vector.ofFn fun _ => Managed.initial config dimension).get row).state
@@ -770,7 +632,6 @@ theorem Still.initial : Still (Controller.initial config dimension actions) wher
   vOld := Inert32.zero
   vDelta := Inert32.zero
 
-/-- Every value a controller at rest predicts is a zero word. -/
 theorem Still.predictAll {controller : Controller config dimension actions} (still : Still
     controller)
     (features : ActiveSet dimension) (action : Fin actions) :
@@ -778,7 +639,6 @@ theorem Still.predictAll {controller : Controller config dimension actions} (sti
   rw [Controller.predictAll_def, vec_get, Vector.getElem_map]
   exact (still.rows action).predict_zero features
 
-/-- A snapshot of a controller at rest is settled. -/
 theorem Still.snapshot {count : Word.Count} {controller : Controller config dimension
     count.word.toNat}
     (still : Still controller) (features : ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
@@ -787,13 +647,11 @@ theorem Still.snapshot {count : Word.Count} {controller : Controller config dime
   rw [Controller.snapshot_def]
   exact still.predictAll features action
 
-/-- The rows of a mapped table. -/
 theorem get_map_vec {α β : Type} {size : Nat} (values : Vector α size) (f : α → β) (idx : Fin size)
     :
     (values.map f).get idx = f (values.get idx) := by
   rw [vec_get, vec_get, Vector.getElem_map]
 
-/-- A clear keeps a controller at rest. -/
 theorem Still.clear {controller : Controller config dimension actions} (still : Still controller) :
     Still controller.clear where
   rows row := by
@@ -804,7 +662,6 @@ theorem Still.clear {controller : Controller config dimension actions} (still : 
   vOld := Inert32.zero
   vDelta := Inert32.zero
 
-/-- A row's credit at an inert error and accumulator keeps the row at rest. -/
 theorem Calm.credit {learner : Managed config dimension} (calm : Calm learner.state)
     {delta vd : Binary32} (hd : Inert32 delta) (hv : Inert32 vd) (decay : Binary32)
     (restart : Bool) : Calm (learner.credit delta vd decay restart).val.state := by
@@ -814,7 +671,6 @@ theorem Calm.credit {learner : Managed config dimension} (calm : Calm learner.st
   · exact first
   · exact first.managed .clear trivial trivial
 
-/-- A shared-error update at an inert lag and error keeps a controller at rest. -/
 theorem Still.creditStep {controller : Controller config dimension actions} (still : Still
     controller)
     (features : ActiveSet dimension) (action : Action actions) {lag delta : Binary32}
@@ -835,8 +691,6 @@ theorem Still.creditStep {controller : Controller config dimension actions} (sti
   · rw [get_map_vec, get_map_vec]
     exact rows row
 
-/-- An update over a value snapshot keeps a controller at rest when the taken action's value and
-the reward are inert. -/
 theorem Still.valuesStep {controller : Controller config dimension actions} (still : Still
     controller)
     (features : ActiveSet dimension) (values : Vector Binary32 actions) (action : Action actions)
@@ -846,7 +700,6 @@ theorem Still.valuesStep {controller : Controller config dimension actions} (sti
   rw [Controller.valuesStep_def]
   exact still.creditStep features action hv ((hr.add (Inert32.mulRight _ hv)).sub still.vOld) decay
 
-/-- A release keeps a controller at rest. -/
 theorem Still.release {controller : Controller config dimension actions} (still : Still controller)
     :
     Still controller.release where
@@ -858,7 +711,6 @@ theorem Still.release {controller : Controller config dimension actions} (still 
   vOld := still.vOld
   vDelta := Inert32.zero
 
-/-- A trajectory start at an inert lag keeps a controller at rest. -/
 theorem Still.startStep {controller : Controller config dimension actions} (still : Still
     controller)
     (features : ActiveSet dimension) (action : Action actions) {lag : Binary32} (hl : Inert32 lag) :
@@ -866,7 +718,6 @@ theorem Still.startStep {controller : Controller config dimension actions} (stil
   rw [Controller.startStep_def]
   exact still.release.creditStep features action hl Inert32.zero .zero
 
-/-- Stopping credit at an inert error keeps a controller at rest. -/
 theorem Still.stopStep {controller : Controller config dimension actions} (still : Still controller)
     {delta : Binary32} (hd : Inert32 delta) : Still (controller.stopStep delta) where
   rows row := by
@@ -878,7 +729,6 @@ theorem Still.stopStep {controller : Controller config dimension actions} (still
   vOld := by rw [Controller.stopStep_eq]; exact Inert32.zero
   vDelta := by rw [Controller.stopStep_eq]; exact Inert32.zero
 
-/-- A primitive continuing update at an inert reward keeps a controller at rest. -/
 theorem Still.step {controller : Controller config dimension actions} (still : Still controller)
     (features : ActiveSet dimension) (action : Action actions) {reward : Binary32}
     (hr : Inert32 reward) : Still (controller.step features action reward).1 := by
@@ -886,7 +736,6 @@ theorem Still.step {controller : Controller config dimension actions} (still : S
   exact still.valuesStep features _ action (Inert32.ofZero (still.predictAll features action)) hr _
     _
 
-/-- A duration credit at an inert reward keeps a controller at rest. -/
 theorem Still.smdpStep {controller : Controller config dimension actions} (still : Still controller)
     (features : ActiveSet dimension) (action : Action actions) {reward : Binary32}
     (hr : Inert32 reward) (duration : UInt32) :
@@ -895,7 +744,6 @@ theorem Still.smdpStep {controller : Controller config dimension actions} (still
   exact still.valuesStep features _ action (Inert32.ofZero (still.predictAll features action)) hr _
     _
 
-/-- A span's close at an inert reward and continuation keeps a controller at rest. -/
 theorem Still.closeStep {controller : Controller config dimension actions} (still : Still
     controller)
     {reward continuation : Binary32} (hr : Inert32 reward) (hc : Inert32 continuation)
@@ -903,7 +751,6 @@ theorem Still.closeStep {controller : Controller config dimension actions} (stil
   rw [Controller.closeStep_def]
   exact still.stopStep ((hr.add (Inert32.mulRight _ hc)).sub still.vOld)
 
-/-- Terminal credit at an inert reward keeps a controller at rest. -/
 theorem Still.terminal {controller : Controller config dimension actions} (still : Still controller)
     {reward : Binary32} (hr : Inert32 reward) : Still (controller.terminal reward) := by
   rw [Controller.terminal_eq]
@@ -912,7 +759,6 @@ theorem Still.terminal {controller : Controller config dimension actions} (still
   rw [get_map_vec]
   exact (still.rows row).managed _ trivial ⟨hr.sub still.vOld, still.vDelta⟩
 
-/-- Retiring a feature keeps a controller at rest. -/
 theorem Still.retire {controller : Controller config dimension actions} (still : Still controller)
     (feature : FeatIdx dimension) : Still (controller.retire feature) := by
   rw [Controller.retire_def]
@@ -921,7 +767,6 @@ theorem Still.retire {controller : Controller config dimension actions} (still :
   rw [get_map_vec, Managed.retire_def]
   exact (still.rows row).managed _ trivial trivial
 
-/-- Resetting one action keeps a controller at rest. -/
 theorem Still.resetAction {controller : Controller config dimension actions} (still : Still
     controller)
     (action : Fin actions) : Still (controller.resetAction action) where
@@ -935,8 +780,6 @@ theorem Still.resetAction {controller : Controller config dimension actions} (st
   vOld := still.vOld
   vDelta := still.vDelta
 
-/-- Frozen-decision credit over a settled snapshot at an inert reward keeps a controller at
-rest. -/
 theorem Still.policyStep {count : Word.Count} {controller : Controller config dimension
     count.word.toNat}
     (still : Still controller) (features : ActiveSet dimension) (decision : PolicyDecision count)
@@ -945,8 +788,6 @@ theorem Still.policyStep {count : Word.Count} {controller : Controller config di
   rw [Controller.policyStep_def]
   exact still.valuesStep features _ _ (Inert32.ofZero (settled _)) hr _ _
 
-/-- Persistent-draw credit over a settled snapshot at an inert reward keeps a controller at
-rest. -/
 theorem Still.persistentStep {count : Word.Count}
     {controller : Controller config dimension count.word.toNat} (still : Still controller)
     (features : ActiveSet dimension) (snapshot : PolicySnapshot count) (settled : Settled snapshot)
@@ -956,7 +797,6 @@ theorem Still.persistentStep {count : Word.Count}
   rw [Controller.persistentStep_def]
   exact still.valuesStep features _ _ (Inert32.ofZero (settled _)) hr _ _
 
-/-- A planning step toward an inert target keeps a controller at rest. -/
 theorem Still.plan {controller : Controller config dimension actions} (still : Still controller)
     (action : Action actions) (features : ActiveSet dimension) {target : Binary32}
     (ht : Inert32 target) : Still (controller.plan action features target).1 := by
@@ -968,9 +808,6 @@ theorem Still.plan {controller : Controller config dimension actions} (still : S
   · exact (still.rows action).planStep features ht
   · exact still.rows row
 
-/-! ## Values of settled snapshots -/
-
-/-- The ordered maximum of a settled snapshot is a zero word. -/
 theorem Settled.best {count : Word.Count} {snapshot : PolicySnapshot count} (settled : Settled
     snapshot) :
     snapshot.best.isZero = true := by
@@ -997,7 +834,6 @@ theorem Settled.best {count : Word.Count} {snapshot : PolicySnapshot count} (set
       · exact held
   exact folded _ _ (settled _) (fun value held => each value (List.mem_of_mem_drop held))
 
-/-- The nominal policy mean of a settled snapshot is a zero word. -/
 theorem Settled.expected {count : Word.Count} {snapshot : PolicySnapshot count} (settled : Settled
     snapshot) :
     snapshot.expected.isZero = true := by
@@ -1026,7 +862,6 @@ theorem Settled.expected {count : Word.Count} {snapshot : PolicySnapshot count} 
     exact folded _ _ (settled _) each
   · exact settled.best
 
-/-- The comparison value of a settled snapshot is a zero word, under both criteria. -/
 theorem Settled.comparison {count : Word.Count} {snapshot : PolicySnapshot count}
     (settled : Settled snapshot) (criterion : Criterion) :
     (comparisonValue criterion snapshot).isZero = true := by
@@ -1035,7 +870,6 @@ theorem Settled.comparison {count : Word.Count} {snapshot : PolicySnapshot count
   · exact settled.best
   · exact settled.expected
 
-/-- Tree-backup credit over a settled snapshot at an inert reward keeps a controller at rest. -/
 theorem Still.backupStep {count : Word.Count} {controller : Controller config dimension
     count.word.toNat}
     (still : Still controller) (features : ActiveSet dimension) (snapshot : PolicySnapshot count)
@@ -1053,9 +887,6 @@ open Acorn Acorn.Features
 open Acorn.SwiftTd (ActiveSet Entry)
 open Float.Model (Format UnpackedFloat)
 
-/-! ## More zero words -/
-
-/-- A product of a zero word and a finite word is a zero word. -/
 theorem zeroWord_mul_finite {left right : Binary32} (hl : left.isZero = true) (hr : right.Finite) :
     (left.mul right).isZero = true := by
   obtain ⟨sl, el⟩ := zeroWord_model hl
@@ -1074,7 +905,6 @@ theorem zeroWord_mul_finite {left right : Binary32} (hl : left.isZero = true) (h
   | zero sign => exact zeroWord_pack _
   | finite sign mantissa exponent positive => exact zeroWord_pack _
 
-/-- A saturation into a range from positive zero holds every inert word as a zero word. -/
 theorem Inert32.saturate {word : Binary32} (inert : Inert32 word) (range : Interval32)
     (lower : range.lower = .zero) (upper : 0 ≤ range.upper.key) :
     (range.saturate word).isZero = true := by
@@ -1097,7 +927,6 @@ theorem Inert32.saturate {word : Binary32} (inert : Inert32 word) (range : Inter
     simp only [nan, Bool.true_or, ite_true, lower]
     decide
 
-/-- The binary64 sum of three zero words, narrowed, is a zero word. -/
 theorem zeroWord_outcome {first second third : Binary32} (h1 : first.isZero = true)
     (h2 : second.isZero = true) (h3 : third.isZero = true) :
     (Conversion.narrow (((Conversion.widen first).add (Conversion.widen second)).add
@@ -1113,16 +942,10 @@ theorem zeroWord_outcome {first second third : Binary32} (h1 : first.isZero = tr
 
 variable {dimension : Dimension} {criterion : Criterion}
 
-/-! ## Option models -/
-
-/-- The deviation learners of a transition part are at rest. -/
 def Deviations (transition : Transition dimension criterion) : Prop :=
   ∀ action : Fin Acorn.FeatureConstants.metaActionCount, AcornVerif.CurrentPreReward.Calm
     (transition.deviations.get action).state
 
-/-- The learners whose predictions a model's targets and values read are at rest: the reward and
-continuation learners and the deviation learners. The duration learner and the transition rows
-move on a reward-free stream and are not part of it. -/
 def ModelCalm : Model dimension criterion → Prop
   | .discounted reward continuation transition =>
     AcornVerif.CurrentPreReward.Calm reward.state ∧
@@ -1131,7 +954,6 @@ def ModelCalm : Model dimension criterion → Prop
     AcornVerif.CurrentPreReward.Calm reward.state ∧
       AcornVerif.CurrentPreReward.Calm continuation.state ∧ Deviations transition
 
-/-- A row update that keeps every deviation learner at rest keeps the part's. -/
 theorem Deviations.updateRows {transition : Transition dimension criterion}
     (calm : Deviations transition)
     (update : RankIdx dimension → Managed (criterion.config .demon) (rankDimension dimension) →
@@ -1149,7 +971,6 @@ theorem Deviations.updateRows {transition : Transition dimension criterion}
   simp only [Vector.getElem_mapFinIdx]
   exact kept _ _ held
 
-/-- The fresh transition part is at rest. -/
 theorem Deviations.initial : Deviations (Transition.initial dimension criterion) := by
   intro action
   change AcornVerif.CurrentPreReward.Calm
@@ -1157,7 +978,6 @@ theorem Deviations.initial : Deviations (Transition.initial dimension criterion)
   rw [get_replicate_vec]
   exact AcornVerif.CurrentPreReward.Calm.initial
 
-/-- Retiring positions keeps a learner at rest. -/
 theorem Calm.retireAll {config : Acorn.Config} {rank : Dimension} (positions : List (FeatIdx rank))
     :
     ∀ learner : Managed config rank, AcornVerif.CurrentPreReward.Calm learner.state →
@@ -1172,7 +992,6 @@ theorem Calm.retireAll {config : Acorn.Config} {rank : Dimension} (positions : L
     rw [Managed.retire_def]
     exact calm.managed _ trivial trivial
 
-/-- Forgetting input columns keeps every deviation learner at rest. -/
 theorem Deviations.forgetColumns {count : Nat}
     {learners : Vector (Managed (criterion.config .demon) (rankDimension dimension)) count}
     (calm : ∀ index, AcornVerif.CurrentPreReward.Calm (learners.get index).state)
@@ -1183,14 +1002,12 @@ theorem Deviations.forgetColumns {count : Nat}
   rw [get_map_vec]
   exact Calm.retireAll positions _ (calm index)
 
-/-- Reranking keeps the deviation learners at rest. -/
 theorem Deviations.rerank {transition : Transition dimension criterion} (calm : Deviations
     transition)
     (order : List (FeatIdx dimension)) (fresh : order.Nodup) : Deviations (transition.rerank order
       fresh) :=
   fun action => Deviations.forgetColumns calm _ action
 
-/-- Retiring a feature keeps the deviation learners at rest. -/
 theorem Deviations.retire {transition : Transition dimension criterion} (calm : Deviations
     transition)
     (feature : FeatIdx dimension) : Deviations (transition.retire feature) := by
@@ -1199,20 +1016,17 @@ theorem Deviations.retire {transition : Transition dimension criterion} (calm : 
   · exact calm
   · exact fun action => Deviations.forgetColumns calm _ action
 
-/-- A start keeps the deviation learners at rest. -/
 theorem Deviations.begin {transition : Transition dimension criterion} (calm : Deviations
     transition)
     (features : ActiveSet dimension) : Deviations (transition.begin features) := by
   rw [Transition.begin_def]
   exact calm.updateRows _ _ fun _ learner held => held.managed _ trivial trivial
 
-/-- A step at cumulant zero keeps the deviation learners at rest. -/
 theorem Deviations.step {transition : Transition dimension criterion} (calm : Deviations transition)
     (features : ActiveSet dimension) : Deviations (transition.step features) := by
   rw [Transition.step_def]
   exact calm.updateRows _ _ fun _ learner held => held.managed _ trivial Inert32.zero
 
-/-- A restart keeps the deviation learners at rest. -/
 theorem Deviations.restart {transition : Transition dimension criterion} (calm : Deviations
     transition)
     (features : ActiveSet dimension) : Deviations (transition.restart features) := by
@@ -1221,11 +1035,9 @@ theorem Deviations.restart {transition : Transition dimension criterion} (calm :
   rw [Managed.restartTrajectory_def]
   exact (held.managed .release trivial trivial).managed (.step _ .zero) trivial Inert32.zero
 
-/-- Every deviation target of an outcome is inert. -/
 def OutcomeQuiet (outcome : Outcome dimension) : Prop :=
   ∀ action : Action metaCount.word.toNat, Inert32 (outcome.deviations.get action)
 
-/-- A terminal step toward a quiet outcome keeps the deviation learners at rest. -/
 theorem Deviations.terminal {transition : Transition dimension criterion} (calm : Deviations
     transition)
     {outcome : Outcome dimension} (quiet : OutcomeQuiet outcome) : Deviations (transition.terminal
@@ -1233,7 +1045,6 @@ theorem Deviations.terminal {transition : Transition dimension criterion} (calm 
   rw [Transition.terminal_def]
   exact calm.updateRows _ _ fun action learner held => held.managed _ trivial (quiet action)
 
-/-- A stop toward a quiet outcome keeps the deviation learners at rest. -/
 theorem Deviations.stop {transition : Transition dimension criterion} (calm : Deviations transition)
     {outcome : Outcome dimension} (quiet : OutcomeQuiet outcome) : Deviations (transition.stop
       outcome) := by
@@ -1243,15 +1054,10 @@ theorem Deviations.stop {transition : Transition dimension criterion} (calm : De
   exact (held.managed (.first _ _ .zero) trivial ⟨(quiet action).sub held.vOld,
     held.vDelta⟩).managed .release trivial trivial
 
-/-! ## Values read under a value function at rest -/
-
-/-- A value function whose meta-controller is at rest. -/
 abbrev ValueStill (value : ValueFunction criterion dimension) : Prop := Still value.controller
 
-/-- Every word of an expectation is finite. -/
 theorem expectation_finite (word : Expectation) : word.value.Finite := word.legal.1
 
-/-- The ranked values of a value function at rest are zero words, at every expectation. -/
 theorem ranked_zero {value : ValueFunction criterion dimension} (still : ValueStill value)
     (ranked : RankedFeatures dimension)
     (expected : Vector Expectation (rankDimension dimension).capacity) :
@@ -1264,7 +1070,6 @@ theorem ranked_zero {value : ValueFunction criterion dimension} (still : ValueSt
   obtain ⟨entry, _, rfl⟩ := List.mem_map.mp held
   exact zeroWord_mul_finite ((still.rows action).weights entry.2) (expectation_finite _)
 
-/-- The look-ahead of a model at rest under a value function at rest is a zero word. -/
 theorem lookahead_zero {transition : Transition dimension criterion} (calm : Deviations transition)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {shared : Binary32} (zero : shared.isZero = true) :
@@ -1280,7 +1085,6 @@ theorem lookahead_zero {transition : Transition dimension criterion} (calm : Dev
     (transition.expectedAt (transition.ranked.input features)) action
   exact zeroWord_outcome rankedZero zero ((calm action).predict_zero _)
 
-/-- The outcome of a terminal frame under a value function at rest has inert targets. -/
 theorem outcome_quiet (transition : Transition dimension criterion)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) :
@@ -1301,15 +1105,11 @@ theorem outcome_quiet (transition : Transition dimension criterion)
   exact Inert32.mulRight _ (Inert32.ofZero (zeroWord_sub (zeroWord_sub (complete action)
     (rankedZero action)) residual))
 
-/-! ## Models at rest -/
-
-/-- The fresh model is at rest. -/
 theorem ModelCalm.initial : ModelCalm (Model.initial dimension criterion) := by
   cases criterion
   · exact ⟨Calm.initial, Calm.initial, Deviations.initial⟩
   · exact ⟨Calm.initial, Calm.initial, Deviations.initial⟩
 
-/-- Retiring a feature keeps a model at rest. -/
 theorem ModelCalm.retire {model : Model dimension criterion} (calm : ModelCalm model)
     (feature : FeatIdx dimension) : ModelCalm (model.retire feature) := by
   cases model with
@@ -1324,7 +1124,6 @@ theorem ModelCalm.retire {model : Model dimension criterion} (calm : ModelCalm m
     · rw [Managed.retire_def]; exact hr.managed _ trivial trivial
     · rw [Managed.retire_def]; exact hc.managed _ trivial trivial
 
-/-- Reranking keeps a model at rest. -/
 theorem ModelCalm.rerank {model : Model dimension criterion} (calm : ModelCalm model)
     (order : List (FeatIdx dimension)) (fresh : order.Nodup) :
     ModelCalm (model.rerank order fresh) := by
@@ -1332,7 +1131,6 @@ theorem ModelCalm.rerank {model : Model dimension criterion} (calm : ModelCalm m
   | discounted r c t => exact ⟨calm.1, calm.2.1, calm.2.2.rerank order fresh⟩
   | differential r c d t => exact ⟨calm.1, calm.2.1, calm.2.2.rerank order fresh⟩
 
-/-- A start keeps a model at rest. -/
 theorem ModelCalm.begin {model : Model dimension criterion} (calm : ModelCalm model)
     (base : ActiveSet dimension) : ModelCalm (model.begin base) := by
   rw [Model.begin_def]
@@ -1344,7 +1142,6 @@ theorem ModelCalm.begin {model : Model dimension criterion} (calm : ModelCalm mo
     exact ⟨calm.1.managed _ trivial trivial, calm.2.1.managed _ trivial trivial, calm.2.2.begin
       base⟩
 
-/-- A step at an inert reward keeps a model at rest. -/
 theorem ModelCalm.step {model : Model dimension criterion} (calm : ModelCalm model)
     (base : ActiveSet dimension) (age : ModelAge) {reward : Binary32} (hr : Inert32 reward) :
     ModelCalm (model.step base age reward) := by
@@ -1355,7 +1152,6 @@ theorem ModelCalm.step {model : Model dimension criterion} (calm : ModelCalm mod
   | differential r c d t =>
     exact ⟨calm.1.managed _ trivial hr, calm.2.1.managed _ trivial Inert32.zero, calm.2.2.step base⟩
 
-/-- A terminal step at an inert reward under a value function at rest keeps a model at rest. -/
 theorem ModelCalm.terminal {model : Model dimension criterion} (calm : ModelCalm model)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {reward : Binary32} (hr : Inert32 reward) :
@@ -1371,7 +1167,6 @@ theorem ModelCalm.terminal {model : Model dimension criterion} (calm : ModelCalm
     exact ⟨calm.1.managed _ trivial hr, calm.2.1.managed _ trivial outcome.2,
       calm.2.2.terminal outcome.1⟩
 
-/-- A restarted trajectory keeps a learner at rest. -/
 theorem Calm.restartTrajectory {config : Acorn.Config} {rank : Dimension}
     {learner : Managed config rank} (calm : AcornVerif.CurrentPreReward.Calm learner.state)
     (features : ActiveSet rank) :
@@ -1379,7 +1174,6 @@ theorem Calm.restartTrajectory {config : Acorn.Config} {rank : Dimension}
   rw [Managed.restartTrajectory_def]
   exact (calm.managed .release trivial trivial).managed (.step _ .zero) trivial Inert32.zero
 
-/-- A stopped trajectory toward an inert target keeps a learner at rest. -/
 theorem Calm.stopTrajectory {config : Acorn.Config} {rank : Dimension}
     {learner : Managed config rank} (calm : AcornVerif.CurrentPreReward.Calm learner.state)
     {target : Binary32} (ht : Inert32 target) :
@@ -1388,7 +1182,6 @@ theorem Calm.stopTrajectory {config : Acorn.Config} {rank : Dimension}
   exact (calm.managed (.first _ _ .zero) trivial ⟨ht.sub calm.vOld, calm.vDelta⟩).managed .release
     trivial trivial
 
-/-- A restart keeps a model at rest. -/
 theorem ModelCalm.restart {model : Model dimension criterion} (calm : ModelCalm model)
     (base : ActiveSet dimension) (age : ModelAge) : ModelCalm (model.restart base age) := by
   rw [Model.restart_def]
@@ -1398,7 +1191,6 @@ theorem ModelCalm.restart {model : Model dimension criterion} (calm : ModelCalm 
   | differential r c d t =>
     exact ⟨calm.1.restartTrajectory _, calm.2.1.restartTrajectory _, calm.2.2.restart base⟩
 
-/-- A stop at an inert reward under a value function at rest keeps a model at rest. -/
 theorem ModelCalm.stop {model : Model dimension criterion} (calm : ModelCalm model)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {reward : Binary32} (hr : Inert32 reward) :
@@ -1412,8 +1204,6 @@ theorem ModelCalm.stop {model : Model dimension criterion} (calm : ModelCalm mod
     have outcome := outcome_quiet t still features
     exact ⟨calm.1.stopTrajectory hr, calm.2.1.stopTrajectory outcome.2, calm.2.2.stop outcome.1⟩
 
-/-- The planning target of a model at rest under a value function at rest is inert, at an inert
-gain. -/
 theorem ModelCalm.target {model : Model dimension criterion} (calm : ModelCalm model)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (base : ActiveSet dimension) (age : ModelAge) {gain : RewardRate} (hg : Inert32 gain.value) :
@@ -1450,27 +1240,18 @@ open Acorn.SwiftTd (ActiveSet Entry)
 variable {actions : Word.Count} {config : Features.Config} {criterion : Criterion}
   {dimension : Dimension} {discounts : List Discount} {mode : Bool}
 
-/-! ## Model operations -/
-
-/-- Model operations that keep a model at rest on quiet inputs. -/
 structure OpsQuiet (models : OptionModelOps criterion dimension) : Prop where
-  /-- A start keeps a model at rest. -/
   begin : ∀ model features, ModelCalm model → ModelCalm (models.begin model features).val
-  /-- A step at an inert reward keeps a model at rest. -/
   step : ∀ model features age reward, ModelCalm model → Inert32 reward →
     ModelCalm (models.step model features age reward).val
-  /-- A terminal step at an inert reward under a value function at rest keeps a model at rest. -/
   terminal : ∀ model (value : ValueFunction criterion dimension) features reward,
     ModelCalm model → ValueStill value → Inert32 reward →
       ModelCalm (models.terminal model value features reward).val
-  /-- A restart keeps a model at rest. -/
   restart : ∀ model features age, ModelCalm model →
     ModelCalm (models.restart model features age).val
-  /-- A stop at an inert reward under a value function at rest keeps a model at rest. -/
   stop : ∀ model (value : ValueFunction criterion dimension) features reward, ModelCalm model →
     ValueStill value → Inert32 reward → ModelCalm (models.stop model value features reward).val
 
-/-- The executed model operations keep a model at rest on quiet inputs. -/
 theorem modelOperations_quiet : OpsQuiet (modelOperations criterion dimension) where
   begin _ features calm := calm.begin features
   step _ features age _ calm hr := calm.step features age hr
@@ -1478,9 +1259,6 @@ theorem modelOperations_quiet : OpsQuiet (modelOperations criterion dimension) w
   restart _ features age calm := calm.restart features age
   stop _ _ features _ calm still hr := calm.stop still features hr
 
-/-! ## Rewards and cumulants -/
-
-/-- A centered inert reward at an inert rate is inert, under both criteria. -/
 theorem center_inert {reward : Binary32} (hr : Inert32 reward) (duration : UInt32) {rate :
     RewardRate}
     (hg : Inert32 rate.value) : Inert32 (criterion.center reward duration rate) := by
@@ -1488,18 +1266,14 @@ theorem center_inert {reward : Binary32} (hr : Inert32 reward) (duration : UInt3
   · exact hr
   · exact hr.sub (Inert32.mulRight _ hg)
 
-/-- A shaped cumulant of an inert reward between two unattained potentials is inert. -/
 theorem shaped_inert {reward : Binary32} (hr : Inert32 reward) (gamma : Binary32) :
     Inert32 (shapedCumulant reward gamma false false) :=
   (hr.add (Inert32.mulRight _ (by exact Inert32.zero))).sub (by exact Inert32.zero)
 
-/-- A terminal cumulant of an inert reward and stopping value from an unattained potential is
-inert. -/
 theorem terminal_inert {reward stopping : Binary32} (hr : Inert32 reward) (hs : Inert32 stopping) :
     Inert32 (terminalCumulant reward stopping false) :=
   (hr.add hs).sub (by exact Inert32.zero)
 
-/-- The neutral objective's stopping value of an inert estimate is inert. -/
 theorem stopping_inert {estimate : Binary32} (he : Inert32 estimate) (potential : Potential) :
     Inert32 ((Interest.learned (.neutral : Assignment config)).stoppingValue estimate potential) :=
       by
@@ -1509,38 +1283,26 @@ theorem stopping_inert {estimate : Binary32} (he : Inert32 estimate) (potential 
   · exact he.add (by exact Inert32.zero)
   · exact he
 
-/-- The neutral objective is never attained. -/
 theorem neutral_potential (features : ActiveSet dimension) (declared : DeclaredPotentials) :
     (Interest.learned (.neutral : Assignment config)).potential features declared = some false := by
   rw [Interest.potential_def]
   rfl
 
-/-! ## Options at rest -/
-
-/-- An option at rest. Its model is at rest; with learned subtasks its policy is at rest, its
-objective is neutral and its stored trajectory has an unattained potential. -/
 structure SkillCalm (learned : Bool)
     (skill : Skill actions config criterion dimension discounts) : Prop where
-  /-- The model is at rest. -/
   model : ModelCalm skill.model
-  /-- Under learned subtasks the policy is at rest. -/
   policy : learned = true → Still skill.policy
-  /-- Under learned subtasks the objective is neutral. -/
   interest : learned = true → skill.interest = .learned .neutral
-  /-- Under learned subtasks a stored trajectory's potential is unattained. -/
   following : learned = true → ∀ following, skill.following = some following →
     following.previous = false
 
-/-- An activation of an unattained potential, under learned subtasks. -/
 def ActivationQuiet (learned : Bool) (activation : OptionActivation mode) : Prop :=
   learned = true → activation.previous = false
 
-/-- A continuation of an unattained potential over a settled snapshot, under learned subtasks. -/
 def ContinuationQuiet (learned : Bool) {activation : OptionActivation mode}
     (next : OptionContinuation actions dimension activation) : Prop :=
   learned = true → next.potential = false ∧ Settled next.policy
 
-/-- The fresh option of the neutral objective is at rest. -/
 theorem SkillCalm.initial (learned : Bool) :
     SkillCalm learned (Skill.initial (actions := actions) (discounts := discounts) config criterion
       dimension (.learned .neutral)) where
@@ -1549,7 +1311,6 @@ theorem SkillCalm.initial (learned : Bool) :
   interest _ := rfl
   following _ following held := by cases held
 
-/-- A fresh option of any objective is at rest when subtasks are not learned. -/
 theorem SkillCalm.initialDeclared (interest : Interest config) :
     SkillCalm false (Skill.initial (actions := actions) (discounts := discounts) config criterion
       dimension interest) where
@@ -1558,7 +1319,6 @@ theorem SkillCalm.initialDeclared (interest : Interest config) :
   interest := by intro h; cases h
   following := by intro h; cases h
 
-/-- Retiring a feature keeps an option at rest. -/
 theorem SkillCalm.retire {learned : Bool} {skill : Skill actions config criterion dimension
     discounts}
     (calm : SkillCalm learned skill) (feature : FeatIdx dimension) :
@@ -1568,21 +1328,16 @@ theorem SkillCalm.retire {learned : Bool} {skill : Skill actions config criterio
   interest := calm.interest
   following := calm.following
 
-/-! ## Option operations -/
-
 section Operations
 
 variable {learned : Bool} {skill : Skill actions config criterion dimension discounts}
   {models : OptionModelOps criterion dimension}
 
-/-- A policy snapshot of an option at rest is settled, under learned subtasks. -/
 theorem SkillCalm.snapshot (calm : SkillCalm learned skill) (held : learned = true)
     (features : ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) :
     Settled (skill.policy.snapshot (count := actions) features epsilon) :=
   (calm.policy held).snapshot features epsilon
 
-/-- An option's start keeps it at rest and starts a quiet activation and continuation, from an
-unattained potential under learned subtasks. -/
 theorem SkillCalm.beginOption (calm : SkillCalm learned skill) (features : ActiveSet dimension)
     {potential : Potential} (unattained : learned = true → potential = false) (learning : Bool)
     (rate : ConsumerRate) :
@@ -1597,7 +1352,6 @@ theorem SkillCalm.beginOption (calm : SkillCalm learned skill) (features : Activ
   rw [Skill.beginOption_def]
   exact ⟨cleared, unattained, fun held => ⟨unattained held, cleared.snapshot held features _⟩⟩
 
-/-- An option's temporal start keeps it at rest, with its quiet activation and continuation. -/
 theorem SkillCalm.beginTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     (features : ActiveSet dimension) {potential : Potential}
     (unattained : learned = true → potential = false) (learning : Bool) (rate : ConsumerRate) :
@@ -1613,8 +1367,6 @@ theorem SkillCalm.beginTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet
   · exact ⟨ops.begin _ _ begun.1.model, begun.1.policy, begun.1.interest, begun.1.following⟩
   · exact begun.1
 
-/-- A continuing decision of an option at rest is a quiet continuation, from an unattained
-potential under learned subtasks. -/
 theorem SkillCalm.decide (calm : SkillCalm learned skill) {activation : OptionActivation mode}
     (features : ActiveSet dimension) {potential : Potential}
     (unattained : learned = true → potential = false) (goal : Bool) (estimate : Binary32)
@@ -1628,7 +1380,6 @@ theorem SkillCalm.decide (calm : SkillCalm learned skill) {activation : OptionAc
   rw [frame.2, policy]
   exact ⟨unattained held, calm.snapshot held features _⟩
 
-/-- A credit of a quiet continuation from a quiet activation keeps an option at rest. -/
 theorem SkillCalm.optionCredit (calm : SkillCalm learned skill) {activation : OptionActivation mode}
     (quietActivation : ActivationQuiet learned activation)
     {next : OptionContinuation actions dimension activation} (quietNext : ContinuationQuiet learned
@@ -1647,7 +1398,6 @@ theorem SkillCalm.optionCredit (calm : SkillCalm learned skill) {activation : Op
     exact (calm.policy held).persistentStep _ _ settled drawn shaped 1
   · exact calm
 
-/-- A temporal credit keeps an option at rest. -/
 theorem SkillCalm.creditTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     {activation : OptionActivation mode} (quietActivation : ActivationQuiet learned activation)
     {next : OptionContinuation actions dimension activation} (quietNext : ContinuationQuiet learned
@@ -1663,7 +1413,6 @@ theorem SkillCalm.creditTemporal (calm : SkillCalm learned skill) (ops : OpsQuie
       credited.following⟩
   · exact credited
 
-/-- A temporal step keeps an option at rest and advances to a quiet activation. -/
 theorem SkillCalm.stepTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     {activation : OptionActivation mode} (quietActivation : ActivationQuiet learned activation)
     {next : OptionContinuation actions dimension activation} (quietNext : ContinuationQuiet learned
@@ -1676,8 +1425,6 @@ theorem SkillCalm.stepTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet 
   exact ⟨calm.creditTemporal ops quietActivation quietNext _ hr hg,
     fun held => (quietNext held).1⟩
 
-/-- Terminal credit of an option at an inert terminal value from a quiet activation keeps it at
-rest. -/
 theorem SkillCalm.terminateOption (calm : SkillCalm learned skill)
     {activation : OptionActivation mode} (quietActivation : ActivationQuiet learned activation)
     (potential : Potential) {reward terminal : Binary32} (hr : Inert32 reward)
@@ -1693,7 +1440,6 @@ theorem SkillCalm.terminateOption (calm : SkillCalm learned skill)
     exact (calm.policy held).terminal cumulant
   · exact calm
 
-/-- The end of an option's invocation keeps it at rest. -/
 theorem SkillCalm.endTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {ending : EndingPayload mode}
@@ -1714,8 +1460,6 @@ section Following
 variable {learned : Bool} {skill : Skill actions config criterion dimension discounts}
   {models : OptionModelOps criterion dimension}
 
-/-- The start of an off-policy trajectory keeps an option at rest, from an unattained potential
-under learned subtasks. -/
 theorem SkillCalm.startFollowing (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     (features : ActiveSet dimension) {potential : Potential}
     (unattained : learned = true → potential = false) (rate : ConsumerRate)
@@ -1733,7 +1477,6 @@ theorem SkillCalm.startFollowing (calm : SkillCalm learned skill) (ops : OpsQuie
   · cases same
     exact unattained held
 
-/-- The stop of an off-policy trajectory at an inert estimate keeps an option at rest. -/
 theorem SkillCalm.stopFollowing (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {following : Following}
@@ -1757,8 +1500,6 @@ theorem SkillCalm.stopFollowing (calm : SkillCalm learned skill) (ops : OpsQuiet
     exact (calm.policy held).stopStep ((terminal_inert (center_inert hr 1 hg)
       (stopping_inert he potential)).sub (calm.policy held).vOld)
 
-/-- Off-policy learning of an option that is not executing keeps it at rest, from an unattained
-potential under learned subtasks. -/
 theorem SkillCalm.followTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {potential : Potential}
@@ -1799,7 +1540,6 @@ theorem SkillCalm.followTemporal (calm : SkillCalm learned skill) (ops : OpsQuie
       exact (calm.stopFollowing ops still features stored potential he hr hg).startFollowing ops
         features unattained rate action behaviour
 
-/-- Settling a stored trajectory keeps an option at rest. -/
 theorem SkillCalm.settleFollowing (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {potential : Potential}
@@ -1832,7 +1572,6 @@ theorem SkillCalm.settleFollowing (calm : SkillCalm learned skill) (ops : OpsQui
           (Inert32.ofZero settled.expected))).sub (calm.policy held).vOld)
     · exact calm.stopFollowing ops still features ‹_› potential he hr hg
 
-/-- Settling before a start keeps an option at rest. -/
 theorem SkillCalm.settleTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {potential : Potential}
@@ -1846,7 +1585,6 @@ theorem SkillCalm.settleTemporal (calm : SkillCalm learned skill) (ops : OpsQuie
   · exact calm.settleFollowing ops still features unattained goal he rate hr hg
   · exact calm
 
-/-- A start whose first action is already drawn keeps an option at rest. -/
 theorem SkillCalm.startTemporal (calm : SkillCalm learned skill) (ops : OpsQuiet models)
     {value : ValueFunction criterion dimension} (still : ValueStill value)
     (features : ActiveSet dimension) {potential : Potential}
@@ -1870,14 +1608,10 @@ section State
 open Acorn Acorn.Features Acorn.Handcrafted
 open Acorn.SwiftTd (ActiveSet Entry)
 
-/-! ## The state of a reward-free stream -/
-
-/-- Demon 0, the reward question that assignment ranking reads, is at rest. -/
 def DemonRest {dimension : Dimension} {rest : List Discount} :
     DemonBank dimension (.g99 :: rest) → Prop
   | .cons learner _ => Calm learner.state
 
-/-- Every activation that occupancy stores is quiet. -/
 def PhaseQuiet {actions : Word.Count} {mode : Bool} (learned : Bool) :
     Occupancy (OptionActivation mode) (CommittedRun actions mode) → Prop
   | .idle => True
@@ -1885,7 +1619,6 @@ def PhaseQuiet {actions : Word.Count} {mode : Bool} (learned : Bool) :
       ActivationQuiet learned activation
   | .option _ activation => ActivationQuiet learned activation
 
-/-- The deferred primitive credit owes an inert reward. -/
 def CreditQuiet : PrimitiveCredit → Prop
   | .perStep => True
   | .catchUp gap => Inert32 gap.reward
@@ -1894,50 +1627,33 @@ def CreditQuiet : PrimitiveCredit → Prop
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension}
 
-/-- A temporal state of a reward-free stream: both controllers at rest, every option at rest,
-Demon 0 at rest under learned subtasks, and every reward word the state owes inert. -/
 structure Quiet (state : TemporalControl interface profile config criterion dimension) :
     Prop where
-  /-- The primitive controller is at rest. -/
   control : Still state.runtime.lifecycle.consumers.control
-  /-- The meta-controller is at rest. -/
   metaController : Still state.runtime.lifecycle.consumers.metaController
-  /-- Every option is at rest. -/
   skills : ∀ slot,
     SkillCalm profile.ranksSubtasks (state.runtime.lifecycle.consumers.skills.get slot)
-  /-- Under learned subtasks Demon 0 is at rest. -/
   demon : profile.ranksSubtasks = true → DemonRest state.runtime.lifecycle.consumers.demons
-  /-- The deferred meta span's reward is inert. -/
   gap : Inert32 state.runtime.references.gapReward
-  /-- The deferred primitive credit's reward is inert. -/
   credit : CreditQuiet state.credit
-  /-- The average-reward rate is inert. -/
   rate : Inert32 state.average.rate.value
-  /-- Every activation occupancy stores is quiet. -/
   phase : PhaseQuiet profile.ranksSubtasks state.runtime.references.phase
 
-/-- The values a decision reports that later credit reads are zero words. -/
 structure DecisionQuiet {actions : Word.Count} (decision : TemporalDecision actions) :
     Prop where
-  /-- Every reported meta value is a zero word. -/
   metaValues : ∀ action, (decision.metaValues.get action).isZero = true
-  /-- A drawn meta decision's snapshot is settled. -/
   metaDecision : ∀ drawn, decision.metaDecision = some drawn → Settled drawn.snapshot
 
-/-- A state and a decision that are both quiet. -/
 def ResultQuiet (result : TemporalControl interface profile config criterion dimension ×
     TemporalDecision interface.actions) : Prop :=
   Quiet result.1 ∧ DecisionQuiet result.2
 
-/-- The value function of a quiet state is at rest. -/
 theorem Quiet.value {state : TemporalControl interface profile config criterion dimension}
     (quiet : Quiet state) : ValueStill state.valueFunction := quiet.metaController
 
-/-- A demon bank's fresh reward question is at rest. -/
 theorem DemonRest.initial (rest : List Discount) :
     DemonRest (DemonBank.initial dimension (.g99 :: rest)) := Calm.initial
 
-/-- The cold state is quiet. -/
 theorem Quiet.initial :
     Quiet (TemporalControl.initial interface profile config criterion dimension) where
   control := Still.initial
@@ -1981,13 +1697,10 @@ open Acorn.SwiftTd (ActiveSet Entry)
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension}
 
-/-! ## Writes of one field -/
-
 section Writes
 
 variable {state : TemporalControl interface profile config criterion dimension}
 
-/-- Replacing one option by an option at rest keeps a state quiet. -/
 theorem Quiet.withSkill (quiet : Quiet state) (slot : Fin Acorn.FeatureConstants.skillCount)
     {skill : Skill interface.actions config criterion dimension interface.layout}
     (calm : SkillCalm profile.ranksSubtasks skill) : Quiet (state.withSkill slot skill) where
@@ -2006,7 +1719,6 @@ theorem Quiet.withSkill (quiet : Quiet state) (slot : Fin Acorn.FeatureConstants
   rate := quiet.rate
   phase := quiet.phase
 
-/-- A quiet occupancy keeps a state quiet. -/
 theorem Quiet.withPhase (quiet : Quiet state)
     {phase : Occupancy (OptionActivation (profile.mode != .frozen))
       (CommittedRun interface.actions (profile.mode != .frozen))}
@@ -2014,32 +1726,27 @@ theorem Quiet.withPhase (quiet : Quiet state)
   ⟨quiet.control, quiet.metaController, quiet.skills, quiet.demon, quiet.gap, quiet.credit,
     quiet.rate, quietPhase⟩
 
-/-- Clearing the planning errors keeps a state quiet. -/
 theorem Quiet.withoutPlanning (quiet : Quiet state) : Quiet state.withoutPlanning :=
   ⟨quiet.control, quiet.metaController, quiet.skills, quiet.demon, quiet.gap, quiet.credit,
     quiet.rate, quiet.phase⟩
 
-/-- Writing a span with an inert reward keeps a state quiet. -/
 theorem Quiet.withGap (quiet : Quiet state) {gap : CreditGap} (inert : Inert32 gap.reward) :
     Quiet (state.withGap gap) :=
   ⟨quiet.control, quiet.metaController, quiet.skills, quiet.demon, inert, quiet.credit,
     quiet.rate, quiet.phase⟩
 
-/-- Advancing the deferred meta clock keeps a state quiet. -/
 theorem Quiet.skipMeta (quiet : Quiet state) : Quiet state.skipMeta := by
   unfold TemporalControl.skipMeta
   split
   · exact quiet.withGap quiet.gap
   · exact quiet
 
-/-- Writing the action generator keeps a state quiet. -/
 theorem Quiet.withRng (quiet : Quiet state) (rng : Rng.Xoshiro256) :
     Quiet { state with runtime := { state.runtime with references :=
       { state.runtime.references with rng := rng } } } :=
   ⟨quiet.control, quiet.metaController, quiet.skills, quiet.demon, quiet.gap, quiet.credit,
     quiet.rate, quiet.phase⟩
 
-/-- Interrupting a quiet held option keeps a state quiet. -/
 theorem Quiet.interrupt (quiet : Quiet state)
     (origin : Option (Fin Acorn.FeatureConstants.skillCount ×
       OptionActivation (profile.mode != .frozen)))
@@ -2059,7 +1766,6 @@ theorem Quiet.interrupt (quiet : Quiet state)
       exact quietOrigin slot activation rfl learned
     · exact quiet
 
-/-- An occupancy after an option's draw from a quiet activation is quiet. -/
 theorem PhaseQuiet.afterOption {mode : Bool} {learned : Bool}
     (slot : Fin Acorn.FeatureConstants.skillCount) {activation : OptionActivation mode}
     (quiet : ActivationQuiet learned activation) (run : Option (ExploratoryRun interface.actions)) :
@@ -2073,7 +1779,6 @@ theorem PhaseQuiet.afterOption {mode : Bool} {learned : Bool}
     · exact quiet
   · exact quiet
 
-/-- An occupancy after primitive control's draw is quiet. -/
 theorem PhaseQuiet.afterPrimitive {mode : Bool} {learned : Bool}
     (run : Option (ExploratoryRun interface.actions)) :
     PhaseQuiet (mode := mode) learned (Occupancy.afterPrimitive run) := by
@@ -2087,13 +1792,10 @@ theorem PhaseQuiet.afterPrimitive {mode : Bool} {learned : Bool}
 
 end Writes
 
-/-! ## Draws and dispatch -/
-
 section Dispatch
 
 variable {state : TemporalControl interface profile config criterion dimension}
 
-/-- A fresh primitive choice keeps a state quiet and reports the supplied meta values. -/
 theorem Quiet.choosePrimitive (quiet : Quiet state) (features : ActiveSet dimension)
     {metaValues : Vector Binary32 metaCount.word.toNat}
     (zero : ∀ action, (metaValues.get action).isZero = true)
@@ -2103,7 +1805,6 @@ theorem Quiet.choosePrimitive (quiet : Quiet state) (features : ActiveSet dimens
     ResultQuiet (state.choosePrimitive features metaValues metaDecision ended) :=
   ⟨(quiet.withPhase (PhaseQuiet.afterPrimitive _)).withRng _, ⟨zero, settled⟩⟩
 
-/-- A served exploratory step keeps a state quiet. -/
 theorem Quiet.serve (quiet : Quiet state) (features : ActiveSet dimension)
     {next : TemporalControl interface profile config criterion dimension}
     {decision : TemporalDecision interface.actions}
@@ -2148,7 +1849,6 @@ theorem Quiet.serve (quiet : Quiet state) (features : ActiveSet dimension)
   · contradiction
   · contradiction
 
-/-- A step of a quiet continuation from a quiet activation keeps a state quiet. -/
 theorem Quiet.stepOption (quiet : Quiet state) {models : OptionModelOps criterion dimension}
     (ops : OpsQuiet models) (slot : Fin Acorn.FeatureConstants.skillCount)
     {activation : OptionActivation (profile.mode != .frozen)}
@@ -2168,13 +1868,11 @@ theorem Quiet.stepOption (quiet : Quiet state) {models : OptionModelOps criterio
   exact ⟨((quiet.withSkill slot stepped.1).withPhase
     (PhaseQuiet.afterOption slot stepped.2 _)).withRng _, ⟨zero, settled⟩⟩
 
-/-- The payload of a closing record holds a quiet activation. -/
 def ClosingQuiet (learned : Bool)
     (closing : Closing interface.actions config criterion dimension interface.layout
       (EndingPayload (profile.mode != .frozen))) : Prop :=
   ActivationQuiet learned closing.activation.activation
 
-/-- Terminal credit at an inert terminal value keeps a state quiet. -/
 theorem Quiet.closeOption (quiet : Quiet state) {models : OptionModelOps criterion dimension}
     (ops : OpsQuiet models) (features : ActiveSet dimension)
     {closing : Closing interface.actions config criterion dimension interface.layout
@@ -2191,7 +1889,6 @@ theorem Quiet.closeOption (quiet : Quiet state) {models : OptionModelOps criteri
       features quietClosing hr ht quiet.rate)
   · exact quiet
 
-/-- Meta credit of a settled decision keeps a state quiet. -/
 theorem Quiet.learnMeta (quiet : Quiet state) (features : ActiveSet dimension)
     {decision : PolicyDecision metaCount} (settled : Settled decision.snapshot) :
     Quiet (state.learnMeta features decision) := by
@@ -2204,7 +1901,6 @@ theorem Quiet.learnMeta (quiet : Quiet state) (features : ActiveSet dimension)
     exact quiet.metaController.policyStep features decision settled
       (center_inert quiet.gap _ quiet.rate) _
 
-/-- The meta draw keeps a state quiet and draws from a settled snapshot. -/
 theorem Quiet.drawMeta (quiet : Quiet state) (features : ActiveSet dimension) :
     Quiet (state.drawMeta features).1 ∧ Settled (state.drawMeta features).2.snapshot := by
   unfold TemporalControl.drawMeta
@@ -2222,13 +1918,10 @@ section Refresh
 open Acorn Acorn.Features Acorn.Handcrafted
 open Acorn.SwiftTd (ActiveSet Entry)
 
-/-! ## Assignment ranking from a Demon 0 at rest -/
-
 section Ranking
 
 variable {config : Features.Config} {dimension : Dimension}
 
-/-- Zero Demon-0 weights rank no candidate. -/
 theorem rankedCandidates_rest (weights : WeightArray (.discounted .g99) dimension)
     (zero : ∀ idx, (weights.get idx).value.isZero = true) :
     rankedCandidates dimension config weights = [] := by
@@ -2246,7 +1939,6 @@ theorem rankedCandidates_rest (weights : WeightArray (.discounted .g99) dimensio
     omega
   · contradiction
 
-/-- Zero Demon-0 weights assign every slot the neutral objective. -/
 theorem rankAssignments_rest (weights : WeightArray (.discounted .g99) dimension)
     (zero : ∀ idx, (weights.get idx).value.isZero = true)
     (held : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
@@ -2265,33 +1957,23 @@ theorem rankAssignments_rest (weights : WeightArray (.discounted .g99) dimension
 
 end Ranking
 
-/-! ## The free-boundary refresh -/
-
 section Free
 
 variable {shape : PatchShape} {actions : Word.Count} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {discounts : List Discount} {payload : Type}
 
-/-- The consumers of a free dispatch at rest. -/
 structure FreeQuiet (learned : Bool)
     (free : FreeDispatch shape actions config criterion dimension discounts payload) : Prop where
-  /-- The primitive controller is at rest. -/
   control : Still free.lifecycle.consumers.control
-  /-- The meta-controller is at rest. -/
   metaController : Still free.lifecycle.consumers.metaController
-  /-- Every option is at rest. -/
   skills : ∀ slot, SkillCalm learned (free.lifecycle.consumers.skills.get slot)
-  /-- Under learned subtasks Demon 0 is at rest. -/
   demon : learned = true → DemonRest free.lifecycle.consumers.demons
 
-/-- The closing payloads of a free dispatch, without their detached owners. -/
 def closingPayload (free : FreeDispatch shape actions config criterion dimension discounts payload)
     :
     Option (Fin Acorn.FeatureConstants.skillCount × payload) :=
   free.closing.map fun ending => (ending.slot, ending.activation)
 
-/-- Installing the neutral objective under learned subtasks keeps a free dispatch at rest and its
-closing payload. -/
 theorem FreeQuiet.install {learned : Bool}
     {free : FreeDispatch shape actions config criterion dimension discounts payload}
     (quiet : FreeQuiet learned free) (slot : Fin Acorn.FeatureConstants.skillCount)
@@ -2330,8 +2012,6 @@ theorem FreeQuiet.install {learned : Bool}
         simp only [Option.map_some]
         split <;> rfl
 
-/-- Installing a table of objectives, neutral under learned subtasks, keeps a free dispatch at
-rest and its closing payload. -/
 theorem FreeQuiet.installAll {learned : Bool}
     (targets : Vector (Assignment config) Acorn.FeatureConstants.skillCount)
     (neutral : learned = true → ∀ slot : Fin Acorn.FeatureConstants.skillCount,
@@ -2353,13 +2033,11 @@ theorem FreeQuiet.installAll {learned : Bool}
     have later := ih _ installed.1
     exact ⟨later.1, later.2.trans installed.2⟩
 
-/-- The weights assignment ranking reads are Demon 0's. -/
 theorem DemonRest.weights {rest : List Discount} {bank : DemonBank dimension (.g99 :: rest)}
     (calm : DemonRest bank) : ∀ idx, (bank.rankingWeights.get idx).value.isZero = true := by
   cases bank with
   | cons learner tail => exact Calm.weights (show Calm learner.state from calm)
 
-/-- Reranking every model keeps a free dispatch at rest and its closing payload. -/
 theorem FreeQuiet.rerankModels {learned : Bool}
     {free : FreeDispatch shape actions config criterion dimension discounts payload}
     (quiet : FreeQuiet learned free) :
@@ -2371,8 +2049,6 @@ theorem FreeQuiet.rerankModels {learned : Bool}
   have calm := quiet.skills slot
   exact ⟨calm.model.rerank _ _, calm.policy, calm.interest, calm.following⟩
 
-/-- The free-boundary refresh, assigning exactly under learned subtasks, keeps a free dispatch at
-rest and its closing payload. -/
 theorem FreeQuiet.refreshModels {learned : Bool}
     {free : FreeDispatch shape actions config criterion dimension discounts payload}
     (quiet : FreeQuiet learned free) :
@@ -2395,22 +2071,18 @@ theorem FreeQuiet.refreshModels {learned : Bool}
 
 end Free
 
-/-! ## Refresh and planning of a quiet state -/
-
 section State
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension}
   {state : TemporalControl interface profile config criterion dimension}
 
-/-- The closing payloads of an optional closing record. -/
 def payloads (closing : Option (Closing interface.actions config criterion dimension
     interface.layout
     (EndingPayload (profile.mode != .frozen)))) :
     Option (Fin Acorn.FeatureConstants.skillCount × EndingPayload (profile.mode != .frozen)) :=
   closing.map fun ending => (ending.slot, ending.activation)
 
-/-- The free-boundary refresh keeps a state quiet and every closing payload. -/
 theorem Quiet.refreshFree (quiet : Quiet state)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout
       (EndingPayload (profile.mode != .frozen)))) :
@@ -2435,7 +2107,6 @@ variable {actions : Word.Count} {config : Features.Config} {criterion : Criterio
   {skills : Vector (Skill actions config criterion dimension discounts)
     Acorn.FeatureConstants.skillCount}
 
-/-- One look-ahead of models at rest keeps the planned controller at rest. -/
 theorem lookAhead_still {result : PlanningResult criterion dimension} (still : Still
     result.controller)
     (calm : ∀ slot, ModelCalm (skills.get slot).model) (features : ActiveSet dimension)
@@ -2446,7 +2117,6 @@ theorem lookAhead_still {result : PlanningResult criterion dimension} (still : S
   exact still.plan _ features ((calm slot).target (value := ⟨result.controller, rate⟩) still
     features _ hg)
 
-/-- Backing up every option keeps the planned controller at rest. -/
 theorem backupAll_still (calm : ∀ slot, ModelCalm (skills.get slot).model)
     (features : ActiveSet dimension) {gain : RewardRate} (hg : Inert32 gain.value)
     (rate : SwiftTd.ExploreRate) :
@@ -2463,7 +2133,6 @@ theorem backupAll_still (calm : ∀ slot, ModelCalm (skills.get slot).model)
     rw [List.foldl_cons]
     exact ih _ (lookAhead_still still calm features hg rate slot)
 
-/-- Sweeping every option keeps the planned controller at rest. -/
 theorem sweepAll_still (calm : ∀ slot, ModelCalm (skills.get slot).model)
     (features : ActiveSet dimension) {gain : RewardRate} (hg : Inert32 gain.value)
     (rate : SwiftTd.ExploreRate) :
@@ -2480,7 +2149,6 @@ theorem sweepAll_still (calm : ∀ slot, ModelCalm (skills.get slot).model)
     rw [List.foldl_cons]
     exact ih _ (lookAhead_still still calm features hg rate slot)
 
-/-- Every configured planning boundary keeps the planned controller at rest. -/
 theorem planning_still (selection : PlanningSelection) {result : PlanningResult criterion dimension}
     (still : Still result.controller) (calm : ∀ slot, ModelCalm (skills.get slot).model)
     (features : ActiveSet dimension) {gain : RewardRate} (hg : Inert32 gain.value)
@@ -2500,7 +2168,6 @@ variable {interface : Interface} {profile : FeatureProfile} {config : Features.C
   {criterion : Criterion} {dimension : Dimension}
   {state : TemporalControl interface profile config criterion dimension}
 
-/-- Planning at a free boundary keeps a state quiet, under every planning selection. -/
 theorem Quiet.planFree (quiet : Quiet state) (selection : PlanningSelection)
     (features : ActiveSet dimension) : Quiet (state.planFree (planningBoundary selection) features)
       := by
@@ -2524,7 +2191,6 @@ theorem Quiet.planFree (quiet : Quiet state) (selection : PlanningSelection)
   exact ⟨quiet.control, planned, quiet.skills, quiet.demon, quiet.gap, quiet.credit, quiet.rate,
     quiet.phase⟩
 
-/-- Selection preparation at an inert reward keeps a state quiet. -/
 theorem Quiet.prepareSelection (quiet : Quiet state) (models : OptionModelOps criterion dimension)
     (features : ActiveSet dimension) {reward : Binary32} (hr : Inert32 reward) :
     Quiet (state.prepareSelection models features reward) := by
@@ -2568,7 +2234,6 @@ variable {interface : Interface} {profile : FeatureProfile} {config : Features.C
   {criterion : Criterion} {dimension : Dimension}
   {state : TemporalControl interface profile config criterion dimension}
 
-/-- Under learned subtasks every potential an option at rest reports is unattained. -/
 theorem SkillCalm.unattained {learned : Bool} {actions : Word.Count} {discounts : List Discount}
     {skill : Skill actions config criterion dimension discounts} (calm : SkillCalm learned skill)
     {features : ActiveSet dimension} {declared : DeclaredPotentials} {potential : Potential}
@@ -2579,7 +2244,6 @@ theorem SkillCalm.unattained {learned : Bool} {actions : Word.Count} {discounts 
   cases reported
   rfl
 
-/-- A dispatch of a settled meta decision keeps a state quiet. -/
 theorem Quiet.dispatchMeta (quiet : Quiet state) {models : OptionModelOps criterion dimension}
     (ops : OpsQuiet models) (features : ActiveSet dimension) (declared : DeclaredPotentials)
     {reward : Binary32} (hr : Inert32 reward) (goal : Bool) {decision : PolicyDecision metaCount}
@@ -2615,13 +2279,11 @@ theorem Quiet.dispatchMeta (quiet : Quiet state) {models : OptionModelOps criter
       exact (learnt.withSkill slot begun.1).stepOption ops slot begun.2.1 begun.2.2 hr settled
         drawnSettled true ended
 
-/-- Every closing record an optional record names is quiet. -/
 def ClosingsQuiet (learned : Bool)
     (closing : Option (Closing interface.actions config criterion dimension interface.layout
       (EndingPayload (profile.mode != .frozen)))) : Prop :=
   ∀ ending, closing = some ending → ClosingQuiet learned ending
 
-/-- A closing record with the payloads of a quiet one is quiet. -/
 theorem ClosingsQuiet.ofPayloads {learned : Bool}
     {closing other : Option (Closing interface.actions config criterion dimension interface.layout
       (EndingPayload (profile.mode != .frozen)))}
@@ -2638,7 +2300,6 @@ theorem ClosingsQuiet.ofPayloads {learned : Bool}
     rw [same.2]
     exact quietOriginal
 
-/-- A free dispatch keeps a state quiet, under every planning selection. -/
 theorem Quiet.atBoundary (quiet : Quiet state) {models : OptionModelOps criterion dimension}
     (ops : OpsQuiet models) (selection : PlanningSelection) (features : ActiveSet dimension)
     (declared : DeclaredPotentials) {reward : Binary32} (hr : Inert32 reward) (goal : Bool)
@@ -2668,7 +2329,6 @@ theorem Quiet.atBoundary (quiet : Quiet state) {models : OptionModelOps criterio
       (Inert32.ofZero (drawnQuiet.2 drawn.2.action))
     exact closed.dispatchMeta ops features declared hr goal drawnQuiet.2 _ executed
 
-/-- Selection keeps a state quiet and returns a quiet decision, under every planning selection. -/
 theorem Quiet.selectWithOperations (quiet : Quiet state) {models : OptionModelOps criterion
     dimension}
     (ops : OpsQuiet models) (selection : PlanningSelection) (features : ActiveSet dimension)
@@ -2749,9 +2409,6 @@ variable {interface : Interface} {profile : FeatureProfile} {config : Features.C
   {criterion : Criterion} {dimension : Dimension}
   {state : TemporalControl interface profile config criterion dimension}
 
-/-! ## The stopping estimate and the run's span -/
-
-/-- The stopping estimate of a quiet decision is a zero word. -/
 theorem Quiet.stoppingEstimate {decision : TemporalDecision interface.actions}
     (quiet : DecisionQuiet decision) : (state.stoppingEstimate decision).isZero = true := by
   rw [TemporalControl.stoppingEstimate_def]
@@ -2761,7 +2418,6 @@ theorem Quiet.stoppingEstimate {decision : TemporalDecision interface.actions}
   · exact Settled.comparison (snapshot := ⟨decision.metaValues, state.metaRate⟩)
       quiet.metaValues criterion
 
-/-- The continuation a served run credits to the interrupted option's span is inert. -/
 theorem Quiet.takeoverValue (features : ActiveSet dimension) (declared : DeclaredPotentials)
     (goal : Bool) {decision : TemporalDecision interface.actions} (quiet : DecisionQuiet decision) :
     ∀ value, state.takeoverValue features declared goal decision = some value → Inert32 value := by
@@ -2781,7 +2437,6 @@ theorem Quiet.takeoverValue (features : ActiveSet dimension) (declared : Declare
       · exact Inert32.ofZero (Quiet.stoppingEstimate quiet)
   · cases held
 
-/-- Closing a span toward an inert continuation keeps a state quiet. -/
 theorem Quiet.closeSpan (quiet : Quiet state) {continuation : Option Binary32}
     (inert : ∀ value, continuation = some value → Inert32 value) :
     Quiet (state.closeSpan continuation) := by
@@ -2794,7 +2449,6 @@ theorem Quiet.closeSpan (quiet : Quiet state) {continuation : Option Binary32}
       (inert value rfl) _, closed.skills, closed.demon, closed.gap, closed.credit, closed.rate,
       closed.phase⟩
 
-/-- Off-policy learning of every option that is not executing keeps a state quiet. -/
 theorem Quiet.followOptions (quiet : Quiet state) (features : ActiveSet dimension)
     (declared : DeclaredPotentials) {reward : Binary32} (hr : Inert32 reward) (goal : Bool)
     {decision : TemporalDecision interface.actions} (quietDecision : DecisionQuiet decision) :
@@ -2820,9 +2474,6 @@ theorem Quiet.followOptions (quiet : Quiet state) (features : ActiveSet dimensio
       · exact ⟨calm.model, calm.policy, calm.interest, fun _ _ same => by cases same⟩
   · exact quiet
 
-/-! ## Primitive credit, demons and gain -/
-
-/-- The reward question's cumulant of an inert reward is a zero word. -/
 theorem rewardSignal_zero {reward : Binary32} (hr : Inert32 reward) :
     (rewardSignal reward).isZero = true := by
   unfold rewardSignal indicator
@@ -2839,7 +2490,6 @@ theorem rewardSignal_zero {reward : Binary32} (hr : Inert32 reward) :
   rw [below]
   decide
 
-/-- A demon bank step whose reward cumulant is inert keeps Demon 0 at rest. -/
 theorem DemonRest.step {rest : List Discount} {bank : DemonBank dimension (.g99 :: rest)}
     (calm : DemonRest bank) (features : ActiveSet dimension) {origin : Option Departure}
     {reward : Binary32} (hr : Inert32 reward) (tail : Cumulants rest) :
@@ -2849,7 +2499,6 @@ theorem DemonRest.step {rest : List Discount} {bank : DemonBank dimension (.g99 
     rw [DemonBank.step_def]
     exact Calm.step (show Calm learner.state from calm) features hr
 
-/-- Host gain observation of an inert reward keeps an inert rate inert. -/
 theorem observe_inert (tracker : AverageRewardTracker) (pending learning : Bool)
     {reward : Binary32} (hr : Inert32 reward) (hg : Inert32 tracker.rate.value) :
     Inert32 (criterion.observe tracker pending learning reward).rate.value := by
@@ -2864,8 +2513,6 @@ theorem observe_inert (tracker : AverageRewardTracker) (pending learning : Bool)
     exact Inert32.ofZero ((hg.add delta).saturate rewardRange rfl (by decide))
   · exact hg
 
-/-- Primitive credit at an inert reward keeps the controller at rest and the deferred reward
-inert. -/
 theorem PrimitiveControl.creditQuiet {actions : Nat} {control : PrimitiveControl criterion dimension
     actions}
     (still : Still control.controller) (credit : CreditQuiet control.credit)
@@ -2888,7 +2535,6 @@ theorem PrimitiveControl.creditQuiet {actions : Nat} {control : PrimitiveControl
     · exact ⟨still.smdpStep features action (center_inert accumulated _ hg) _, Inert32.zero⟩
     · exact ⟨still, accumulated⟩
 
-/-- The completion boundary at an inert reward keeps a state quiet. -/
 theorem Quiet.finish (quiet : Quiet state) (features : ActiveSet dimension) (obs : Frame interface)
     {reward : Binary32} (hr : Inert32 reward) (decision : TemporalDecision interface.actions) :
     Quiet (state.finish features obs reward decision) := by
@@ -2913,9 +2559,6 @@ theorem Quiet.finish (quiet : Quiet state) (features : ActiveSet dimension) (obs
         reward).1]
       exact quiet.rate
 
-/-! ## The second part of a selected step -/
-
-/-- The learning part of a step from a quiet state and decision keeps the state quiet. -/
 theorem Quiet.learn (quiet : Quiet state) (features : ActiveSet dimension) (obs : Frame interface)
     {reward : Binary32} (hr : Inert32 reward) (goal : Bool)
     {decision : TemporalDecision interface.actions} (quietDecision : DecisionQuiet decision) :
@@ -2936,10 +2579,6 @@ variable {interface : Interface} {profile : FeatureProfile} {config : Features.C
   {criterion : Criterion} {dimension : Dimension}
   {state : TemporalControl interface profile config criterion dimension}
 
-/-! ## The draw-first dispatch and its owed writes -/
-
-/-- The writes a draw-first dispatch owes are quiet: every activation and continuation it
-records, every terminal value, the drawn meta snapshot and a start's potential. -/
 def OwedQuiet (learned : Bool) : Owed interface profile config criterion dimension → Prop
   | .settled => True
   | .served _ => True
@@ -2950,13 +2589,11 @@ def OwedQuiet (learned : Bool) : Owed interface profile config criterion dimensi
       Settled decision.snapshot ∧ (∀ drawn, start = some drawn → learned = true →
         drawn.potential = false)
 
-/-- A state, an owed record and a decision that are all quiet. -/
 def DrawQuiet (result : TemporalControl interface profile config criterion dimension ×
     Owed interface profile config criterion dimension × TemporalDecision interface.actions) : Prop
       :=
   Quiet result.1 ∧ OwedQuiet profile.ranksSubtasks result.2.1 ∧ DecisionQuiet result.2.2
 
-/-- Draw preparation keeps a state quiet. -/
 theorem Quiet.prepareDraw (quiet : Quiet state) (models : OptionModelOps criterion dimension)
     (features : ActiveSet dimension) : Quiet (state.prepareDraw models features) := by
   unfold TemporalControl.prepareDraw
@@ -2967,7 +2604,6 @@ theorem Quiet.prepareDraw (quiet : Quiet state) (models : OptionModelOps criteri
   · exact ⟨quiet.control, quiet.metaController, quiet.skills, quiet.demon, quiet.gap, quiet.credit,
       quiet.rate, quiet.phase⟩
 
-/-- The owed meta reward of an inert reward keeps a state quiet. -/
 theorem Quiet.oweReward (quiet : Quiet state) {reward : Binary32} (hr : Inert32 reward) :
     Quiet (state.oweReward reward) := by
   unfold TemporalControl.oweReward
@@ -2975,7 +2611,6 @@ theorem Quiet.oweReward (quiet : Quiet state) {reward : Binary32} (hr : Inert32 
   · exact quiet.withGap (quiet.gap.add (hr.mulLeft _))
   · exact quiet
 
-/-- A served step of the draw-first dispatch keeps a state quiet. -/
 theorem Quiet.serveDraw (quiet : Quiet state) (features : ActiveSet dimension)
     {next : TemporalControl interface profile config criterion dimension} {skip : Bool}
     {decision : TemporalDecision interface.actions}
@@ -3001,7 +2636,7 @@ theorem Quiet.serveDraw (quiet : Quiet state) (features : ActiveSet dimension)
         · exact interrupted.withoutPlanning
         · exact interrupted
       · intro action
-        try dsimp only
+        dsimp only
         split
         · exact interrupted.withoutPlanning.metaController.predictAll features action
         · simp only [Vector.get, Vector.getElem_toArray, Vector.getElem_replicate]
@@ -3009,8 +2644,6 @@ theorem Quiet.serveDraw (quiet : Quiet state) (features : ActiveSet dimension)
   · contradiction
   · contradiction
 
-/-- The terminal value of a closing option is inert at a settled decision and an inert
-estimate. -/
 theorem terminalValue_inert {decision : PolicyDecision metaCount} (settled : Settled
     decision.snapshot)
     {estimate : Binary32} (he : Inert32 estimate) :
@@ -3020,7 +2653,6 @@ theorem terminalValue_inert {decision : PolicyDecision metaCount} (settled : Set
   · exact he
   · exact Inert32.ofZero (settled decision.action)
 
-/-- A free dispatch of the draw-first order keeps a state quiet and owes quiet writes. -/
 theorem Quiet.drawBoundary (quiet : Quiet state) (selection : PlanningSelection)
     (features : ActiveSet dimension) (declared : DeclaredPotentials)
     {closing : Option (Closing interface.actions config criterion dimension interface.layout
@@ -3074,7 +2706,6 @@ theorem Quiet.drawBoundary (quiet : Quiet state) (selection : PlanningSelection)
       cases same
       exact unattained
 
-/-- The draw-first dispatch keeps a state quiet and owes quiet writes. -/
 theorem Quiet.drawFirst (quiet : Quiet state) {models : OptionModelOps criterion dimension}
     (selection : PlanningSelection) (features : ActiveSet dimension)
     (declared : DeclaredPotentials) (goal : Bool)
@@ -3144,7 +2775,6 @@ theorem Quiet.drawFirst (quiet : Quiet state) {models : OptionModelOps criterion
               exact phaseQuiet
             exact idle.drawBoundary selection features declared closingQuiet estimate executed
 
-/-- The owed writes of a quiet record at an inert reward keep a state quiet. -/
 theorem Quiet.settle (quiet : Quiet state) {owed : Owed interface profile config criterion
     dimension}
     (quietOwed : OwedQuiet profile.ranksSubtasks owed) {models : OptionModelOps criterion dimension}
@@ -3187,7 +2817,6 @@ theorem Quiet.settle (quiet : Quiet state) {owed : Owed interface profile config
         credited.value features (quietStart drawn rfl) goal
         (Inert32.ofZero (settled.comparison criterion)) _ hr credited.rate _ drawn.drawn)
 
-/-- Planning after the action keeps a state quiet. -/
 theorem Quiet.planAfter (quiet : Quiet state) (planning : PlanningSelection)
     (features : ActiveSet dimension) (decision : TemporalDecision interface.actions) :
     Quiet (state.planAfter planning features decision) := by
@@ -3196,7 +2825,6 @@ theorem Quiet.planAfter (quiet : Quiet state) (planning : PlanningSelection)
   · exact quiet.planFree planning features
   · exact quiet
 
-/-- The owed writes and deferred planning of every order keep a state quiet. -/
 theorem Quiet.deferred (quiet : Quiet state) (order : StepOrder) (planning : PlanningSelection)
     (features : ActiveSet dimension) {owed : Owed interface profile config criterion dimension}
     (quietOwed : OwedQuiet profile.ranksSubtasks owed) {reward : Binary32} (hr : Inert32 reward)
@@ -3217,26 +2845,18 @@ section Agent
 open Acorn Acorn.Features Acorn.Handcrafted
 open Acorn.SwiftTd (ActiveSet Entry)
 
-/-! ## The tester -/
-
 section Tester
 
 variable {actions : Word.Count} {config : Features.Config} {criterion : Criterion}
   {dimension : Dimension} {rest : List Discount}
 
-/-- The learners of an ensemble at rest. -/
 structure EnsembleQuiet (learned : Bool)
     (ensemble : Ensemble actions config criterion dimension (.g99 :: rest)) : Prop where
-  /-- The primitive controller is at rest. -/
   control : Still ensemble.control
-  /-- The meta-controller is at rest. -/
   metaController : Still ensemble.metaController
-  /-- Every option is at rest. -/
   skills : ∀ slot, SkillCalm learned (ensemble.skills.get slot)
-  /-- Under learned subtasks Demon 0 is at rest. -/
   demon : learned = true → DemonRest ensemble.demons
 
-/-- Retiring a feature keeps Demon 0 at rest. -/
 theorem DemonRest.retire {bank : DemonBank dimension (.g99 :: rest)} (calm : DemonRest bank)
     (feature : FeatIdx dimension) : DemonRest (bank.retire feature) := by
   cases bank with
@@ -3245,7 +2865,6 @@ theorem DemonRest.retire {bank : DemonBank dimension (.g99 :: rest)} (calm : Dem
     rw [Managed.retire_def]
     exact Calm.managed (show Calm learner.state from calm) _ trivial trivial
 
-/-- Retiring a feature keeps an ensemble at rest. -/
 theorem EnsembleQuiet.retire {learned : Bool}
     {ensemble : Ensemble actions config criterion dimension (.g99 :: rest)}
     (quiet : EnsembleQuiet learned ensemble) (feature : FeatIdx dimension) :
@@ -3258,7 +2877,6 @@ theorem EnsembleQuiet.retire {learned : Bool}
     exact (quiet.skills slot).retire feature
   demon held := (quiet.demon held).retire feature
 
-/-- Releasing a unit keeps an ensemble at rest. -/
 theorem EnsembleQuiet.release {learned : Bool}
     {ensemble : Ensemble actions config criterion dimension (.g99 :: rest)}
     (quiet : EnsembleQuiet learned ensemble) (unit : Fin config.units.count) :
@@ -3292,7 +2910,6 @@ theorem EnsembleQuiet.release {learned : Bool}
     · exact quiet.skills slot
   demon := quiet.demon
 
-/-- Releasing a list of units keeps an ensemble at rest. -/
 theorem EnsembleQuiet.releaseAll {learned : Bool} (units : List (Fin config.units.count)) :
     ∀ ensemble : Ensemble actions config criterion dimension (.g99 :: rest),
       EnsembleQuiet learned ensemble → EnsembleQuiet learned (ensemble.releaseAll units) := by
@@ -3304,18 +2921,14 @@ theorem EnsembleQuiet.releaseAll {learned : Bool} (units : List (Fin config.unit
 
 end Tester
 
-/-! ## The agent's step -/
-
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
 
-/-- The ensemble of a quiet state is at rest. -/
 theorem Quiet.ensemble {state : TemporalControl interface profile config criterion dimension}
     (quiet : Quiet state) :
     EnsembleQuiet profile.ranksSubtasks state.runtime.lifecycle.consumers :=
   ⟨quiet.control, quiet.metaController, quiet.skills, quiet.demon⟩
 
-/-- The tester keeps an agent's state quiet. -/
 theorem Quiet.retire {agent : Agent interface profile config criterion dimension planning}
     (quiet : Quiet agent.control) (active : Vector Bool config.units.count) :
     Quiet (agent.retire active).control := by
@@ -3331,14 +2944,11 @@ theorem Quiet.retire {agent : Agent interface profile config criterion dimension
     exact ⟨released.control, released.metaController, released.skills, released.demon, quiet.gap,
       quiet.credit, quiet.rate, quiet.phase⟩
 
-/-- Advancing the clock keeps an agent's state quiet. -/
 theorem Quiet.advanceClock {agent : Agent interface profile config criterion dimension planning}
     (quiet : Quiet agent.control) : Quiet agent.advanceClock.control :=
   ⟨quiet.control, quiet.metaController, quiet.skills, quiet.demon, quiet.gap, quiet.credit,
     quiet.rate, quiet.phase⟩
 
-/-- The first part of the step, under every order, returns a quiet state, owes quiet writes and
-makes a quiet decision. -/
 theorem Quiet.choose {agent : Agent interface profile config criterion dimension planning}
     (quiet : Quiet agent.control) (order : StepOrder) (percept : Percept interface)
     (hr : Inert32 percept.reward) :
@@ -3370,7 +2980,6 @@ theorem Quiet.choose {agent : Agent interface profile config criterion dimension
     rw [owed]
     trivial
 
-/-- The whole step under every order keeps an agent's state quiet at an inert reward. -/
 theorem Quiet.actOrdered {agent : Agent interface profile config criterion dimension planning}
     (quiet : Quiet agent.control) (order : StepOrder) (percept : Percept interface)
     (hr : Inert32 percept.reward) : Quiet (agent.actOrdered order percept).1.control := by
@@ -3385,7 +2994,6 @@ theorem Quiet.actOrdered {agent : Agent interface profile config criterion dimen
   exact Quiet.retire (agent := (agent.choose order percept).learned) learned
     (agent.choose order percept).units
 
-/-- Every agent a cold start reaches over reward-free percepts is quiet. -/
 theorem Quiet.reached (order : StepOrder) :
     ∀ (percepts : List (Percept interface))
       (agent : Agent interface profile config criterion dimension planning),
@@ -3404,8 +3012,6 @@ theorem Quiet.reached (order : StepOrder) :
 
 end Agent
 
-/-- From cold initialization, over any percepts whose reward words are zero, the primitive and
-meta controllers keep zero weights, and with learned subtasks so does every option policy. -/
 theorem pre_reward_weights_zero (interface : Interface) (profile : FeatureProfile)
     (config : Features.Config) (criterion : Criterion) (dimension : Dimension)
     (planning : PlanningSelection) (order : StepOrder) (percepts : List (Percept interface))

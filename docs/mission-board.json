@@ -171,7 +171,11 @@
   {"proved_by": null,
    "name": "AcornVerif.Targets.ColumnLatch.counts_separated",
    "mission": 201,
-   "file": "lean/AcornVerif/Targets/ColumnLatch.lean"}],
+   "file": "lean/AcornVerif/Targets/ColumnLatch.lean"},
+  {"proved_by": null,
+   "name": "AcornVerif.Targets.CurrentConcealedTargetRung.rung_learns",
+   "mission": 283,
+   "file": "lean/AcornVerif/Targets/CurrentConcealedTargetRung.lean"}],
  "regenerate":
  "https://github.com/rbeauchamp/acorn/blob/main/docs/missions.md#regenerating-the-board",
  "open":
@@ -294,12 +298,17 @@
    "commit": "bd80bd2ee8d08dcb68e00fc3078f67524ce87952",
    "agents": [],
    "account": {"login": "rbeauchamp", "kind": "User"}}],
- "derived_at": "2026-11-18T17:58:06Z",
+ "derived_at": "2026-11-19T02:06:06Z",
  "credit":
  {"agents": [{"missions": [196], "agent": "Claude (Anthropic)"}],
   "accounts":
   [{"missions": [195, 196, 197, 199],
     "account": {"login": "rbeauchamp", "kind": "User"}}]},
- "closed_without_landing": [],
+ "closed_without_landing":
+ [{"url": "https://github.com/rbeauchamp/acorn/issues/283",
+   "title":
+   "Mission (withdrawn 2026-11-18, to be superseded): an algorithm for which the first rung's agent gets ahead and keeps what it has solved (`rung_learns`)",
+   "reason": "closed without being completed",
+   "mission": 283}],
  "authority":
  "GitHub (https://github.com/rbeauchamp/acorn) is the record. This is a copy derived at derived_at; it may lag GitHub and never overrides it."}

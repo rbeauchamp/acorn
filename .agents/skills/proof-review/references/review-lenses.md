@@ -16,9 +16,11 @@ surface cannot exercise it; do not audit unrelated repository code.
    call order avoids them. Describe the enforced boundary instead of rating it.
 3. **Claim accuracy** — every comment and doc line must say what is true now
    and *why* it is that way. Verify each claim against the code: a confidently
-   wrong comment is worse than none. Check the pinned digest is consistent
-   across README, `docs/`, `AGENTS.md`, and that every documented flag
-   exists.
+   wrong comment is worse than none. Read every sentence saying what a theorem
+   shows beside the theorem's actual statement, binders and hypotheses
+   included: a wider quantifier or a dropped hypothesis in the sentence is a
+   finding. Check the pinned digest is consistent across README, `docs/`,
+   `AGENTS.md`, and that every documented flag exists.
 
    **Rationale yes, changelog no.** Git holds the history. A file must not
    narrate what was broken, what was fixed, or what a previous version did.
@@ -42,18 +44,28 @@ surface cannot exercise it; do not audit unrelated repository code.
    permitted composition and provenance declarations are not purity defects.
    Any new hand-authored
    domain bias needs a `Provenance` witness and an entry in
-   `docs/learned-only-binding.md`. The source and compiled checks in `AcornTools/Boundary/Audit.lean` enforce module ownership;
+   `docs/learned-only-binding.md`, except as that document says of a state
+   mechanism submitted under the frame of a learned-state result.
+   The source and compiled checks in `AcornTools/Boundary/Audit.lean` enforce module ownership;
    typed origin witnesses govern the admitted producers. Neither mechanism
    proves that a provenance declaration is scientifically honest.
 6. **Observer invariant** — nothing in `NativeApp.Viewer` or `Acorn.Host.Viewer` may
-   change agent decisions, and the audit digest must confirm it.
+   change agent decisions, and the audit digest must confirm it. The command
+   that prints the digest is not on the closed list of the Test instructions:
+   obtain it only on the owner's authorization for that run, stated in the
+   change's intent
+   ([running a program](../../../../CONTRIBUTING.md#running-a-program)), and
+   otherwise report it as not rechecked.
 7. **Prior-art traceability and defect disclosure** — any code symbol, algorithm,
-   or mathematical proof derived from prior art must carry an explicit in-code
-   citation (`/-- ... -/` or `/-! ... -/` in Lean) stating the
-   work, authors, venue/year, and specific equation/section/theorem number. If
-   the code or proof repairs an issue, degenerate case, or defect in published
-   prior art, the fix must be documented both in doc comments and as a formal
-   characterization theorem or identity (the `stepRef_hTemp_error` model).
+   or mathematical proof derived from prior art must carry an explicit citation in
+   Acorn's documentation (`docs/prior-art-review.md`, `docs/design.md`,
+   all checked by `corpus-audit`, or `site/AcornDocs/Verification.lean`, checked
+   via `docs/verification.md`) stating the work, authors, venue/year, and specific
+   equation/section/theorem number (never Lean comments in scoped files under
+   `no-comments`; `comment-ratchet.json` is empty `[]`). If the code or
+   proof repairs an issue, degenerate case, or defect in published prior art, the
+   fix must be documented both in those documents and as a formal characterization
+   theorem or identity (the `stepRef_hTemp_error` model).
    Peer reviewers must be able to verify correctness directly against the
    cited source text. Apply the [canonical admission standard](../../../../docs/prior-art-review.md#admission-standard)
    to the implemented mechanism, including its material adaptations and semantic

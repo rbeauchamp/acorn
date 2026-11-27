@@ -1,20 +1,7 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import NativeApp.Assets
 import Acorn.Host.Viewer.Options
 import Acorn.Host.Forever
 
-/-!
-# Native viewer bootstrap
-
-The bootstrap admits configuration and durable state, binds loopback HTTP, then
-drives the serial supervisor. Browser request handlers cannot access a process
-handle. Native entropy, files, process execution and transport remain explicit
-OS/runtime boundaries.
--/
 namespace NativeApp
 open Acorn.Host Acorn.Host.Viewer
 
@@ -33,26 +20,40 @@ private def freshSeed : IO UInt64 := do
   let bytes ← seedBytes handle 8 ByteArray.empty
   return viewerSeed (bytes.data.foldl (fun word byte => word * 256 + byte.toUInt64) 0)
 
-private def initialState (directory : RunDirectory) : IO PersistedState := do
-  match ← directory.readState with
-  | .restored state =>
+private def initialState (directory : RunDirectory) (child : Option (List String)) :
+    IO (PersistedState × StartSource) := do
+  match ← directory.readState child with
+  | .restored state source =>
     unless state.identity.browserSafe do
       throw (IO.userError "state.json identity exceeds browser integer precision; preserving the run without starting its core")
     let _ ← directory.adoptStrayCheckpoint
-    return state
+    return (state, source)
   | .refused reason =>
     throw (IO.userError s!"state.json refused; preserving the run without starting its core: {reason}")
   | .missing =>
     let migrated ← directory.adoptStrayCheckpoint
     let seed ← if migrated then pure Cli.defaultSeed else freshSeed
-    return ⟨⟨seed, seed, 0⟩, .running, .fresh, migrated⟩
+    return (.unstarted seed migrated, .absent)
 
-private def supervisorConfig (options : ViewerOptions) : IO SupervisorConfig := do
-  let (executable, arguments) ← match options.launch with
-    | .ranked => pure ((← IO.appDir) / "acorn-core", rankedArguments options.checkpoint)
-    | .fixed command =>
-      pure (System.FilePath.mk "/bin/sh", fun _ _ => #["-c", "exec " ++ command])
-  return ⟨executable, arguments, options.launch.clearDisabled, freshSeed⟩
+private def readProgram (executable : System.FilePath) : IO (Option ProgramReading) := do
+  try return some (.of (← IO.FS.readBinFile executable))
+  catch _ => return none
+
+private def supervisorConfig (options : ViewerOptions) (directory : RunDirectory) :
+    IO SupervisorConfig := do
+  match options.launch with
+  | .ranked =>
+    let executable := (← IO.appDir) / "acorn-core"
+    let arguments := rankedArguments options.checkpoint
+    let read := readProgram executable
+    let atStart ← read
+    let child := atStart.bind fun reading => childRecord executable.toString reading
+      (arguments referenceLaunch (directory.path .weights)).toList
+    return ⟨executable, arguments, child, .ranked atStart read, options.launch.clearDisabled,
+      freshSeed⟩
+  | .fixed command =>
+    return ⟨System.FilePath.mk "/bin/sh", fun _ _ => #["-c", "exec " ++ command], none,
+      .fixed, options.launch.clearDisabled, freshSeed⟩
 
 private abbrev BrowserChild := IO.Process.Child {
   stdin := .null, stdout := .null, stderr := .null }
@@ -71,7 +72,6 @@ private def pollBrowser (opener : IO.Ref (Option (String × BrowserChild))) : IO
   let some (url, child) ← opener.get | return
   try
     if let some status ← child.tryWait then
-      -- tryWait consumes the status; this child must never be waited on again.
       opener.set none
       unless status == 0 do
         IO.eprintln s!"Browser could not open automatically. Open {url} in your browser."
@@ -80,27 +80,36 @@ private def pollBrowser (opener : IO.Ref (Option (String × BrowserChild))) : IO
     try IO.eprintln s!"Browser launch status unavailable. Open {url} in your browser."
     catch _ => pure ()
 
-/-- No core can launch before durable admission and successful HTTP binding. -/
 def runViewer (arguments : List String) : IO UInt32 := do
   let options ← match ViewerOptions.decode arguments with
     | .ok options => pure options
     | .error error => throw (IO.userError (error.message ++
         "\nusage: acorn-viewer (--research-profile ranked | --cmd COMMAND) [--port N] [--run-dir DIR] [--no-checkpoint] [--start] [--open-browser] [--control-stdin]" ++
+        "\nThe supervised child, the core or COMMAND, starts only with --start, on a Start on the viewer's control endpoint, which the page's Start button sends, or when state.json in the run directory names schema_version 2 and the same child and intends to run; under --cmd no saved intent is carried over." ++
         s!"\nN is below 65536. {Acorn.Digits.usage}"))
   let directory ← RunDirectory.open options.directory
-  let supervisor ← Supervisor.new (← supervisorConfig options) directory (← initialState directory)
+  let config ← supervisorConfig options directory
+  let (persisted, source) ← initialState directory config.child
+  let supervisor ← Supervisor.new config directory persisted source
   let stop ← StopFlag.new
   stop.withCommands options.controlStdin do
     let viewer ← supervisor.http viewerAssets
-    -- Before binding succeeds no command can launch a core.
     let server ← (viewer.serve options.port).wait
     let shutdown ← IO.asTask server.waitShutdown.wait (prio := .dedicated)
     let opener ← IO.mkRef none
     try
+      if source.kept then
+        if let some line := startAccount source persisted.desired then
+          IO.println s!"Run: {line}"
+          (← IO.getStdout).flush
+        directory.writeState config.child persisted
       let some address := server.localAddr
         | throw (IO.userError "bound viewer address is unavailable")
       let url := s!"http://{address}/"
       IO.println s!"Acorn is ready: {url}\nRun directory: {directory.rootPath}"
+      unless options.start || source.kept do
+        if let some line := startAccount source persisted.desired then
+          IO.println s!"Run: {line}"
       (← IO.getStdout).flush
       if options.start then
         match ← supervisor.submit .start with
@@ -116,25 +125,20 @@ def runViewer (arguments : List String) : IO UInt32 := do
           | .error error => throw error
         supervisor.step
         IO.sleep 50
-      -- The loop has no `break`, so it ends only by returning or throwing.
       throw (IO.userError "viewer loop ended without a result")
     finally
       try supervisor.shutdown
       finally
         try
-          -- Keep HTTP alive during wind-up, then release its sole shutdown waiter.
           server.shutdown.wait
           match shutdown.get with
           | .ok () => pure ()
           | .error error => throw error
         finally
-          -- A desktop opener never holds a worker or blocks viewer exit. Poll
-          -- once more; a still-running detached opener survives process exit.
           pollBrowser opener
 
 end NativeApp
 
-/-- Startup failure is visible and cannot silently launch a replacement run. -/
 def _root_.NativeApp.Viewer.main (arguments : List String) : IO UInt32 := do
   try NativeApp.runViewer arguments
   catch error =>

@@ -1,24 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentPortable
 import Acorn.State
-/-!
-# Closed configuration and derived-rate contracts
-
-The complete discount and role domains supply their own numeric premises.
-Storage legality and immutable rail identities then connect the public
-exponential bound to the actual recovered step size. Raw transient registers
-receive no bound from these projected-state contracts.
--/
 open Acorn
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder AcornVerif.CurrentPortable
 namespace AcornVerif.CurrentState
 
-/-- Every current discount is a strict positive contraction with a finite horizon greater than
-one. The entire closed domain supplies the raw ordering premises. -/
 theorem discount_numeric_contract (discount : Discount) :
     discount.gamma.Finite ∧ 0 < numerical32 discount.gamma ∧
       numerical32 discount.gamma < 1 ∧ discount.horizon.Finite ∧
@@ -47,13 +32,10 @@ theorem discount_numeric_contract (discount : Discount) :
   exact ⟨raw.1,positive,contraction,raw.2.2.2.1,horizon⟩
 
 set_option maxRecDepth 8192 in
-/-- The actual upper logarithmic rail is nonpositive throughout the closed role domain. -/
 theorem config_log_rail_nonpositive (config : Config) : (Portable.ln config.eta).key ≤ 0 := by
   rcases config with ⟨role,rule⟩
   cases role <;> simp only [Config.eta] <;> decide
 
-/-- Every legally stored log step recovers a finite positive-sign value at most one through the
-actual public exponential, including saturation. -/
 theorem log_step_alpha_unit (config : Config) (rails : StepSizeRails config)
     (stored : LogStepSize rails) :
     stored.alpha.Finite ∧ stored.alpha.bits.toNat ≤ 0x3f800000 := by

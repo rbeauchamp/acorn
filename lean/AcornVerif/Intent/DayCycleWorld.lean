@@ -1,47 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Intent.DayCycle
 import Acorn.Host.WorldDynamics
 import Acorn.Host.WorldObservation
-
-/-!
-# Acorn's world against the day record
-
-`acornDay` reads Acorn's world as the day record's subject, for one configuration and one way of
-reading the day phase: tick `t` is the world whose clock reads `t`, wrapped to 64 bits as the
-clock wraps; night is a phase of four or more, the condition under which `payAndAct` charges the
-night multiplier; an action costs `Action.energyCost` at that night flag; and the agent sees the
-day-phase byte. Two theorems tie the subject to the executing code: `payAndAct_spends` (the step
-spends the subject's cost) and `observe_day` (a successful observation reports the subject's
-sight).
-
-`acornDay_fulfils` proves that `World.dayPhase` fulfils the record, through the refinement link,
-for every day of `8 * m` ticks that divides 2^64, the standard day of 2048 ticks among them
-(`standard_fulfils`). Two kinds of day length fall outside it:
-
-* an odd length, which `WorldConfig.admit` accepts and the record rules out, since its halves
-  cannot be equal (`acornDay_odd_unfulfilled`);
-* a length that does not divide 2^64, for which the 64-bit clock's wrap, after 2^64 ticks, breaks
-  one day; and a length of 2, 4 or 6 ticks, below eight, whose phases the proof does not cover.
-
-`acornStandardDay` is the implementation Acorn declares for its day deliverable
-(`AcornVerif.Intent.Implementations.dayImplementation`): `acornDay` in the world of one standard
-configuration, read at one situation (`DayWorld.at`). It fulfils the record at the types of Acorn's
-world (`acornStandardDay_fulfils`), and it is the day of every standard configuration, whatever
-world supplies the rest of the state and whatever situation it is read at (`acornStandardDay_eq`),
-since `World.dayPhase` reads only the clock and the day length (`dayPhase_of_dayLength`).
--/
 
 namespace AcornVerif.Intent.DayCycle
 
 open Acorn Acorn.Host LeanIntent
 
-/-- Acorn's world read as the record's subject, for the configuration `config`, the day-phase
-reader `phase` and a world `base` that supplies the rest of the state where the record's night
-reads no situation. -/
 def acornDay (config : WorldConfig) (base : World config) (phase : World config → Fin 8) :
     DayWorld (World config) Action UInt8 Nat where
   length := config.raw.dayLength.toNat
@@ -49,7 +13,6 @@ def acornDay (config : WorldConfig) (base : World config) (phase : World config 
   cost t c a := a.energyCost (decide (4 ≤ (phase { c with time := t.toUInt64 }).val))
   sees t c := (phase { c with time := t.toUInt64 }).val.toUInt8
 
-/-- `payAndAct` spends the cost the subject gives the action at the world's own clock. -/
 theorem payAndAct_spends {config : WorldConfig} (base world : World config) (action : Action) :
     payAndAct world action =
       match world.body.energy.spend
@@ -62,7 +25,6 @@ theorem payAndAct_spends {config : WorldConfig} (base world : World config) (act
   simp only [acornDay, Nat.toUInt64_eq, UInt64.ofNat_toNat]
   rfl
 
-/-- A successful observation reports the day-phase byte the subject says the agent sees. -/
 theorem observe_day {config : WorldConfig} (base world : World config)
     (observation : Observation) (h : world.observe = .ok observation) :
     observation.day = (acornDay config base World.dayPhase).sees world.time.toNat world := by
@@ -73,18 +35,14 @@ theorem observe_day {config : WorldConfig} (base world : World config)
   · cases h
     simp [acornDay]
 
-/-- `World.dayPhase` reads only the clock of the world. -/
 theorem dayPhase_clock {config : WorldConfig} (c base : World config) (time : UInt64) :
     World.dayPhase { c with time } = World.dayPhase { base with time } := rfl
 
-/-- The clock reading of tick `t`, modulo a day whose length divides 2^64, is the tick's slot. -/
 theorem slot_of_dvd {length : Nat} (hwrap : 2 ^ 64 % length = 0) (t : Nat) :
     t.toUInt64.toNat % length = t % length := by
   rw [Nat.toUInt64_eq, UInt64.toNat_ofNat']
   exact Nat.mod_mod_of_dvd t (Nat.dvd_of_mod_eq_zero hwrap)
 
-/-- In a day of `8 * m` ticks, the phase of a slot in the first half is the eighths it has passed,
-and in the second half four more than the eighths it has passed since the half. -/
 theorem dayPhase_val {config : WorldConfig} (w : World config) {m : Nat} (hm : 0 < m)
     (hL : config.raw.dayLength.toNat = 8 * m) :
     (World.dayPhase w).val =
@@ -110,7 +68,6 @@ theorem dayPhase_val {config : WorldConfig} (w : World config) {m : Nat} (hm : 0
     have : (w.time.toNat % (8 * m) - 4 * m) / m < 4 := (Nat.div_lt_iff_lt_mul hm).mpr (by omega)
     omega
 
-/-- Shifting a day of even length by half of it exchanges its halves. -/
 theorem half_shift {length : Nat} (hpos : 0 < length) (heven : length % 2 = 0) (t : Nat) :
     (t + length / 2) % length < length / 2 ↔ length / 2 ≤ t % length := by
   have hr := Nat.mod_lt t hpos
@@ -122,8 +79,6 @@ theorem half_shift {length : Nat} (hpos : 0 < length) (heven : length % 2 = 0) (
       Nat.mod_eq_of_lt (show t % length + length / 2 - length < length by omega)]
     omega
 
-/-- In a day of `8 * m` ticks counted from its half, the quarter of a tick is a function of its
-phase. -/
 theorem quarter_of_phase {m : Nat} (hm : 0 < m) (t : Nat) :
     quarter (8 * m) (8 * m / 2) t =
       if t % (8 * m) < 4 * m then t % (8 * m) / m / 2 + 2 else (t % (8 * m) - 4 * m) / m / 2 := by
@@ -145,11 +100,9 @@ theorem quarter_of_phase {m : Nat} (hm : 0 < m) (t : Nat) :
       Nat.mul_div_mul_right _ _ (by decide : 0 < 4),
       show t % (m * 2 * 4) + 4 * m - m * 2 * 4 = t % (m * 2 * 4) - 4 * m by omega]
 
-/-- The day phase is exactly `World.dayPhase`: the specification the implementation meets. -/
 def IsDayPhase {config : WorldConfig} (phase : World config → Fin 8) : Prop :=
   phase = World.dayPhase
 
-/-- `World.dayPhase` refines the day record, for every day of `8 * m` ticks dividing 2^64. -/
 theorem dayPhase_refines {config : WorldConfig} (base : World config) {m : Nat}
     (hL : config.raw.dayLength.toNat = 8 * m) (hwrap : 2 ^ 64 % (8 * m) = 0) :
     Refines (dayCycleFor (World config) Action UInt8 Nat) (acornDay config base) IsDayPhase := by
@@ -157,7 +110,6 @@ theorem dayPhase_refines {config : WorldConfig} (base : World config) {m : Nat}
   subst hphase
   have hpos : 0 < 8 * m := hL ▸ config.positiveDay
   have hm : 0 < m := by omega
-  -- night is the second half of the day, slot by slot
   have hnight : ∀ (c : World config) (t : Nat),
       4 ≤ (World.dayPhase { c with time := t.toUInt64 }).val ↔ 8 * m / 2 ≤ t % (8 * m) := by
     intro c t
@@ -215,14 +167,32 @@ theorem dayPhase_refines {config : WorldConfig} (base : World config) {m : Nat}
       exact absurd this (Nat.not_lt.mpr (Nat.le_add_right 4 _))
     · omega
 
-/-- `World.dayPhase` fulfils the day record, for every day of `8 * m` ticks dividing 2^64. -/
 theorem acornDay_fulfils {config : WorldConfig} (base : World config) {m : Nat}
     (hL : config.raw.dayLength.toNat = 8 * m) (hwrap : 2 ^ 64 % (8 * m) = 0) :
     (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
       (acornDay config base World.dayPhase) :=
   fulfils (dayPhase_refines base hL hwrap) rfl
 
-/-- The standard world, whose day lasts 2048 ticks, fulfils the day record. -/
+theorem admissible_fulfils {config : WorldConfig} (hadm : config.raw.admissible = true)
+    (base : World config) :
+    (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
+      (acornDay config base World.dayPhase) := by
+  obtain ⟨_, _, _, h8, hdvd, _⟩ := (RawWorldConfig.admissible_iff config.raw).mp hadm
+  obtain ⟨m, hm⟩ := h8
+  exact acornDay_fulfils base hm (hm ▸ Nat.mod_eq_zero_of_dvd hdvd)
+
+theorem admissible_spec_fulfils {config : WorldConfig} (hspec : config.raw.Admissible)
+    (base : World config) :
+    (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
+      (acornDay config base World.dayPhase) :=
+  admissible_fulfils ((RawWorldConfig.admissible_spec_iff config.raw).mpr hspec) base
+
+theorem admitted_fulfils {raw : RawWorldConfig} {config : WorldConfig}
+    (hadmit : WorldConfig.admit raw = .ok config) (base : World config) :
+    (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
+      (acornDay config base World.dayPhase) :=
+  admissible_fulfils (WorldConfig.admit_admissible raw config hadmit) base
+
 theorem standard_fulfils {seed : UInt64} {side : Coordinate} {config : WorldConfig}
     (h : WorldConfig.standard seed side = .ok config) (base : World config) :
     (dayCycleFor (World config) Action UInt8 Nat).Fulfilled
@@ -237,8 +207,6 @@ theorem standard_fulfils {seed : UInt64} {side : Coordinate} {config : WorldConf
         rfl
   exact acornDay_fulfils base hL (by decide)
 
-/-- A day of an odd number of ticks, which `WorldConfig.admit` accepts, does not fulfil the record,
-whatever the phase reader: its halves cannot be equal. -/
 theorem acornDay_odd_unfulfilled {config : WorldConfig} (base : World config)
     (phase : World config → Fin 8) (hodd : config.raw.dayLength.toNat % 2 = 1) :
     ¬ (dayCycleFor (World config) Action UInt8 Nat).Fulfilled (acornDay config base phase) :=
@@ -247,23 +215,84 @@ theorem acornDay_odd_unfulfilled {config : WorldConfig} (base : World config)
     simp only [acornDay] at this
     omega
 
+theorem acornDay_not_dvd_unfulfilled {config : WorldConfig} (base : World config)
+    (phase : World config → Fin 8) (hwrap : ¬ config.raw.dayLength.toNat ∣ 2 ^ 64) :
+    ¬ (dayCycleFor (World config) Action UInt8 Nat).Fulfilled (acornDay config base phase) := by
+  intro h
+  obtain ⟨⟨hpos, heven, s, hs⟩, -⟩ :=
+    dayCycle_meets.mp ⟨(fun _ hd => nomatch hd), h (fun _ hd => nomatch hd)⟩
+  simp only [acornDay, NightHalf] at hpos heven hs
+  obtain ⟨L, hL⟩ : ∃ L, config.raw.dayLength.toNat = L := ⟨_, rfl⟩
+  rw [hL] at hpos heven hs hwrap
+  have hper : ∀ t : Nat,
+      (t + 2 ^ 64).toUInt64 = t.toUInt64 := fun t => by
+    apply UInt64.eq_of_toBitVec_eq
+    apply BitVec.eq_of_toNat_eq
+    simp [Nat.toUInt64_eq, UInt64.toNat_ofNat']
+  have hshift : ∀ t : Nat,
+      (t + s) % L < L / 2 ↔ (t + 2 ^ 64 + s) % L < L / 2 := fun t => by
+    rw [← hs t, ← hs (t + 2 ^ 64), hper t]
+  have hr_pos : 0 < 2 ^ 64 % L :=
+    Nat.pos_of_ne_zero fun h0 => hwrap (Nat.dvd_of_mod_eq_zero h0)
+  have hr_lt : 2 ^ 64 % L < L := Nat.mod_lt _ hpos
+  have hzero : (L - s % L + s) % L = 0 := by
+    have hs_lt : s % L < L := Nat.mod_lt s hpos
+    have hs_le : s % L ≤ s := Nat.mod_le s L
+    have h1 : L - s % L + s = L + (s - s % L) := by omega
+    have h2 : s - s % L = L * (s / L) := by
+      have := Nat.mod_add_div s L
+      omega
+    rw [h1, h2, Nat.add_mod, Nat.mod_self, Nat.mul_mod_right, Nat.zero_add, Nat.zero_mod]
+  by_cases hhalf : 2 ^ 64 % L ≤ L / 2
+  · have h1 := hshift (L - s % L + (L / 2 - 1))
+    have ha : (L - s % L + (L / 2 - 1) + s) % L = L / 2 - 1 := by
+      rw [show L - s % L + (L / 2 - 1) + s = (L - s % L + s) + (L / 2 - 1) by omega,
+        Nat.add_mod, hzero, Nat.zero_add, Nat.mod_mod, Nat.mod_eq_of_lt (by omega)]
+    have hb : (L - s % L + (L / 2 - 1) + 2 ^ 64 + s) % L = L / 2 - 1 + 2 ^ 64 % L := by
+      rw [show L - s % L + (L / 2 - 1) + 2 ^ 64 + s =
+          (L - s % L + (L / 2 - 1) + s) + 2 ^ 64 by omega,
+        Nat.add_mod, ha, Nat.mod_eq_of_lt (by omega)]
+    rw [ha, hb] at h1
+    omega
+  · have h1 := hshift (L - s % L + L / 2)
+    have ha : (L - s % L + L / 2 + s) % L = L / 2 := by
+      rw [show L - s % L + L / 2 + s = (L - s % L + s) + L / 2 by omega,
+        Nat.add_mod, hzero, Nat.zero_add, Nat.mod_mod, Nat.mod_eq_of_lt (by omega)]
+    have hb : (L - s % L + L / 2 + 2 ^ 64 + s) % L = L / 2 + 2 ^ 64 % L - L := by
+      rw [show L - s % L + L / 2 + 2 ^ 64 + s = (L - s % L + L / 2 + s) + 2 ^ 64 by omega,
+        Nat.add_mod, ha, Nat.mod_eq_sub_mod (by omega),
+        Nat.mod_eq_of_lt (by omega)]
+    rw [ha, hb] at h1
+    omega
 
-/-! ## The implementation Acorn declares -/
+theorem admit_refuses_non_eight_dvd {raw : RawWorldConfig}
+    (hbad : ¬ (0 < raw.dayLength.toNat ∧ 8 ∣ raw.dayLength.toNat ∧ raw.dayLength.toNat ∣ 2 ^ 64)) :
+    (WorldConfig.admit raw).isOk = false :=
+  Bool.eq_false_iff.mpr fun h => hbad (WorldConfig.admit_isOk_dayLength h)
+
+theorem admit_refuses_odd {raw : RawWorldConfig}
+    (hodd : raw.dayLength.toNat % 2 = 1) : (WorldConfig.admit raw).isOk = false :=
+  admit_refuses_non_eight_dvd fun ⟨_, h8, _⟩ => by omega
+
+theorem admit_refuses_not_dvd {raw : RawWorldConfig}
+    (hwrap : ¬ raw.dayLength.toNat ∣ 2 ^ 64) : (WorldConfig.admit raw).isOk = false :=
+  admit_refuses_non_eight_dvd fun ⟨_, _, hdvd⟩ => hwrap hdvd
+
+theorem admit_refuses_short {raw : RawWorldConfig}
+    (hpos : 0 < raw.dayLength.toNat) (hshort : raw.dayLength.toNat < 8) :
+    (WorldConfig.admit raw).isOk = false :=
+  admit_refuses_non_eight_dvd fun ⟨_, ⟨m, hm⟩, _⟩ => by omega
 
 section
 
 variable {Ctx Act Obs E : Type}
 
-/-- The day of `w` read at the one situation `c`: the same length and night, and each action's
-cost and the agent's sight as they are in `c`. -/
 def DayWorld.at (w : DayWorld Ctx Act Obs E) (c : Ctx) : DayWorld Unit Act Obs E where
   length := w.length
   night := w.night
   cost t _ a := w.cost t c a
   sees t _ := w.sees t c
 
-/-- A day that fulfils the record fulfils it read at any one of its situations: every property
-the record states of all situations holds of one. -/
 theorem fulfilled_at [LT E] {w : DayWorld Ctx Act Obs E}
     (h : (dayCycleFor Ctx Act Obs E).Fulfilled w) (c : Ctx) :
     (dayCycleFor Unit Act Obs E).Fulfilled (w.at c) := fun _ => by
@@ -274,13 +303,10 @@ theorem fulfilled_at [LT E] {w : DayWorld Ctx Act Obs E}
 
 end
 
-/-- The side of the smallest world the standard configuration admits. -/
 def standardSide : Coordinate := ⟨FeatureConstants.worldMinSide, by decide⟩
 
 theorem standard_isOk : (WorldConfig.standard 0 standardSide).isOk = true := by decide
 
-/-- The standard configuration of seed 0 and the smallest side: one configuration whose day
-`acornStandardDay` reads. Every standard configuration has the same day (`acornStandardDay_eq`). -/
 def standardConfig : WorldConfig :=
   match h : WorldConfig.standard 0 standardSide with
   | .ok config => config
@@ -292,7 +318,6 @@ theorem standardConfig_ok : WorldConfig.standard 0 standardSide = .ok standardCo
   · next h => exact h
   · next h => exact absurd (h ▸ standard_isOk) (by simp [Except.isOk, Except.toBool])
 
-/-- Every standard configuration has the day length `FeatureConstants.worldDayLength`. -/
 theorem standard_dayLength {seed : UInt64} {side : Coordinate} {config : WorldConfig}
     (h : WorldConfig.standard seed side = .ok config) :
     config.raw.dayLength = FeatureConstants.worldDayLength.toUInt64 := by
@@ -304,28 +329,19 @@ theorem standard_dayLength {seed : UInt64} {side : Coordinate} {config : WorldCo
     · cases h
       rfl
 
-/-- `World.dayPhase` reads only the clock and the configuration's day length: two worlds of
-configurations with the same day length have the same phase at the same clock reading. -/
 theorem dayPhase_of_dayLength {config config' : WorldConfig} (w : World config)
     (w' : World config') (hlen : config.raw.dayLength = config'.raw.dayLength) (time : UInt64) :
     (World.dayPhase { w with time }).val = (World.dayPhase { w' with time }).val := by
   simp only [World.dayPhase, hlen]
 
-/-- **The day Acorn's world runs**, the implementation Acorn declares for its day record: Acorn's
-`World.dayPhase` and `Action.energyCost`, through `acornDay`, in the world of the standard
-configuration, read at its empty world. -/
 def acornStandardDay : DayWorld Unit Action UInt8 Nat :=
   (acornDay standardConfig (World.empty standardConfig) World.dayPhase).at
     (World.empty standardConfig)
 
-/-- Acorn's standard day fulfils the day record at the types of Acorn's world. -/
 theorem acornStandardDay_fulfils :
     (dayCycleFor Unit Action UInt8 Nat).Fulfilled acornStandardDay :=
   fulfilled_at (standard_fulfils standardConfig_ok _) _
 
-/-- `acornStandardDay` is the day of every standard configuration, whatever world supplies the
-rest of the state and whatever situation it is read at, since the day phase reads only the clock
-and the day length, which every standard configuration shares. -/
 theorem acornStandardDay_eq {seed : UInt64} {side : Coordinate} {config : WorldConfig}
     (h : WorldConfig.standard seed side = .ok config) (base c : World config) :
     acornStandardDay = (acornDay config base World.dayPhase).at c := by

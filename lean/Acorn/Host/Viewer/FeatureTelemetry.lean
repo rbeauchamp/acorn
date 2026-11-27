@@ -1,23 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.AgentInterface
 import Acorn.Host.Viewer.TelemetryValue
 
-/-!
-# Feature and prediction telemetry
-
-Configuration and declared questions come from their existing owners. Retired
-unit identity is read from the actual tester state, and subtask
-descriptors expose stored assignments without reranking them. Cumulants reuse
-the original question evaluator on the frame's observation and raw reward.
--/
 namespace Acorn.Host.Viewer
 open Features Handcrafted
 
-/-- Protocol count of control, meta, option-policy and demon learners. -/
 def telemetryLearnerCount : Nat :=
   FeatureConstants.primitiveCount + FeatureConstants.metaActionCount +
     FeatureConstants.skillCount * FeatureConstants.primitiveCount + FeatureConstants.demonCount
@@ -30,7 +16,6 @@ private def interestBonus {config : Features.Config} : Interest config → Binar
   | .declared _ _ => .zero
   | .learned assignment => assignment.bonus
 
-/-- Metadata and stored feature identities emitted by the current composition. -/
 def featureTelemetry {config : Features.Config} {dimension : Dimension}
     (agent : AgentObservation config dimension) : List TelemetryField :=
   let lastRetirement := agent.representation.progress.last
@@ -63,7 +48,6 @@ def featureTelemetry {config : Features.Config} {dimension : Dimension}
    ⟨"skill_names", .array FeatureConstants.skillCount .text, #v["wood", "mine", "forage"]⟩,
    ⟨"goal_family_names", .array 4 .text, #v["reach", "collect", "craft", "survive"]⟩]
 
-/-- Every prediction channel retains its actual cached value and declared question semantics. -/
 def predictionTelemetry {config : Features.Config} {dimension : Dimension}
     (frame : StepFrame (AgentObservation config dimension)) : List TelemetryField :=
   let signals : Vector Cumulant FeatureConstants.demonCount := Vector.ofFn id

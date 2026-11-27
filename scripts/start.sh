@@ -8,8 +8,15 @@ usage() {
 Usage: ./scripts/start.sh [--no-browser] [--prepare-only] [--run-dir DIR] [--port N]
 
 With no options, prepare and build Acorn, open the browser, and start or resume
-the continuous agent. Stop in the viewer, or press Ctrl-C here to finish the
+the continuous agent. The viewer starts the agent only on an explicit request;
+this launcher passes it (--start). Stop in the viewer, or press Ctrl-C here to finish the
 current attempt and close the viewer. Saved learner state stays in acorn-run/.
+
+--help and --prepare-only stop before the launch. In work on a change to
+Acorn, no step starts the agent or one of its learners unless the owner's
+authorization for that run is stated in the change's intent, and a launch is
+not among the invocations that may be driven without it (CONTRIBUTING.md,
+"Running a program").
 
   --no-browser    Print the viewer URL without opening a browser.
   --prepare-only  Install prerequisites and build, without starting a run.
@@ -35,10 +42,10 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || fail "$1 needs a value."
       if [[ "$1" == --run-dir ]]; then run_dir=$2; else port=$2; fi
       shift 2 ;;
-    *) fail "Unknown option $1. Run ./scripts/start.sh --help." ;;
+    *) fail "Unknown option $1. ./scripts/start.sh --help lists the options." ;;
   esac
 done
-[[ $EUID -ne 0 ]] || fail 'Run this script as your normal user, without sudo.'
+[[ $EUID -ne 0 ]] || fail 'This script runs as your normal user, without sudo.'
 cd "$root"
 
 # This lock spans preparation and execution and survives whole-run Clear.
@@ -74,7 +81,7 @@ cleanup() {
   rm -f "$lock/control" "$lock/pid" "$lock/installer.sh"
   rmdir "$lock"
   if [[ "$status" -ne 0 ]]; then
-    printf 'Acorn stopped during %s. Resolve the diagnostic above, then run ./scripts/start.sh again.\n' "$phase" >&2
+    printf 'Acorn stopped during %s; the diagnostic is above. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.\n' "$phase" >&2
   fi
   exit "$status"
 }
@@ -98,7 +105,7 @@ install_macos() {
       export PATH="$DEVELOPER_DIR/usr/bin:$PATH"
     else
       xcode-select --install || true
-      fail 'Finish the macOS command-line tools installation dialog, then run this script again.'
+      fail 'The macOS command-line tools are not installed, and their installation has been requested; the launcher goes no further until they are. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for running this launcher again.'
     fi
   fi
   if ! command -v brew >/dev/null 2>&1; then
@@ -110,7 +117,6 @@ install_macos() {
   command -v brew >/dev/null 2>&1 || fail 'Homebrew is unavailable after installation.'
   local packages=()
   command -v elan >/dev/null 2>&1 || packages+=(elan)
-  command -v shellcheck >/dev/null 2>&1 || packages+=(shellcheck)
   command -v gtimeout >/dev/null 2>&1 || packages+=(coreutils)
   local openssl_prefix
   openssl_prefix=$(brew --prefix openssl@3)
@@ -122,7 +128,7 @@ install_macos() {
 install_linux() {
   command -v apt-get >/dev/null 2>&1 || fail 'Automatic Linux setup supports Ubuntu/Debian with apt-get; see docs/verification.md.'
   local packages=() package
-  for package in build-essential curl git libgmp-dev openssl shellcheck coreutils elan; do
+  for package in build-essential curl git libgmp-dev openssl coreutils elan; do
     if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) != 'install ok installed' ]]; then
       packages+=("$package")
     fi
@@ -141,7 +147,7 @@ case "$(uname -s)" in
   Linux) install_linux ;;
   *) fail 'This launcher supports macOS and Ubuntu/Debian Linux.' ;;
 esac
-for tool in git curl cc openssl elan lean lake; do
+for tool in git curl cc openssl tar elan lean lake; do
   command -v "$tool" >/dev/null 2>&1 || fail "Required tool is unavailable: $tool."
 done
 git --version >/dev/null
@@ -158,18 +164,21 @@ case "$dependency_status" in
   2)
     printf 'Downloading the pinned Lean, Mathlib and FloatLib dependencies (first run needs network access)…\n'
     # The upstream cache can omit modules; Lake compiles only those it lacks.
-    # FloatLib and lean-intent publish no cache, so the modules the proof bridge, the
-    # intent bridge and the gate's intent-check import are built here, with the native
-    # objects intent-check links and the Regula interface modules the decision registries
-    # import.
+    # FloatLib, lean-intent and Regula publish no cache, so the modules the proof bridge,
+    # the intent bridge and the gate's intent-check import are built here, with the native
+    # objects intent-check links and the Regula modules the decision registries and
+    # AcornTools.Theorems import with their native objects.
     (cd lean && lake exe cache get && lake build Mathlib floatlibBridge regulaInterface leanIntentBridge leanIntentNative) ;;
   *) fail 'Dependency admission failed; the diagnostic above must be resolved before provisioning.' ;;
 esac
+[[ ! -L "$root/scripts" && -d "$root/scripts" && ! -L "$root/scripts/shellcheck.sh" && -f "$root/scripts/shellcheck.sh" && -x "$root/scripts/shellcheck.sh" ]] ||
+  fail 'Missing or non-executable ShellCheck helper: scripts/shellcheck.sh'
+"$root/scripts/shellcheck.sh" provision
 phase='build'
 printf 'Building Acorn (subsequent launches reuse unchanged build outputs)…\n'
 ./scripts/lean.sh build acorn-viewer
 if [[ "$prepare_only" == 1 ]]; then
-  printf 'Acorn is built. Run ./scripts/start.sh to open the viewer and start learning.\n'
+  printf 'Acorn is built. ./scripts/start.sh launches it. In work on a change to Acorn, CONTRIBUTING.md ("Running a program") states the conditions for a launch.\n'
   exit 0
 fi
 

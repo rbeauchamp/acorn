@@ -1,85 +1,30 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Separation
-
-/-!
-# An agent that retraces the walk that met the goal
-
-`retrace` is one agent for a whole class of worlds in visits, with its exploration built in: a
-fixed exploring walk for each of the visits up to a last one. It keeps three things: the steps taken
-in the current visit, the visits completed, counted up to the last exploring one, and the exploring
-walk on which it first perceived its goal met, by that walk's visit. Until it has found a walk it
-takes the exploring walk of the current visit; from then on it takes the walk it found, on every
-visit. It stores no action and no percept.
-
-It is a reference agent, as `AcornVerif.Kernel.replay` is. The two differ in what contract 3 of
-`docs/mission-contract.md` asks of an agent's memory. `replay` counts its visits without bound and
-keeps a record of the current visit's actions that it clears when the visit ends. `retrace` holds
-one of finitely many memories (`retraceMemory_finite`), and no decision of it sets a part of its
-memory back to its first value except the cyclic count of a visit's steps.
-
-Within one visit that it begins holding a count and a walk found or none, it takes one walk
-throughout: the walk found, or else the exploring walk of the count (`retrace_within`). A walk it
-finds during the visit is that same exploring walk, so finding it changes no action of the visit.
-After the visit's last decision it holds the walk it began with, or, having begun with none, the
-count's walk exactly when that walk met the goal at one of the visit's steps (`retrace_visit_end`).
-This uses the hypothesis that the percept after every step shows the signal exactly when that step
-satisfies the goal.
-
-In a world in visits, every visit begins in the same state, so by induction on the visits a walk the
-agent holds at the start of a visit meets the goal within a visit (`retraceStart_invariant`), and
-the agent solves a member on a visit exactly when the walk it takes on that visit meets the member's
-goal (`retrace_solves_iff`). So:
-
-- it solves on every later visit each member it has solved on one visit (`retrace_solves`);
-- it solves a member on every visit from the first whose exploring walk meets that member's goal,
-  among the visits up to the last exploring one (`retrace_solves_explored`).
-
-These are the two facts `AcornVerif.Kernel.replay_solves` and
-`AcornVerif.Kernel.replay_solves_explored` state of `replay`. So the agent retains
-(`retrace_retains`), and it finds every counted member whose goal one of its exploring walks meets
-(`retrace_finds`), in the terms of `AcornVerif.Separation`. Nothing here says that an exploring walk
-meets a goal: that is a hypothesis about the class and the walks.
--/
 
 namespace AcornVerif.Kernel
 open Acorn.Features
 
 variable {interface : Interface}
 
-/-- What the retracing agent keeps, for visits of `length` steps and exploring walks on the visits
-0 to `last`. -/
 structure RetraceMemory (length last : ℕ) where
-  /-- Steps taken in the current visit. -/
   step : Fin (length + 1)
-  /-- Visits completed, counted up to `last`. -/
   count : Fin (last + 1)
-  /-- The exploring walk on which the goal was first perceived met, by its visit. -/
   found : Option (Fin (last + 1))
 
 namespace RetraceMemory
 
 variable {length last : ℕ}
 
-/-- The walk held after a percept: the one already found, or else, after a step at which the signal
-shows, the exploring walk of the current count. -/
 def learn (memory : RetraceMemory length last) (shown : Bool) : Option (Fin (last + 1)) :=
   match memory.found with
   | some walk => some walk
   | none => if 1 ≤ memory.step.val ∧ shown = true then some memory.count else none
 
-/-- The memory after a decision, holding the walk `found`: one more step of the visit, or, after
-the visit's last decision, no step and one more visit, counted up to `last`. -/
 def next (memory : RetraceMemory length last) (found : Option (Fin (last + 1))) :
     RetraceMemory length last :=
   if within : memory.step.val < length then
     ⟨⟨memory.step.val + 1, by omega⟩, memory.count, found⟩
   else ⟨⟨0, Nat.succ_pos length⟩, ⟨min (memory.count.val + 1) last, by omega⟩, found⟩
 
-/-- Before a visit's last decision, the next memory counts one more step. -/
 theorem next_within (memory : RetraceMemory length last) (found : Option (Fin (last + 1)))
     (within : memory.step.val < length) :
     (memory.next found).step.val = memory.step.val + 1 ∧
@@ -88,8 +33,6 @@ theorem next_within (memory : RetraceMemory length last) (found : Option (Fin (l
   rw [dite_eq_left within]
   exact ⟨rfl, rfl, rfl⟩
 
-/-- After a visit's last decision, the next memory counts no step and one more visit, up to
-`last`. -/
 theorem next_last (memory : RetraceMemory length last) (found : Option (Fin (last + 1)))
     (done : ¬ memory.step.val < length) :
     (memory.next found).step.val = 0 ∧
@@ -101,9 +44,6 @@ theorem next_last (memory : RetraceMemory length last) (found : Option (Fin (las
 
 end RetraceMemory
 
-/-- The retracing agent for visits of a length, with a signal read from each percept and an
-exploring walk for each of the visits 0 to `last`: at each step it takes the action, at that step,
-of the walk it has found, or else of the exploring walk of its count of visits. -/
 def retrace (interface : Interface) (length last : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) : Agent interface where
   Memory := RetraceMemory length last
@@ -112,7 +52,6 @@ def retrace (interface : Interface) (length last : ℕ) (signal : Percept interf
     (explore ((memory.learn (signal percept)).getD memory.count).val memory.step.val,
       memory.next (memory.learn (signal percept)))
 
-/-- The retracing agent holds one of finitely many memories. -/
 theorem retraceMemory_finite (length last : ℕ) :
     ∃ memories : List (RetraceMemory length last), ∀ memory, memory ∈ memories := by
   refine ⟨(List.finRange (length + 1)).flatMap fun step =>
@@ -127,11 +66,6 @@ theorem retraceMemory_finite (length last : ℕ) :
     exact List.mem_cons_of_mem _
       (List.mem_map.mpr ⟨walk, List.mem_finRange walk, rfl⟩)
 
-/-! ## One visit -/
-
-/-- What the retracing agent holds at a time of a visit it began holding `found`, along the walk it
-takes: the walk it began with, or, having begun with none, none while no step of the visit so far
-has satisfied the goal, and the count's walk once one has. -/
 def RetraceFound (world : World interface) (start : world.State) (satisfied : world.State → Prop)
     (walk : ℕ → Act interface) {last : ℕ} (count : Fin (last + 1))
     (found current : Option (Fin (last + 1))) (time : ℕ) : Prop :=
@@ -142,8 +76,6 @@ def RetraceFound (world : World interface) (start : world.State) (satisfied : wo
       (current = some count ∧ ∃ earlier, 1 ≤ earlier ∧ earlier < time ∧
         satisfied (path world start walk earlier)))
 
-/-- The walk the agent takes does not change within a visit: the walk it holds, or else the count's,
-is the walk it began with, or else the count's. -/
 theorem RetraceFound.getD {world : World interface} {start : world.State}
     {satisfied : world.State → Prop} {walk : ℕ → Act interface} {last : ℕ}
     {count : Fin (last + 1)} {found current : Option (Fin (last + 1))} {time : ℕ}
@@ -157,9 +89,6 @@ theorem RetraceFound.getD {world : World interface} {start : world.State}
     · rw [filled]
       rfl
 
-/-- One decision keeps the bookkeeping: on the percept of the walk's state at a time, the agent
-holds afterwards what `RetraceFound` says of the next time, in a world whose percept after every
-step shows the signal exactly when that step satisfies the goal. -/
 theorem RetraceFound.learn {world : World interface} {start : world.State}
     {satisfied : world.State → Prop} {walk : ℕ → Act interface} {length last : ℕ}
     {count : Fin (last + 1)} {found : Option (Fin (last + 1))} {time : ℕ}
@@ -195,11 +124,6 @@ theorem RetraceFound.learn {world : World interface} {start : world.State}
       rw [filled]
       exact .inr ⟨rfl, earlier, low, Nat.lt_succ_of_lt high, met⟩
 
-/-- Within a visit the retracing agent takes one walk: the walk it began the visit with, or else the
-exploring walk of its count. Resumed from a memory that counts no step, up to the visit's last
-decision, in a world whose percept after every step shows the signal exactly when that step
-satisfies the goal, the world is in that walk's state, the agent's memory counts the steps taken and
-keeps its count of visits, and it holds what `RetraceFound` says. -/
 theorem retrace_within (world : World interface) (start : world.State) (length last : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (decodes : ∀ state action, signal (world.percept (world.step state action)) = true ↔
@@ -270,10 +194,6 @@ theorem retrace_within (world : World interface) (start : world.State) (length l
     rw [moved.2.2]
     exact learned
 
-/-- After a visit's last decision the retracing agent's memory counts no step and one more visit,
-up to `last`, and holds what `RetraceFound` says of the whole visit: the walk it began with, or,
-having begun with none, the count's walk exactly when that walk satisfied the goal at one of the
-visit's steps. -/
 theorem retrace_visit_end (world : World interface) (start : world.State) (length last : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (decodes : ∀ state action, signal (world.percept (world.step state action)) = true ↔
@@ -321,10 +241,6 @@ theorem retrace_visit_end (world : World interface) (start : world.State) (lengt
   · rw [moved.2.2]
     exact learned
 
-/-! ## Visits -/
-
-/-- After a whole visit from the start of a visit, an agent's memory in a world in visits is its
-memory after as many decisions in the world itself. -/
 theorem visits_memory_end (world : World interface) (start : world.State) (length : ℕ)
     (agent : Agent interface) :
     memoryAt (visits world start length) agent (visitStart world start length) (length + 1) =
@@ -336,8 +252,6 @@ theorem visits_memory_end (world : World interface) (start : world.State) (lengt
   rw [inner]
   rfl
 
-/-- An agent's memory at the start of the next visit is the memory, after a visit's decisions in
-the world itself, of the agent resumed from its memory at the start of this visit. -/
 theorem visits_memory_next (world : World interface) (start : world.State) (length : ℕ)
     (agent : Agent interface) (count : ℕ) :
     memoryAt (visits world start length) agent (visitStart world start length)
@@ -349,17 +263,12 @@ theorem visits_memory_next (world : World interface) (start : world.State) (leng
   rw [Nat.add_mul, Nat.one_mul, memoryAt_add, visits_period]
   exact visits_memory_end world start length _
 
-/-- The retracing agent's memory at the start of a visit of a world in visits. Visit 0 is the
-first. -/
 def retraceStart (world : World interface) (start : world.State) (length last : ℕ)
     (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface) (visit : ℕ) :
     RetraceMemory length last :=
   memoryAt (visits world start length) (retrace interface length last signal explore)
     (visitStart world start length) (visit * (length + 1))
 
-/-- From a visit that the retracing agent starts with no step counted, it starts the next visit
-with no step counted and one more visit, up to `last`, holding what `RetraceFound` says of the
-whole visit. -/
 theorem retraceStart_step (world : World interface) (start : world.State) (length last : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (decodes : ∀ state action, signal (world.percept (world.step state action)) = true ↔
@@ -384,10 +293,6 @@ theorem retraceStart_step (world : World interface) (start : world.State) (lengt
   rw [next]
   exact retrace_visit_end world start length last satisfied signal decodes explore _ zero
 
-/-- At the start of every visit the retracing agent's memory counts no step and the visits
-completed, up to `last`, and a walk it holds satisfies the goal from the start within a visit, in
-a world whose percept after every step shows the signal exactly when that step satisfies the
-goal. -/
 theorem retraceStart_invariant (world : World interface) (start : world.State) (length last : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (decodes : ∀ state action, signal (world.percept (world.step state action)) = true ↔
@@ -429,8 +334,6 @@ theorem retraceStart_invariant (world : World interface) (start : world.State) (
           rw [Option.some.inj filled]
           exact ⟨earlier, low, Nat.le_of_lt_succ high, met⟩
 
-/-- Once the retracing agent holds a walk at the start of a visit, it holds that walk at the start
-of every later visit. -/
 theorem retraceStart_keeps (world : World interface) (start : world.State) (length last : ℕ)
     (satisfied : world.State → Prop) (signal : Percept interface → Bool)
     (decodes : ∀ state action, signal (world.percept (world.step state action)) = true ↔
@@ -448,10 +351,6 @@ theorem retraceStart_keeps (world : World interface) (start : world.State) (leng
 
 variable (family : WorldClass interface) (goals : family.Goals)
 
-/-- The retracing agent solves a member on a visit exactly when the walk it takes on that visit,
-the walk it holds at the visit's start or else the exploring walk of its count, satisfies the
-member's goal from the member's start within the visit, where the member's percept after every step
-shows the signal exactly when that step satisfies its goal. -/
 theorem retrace_solves_iff (length last : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (index : family.Index)
     (decodes : ∀ state action,
@@ -500,9 +399,6 @@ theorem retrace_solves_iff (length last : ℕ) (signal : Percept interface → B
       from rfl, along step high]
     exact met
 
-/-- In a class of worlds in visits, the retracing agent, one agent for the whole class, solves on
-every later visit each member it has solved on one visit, where the member's percept after every
-step shows the signal exactly when that step satisfies the member's goal. -/
 theorem retrace_solves (length last : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (index : family.Index)
     (decodes : ∀ state action,
@@ -544,10 +440,6 @@ theorem retrace_solves (length last : ℕ) (signal : Percept interface → Bool)
   rw [kept]
   exact reached
 
-/-- In a class of worlds in visits, the retracing agent solves a member on the visit, among the
-visits up to `last`, whose exploring walk satisfies that member's goal from its start within the
-visit, and on every later visit, where the member's percept after every step shows the signal
-exactly when that step satisfies its goal. -/
 theorem retrace_solves_explored (length last : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface) (index : family.Index)
     (decodes : ∀ state action,
@@ -584,10 +476,6 @@ theorem retrace_solves_explored (length last : ℕ) (signal : Percept interface 
   · rw [← same]
     exact first
 
-/-! ## Retaining and finding -/
-
-/-- The retracing agent retains, in a class whose members' percepts after every step show the
-signal exactly when that step satisfies the member's goal. -/
 theorem retrace_retains (family : WorldClass interface) (goals : family.Goals) (length last : ℕ)
     (signal : Percept interface → Bool) (explore : ℕ → ℕ → Act interface)
     (decodes : ∀ index state action,
@@ -598,9 +486,6 @@ theorem retrace_retains (family : WorldClass interface) (goals : family.Goals) (
     retrace_solves family goals length last signal explore index (decodes index) visit later
       after solved
 
-/-- The retracing agent finds every counted member whose goal one of its exploring walks meets
-from the member's start within a visit: where that holds of each of more than `bound` counted
-members, it finds more than `bound`, each by the last of its exploring visits. -/
 theorem retrace_finds (family : WorldClass interface) (goals : family.Goals)
     (length last bound : ℕ) (signal : Percept interface → Bool)
     (explore : ℕ → ℕ → Act interface)

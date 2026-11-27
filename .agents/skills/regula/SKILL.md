@@ -1,11 +1,11 @@
 ---
 name: regula
-description: Regula v0.13.0 and the Regula audit of Acorn's merge gate, which obtains Regula's proof verdict. Use before writing or changing Lean definitions, theorems, proofs or lean/lakefile.lean, and when `lake lint` reports an RG rule ID or a verdict other than pass.
+description: Regula v0.13.1 and the Regula audit of Acorn's merge gate, which obtains Regula's proof verdict. Use before writing or changing Lean definitions, theorems, proofs or lean/lakefile.lean, and when `lake lint` reports an RG rule ID or a verdict other than pass.
 ---
 
 # Regula in Acorn
 
-[Regula](https://github.com/rbeauchamp/regula) v0.13.0 is the audit of Lean builds that Acorn's merge gate runs. Its README and `specification/README.md` at the tag `v0.13.0` are its documentation; this skill states how Acorn uses it.
+[Regula](https://github.com/rbeauchamp/regula) v0.13.1 is the audit of Lean builds that Acorn's merge gate runs. Its README and `specification/README.md` at the tag `v0.13.1` are its documentation; this skill states how Acorn uses it.
 
 ## The Regula audit
 
@@ -22,7 +22,7 @@ A pass means, as Regula states, that the proofs of the claimed modules are sound
 
 ## The claim and the profile
 
-The claimed modules are the modules of the default targets of `lean/lakefile.lean` and every module of the package that their imports reach: the libraries `Acorn`, `AcornVerif`, `NativeApp`, `Bootstrap` and `AcornDocument`. Every Acorn theorem lives in one of them, and so does every definition such a theorem is about. A new source below `lean/Acorn`, `lean/AcornVerif` or `lean/NativeApp` is claimed by its library's glob.
+The claimed modules are the modules of the default targets of `lean/lakefile.lean` and every module of the package that their imports reach: the libraries `Acorn`, `AcornVerif`, `NativeApp`, `Bootstrap` and `AcornDocument`. Every Acorn theorem lives in one of them, and so does every definition such a theorem is about. A new Git-tracked source below `lean/Acorn`, `lean/AcornVerif` or `lean/NativeApp` is claimed by its library's tracked-module glob.
 
 `lake lint` imports the claimed modules into one environment, so only one of them can declare a top-level `main`: `Bootstrap`'s, which `lean --run` interprets. Each executable's root is a module of the library `Entry`, outside the claim, whose `main` applies the entry function of a claimed module (such as `Acorn.SwiftTdDriver.main`). Put an executable's logic in the claimed module and keep its `Entry` root to that one application. Tool code under `lean/AcornTools` and the documentation site are outside the claim, so neither holds a theorem.
 
@@ -39,7 +39,7 @@ Each rule reads the constants of the build as Lean loaded them, the claimed modu
 | RG1003 | A constant that depends on an axiom other than Lean's three, which RG1002 and RG1004 do not name. |
 | RG1004 | A constant that depends on an axiom that `native_decide`, `decide +native` or `bv_decide` adds. |
 | RG1005 | A constant that depends on an axiom the profile does not admit. |
-| RG1006 | An `unsafe` or `partial` constant, a constant with a recursion helper's name (`f._unsafe_rec`) without the form Lean gives a terminating recursive definition, and a constant whose value mentions `Lean.Loop.mk` or `repeatM`, which `while` and `repeat` compile to. |
+| RG1006 | A constant that is `unsafe`, `partial` or named as a recursion helper, without an exempted form (a `partial` recursion helper `b._unsafe_rec` beside its safe definition `b`, or the unsafe half `T.ctorIdx._impl` of a verified compiler-generated `ctorIdx` pair), or a constant whose value mentions `Lean.Loop.mk` or `repeatM`, which `while` and `repeat` compile to. |
 | RG2001 | Nothing: it is the `incomplete` verdict, for a build Regula cannot load, an input without the closed form, arguments other than one profile, a claimed constant that Lean's import replaced and that is no theorem within the profile or has a recursion helper's name, or a replay of the claim's cone that Lean's kernel does not accept. |
 
 Write a loop with a known measure as well-founded recursion (`termination_by`) or as `for` over a finite collection, never `while`, `repeat` or `partial`. A host effect in `IO` or `BaseIO` that runs until something outside the program happens iterates with `for _ in forever do` (`lean/Acorn/Host/Forever.lean`), whose iteration is a `partial_fixpoint` definition with the unfolding of `repeat`; the body is written as it would be under `repeat`. In Std's `Async` monad, which runs a continuation in a task, no such fixed point exists: the viewer's live-frame loop calls Std's own loop there, `EAsync.forIn`, which is trusted toolchain code. Turn an assumption into a hypothesis of the theorems that need it, never an `axiom`.

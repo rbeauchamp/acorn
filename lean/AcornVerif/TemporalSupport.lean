@@ -1,61 +1,22 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentTemporal
 import AcornVerif.CurrentConstants
 import AcornVerif.CurrentOrder
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
-/-!
-# Conditional action laws of actual temporal dispatch
-
-The generator is deterministic. A probability statement therefore requires a
-law on its incoming state. These symbolic finite sums push an arbitrary
-nonnegative normalized law through the actual selector; no independence of
-successive xoshiro words, uniform reservoir ties, or exact nominal epsilon is
-assumed. No finite sum is evaluated by these proofs or by the agent.
-
-Dabney, Ostrovski & Barreto, *Temporally-Extended ε-Greedy Exploration*, ICLR
-(2021), arXiv:2006.01782v1 (2020), §4.2, describes the action-repeat option.
-A served step is conditionally deterministic. The total-law decomposition
-includes persistence, interruption and new option selection; a positive
-primitive-boundary contribution supplies a floor only under its stated law.
-
-Every exploration branch compares the first source word's 53-bit fraction with
-the stored rate as exact rational order (`branch_exact`). At D6's declared rate
-it explores for exactly `10737418 · 2^34` of the `2^64` first words
-(`declared_branch_card`): the rate's exact binary32 value under a uniform
-first-word hypothesis, which a deterministic xoshiro prefix does not supply.
-
-`select_declared` carries that branch to the behaviour as a whole: under the declared
-policy, every decision the executed selection returns is a served step of a committed
-run or one persistent draw at D6's rate, whichever layer selected the action
-(Algorithm 1 of the same source, PDF p. 14).
--/
 namespace AcornVerif.TemporalSupport
 open Acorn Acorn.Features Acorn.Handcrafted
 
 variable {Ω : Type} [Fintype Ω] {interface : Interface} {actions : Word.Count}
 
-/-- A probability law on incoming generator states, stated rather than inferred
-from a pseudorandom implementation. The index may represent any finite support. -/
 structure IncomingLaw (Ω : Type) [Fintype Ω] where
-  /-- Nonnegative incoming-state weights. -/
   weight : Ω → ℝ
-  /-- No negative probability mass. -/
   nonnegative : ∀ sample, 0 ≤ weight sample
-  /-- Total probability one. -/
   total : ∑ sample, weight sample = 1
-  /-- Actual generator state associated with each support element. -/
   state : Ω → Rng.Xoshiro256
 
-/-- Exact pushforward event mass; this is a mathematical definition only. -/
 noncomputable def mass (law : IncomingLaw Ω) (event : Ω → Prop) : ℝ :=
   by classical exact ∑ sample, if event sample then law.weight sample else 0
 
-/-- Partition is total probability, without independence or uniform-draw hypotheses. -/
 theorem mass_partition (law : IncomingLaw Ω) (event branch : Ω → Prop) :
     mass law event = mass law (fun sample => event sample ∧ branch sample) +
       mass law (fun sample => event sample ∧ ¬ branch sample) := by
@@ -66,7 +27,6 @@ theorem mass_partition (law : IncomingLaw Ω) (event branch : Ω → Prop) :
   intro sample _
   by_cases h : event sample <;> by_cases b : branch sample <;> simp [h, b]
 
-/-- A subevent cannot have more mass than the action event containing it. -/
 theorem mass_mono (law : IncomingLaw Ω) (small large : Ω → Prop)
     (contained : ∀ sample, small sample → large sample) : mass law small ≤ mass law large := by
   classical
@@ -79,17 +39,13 @@ theorem mass_mono (law : IncomingLaw Ω) (small large : Ω → Prop)
     · exact law.nonnegative sample
     · exact le_rfl
 
-/-- A singleton output predicate never invents an action for a refused transition. -/
 def acts (result : Option (TemporalDecision actions)) (action : Action actions.word.toNat) : Prop :=
   ∃ decision, result = some decision ∧ decision.action = action
 
-/-- Inspect a branch only for an actual returned decision. -/
 def follows (result : Option (TemporalDecision actions)) (event : TemporalDecision actions → Prop) :
     Prop :=
   ∃ decision, result = some decision ∧ event decision
 
-/-- Current policy selection under the supplied law, with every other state and
-input held fixed. The full RNG state feeds all conditional subsequent draws. -/
 def outcomes {profile : FeatureProfile} {config : Features.Config} {criterion : Criterion}
     {dimension : Dimension} (law : IncomingLaw Ω)
     (state : TemporalControl interface profile config criterion dimension)
@@ -101,15 +57,10 @@ def outcomes {profile : FeatureProfile} {config : Features.Config} {criterion : 
     references := { state.runtime.references with rng := law.state sample } } }
   (state.select planning features obs.declared reward goal).map Prod.snd
 
-/-- Classify option actions without interpreting the slot as host vocabulary. -/
 def optionSource : TemporalSource → Prop
   | .option _ => True
   | .primitive | .explorationStart | .explorationContinuation => False
 
-/-- Exact action-mass decomposition into served persistence, option-policy and
-fresh primitive contributions. It applies in particular to `outcomes`, whose
-option contribution includes any interruption by a stopping estimate and
-re-selection; an interruption by a run falls in the served contribution. -/
 theorem action_composition (law : IncomingLaw Ω) (run : Ω → Option (TemporalDecision actions))
     (action : Action actions.word.toNat) :
     mass law (fun sample => acts (run sample) action) =
@@ -127,12 +78,9 @@ theorem action_composition (law : IncomingLaw Ω) (run : Ω → Option (Temporal
   rw [mass_partition law (fun sample => acts (run sample) action ∧ ¬ served sample) option]
   simp only [served, option, and_assoc, add_assoc]
 
-/-- Interruption is an observable conditioning event on the actual transition,
-not an independent probability multiplied into an unrelated policy model. -/
 def interrupted (decision : TemporalDecision actions) : Prop :=
   ∃ ending, decision.ended = some ending ∧ ending.reason = .interrupted
 
-/-- Conditional terminal and continuing paths partition the same actual action law. -/
 theorem interruption_composition (law : IncomingLaw Ω) (run : Ω → Option (TemporalDecision actions))
     (action : Action actions.word.toNat) :
     mass law (fun sample => acts (run sample) action) =
@@ -140,8 +88,6 @@ theorem interruption_composition (law : IncomingLaw Ω) (run : Ω → Option (Te
       mass law (fun sample => acts (run sample) action ∧ ¬ follows (run sample) interrupted) :=
   mass_partition law _ _
 
-/-- A boundary floor is conditional on positive mass reaching that boundary
-and drawing this action. It gives no support theorem for served steps. -/
 theorem boundary_support (law : IncomingLaw Ω) (run : Ω → Option (TemporalDecision actions))
     (action : Action actions.word.toNat)
     (positive : 0 < mass law (fun sample => acts (run sample) action ∧
@@ -149,8 +95,6 @@ theorem boundary_support (law : IncomingLaw Ω) (run : Ω → Option (TemporalDe
     0 < mass law (fun sample => acts (run sample) action) :=
   lt_of_lt_of_le positive (mass_mono law _ _ fun _ h => h.1)
 
-/-- Actual persistent dispatch has zero mass on every other action under any
-incoming RNG law, even with arbitrary goal feedback and planning selections. -/
 theorem served_other_mass_zero {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension} (law : IncomingLaw Ω)
     (state : TemporalControl interface profile config criterion dimension)
@@ -187,8 +131,6 @@ theorem served_other_mass_zero {profile : FeatureProfile} {config : Features.Con
 section DeclaredBranch
 open AcornVerif.CurrentArithmetic AcornVerif.CurrentOrder
 
-/-- Every actual floating draw is its first word's 53-bit numerator scaled by
-`2^-53`, read as a nonnegative dyadic rational. -/
 theorem nextF64_numerical (rng : Rng.Xoshiro256) :
     numerical64 rng.nextF64.1 = ((rng.next.1 >>> 11).toNat : ℚ) * (2 : ℚ) ^ (-53 : Int) := by
   have finite : rng.nextF64.1.Finite :=
@@ -207,9 +149,6 @@ theorem nextF64_numerical (rng : Rng.Xoshiro256) :
   rw [mul_assoc, ← zpow_natCast, ← zpow_add₀ (by norm_num : (2 : ℚ) ≠ 0)]
   norm_num
 
-/-- The branch comparison of `PolicySnapshot.draw` and `beginExploration` is
-exact rational order between the first word's 53-bit fraction and the stored
-rate's binary32 value, for every generator state and every legal rate. -/
 theorem branch_exact (rng : Rng.Xoshiro256) (rate : SwiftTd.ExploreRate) :
     rng.nextF64.1.less (Conversion.widen rate.value) =
       decide (((rng.next.1 >>> 11).toNat : ℚ) * (2 : ℚ) ^ (-53 : Int) <
@@ -219,8 +158,6 @@ theorem branch_exact (rng : Rng.Xoshiro256) (rate : SwiftTd.ExploreRate) :
   rw [numerical64_less _ _ finite (Conversion.widen_finite _ rate.legal.1),
     numerical_widen_exact _ rate.legal.1, nextF64_numerical]
 
-/-- At the declared D6 rate the branch explores exactly when the first word's
-53-bit numerator is below `10737418 · 2^23`, the rate's exact value times `2^53`. -/
 theorem declared_branch (rng : Rng.Xoshiro256) :
     rng.nextF64.1.less (Conversion.widen Handcrafted.declaredRate.value) =
       decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
@@ -230,9 +167,6 @@ theorem declared_branch (rng : Rng.Xoshiro256) :
     norm_num [ModelConstants.exploreRate]
   rw [scaled, Nat.cast_lt]
 
-/-- Exactly `10737418 · 2^34` of the `2^64` first source words take the declared
-branch. Counting preimages gives a mass only under a uniform first-word
-hypothesis; under it the mass is `ModelConstants.exploreRate` exactly. -/
 theorem declared_branch_card :
     ((Finset.range (2 ^ 64)).filter (fun word : ℕ =>
       (word.toUInt64 >>> 11).toNat < 10737418 * 2 ^ 23)).card = 10737418 * 2 ^ 34 := by
@@ -257,21 +191,16 @@ theorem declared_branch_card :
       omega
   rw [same, Finset.card_range]
 
-/-- The first-word count is the declared rate's exact share of `2^64` words. -/
 theorem declared_branch_mass :
     ((10737418 * 2 ^ 34 : ℕ) : ℚ) / 2 ^ 64 = ModelConstants.exploreRate := by
   norm_num [ModelConstants.exploreRate]
 
-/-- A plain policy draw at the declared rate, as the meta-controller makes over meta
-actions, explores exactly on the declared first-word numerators. -/
 theorem declared_draw_explored {count : Word.Count} (snapshot : PolicySnapshot count)
     (declared : snapshot.epsilon = Handcrafted.declaredRate) (rng : Rng.Xoshiro256) :
     (snapshot.draw rng).1.explored = decide ((rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23) := by
   change rng.nextF64.1.less (Conversion.widen snapshot.epsilon.value) = _
   rw [declared, declared_branch]
 
-/-- A persistent draw at the declared rate, as primitive control and every executing
-option make, begins a run exactly on the same first-word numerators. -/
 theorem declared_persistent_explored {count : Word.Count} (snapshot : PolicySnapshot count)
     (declared : snapshot.epsilon = Handcrafted.declaredRate) (rng : Rng.Xoshiro256) :
     (snapshot.drawPersistent rng).1.explored =
@@ -280,15 +209,6 @@ theorem declared_persistent_explored {count : Word.Count} (snapshot : PolicySnap
   cases branch : rng.nextF64.1.less (Conversion.widen Handcrafted.declaredRate.value) <;>
     simp [PolicySnapshot.drawPersistent_def, beginExploration, declared, branch]
 
-/-- Reach at the declared rate, over the executed selection. Under the declared rate
-policy, every decision the selection returns is a served step of the committed run the
-given state holds, or the outcome of one persistent draw at D6's rate: it explores
-exactly on the declared first-word numerators of the generator state selection hands
-the acting layer (`CurrentTemporal.Handed`), which is the given state's own when no meta
-decision is drawn and the one a single plain meta draw from it leaves otherwise. The
-count of those numerators is `declared_branch_card`; it is a probability only under a
-uniform first-word hypothesis on that generator state, which the deterministic
-generator does not supply. -/
 theorem select_declared {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension}
     (state next : TemporalControl interface profile config criterion dimension)
@@ -318,13 +238,6 @@ theorem select_declared {profile : FeatureProfile} {config : Features.Config}
     exact Or.inr ⟨_, _, handed, drawn, epsilon,
       drawn.2.1.trans (declared_persistent_explored _ epsilon _)⟩
 
-/-- The declared branch as a function of the incoming generator state. Under the declared
-rate policy, a decision that is not served and records no meta decision (a continuing
-option's, or a primitive-only profile's) explores exactly when the first word of the
-generator state selection was given has a numerator below the declared threshold. A
-uniform first-word hypothesis on the incoming state therefore gives that branch D6's
-exact mass (`declared_branch_card`, `declared_branch_mass`). A decision that records a
-meta decision reads the first word after that meta draw instead. -/
 theorem declared_direct {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension}
     (state next : TemporalControl interface profile config criterion dimension)

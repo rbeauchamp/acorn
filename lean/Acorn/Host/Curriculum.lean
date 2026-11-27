@@ -1,23 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Campaign
 
-/-!
-# Current host curriculum
-
-This is externally declared task content, outside the learned core. Targets
-retain their deterministic seed/hash and two distance scales. The host defines
-the target predicates; reachability depends on the generated world and box.
--/
 namespace Acorn.Host
 
-/-- A finite host curriculum pairs each goal with its difficulty tier. -/
 abbrev Curriculum := Array (Goal × UInt8)
 
-/-- Exact target coordinate around the campaign center at a bounded curriculum radius. -/
 def curriculumCoordinate (side : Coordinate) (seed tag : UInt64)
     (radius : Fin 121) (positive : 0 < radius.val) : Coordinate :=
   let modulus : UInt64 := (2 * radius.val).toUInt64
@@ -42,7 +28,6 @@ def curriculumCoordinate (side : Coordinate) (seed tag : UInt64)
     dsimp [value] at *
     omega⟩
 
-/-- Standard ordered goals and tiers, coupled in one vector before array conversion. -/
 def rawStandardCurriculum (side : Coordinate) (seed : UInt64) : Curriculum :=
   let near : Fin 121 := ⟨min 40 (max 12 (side.val.tdiv 12).toNat), by omega⟩
   let far : Fin 121 := ⟨min 120 (max 24 (side.val.tdiv 6).toNat), by omega⟩
@@ -57,15 +42,12 @@ def rawStandardCurriculum (side : Coordinate) (seed : UInt64) : Curriculum :=
      (.collect .gold 2, 3), (.craft .boat, 4), (.collect .wood 8, 4), (.survive 800, 5),
      (.collect .gold 4, 5) ]
 
-/-- Campaign construction reuses the complete signed public curriculum domain. -/
 def standardCurriculum (config : WorldConfig) (seed : UInt64) : Curriculum :=
   rawStandardCurriculum config.raw.side seed
 
-/-- Public indexing repeats the final goal and tier for every oversized index. -/
 def standardCurriculumEntry (side : Coordinate) (seed : UInt64) (index : UInt64) : Goal × UInt8 :=
   (rawStandardCurriculum side seed)[min index.toNat 12]'(by change min index.toNat 12 < 13; omega)
 
-/-- Standard curriculum size is independent of seed, geometry, and sampled target words. -/
 theorem standardCurriculum_size (config : WorldConfig) (seed : UInt64) :
     (standardCurriculum config seed).size = 13 := rfl
 

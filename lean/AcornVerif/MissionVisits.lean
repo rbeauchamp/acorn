@@ -1,101 +1,7 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.Intent.MissionTheorem
 import AcornVerif.Retrace
 import AcornVerif.VisitsClass
 import Mathlib.Tactic.NormNum
-
-/-!
-# The mission theorem's statement on a class of worlds in visits
-
-`AcornVerif.Intent.MissionTheorem.Mission` is the mission theorem's statement for one class of
-worlds, in the terms of the four intent records. This module reads a class of the kernel's worlds,
-run in visits, as such a class, and proves the statement of it from named premises about the class
-and about the agent. The way the mission theorem on a class in visits depends on its obligations is
-the theorem `visits_mission`, whose hypotheses are the work that remains.
-
-## The class as the records read it
-
-`visitsRung` is the rung of a class `family` with visits of `length` steps and an agent:
-
-- a member is that member's world in visits (`visitMember`). Its observation is the kernel's
-  percept, and its reward is `pay`, the class's reading of the percept as a number. Its goal is met
-  at a state that at least one step of a visit has reached and that satisfies the member's goal,
-  as `AcornVerif.Kernel.SolvesOnVisit` counts it;
-- an attempt is a visit: its `length + 1` decisions;
-- an attempt's rewards are aggregated by `untilPaid`: they are summed up to and including the first
-  step that pays, so an attempt is over, for the count of reward, when its goal is first met;
-- the class's promises are read before the visit `horizon`, and its promise of solving again
-  allows `lapses` visits of each member, as the postcondition's record asks a class to state
-  (`AcornVerif.Intent.Postcondition.Trial`);
-- the agent is the kernel's agent, given the percept as its observation (`recordAgent`). An agent of
-  the records over percepts and actions is a kernel agent in turn (`kernelAgent`), and the run the
-  records compute with is the kernel's closed loop (`run_eq_loop`). So an agent solves a member on
-  an attempt, as the records count it, exactly when the kernel says it solves that member on that
-  visit (`solves_iff`), and the agents that keep nothing of their experience are experience-free
-  (`keepsNothing_experienceFree`).
-
-## What the class states about its reward
-
-`PaysAtGoals` is what fork F-A of `docs/mission-contract.md` asks a class to state: its whole reward
-function. The reward read from the percept after a step is one when that step satisfies the member's
-goal and zero when it does not, and it is zero at a visit's start. With it and `untilPaid`, every
-agent earns on every attempt, across the counted members, exactly the number of them it solves
-(`classReward_eq`). That is the class's reward lemma, obligation 16 of the mission contract, and it
-holds of every agent, not only of the agents compared.
-
-Why the aggregate is not the plain sum. The plain sum of an attempt's rewards is the number of the
-attempt's steps at which the goal is met (`rewards_sum`), so it pays an agent again for each step
-it rests where the goal is satisfied. That two agents can then be ordered one way by the sum and
-the other way by the members they solve is argued, not proved: no such pair is exhibited here.
-`untilPaid` is the choice made here on the owner's behalf; the owner can overrule it.
-
-## Contract 2 and the postcondition
-
-For a class that conceals its goals, with a covering bound below the count of the counted members,
-feasible goals and `PaysAtGoals`, the class in visits meets the record of contract 2 (`visits_big`).
-Concealment is carried across visits by `AcornVerif.Kernel.Conceals.inVisits`. Success shows in the
-reward: the reading that says whether the goal is met is whether the reward is one.
-
-For an agent that separates before a visit that leaves more later visits than the lapses before
-the horizon, and that retains before the horizon but for the lapses
-(`AcornVerif.Kernel.SeparatesBy`, `AcornVerif.Kernel.RetainsBut`), the class in visits meets the
-record of the postcondition (`visits_achieves`). A member solved once is solved again within the
-lapses (`AcornVerif.Kernel.RetainsBut.again`), which is the record's clause on learning again.
-
-## The mission from premises
-
-`visits_mission` proves `Mission` of the rung from: the class's conditions above; `SeparatesBy`
-and `RetainsBut` of the agent, with room between the visit of the one and the horizon of the
-other; and contract 3's record of the agent's run in each member. The two are what remains of
-obligation 9, and are what the goal-information and exploration premises of obligation 4 must
-deliver for an agent. `AcornVerif.Separation` gives them from parts: an agent that finds by a
-stated visit and retains on every later visit has both, before that visit and with no lapse
-(`AcornVerif.Kernel.separatesBy_of_findsBy`, `AcornVerif.Kernel.Retains.but`), and an agent that
-goes on exploring has them from finding by a stated visit, retention on the visits a predicate
-admits, and two counts of those visits (`AcornVerif.Kernel.separatesBy_of_finds_on`,
-`AcornVerif.Kernel.RetainsOn.but`). Contract 3's record follows from the premises
-`AcornVerif.Intent.MissionTheorem.MemoryBounded`, `WorkBounded`, `LearnsOnArrival` and
-`KeepsDiscipline`; the first three state obligations 6 and 7, and the fourth the clauses of the
-record that no numbered obligation states.
-
-`visits_mission_allBut` joins the two premises about solving over a finite family of agents: where
-all but one fraction of them separate before a stated visit and all but another retain before the
-horizon but for the lapses, the statement holds of all but the sum of the fractions. It is a
-count, with no hypothesis about draws. What it would take to read it as fork F4's statement about
-an agent that explores with random draws is said at `AcornVerif.Kernel.AllBut`: a family of the
-agent's draw sequences, which exists only for a guarantee that reads finitely many draws. Both
-premises read the visits before the horizon and no other.
-
-`retrace_mission` discharges every premise for the retracing agent with the reward as its signal,
-on every such class whose counted members its exploring walks meet. So the statement is satisfiable
-with fixed memory and the invariants of contract 3, on the kernel's own worlds. The agent's reports
-to contract 3 are its own declaration, stated at `retraceRung`; that they describe its step is
-argued there, not proved.
--/
 
 namespace AcornVerif.MissionVisits
 open Acorn.Features AcornVerif.Kernel
@@ -103,15 +9,10 @@ open AcornVerif.Intent AcornVerif.Intent.MissionTheorem
 
 variable {interface : Interface}
 
-/-! ## Reward and its aggregate -/
-
-/-- The rewards of one attempt, summed up to and including the first step that pays. -/
 def untilPaid : List ℚ → ℚ
   | [] => 0
   | reward :: rest => if 0 < reward then reward else reward + untilPaid rest
 
-/-- Of rewards that are one at the steps a condition marks and zero elsewhere, the aggregate is one
-when some step is marked and zero when none is. -/
 theorem untilPaid_indicator {Time : Type} (times : List Time) (hit : Time → Bool) :
     untilPaid (times.map fun time => if hit time then (1 : ℚ) else 0) =
       if times.any hit then 1 else 0 := by
@@ -122,7 +23,6 @@ theorem untilPaid_indicator {Time : Type} (times : List Time) (hit : Time → Bo
     | false => simp [untilPaid, reached, ih]
     | true => simp [untilPaid, reached]
 
-/-- A sum of ones over the items a condition marks is the number of items it marks. -/
 theorem sum_indicator {Item : Type} (items : List Item) (hit : Item → Bool) :
     (items.map fun item => if hit item then (1 : ℚ) else 0).sum =
       ((items.filter hit).length : ℚ) := by
@@ -133,30 +33,21 @@ theorem sum_indicator {Item : Type} (items : List Item) (hit : Item → Bool) :
     | false => simp [reached, ih]
     | true => simp [reached, ih, add_comm]
 
-/-! ## Agents -/
-
-/-- A kernel agent as an agent of the records: it is given the percept as its observation, with the
-reward read from it, and answers as the kernel agent answers that percept. -/
 def recordAgent (agent : Agent interface) :
     WorldInterface.Agent (Percept interface) (Act interface) where
   Memory := agent.Memory
   initial := agent.initial
   act := fun memory given => agent.act memory given.1
 
-/-- An agent of the records over percepts and actions as a kernel agent: on a percept it answers as
-it answers that percept with the reward `pay` reads from it. -/
 def kernelAgent (pay : Percept interface → ℚ)
     (other : WorldInterface.Agent (Percept interface) (Act interface)) : Agent interface where
   Memory := other.Memory
   initial := other.initial
   act := fun memory percept => other.act memory (percept, pay percept)
 
-/-- A kernel agent read as an agent of the records and back is itself. -/
 theorem kernelAgent_recordAgent (pay : Percept interface → ℚ) (agent : Agent interface) :
     kernelAgent pay (recordAgent agent) = agent := rfl
 
-/-- An agent of the records that keeps nothing of its experience is, as a kernel agent,
-experience-free. -/
 theorem keepsNothing_experienceFree (pay : Percept interface → ℚ)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (frozen : Postcondition.KeepsNothing other) : ExperienceFree (kernelAgent pay other) := by
@@ -166,11 +57,6 @@ theorem keepsNothing_experienceFree (pay : Percept interface → ℚ)
       fun memory percept => frozen memory _ _⟩
   · exact ⟨id, fun _ percept => absurd ⟨percept⟩ some⟩
 
-/-! ## A member in visits -/
-
-/-- A member of a class in visits, as the records read it: the member's world in visits of `length`
-steps, with the percept as its observation and `pay` of the percept as its reward, and with its goal
-met at a state that at least one step of a visit has reached and that `met` marks. -/
 def visitMember (world : World interface) (start : world.State) (length : ℕ)
     (pay : Percept interface → ℚ) (met : world.State → Bool) :
     Postcondition.Member (Percept interface) (Act interface) where
@@ -181,9 +67,6 @@ def visitMember (world : World interface) (start : world.State) (length : ℕ)
   step := (visits world start length).step
   goal := fun state => decide (1 ≤ state.2.val) && met state.1
 
-/-- The run the records compute with is the kernel's closed loop: an agent of the records in a
-member in visits, and that agent as a kernel agent in the member's world in visits, are in the same
-state with the same memory at every time. -/
 theorem run_eq_loop (world : World interface) (start : world.State) (length : ℕ)
     (pay : Percept interface → ℚ) (met : world.State → Bool)
     (other : WorldInterface.Agent (Percept interface) (Act interface)) (time : ℕ) :
@@ -195,8 +78,6 @@ theorem run_eq_loop (world : World interface) (start : world.State) (length : �
   | succ time ih =>
     exact congrArg (interact (visits world start length) (kernelAgent pay other)) ih
 
-/-- What a member in visits gives an agent of the records at a time: the percept of the kernel's
-closed loop at that time, with the reward read from it. -/
 theorem given_eq (world : World interface) (start : world.State) (length : ℕ)
     (pay : Percept interface → ℚ) (met : world.State → Bool)
     (other : WorldInterface.Agent (Percept interface) (Act interface)) (time : ℕ) :
@@ -209,28 +90,15 @@ theorem given_eq (world : World interface) (start : world.State) (length : ℕ)
   rw [run_eq_loop]
   rfl
 
-/-! ## The class -/
-
-/-- What a class states about its reward, as fork F-A of `docs/mission-contract.md` asks: `met`
-marks the states that satisfy each member's goal; the reward `pay` reads from the percept after a
-step is one when that step satisfies the member's goal and zero when it does not; and it is zero at
-each member's start. -/
 structure PaysAtGoals (family : WorldClass interface) (goals : family.Goals)
     (pay : Percept interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool) : Prop where
-  /-- `met` marks the states that satisfy a member's goal. -/
   reads : ∀ index state, met index state = true ↔ (goals index).satisfied state
-  /-- After a step, the reward is one when the step satisfies the goal and zero when not. -/
   pays : ∀ index state action,
     pay ((family.world index).percept ((family.world index).step state action)) =
       if met index ((family.world index).step state action) then 1 else 0
-  /-- At a member's start, the reward is zero. -/
   quiet : ∀ index, pay ((family.world index).percept (family.start index)) = 0
 
-/-- A class of worlds in visits with one agent, as the records read it: each member in visits of
-`length` steps, the members the comparison counts, attempts of a visit's `length + 1` decisions, the
-rewards of an attempt aggregated by `untilPaid`, the visit before which the promise of solving
-again is read and the lapses it allows, and the agent. -/
 def visitsTrial (family : WorldClass interface) (length horizon lapses : ℕ)
     (pay : Percept interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
@@ -254,8 +122,6 @@ variable (family : WorldClass interface) (goals : family.Goals) (length horizon 
   (met : (index : family.Index) → (family.world index).State → Bool)
   (counted : List family.Index) (agent : Agent interface)
 
-/-- The state of an agent of the records' run in a member of the class is the state of the kernel's
-closed loop of that agent in the member's world in visits. -/
 theorem stateAt_eq (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (time : ℕ) :
     (visitsTrial family length horizon lapses pay met counted agent).stateAt other index time =
@@ -264,7 +130,6 @@ theorem stateAt_eq (other : WorldInterface.Agent (Percept interface) (Act interf
   congrArg Prod.fst
     (run_eq_loop (family.world index) (family.start index) length pay (met index) other time)
 
-/-- Whether a member's goal is met at a time of a run, in the kernel's terms. -/
 theorem goal_eq (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (time : ℕ) :
     ((visitsTrial family length horizon lapses pay met counted agent).member index).goal
@@ -281,8 +146,6 @@ theorem goal_eq (other : WorldInterface.Agent (Percept interface) (Act interface
       decide (1 ≤ state.2.val) && met index state.1)
     (stateAt_eq family length horizon lapses pay met counted agent other index time)
 
-/-- At step `step` of attempt `attempt`, a member's goal is met exactly when at least one step of
-the visit has been taken and the state satisfies the member's goal. -/
 theorem goal_iff (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (attempt step : ℕ) (within : step ≤ length) :
@@ -297,8 +160,6 @@ theorem goal_iff (stated : PaysAtGoals family goals pay met)
   rw [goal_eq, Nat.mul_comm, Bool.and_eq_true, decide_eq_true_iff,
     visits_counter _ _ _ _ attempt step within, stated.reads]
 
-/-- **Solving, as the records count it, is solving on a visit.** An agent of the records solves a
-member on an attempt exactly when, as a kernel agent, it solves that member on that visit. -/
 theorem solves_iff (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (attempt : ℕ) :
@@ -323,9 +184,6 @@ theorem solves_iff (stated : PaysAtGoals family goals pay met)
           step
         high).mpr ⟨low, satisfied⟩⟩
 
-/-! ## The reward lemma -/
-
-/-- At every time of every run, a member's reward is one when its goal is met and zero when not. -/
 theorem reward_eq (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (time : ℕ) :
@@ -353,8 +211,6 @@ theorem reward_eq (stated : PaysAtGoals family goals pay met)
     rfl
   · rw [stepped, stated.pays, decide_eq_true positive, Bool.true_and]
 
-/-- On every attempt, every agent earns in a member one when it solves the member on that attempt
-and nothing when it does not. -/
 theorem earned_eq (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (attempt : ℕ) :
@@ -375,9 +231,6 @@ theorem earned_eq (stated : PaysAtGoals family goals pay met)
   rw [rewards]
   exact untilPaid_indicator _ _
 
-/-- **The class's reward lemma.** On every attempt, every agent earns across the counted members
-exactly the number of them it solves on that attempt. So one agent earns more than another exactly
-when it solves more members, for every two agents and every two attempts. -/
 theorem classReward_eq (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface)) (attempt : ℕ) :
     (visitsTrial family length horizon lapses pay met counted agent).classReward other attempt =
@@ -396,9 +249,6 @@ theorem classReward_eq (stated : PaysAtGoals family goals pay met)
   rw [each]
   exact sum_indicator _ _
 
-/-- **What the plain sum counts.** The plain sum of the rewards of an attempt is the number of the
-attempt's steps at which the member's goal is met: an agent is paid again for each step at which
-the goal stays met. -/
 theorem rewards_sum (stated : PaysAtGoals family goals pay met)
     (other : WorldInterface.Agent (Percept interface) (Act interface))
     (index : family.Index) (attempt : ℕ) :
@@ -427,13 +277,8 @@ theorem rewards_sum (stated : PaysAtGoals family goals pay met)
   rw [rewards]
   exact sum_indicator _ _
 
-/-! ## Counting members solved -/
-
 variable {reference : World interface} {origin : reference.State} {bound : ℕ}
 
-/-- In a class that conceals its goals, with a covering bound for one visit's length, an agent that
-keeps nothing of its experience solves at most the bound of the counted members on every
-attempt. -/
 theorem frozen_bound (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)
@@ -456,8 +301,6 @@ theorem frozen_bound (stated : PaysAtGoals family goals pay met)
     (visitsTrial family length horizon lapses pay met counted agent).solves other index attempt)
   exact le_trans (le_of_eq card.symm) few
 
-/-- An agent that separates before a stated visit solves, on some attempt before it, more of the
-counted members than the bound. -/
 theorem count_of_separates (stated : PaysAtGoals family goals pay met) {limit : ℕ}
     (separates : SeparatesBy family goals length bound counted limit agent) :
     ∃ attempt, attempt < limit ∧ bound <
@@ -477,9 +320,6 @@ theorem count_of_separates (stated : PaysAtGoals family goals pay met) {limit : 
         visit).mpr (each index member).2⟩)
   exact le_trans (Finset.card_le_card inside) (List.toFinset_card_le _)
 
-/-! ## Contract 2 -/
-
-/-- Every attempt of every agent's run in a member starts from the start of a visit. -/
 theorem visits_attemptsRecur :
     BigClass.attemptsRecur.holds (visitsTrial family length horizon lapses pay met counted agent) :=
   fun (other : WorldInterface.Agent (Percept interface) (Act interface))
@@ -489,8 +329,6 @@ theorem visits_attemptsRecur :
     rw [stateAt_eq, Nat.mul_comm]
     exact visits_period _ _ _ _ attempt
 
-/-- Condition (a): where every member's goal is feasible within a visit, it can be reached within
-an attempt from the state every attempt starts in. -/
 theorem visits_goalsReachable (stated : PaysAtGoals family goals pay met)
     (feasible : ∀ index, Feasible (visitGoals goals length index) (family.start index)) :
     BigClass.goalsReachable.holds (visitsTrial family length horizon lapses pay met counted
@@ -513,9 +351,6 @@ theorem visits_goalsReachable (stated : PaysAtGoals family goals pay met)
     change 1 ≤ 0 + actions.length
     omega
 
-/-- Condition (b): a class that conceals its goals behind a reference world gives every agent, in
-every member, what the reference world in visits gives it, until that member's goal is first met on
-any attempt. -/
 theorem visits_goalsConcealed (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin) :
     BigClass.goalsConcealed.holds (visitsTrial family length horizon lapses pay met counted
@@ -548,9 +383,6 @@ theorem visits_goalsConcealed (stated : PaysAtGoals family goals pay met)
   rw [given_eq, given_eq]
   exact congrArg (fun shown => (shown, pay shown)) percept
 
-/-- Condition (c): in a class that conceals its goals, with a covering bound below the count of the
-counted members, an agent that keeps nothing of its experience solves at most the bound of them on
-every attempt. -/
 theorem visits_frozenShareSmall (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)
@@ -563,8 +395,6 @@ theorem visits_frozenShareSmall (stated : PaysAtGoals family goals pay met)
         distinct other
       frozen attempt⟩
 
-/-- Success shows in the reward: at every time of every run, the reward a member gives is one
-exactly when its goal is met then. -/
 theorem visits_successShows (stated : PaysAtGoals family goals pay met) :
     BigClass.successShows.holds (visitsTrial family length horizon lapses pay met counted
         agent) := by
@@ -582,10 +412,6 @@ theorem visits_successShows (stated : PaysAtGoals family goals pay met) :
     ((visitsTrial family length horizon lapses pay met counted agent).stateAt other index time) <;>
         simp
 
-/-- **A class in visits is big, as contract 2's record says.** A class that conceals its goals, with
-a covering bound for one visit's length below the count of its counted members, goals feasible
-within a visit and a reward that pays at its goals, meets the record of contract 2 when it is run in
-visits, with every agent. -/
 theorem visits_big (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -601,14 +427,6 @@ theorem visits_big (stated : PaysAtGoals family goals pay met)
       visits_successShows family goals length horizon lapses pay met counted agent stated,
       visits_attemptsRecur family length horizon lapses pay met counted agent⟩
 
-/-! ## The postcondition -/
-
-/-- **An agent that separates in time and retains but for its lapses achieves goals, as the
-postcondition's record says.** In a class that conceals its goals, with a covering bound for one
-visit's length and a reward that pays at its goals, the class in visits with an agent that
-separates from that bound before a visit that leaves more later visits than the lapses before
-the horizon, and retains before the horizon but for the lapses, meets the record of the
-postcondition. -/
 theorem visits_achieves (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound) (distinct : counted.Nodup)
@@ -658,10 +476,6 @@ theorem visits_achieves (stated : PaysAtGoals family goals pay met)
 
 end trial
 
-/-! ## The mission from premises -/
-
-/-- The rung of a class of worlds in visits and an agent, with what the agent reports of its own
-steps. -/
 def visitsRung (family : WorldClass interface) (length horizon lapses : ℕ)
     (pay : Percept interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
@@ -681,14 +495,6 @@ variable {family : WorldClass interface} {goals : family.Goals}
   {met : (index : family.Index) → (family.world index).State → Bool}
   {counted : List family.Index} {reference : World interface} {origin : reference.State}
 
-/-- **The mission theorem on a class in visits, from its premises.** Take a class that conceals its
-goals, with a covering bound for one visit's length, goals feasible within a visit, a reward that
-pays at its goals and distinct counted members. An agent that solves more of the counted members
-than the bound on one visit before the visit `limit`, where `limit` leaves more later visits than
-the lapses before the horizon, and retains what it has solved before the horizon but for the
-lapses, and whose run in every member meets contract 3's record under its reports, achieves goals
-over the class in visits: the mission's statement holds of the rung. That the counted members
-outnumber the bound follows from the agent's solving more than the bound of them. -/
 theorem visits_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -710,14 +516,6 @@ theorem visits_mission (stated : PaysAtGoals family goals pay met)
     (visits_achieves family goals length horizon lapses pay met counted agent stated hidden
       covered distinct separates room retains)
 
-/-- **The mission's statement of all but a fraction of a family of agents.** For a finite family
-of agents with their reports, on a class as in `visits_mission`: where all but a fraction `left` of
-the agents separate before the visit `limit`, all but a fraction `right` retain before the horizon
-but for the lapses, and every agent's run in every member meets contract 3's record, the mission's
-statement holds of all but the fraction `left + right` of the agents. The theorem counts agents
-and reads no draw. Read as fork F4's statement, the family holds one agent for each sequence of
-ideal draws; such a family is finite only where the guarantee reads finitely many draws, as
-separation before a stated visit and retention before a horizon do. -/
 theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)
@@ -741,14 +539,9 @@ theorem visits_mission_allBut (stated : PaysAtGoals family goals pay met)
   (separates.and retains).mono fun run member both =>
     visits_mission stated hidden covered feasible distinct both.1 room both.2 (stream run member)
 
-/-! ## The retracing agent meets the statement -/
-
-/-- The reward as a signal: whether the reward read from a percept is one. -/
 def paid (pay : Percept interface → ℚ) (percept : Percept interface) : Bool :=
   decide (pay percept = 1)
 
-/-- In a class whose reward pays at its goals, the percept after every step shows the reward's
-signal exactly when that step satisfies the member's goal. -/
 theorem paid_decodes (stated : PaysAtGoals family goals pay met) (index : family.Index)
     (state : (family.world index).State) (action : Act interface) :
     paid pay ((family.world index).percept ((family.world index).step state action)) = true ↔
@@ -757,19 +550,6 @@ theorem paid_decodes (stated : PaysAtGoals family goals pay met) (index : family
   rw [decide_eq_true_iff, stated.pays, ← stated.reads]
   cases met index ((family.world index).step state action) <;> simp
 
-/-- The rung of a class in visits and the retracing agent with the reward as its signal, with its
-promises read before the given horizon and no lapse allowed. The agent reports, at
-every step, one learning update on the experience the step was given, one other update, and two
-units of work, and it resumes with the memory it held.
-
-That the reports describe its step is argued, not proved. Its step reads the reward of the percept
-it is given and, the first time that reward shows the goal met, keeps the count of the walk it is
-on: one learning update on the experience of that step, which uses its count of visits beside it.
-It then advances its two counts: one other update. Each of the two is counted as one unit of work.
-It makes no planning update. It makes no reset: its walk, once kept, and its count of visits never
-return to their first values, and its count of a visit's steps is a count modulo the visit's
-decisions, which the record of contract 3 does not count as a reset
-(`AcornVerif.Intent.OneStream.returnsToInitialWithoutReset`). -/
 def retraceRung (family : WorldClass interface) (length horizon last : ℕ)
     (pay : Percept interface → ℚ)
     (met : (index : family.Index) → (family.world index).State → Bool)
@@ -778,13 +558,6 @@ def retraceRung (family : WorldClass interface) (length horizon last : ℕ)
     (retrace interface length last (paid pay) explore)
     (fun _ _ => [.learn (.stream 0), .other]) (fun _ _ => 2) id
 
-/-- **The mission's statement is satisfiable on a class in visits.** Take a class that conceals its
-goals, with a covering bound for one visit's length below the count of its counted members, goals
-feasible within a visit and a reward that pays at its goals. If, for each counted member, one of the
-exploring walks of the visits up to `last` meets that member's goal from its start within a visit,
-the retracing agent with the reward as its signal achieves goals over the class: the mission's
-statement holds of its rung, with every premise discharged, with no lapse and at every horizon
-that leaves a visit after the visit `last`, on which the agent solves every counted member. -/
 theorem retrace_mission (stated : PaysAtGoals family goals pay met)
     (hidden : Conceals family goals reference origin)
     (covered : Covered family (visitGoals goals length) bound)

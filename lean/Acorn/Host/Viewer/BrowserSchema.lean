@@ -1,26 +1,9 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.CoreTelemetry
 import Acorn.Host.Viewer.ControlTelemetry
 
-/-!
-# Browser schema linked to the executing emitter
-
-The kernel checks the schema against every native capture, independently of
-configuration, state and terminal status. The executable schema is retained as
-closed data so the browser requires no initialized agent or world. Whole-frame,
-envelope, control and map admission are emitted from it and from the closed
-refinements below; `Acorn.Host.Viewer.BrowserRecord` and
-`Acorn.Host.Viewer.BrowserStore` derive the page's record and frame store from
-the same list.
--/
 namespace Acorn.Host.Viewer
 open Features Handcrafted
 
-/-- Closed protocol schema; the universal equality below guards all names and shapes. -/
 def browserSchema : List (String × TelemetryShape) :=
   [("schema_version", TelemetryShape.natural), ("source_sha256", TelemetryShape.text),
   ("build_sha256", TelemetryShape.text), ("audit_digest", TelemetryShape.text), ("run_id", TelemetryShape.text),
@@ -145,15 +128,125 @@ def browserSchema : List (String × TelemetryShape) :=
   ("demon_gamma", TelemetryShape.array 11 TelemetryShape.binary32),
   ("demon_horizon", TelemetryShape.array 11 TelemetryShape.binary32)]
 
+def stringSortKey (s : String) : Nat :=
+  s.toByteArray.data.toList.foldl (fun acc b => (acc * 131 + b.toNat + 1) % 4294967291) 0
+
+private inductive NatTree where
+  | leaf
+  | node (val : Nat) (left right : NatTree)
+
+private def NatTree.contains (x : Nat) : NatTree → Bool
+  | .leaf => false
+  | .node v l r =>
+    if x < v then l.contains x else if v < x then r.contains x else true
+
+private def NatTree.insertFresh (x : Nat) : NatTree → Option NatTree
+  | .leaf => some (.node x .leaf .leaf)
+  | .node v l r =>
+    if x < v then (l.insertFresh x).map fun l' => .node v l' r
+    else if v < x then (r.insertFresh x).map fun r' => .node v l r'
+    else none
+
+private theorem NatTree.insertFresh_spec : ∀ {t t' : NatTree} {x : Nat},
+    t.insertFresh x = some t' →
+    t.contains x = false ∧ t'.contains x = true ∧
+      ∀ y, t.contains y = true → t'.contains y = true
+  | .leaf, t', x, h => by
+    simp only [NatTree.insertFresh, Option.some.injEq] at h
+    subst h
+    refine ⟨rfl, ?_, fun _ hy => by simp [NatTree.contains] at hy⟩
+    simp [NatTree.contains, Nat.lt_irrefl]
+  | .node v l r, t', x, h => by
+    simp only [NatTree.insertFresh] at h
+    by_cases hlt : x < v
+    · simp only [hlt, ↓reduceIte, Option.map_eq_some_iff] at h
+      obtain ⟨l', hl', rfl⟩ := h
+      obtain ⟨habs, hpres, hmono⟩ := NatTree.insertFresh_spec hl'
+      refine ⟨by simp [NatTree.contains, hlt, habs], by simp [NatTree.contains, hlt, hpres], ?_⟩
+      intro y hy
+      simp only [NatTree.contains] at hy ⊢
+      split at hy
+      · rename_i hyl; simp only [hyl, ↓reduceIte]; exact hmono y hy
+      · rename_i hyl; simp only [hyl, ↓reduceIte]; exact hy
+    · by_cases hgt : v < x
+      · simp only [hlt, hgt, ↓reduceIte, Option.map_eq_some_iff] at h
+        obtain ⟨r', hr', rfl⟩ := h
+        obtain ⟨habs, hpres, hmono⟩ := NatTree.insertFresh_spec hr'
+        refine ⟨by simp [NatTree.contains, hlt, hgt, habs],
+          by simp [NatTree.contains, hlt, hgt, hpres], ?_⟩
+        intro y hy
+        simp only [NatTree.contains] at hy ⊢
+        split at hy
+        · rename_i hyl; simp only [hyl, ↓reduceIte]; exact hy
+        · rename_i hyl
+          simp only [hyl, ↓reduceIte]
+          split at hy
+          · rename_i hyr; simp only [hyr, ↓reduceIte]; exact hmono y hy
+          · rename_i hyr; simp only [hyr, ↓reduceIte]
+      · simp [hlt, hgt] at h
+
+def natListDistinct (xs : List Nat) : Bool :=
+  go xs .leaf
+where
+  go : List Nat → NatTree → Bool
+    | [], _ => true
+    | x :: rest, t =>
+      match t.insertFresh x with
+      | none => false
+      | some t' => go rest t'
+
+private theorem natListDistinct_go_spec : ∀ {xs : List Nat} {t : NatTree},
+    natListDistinct.go xs t = true →
+    xs.Nodup ∧ ∀ z, t.contains z = true → z ∉ xs
+  | [], _, _ => ⟨List.nodup_nil, fun _ _ h => by cases h⟩
+  | x :: rest, t, h => by
+    simp only [natListDistinct.go] at h
+    cases hins : t.insertFresh x with
+    | none => simp [hins] at h
+    | some t' =>
+      simp only [hins] at h
+      obtain ⟨habs, hpres, hmono⟩ := NatTree.insertFresh_spec hins
+      obtain ⟨hnd, hdisj⟩ := natListDistinct_go_spec h
+      refine ⟨List.nodup_cons.mpr ⟨hdisj x hpres, hnd⟩, fun z hz hmem => ?_⟩
+      rcases List.mem_cons.mp hmem with rfl | hrest
+      · rw [habs] at hz; cases hz
+      · exact hdisj z (hmono z hz) hrest
+
+private theorem nodup_of_map {α β : Type} (f : α → β) : ∀ {xs : List α},
+    (xs.map f).Nodup → xs.Nodup
+  | [], _ => List.nodup_nil
+  | x :: rest, h => by
+    rw [List.map_cons, List.nodup_cons] at h
+    exact List.nodup_cons.mpr
+      ⟨fun hmem => h.1 (List.mem_map.mpr ⟨x, hmem, rfl⟩), nodup_of_map f h.2⟩
+
+theorem nodup_of_distinct_keys {α : Type} (key : α → Nat) (xs : List α)
+    (distinct : natListDistinct (xs.map key) = true) :
+    xs.Nodup :=
+  nodup_of_map key (natListDistinct_go_spec distinct).1
+
+theorem eq_of_mem_of_nodup_fst {α β : Type} : ∀ {l : List (α × β)} {k : α} {v₁ v₂ : β},
+    (l.map Prod.fst).Nodup → (k, v₁) ∈ l → (k, v₂) ∈ l → v₁ = v₂
+  | [], _, _, _, _, h₁, _ => by cases h₁
+  | (_, _) :: rest, _, v₁, v₂, hnd, h₁, h₂ => by
+    rw [List.map_cons, List.nodup_cons] at hnd
+    rcases List.mem_cons.mp h₁ with e₁ | m₁ <;> rcases List.mem_cons.mp h₂ with e₂ | m₂
+    · cases e₁; cases e₂; rfl
+    · cases e₁
+      exact absurd (List.mem_map.mpr ⟨(_, v₂), m₂, rfl⟩) hnd.1
+    · cases e₂
+      exact absurd (List.mem_map.mpr ⟨(_, v₁), m₁, rfl⟩) hnd.1
+    · exact eq_of_mem_of_nodup_fst hnd.2 m₁ m₂
+
+theorem browserSchema_distinct : (browserSchema.map Prod.fst).Nodup :=
+  nodup_of_distinct_keys stringSortKey (browserSchema.map Prod.fst) (by decide +kernel)
+
 set_option maxRecDepth 4096 in
-/-- Every emitted capture has precisely the browser's admitted structural schema. -/
 theorem browserSchema_execution {config : Features.Config} {dimension : Dimension}
     (context : TelemetryContext) (frame : StepFrame (AgentObservation config dimension))
     (terminal : Bool) : telemetrySchema (coreTelemetry context frame terminal) = browserSchema := by
   rfl
 
-/-- Structural backend for one wire shape. JavaScript parsing, binary64 numeric
-admission and array iteration are the declared browser runtime primitives. -/
 def TelemetryShape.browserPredicate : TelemetryShape → String → String
   | .natural, x => s!"(Number.isSafeInteger({x})&&{x}>=0)"
   | .goalKind, x =>
@@ -175,38 +268,22 @@ def TelemetryShape.browserPredicate : TelemetryShape → String → String
   | .sequence element, x =>
     s!"(Array.isArray({x})&&{x}.every(v=>" ++ element.browserPredicate "v" ++ "))"
 
-/-- Closed refinements beyond structural JSON shapes. -/
 inductive BrowserRule where
-  /-- A structural wire value. -/
   | shape (value : TelemetryShape)
-  /-- Equality to a declared integer protocol constant. -/
   | exact (value : Nat)
-  /-- One of the owner's closed spellings. -/
   | tags (values : List String)
-  /-- Fixed-width lowercase hexadecimal. -/
   | hex (width : Nat)
-  /-- Present indices are strictly below the named dimension. -/
   | belowField (field : String)
-  /-- Present counters do not exceed the named clock. -/
   | atMost (field : String)
-  /-- Sequence length equals the admitted population field. -/
   | lengthField (field : String)
-  /-- Apply a refinement to every array element. -/
   | each (rule : BrowserRule)
-  /-- Closed half-open numeric range. -/
   | range (upper : Nat)
-  /-- Explicit null absence is permitted. -/
   | nullable (rule : BrowserRule)
-  /-- Bounded variable-length list. -/
   | list (maximum : Nat) (element : BrowserRule)
-  /-- Union of two admitted refinements. -/
   | either (left right : BrowserRule)
-  /-- Strict positivity after structural numeric admission. -/
   | positive
-  /-- Canonical decimal text retains an exact bounded counter beyond binary64 integers. -/
   | decimal (maximum : Nat)
 
-/-- Structural refinement backend; field keys and tag values are JSON-escaped. -/
 def BrowserRule.javascript : BrowserRule → String → String
   | .shape schemaValue, x => schemaValue.browserPredicate x
   | .exact value, x => s!"({x}==={value})"
@@ -227,7 +304,6 @@ def BrowserRule.javascript : BrowserRule → String → String
     s!"(typeof {x}==='string'&&{x}.length<={toString maximum |>.length}&&" ++
       s!"/^(0|[1-9][0-9]*)$/.test({x})&&BigInt({x})<=BigInt('{maximum}'))"
 
-/-- Refinements retain current protocol constants and state-relative index bounds. -/
 def browserRules : List (String × BrowserRule) :=
   [("curriculum_names", .lengthField "goal_count"),
    ("curriculum_failed_attempts", .lengthField "goal_count"),
@@ -283,13 +359,10 @@ def browserRules : List (String × BrowserRule) :=
    ("retire_unit", .belowField "imprint_units"), ("retire_step", .atMost "lifetime_step"),
    ("tiles", .each (.range 8)), ("tile_extra", .each (.range 256))]
 
-/-- Semantic goal fields cannot acquire a second, independently narrowed domain.
-Changing the refinement list must preserve this compiler-checked separation. -/
 theorem browserRules_goal_separation :
     ∀ entry ∈ browserRules, entry.1 ≠ "gkind" ∧ entry.1 ≠ "gitem" := by
   decide
 
-/-- Item labels are generated from the same exhaustive semantic vocabulary as admission. -/
 def browserGoalLabelsJavascript : String :=
   "function observerGoalItemLabel(code,count=1){const labels=({" ++
     String.intercalate "," (goalItems.map fun item =>
@@ -304,43 +377,29 @@ private def goalTextExpression : GoalKind → String
   | some .craft => "'Own '+observerGoalItemLabel(gitem)"
   | some .survive => "'Continue for '+gn+' world steps in this attempt'"
 
-/-- Goal text dispatch is exhaustive over the same family vocabulary as emission. -/
 def browserGoalTextJavascript : String :=
   "function observerGoalText(gkind,gitem,gx,gy,gn){switch(gkind){" ++
     String.join (goalKinds.map fun kind =>
       "case " ++ toString kind.code ++ ":return " ++ goalTextExpression kind ++ ";") ++
     "default:return '—';}}\n"
 
-/-- Why the page refuses a whole frame: a closed set, each member with one page counter
-and one remedy in the stream-health readout. -/
 inductive BrowserRefusal where
-  /-- `schema_version` is not the one this page reads: the page and the core were built
-  from different trees. -/
   | schema
-  /-- A fixed count or an array length disagrees with the schema: the same build skew,
-  seen in a shape. -/
   | cardinality
-  /-- A required key is absent: a source defect that rebuilding does not fix. -/
   | missingField
-  /-- A key is present without the value its schema promises: the emitter or the
-  transport is wrong. -/
   | malformed
 
-/-- Wire spelling of a refusal, also the page's counter key. -/
 def BrowserRefusal.tag : BrowserRefusal → String
   | .schema => "schema" | .cardinality => "cardinality"
   | .missingField => "missingField" | .malformed => "malformed"
 
-/-- Every refusal reason; the page keeps one counter per member. -/
 def BrowserRefusal.all : List BrowserRefusal :=
   [.schema, .cardinality, .missingField, .malformed]
 
-/-- No refusal reason lacks a page counter. -/
 theorem BrowserRefusal.all_complete (refusal : BrowserRefusal) :
     refusal ∈ BrowserRefusal.all := by
   cases refusal <;> simp [BrowserRefusal.all]
 
-/-- The page's refusal vocabulary, emitted from the reasons admission returns. -/
 def browserRefusalJavascript : String :=
   "const Reject=Object.freeze({" ++
     String.intercalate "," (BrowserRefusal.all.map fun refusal =>
@@ -349,9 +408,6 @@ def browserRefusalJavascript : String :=
 private def refuse (why : BrowserRefusal) (key : String) : String :=
   "return {why:" ++ telemetryString why.tag ++ ",key:" ++ telemetryString key ++ "};\n"
 
-/-- Generated whole-record admission returns the refused wire key and reason.
-The native emitter/schema equality owns structural coverage; refinements own
-the browser projection domain. Unknown fields remain forward-compatible. -/
 def browserAdmissionJavascript : String :=
   "function observerAdmission(f){\nif(!f||typeof f!=='object'||Array.isArray(f))" ++
     refuse .malformed "frame" ++
@@ -376,14 +432,11 @@ private def rulesFunction (name : String) (rules : List (String × BrowserRule))
       "Object.hasOwn(f," ++ telemetryString key ++ ")&&" ++
         rule.javascript ("f[" ++ telemetryString key ++ "]")) ++ ";}\n"
 
-/-- Health envelope can be admitted independently when complete frame data is refused. -/
 def browserEnvelopeRules : List (String × BrowserRule) :=
   [("run_id", .hex 16), ("agent_epoch", .shape .natural),
    ("timestamp_ms", .shape .natural), ("lifetime_step", .shape .natural),
    ("world_step", .shape .natural)]
 
-/-- Required control-plane fields; optional new presentation metadata remains compatible
-with the native supervisor. The control source owns lifecycle transitions. -/
 def browserControlRules : List (String × BrowserRule) :=
   [("runId", .hex 16), ("agentEpoch", .shape .natural),
    ("transition", .tags ["initialized", "start_requested", "stop_requested", "clear_requested",
@@ -395,12 +448,10 @@ def browserControlRules : List (String × BrowserRule) :=
    ("terminalWarning", .shape (.optional .text)),
    ("tail", .list 6 (.shape .text))]
 
-/-- Retained map header admission precedes browser storage or painting. -/
 def browserMapRules : List (String × BrowserRule) :=
   [("runId", .hex 16), ("side", .shape .natural), ("side", .positive), ("side", .range 4097),
    ("seed", .shape .natural), ("kinds", .shape .text), ("partial", .shape .flag)]
 
-/-- Envelope, control and map admission, each independent of whole-frame admission. -/
 def browserRulesJavascript : String :=
   rulesFunction "observerEnvelope" browserEnvelopeRules ++
     rulesFunction "observerControl" browserControlRules ++

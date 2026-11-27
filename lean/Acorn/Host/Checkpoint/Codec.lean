@@ -1,32 +1,12 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Encoding
 
-/-!
-# Compositional binary codecs
-
-A codec consumes exactly its own encoding in front of every suffix. Products,
-fixed vectors and refinements derive their writer/parser relationship from this
-law. Words use little-endian base-256 digits, without native reinterpret casts.
-The codecs here also read back only the bytes that they write (`Codec.Canonical`):
-a decoded value is followed in its input by exactly the returned suffix, so no value
-has a second encoding.
--/
 namespace Acorn.Checkpoint
 
-/-- A total prefix parser and its writer, with the actual round-trip law. -/
 structure Codec (α : Type) where
-  /-- Canonical bytes in file order. -/
   encode : α → List UInt8
-  /-- Consume one value, retaining the unconsumed suffix. -/
   decode : List UInt8 → Option (α × List UInt8)
-  /-- Encoding consumes neither less nor more than its own bytes. -/
   roundtrip : ∀ value suffix, decode (encode value ++ suffix) = some (value, suffix)
 
-/-- Pair fields have one shared ordered description. -/
 def Codec.pair {α β : Type} (left : Codec α) (right : Codec β) : Codec (α × β) where
   encode value := left.encode value.1 ++ right.encode value.2
   decode bytes := do
@@ -37,7 +17,6 @@ def Codec.pair {α β : Type} (left : Codec α) (right : Codec β) : Codec (α �
     intro value suffix
     simp [List.append_assoc, left.roundtrip, right.roundtrip]
 
-/-- Change representation through a checked inverse, with no second parser walk. -/
 def Codec.iso {α β : Type} (codec : Codec α) (pack : α → β) (unpack : β → α)
     (inverse : ∀ value, pack (unpack value) = value) : Codec β where
   encode value := codec.encode (unpack value)
@@ -46,7 +25,6 @@ def Codec.iso {α β : Type} (codec : Codec α) (pack : α → β) (unpack : β 
     some (pack value, rest)
   roundtrip := by intro value suffix; simp [codec.roundtrip, inverse]
 
-/-- Admission checks the actual decoded value before constructing a refinement. -/
 def Codec.refine {α : Type} (codec : Codec α) (legal : α → Prop)
     [DecidablePred legal] : Codec { value : α // legal value } where
   encode value := codec.encode value.val
@@ -55,13 +33,11 @@ def Codec.refine {α : Type} (codec : Codec α) (legal : α → Prop)
     if h : legal value then some (⟨value, h⟩, rest) else none
   roundtrip := by intro value suffix; simp [codec.roundtrip, value.property]
 
-/-- No bytes are needed for the unique unit value. -/
 def unitCodec : Codec Unit where
   encode _ := []
   decode bytes := some ((), bytes)
   roundtrip := by intro value suffix; cases value; rfl
 
-/-- One byte, refused on an empty input. -/
 def byteCodec : Codec UInt8 where
   encode value := [value]
   decode
@@ -69,7 +45,6 @@ def byteCodec : Codec UInt8 where
     | head :: rest => some (head, rest)
   roundtrip := by intro value suffix; rfl
 
-/-- Tail-recursive element decoding uses one accumulator, never one stack frame per element. -/
 def decodeListInto {α : Type} (codec : Codec α) :
     Nat → List UInt8 → List α → Option (List α × List UInt8)
   | 0, bytes, reversed => some (reversed.reverse, bytes)
@@ -77,11 +52,9 @@ def decodeListInto {α : Type} (codec : Codec α) :
     let (value, rest) ← codec.decode bytes
     decodeListInto codec count rest (value :: reversed)
 
-/-- Read a fixed number of elements; the count comes from the receiving schema. -/
 def decodeList {α : Type} (codec : Codec α) (count : Nat) (bytes : List UInt8) :
     Option (List α × List UInt8) := decodeListInto codec count bytes []
 
-/-- List induction composes arbitrary element round trips through the executing accumulator. -/
 theorem list_into_roundtrip {α : Type} (codec : Codec α) (values : List α)
     (suffix : List UInt8) (reversed : List α) :
     decodeListInto codec values.length (values.flatMap codec.encode ++ suffix) reversed =
@@ -91,12 +64,10 @@ theorem list_into_roundtrip {α : Type} (codec : Codec α) (values : List α)
   | cons value values ih =>
     simp [decodeListInto, List.append_assoc, codec.roundtrip, ih]
 
-/-- The whole fixed-count element sequence round-trips without a second evaluator. -/
 theorem list_roundtrip {α : Type} (codec : Codec α) (values : List α) (suffix : List UInt8) :
     decodeList codec values.length (values.flatMap codec.encode ++ suffix) = some (values, suffix) := by
   simpa [decodeList] using list_into_roundtrip codec values suffix []
 
-/-- Each successful read adds exactly its requested count to the accumulator. -/
 theorem decodeListInto_length {α : Type} (codec : Codec α) (count : Nat)
     (bytes : List UInt8) (reversed values : List α) (rest : List UInt8)
     (decoded : decodeListInto codec count bytes reversed = some (values, rest)) :
@@ -116,13 +87,11 @@ theorem decodeListInto_length {α : Type} (codec : Codec α) (count : Nat)
       simp only [List.length_cons] at length
       omega
 
-/-- Successful fixed-count reads contain exactly the requested number of values. -/
 theorem decodeList_length {α : Type} (codec : Codec α) (count : Nat) (bytes : List UInt8)
     (values : List α) (rest : List UInt8)
     (decoded : decodeList codec count bytes = some (values, rest)) : values.length = count := by
   simpa using decodeListInto_length codec count bytes [] values rest decoded
 
-/-- Fixed-length sequences have no untrusted allocation count. -/
 def vectorCodec {α : Type} (codec : Codec α) (count : Nat) : Codec (Vector α count) where
   encode values := values.toList.flatMap codec.encode
   decode bytes :=
@@ -140,12 +109,10 @@ def vectorCodec {α : Type} (codec : Codec α) (count : Nat) : Codec (Vector α 
       cases values
       simp [Vector.toList]
 
-/-- Low byte first; the arithmetic definition applies to every natural word. -/
 def encodeNat : Nat → Nat → List UInt8
   | 0, _ => []
   | width + 1, value => UInt8.ofNat value :: encodeNat width (value / 256)
 
-/-- Read the same number of base-256 digits; truncated words are refused. -/
 def decodeNat : Nat → List UInt8 → Option (Nat × List UInt8)
   | 0, bytes => some (0, bytes)
   | width + 1, bytes => do
@@ -153,7 +120,6 @@ def decodeNat : Nat → List UInt8 → Option (Nat × List UInt8)
     let (high, rest) ← decodeNat width rest
     some (digit.toNat + 256 * high, rest)
 
-/-- Positional arithmetic proves round-trip without enumerating word values. -/
 theorem nat_roundtrip (width value : Nat) (bound : value < 256 ^ width) (suffix : List UInt8) :
     decodeNat width (encodeNat width value ++ suffix) = some (value, suffix) := by
   induction width generalizing value with
@@ -170,7 +136,6 @@ theorem nat_roundtrip (width value : Nat) (bound : value < 256 ^ width) (suffix 
     change some (value % 256 + 256 * (value / 256), suffix) = some (value, suffix)
     rw [Nat.mod_add_div]
 
-/-- Every decoded positional word fits exactly its declared byte width. -/
 theorem decodeNat_bound (width : Nat) (bytes : List UInt8) (value : Nat) (rest : List UInt8)
     (decoded : decodeNat width bytes = some (value, rest)) : value < 256 ^ width := by
   induction width generalizing bytes value rest with
@@ -189,8 +154,6 @@ theorem decodeNat_bound (width : Nat) (bytes : List UInt8) (value : Nat) (rest :
         rw [Nat.pow_succ]
         omega
 
-/-- A decoded fixed-width word is the encoding of its value, followed by the returned
-suffix. -/
 theorem decodeNat_written (width : Nat) (bytes : List UInt8) (value : Nat)
     (rest : List UInt8) (decoded : decodeNat width bytes = some (value, rest)) :
     bytes = encodeNat width value ++ rest := by
@@ -216,7 +179,6 @@ theorem decodeNat_written (width : Nat) (bytes : List UInt8) (value : Nat)
           omega
         rw [encodeNat, low, quotient, List.cons_append, ← decoded.2, ← tail]
 
-/-- Fixed-width natural words carry their width bound in the value. -/
 def wordCodec (width : Nat) : Codec (Fin (256 ^ width)) where
   encode value := encodeNat width value.val
   decode bytes := do
@@ -231,36 +193,27 @@ def wordCodec (width : Nat) : Codec (Fin (256 ^ width)) where
       cases result
       rfl
 
-/-- Two-byte machine word, least significant byte first. -/
 def u16Codec : Codec UInt16 :=
   (wordCodec 2).iso (fun value => UInt16.ofNat value.val)
     (fun value => ⟨value.toNat, value.toNat_lt⟩) (by intro value; simp)
 
-/-- Four-byte machine word, least significant byte first. -/
 def u32Codec : Codec UInt32 :=
   (wordCodec 4).iso (fun value => UInt32.ofNat value.val)
     (fun value => ⟨value.toNat, value.toNat_lt⟩) (by intro value; simp)
 
-/-- Eight-byte machine word, least significant byte first. -/
 def u64Codec : Codec UInt64 :=
   (wordCodec 8).iso (fun value => UInt64.ofNat value.val)
     (fun value => ⟨value.toNat, value.toNat_lt⟩) (by intro value; simp)
 
-/-- Floating values serialize their stored bits, including signed zero. -/
 def binary32Codec : Codec Binary32 :=
   u32Codec.iso Binary32.mk Binary32.bits (by intro value; rfl)
 
-/-- Wide totals serialize their stored bits without numeric conversion. -/
 def binary64Codec : Codec Binary64 :=
   u64Codec.iso Binary64.mk Binary64.bits (by intro value; rfl)
 
-/-- A codec reads back only the bytes that it writes: every value that it decodes is followed
-in its input by exactly the suffix that it returns. The round-trip law states the other
-direction, so a canonical codec reads exactly the encodings of its values. -/
 def Codec.Canonical {α : Type} (codec : Codec α) : Prop :=
   ∀ bytes value rest, codec.decode bytes = some (value, rest) → bytes = codec.encode value ++ rest
 
-/-- A pair of canonical codecs is canonical. -/
 theorem Codec.pair_canonical {α β : Type} {left : Codec α} {right : Codec β}
     (leftCanonical : left.Canonical) (rightCanonical : right.Canonical) :
     (left.pair right).Canonical := by
@@ -279,8 +232,6 @@ theorem Codec.pair_canonical {α β : Type} {left : Codec α} {right : Codec β}
       rw [leftCanonical _ _ _ first, rightCanonical _ _ _ second]
       simp [Codec.pair]
 
-/-- A canonical codec read through a representation change is canonical when the change
-loses nothing: unpacking a packed value gives the value back. -/
 theorem Codec.iso_canonical {α β : Type} {codec : Codec α} {pack : α → β} {unpack : β → α}
     {inverse : ∀ value, pack (unpack value) = value} (canonical : codec.Canonical)
     (packed : ∀ value, unpack (pack value) = value) :
@@ -295,14 +246,12 @@ theorem Codec.iso_canonical {α β : Type} {codec : Codec α} {pack : α → β}
     rw [canonical _ _ _ inner]
     simp [Codec.iso, packed]
 
-/-- The empty codec is canonical. -/
 theorem unitCodec_canonical : unitCodec.Canonical := by
   intro bytes value rest decoded
   simp only [unitCodec, Option.some.injEq, Prod.mk.injEq] at decoded
   rw [← decoded.2]
   rfl
 
-/-- The byte codec is canonical. -/
 theorem byteCodec_canonical : byteCodec.Canonical := by
   intro bytes value rest decoded
   cases bytes with
@@ -312,7 +261,6 @@ theorem byteCodec_canonical : byteCodec.Canonical := by
     obtain ⟨rfl, rfl⟩ := decoded
     rfl
 
-/-- Each fixed-width word codec is canonical (`decodeNat_written`). -/
 theorem wordCodec_canonical (width : Nat) : (wordCodec width).Canonical := by
   intro bytes value rest decoded
   simp only [wordCodec] at decoded
@@ -323,31 +271,24 @@ theorem wordCodec_canonical (width : Nat) : (wordCodec width).Canonical := by
     obtain ⟨rfl, rfl⟩ := decoded
     exact decodeNat_written width bytes read tail readDecoded
 
-/-- The two-byte word codec is canonical. -/
 theorem u16Codec_canonical : u16Codec.Canonical :=
   Codec.iso_canonical (wordCodec_canonical 2) fun value =>
     Fin.ext (UInt16.toNat_ofNat_of_lt (by simp))
 
-/-- The four-byte word codec is canonical. -/
 theorem u32Codec_canonical : u32Codec.Canonical :=
   Codec.iso_canonical (wordCodec_canonical 4) fun value =>
     Fin.ext (UInt32.toNat_ofNat_of_lt (by simp))
 
-/-- The eight-byte word codec is canonical. -/
 theorem u64Codec_canonical : u64Codec.Canonical :=
   Codec.iso_canonical (wordCodec_canonical 8) fun value =>
     Fin.ext (UInt64.toNat_ofNat_of_lt (by simp))
 
-/-- The binary32 codec is canonical. -/
 theorem binary32Codec_canonical : binary32Codec.Canonical :=
   Codec.iso_canonical u32Codec_canonical fun _ => rfl
 
-/-- The binary64 codec is canonical. -/
 theorem binary64Codec_canonical : binary64Codec.Canonical :=
   Codec.iso_canonical u64Codec_canonical fun _ => rfl
 
-/-- A list that a canonical codec decodes element by element is the encoding of the elements
-it returns after the accumulator, followed by the returned suffix. -/
 theorem decodeListInto_written {α : Type} {codec : Codec α} (canonical : codec.Canonical) :
     ∀ (count : Nat) (bytes : List UInt8) (reversed values : List α) (rest : List UInt8),
       decodeListInto codec count bytes reversed = some (values, rest) →
@@ -368,7 +309,6 @@ theorem decodeListInto_written {α : Type} {codec : Codec α} (canonical : codec
       rw [canonical _ _ _ first, middleRead]
       simp
 
-/-- A fixed-count vector of a canonical codec is canonical. -/
 theorem vectorCodec_canonical {α : Type} {codec : Codec α} (canonical : codec.Canonical)
     (count : Nat) : (vectorCodec codec count).Canonical := by
   intro bytes value rest decoded

@@ -1,38 +1,92 @@
 name: Verify
-# Runs only when started by hand. The merge gate is local: no-mistakes runs every check
-# below through scripts/gate.sh before a pull request opens (.no-mistakes.yaml).
+# GitHub runs the merge gate here, on a pull request's head commit, when the pull request is
+# opened or reopened and at every push to its branch, whether that branch is in this
+# repository or in a fork, and at no other time. The one job runs the checked-out
+# commit's own ./scripts/gate.sh twice: with the argument `provision`, which
+# provisions the pinned dependencies, and then with no argument, the command the no-mistakes
+# pipeline also runs before a pull request opens (.no-mistakes.yaml). No step names a Lake
+# target, a module, a package or another script of the project: the job relies on the head only
+# for that script and its two forms. So the dependencies and the checks are that script's, and
+# a head whose script or Lake configuration is older or newer than main's is provisioned and
+# checked by its own.
+#
+# A pull request's run is started by the pull_request event, never pull_request_target, so
+# the run for a fork's pull request receives no secret of this repository and a token that
+# cannot write to it; this file names no secret and asks for read access to contents only.
+# No filter names a base branch, so a pull request to another base that is later retargeted
+# to main keeps the run made on its head. Nothing runs after a merge.
+#
+# pull_request is the only trigger, so this workflow cannot be started by hand. A run
+# started by hand on main would be in main's own context, where what a run stores is
+# restored by later runs on main, and every run here executes the script of a commit taken
+# from a pull request. With no such trigger no run of this file is in that context. A pull
+# request's job is run again from the pull request, on the same commit.
+#
+# No step restores or saves a cache: every run provisions everything from its pinned
+# sources. A copy stored by an earlier head of a pull request, which controls its own
+# workflow, could otherwise be restored and trusted by a later head. No setting cancels or
+# skips a run because a later head arrived: each head's run finishes, and its result stays
+# on that commit.
+#
+# GitHub runs the version of this file in the pull request's merge with its base, so a pull
+# request that edits this file is checked by its own edit. GitHub starts no run for a head
+# that conflicts with its base or whose commit message carries a skip instruction, and can
+# hold a fork's run until a maintainer approves it. Neither the absence of a run of this
+# job nor a failed run is by itself the result of a check: docs/verification.md, "Build and
+# source inventory", gives each case, what the pull request then shows and how to read a
+# run's ending.
 on:
-  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
 permissions:
   contents: read
-concurrency:
-  group: verify-${{ github.ref }}
-  cancel-in-progress: true
 env:
-  # The elan release for x64 Linux. The SHA-256 of its archive admits the download
-  # and is part of the dependency cache key, so a restored cache holds this elan.
+  # The elan release for x64 Linux. The SHA-256 of its archive admits the download.
   ELAN_VERSION: 4.2.4
   ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
-# Every step that reaches the network declares timeout-minutes, so a stalled
-# transfer fails that step at its own limit and never holds a job to the job's.
-# Each limit exceeds the slowest time observed for its step. No step continues
-# after a failure.
+# Every step that reaches the network before the gate declares timeout-minutes, so a
+# stalled transfer fails that step at its own limit and never holds the job to the job's.
+# No step continues after a failure.
 jobs:
-  verify:
-    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The project's
-    # cold build is timed in two stages below, each under verify.sh's own deadline.
+  gate:
+    # The standard public Ubuntu runner has four CPUs and 16 GB RAM. The job's 30-minute ceiling
+    # and the 12-minute provisioning / 18-minute merge-gate step ceilings bound wall-clock time
+    # while leaving headroom for Azure and AWS ubuntu-24.04 runner variance so regressions fail
+    # promptly; each verification stage keeps verify.sh's 360-second deadline and scripts/gate.sh
+    # bounds no-comments admission (60s), Regula (360s), lean-intent (180s), frame-check (120s)
+    # and no-comments execution (300s) individually. Regula's contract names Ubuntu 24.04.5 LTS on
+    # x86-64, the release that this runner image held when Regula observed it; an image of another
+    # release is outside that contract.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      ACORN_VERIFY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Identify the commit to verify
+        id: commit
+        # The head commit that the pull request's event itself carries (GitHub's
+        # documentation, Events that trigger workflows, pull_request: github.sha is the
+        # merge commit, and github.event.pull_request.head.sha the last commit of the head
+        # branch). The same page says the event's payload is empty for a pull request from
+        # a fork; an event that carries no head fails here, before any check, and never
+        # falls back to the merge commit.
+        env:
+          ACORN_PULL_REQUEST_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          sha="$ACORN_PULL_REQUEST_HEAD"
+          if [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::The $GITHUB_EVENT_NAME event names no commit to verify."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         timeout-minutes: 2
         with:
-          ref: ${{ env.ACORN_VERIFY_SHA }}
+          ref: ${{ steps.commit.outputs.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Confirm checked-out commit
+        env:
+          ACORN_VERIFY_SHA: ${{ steps.commit.outputs.sha }}
         run: test "$(git rev-parse HEAD)" = "$ACORN_VERIFY_SHA"
       - name: Admit the runner image's system packages
         # The image provides these, so the step installs nothing and uses no
@@ -41,7 +95,7 @@ jobs:
         # step with its name.
         run: |
           status=0
-          for package in libc6-dev gcc g++ make dpkg-dev curl git libgmp-dev openssl shellcheck coreutils; do
+          for package in libc6-dev gcc g++ make dpkg-dev curl git libgmp-dev openssl coreutils; do
             if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) == 'install ok installed' ]]; then
               dpkg-query -W -f='${Package} ${Version}\n' "$package"
             else
@@ -51,247 +105,210 @@ jobs:
           done
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
           exit "$status"
-      - name: Identify the FloatLib modules the proof bridge imports
-        id: bridge
-        # The import lines select what the FloatLib step below builds, so they
-        # belong to the cache identity; the proofs that follow them do not.
-        run: |
-          set -o pipefail
-          imports="$(sed -n '/^import FloatLib\./p' lean/AcornVerif/FloatLibBridge.lean | sort)"
-          echo "imports=$(printf '%s\n' "$imports" | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-      - name: Restore pinned dependencies only
-        id: dependencies
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 6
-        with:
-          path: |
-            ~/.elan
-            lean/.lake/packages
-          key: lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
-          # A changed import set restores the same locked dependencies, builds
-          # only the added modules below and saves them under the new key.
-          restore-keys: |
-            lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
       - name: Provision pinned elan
         timeout-minutes: 2
-        # A restored cache already holds elan, and then this step downloads
-        # nothing. Otherwise curl's own limits end the download: no attempt lasts
-        # more than 30 seconds and none starts more than 62 seconds after the
-        # first began, so curl exits within 92 seconds with its error. The archive
-        # is admitted by its SHA-256 before anything in it runs, and the installer
-        # downloads no toolchain.
+        # curl's own limits end the download: no attempt lasts more than 30 seconds
+        # and none starts more than 62 seconds after the first began, so curl exits
+        # within 92 seconds with its error. The archive is admitted by its SHA-256
+        # before anything in it runs, and the installer downloads no toolchain.
         run: |
-          if [[ ! -x "$HOME/.elan/bin/elan" ]]; then
-            archive="$RUNNER_TEMP/elan.tar.gz"
-            curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-              --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 --retry-max-time 60 \
-              --output "$archive" \
-              "https://github.com/leanprover/elan/releases/download/v$ELAN_VERSION/elan-x86_64-unknown-linux-gnu.tar.gz"
-            sha256sum --check --strict <<< "$ELAN_SHA256  $archive"
-            tar -xzf "$archive" -C "$RUNNER_TEMP" elan-init
-            "$RUNNER_TEMP/elan-init" -y --no-modify-path --default-toolchain none
-          fi
+          archive="$RUNNER_TEMP/elan.tar.gz"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 --retry-max-time 60 \
+            --output "$archive" \
+            "https://github.com/leanprover/elan/releases/download/v$ELAN_VERSION/elan-x86_64-unknown-linux-gnu.tar.gz"
+          sha256sum --check --strict <<< "$ELAN_SHA256  $archive"
+          tar -xzf "$archive" -C "$RUNNER_TEMP" elan-init
+          "$RUNNER_TEMP/elan-init" -y --no-modify-path --default-toolchain none
           version="$(elan --version)"
           echo "$version"
           if [[ $version != "elan $ELAN_VERSION "* ]]; then
             echo "::error::elan is not the pinned release $ELAN_VERSION."
             exit 1
           fi
-      - name: Provision pinned Lean, Mathlib and Regula
-        if: steps.dependencies.outputs.cache-hit != 'true'
-        timeout-minutes: 15
-        working-directory: lean
-        # The upstream cache can omit modules; Lake compiles only those it lacks.
-        # Regula's lint driver is compiled here, so both jobs provision the same
-        # dependency cache.
-        run: lake exe cache get && lake build Mathlib regula/lint
-      - name: Provision the FloatLib, lean-intent and Regula modules the project imports
-        working-directory: lean
-        # FloatLib and lean-intent publish no build cache. This step compiles the
-        # modules that AcornVerif.FloatLibBridge, AcornVerif.LeanIntentBridge and
-        # AcornTools.Intent import, the native objects of the lean-intent modules
-        # that AcornTools.Intent links, and the Regula interface modules that the
-        # decision registries import, so verification never compiles a dependency
-        # inside its deadline.
-        # On an exact cache hit it has nothing to build.
-        run: lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
-      - name: Admit provisioned dependencies
-        run: ./scripts/lean.sh provision-status
-      - name: Save admitted dependencies before project verification
-        if: steps.dependencies.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 5
-        with:
-          path: |
-            ~/.elan
-            lean/.lake/packages
-          key: ${{ steps.dependencies.outputs.cache-primary-key }}
-      # The documentation site's own dependencies (Verso, SubVerso, MD4Lean and
-      # illuminate), locked by site/lake-manifest.json into the shared
-      # lean/.lake/packages. They are cached apart from the dependencies above, which
-      # the Regula job restores without them. Verification requires Verso built
-      # already and never compiles it inside its deadline.
-      - name: Restore pinned Verso dependencies only
-        id: verso
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 3
-        with:
-          path: |
-            lean/.lake/packages/verso
-            lean/.lake/packages/subverso
-            lean/.lake/packages/MD4Lean
-            lean/.lake/packages/illuminate
-          key: verso-deps-v2-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('site/lean-toolchain', 'site/lake-manifest.json') }}
-      - name: Provision pinned Verso
+      # The pinned dependencies, by the script of the commit under verification, as that
+      # commit's Lake configuration and lock files name them. The 12-minute limit bounds a
+      # stalled download and is no check's deadline; no check runs in this step.
+      - name: Provision the pinned dependencies
+        id: provision
         timeout-minutes: 12
-        working-directory: site
-        # Verso precompiles its modules, so the documents load VersoManual's shared
-        # library, which the library's default target does not build. This step
-        # builds both and configures the site workspace over every locked
-        # dependency, so verification does neither inside its deadline. On an exact
-        # cache hit it has nothing to build.
-        run: lake build verso/VersoManual verso/VersoManual:shared
-      - name: Save pinned Verso dependencies before project verification
-        if: steps.verso.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 3
-        with:
-          path: |
-            lean/.lake/packages/verso
-            lean/.lake/packages/subverso
-            lean/.lake/packages/MD4Lean
-            lean/.lake/packages/illuminate
-          key: ${{ steps.verso.outputs.cache-primary-key }}
-      # Two timed stages on this runner, each under verify.sh's own 360-second
-      # deadline: the cold build fills all four CPUs, and with the checks beside it a
-      # slow runner came within 40 seconds of one deadline. Stage one admits the
-      # sources and builds cold every module outside the proof library AcornVerif,
-      # its native object and every executable. Stage two is the complete command
-      # unchanged: Lake reuses a stage one output only where its trace matches the
-      # checked-out source, toolchain and options, and builds everything else.
-      # Nothing is carried between runs.
-      - name: Build the executing library, tools and native objects cold
-        run: ./scripts/verify.sh build-executing
-      - name: Verify exact source over the first stage's outputs
-        run: ./scripts/verify.sh
-  regula:
-    # The Regula audit of the modules that the default targets of lean/lakefile.lean
-    # claim (scripts/regula.sh): Regula's proof verdict, by the two commands its
-    # release publishes (docs/verification.md#regula-audit). It builds those modules
-    # and runs Regula's checker, which replays the claim's cone in Lean's kernel and
-    # takes longer than verification's deadline allows, so it is a second job with
-    # this job's timeout. Regula's contract names Ubuntu 24.04.5 LTS on x86-64, the
-    # release that this runner image held when Regula observed it; an image of
-    # another release is outside that contract. The job then runs lean-intent's two
-    # checks on the build the audit made, as the merge gate does after the audit.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      ACORN_VERIFY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        timeout-minutes: 2
-        with:
-          ref: ${{ env.ACORN_VERIFY_SHA }}
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Confirm checked-out commit
-        run: test "$(git rev-parse HEAD)" = "$ACORN_VERIFY_SHA"
-      - name: Admit the runner image's system packages
-        # The image provides these, so the step installs nothing and uses no
-        # network. libc6-dev, gcc, g++, make and dpkg-dev are everything the
-        # build-essential metapackage depends on. A missing package fails the
-        # step with its name.
         run: |
-          status=0
-          for package in libc6-dev gcc g++ make dpkg-dev curl git libgmp-dev openssl shellcheck coreutils; do
-            if [[ $(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true) == 'install ok installed' ]]; then
-              dpkg-query -W -f='${Package} ${Version}\n' "$package"
-            else
-              echo "::error::The runner image does not provide $package."
-              status=1
+          start_epoch=$(date +%s)
+          prov_dir=$(mktemp -d)
+          prov_pid=''
+          prov_ctrl_open=0
+          prov_output_written=0
+          prov_warning_emitted=0
+          prov_summary_written=0
+          prov_report_done=0
+          prov_report_rc=0
+          # shellcheck disable=SC2317,SC2329
+          job_is_running() {
+            local target_pid="$1" jobs_file="$2" line
+            local re='^\[([0-9]+)\][+-]?[[:space:]]+([0-9]+)[[:space:]]+Running'
+            [[ -n "$target_pid" && -n "$jobs_file" ]] || return 1
+            jobs -rl > "$jobs_file" 2>/dev/null || return 1
+            while IFS= read -r line; do
+              if [[ "$line" =~ $re && "${BASH_REMATCH[2]}" == "$target_pid" ]]; then
+                return 0
+              fi
+            done < "$jobs_file"
+            return 1
+          }
+          reap_provision() {
+            if [[ "$prov_ctrl_open" == 1 ]]; then
+              exec 4>&- 5<&- 6>&-
+              while IFS= read -r _ <&3; do :; done 2>/dev/null || true
+              prov_ctrl_open=0
+              exec 3<&-
             fi
-          done
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-          exit "$status"
-      - name: Identify the FloatLib modules the proof bridge imports
-        id: bridge
-        # The import lines select what the FloatLib step below builds, so they
-        # belong to the cache identity; the proofs that follow them do not.
-        run: |
-          set -o pipefail
-          imports="$(sed -n '/^import FloatLib\./p' lean/AcornVerif/FloatLibBridge.lean | sort)"
-          echo "imports=$(printf '%s\n' "$imports" | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
-      - name: Restore pinned dependencies only
-        id: dependencies
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 6
-        with:
-          path: |
-            ~/.elan
-            lean/.lake/packages
-          key: lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-${{ steps.bridge.outputs.imports }}
-          # A changed import set restores the same locked dependencies, builds
-          # only the added modules below and saves them under the new key.
-          restore-keys: |
-            lean-deps-v4-ubuntu-24.04-${{ runner.arch }}-elan-${{ env.ELAN_SHA256 }}-${{ hashFiles('lean/lean-toolchain', 'lean/lake-manifest.json') }}-
-      - name: Provision pinned elan
-        timeout-minutes: 2
-        # A restored cache already holds elan, and then this step downloads
-        # nothing. Otherwise curl's own limits end the download: no attempt lasts
-        # more than 30 seconds and none starts more than 62 seconds after the
-        # first began, so curl exits within 92 seconds with its error. The archive
-        # is admitted by its SHA-256 before anything in it runs, and the installer
-        # downloads no toolchain.
-        run: |
-          if [[ ! -x "$HOME/.elan/bin/elan" ]]; then
-            archive="$RUNNER_TEMP/elan.tar.gz"
-            curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-              --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 --retry-max-time 60 \
-              --output "$archive" \
-              "https://github.com/leanprover/elan/releases/download/v$ELAN_VERSION/elan-x86_64-unknown-linux-gnu.tar.gz"
-            sha256sum --check --strict <<< "$ELAN_SHA256  $archive"
-            tar -xzf "$archive" -C "$RUNNER_TEMP" elan-init
-            "$RUNNER_TEMP/elan-init" -y --no-modify-path --default-toolchain none
-          fi
-          version="$(elan --version)"
-          echo "$version"
-          if [[ $version != "elan $ELAN_VERSION "* ]]; then
-            echo "::error::elan is not the pinned release $ELAN_VERSION."
-            exit 1
-          fi
-      - name: Provision pinned Lean, Mathlib and Regula
-        if: steps.dependencies.outputs.cache-hit != 'true'
-        timeout-minutes: 15
-        working-directory: lean
-        # The upstream cache can omit modules; Lake compiles only those it lacks.
-        # Regula's lint driver is compiled here, so both jobs provision the same
-        # dependency cache.
-        run: lake exe cache get && lake build Mathlib regula/lint
-      - name: Provision the FloatLib, lean-intent and Regula modules the project imports
-        working-directory: lean
-        # FloatLib and lean-intent publish no build cache. This step compiles the
-        # modules that AcornVerif.FloatLibBridge, AcornVerif.LeanIntentBridge and
-        # AcornTools.Intent import, the native objects of the lean-intent modules
-        # that AcornTools.Intent links, and the Regula interface modules that the
-        # decision registries import, so verification never compiles a dependency
-        # inside its deadline.
-        # On an exact cache hit it has nothing to build.
-        run: lake build floatlibBridge regulaInterface leanIntentBridge leanIntentNative
-      - name: Admit provisioned dependencies
-        run: ./scripts/lean.sh provision-status
-      - name: Save admitted dependencies before the audit
-        if: steps.dependencies.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        timeout-minutes: 5
-        with:
-          path: |
-            ~/.elan
-            lean/.lake/packages
-          key: ${{ steps.dependencies.outputs.cache-primary-key }}
-      - name: The Regula audit on the exact source
-        run: ./scripts/regula.sh
-      # lean-intent's confirmation and implementation checks on the modules of the
-      # default libraries of the build the audit made (lean/AcornTools/Intent.lean).
-      - name: The lean-intent checks on the exact source
-        run: ./scripts/lean.sh exe intent-check
+          }
+          # shellcheck disable=SC2317,SC2329
+          cleanup_provision() {
+            local exit_rc=$?
+            trap '' INT TERM
+            local pid="$prov_pid"
+            prov_pid=''
+            reap_provision
+            if [[ -n "$pid" ]]; then
+              wait "$pid" 2>/dev/null || true
+            fi
+            if [[ "$exit_rc" != 0 && "$prov_report_done" == 0 ]]; then
+              report_provision "$exit_rc" "failed (exit $exit_rc)" || true
+            fi
+            if [[ -n "$prov_dir" ]]; then
+              rm -rf "$prov_dir"
+              prov_dir=''
+            fi
+          }
+          report_provision() {
+            local rc="$1" label="$2" elapsed handoff_rc=0 summary_body=''
+            prov_report_rc="$rc"
+            elapsed=$(( $(date +%s) - start_epoch ))
+            if [[ "$prov_output_written" == 0 ]]; then
+              if echo "seconds=$elapsed" >> "${GITHUB_OUTPUT:-}"; then
+                prov_output_written=1
+              else
+                # shellcheck disable=SC2320
+                handoff_rc=$?
+                if [[ "$rc" == 0 ]]; then
+                  rc="$handoff_rc"
+                  prov_report_rc="$handoff_rc"
+                  label="failed (output handoff, exit $handoff_rc)"
+                fi
+              fi
+            fi
+            if [[ "$prov_warning_emitted" == 0 ]] && (( elapsed > 480 )); then
+              if printf '::warning title=Verify / gate budget::Provision took %dm %02ds (%d s) (target <= 8m 00s (480 s)).\n' \
+                $((elapsed / 60)) $((elapsed % 60)) "$elapsed"; then
+                prov_warning_emitted=1
+              fi
+            fi
+            if [[ "$rc" != 0 && "$prov_summary_written" == 0 && -n "${GITHUB_STEP_SUMMARY:-}" && ! -L "$GITHUB_STEP_SUMMARY" && ( ! -e "$GITHUB_STEP_SUMMARY" || -f "$GITHUB_STEP_SUMMARY" ) ]]; then
+              printf -v summary_body \
+                '## Verify / gate phase timings\n\n| Phase | Duration | Target budget | Hard limit | Status |\n|---|---:|---:|---:|---|\n| Provision pinned dependencies | %dm %02ds (%d s) | <= 8m 00s (480 s) | 12m | %s |\n| Merge gate (scripts/gate.sh) | - | <= 10m 00s (600 s) | 18m | not run (provisioning failed) |\n\n' \
+                $((elapsed / 60)) $((elapsed % 60)) "$elapsed" "$label"
+              if printf '%s' "$summary_body" >> "$GITHUB_STEP_SUMMARY"; then
+                prov_summary_written=1
+              fi
+            fi
+            prov_report_done=1
+          }
+          # shellcheck disable=SC2317,SC2329
+          cancel_provision() {
+            trap '' INT TERM
+            local sig_rc="$1" pid="$prov_pid"
+            prov_pid=''
+            if [[ "$prov_ctrl_open" == 1 ]]; then
+              if [[ -n "$pid" && -n "$prov_dir" ]] && job_is_running "$pid" "$prov_dir/jobs.tmp"; then
+                printf 'term\n' >&4 2>/dev/null || true
+                for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+                  if ! job_is_running "$pid" "$prov_dir/jobs.tmp"; then
+                    break
+                  fi
+                  sleep 0.1 3<&- 4>&-
+                done
+              fi
+              reap_provision
+            fi
+            if [[ -n "$pid" ]]; then
+              wait "$pid" 2>/dev/null || true
+            fi
+            report_provision "$sig_rc" "interrupted / cancelled (exit $sig_rc)" || true
+            exit "$sig_rc"
+          }
+          trap cleanup_provision EXIT
+          trap 'cancel_provision 130' INT
+          trap 'cancel_provision 143' TERM
+          prov_ctrl="$prov_dir/ctrl"
+          prov_done="$prov_dir/done"
+          mkfifo "$prov_ctrl" "$prov_done"
+          exec 4<>"$prov_ctrl"
+          exec 5<"$prov_ctrl"
+          exec 6<>"$prov_done"
+          exec 3<"$prov_done"
+          rm -f "$prov_ctrl" "$prov_done"
+          prov_ctrl_open=1
+          status=0
+          set -m
+          (
+            set +m
+            exec 3<&- 4>&-
+            sh -c 'echo $PPID' > "$prov_dir/pgid"
+            IFS= read -r my_pgid < "$prov_dir/pgid"
+            rm -f "$prov_dir/pgid"
+            (
+              exec </dev/null >/dev/null 2>&1
+              trap '' TERM
+              while IFS= read -r cmd <&5; do
+                case "$cmd" in
+                  term)
+                    if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+                      kill -TERM -- -"$my_pgid" 2>/dev/null || true
+                    fi ;;
+                esac
+              done
+              if [[ "$my_pgid" =~ ^[0-9]+$ && "$my_pgid" -gt 1 && "$my_pgid" != "$$" ]]; then
+                kill -KILL -- -"$my_pgid" 2>/dev/null || true
+              fi
+            ) &
+            exec 5<&- 6>&-
+            exec ./scripts/gate.sh provision
+          ) &
+          prov_pid=$!
+          set +m
+          exec 5<&- 6>&-
+          wait "$prov_pid" 2>/dev/null || status=$?
+          prov_pid=''
+          reap_provision
+          report_provision "$status" "failed (exit $status)"
+          exit "$prov_report_rc"
+      # The merge gate itself, by the same script with no argument. Its own provisioning
+      # finds the dependencies current. It then runs verification as two timed
+      # stages, each under verify.sh's own 360-second deadline: the cold build fills all four
+      # CPUs, and with the checks beside it a slow runner came within 40 seconds of one
+      # deadline. Stage one admits the sources and builds cold every module outside the
+      # proof library AcornVerif except AcornTools.AxiomPins, with native objects where
+      # applicable, and every executable. Stage two is the
+      # complete command unchanged: Lake reuses a stage one output only where its trace
+      # matches the checked-out source, toolchain and options, and builds everything else.
+      # The script then runs the Regula audit (scripts/regula.sh,
+      # docs/verification.md#regula-audit, 360-second deadline), lean-intent's confirmation and
+      # implementation checks (lean/AcornTools/Intent.lean, 180-second deadline), and the check
+      # of each target's pin file (lean/AcornTools/Frame.lean, 120-second deadline), each also
+      # when an earlier check failed. Only when ordinary verification succeeded (so un-admitted
+      # sources are never elaborated), after admitting cache containment, offline SHA-256 and
+      # bounded tracked config/ratchet files upfront (60-second deadline), it runs the pinned
+      # no-comments check (.no-comments.json, comment-ratchet.json, lean/no-comments.pin,
+      # 300-second deadline) after lean-intent and frame-check inside the background subshell
+      # beside Regula. The script writes a per-phase duration table to $GITHUB_STEP_SUMMARY
+      # (including partial progress on early failure or cancellation), emits ::warning:: budget
+      # alerts when target budgets are exceeded, exits non-zero when any check failed, and prints
+      # its `gate:` lines with each part's status and time.
+      - name: The merge gate on the exact source
+        timeout-minutes: 18
+        env:
+          ACORN_BASE_REF: refs/remotes/origin/${{ github.base_ref }}
+          ACORN_PROVISION_SECONDS: ${{ steps.provision.outputs.seconds }}
+          ACORN_JOB_START_EPOCH: ${{ steps.commit.outputs.start_epoch }}
+        run: exec ./scripts/gate.sh

@@ -1,56 +1,4 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentConcealedTargetRung
-
-/-!
-# The first rung's agent finds
-
-`rung_finds` proves the premise `ExecutedFindsBy` of the first rung's theorem
-(`AcornVerif.CurrentConcealedTargetRung.rung_mission`): the rung's agent solves each of 102 listed
-members of its class on one of its first 72 visits, and 102 is more than the covering bound 98.
-It is a statement about the executed agent's run in each member's own world, with no assumption
-on the generator's words: the agent's seed is fixed, so its run is one run.
-
-The proof is by the reduction of `AcornVerif.CurrentConcealedTargetFinding.cold_found_within` and
-two evaluations by Lean's kernel of executed definitions.
-
-- **The actions.** Up to a first reward the agent takes the actions of the explorer of its seed
-  (`AcornVerif.CurrentExplorer.cold_actions`). `rung_actions` evaluates the explorer's first 576
-  actions, the 72 visits of eight decisions that `rungRows` lists, over the executed generator
-  and the executed duration draw, in the explorer's word-by-word form
-  (`AcornVerif.CurrentExplorer.Explorer.step_eq`).
-- **The walks.** `rungWalks` lists four of those visits, 45, 47, 53 and 71 counting from zero,
-  with the seven actions of each and the tile the body stands on after each. `walks_listed`
-  checks the actions against `rungRows`, and `walks_traced` evaluates the executed world step
-  along them, the terrain of the tiles entered and faced included.
-
-`rungFound` lists 102 tiles, each within three tiles of a tile of those walks and more than three
-from the start (`found_listed`). So each of its targets is met by one of the four walks
-(`found_met`) and is a member the agent solves on that visit or an earlier one.
-
-What this does not say. The four visits are not the first at which the count passes the bound:
-an evaluation outside the kernel found 99 members met after 54 visits (observed, `docs/roadmap.md`).
-These four were chosen by a search outside the tree for walks with few moves, 18 in their 28
-steps; no theorem says the choice is the cheapest. Nothing here is about a visit after a member's
-first success, so nothing is about retention. And the statement is of this seed, this world and
-this profile: no walk of another seed or world is evaluated, and the reduction does not cover a
-profile with a hierarchy.
-
-Trust. The kernel evaluates the duration draw and the terrain in its model of binary32 and
-binary64 arithmetic; that the native operations agree with that model is trusted, as for every
-proof of executed words in this library.
-
-Proof cost, and what breaks it. The kernel re-evaluates the generator over 576 decisions and the
-world step over 28 steps each time this module is rebuilt (`docs/roadmap.md` records the timing
-and the owner's decision to pay it). The tables are data: a change to the generator, to the
-persistent draw, to the world step or to the terrain makes `rung_actions` or `walks_traced` fail,
-and the tables are then computed again from the definitions here. `rungRows` is the codes of
-`rungExplorer.actions 576` in rows of eight, and a walk's tiles are `tileTrace` of its actions
-from the rung's world.
--/
 
 namespace AcornVerif.CurrentConcealedTargetRungFinds
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -59,10 +7,6 @@ open AcornVerif.CurrentConcealedTarget AcornVerif.CurrentConcealedTargetFinding
 open AcornVerif.CurrentConcealedTargetMission AcornVerif.CurrentConcealedTargetRung
 open AcornVerif.CurrentExplorer
 
-/-! ## The explorer's first 72 visits -/
-
-/-- The actions of the rung's explorer on its first 72 visits, as action codes: one row of eight
-decisions for each visit, of which the world takes the first seven. -/
 def rungRows : List (List ℕ) := [
   [6, 1, 2, 8, 5, 8, 8, 8], [5, 6, 6, 8, 6, 2, 7, 2], [8, 1, 6, 5, 4, 5, 5, 3],
   [2, 5, 4, 7, 5, 7, 7, 1], [6, 7, 1, 4, 2, 1, 0, 7], [8, 1, 3, 2, 3, 3, 1, 2],
@@ -89,13 +33,10 @@ def rungRows : List (List ℕ) := [
   [6, 4, 5, 1, 8, 8, 2, 3], [5, 4, 0, 8, 7, 0, 0, 5], [3, 1, 4, 4, 1, 4, 5, 2],
   [1, 4, 5, 4, 1, 5, 8, 5], [1, 8, 4, 3, 2, 8, 2, 6], [0, 4, 3, 3, 3, 3, 8, 6]]
 
-/-- **The explorer's first 576 actions are the listed ones.** The kernel evaluates the executed
-generator and duration draw over the explorer's first 576 decisions. -/
 theorem rung_actions :
     (rungExplorer.actions 576).map (fun action => action.val) = rungRows.flatten := by
   decide +kernel
 
-/-- The code of the explorer's action at each of its first 576 decisions is the listed one. -/
 theorem rung_action (time : ℕ) (within : time < 576) :
     (rungExplorer.actionAt time).val = rungRows.flatten.getD time 0 := by
   have listed := congrArg (fun actions : List ℕ => actions[time]?) rung_actions
@@ -104,18 +45,11 @@ theorem rung_action (time : ℕ) (within : time < 576) :
   rw [List.getD_eq_getElem?_getD, ← listed]
   rfl
 
-/-! ## Four walks -/
-
-/-- One visit's walk: the visit, its seven actions, and the tile the body stands on after each. -/
 structure Walk where
-  /-- The visit, counted from zero. -/
   visit : ℕ
-  /-- The seven actions the world takes on the visit. -/
   actions : List Host.Action
-  /-- The tile the body stands on after each action. -/
   tiles : List (ℤ × ℤ)
 
-/-- Four visits of the rung's explorer, with their actions and the tiles of their walks. -/
 def rungWalks : List Walk := [
   ⟨45, [.west, .south, .south, .south, .wait, .harvest, .south],
     [(31, 32), (31, 33), (31, 34), (31, 35), (31, 35), (31, 35), (31, 36)]⟩,
@@ -126,8 +60,6 @@ def rungWalks : List Walk := [
   ⟨71, [.north, .wait, .west, .west, .west, .west, .eat],
     [(32, 31), (32, 31), (31, 31), (30, 31), (29, 31), (28, 31), (28, 31)]⟩]
 
-/-- Each listed walk is a visit among the first 72, of seven actions and seven tiles, and its
-actions are the explorer's on that visit as `rungRows` lists them. -/
 theorem walks_listed : ∀ walk ∈ rungWalks,
     walk.visit < 72 ∧ walk.actions.length = 7 ∧ walk.tiles.length = 7 ∧
       ∀ index, index < 7 →
@@ -135,14 +67,90 @@ theorem walks_listed : ∀ walk ∈ rungWalks,
           (walk.actions.getD index .wait).index.val := by
   decide +kernel
 
-/-- **Each listed walk is the body's walk.** The kernel evaluates the executed world step along
-the actions of each listed visit, from the rung's world. -/
-theorem walks_traced : ∀ walk ∈ rungWalks,
-    tileTrace (some (physical witnessLive.world)) walk.actions = walk.tiles.map some := by
+private def witnessWalkTiles (point : ℤ × ℤ) : List Host.Action → List (ℤ × ℤ)
+  | [] => []
+  | action :: rest =>
+    let next := match action.direction with
+      | some dir => (point.1 + dir.delta.1, point.2 + dir.delta.2)
+      | none => point
+    next :: witnessWalkTiles next rest
+
+private theorem witness_tileTrace_fast (world : Host.World witnessConfig)
+    (actions : List Host.Action) (energyOk : 4 * actions.length ≤ world.body.energy.val)
+    (inWin : 25 ≤ (tile world.body.position.position).1 ∧
+      (tile world.body.position.position).1 ≤ 39 ∧
+      25 ≤ (tile world.body.position.position).2 ∧
+      (tile world.body.position.position).2 ≤ 39)
+    (ok : witnessWalkFast (tile world.body.position.position) actions = true) :
+    tileTrace (some world) actions =
+      (witnessWalkTiles (tile world.body.position.position) actions).map some := by
+  induction actions generalizing world with
+  | nil => rfl
+  | cons action rest ih =>
+    simp only [List.length_cons] at energyOk
+    simp only [witnessWalkFast] at ok
+    cases hdir : action.direction with
+    | none =>
+      simp only [hdir] at ok
+      obtain ⟨next, hnext, hpos, hene⟩ := witness_physicalStep_fast world action (by omega) inWin
+        (by simp [hdir])
+      have hpos' : tile next.body.position.position = tile world.body.position.position := by
+        simpa [hdir] using hpos
+      rw [tileTrace_cons]
+      change (physicalStep world (code action)).map
+          (fun w => tile w.body.position.position) ::
+        tileTrace (physicalStep world (code action)) rest = _
+      rw [hnext, Option.map_some, ih next (by omega)
+        ⟨by rw [hpos']; exact inWin.1, by rw [hpos']; exact inWin.2.1,
+         by rw [hpos']; exact inWin.2.2.1, by rw [hpos']; exact inWin.2.2.2⟩
+        (by rw [hpos']; exact ok)]
+      simp only [witnessWalkTiles, hdir, hpos', List.map_cons]
+    | some dir =>
+      simp only [hdir] at ok
+      split at ok
+      · rename_i hx
+        split at ok
+        · rename_i hy
+          simp only [Bool.and_eq_true] at ok
+          obtain ⟨next, hnext, hpos, hene⟩ := witness_physicalStep_fast world action (by omega)
+            inWin (by simp only [hdir]; exact ⟨hx, hy, ok.1⟩)
+          have hpos' : tile next.body.position.position =
+              ((tile world.body.position.position).1 + dir.delta.1,
+               (tile world.body.position.position).2 + dir.delta.2) := by
+            simpa [hdir] using hpos
+          rw [tileTrace_cons]
+          change (physicalStep world (code action)).map
+              (fun w => tile w.body.position.position) ::
+            tileTrace (physicalStep world (code action)) rest = _
+          rw [hnext, Option.map_some, ih next (by omega)
+            ⟨by rw [hpos']; exact hx.1, by rw [hpos']; exact hx.2,
+             by rw [hpos']; exact hy.1, by rw [hpos']; exact hy.2⟩
+            (by rw [hpos']; exact ok.2)]
+          simp only [witnessWalkTiles, hdir, hpos', List.map_cons]
+        · cases ok
+      · cases ok
+
+private theorem walks_fast : ∀ walk ∈ rungWalks,
+    witnessWalkFast (32, 32) walk.actions = true ∧
+      witnessWalkTiles (32, 32) walk.actions = walk.tiles := by
   decide +kernel
 
-/-- On each listed visit, the explorer's actions carry the body, after each of the visit's seven
-steps, to the listed tile. -/
+theorem walks_traced : ∀ walk ∈ rungWalks,
+    tileTrace (some (physical witnessLive.world)) walk.actions = walk.tiles.map some := by
+  intro walk hwalk
+  have hstart : tile (physical witnessLive.world).body.position.position = (32, 32) := witness_start
+  have hlen : walk.actions.length = 7 := (walks_listed walk hwalk).2.1
+  have hen : 4 * walk.actions.length ≤ (physical witnessLive.world).body.energy.val := by
+    rw [hlen]; decide
+  have hwin : 25 ≤ (tile (physical witnessLive.world).body.position.position).1 ∧
+      (tile (physical witnessLive.world).body.position.position).1 ≤ 39 ∧
+      25 ≤ (tile (physical witnessLive.world).body.position.position).2 ∧
+      (tile (physical witnessLive.world).body.position.position).2 ≤ 39 := by
+    rw [hstart]; omega
+  obtain ⟨hfast, htiles⟩ := walks_fast walk hwalk
+  rw [witness_tileTrace_fast (physical witnessLive.world) walk.actions hen hwin (hstart ▸ hfast),
+    hstart, htiles]
+
 theorem rung_walk (walk : Walk) (listed : walk ∈ rungWalks) (step : ℕ) (within : step < 7) :
     (physicalPath (physical witnessLive.world)
         (fun index => rungExplorer.actionAt (walk.visit * 8 + index)) (step + 1)).map
@@ -171,10 +179,6 @@ theorem rung_walk (walk : Walk) (listed : walk ∈ rungWalks) (step : ℕ) (with
     List.getElem?_eq_getElem (by rw [tiled]; exact within)]
   rfl
 
-/-! ## The members found -/
-
-/-- 102 tiles, each within three tiles of a tile of the four listed walks and more than three
-tiles from the start `(32, 32)`. -/
 def rungFound : List (ℤ × ℤ) := [
   (29, 26), (30, 26), (31, 26), (32, 26), (33, 26), (34, 26), (35, 26), (29, 27), (30, 27),
   (31, 27), (32, 27), (33, 27), (34, 27), (35, 27), (25, 28), (26, 28), (27, 28), (28, 28),
@@ -189,8 +193,6 @@ def rungFound : List (ℤ × ℤ) := [
   (30, 38), (31, 38), (32, 38), (33, 38), (34, 38), (28, 39), (29, 39), (30, 39), (31, 39),
   (32, 39), (33, 39), (34, 39)]
 
-/-- Each listed tile is the tile of its position, lies more than three tiles from the start, and
-lies within three tiles of the tile after some step of a listed walk. -/
 theorem found_listed : ∀ point ∈ rungFound,
     tile (pointPosition point) = point ∧
       ¬ ((point.1 - 32).natAbs ≤ 3 ∧ (point.2 - 32).natAbs ≤ 3) ∧
@@ -199,12 +201,9 @@ theorem found_listed : ∀ point ∈ rungFound,
           (point.2 - (walk.tiles.getD step (0, 0)).2).natAbs ≤ 3 := by
   decide +kernel
 
-/-- The listed tiles are distinct. -/
 theorem found_distinct : rungFound.Nodup := by
   decide +kernel
 
-/-- The target at each listed tile is met, within a visit's seven steps, by the explorer's actions
-on one of its first 72 visits. -/
 theorem found_met (mode : TaskFeatureMode) (point : ℤ × ℤ) (listed : point ∈ rungFound) :
     ∃ visit, visit < 72 ∧
       (completion witnessConfig mode 7).MetBy (member witnessLive (pointPosition point))
@@ -218,11 +217,6 @@ theorem found_met (mode : TaskFeatureMode) (point : ℤ × ℤ) (listed : point 
     omega, find_near_met mode witnessLive 7 _ (step + 1) _ (rung_walk walk walked step within)
       (pointPosition point) near⟩
 
-/-- **The first rung's agent finds.** There are 102 distinct members of the rung's class each of
-which the rung's agent solves on one of its first 72 visits. So the agent finds by the visit 72,
-three members more than the covering bound 98 asks: 102 is more than 101. This is the premise
-`ExecutedFindsBy` of `AcornVerif.CurrentConcealedTargetRung.rung_mission`, with those members
-counted, `last` at 72 and `spare` at 3. -/
 theorem rung_finds (planning : PlanningSelection) :
     ∃ counted : List (feasibleFind witnessConfig (rungConstruction planning).profile.taskMode
         witnessLive 7).Index,

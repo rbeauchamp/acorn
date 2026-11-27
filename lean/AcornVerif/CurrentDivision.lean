@@ -1,21 +1,4 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentOperations
-/-!
-# Executing division and residual rounding
-
-These proofs connect the pinned Lean 4.35.0 standard model's
-`Unpacked/Operations/Div.lean` quotient, exponent selection and residual-bit
-rounding to the actual binary64 division wrapper. The bound uses the enclosing
-integer quotient interval, so it holds for every residual-accuracy case without
-claiming the tight half-unit bound for division. The admitted numerical domain
-excludes a zero denominator and exceptional operands. Finite results, subnormal
-normalization and packing guards follow from that domain; native primitive and
-compiler/runtime correspondence remain the declared trusted boundary.
--/
 open Acorn
 open Float.Model (Format totalExponent UnpackedFloat)
 open Float.Model.UnpackedFloat
@@ -23,8 +6,6 @@ open AcornVerif.CurrentFloat AcornVerif.CurrentPower AcornVerif.CurrentArithmeti
 open AcornVerif.CurrentOrder AcornVerif.CurrentOperations
 namespace AcornVerif.CurrentDivision
 
-/-- Every residual-bit case follows the actual rounded significand and exact carry normalization.
--/
 theorem model_round_accuracy_value (spec : Format) (sign : Sign) (mantissa : Nat)
     (exponent : Int) (accuracy : Accuracy) :
     let first := shiftToTargetExponent spec mantissa exponent accuracy
@@ -45,8 +26,6 @@ theorem model_round_accuracy_value (spec : Format) (sign : Sign) (mantissa : Nat
       simp only [unpackedValue, zero, Nat.cast_zero, mul_zero, zero_mul]
     · rfl
 
-/-- For every initial residual-accuracy case, rounding differs from the truncated dyadic input by
-at most one selected unit before packing. -/
 theorem model_round_accuracy_distance (spec : Format) (sign : Sign) (mantissa : Nat)
     (exponent : Int) (accuracy : Accuracy) :
     let shift := (spec.targetExponent (totalExponent mantissa exponent) - exponent).toNat
@@ -94,15 +73,12 @@ theorem model_round_accuracy_distance (spec : Format) (sign : Sign) (mantissa : 
   rw [he, zpow_add₀ (by norm_num : (2:ℚ) ≠ 0), zpow_natCast, abs_le]
   cases sign <;> simp only [signCoefficient] <;> constructor <;> linarith
 
-/-- A quotient of positive significands and a positive dyadic scale is positive. -/
 theorem model_ratio_positive (left right : Nat) (leftExponent rightExponent : Int)
     (leftPositive : 0 < left) (rightPositive : 0 < right) :
     (0 : ℚ) < ((left : ℚ) / right) * (2 : ℚ) ^ (leftExponent - rightExponent) :=
   mul_pos (div_pos (by exact_mod_cast leftPositive) (by exact_mod_cast rightPositive))
     (zpow_pos (by norm_num) _)
 
-/-- The actual operand total exponents give a lower dyadic bound on their exact positive quotient.
--/
 theorem model_ratio_window_lower (left right : Nat) (leftExponent rightExponent : Int)
     (leftPositive : 0 < left) (rightPositive : 0 < right) :
     (2 : ℚ) ^ (totalExponent left leftExponent - totalExponent right rightExponent - 1) ≤
@@ -130,8 +106,6 @@ theorem model_ratio_window_lower (left right : Nat) (leftExponent rightExponent 
     ring
   simpa only [identity] using result
 
-/-- The executing division core places its exact rational quotient between the truncated dyadic
-significand and the next unit. -/
 theorem model_divCore_bracket (spec : Format) (left right : Nat)
     (leftExponent rightExponent : Int) (rightPositive : 0 < right) :
     let core := divCore spec left leftExponent right rightExponent
@@ -165,8 +139,6 @@ theorem model_divCore_bracket (spec : Format) (left right : Nat)
   simp only [Nat.shiftLeft_eq]
   exact ⟨ready, Int.min_le_right _ _, lo, hi⟩
 
-/-- Residual rounding of a zero significand is canonical when its exponent is at or below the
-subnormal floor. -/
 theorem model_round_accuracy_zero_normalized (spec : Format) (sign : Sign) (exponent : Int)
     (accuracy : Accuracy) (floor : exponent ≤ spec.minExponent) :
     ModelNormalized spec (roundWithAccuracy spec sign 0 exponent accuracy) := by
@@ -201,8 +173,6 @@ theorem model_round_accuracy_zero_normalized (spec : Format) (sign : Sign) (expo
         (first.2=spec.minExponent ∨ 2^spec.mantissaBitsWithoutImplicit ≤ first.1.roundedMantissa)
     exact ⟨by omega, le_of_eq target.symm, Or.inl target⟩
 
-/-- The actual quotient exponent supplies enough significand bits for normalization, including
-zero and subnormal quotients. -/
 theorem model_divCore_ready (spec : Format) (left right : Nat)
     (leftExponent rightExponent : Int) (leftPositive : 0 < left) (rightPositive : 0 < right) :
     let core := divCore spec left leftExponent right rightExponent
@@ -255,8 +225,6 @@ theorem model_divCore_ready (spec : Format) (left right : Nat)
           simp [Format.mantissaBits, Nat.add_comm]
       omega
 
-/-- The executing quotient and residual rounding yield canonical components and a conservative
-two-unit error bound derived from the exact quotient magnitude. -/
 theorem model_divCore_error (spec : Format) (sign : Sign) (left right : Nat)
     (leftExponent rightExponent limit : Int)
     (leftPositive : 0 < left) (rightPositive : 0 < right)
@@ -341,8 +309,6 @@ theorem model_divCore_error (spec : Format) (sign : Sign) (left right : Nat)
         (zpow_le_zpow_right₀ (by norm_num : (1:ℚ)≤2) inputBound)
     _ = _ := by ring
 
-/-- Division of signed dyadic values agrees with the executing sign division and positive
-significand quotient. -/
 theorem model_signed_ratio (leftSign rightSign : Sign) (left right : Nat)
     (leftExponent rightExponent : Int) :
     (signCoefficient leftSign * left * (2 : ℚ) ^ leftExponent) /
@@ -357,8 +323,6 @@ theorem model_signed_ratio (leftSign rightSign : Sign) (left right : Nat)
   rw [signs, zpow_sub₀ (by norm_num : (2:ℚ) ≠ 0)]
   cases leftSign <;> cases rightSign <;> simp only [signCoefficient] <;> ring
 
-/-- Actual normalized finite division with a nonzero denominator has the derived magnitude-
-dependent error bound. -/
 theorem model_div_dyadic_local (spec : Format) (left right : UnpackedFloat)
     (leftNormal : ModelNormalized spec left) (rightNormal : ModelNormalized spec right)
     (nonzero : unpackedValue right ≠ 0) (limit : Int)
@@ -396,8 +360,6 @@ theorem model_div_dyadic_local (spec : Format) (left right : UnpackedFloat)
       have proof := model_divCore_error spec (leftSign/rightSign) lm rm le re limit lp rp ratioBound
       simpa only [UnpackedFloat.div, equality] using proof
 
-/-- The executing binary64 division agrees with its actual unpacked model when the normalized
-result satisfies the packing guard. -/
 theorem model_div64_decoded (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite)
     (normal : ModelNormalized Format.binary64 (UnpackedFloat.div Format.binary64
@@ -412,8 +374,6 @@ theorem model_div64_decoded (left right : Binary64) (leftFinite : left.Finite)
   rw [model_ofBits64_decoded left leftFinite, model_ofBits64_decoded right rightFinite]
   exact model_unpack_pack_normalized _ _ normal fits
 
-/-- Actual binary64 division stays finite with error at most 2^-35 when its finite nonzero-
-denominator exact quotient has magnitude at most 2^16. -/
 theorem binary64_div_finite_error (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (nonzero : numerical64 right ≠ 0)
     (bound : |numerical64 left / numerical64 right| ≤ 65536) :

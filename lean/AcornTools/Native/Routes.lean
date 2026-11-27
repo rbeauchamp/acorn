@@ -1,19 +1,7 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Init
 
-/-! # Reviewed native call routes
-
-These compiler-symbol sequences retain the native boundary's existing routing
-obligations. They detect replacement drift, not correctness of the generated C.
-The owning Lean definitions and their proofs establish the semantic contracts.
--/
 namespace AcornNativeRoutes
 
-/-- Module, compiled function, and ordered calls of each reviewed native route. -/
 def routes : Array (String × String × Array String) := #[
   ("Host/Control", "lp_acorn___private_Acorn_Host_Control_0__Acorn_Host_closeCommandSource", #["lean_io_cancel", "lean_io_process_child_try_wait", "lean_io_process_child_kill", "lean_io_process_child_wait"]),
   ("Host/Control", "lp_acorn___private_Acorn_Host_Control_0__Acorn_Host_ClosedCommandSource_join", #["lean_task_get_own"]),
@@ -61,9 +49,9 @@ def routes : Array (String × String × Array String) := #[
   ("Arithmetic", "lp_acorn_Acorn_Binary64_hornerFrom", #["lp_acorn_List_foldl___at___00Acorn_Binary64_hornerFrom_spec__0"]),
   ("Arithmetic", "lp_acorn_List_foldl___at___00Acorn_Binary64_hornerFrom_spec__0", #["lp_acorn_Acorn_Binary64_hornerStep"]),
   ("Portable", "lp_acorn_Acorn_Portable_expSeries", #["lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep"]),
-  ("Portable", "lp_acorn_Acorn_Portable_ln", #["lp_acorn_Acorn_Binary32_isNaN", "lp_acorn_Acorn_Binary32_less", "lp_acorn_Acorn_Binary64_sub", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary64_div", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Portable_lnSeries", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Conversion_narrow", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary32_magnitudeEq", "lp_acorn_Acorn_Binary32_magnitudeEq", "lp_acorn_Acorn_Conversion_widen", "lp_acorn_Acorn_Portable_logarithmExponent", "lp_acorn_Acorn_Conversion_ofI32Word", "lp_acorn_Acorn_Binary64_less", "lp_acorn_Acorn_Binary64_mul"]),
+  ("Portable", "lp_acorn_Acorn_Portable_ln", #["lp_acorn_Acorn_Binary32_isNaN", "lp_acorn_Acorn_Binary32_less", "lp_acorn_Acorn_Binary32_magnitudeEq", "lp_acorn_Acorn_Binary32_magnitudeEq", "lp_acorn_Acorn_Conversion_widen", "lp_acorn_Acorn_Portable_logarithmExponent", "lp_acorn_Acorn_Conversion_ofI32Word", "lp_acorn_Acorn_Binary64_less", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary64_sub", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary64_div", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Portable_lnSeries", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_mul", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Binary64_add", "lp_acorn_Acorn_Conversion_narrow"]),
   ("Portable", "lp_acorn_Acorn_Portable_lnSeries", #["lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep", "lp_acorn_Acorn_Binary64_hornerStep"]),
-  ("SwiftTd", "lp_acorn_Acorn_NumericState_firstLoopElement___redArg", #["lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_Binary32_sub", "lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_Weight_project", "lp_acorn_Acorn_Binary32_numericallyEqual", "lp_acorn_Acorn_StepSizeRails_initial", "lp_acorn_Acorn_Portable_exp", "lp_acorn_Acorn_Binary32_lessOrEqual", "lp_acorn_Acorn_Binary32_div", "lp_acorn_Acorn_Interval32_saturate", "lp_acorn_Acorn_LogStepSize_alphaAfter___redArg"]),
+  ("SwiftTd", "lp_acorn_Acorn_NumericState_firstLoopElement___redArg", #["lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_Binary32_mul", "lp_acorn_Acorn_Binary32_sub", "lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_Weight_project", "lp_acorn_Acorn_Binary32_numericallyEqual", "lp_acorn_Acorn_StepSizeRails_initial", "lp_acorn_Acorn_Portable_exp", "lp_acorn_Acorn_Binary32_div", "lp_acorn_Acorn_Interval32_saturate", "lp_acorn_Acorn_Binary32_lessOrEqual", "lp_acorn_Acorn_LogStepSize_alphaAfter___redArg"]),
   ("SwiftTd", "lp_acorn_Acorn_NumericState_secondLoopElementAt___redArg", #["lp_acorn_Acorn_Binary32_isZero", "lean_uint32_once", "lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_Interval32_saturate", "lp_acorn_Acorn_NumericState_writeBetaValue___redArg", "lp_acorn_Acorn_Binary32_add", "lp_acorn_Acorn_Binary32_mul"]),
   ("SwiftTd", "_init_lp_acorn_Acorn_NumericState_secondLoopElementAt___redArg___closed__0", #["lp_acorn_Acorn_StepSizeRails_decay___redArg"]),
   ("SwiftTd", "lp_acorn_Acorn_NumericState_secondLoopElement___redArg", #["lp_acorn_Acorn_Config_eta", "lp_acorn_Acorn_Binary32_div", "lp_acorn_Acorn_Binary32_sub", "lp_acorn_Acorn_Portable_exp", "lp_acorn_Acorn_NumericState_secondLoopElementAt___redArg"]),
@@ -351,8 +339,6 @@ def routes : Array (String × String × Array String) := #[
   ("Host/Runner", "lp_acorn_Acorn_Host_finishAttempt___redArg", #["lp_acorn_Acorn_Host_Attempt_finish___redArg", "lp_acorn_Acorn_Host_notifyObserver"])
 ]
 
-/-- Ordered closure code pointers connect deferred IO and capture to the same
-reviewed owners; checking a detached lambda alone does not establish that link. -/
 def closures : Array (String × String × Array String) := #[
   ("Host/Runner", "lp_acorn_Acorn_Host_runAdmittedCampaign___redArg", #[
     "lp_acorn_Acorn_Host_runAdmittedCampaign___redArg___lam__0___boxed"]),

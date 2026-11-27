@@ -1,58 +1,17 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Viewer.PipePump
 import Acorn.Host.Viewer.IdentityHandshake
 
-/-!
-# The viewer supervisor's pure core
-
-The viewer supervises the core as a child process: it starts it, winds it up, restarts it after
-an unexpected exit, replaces the whole run on Clear and publishes the lifecycle state the page
-shows. This module makes every one of those decisions, with no effect: a state (`Core`), the
-events the native actor hands it, and one step per event that returns the next state and the
-effects to perform. The actor that reads the world and performs the effects is
-`Acorn.Host.Viewer.Supervisor`.
-
-**One operation at a time.** Some effects have an outcome the supervisor must know before it
-goes on: a write of the state file, a spawn, the stop line, the identity handshake, a fresh
-seed, the archival rename, the replacement directory and a map write. A step that needs one
-ends with it as its `Pending` call, and the actor hands the call's outcome to `Core.resume`
-before it reads anything else. So the state file is written before the spawn that relies on it,
-and a reaction to a failed write is decided by the step that sees the failure.
-
-**Every step ends with what it decided.** The effects of a result (`Stepped.effects`) begin
-with the settlement of its lifecycle and detail: the broadcaster installs that lifecycle, with
-the observer changes the transition makes, and publishes its control record in one serialized
-operation (`Broadcast.settle`). The control record of every result is the one of its state.
-
-**A supervision is sealed by its run.** A `Supervision` holds a state with a derivation (`Ran`)
-from its start by steps and outcomes, for its Clear configuration. There is no other way to a
-value, so every theorem about the states that `Ran` reaches holds of the supervisor the actor
-drives. The instants of a supervision do not go back, whatever the clock reads
-(`Supervision.at_later`). What the step decides is proved here; what the operating system does
-with each effect is the trusted base the actor names.
--/
 namespace Acorn.Host.Viewer
 
-/-- A run longer than this many milliseconds resets the short-failure sequence. -/
 def healthyRunMs : Nat := 30000
 
-/-- The retained map is persisted at most this often, in milliseconds, between exits. -/
 def mapInterval : Nat := 10000
 
-/-- Complete identity arguments selected before the actual checkpoint outcome. -/
 structure CoreLaunch where
-  /-- Durable run and world identity; the checkpoint selects its logical epoch. -/
   identity : Identity
-  /-- Logical epoch supplied for missing/refused checkpoint construction. -/
   newEpoch : UInt64
-  /-- Source of fresh construction. -/
   origin : NewAgentOrigin
 
-/-- Launch preparation refuses epoch reuse at exhaustion. -/
 def PersistedState.launch (state : PersistedState) : Except String CoreLaunch := do
   unless state.identity.browserSafe do throw "viewer identity exceeds browser integer precision"
   if state.processStarted && state.identity.agentEpoch.toNat ≥ browserIntegerMax then
@@ -61,79 +20,47 @@ def PersistedState.launch (state : PersistedState) : Except String CoreLaunch :=
     if state.processStarted then state.identity.agentEpoch + 1 else state.identity.agentEpoch,
     if state.processStarted then .fresh else state.origin⟩
 
-/-- The intent an operator command saves. -/
 def Command.desired : Command → Desired
   | .start => .running
   | .stop | .clear => .stopped
 
-/-- A clock reading as a machine word, saturated at the largest word. -/
 def clockWord (now : Nat) : UInt64 := (min now (2 ^ 64 - 1)).toUInt64
 
-/-! ## The state -/
-
-/-- The native process slot, as the step holds it. -/
 inductive Slot where
-  /-- No child and no reader owns the run. -/
   | empty
-  /-- The child of this generation lives. -/
   | live (generation : UInt64)
-  /-- The child exited with this status, its readers still drain, and whether the supervisor
-  had asked it to wind up. -/
   | draining (generation : UInt64) (code : UInt32) (requested : Bool)
   deriving DecidableEq
 
-/-- The run directory capability the actor holds. -/
 inductive Owner where
-  /-- The actor holds the capability of the run directory. -/
   | current
-  /-- The run moved and no replacement capability exists; nothing writes again. -/
   | retired (reason : String)
   deriving DecidableEq
 
-/-- How far the viewer has gone in closing. -/
 inductive Closing where
-  /-- The viewer serves. -/
   | open
-  /-- The viewer winds the core up, then closes; and whether a failure was reported. -/
   | closing (failed : Bool)
-  /-- The core is reaped and the map persisted; and whether a failure was reported. -/
   | closed (failed : Bool)
   deriving DecidableEq
 
-/-- What an exit report holds while its map write is under way. -/
 structure ExitReport where
-  /-- The detail the exit publishes. -/
   detail : ControlDetail
-  /-- The failure the exit records. -/
   failure : Option String
-  /-- The transition of the exit. -/
   transition : ControlTransition
-  /-- The reason of the exit. -/
   reason : String
-  /-- Whether the exit was unexpected, so the page is told with an `eos` notice. -/
   announce : Bool
 
-/-- A native operation whose outcome the step needs before it goes on. -/
 inductive Call where
-  /-- Publish the state file. -/
   | writeState (state : PersistedState)
-  /-- Persist the retained map unless its revision is `skip`. -/
   | writeMap (skip : Option Nat)
-  /-- Spawn the core for a reserved generation. -/
   | spawn (generation : UInt64) (launch : CoreLaunch)
-  /-- Send the core its one stop line. -/
   | windUp (generation : UInt64)
-  /-- Install a persisted identity in the observer and release the output it held. -/
   | commit (generation : UInt64) (actual : CoreIdentity) (lifecycle : Lifecycle)
       (detail : ControlDetail)
-  /-- Draw a fresh terrain seed. -/
   | seed
-  /-- Rename the whole run directory into the archive. -/
   | archive (stamp : UInt64)
-  /-- Open the empty replacement run directory. -/
   | reopen
 
-/-- The outcome of each call. -/
 def Call.Result : Call → Type
   | .writeState _ => Except String Unit
   | .writeMap _ => Except String (Option Nat)
@@ -144,44 +71,27 @@ def Call.Result : Call → Type
   | .archive _ => ArchiveResult
   | .reopen => Except String Unit
 
-/-- Why a step waits, with what it goes on with. -/
 inductive Pending where
-  /-- An operator command's intent is being saved. -/
   | intent (command : Command) (state : PersistedState)
-  /-- The attempted launch is being saved before the spawn. -/
   | launch (state : PersistedState) (launch : CoreLaunch)
-  /-- The reserved generation is being spawned. -/
   | spawn (generation : UInt64) (launch : CoreLaunch)
-  /-- The stop line is being sent. -/
   | windUp (generation : UInt64)
-  /-- A checkpoint-selected identity is being saved. -/
   | adopt (generation : UInt64) (actual : CoreIdentity) (state : PersistedState)
-  /-- The saved identity is being installed in the observer, with this detail. -/
   | commit (generation : UInt64) (actual : CoreIdentity) (state : PersistedState)
       (detail : ControlDetail)
-  /-- The map is persisted after a reap, before the exit is reported. -/
   | exitMap (report : ExitReport) (skip : Option Nat)
-  /-- The intent is saved after an exit. -/
   | exitIntent (state : PersistedState)
-  /-- The periodic map write. -/
   | map (skip : Option Nat)
-  /-- The final map write of a closing viewer. -/
   | closeMap (skip : Option Nat)
-  /-- Clear's fresh seed. -/
   | seed (intended : Desired)
-  /-- Clear's archival. -/
   | archive (identity : Identity) (intended : Desired) (stamp : UInt64)
-  /-- Clear's replacement directory. -/
   | reopen (identity : Identity) (intended : Desired) (archive : System.FilePath)
-  /-- Clear's replacement state. -/
-  | replacement (state : PersistedState)
+  | replacement (state : PersistedState) (ackStop : Bool := false)
 
-/-- The call each pending operation makes, from the lifecycle of the state that waits: an
-identity is installed with that lifecycle, the identity adopted. -/
 def Pending.call (pending : Pending) (lifecycle : Lifecycle) : Call :=
   match pending with
   | .intent _ state | .launch state _ | .adopt _ _ state | .exitIntent state
-  | .replacement state => .writeState state
+  | .replacement state _ => .writeState state
   | .spawn generation plan => .spawn generation plan
   | .windUp generation => .windUp generation
   | .commit generation actual _ detail =>
@@ -191,115 +101,69 @@ def Pending.call (pending : Pending) (lifecycle : Lifecycle) : Call :=
   | .archive _ _ stamp => .archive stamp
   | .reopen _ _ _ => .reopen
 
-/-- Whether a pending operation acts on the run directory: through its capability, or by
-opening its replacement. -/
 def Pending.writes : Pending → Bool
-  | .intent _ _ | .launch _ _ | .adopt _ _ _ | .exitIntent _ | .replacement _
+  | .intent _ _ | .launch _ _ | .adopt _ _ _ | .exitIntent _ | .replacement _ _
   | .exitMap _ _ | .map _ | .closeMap _ | .archive _ _ _
   | .reopen _ _ _ => true
   | .spawn _ _ | .windUp _ | .commit _ _ _ _ | .seed _ => false
 
-/-- Whether a pending operation belongs to a Clear, the saving of its intent included. -/
 def Pending.clears : Pending → Bool
   | .intent command _ => command == .clear
-  | .seed _ | .archive _ _ _ | .reopen _ _ _ | .replacement _ => true
+  | .seed _ | .archive _ _ _ | .reopen _ _ _ | .replacement _ _ => true
   | _ => false
 
-/-- Whether a pending operation starts or changes what the run intends: a command's or an
-exit's intent, a launch, a spawn, a periodic map write or a Clear. A closing viewer begins
-none of them. -/
 def Pending.serves : Pending → Bool
   | .intent _ _ | .exitIntent _ | .launch _ _ | .spawn _ _ | .map _ | .exitMap _ _ => true
   | pending => pending.clears
 
-/-- The supervisor's complete state. -/
 structure Core where
-  /-- The process lifecycle the broadcaster mirrors. -/
   lifecycle : Lifecycle
-  /-- The native process slot. -/
   slot : Slot
-  /-- The durable state as the supervisor last decided it. -/
   persisted : PersistedState
-  /-- A Clear's replacement state, archived and opened but not yet published. -/
   replacement : Option PersistedState
-  /-- The run directory capability. -/
   owner : Owner
-  /-- The detail of the last transition. -/
   detail : ControlDetail
-  /-- The last failure, reported when the viewer closes. -/
   failure : Option String
-  /-- The instant of the last periodic map write. -/
   mapAt : Nat
-  /-- The map revision last persisted. -/
   mapRevision : Option Nat
-  /-- How far the viewer has gone in closing. -/
   closing : Closing
-  /-- The instant of the last step, in milliseconds of the monotonic clock. -/
   last : Nat
-  /-- The operation whose outcome the step waits for. -/
   pending : Option Pending
 
-/-- A terminal or diagnostic line the actor prints, or a notice and reader start that follow
-the settlement of a step. -/
 inductive Follow where
-  /-- The page's process-exit notice. -/
   | announceExit (reason : String)
-  /-- The page's acknowledgement of Clear. -/
   | announceCleared
-  /-- Start the readers of the spawned child. -/
+  | ackStop
+  | refuseStop (reason : String)
   | attach (generation : UInt64)
-  /-- A line on the viewer's standard output. -/
   | say (text : String)
-  /-- A shutdown diagnostic on the viewer's standard error. -/
   | complain (text : String)
 
-/-- An effect of a step, performed in order. -/
 inductive Effect where
-  /-- Install a lifecycle with its observer changes and publish its control record. -/
   | settle (lifecycle : Lifecycle) (changes : List Change) (detail : ControlDetail)
-  /-- A notice, reader start or terminal line. -/
   | follow (follow : Follow)
 
-/-- The result of a step: the next state, the observer changes installed with its lifecycle,
-and what follows the settlement. -/
 structure Stepped where
-  /-- The next state. -/
   core : Core
-  /-- Observer changes made with the lifecycle. -/
   changes : List Change := []
-  /-- Notices, reader starts and lines after the settlement. -/
   follows : List Follow := []
 
-/-- The effects of a result, in order: the settlement of its state, then what follows it. The
-pending call of its state, if any, comes after them. -/
 def Stepped.effects (stepped : Stepped) : List Effect :=
   .settle stepped.core.lifecycle stepped.changes stepped.core.detail ::
     stepped.follows.map .follow
 
-/-- Record the instant of a step in its result. -/
 def Stepped.at (stepped : Stepped) (now : Nat) : Stepped :=
   { stepped with core := { stepped.core with last := now } }
 
-/-- What the native actor hands the step: an observation of the world or the operator. -/
 inductive Event where
-  /-- An operator command taken from the bounded queue. -/
   | command (command : Command)
-  /-- The identity the process of this generation reported, held until it is persisted. -/
   | candidate (generation : UInt64) (actual : CoreIdentity)
-  /-- The live child was reaped with this status after this many milliseconds. -/
   | exited (code : UInt32) (uptimeMs : Nat)
-  /-- The readers of the reaped child finished, with what they observed. -/
   | finished (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus)
-  /-- The native wait refused; the slot stays owned. -/
   | refused (reason : String)
-  /-- Nothing else happened. -/
   | tick
-  /-- The operator asked the viewer to close. -/
   | close
 
-/-! ## Reasons -/
-
-/-- The account of an exit status. -/
 def exitReason (code : UInt32) : String :=
   s!"core exited with status {code}" ++
     if code != 0 then
@@ -311,7 +175,6 @@ private def pipeReason (name : String) (result : PipeResult) : String :=
   | .eof => ""
   | .refused reason => s!"; {name} read refused: {controlDiagnostic reason}"
 
-/-- The account of what a reaped child's readers observed. -/
 def outputReason (output : OutputStatus) (stderr : PipeResult) (log : LogStatus) : String :=
   (log.checkpoint.map (fun status => "; " ++ status.line)).getD
     "; final checkpoint status unavailable" ++
@@ -322,8 +185,6 @@ def outputReason (output : OutputStatus) (stderr : PipeResult) (log : LogStatus)
   s!"; stderr log dropped={log.dropped}, oversized={log.oversized}, write failures={log.failures}" ++
   (log.lastFailure.map (fun reason => s!"; last log error: {controlDiagnostic reason}")).getD ""
 
-/-- A termination fails when the status is nonzero, the final save failed, a pipe did not end
-cleanly or the log lost a write. -/
 def terminationFailed (code : UInt32) (output : OutputStatus) (stderr : PipeResult)
     (log : LogStatus) : Bool :=
   let pipesFailed := match output.completion, stderr with
@@ -331,25 +192,18 @@ def terminationFailed (code : UInt32) (output : OutputStatus) (stderr : PipeResu
     | _, _ => true
   code != 0 || log.checkpoint == some .failed || pipesFailed || log.failures != 0
 
-/-- A requested exit stopped the core; an unexpected one schedules a restart while the run
-intends to run, and fails otherwise. -/
 def exitTransition (requested : Bool) (lifecycle : Lifecycle) : ControlTransition :=
   if requested then .coreStopped
   else if lifecycle.desiredValue == .running then .restartScheduled else .failed
 
 namespace Core
 
-/-! ## Transitions -/
-
-/-- Record a transition with its capped reason; a failure is kept for the close report. -/
 def report (core : Core) (transition : ControlTransition) (reason : String) : Core :=
   let reason := controlDiagnostic reason
   { core with
     detail := { core.detail with transition, reason }
     failure := if transition == .failed then some reason else core.failure }
 
-/-- The generation that must receive the stop line after a lifecycle change: the live process
-that the change moved into stopping. -/
 def windUpTarget (slot : Slot) (before after : Lifecycle) : Option UInt64 :=
   match slot with
   | .live generation =>
@@ -358,60 +212,60 @@ def windUpTarget (slot : Slot) (before after : Lifecycle) : Option UInt64 :=
     else none
   | .empty | .draining _ _ _ => none
 
-/-- Move to a lifecycle. A live process that it moves into stopping is sent its stop line
-next, and nothing else is pending. -/
 def moveTo (core : Core) (lifecycle : Lifecycle) : Core :=
   { core with
     lifecycle
     pending := (windUpTarget core.slot core.lifecycle lifecycle).map .windUp }
 
-/-- Stop without saving the intent: the lifecycle stops and a live process winds up. -/
 def stop (core : Core) : Core := core.moveTo (core.lifecycle.request .stop)
 
-/-- Whether the map may be written: the actor holds the run directory and no replacement
-waits to be published. -/
 def mapWritable (core : Core) : Bool := core.owner == .current && core.replacement.isNone
 
-/-- A command's intent could not be saved: the core still winds up, and nothing starts. -/
-def intentFailed (core : Core) (reason : String) : Stepped :=
-  ⟨core.stop.report .failed s!"intent could not be saved; process wind-up requested: {reason}",
-    [], []⟩
+def intentFailed (core : Core) (reason : String) (refuseStop : Bool := false) : Stepped :=
+  ⟨core.stop.report .failed
+    s!"intent write failed (persistence unconfirmed); process wind-up requested: {reason}",
+    [], if refuseStop then [.refuseStop reason] else []⟩
 
-/-- An operator command from the bounded queue. A disabled Clear changes nothing. While a
-replacement waits to be published, Start and Stop revise its intent and Clear is refused.
-Otherwise the command's intent is saved first. -/
 def command (core : Core) (clearDisabled : Option String) (command : Command) : Stepped :=
   if command == .clear && clearDisabled.isSome then ⟨core, [], []⟩
   else match core.replacement with
   | some replacement =>
     if command == .clear then
       ⟨core.report .failed "replacement state publication is pending; Clear refused", [], []⟩
+    else if command == .stop then
+      let next := { replacement with desired := .stopped }
+      match core.owner with
+      | .retired reason => core.intentFailed reason true
+      | .current =>
+        ⟨{ core with
+          replacement := some next
+          pending := some (.replacement next true) }, [], []⟩
     else ⟨{ core with replacement := some { replacement with desired := command.desired } }, [], []⟩
   | none =>
     match core.owner with
-    | .retired reason => core.intentFailed reason
+    | .retired reason => core.intentFailed reason (command == .stop)
     | .current =>
       ⟨{ core with
         pending := some (.intent command { core.persisted with desired := command.desired }) },
         [], []⟩
 
-/-- A command's intent was saved: the lifecycle follows the command. -/
 def intentSaved (core : Core) (command : Command) (state : PersistedState) : Stepped :=
-  let (transition, reason) := match command with
-    | .start => (ControlTransition.startRequested, "operator requested Start")
-    | .stop => (.stopRequested, "operator requested Stop")
-    | .clear => (.clearRequested, "operator requested whole-run Clear")
+  let (transition, reason, follows) := match command with
+    | .start => (ControlTransition.startRequested, "operator requested Start", [])
+    | .stop =>
+      if state.desired == .stopped then
+        (.stopRequested, "operator requested Stop", [.ackStop])
+      else
+        (.stopRequested, "operator requested Stop",
+          [.refuseStop "stop intent did not record stopped"])
+    | .clear => (.clearRequested, "operator requested whole-run Clear", [])
   ⟨({ core with persisted := state }.moveTo (core.lifecycle.request command)).report
-    transition reason, [], []⟩
+    transition reason, [], follows⟩
 
-/-- A checkpoint-selected identity could not be persisted: its output stays held and the
-core winds up. -/
 def adoptFailed (core : Core) (reason : String) : Stepped :=
   ⟨core.stop.report .failed
     s!"core identity could not be persisted; observation release refused: {reason}", [], []⟩
 
-/-- The identity a process reported. An identity beyond the browser's integers is refused with
-the output it holds, and the core winds up; any other is persisted first. -/
 def candidate (core : Core) (generation : UInt64) (actual : CoreIdentity) : Stepped :=
   if !core.lifecycle.ownsIdentity generation then ⟨core, [], []⟩
   else if !actual.identity.browserSafe then
@@ -424,14 +278,12 @@ def candidate (core : Core) (generation : UInt64) (actual : CoreIdentity) : Step
       ⟨{ core with pending := some (.adopt generation actual (core.persisted.adopt actual)) },
         [], []⟩
 
-/-- The persisted identity is installed in the observer next, with this detail. -/
 def adopted (core : Core) (generation : UInt64) (actual : CoreIdentity)
     (state : PersistedState) : Stepped :=
   let detail := { core.detail with
     reason := "core reported the identity selected by checkpoint loading" }
   ⟨{ core with pending := some (.commit generation actual state detail) }, [], []⟩
 
-/-- The identity was installed and its held output released. -/
 def committed (core : Core) (generation : UInt64) (actual : CoreIdentity)
     (state : PersistedState) (detail : ControlDetail) (dropped : Nat) : Stepped :=
   let core := { core with
@@ -443,8 +295,6 @@ def committed (core : Core) (generation : UInt64) (actual : CoreIdentity)
       [], []⟩
   else ⟨core, [], []⟩
 
-/-- The live child was reaped. An exit the supervisor did not ask for consumes the restart
-budget; either way the generation is retired and its readers drain. -/
 def exited (core : Core) (now : Nat) (code : UInt32) (uptime : Nat) : Stepped :=
   match core.slot with
   | .live generation =>
@@ -459,7 +309,6 @@ def exited (core : Core) (now : Nat) (code : UInt32) (uptime : Nat) : Stepped :=
       (exitReason code ++ "; process readers are draining"), [.loseTail], []⟩
   | .empty | .draining _ _ _ => ⟨core, [], []⟩
 
-/-- A closing viewer has closed: its last failure is reported. -/
 def closed (core : Core) : Stepped :=
   match core.closing with
   | .closing failed =>
@@ -467,13 +316,10 @@ def closed (core : Core) : Stepped :=
       (core.failure.map fun reason => [Follow.complain reason]).getD []⟩
   | .open | .closed _ => ⟨core, [], []⟩
 
-/-- A closing viewer with no process persists its map and closes. -/
 def closeOut (core : Core) : Stepped :=
   if core.mapWritable then ⟨{ core with pending := some (.closeMap core.mapRevision) }, [], []⟩
   else core.closed
 
-/-- An exit is reported after its map write: the page hears of an unexpected one, and the
-intent the exit leaves is saved. -/
 def exitReported (core : Core) (report : ExitReport) : Stepped :=
   let core := ({ core with detail := report.detail, failure := report.failure }).report
     report.transition report.reason
@@ -486,9 +332,6 @@ def exitReported (core : Core) (report : ExitReport) : Stepped :=
       pending := some (.exitIntent { core.persisted with desired := core.lifecycle.desiredValue }) },
       [], follows⟩
 
-/-- The readers of the reaped child finished. A serving viewer persists the map, then reports
-the exit; a closing one reports it and closes at a later tick, after the identity the readers
-delivered is attributed. -/
 def finished (core : Core) (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus) :
     Stepped :=
   match core.slot with
@@ -515,7 +358,6 @@ def finished (core : Core) (stdout : OutputStatus) (stderr : PipeResult) (log : 
     | .closed _ => ⟨core, [], []⟩
   | .empty | .live _ => ⟨core, [], []⟩
 
-/-- The native wait or wind-up refused; a closing viewer reports it when it closes. -/
 def refused (core : Core) (reason : String) : Stepped :=
   match core.closing with
   | .open => ⟨core.report .failed reason, [], []⟩
@@ -524,8 +366,6 @@ def refused (core : Core) (reason : String) : Stepped :=
       [.complain s!"retaining process ownership: {reason}"]⟩
   | .closed _ => ⟨core, [], []⟩
 
-/-- Launch when the lifecycle admits a reservation now and nothing else owns the run: the
-attempted launch is saved first. -/
 def launchCheck (core : Core) (now : Nat) : Stepped :=
   if core.replacement.isNone && core.slot == .empty && core.closing == .open then
     match core.lifecycle.reserve (clockWord now) with
@@ -543,13 +383,11 @@ def launchCheck (core : Core) (now : Nat) : Stepped :=
             [], []⟩
   else ⟨core, [], []⟩
 
-/-- Persist the map when it is due, then consider a launch. -/
 def mapOrLaunch (core : Core) (now : Nat) : Stepped :=
   if core.mapWritable && decide (mapInterval ≤ now - core.mapAt) then
     ⟨{ core with mapAt := now, pending := some (.map core.mapRevision) }, [], []⟩
   else core.launchCheck now
 
-/-- Clear, once the process is reaped and its readers finished: a fresh seed comes first. -/
 def clear (core : Core) (intended : Desired) : Stepped :=
   if core.persisted.identity.agentEpoch.toNat ≥ browserIntegerMax then
     ⟨core.stop.report .failed "Clear refused: logical agent epoch exhausted", [], []⟩
@@ -557,9 +395,6 @@ def clear (core : Core) (intended : Desired) : Stepped :=
     | .current => ⟨{ core with pending := some (.seed intended) }, [], []⟩
     | .retired _ => ⟨core, [], []⟩
 
-/-- Nothing else happened: publish a replacement that waits, or go on with a Clear the reaped
-process admits, or persist the map and consider a launch. A closing viewer with no process
-closes. -/
 def tick (core : Core) (now : Nat) : Stepped :=
   match core.closing with
   | .open =>
@@ -578,8 +413,6 @@ def tick (core : Core) (now : Nat) : Stepped :=
     | .live _ | .draining _ _ _ => ⟨core, [], []⟩
   | .closed _ => ⟨core, [], []⟩
 
-/-- The operator closes the viewer: the core winds up without the intent being saved, and the
-viewer closes once it is reaped. -/
 def close (core : Core) : Stepped :=
   match core.closing with
   | .open =>
@@ -592,9 +425,6 @@ def close (core : Core) : Stepped :=
     else ⟨core, [], follows⟩
   | .closing _ | .closed _ => ⟨core, [], []⟩
 
-/-- A Clear's fresh seed arrived: a seed beyond the browser's integers refuses the Clear, and
-any other names the replacement identity, the next run with the next agent epoch, and the
-archival begins. -/
 def seeded (core : Core) (now : Nat) (intended : Desired) (seed : UInt64) : Stepped :=
   if seed.toNat > browserIntegerMax then
     ⟨core.stop.report .failed
@@ -609,8 +439,6 @@ def seeded (core : Core) (now : Nat) (intended : Desired) (seed : UInt64) : Step
         .archiving "archiving the complete run directory", [], []⟩
     | _, _ => ⟨core, [], []⟩
 
-/-- The replacement state was published: the new identity is installed, with the intent the
-operator last chose, and the page is told. -/
 def replaced (core : Core) (state : PersistedState) : Stepped :=
   let lifecycle := core.lifecycle.replacementIntent state.desired
   match lifecycle.archived state.identity with
@@ -623,14 +451,12 @@ def replaced (core : Core) (state : PersistedState) : Stepped :=
   | none => ⟨({ core with lifecycle }).report .failed "replacement identity could not be installed",
       [], []⟩
 
-/-- How a retired run directory is named in the failures it causes. -/
 def retiredReason (archive : System.FilePath) : String :=
   s!"the run directory moved to {archive} and no replacement directory is owned"
 
-/-- The outcome of the pending call, from a state with nothing pending. -/
 def resolve (core : Core) (now : Nat) :
     (pending : Pending) → (pending.call core.lifecycle).Result → Stepped
-  | .intent _ _, .error reason => core.intentFailed reason
+  | .intent command _, .error reason => core.intentFailed reason (command == .stop)
   | .intent command state, .ok () => core.intentSaved command state
   | .launch _ _, .error reason =>
     ⟨core.stop.report .failed s!"launch intent publication failed: {reason}", [], []⟩
@@ -692,15 +518,19 @@ def resolve (core : Core) (now : Nat) :
   | .reopen identity intended _, .ok () =>
     let state : PersistedState := ⟨identity, intended, .cleared, false⟩
     ⟨{ core with replacement := some state, pending := some (.replacement state) }, [], []⟩
-  | .replacement _, .error reason =>
-    ⟨core.report .failed s!"old run archived; replacement state not published: {reason}", [], []⟩
-  | .replacement state, .ok () => core.replaced state
+  | .replacement _ ackStop, .error reason =>
+    ⟨core.report .failed
+      s!"old run archived; replacement state write failed (publication unconfirmed): {reason}", [],
+      if ackStop then [.refuseStop reason] else []⟩
+  | .replacement state ackStop, .ok () =>
+    let stepped := core.replaced state
+    if ackStop then
+      if state.desired == .stopped then
+        { stepped with follows := stepped.follows ++ [.ackStop] }
+      else
+        { stepped with follows := stepped.follows ++ [.refuseStop "stop intent did not record stopped"] }
+    else stepped
 
-/-! ## The step -/
-
-/-- The state the viewer starts from, after the bootstrap published `persisted`: no process,
-nothing pending, the lifecycle of the durable identity and intent, and the reason the page is
-shown first. -/
 def start (persisted : PersistedState) (clearDisabled : Option String) (reason : String)
     (reading : Nat) : Core where
   lifecycle := .initial persisted.identity persisted.desired
@@ -716,21 +546,23 @@ def start (persisted : PersistedState) (clearDisabled : Option String) (reason :
   last := reading
   pending := none
 
-/-- The instant of a step at a reading of the clock: the reading, or the instant of the last
-step when the reading is before it. -/
 def instant (core : Core) (reading : Nat) : Nat := max core.last reading
 
-/-- The step of an event, before the instant is recorded. A state that waits for a call's
-outcome takes no event; a closed viewer takes none; a closing one takes no command. -/
+def stopRefusalFollow (reason : String) : Event → List Follow
+  | .command .stop => [.refuseStop reason]
+  | .command _ | .candidate _ _ | .exited _ _ | .finished _ _ _ | .refused _ | .tick | .close =>
+    []
+
 def dispatch (core : Core) (clearDisabled : Option String) (now : Nat) (event : Event) :
     Stepped :=
   match core.pending with
-  | some _ => ⟨core, [], []⟩
+  | some _ => ⟨core, [], stopRefusalFollow "supervisor is busy with another operation" event⟩
   | none =>
     match core.closing, event with
-    | .closed _, _ => ⟨core, [], []⟩
+    | .closed _, event => ⟨core, [], stopRefusalFollow "viewer is closed" event⟩
     | .open, .command command => core.command clearDisabled command
-    | .closing _, .command _ => ⟨core, [], []⟩
+    | .closing _, .command command =>
+      ⟨core, [], if command == .stop then [.refuseStop "viewer is closing"] else []⟩
     | _, .candidate generation actual => core.candidate generation actual
     | _, .exited code uptime => core.exited now code uptime
     | _, .finished stdout stderr log => core.finished stdout stderr log
@@ -738,12 +570,9 @@ def dispatch (core : Core) (clearDisabled : Option String) (now : Nat) (event : 
     | _, .tick => core.tick now
     | _, .close => core.close
 
-/-- One step on an event at a reading of the clock, at the instant `Core.instant` gives. -/
 def step (core : Core) (clearDisabled : Option String) (reading : Nat) (event : Event) : Stepped :=
   (core.dispatch clearDisabled (core.instant reading) event).at (core.instant reading)
 
-/-- The outcome of the pending call at a reading of the clock, at the instant `Core.instant`
-gives. -/
 def resume (core : Core) (reading : Nat) (pending : Pending)
     (result : (pending.call core.lifecycle).Result) : Stepped :=
   ({ core with pending := none }.resolve (core.instant reading) pending result).at
@@ -751,54 +580,36 @@ def resume (core : Core) (reading : Nat) (pending : Pending)
 
 end Core
 
-/-! ## A run -/
-
-/-- A state is reached from a start by steps and call outcomes, for a Clear configuration. -/
 inductive Ran (clearDisabled : Option String) : Core → Prop where
-  /-- The viewer starts from a published durable state. -/
   | start (persisted : PersistedState) (reason : String) (reading : Nat) :
       Ran clearDisabled (Core.start persisted clearDisabled reason reading)
-  /-- A step on an event. -/
   | step {core : Core} (ran : Ran clearDisabled core) (reading : Nat) (event : Event) :
       Ran clearDisabled (core.step clearDisabled reading event).core
-  /-- The outcome of the call the state waits for. -/
   | resume {core : Core} {pending : Pending} (ran : Ran clearDisabled core)
       (waiting : core.pending = some pending) (reading : Nat)
       (result : (pending.call core.lifecycle).Result) :
       Ran clearDisabled (core.resume reading pending result).core
 
-/-- A supervision: its state, with a derivation from its start for its Clear configuration.
-Every value is reached by `Supervision.start`, `Supervision.step` and `Supervision.resume`. -/
 structure Supervision (clearDisabled : Option String) where
-  /-- The state. -/
   core : Core
-  /-- The state is reached from a start. -/
   reached : Ran clearDisabled core
 
-/-- A supervision at its start, with the effects that publish its first control record. -/
 def Supervision.start (clearDisabled : Option String) (persisted : PersistedState)
     (reason : String) (reading : Nat) : Supervision clearDisabled × List Effect :=
   let core := Core.start persisted clearDisabled reason reading
   (⟨core, .start persisted reason reading⟩, ({ core } : Stepped).effects)
 
-/-- One step on an event, with its effects. -/
 def Supervision.step {clearDisabled : Option String} (supervision : Supervision clearDisabled)
     (reading : Nat) (event : Event) : Supervision clearDisabled × List Effect :=
   let stepped := supervision.core.step clearDisabled reading event
   (⟨stepped.core, .step supervision.reached reading event⟩, stepped.effects)
 
-/-- The outcome of the pending call, with its effects. -/
 def Supervision.resume {clearDisabled : Option String} (supervision : Supervision clearDisabled)
     {pending : Pending} (waiting : supervision.core.pending = some pending) (reading : Nat)
     (result : (pending.call supervision.core.lifecycle).Result) :
     Supervision clearDisabled × List Effect :=
   let stepped := supervision.core.resume reading pending result
   (⟨stepped.core, .resume supervision.reached waiting reading result⟩, stepped.effects)
-
-/-! ## What the step guarantees
-
-The theorems below are about `Core.step` and `Core.resume`, the functions the actor runs, over
-every state a run reaches (`Ran`). -/
 
 namespace Core
 
@@ -840,25 +651,18 @@ theorem stop_eq (core : Core) : core.stop = core.moveTo (core.lifecycle.request 
 
 end Core
 
-/-- What every reached state holds. -/
 structure Core.Invariant (clearDisabled : Option String) (core : Core) : Prop where
-  /-- Nothing acts on a retired run directory. -/
   retired : ∀ pending, core.pending = some pending → pending.writes = true →
     core.owner = .current
-  /-- With Clear disabled, no Clear is pending or under way. -/
   clearless : clearDisabled.isSome = true → core.lifecycle.Clearless ∧
     core.replacement = none ∧ ∀ pending, core.pending = some pending → pending.clears = false
-  /-- A closing viewer starts nothing. -/
   closing : core.closing ≠ .open → ∀ pending, core.pending = some pending →
     pending.serves = false
-  /-- An attempted launch is saved with the launch's own identity. -/
   launch : ∀ state plan, core.pending = some (.launch state plan) →
     state.processStarted = true ∧ state.identity = plan.identity
-  /-- A spawn waits on a published state that records the attempted launch of its plan. -/
   spawn : ∀ generation plan, core.pending = some (.spawn generation plan) →
     core.persisted.processStarted = true ∧ core.persisted.identity = plan.identity
 
-/-- An admitted launch names the identity of the state it was prepared from. -/
 theorem PersistedState.launch_identity (state : PersistedState) (plan : CoreLaunch)
     (admitted : state.launch = .ok plan) : plan.identity = state.identity := by
   unfold PersistedState.launch at admitted
@@ -867,216 +671,417 @@ theorem PersistedState.launch_identity (state : PersistedState) (plan : CoreLaun
     simp_all [bind, Except.bind, pure, Except.pure]
   all_goals (subst admitted; rfl)
 
-/-- **The instants of a supervision do not go back.** For every state and reading of the
-clock, the instant of the step is not before the instant of the last step, and it is the
-reading when the reading is not before it. -/
 theorem Core.instant_later (core : Core) (reading : Nat) :
     core.last ≤ core.instant reading ∧ (core.last ≤ reading → core.instant reading = reading) :=
   ⟨Nat.le_max_left _ _, fun later => Nat.max_eq_right later⟩
 
-/-- A step records its instant. -/
 theorem Core.step_last (core : Core) (clearDisabled : Option String) (reading : Nat)
     (event : Event) : (core.step clearDisabled reading event).core.last = core.instant reading :=
   rfl
 
-/-- An outcome records its instant. -/
 theorem Core.resume_last (core : Core) (reading : Nat) (pending : Pending)
     (result : (pending.call core.lifecycle).Result) :
     (core.resume reading pending result).core.last = core.instant reading := rfl
 
-/-- **Every result settles its own state first.** The effects of every result begin with the
-installation of its lifecycle, with its observer changes, and the publication of its control
-record from that lifecycle and its detail; everything after them is a notice, a reader start
-or a terminal line. -/
 theorem Stepped.effects_settle (stepped : Stepped) :
     stepped.effects = .settle stepped.core.lifecycle stepped.changes stepped.core.detail ::
       stepped.follows.map .follow := rfl
 
-
 namespace Core
 
-/-- The derived comparison of commands is equality. -/
 theorem command_beq (left right : Command) : (left == right) = decide (left = right) := by
   cases left <;> cases right <;> rfl
 
-/-- The derived comparison of intents is equality. -/
 theorem desired_beq (left right : Desired) : (left == right) = decide (left = right) := by
   cases left <;> cases right <;> rfl
 
-/-- The derived comparison of phases is equality. -/
 theorem phase_beq (left right : Phase) : (left == right) = decide (left = right) := by
   cases left <;> cases right <;> first
     | rfl
     | (rename_i first second; show (first == second) = _; rw [Bool.eq_iff_iff]; simp)
 
-/-- A property of every value of an optional mapped value is one of every value it maps. -/
 private theorem forall_map_some {α β : Type} (f : α → β) (value : Option α) (property : β → Prop) :
     (∀ mapped, value.map f = some mapped → property mapped) ↔
       ∀ inner, value = some inner → property (f inner) := by
   cases value <;> simp
 
+theorem cleared_invariant (core : Core) (clearDisabled : Option String)
+    (invariant : core.Invariant clearDisabled) :
+    ({ core with pending := none } : Core).Invariant clearDisabled :=
+  ⟨fun _ h => (by cases h),
+   fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, fun _ h => (by cases h)⟩,
+   fun _ _ h => (by cases h),
+   fun _ _ h => (by cases h),
+   fun _ _ h => (by cases h)⟩
+
+private theorem Invariant.report {clearDisabled : Option String} {core : Core}
+    (invariant : core.Invariant clearDisabled) (transition : ControlTransition) (reason : String) :
+    (core.report transition reason).Invariant clearDisabled :=
+  ⟨invariant.retired, invariant.clearless, invariant.closing, invariant.launch, invariant.spawn⟩
+
+private theorem Invariant.of_none {clearDisabled : Option String} {core : Core}
+    (hp : core.pending = none)
+    (hcl : clearDisabled.isSome = true → core.lifecycle.Clearless ∧ core.replacement = none) :
+    core.Invariant clearDisabled :=
+  ⟨fun _ h => (by rw [hp] at h; cases h),
+   fun hc => ⟨(hcl hc).1, (hcl hc).2, fun _ h => (by rw [hp] at h; cases h)⟩,
+   fun _ _ h => (by rw [hp] at h; cases h),
+   fun _ _ h => (by rw [hp] at h; cases h),
+   fun _ _ h => (by rw [hp] at h; cases h)⟩
+
+private theorem Invariant.of_some {clearDisabled : Option String} {core : Core} {p : Pending}
+    (hp : core.pending = some p)
+    (hret : p.writes = true → core.owner = .current)
+    (hcl : clearDisabled.isSome = true →
+      core.lifecycle.Clearless ∧ core.replacement = none ∧ p.clears = false)
+    (hcls : core.closing ≠ .open → p.serves = false)
+    (hlch : ∀ s pl, p = .launch s pl → s.processStarted = true ∧ s.identity = pl.identity)
+    (hspn : ∀ g pl, p = .spawn g pl →
+      core.persisted.processStarted = true ∧ core.persisted.identity = pl.identity) :
+    core.Invariant clearDisabled :=
+  ⟨fun q hq hw => (by rw [hp] at hq; cases Option.some.inj hq; exact hret hw),
+   fun hc => ⟨(hcl hc).1, (hcl hc).2.1, fun q hq =>
+     (by rw [hp] at hq; cases Option.some.inj hq; exact (hcl hc).2.2)⟩,
+   fun hcl' q hq => (by rw [hp] at hq; cases Option.some.inj hq; exact hcls hcl'),
+   fun s pl hq => (by rw [hp] at hq; exact hlch s pl (Option.some.inj hq)),
+   fun g pl hq => (by rw [hp] at hq; exact hspn g pl (Option.some.inj hq))⟩
+
+private theorem Invariant.moveTo {clearDisabled : Option String} {core : Core}
+    (invariant : core.Invariant clearDisabled) {lifecycle : Lifecycle}
+    (hcl : clearDisabled.isSome = true → lifecycle.Clearless) :
+    (core.moveTo lifecycle).Invariant clearDisabled := by
+  cases hw : windUpTarget core.slot core.lifecycle lifecycle with
+  | none =>
+    exact Invariant.of_none (by simp only [Core.moveTo, hw]; rfl)
+      fun hc => ⟨hcl hc, (invariant.clearless hc).2.1⟩
+  | some gen =>
+    exact Invariant.of_some (p := .windUp gen) (by simp only [Core.moveTo, hw]; rfl)
+      (fun h => by cases h)
+      (fun hc => ⟨hcl hc, (invariant.clearless hc).2.1, rfl⟩)
+      (fun _ => rfl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
+
+private theorem Invariant.stop {clearDisabled : Option String} {core : Core}
+    (invariant : core.Invariant clearDisabled) :
+    core.stop.Invariant clearDisabled :=
+  invariant.moveTo fun hc => Lifecycle.request_clearless _ .stop (by decide) (invariant.clearless hc).1
+
+private theorem Invariant.withPersisted {clearDisabled : Option String} {core : Core}
+    (invariant : core.Invariant clearDisabled) (ready : core.pending = none)
+    (state : PersistedState) :
+    ({ core with persisted := state } : Core).Invariant clearDisabled :=
+  Invariant.of_none ready fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+
+private theorem mapWritable_eq {core : Core} (h : core.mapWritable = true) :
+    core.owner = .current ∧ core.replacement = none := by
+  unfold Core.mapWritable at h
+  simp only [Bool.and_eq_true, beq_iff_eq, Option.isNone_iff_eq_none] at h
+  exact h
+
 theorem command_invariant (core : Core) (clearDisabled : Option String) (command : Command)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none)
     (serving : core.closing = .open) :
     (core.command clearDisabled command).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    unfold Core.command Core.intentFailed <;> cases command <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+  unfold Core.command
+  split
+  · exact invariant
+  · rename_i hdis
+    cases hrep : core.replacement with
+    | some replacement =>
+      dsimp only
+      split
+      · exact invariant.report _ _
+      · split
+        · cases hown : core.owner with
+          | retired reason => exact invariant.stop.report _ _
+          | current =>
+            dsimp only
+            exact Invariant.of_some
+              (p := .replacement { replacement with desired := .stopped } true)
+              rfl
+              (fun _ => rfl)
+              (fun hc => by
+                have := (invariant.clearless hc).2.1
+                rw [hrep] at this; cases this)
+              (fun hcl => absurd serving hcl)
+              (fun _ _ h => by cases h)
+              (fun _ _ h => by cases h)
+        · exact Invariant.of_none ready fun hc => by
+            have := (invariant.clearless hc).2.1
+            rw [hrep] at this; cases this
+    | none =>
+      dsimp only
+      cases hown : core.owner with
+      | retired reason => exact invariant.stop.report _ _
+      | current =>
+        dsimp only
+        exact Invariant.of_some
+          (p := .intent command { core.persisted with desired := command.desired })
+          rfl
+          (fun _ => rfl)
+          (fun hc => ⟨(invariant.clearless hc).1, rfl, by
+            simp only [Pending.clears]
+            cases command <;> simp_all [command_beq]⟩)
+          (fun hcl => absurd serving hcl)
+          (fun _ _ h => by cases h)
+          (fun _ _ h => by cases h)
 
 theorem candidate_invariant (core : Core) (clearDisabled : Option String) (generation : UInt64)
     (actual : CoreIdentity) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) :
     (core.candidate generation actual).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.candidate, Core.adoptFailed] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+  let _ := ready
+  unfold Core.candidate
+  split
+  · exact invariant
+  · split
+    · exact invariant.stop.report _ _
+    · cases core.owner with
+      | retired reason => exact invariant.stop.report _ _
+      | current =>
+        dsimp only
+        exact Invariant.of_some (p := .adopt generation actual (core.persisted.adopt actual)) rfl
+          (fun _ => rfl)
+          (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+          (fun _ => rfl)
+          (fun _ _ h => by cases h)
+          (fun _ _ h => by cases h)
 
 theorem exited_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (code : UInt32) (uptime : Nat) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) :
     (core.exited now code uptime).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.exited] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, phase_beq,
-        Pending.writes, Pending.clears, Pending.serves, Lifecycle.failed_clearless, Lifecycle.retire_clearless])
+  unfold Core.exited
+  cases core.slot with
+  | empty | draining _ _ _ => exact invariant
+  | live generation =>
+    dsimp only
+    apply Invariant.report
+    refine Invariant.of_none ready fun hc => ⟨?_, (invariant.clearless hc).2.1⟩
+    apply Lifecycle.retire_clearless
+    split
+    · exact (invariant.clearless hc).1
+    · exact Lifecycle.failed_clearless _ _ _ _ (invariant.clearless hc).1
 
 theorem refused_invariant (core : Core) (clearDisabled : Option String) (reason : String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.refused reason).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.refused] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Pending.writes, Pending.clears, Pending.serves])
+  unfold Core.refused
+  cases core.closing with
+  | «open» => exact invariant.report _ _
+  | closed _ => exact invariant
+  | closing _ =>
+    exact Invariant.of_none ready fun hc =>
+      ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
 
 theorem closed_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.closed.core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.closed] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Pending.writes, Pending.clears, Pending.serves])
+  unfold Core.closed
+  cases core.closing with
+  | «open» | closed _ => exact invariant
+  | closing _ =>
+    exact Invariant.of_none ready fun hc =>
+      ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
 
 theorem exitReported_invariant (core : Core) (clearDisabled : Option String)
     (report : ExitReport) (invariant : core.Invariant clearDisabled)
     (ready : core.pending = none) (serving : core.closing = .open) :
     (core.exitReported report).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.exitReported] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
+  unfold Core.exitReported
+  dsimp only
+  cases core.owner with
+  | retired reason =>
+    apply Invariant.report
+    apply Invariant.report
+    exact Invariant.of_none ready fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+  | current =>
+    exact Invariant.of_some
+      (p := .exitIntent { core.persisted with desired := core.lifecycle.desiredValue }) rfl
+      (fun _ => rfl)
+      (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+      (fun hcl => absurd serving hcl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem closeOut_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.closeOut.core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.closed, Core.closeOut] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable])
+  unfold Core.closeOut
+  cases hmw : core.mapWritable with
+  | false => exact core.closed_invariant clearDisabled invariant ready
+  | true =>
+    obtain ⟨hown, _⟩ := mapWritable_eq hmw
+    exact Invariant.of_some (p := .closeMap core.mapRevision) rfl
+      (fun _ => hown)
+      (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+      (fun _ => rfl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem finished_invariant (core : Core) (clearDisabled : Option String)
     (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.finished stdout stderr log).core.Invariant clearDisabled := by
-  simp only [Core.finished]
-  split
-  · split
-    · split
-      · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-          (
-            (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-            (try have := PersistedState.launch_identity _ _ (by assumption))
-            refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-              simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable])
-      · exact Core.exitReported_invariant _ clearDisabled _
-          (by obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-                invariant <;> (
-                  (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-                  (try have := PersistedState.launch_identity _ _ (by assumption))
-                  refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-                    simp_all [Pending.writes, Pending.clears, Pending.serves, Core.mapWritable]))
-          ready (by assumption)
-    · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-        (
-          (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-          (try have := PersistedState.launch_identity _ _ (by assumption))
-          refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-            simp_all [Core.report, Pending.writes, Pending.clears, Pending.serves])
-    · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-        (
-          (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-          (try have := PersistedState.launch_identity _ _ (by assumption))
-          refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-            simp_all [Pending.writes, Pending.clears, Pending.serves])
-  · exact invariant
-  · exact invariant
+  unfold Core.finished
+  cases core.slot with
+  | empty | live _ => exact invariant
+  | draining generation code requested =>
+    dsimp only
+    cases hcls : core.closing with
+    | closed _ =>
+      exact Invariant.of_none ready fun hc =>
+        ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+    | closing before =>
+      dsimp only
+      apply Invariant.report
+      exact Invariant.of_none ready fun hc =>
+        ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+    | «open» =>
+      dsimp only
+      split
+      · rename_i hmw
+        obtain ⟨hown, _⟩ := mapWritable_eq hmw
+        exact Invariant.of_some (p := .exitMap _ core.mapRevision) rfl
+          (fun _ => hown)
+          (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+          (fun hcl => absurd rfl hcl)
+          (fun _ _ h => by cases h)
+          (fun _ _ h => by cases h)
+      · have hslot : ({ core with slot := .empty, closing := .open } : Core).Invariant
+            clearDisabled :=
+          Invariant.of_none (core := { core with slot := .empty, closing := .open }) ready fun hc =>
+            ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+        exact Core.exitReported_invariant { core with slot := .empty, closing := .open }
+          clearDisabled _ hslot ready rfl
 
 theorem launchCheck_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.launchCheck now).core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.launchCheck] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+  let _ := ready
+  unfold Core.launchCheck
+  cases hcond : (core.replacement.isNone && (core.slot == .empty) && (core.closing == .open)) with
+  | false => exact invariant
+  | true =>
+    dsimp only
+    have hopen : core.closing = .open := by
+      simp only [Bool.and_eq_true, beq_iff_eq] at hcond
+      exact hcond.2
+    cases core.lifecycle.reserve (clockWord now) with
+    | none => exact invariant
+    | some _ =>
+      dsimp only
+      cases hlch : core.persisted.launch with
+      | error _ => exact invariant.stop.report _ _
+      | ok launch =>
+        dsimp only
+        cases core.owner with
+        | retired _ => exact invariant.stop.report _ _
+        | current =>
+          dsimp only
+          exact Invariant.of_some
+            (p := .launch { core.persisted with processStarted := true } launch) rfl
+            (fun _ => rfl)
+            (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+            (fun hcl => absurd hopen hcl)
+            (fun s pl h => by
+              cases h
+              exact ⟨rfl, (PersistedState.launch_identity _ _ hlch).symm⟩)
+            (fun _ _ h => by cases h)
+
+private theorem mapOrLaunch_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
+    (invariant : core.Invariant clearDisabled) (ready : core.pending = none)
+    (serving : core.closing = .open) :
+    (core.mapOrLaunch now).core.Invariant clearDisabled := by
+  unfold Core.mapOrLaunch
+  cases hcond : (core.mapWritable && decide (mapInterval ≤ now - core.mapAt)) with
+  | false => exact core.launchCheck_invariant clearDisabled now invariant ready
+  | true =>
+    have hmw : core.mapWritable = true := (Bool.and_eq_true _ _).mp hcond |>.1
+    obtain ⟨hown, _⟩ := mapWritable_eq hmw
+    exact Invariant.of_some (p := .map core.mapRevision) rfl
+      (fun _ => hown)
+      (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+      (fun hcl => absurd serving hcl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem tick_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     (core.tick now).core.Invariant clearDisabled := by
   unfold Core.tick
-  split
-  · obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-      simp only [Core.launchCheck, Core.mapOrLaunch, Core.clear] <;> repeat' split
-    all_goals (
-      (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-      (try have := PersistedState.launch_identity _ _ (by assumption))
-      refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-        simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable,
-          Lifecycle.request_clearless, Lifecycle.clearless_archiveIntent])
-  · cases core.slot with
+  cases hcls : core.closing with
+  | closed _ => exact invariant
+  | closing _ =>
+    cases core.slot with
     | empty => exact core.closeOut_invariant clearDisabled invariant ready
     | live _ | draining _ _ _ => exact invariant
-  · exact invariant
+  | «open» =>
+    dsimp only
+    cases hrep : core.replacement with
+    | some state =>
+      dsimp only
+      cases core.owner with
+      | retired _ => exact invariant
+      | current =>
+        dsimp only
+        exact Invariant.of_some (p := .replacement state) rfl
+          (fun _ => rfl)
+          (fun hc => by have := (invariant.clearless hc).2.1; rw [hrep] at this; cases this)
+          (fun hcl => absurd rfl hcl)
+          (fun _ _ h => by cases h)
+          (fun _ _ h => by cases h)
+    | none =>
+      dsimp only
+      cases harch : core.lifecycle.archiveIntent with
+      | none => exact core.mapOrLaunch_invariant clearDisabled now invariant ready hcls
+      | some intended =>
+        cases core.slot with
+        | live _ | draining _ _ _ =>
+          exact core.mapOrLaunch_invariant clearDisabled now invariant ready hcls
+        | empty =>
+          dsimp only
+          unfold Core.clear
+          split
+          · exact invariant.stop.report _ _
+          · cases core.owner with
+            | retired _ => exact invariant
+            | current =>
+              dsimp only
+              exact Invariant.of_some (p := .seed intended) rfl
+                (fun _ => rfl)
+                (fun hc => by
+                  have := Lifecycle.clearless_archiveIntent _ (invariant.clearless hc).1
+                  rw [harch] at this; cases this)
+                (fun hcl => absurd hcls hcl)
+                (fun _ _ h => by cases h)
+                (fun _ _ h => by cases h)
 
 theorem close_invariant (core : Core) (clearDisabled : Option String)
     (invariant : core.Invariant clearDisabled) (ready : core.pending = none) :
     core.close.core.Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    simp only [Core.closed, Core.closeOut,
-      Core.close] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Core.mapWritable,
-        Lifecycle.request_clearless])
+  unfold Core.close
+  cases core.closing with
+  | closing _ | closed _ => exact invariant
+  | «open» =>
+    dsimp only
+    have hstop : (({ core with closing := .closing core.failure.isSome }.stop).report
+        .stopRequested "viewer closing; finishing the current attempt and checkpoint").Invariant
+        clearDisabled :=
+      ((Invariant.of_none (core := { core with closing := .closing core.failure.isSome }) ready
+        fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩).stop).report _ _
+    split
+    · rename_i hemp
+      have hemp' : core.slot = .empty := by
+        simpa [Core.report, Core.stop, Core.moveTo] using hemp
+      have hpend : (({ core with closing := .closing core.failure.isSome }.stop).report
+          .stopRequested
+          "viewer closing; finishing the current attempt and checkpoint").pending = none := by
+        simp [Core.report, Core.stop, Core.moveTo, windUpTarget, hemp']
+      exact Core.closeOut_invariant _ clearDisabled hstop hpend
+    · exact hstop
 
-/-- A state that waits for a call that only a serving viewer makes is serving. -/
 theorem Invariant.serving {clearDisabled : Option String} {core : Core} {pending : Pending}
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some pending)
     (serves : pending.serves = true) : core.closing = .open := by
@@ -1084,152 +1089,242 @@ theorem Invariant.serving {clearDisabled : Option String} {core : Core} {pending
   | «open» => rfl
   | closing failed =>
     have refused := invariant.closing (by simp [closing]) pending waiting
-    simp_all
+    rw [serves] at refused; cases refused
   | closed failed =>
     have refused := invariant.closing (by simp [closing]) pending waiting
-    simp_all
+    rw [serves] at refused; cases refused
 
 theorem resolve_intent_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (command : Command) (state : PersistedState)
     (result : ((Pending.intent command state).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.intent command state)) :
-    ({ core with pending := none }.resolve now (.intent command state) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.intentFailed,
-      Core.intentSaved] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.intent command state)) :
+    ({ core with pending := none }.resolve now (.intent command state) result).core.Invariant
+      clearDisabled := by
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact base.stop.report _ _
+  | ok _ =>
+    simp only [Core.resolve, Core.intentSaved]
+    apply Invariant.report
+    refine (base.withPersisted rfl state).moveTo fun hc => ?_
+    have hnotClear : command ≠ .clear := by
+      have hcl := (invariant.clearless hc).2.2 _ waiting
+      intro h; subst h; cases hcl
+    exact Lifecycle.request_clearless _ command hnotClear (invariant.clearless hc).1
 
 theorem resolve_launch_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (state : PersistedState) (plan : CoreLaunch)
     (result : ((Pending.launch state plan).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.launch state plan)) :
-    ({ core with pending := none }.resolve now (.launch state plan) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.launch state plan)) :
+    ({ core with pending := none }.resolve now (.launch state plan) result).core.Invariant
+      clearDisabled := by
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact base.stop.report _ _
+  | ok _ =>
+    simp only [Core.resolve]
+    cases hres : core.lifecycle.reserve (clockWord now) with
+    | none => exact base.withPersisted rfl state
+    | some pair =>
+      obtain ⟨generation, lifecycle⟩ := pair
+      have hserving := invariant.serving waiting rfl
+      have hlaunch := invariant.launch state plan waiting
+      exact Invariant.of_some (p := .spawn generation plan) rfl
+        (fun h => by cases h)
+        (fun hc => ⟨Lifecycle.reserve_clearless _ _ _ _ hres (invariant.clearless hc).1,
+          (invariant.clearless hc).2.1, rfl⟩)
+        (fun hcl => absurd hserving hcl)
+        (fun _ _ h => by cases h)
+        (fun _ _ h => by cases h; exact hlaunch)
 
 theorem resolve_spawn_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (plan : CoreLaunch)
     (result : ((Pending.spawn generation plan).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.spawn generation plan)) :
-    ({ core with pending := none }.resolve now (.spawn generation plan) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.started_clearless, Lifecycle.failed_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.spawn generation plan)) :
+    ({ core with pending := none }.resolve now (.spawn generation plan) result).core.Invariant
+      clearDisabled := by
+  let _ := waiting
+  cases result with
+  | error _ =>
+    simp only [Core.resolve]
+    apply Invariant.report
+    exact Invariant.of_none rfl fun hc =>
+      ⟨Lifecycle.failed_clearless _ _ _ _ (invariant.clearless hc).1,
+        (invariant.clearless hc).2.1⟩
+  | ok _ =>
+    simp only [Core.resolve]
+    apply Invariant.report
+    have hcore : ({ core with
+        pending := none, slot := .live generation, failure := none,
+        detail := { core.detail with log := {}, abnormalExit := false } } : Core).Invariant
+        clearDisabled :=
+      Invariant.of_none rfl fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1⟩
+    exact hcore.moveTo fun hc =>
+      Lifecycle.started_clearless _ _ (invariant.clearless hc).1
 
 theorem resolve_adopt_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (actual : CoreIdentity) (state : PersistedState)
     (result : ((Pending.adopt generation actual state).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.adopt generation actual state)) :
-    ({ core with pending := none }.resolve now (.adopt generation actual state) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.adoptFailed, Core.adopted] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.adopt generation actual state)) :
+    ({ core with pending := none }.resolve now (.adopt generation actual state) result).core.Invariant
+      clearDisabled := by
+  let _ := waiting
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact base.stop.report _ _
+  | ok _ =>
+    simp only [Core.resolve, Core.adopted]
+    exact Invariant.of_some (p := .commit generation actual state _) rfl
+      (fun h => by cases h)
+      (fun hc => ⟨(invariant.clearless hc).1, (invariant.clearless hc).2.1, rfl⟩)
+      (fun _ => rfl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem resolve_commit_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (actual : CoreIdentity) (state : PersistedState) (detail : ControlDetail)
     (result : ((Pending.commit generation actual state detail).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.commit generation actual state detail)) :
-    ({ core with pending := none }.resolve now (.commit generation actual state detail) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.committed] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves, Lifecycle.request_clearless, Lifecycle.adoptFinalIdentity_clearless])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.commit generation actual state detail)) :
+    ({ core with pending := none }.resolve now (.commit generation actual state detail)
+        result).core.Invariant clearDisabled := by
+  let _ := waiting
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact (base.withPersisted rfl state).stop.report _ _
+  | ok dropped =>
+    simp only [Core.resolve, Core.committed]
+    have hcore : ({ core with
+        pending := none, persisted := state, detail := detail,
+        lifecycle := core.lifecycle.adoptFinalIdentity generation actual.identity } :
+        Core).Invariant clearDisabled :=
+      Invariant.of_none rfl fun hc =>
+        ⟨Lifecycle.adoptFinalIdentity_clearless _ _ _ (invariant.clearless hc).1,
+          (invariant.clearless hc).2.1⟩
+    split
+    · exact hcore.report _ _
+    · exact hcore
 
 theorem resolve_exitIntent_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (state : PersistedState)
     (result : ((Pending.exitIntent state).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.exitIntent state)) :
-    ({ core with pending := none }.resolve now (.exitIntent state) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.exitIntent state)) :
+    ({ core with pending := none }.resolve now (.exitIntent state) result).core.Invariant
+      clearDisabled := by
+  let _ := waiting
+  have base := core.cleared_invariant clearDisabled invariant
+  cases result with
+  | error _ => exact base.report _ _
+  | ok _ => exact base.withPersisted rfl state
 
 theorem resolve_seed_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (intended : Desired)
     (result : ((Pending.seed intended).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.seed intended)) :
-    ({ core with pending := none }.resolve now (.seed intended) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.seeded] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, Core.moveTo, Core.stop, command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.seed intended)) :
+    ({ core with pending := none }.resolve now (.seed intended) result).core.Invariant
+      clearDisabled := by
+  have base := core.cleared_invariant clearDisabled invariant
+  have hnotDis : clearDisabled.isSome = true → False := fun hc => by
+    have := (invariant.clearless hc).2.2 _ waiting
+    cases this
+  have hserving := invariant.serving waiting rfl
+  cases result with
+  | error _ => exact base.stop.report _ _
+  | ok seed =>
+    simp only [Core.resolve, Core.seeded]
+    split
+    · exact base.stop.report _ _
+    · cases core.lifecycle.beginArchive with
+      | none => exact base
+      | some lifecycle =>
+        cases core.owner with
+        | retired _ =>
+          exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+        | current =>
+          dsimp only
+          apply Invariant.report
+          exact Invariant.of_some (p := .archive _ intended (clockWord now)) rfl
+            (fun _ => rfl)
+            (fun hc => (hnotDis hc).elim)
+            (fun hcl => absurd hserving hcl)
+            (fun _ _ h => by cases h)
+            (fun _ _ h => by cases h)
 
 theorem resolve_archive_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (identity : Identity) (intended : Desired) (stamp : UInt64)
     (result : ((Pending.archive identity intended stamp).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.archive identity intended stamp)) :
-    ({ core with pending := none }.resolve now (.archive identity intended stamp) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.archive identity intended stamp)) :
+    ({ core with pending := none }.resolve now (.archive identity intended stamp)
+        result).core.Invariant clearDisabled := by
+  have hnotDis : clearDisabled.isSome = true → False := fun hc => by
+    have := (invariant.clearless hc).2.2 _ waiting
+    cases this
+  have hown : core.owner = .current := invariant.retired _ waiting rfl
+  have hserving := invariant.serving waiting rfl
+  cases result with
+  | unchanged _ =>
+    apply Invariant.report
+    exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+  | moved _ _ =>
+    apply Invariant.report
+    exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+  | ready archive =>
+    exact Invariant.of_some (p := .reopen identity intended archive) rfl
+      (fun _ => hown)
+      (fun hc => (hnotDis hc).elim)
+      (fun hcl => absurd hserving hcl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem resolve_reopen_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (identity : Identity) (intended : Desired) (archive : System.FilePath)
     (result : ((Pending.reopen identity intended archive).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.reopen identity intended archive)) :
-    ({ core with pending := none }.resolve now (.reopen identity intended archive) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.reopen identity intended archive)) :
+    ({ core with pending := none }.resolve now (.reopen identity intended archive)
+        result).core.Invariant clearDisabled := by
+  have hnotDis : clearDisabled.isSome = true → False := fun hc => by
+    have := (invariant.clearless hc).2.2 _ waiting
+    cases this
+  have hown : core.owner = .current := invariant.retired _ waiting rfl
+  have hserving := invariant.serving waiting rfl
+  cases result with
+  | error _ =>
+    apply Invariant.report
+    exact Invariant.of_none rfl fun hc => (hnotDis hc).elim
+  | ok _ =>
+    exact Invariant.of_some (p := .replacement ⟨identity, intended, .cleared, false⟩) rfl
+      (fun _ => hown)
+      (fun hc => (hnotDis hc).elim)
+      (fun hcl => absurd hserving hcl)
+      (fun _ _ h => by cases h)
+      (fun _ _ h => by cases h)
 
 theorem resolve_replacement_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
-    (state : PersistedState)
-    (result : ((Pending.replacement state).call core.lifecycle).Result)
-    (invariant : core.Invariant clearDisabled) (waiting : core.pending = some (.replacement state)) :
-    ({ core with pending := none }.resolve now (.replacement state) result).core.Invariant clearDisabled := by
-  cases result <;> obtain ⟨retired, clearless, closing, launch, spawn⟩ :=
-    invariant <;> simp only [Core.resolve, Core.replaced] <;> repeat' split
-  all_goals (
-    (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-    (try have := PersistedState.launch_identity _ _ (by assumption))
-    refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-      simp_all [Core.report, command_beq, Pending.writes, Pending.clears, Pending.serves])
-
-/-- The state an outcome starts from keeps the invariant of the state that waited. -/
-theorem cleared_invariant (core : Core) (clearDisabled : Option String)
-    (invariant : core.Invariant clearDisabled) :
-    ({ core with pending := none } : Core).Invariant clearDisabled := by
-  obtain ⟨retired, clearless, closing, launch, spawn⟩ := invariant <;>
-    (
-      (try have := Lifecycle.reserve_clearless _ _ _ _ (by assumption))
-      (try have := PersistedState.launch_identity _ _ (by assumption))
-      refine ⟨?_, fun _ => ?_, ?_, ?_, ?_⟩ <;>
-        simp_all [command_beq, Pending.writes, Pending.clears, Pending.serves])
+    (state : PersistedState) (ackStop : Bool)
+    (result : ((Pending.replacement state ackStop).call core.lifecycle).Result)
+    (invariant : core.Invariant clearDisabled)
+    (waiting : core.pending = some (.replacement state ackStop)) :
+    ({ core with pending := none }.resolve now (.replacement state ackStop)
+        result).core.Invariant clearDisabled := by
+  have hnotDis : clearDisabled.isSome = true → False := fun hc => by
+    have := (invariant.clearless hc).2.2 _ waiting
+    cases this
+  cases result with
+  | error _ => exact (core.cleared_invariant clearDisabled invariant).report _ _
+  | ok _ =>
+    simp only [Core.resolve, Core.replaced]
+    repeat' split
+    all_goals (
+      apply Invariant.report
+      exact Invariant.of_none rfl fun hc => (hnotDis hc).elim)
 
 theorem resolve_windUp_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (generation : UInt64) (result : ((Pending.windUp generation).call core.lifecycle).Result)
@@ -1279,7 +1374,6 @@ theorem resolve_closeMap_invariant (core : Core) (clearDisabled : Option String)
   · exact Core.closed_invariant _ clearDisabled
       ⟨base.retired, base.clearless, base.closing, base.launch, base.spawn⟩ rfl
 
-/-- **Every outcome keeps the invariant.** -/
 theorem resolve_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (pending : Pending) (result : (pending.call core.lifecycle).Result)
     (invariant : core.Invariant clearDisabled) (waiting : core.pending = some pending) :
@@ -1298,9 +1392,8 @@ theorem resolve_invariant (core : Core) (clearDisabled : Option String) (now : N
   | seed => exact core.resolve_seed_invariant _ _ _ _ invariant waiting
   | archive => exact core.resolve_archive_invariant _ _ _ _ _ _ invariant waiting
   | reopen => exact core.resolve_reopen_invariant _ _ _ _ _ _ invariant waiting
-  | replacement => exact core.resolve_replacement_invariant _ _ _ _ invariant waiting
+  | replacement => exact core.resolve_replacement_invariant _ _ _ _ _ invariant waiting
 
-/-- **Every event keeps the invariant.** -/
 theorem dispatch_invariant (core : Core) (clearDisabled : Option String) (now : Nat)
     (event : Event) (invariant : core.Invariant clearDisabled) :
     (core.dispatch clearDisabled now event).core.Invariant clearDisabled := by
@@ -1340,7 +1433,6 @@ theorem start_invariant (persisted : PersistedState) (clearDisabled : Option Str
 
 end Core
 
-/-- **Every state a run reaches keeps the invariant.** -/
 theorem Ran.invariant {clearDisabled : Option String} {core : Core}
     (ran : Ran clearDisabled core) : core.Invariant clearDisabled := by
   induction ran with
@@ -1349,12 +1441,6 @@ theorem Ran.invariant {clearDisabled : Option String} {core : Core}
   | resume _ waiting reading result invariant =>
     exact Core.resume_invariant _ _ reading _ result invariant waiting
 
-
-/-! ## The guarantees, for every supervision -/
-
-/-- **A retired run directory is never acted on again.** For every supervision whose run
-directory moved with no replacement owned, the call it waits for, if any, neither writes
-through the old capability, archives nor opens a replacement. -/
 theorem Supervision.retired_untouched {clearDisabled : Option String}
     (supervision : Supervision clearDisabled) (pending : Pending)
     (waiting : supervision.core.pending = some pending)
@@ -1363,27 +1449,17 @@ theorem Supervision.retired_untouched {clearDisabled : Option String}
   · rfl
   · exact absurd (supervision.reached.invariant.retired pending waiting writes) retired
 
-/-- **A disabled Clear never archives.** For every supervision of a configuration that cannot
-preserve whole-run ownership: no Clear is pending, no archival is under way, no replacement
-waits, and the call it waits for, if any, neither saves a Clear's intent nor belongs to a
-Clear. -/
 theorem Supervision.clear_disabled {reason : String} (supervision : Supervision (some reason)) :
     supervision.core.lifecycle.Clearless ∧ supervision.core.replacement = none ∧
       ∀ pending, supervision.core.pending = some pending → pending.clears = false :=
   supervision.reached.invariant.clearless rfl
 
-/-- **A closing viewer starts nothing.** For every supervision that is closing or closed, the
-call it waits for, if any, saves no intent, launches nothing, spawns nothing, writes no
-periodic map and belongs to no Clear. -/
 theorem Supervision.closing_starts_nothing {clearDisabled : Option String}
     (supervision : Supervision clearDisabled) (closing : supervision.core.closing ≠ .open)
     (pending : Pending) (waiting : supervision.core.pending = some pending) :
     pending.serves = false :=
   supervision.reached.invariant.closing closing pending waiting
 
-/-- **A spawn waits on the state that records its launch.** For every supervision that waits
-to spawn, the durable state it holds records an attempted launch with the identity of the
-launch it spawns. -/
 theorem Supervision.spawn_recorded {clearDisabled : Option String}
     (supervision : Supervision clearDisabled) (generation : UInt64) (plan : CoreLaunch)
     (waiting : supervision.core.pending = some (.spawn generation plan)) :
@@ -1393,12 +1469,6 @@ theorem Supervision.spawn_recorded {clearDisabled : Option String}
 
 namespace Core
 
-/-- **A spawn follows the launch write, and only its success.** For every state and every
-outcome of the write of an attempted launch: when the outcome leaves the state waiting to
-spawn, the write succeeded, the spawn is of that launch, the state holds the state written,
-the generation is one more than the last one reserved, the allocator holds it, and the
-lifecycle admitted a reservation at the instant of the outcome: it was idle, intended to run,
-had no Clear pending and its restart budget admitted a launch. -/
 theorem resume_launch (core : Core) (reading : Nat) (state : PersistedState) (plan : CoreLaunch)
     (result : ((Pending.launch state plan).call core.lifecycle).Result)
     (generation : UInt64) (spawned : CoreLaunch)
@@ -1426,10 +1496,6 @@ theorem resume_launch (core : Core) (reading : Nat) (state : PersistedState) (pl
         facts.2.1, facts.1, facts.2.2.1⟩
     · simp at spawning
 
-/-- **A Stop winds a live process up, whether or not its intent is saved.** For every state
-that serves, waits for nothing, has no replacement waiting and holds a live process that runs:
-after the Stop command, either the stop line is the next call, or the intent is saved first and
-the stop line is the next call after either outcome of that write. -/
 theorem stop_winds_up (core : Core) (clearDisabled : Option String) (reading : Nat)
     (generation : UInt64) (ready : core.pending = none) (serving : core.closing = .open)
     (noReplacement : core.replacement = none) (live : core.slot = .live generation)
@@ -1459,9 +1525,6 @@ theorem stop_winds_up (core : Core) (clearDisabled : Option String) (reading : N
         simp [step, dispatch, Stepped.at, ready, serving, Core.command, command_beq, noReplacement, owner,
           resume, resolve, intentFailed, intentSaved, Core.report, Core.moveTo, Core.stop, target]
 
-/-- **Clear installs a run other than the one it retires.** For every state and replacement
-state: when publishing the replacement installs it, the lifecycle holds the replacement's
-identity, whose run differs from the run of the lifecycle it replaced. -/
 theorem replaced_identity (core : Core) (state : PersistedState)
     (cleared : (core.replaced state).core.detail.transition = .cleared) :
     (core.replaced state).core.lifecycle.identityValue = state.identity ∧
@@ -1475,7 +1538,6 @@ theorem replaced_identity (core : Core) (state : PersistedState)
     exact facts.2
   · simp [Core.report] at cleared
 
-/-- The readers' report closes nothing and begins no closing map write. -/
 theorem finished_defers (core : Core) (stdout : OutputStatus) (stderr : PipeResult)
     (log : LogStatus) :
     (∀ failed, (core.finished stdout stderr log).core.closing = .closed failed →
@@ -1486,10 +1548,6 @@ theorem finished_defers (core : Core) (stdout : OutputStatus) (stderr : PipeResu
   repeat' split
   all_goals simp_all [Core.report]
 
-/-- **A core's exit never closes the viewer.** For every state and every report of a reaped
-child's readers, the step on that report yields a closed state only from a closed one, and waits
-on the closing map write only when the state it starts from does. A closing viewer closes at a
-later tick, which the actor hands after it attributes the identity the readers delivered. -/
 theorem step_finished_defers_close (core : Core) (clearDisabled : Option String) (reading : Nat)
     (stdout : OutputStatus) (stderr : PipeResult) (log : LogStatus) :
     (∀ failed, (core.step clearDisabled reading (.finished stdout stderr log)).core.closing =
@@ -1509,12 +1567,8 @@ end Core
 
 namespace Core
 
-/-- What a transition leaves alone: the generation allocator, and any wait to spawn. Every
-event's step and every outcome other than a launch write's is calm. -/
 structure Calm (before after : Core) : Prop where
-  /-- The allocator holds the same last generation. -/
   generation : after.lifecycle.lastGenerationValue = before.lifecycle.lastGenerationValue
-  /-- The state does not wait to spawn. -/
   quiet : ∀ generation plan, after.pending ≠ some (.spawn generation plan)
 
 theorem command_calm (core : Core) (clearDisabled : Option String) (command : Command)
@@ -1633,7 +1687,6 @@ theorem close_calm (core : Core) (ready : core.pending = none) : Calm core core.
     constructor <;>
     simp_all [Core.report, Core.moveTo, Core.stop, Option.map_eq_some_iff, Lifecycle.request_lastGeneration])
 
-/-- Calmness composes through a state that differs in neither field. -/
 theorem Calm.through {before middle after : Core} (first : Calm before middle)
     (second : Calm middle after) : Calm before after :=
   ⟨second.generation.trans first.generation, second.quiet⟩
@@ -1676,7 +1729,6 @@ theorem finished_calm (core : Core) (stdout : OutputStatus) (stderr : PipeResult
     constructor <;>
     simp_all [])
 
-/-- **No event reserves a generation or makes the state wait to spawn.** -/
 theorem step_calm (core : Core) (clearDisabled : Option String) (reading : Nat)
     (event : Event) (ready : core.pending = none) :
     Calm core (core.step clearDisabled reading event).core := by
@@ -1699,7 +1751,6 @@ theorem step_calm (core : Core) (clearDisabled : Option String) (reading : Nat)
           simp_all [])
   exact ⟨calm.generation, calm.quiet⟩
 
-/-- A state that waits takes no event: its step changes only the instant. -/
 theorem step_waiting (core : Core) (clearDisabled : Option String) (reading : Nat)
     (event : Event) (pending : Pending) (waiting : core.pending = some pending) :
     (core.step clearDisabled reading event).core = { core with last := core.instant reading } := by
@@ -1791,9 +1842,9 @@ theorem resolve_reopen_calm (core : Core) (now : Nat) (identity : Identity) (int
     constructor <;>
     simp_all [Core.report])
 
-theorem resolve_replacement_calm (core : Core) (now : Nat) (state : PersistedState)
-    (result : ((Pending.replacement state).call core.lifecycle).Result) :
-    Calm core ({ core with pending := none }.resolve now (.replacement state) result).core := by
+theorem resolve_replacement_calm (core : Core) (now : Nat) (state : PersistedState) (ackStop : Bool)
+    (result : ((Pending.replacement state ackStop).call core.lifecycle).Result) :
+    Calm core ({ core with pending := none }.resolve now (.replacement state ackStop) result).core := by
   cases result <;> simp only [Core.resolve, Core.replaced] <;> repeat' split
   all_goals (
     (try have := Lifecycle.beginArchive_lastGeneration _ _ (by assumption)) <;>
@@ -1857,8 +1908,6 @@ theorem resolve_closeMap_calm (core : Core) (now : Nat) (skip : Option Nat)
     constructor <;>
     simp_all [])) (Core.closed_calm _ rfl)
 
-/-- **Only a launch write's outcome reserves a generation or makes the state wait to spawn.**
-Every other outcome leaves the allocator unchanged and the state not waiting to spawn. -/
 theorem resume_calm (core : Core) (reading : Nat) (pending : Pending)
     (result : (pending.call core.lifecycle).Result)
     (notLaunch : ∀ state plan, pending ≠ .launch state plan) :
@@ -1879,7 +1928,7 @@ theorem resume_calm (core : Core) (reading : Nat) (pending : Pending)
     | seed => exact core.resolve_seed_calm _ _ _
     | archive => exact core.resolve_archive_calm _ _ _ _ _
     | reopen => exact core.resolve_reopen_calm _ _ _ _ _
-    | replacement => exact core.resolve_replacement_calm _ _ _
+    | replacement => exact core.resolve_replacement_calm _ _ _ _
   exact ⟨calm.generation, calm.quiet⟩
 
 end Core

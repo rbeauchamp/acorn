@@ -9,15 +9,7 @@ newcomer from that audience can say within ten seconds what the system is,
 what it is trying to do and how it is doing, and when nothing on the page would
 make them distrust the next number.
 
-This document states what the page must show and why. It does not describe
-how the page achieves it: mechanism lives in `viewer/static/index.html` and
-`Acorn.Host.Viewer`, whose comments carry the rationale for each piece of code, and a
-requirement here names the owning function only where a reader would otherwise
-have to search. Requirements are numbered; a page behaviour that contradicts
-one is a bug, and a contradiction found in this document is fixed here. The
-gate suite requires the table of Appendix A to be the one rendered from the Lean
-owners of its constants. Prose quantities and completeness of that table remain
-review obligations.
+This document states what the page must show and why. It does not describe how the page achieves it: mechanism lives in `viewer/static/index.html` and `Acorn.Host.Viewer` (with design rationale, numeric and wire invariants, and process-supervision boundaries documented in this specification, [the design](design.md), and [the verification guide](verification.md#viewer-ownership-boundaries)), and a requirement here names the owning function only where a reader would otherwise have to search. Requirements are numbered; a page behaviour that contradicts one is a bug, and a contradiction found in this document is fixed here. The gate suite requires the table of Appendix A to be the one rendered from the Lean owners of its constants. Prose quantities and completeness of that table remain review obligations.
 
 Reviews judge the page against this document: `proof-review` and
 `pr-review-toolkit` for the code and its guarantees, `ux-review` for whether
@@ -28,7 +20,10 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
 - **INV-1 · Observer of the stream, supervisor of the process.** Two roles,
   and the line between them is what the invariant protects. As an
   **observer**, the viewer consumes the core's one-way NDJSON telemetry
-  (`acorn demo --research-profile ranked --telemetry` → child stdout → SSE) and must never change the
+  (the core, which it runs as
+  `acorn-core demo --research-profile ranked --telemetry --control-stdin`
+  followed by the run's seed, campaign, identity and checkpoint arguments → child
+  stdout → SSE) and must never change the
   agent's decisions. Telemetry may gain *read-only* fields — quantities
   computed from state the agent already produced — provided the audit digest
   is unchanged. As a **supervisor**, it starts and stops the core as a child
@@ -36,7 +31,9 @@ the page can be understood (`.agents/skills/ux-review/SKILL.md`).
   request to wind up at the next attempt boundary, which changes *when a run
   ends*, never *what it does*: weights, world, RNG stream and every decision
   are untouched. Mechanically checked by the deterministic audit digest
-  (`./lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12`),
+  (`./lean/.lake/build/bin/acorn-core audit --expect 0x28c98382d02dbf12`, in
+  work on a change driven only on the owner's authorization:
+  [running a program](../CONTRIBUTING.md#running-a-program)),
   checksum `68e84d568d55f8ad` (C-AC5), and by the gate suite
   (`AcornTools.Boundary.Audit`), which excludes host IO and control owners from learned
   modules. The digest detects mutation; module admission enforces isolation.
@@ -128,9 +125,11 @@ What a newcomer must be able to say without scrolling.
   is **O**ptions **a**nd **K**nowledge — from one stream of experience, batch
   size one, build features from what is sensed, pose subtasks about the useful
   ones, learn options that achieve them, learn models of those options, plan
-  with them; every weight has its own meta-learned step size — followed by the
-  mission sentence quoted from oaklab.ai/mission (*algorithms that allow
-  agents to achieve goals in big worlds*) with the link. A fine-print line
+  with them; every weight has its own meta-learned step size — followed by
+  Acorn's mission sentence, stated as Acorn's own with no quotation marks and
+  no link: Acorn's mission is to discover and implement algorithms that enable
+  agents to achieve goals in big worlds.
+  A fine-print line
   identifies figures as core telemetry or the page's labelled arithmetic.
   Live rates and shares are means over the last `WIN` frames; every other
   figure names its own window. Describe Acorn's implementation directly,
@@ -422,14 +421,20 @@ Rules that apply to every number, label and colour on the page.
   non-finite frames are counted and reported with their remedy, in the top
   bar, drawn before the render loop looks for a frame, because the condition
   that most needs reporting is the one where every frame is refused and the
-  ring stays empty. A frame is refused whole, never partly absorbed, and
-  counted by the reason it was refused — a closed set with one remedy each,
-  naming the wire keys involved:
-  - `schema_version` not this page's, or a count or array length that
-    disagrees with the page's constants → `⚠ stream shape mismatch — rebuild
-    the viewer against this core`; the page is embedded in the viewer binary,
-    so the two were built from different trees, and the hover text carries the
-    expected shape and the two build commands;
+  ring stays empty. A frame is refused whole at the first failing check, never
+  partly absorbed, and counted by that check's refusal reason — a closed set
+  with one remedy each, naming the wire keys involved (so an earlier missing key
+  takes precedence over a later `schema_version` or constant mismatch):
+  - `schema_version` not this page's, a fixed protocol constant
+    (`agreement_version` `1`, `agreement_scale` `1000000`) or embedded constant
+    count mismatch, or an array length that disagrees with the page's constants
+    → `⚠ stream shape
+    mismatch — rebuild the core and viewer from one tree`; the page is embedded
+    in the viewer binary, so a wire-shape disagreement can indicate the two were
+    built from different trees, and the hover text carries the expected shape
+    and the rebuild commands (`./scripts/lean.sh build acorn-core acorn-viewer`,
+    or `./scripts/start.sh --prepare-only` when pinned dependencies also need
+    provisioning without starting a run);
   - a required key the core does not emit → `⚠ stream shape mismatch — the
     page requires a field this core does not emit`: a source defect,
     rebuilding will not fix it;
@@ -446,7 +451,9 @@ Rules that apply to every number, label and colour on the page.
     `⚠ non-finite` where the number would be, and reported as `⚠ the core
     reported a non-finite value in <field>`, naming the field; the hover text
     states the divergence reading as a possibility and says to keep the run
-    and check it with `acorn demo --research-profile ranked --telemetry`.
+    and note the world time, and that the frame holds a null marker at that
+    field, which gives the field and the frame but not whether the value was
+    NaN, +inf or −inf.
 
   Neither appears in a healthy run. If one does, it is telling you something
   the rest of the page cannot.
@@ -464,14 +471,46 @@ Rules that apply to every number, label and colour on the page.
   exists"; Clear, while stopped, "archive this run and create a new
   zero-knowledge identity; the core stays stopped". A disabled control still
   says why, so "unavailable here" is distinguishable from "this build has no
-  such button". A request the server refuses, or a viewer the page cannot
-  reach, raises a fault pill beside the controls (`⚠ stop refused — <why>`)
-  that stays until a control frame shows the server moved; the toast that also
-  says it is below the fold. The control endpoint is `POST /control`, bound to
-  `127.0.0.1`, POST-only, JSON-only, and gated by a token minted per viewer
-  start and read from the served page, so a page left open from a previous
-  start holds a stale one and is refused; bodies are capped and rejections say
-  little about which check failed.
+  such button". For Start and Clear, a request the server refuses (`⚠ <cmd>
+  refused — <why>`) or a viewer the page cannot reach (`⚠ cannot reach the
+  viewer to <cmd>`) raises a fault pill beside the controls that stays until a
+  control frame shows the server moved; the toast that also says it is below
+  the fold. The control endpoint is `POST /control`, bound to `127.0.0.1`,
+  POST-only, JSON-only, and gated by a token minted per viewer start and read
+  from the served page, so a page left open from a previous start holds a stale
+  one and is refused; bodies are capped and rejections say little about which
+  check failed. HTTP `/control` JSON error responses use fixed public strings
+  and never expose raw operating-system error messages or local run-directory/archive
+  paths; detailed native diagnostics remain in the supervisor's failure
+  diagnostic path and standard error. For a browser Stop (`{"cmd":"stop"}`),
+  `POST /control` holds its HTTP response until the supervisor actor completes
+  the `state.json` write for `desired: "stopped"`: it returns `202`
+  (`{"ok":true}`) only once the stopped state has been written, flushed and
+  renamed over `state.json`; it returns `503` (`{"ok":false,"reason":...}`) if
+  refused before admission (supervisor queue full, unavailable, or mailbox
+  already closing), and returns `503`
+  (`{"ok":false,"unconfirmed":true,"reason":...}`) if persisting fails or the
+  10-second HTTP wait times out. When viewer shutdown interrupts an admitted
+  Stop, the supervisor resolves the waiter as `.unconfirmed` so HTTP returns
+  `503` (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response
+  completes before server teardown, whereas server cancellation during shutdown
+  can also yield an empty `503` or closed connection without a JSON body.
+  Timing out ends only the HTTP wait and does not cancel the Stop (it may still
+  be queued, already executing in the actor, or already published before waiter
+  resolution), and a persistence error on a live run can still request child
+  wind-up or leave a pending Clear replacement revised to stopped; a lost
+  connection or abrupt crash can leave the browser with no HTTP response at
+  all. Only HTTP `202` confirms a browser Stop: a definite pre-execution
+  refusal (`!r.ok` with JSON `ok === false` and `unconfirmed !== true`) raises
+  `⚠ stop refused — <why>` (hover text noting refusal before taking effect),
+  any other non-`202` response — including `503` with `unconfirmed: true`, an
+  empty `503` from shutdown cancellation, or an unexpected status — raises
+  `⚠ stop not confirmed — <why>` (hover text noting the outcome was not
+  confirmed and it may still take effect or have requested wind-up), and a
+  closed connection or unreachable viewer raises
+  `⚠ stop outcome unknown — viewer unreachable` (hover text noting no HTTP
+  response was received); each pill stays until a control frame shows the
+  server moved, with a matching toast below the fold.
 - **UX-22 · Stop is cooperative and persistent.** The core finishes its current
   finite attempt, attempts a checkpoint if saving is armed, and exits through
   the same writer as periodic and finite-campaign completion. Successful save
@@ -491,6 +530,8 @@ Rules that apply to every number, label and colour on the page.
   retain output handles can delay drain; name the core directly or `exec` it.
   Stop intent persists across viewer restarts, so reopening a stopped run
   leaves it stopped unless the operator explicitly requests Start with `--start`.
+  A run directory with no state file is treated the same way: the viewer starts
+  stopped (UX-42).
   The convenience launcher supplies that request: running it means start/resume
   now, without Clear or a direct edit to persisted state. Start still passes
   through the supervisor queue after successful state admission and HTTP binding.
@@ -502,7 +543,8 @@ Rules that apply to every number, label and colour on the page.
   The launcher owns terminal SIGINT and forwards this request, so Ctrl-C does
   not interrupt the viewer/core process group. No kill deadline is introduced.
   Shutdown retains the durable intent; browser Stop remains the operation that
-  persists stopped intent.
+  persists stopped intent and returns HTTP `202` only after `state.json` has
+  been written, flushed and renamed on disk.
 - **UX-23 · Clear is one click: stop → archive → reseed → restore.** The
   whole run directory is renamed into the archive (UX-43) and a new random
   seed is taken. Cooperative stop happens first and attempts an armed save.
@@ -548,8 +590,9 @@ Rules that apply to every number, label and colour on the page.
 - **UX-25 · A refused checkpoint is reported.** The core disarms saving for
   the whole run when it refuses a checkpoint, which on stderr alone is
   invisible to anyone watching: a healthy-looking run that is quietly
-  persisting nothing. The top bar raises `⚠ not saving — press Clear to start
-  a fresh run`, naming the remedy rather than only the diagnosis.
+  persisting nothing. The top bar raises `⚠ not saving — where Clear is
+  available, it archives this run and prepares a fresh one`, naming the remedy
+  rather than only the diagnosis.
 - **UX-26 · Transport.** Controls: ⏮/⏭ (jump 500 frames), ⏸/▶, ⚡ LIVE (pin
   to the newest frame), replay rates 10 / 60 / 250 / 1000 frames per second, a
   scrub slider, the buffered-frame position and a lag readout, each with a
@@ -627,9 +670,7 @@ What each panel must show. How it draws it is the code's.
   `BrowserNat.dayPhase`. The program's integer semantics is the phase that the
   world observes and charges, for every clock and day length
   ([`BrowserNat.dayPhase_execution`](../lean/Acorn/Host/Viewer/BrowserNat.lean)).
-  The emitted JavaScript agrees with it on the admitted safe-integer `world_step`
-  and `day_length` fields, under the emitter and runtime assumptions that module
-  states.
+  The emitted JavaScript agrees with it on the admitted safe-integer `world_step` and `day_length` fields under the runtime and emitter assumptions of `Acorn.Host.Viewer.BrowserNat`: operands must be binary64 safe integers (`0 ≤ a < 2^53`, `b ≥ 1`, where *observerDiv*(a, b) = *Math.floor*(a / b) matches exact *Nat.div* because single nearest rounding shifts the quotient by at most `2^-53 * (a / b) < 1 / b`, strictly below the `1 / b` gap to the next integer, with *observerDiv*(_, 0) = 0 and *observerMod*(a, 0) = a), *observerLog2* doubles exact powers of two to avoid *Math.log2* boundary rounding, and browser runtime arithmetic and the structural backend remain explicit trust boundaries.
 - **UX-29 · The HUD.** A header above the map places `current goal N/<goal_count>`
   on the left, with plain-language goal text — `Go to the gold target (x, y)` /
   `Hold at least n <item>` / `Own Axe|Boat` / `Continue for n world steps in this attempt`
@@ -873,20 +914,227 @@ What each panel must show. How it draws it is the code's.
   `./scripts/verify.sh` and not empirical default qualification.
 
   The advanced `./lean/.lake/build/bin/acorn-viewer --research-profile ranked --port 8088`
-  serves the UI at `http://127.0.0.1:8088/` and spawns the core with the
-  explicitly selected ranked research campaign (`--research-profile ranked --cycles 0`, 1024², 13 goals, 3 attempts ×
-  4000 steps) and weight checkpointing. `--run-dir <dir>` moves the run
-  directory, `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides
-  the whole campaign, `--port N` overrides the port (`0` requests an available
-  port), `--start` explicitly requests Start, `--open-browser` opens the bound
-  URL, and `--control-stdin` admits cooperative viewer shutdown. An unusable command line
-  is refused with a reason and a usage line, never absorbed into a default: an
-  unknown flag, a flag with no value and an unparseable `--port` are all
-  errors, because serving on 8088 after `--port 80x8` failed to parse would be
-  a run the operator did not ask for. Checkpointing is on by default because
-  the server restarts the core whenever it exits (UX-24): without it a restart
-  would substitute a brand-new agent while the page still read `live` and the
-  explored map — which is the world's, not the agent's — stayed on screen.
+  serves the UI at `http://127.0.0.1:8088/`. In work on a change this invocation is
+  driven only on the owner's authorization
+  ([running a program](../CONTRIBUTING.md#running-a-program)). That a Start was given is a
+  property of the program; the authorization for a run of a learner is a
+  separate matter, which those instructions govern.
+
+  The viewer's supervisor starts its child, the core or the command `--cmd`
+  names, only on an explicit act: `--start` on its command line, a Start on
+  its control endpoint, which the page's Start button sends, or a state file
+  whose running intent an earlier Start set while the supervisor's child was
+  the child this launch starts, which it resumes. Launched on a run directory
+  with no state file and without `--start`, the supervisor starts no child:
+  the viewer writes a stopped state and shows the run `stopped` with the Start
+  control until one of those acts.
+  `Acorn.Host.Viewer.Reached.unstarted_spawns_nothing` states, of the
+  supervisor's step, that from that state it waits on no spawn and on no write
+  of a running intent while no Start is handed to it. The viewer does start
+  two other processes, neither of them a learner: under `--control-stdin` a
+  relay of its standard input, and under `--open-browser` the system's opener
+  for the page.
+
+  What a state file starts depends on four things, and the first is that it
+  can be read at all. An entry named `state.json` that is not a regular file
+  or a link to one (a link whose target is gone, a directory, a pipe, a
+  device) is refused without being opened, and so is an entry whose kind
+  cannot be read. A regular file is opened: it is refused if the open or the read
+  fails, if it holds more than 4096 bytes, or if its content is not a JSON
+  object holding the six members of the state, each admitted, and beside them
+  at most a schema version and a child record. On a refusal the viewer exits before it serves anything and leaves
+  the file as it is. The
+  second is the version: the whole number that `schema_version` spells in
+  decimal digits alone. A file that names another such number than the current
+  one, of any size, is refused, because a file another version wrote is not
+  guessed at. A file whose `schema_version` is absent, which is what the
+  viewer wrote before `state.json` carried one, or is spelled any other way (a
+  number with an exponent, such as `3e0`, is read as no readable version and
+  not as the number 3), is read as an earlier version's file: when its other
+  members are admitted, it keeps its identity and its intent is read as
+  stopped, because that viewer wrote a running intent when it found no file.
+  The third is the child. With every state it saves, the viewer records what
+  its supervisor would start: the core's path, the length in bytes of that
+  file, a digest of every byte of it (64-bit FNV-1a), and its arguments at a
+  reference launch. A file that cannot be read whole, or words the state file
+  cannot hold, gives no record. A running intent is resumed
+  only by a launch whose record is the same; under `--cmd` there is no record,
+  because what a shell starts for a command depends on more than the viewer
+  can compare, so a running intent saved under `--cmd` is not carried to
+  another launch. Within one viewer a Start under `--cmd` is an explicit act
+  for that command line as given: it covers the restarts of the command by the
+  viewer that received the Start, whatever program the command designates when
+  each restart is made, and nothing is compared for it, so a program replaced
+  under that command line between a Start and a restart is run by the restart.
+  A launcher or a script that passes `--cmd` with a command that names the
+  core should know this: a Start is then an explicit act for a learner, and
+  its restarts are covered by that act. The viewer reads the ranked core's file when it starts, and
+  before the core is started, the first time and at every restart, its
+  supervisor reads the file again and compares its length and digest with
+  what the viewer read at start, whether or not the state file can hold the
+  record. So a running intent is not carried to a core whose file has since
+  changed in length or content, or moved, and a core rebuilt while a viewer
+  runs is not started by that viewer, unless the rebuild lands in the
+  interval between the supervisor's reading and the start of the program,
+  named below as the first thing not compared. The supervisor reads the file
+  once before each start, before it records the launch: a refusal there writes
+  nothing and spawns nothing, so the saved state is exactly as it was before
+  the refusal: no new mark of a started process and no agent epoch spent. A
+  run that had already started a process keeps that mark, and the running
+  intent that a Start saved before the launch was checked stays as saved. The
+  run is shown `stopped` with the reason, which is also printed on the
+  viewer's standard error. After a launch is recorded the supervisor spawns with no
+  further reading. The reason tells three cases apart,
+  each with what clears it. The program differs from what this viewer read:
+  "the core's program differs from what this viewer read when it started (the
+  file at its path changed in length or content), so nothing was started;
+  starting the viewer again records the program as it is now and clears this
+  refusal". The program cannot be read now: "the core's program cannot be read
+  now, so nothing was started; the refusal clears in this viewer when the file
+  can be read again with the content it had when this viewer started, and
+  starting the viewer again does not help while the file stays unreadable".
+  The program could not be read when the viewer started: "the core's program
+  could not be read when this viewer started, so nothing was started;
+  starting the viewer again when the file can be read clears this refusal".
+  Three things are
+  assumed and not compared: the interval between that reading and the
+  operating system starting the program, in which the launch is recorded (a
+  file replaced in that interval is started); the
+  environment the child inherits; and that two files of equal length and
+  equal digest are one. The digest suffices against accident, a rebuilt file
+  that agrees in length and in a 64-bit digest by chance; forging it needs no
+  more power than writing the state file by hand, which is an accepted risk
+  already. The fixed command, covered across its restarts as said above, is a
+  fourth accepted limit beside these three: making use of it needs the power
+  to replace a program on this machine between a Start and a restart, which
+  the other limits already assume, and the ranked core, which is the learner,
+  is compared before every start. The fourth is the launch itself: a run that has started a process
+  needs a next agent epoch within the browser's integers (UX-24 gives what
+  follows a failed start).
+
+  A state built with no state file, or read from a file of the current schema
+  taken with the intent that file records, is written as the supervisor is
+  built, before the listener binds. An earlier version's file, whatever intent
+  it records, and a file of the current schema with a running intent, when
+  this launch lacks a child record (including a `--cmd` launch, whose own
+  running file records `"child":null`) or its record does not match the
+  file's, are left on disk exactly as they are until the listener is bound.
+  The viewer then prints and flushes the line that says why the run is shown
+  stopped, under `--start` as well, and only then publishes the stopped state
+  it started from, in the current schema with this launch's child, before it
+  prints its ready line, before `--start` submits its Start and before any
+  command is processed. If the line cannot be written or flushed, the viewer
+  exits before the publication and the file is still the original.
+  So such a file is read as an earlier version's, or as an unbound running
+  intent, once, in the first launch that publishes the stopped state, and
+  whenever the file is replaced that launch has already given the reason, in
+  its first control record and on standard output; it is not given again; a viewer of the earlier version started later on the
+  directory meets a file of the current version. A start-up that fails before
+  that publication, such as on a port already in use, leaves the file as it
+  was: the next viewer reads the same file and says the same. A start-up that
+  fails after it, when the ready line cannot be written for example, leaves a
+  stopped file of the current version, and the reason the next launch gives
+  is that the saved state says stopped. A Start that reaches the control
+  endpoint before the publication is only queued; it is handled afterwards if
+  the start-up goes on, and is lost with the viewer if the start-up fails
+  after the publication. If the publication itself fails, the viewer exits
+  with that error before its ready line: a failure before the rename leaves the
+  original file intact, whereas an indeterminate rename error (such as
+  POSIX.1-2017 `rename` EIO or Linux NFS rename-despite-error) may leave either
+  the original file or the newly renamed stopped file on disk, in which case the
+  next launch reads whichever entry is present and gives that entry's reason.
+  A viewer that fails once its listener is bound ends through its shutdown,
+  whose turns step the supervisor to close it and can write the map; no turn
+  on that path takes a command from the queue. An operator who starts the viewer directly on a run
+  that a viewer
+  of the earlier version left running finds it stopped and presses Start; a
+  file of the current schema whose running intent was given for the same
+  child resumes; and `./scripts/start.sh`, which passes `--start`, starts the
+  run as before.
+
+  Whenever the state a viewer starts with is stopped (no state file, a saved
+  stopped state, an earlier version's file, or a current-schema running intent
+  when this launch lacks a child record — including a `--cmd` launch — or its
+  record does not match the file's), the viewer says why in one line, for
+  example "Run: stopped because the run directory holds no saved state; it
+  starts only on a Start on the viewer's control endpoint, which the page's
+  Start button sends, or the --start flag". The line, without the `Run: ` it
+  is printed with, is in the reason of the first control record it publishes,
+  after `viewer initialized; `, under `--start` as well. The page shows the
+  reason of the control record that is current when it connects, in the hover
+  text of the state word (UX-21): a page that connects while that first record
+  is current shows the line, and one that connects after a later transition
+  has published its record shows that transition's reason. The viewer also
+  prints it on its standard output, at most once in a launch: for a file left
+  as it is until the bind (an earlier version's, whatever intent it records,
+  or a current-schema file with a running intent when this launch lacks a
+  child record — including a `--cmd` launch — or its record does not match the
+  file's) the line is printed and flushed after the listener is bound and
+  before the stopped state is published, under `--start` as well; for no state
+  file, or a file of the current schema that says stopped, it is printed after
+  the ready line and not under `--start`. Under `--start` the Start is
+  submitted once the listener is bound. The viewer announces nothing of this
+  kind when the state it starts with is running. Browser Stop (`POST /control`
+  with `{"cmd":"stop"}`) returns HTTP `202` only after `state.json` has been
+  written, flushed and renamed on disk with `desired: "stopped"` — confirming
+  that earlier publication — and returns HTTP `503` without acknowledging if
+  refused before admission (queue full, unavailable, or mailbox already
+  closing) or if persistence is unconfirmed (writing fails, or the 10-second
+  HTTP wait times out, which ends only the HTTP wait without cancelling the
+  Stop; HTTP error responses carry fixed public strings rather than raw OS
+  errors or local paths, while detailed native diagnostics stay in the
+  supervisor's failure diagnostics and stderr). When viewer shutdown
+  interrupts an admitted Stop, the supervisor resolves the waiter as
+  `.unconfirmed` so HTTP returns `503`
+  (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes
+  before server teardown, whereas server cancellation during shutdown can also
+  yield an empty `503` or closed connection without a JSON body; both are
+  treated fail-closed by the browser as unconfirmed/unknown. Directory entries
+  are not fsynced, so power-loss durability is not claimed, and a lost
+  connection or abrupt crash can yield no HTTP response. This durability
+  guarantee also rests on Acorn's exclusive single-viewer run-directory
+  ownership premise (stated above for manual viewer invocation and in
+  [interrupted-launch recovery](verification.md#interrupted-launch-recovery))
+  and on the run directory's stable-path and no-external-mutation assumptions
+  (no external process replaces the run-directory path or mutates `state.json`):
+  `RunDirectory.open` allocates fresh per-process IO mutexes on each open
+  rather than an inter-process lock, so atomic local rename prevents torn
+  writes within one viewer process but cannot prevent a second concurrent
+  viewer that already read `desired: "running"` — or an external writer
+  replacing the path or mutating `state.json` — from overwriting `state.json`
+  after the first viewer acknowledges Stop. The no-later-Start condition is
+  ordered in supervisor processing order starting from that acknowledging
+  resolution (not browser HTTP receipt time, so a concurrent Start processed
+  by the supervisor after that resolution — even before the browser receives
+  `202` — supersedes it): under exclusive single-viewer run-directory
+  ownership, stable run-directory paths without external state-file mutation,
+  and with no later Start admitted by the supervisor while open, a viewer
+  process crash at any step leaves the on-disk state stopped — or absent
+  during a Clear archive before the replacement state is written — and the
+  next launch with the same child cannot resume running without an explicit
+  Start.
+
+  When the supervisor does start the ranked core, it runs the executable
+  `acorn-core` beside the viewer with the explicitly selected ranked research
+  campaign (`demo --research-profile ranked --telemetry --control-stdin`, then
+  `--seed` with the run's seed,
+  `--side 1024 --steps 4000 --attempts 3 --goals 13 --cycles 0`, the run's
+  identity arguments, and
+  `--checkpoint` with the run's weights file) and so with
+  weight checkpointing. `--run-dir <dir>` moves the run directory,
+  `--no-checkpoint` runs the core stateless, `--cmd "…"` overrides the whole
+  campaign, `--port N` overrides the port (`0` requests an available port),
+  `--start` explicitly requests Start, `--open-browser` opens the bound URL,
+  and `--control-stdin` admits cooperative viewer shutdown. An unusable
+  command line is refused with a reason and a usage line, never absorbed into
+  a default: an unknown flag, a flag with no value and an unparseable `--port`
+  are all errors, because serving on 8088 after `--port 80x8` failed to parse
+  would be a run the operator did not ask for. Checkpointing is on by default
+  because the supervisor restarts the core after an exit while the intent is
+  to run, until three starts in a row have failed (UX-24): without it a
+  restart would substitute a brand-new agent while the page still read `live`
+  and the explored map — which is the world's, not the agent's — stayed on
+  screen.
 - **UX-43 · One run directory.** Everything a run persists lives in one
   directory, so Clear can archive all of it by moving one thing (UX-23):
 
@@ -900,9 +1148,17 @@ What each panel must show. How it draws it is the code's.
   flight. The archive root is a sibling, not a child and not a distant path: a
   child would be archived into itself, and a distant one could be on another
   filesystem where `rename` is not atomic. A stray `./acorn-weights.ckpt` in
-  the working directory is moved in on startup, and only when the destination
-  is empty — a checkpoint outside the run directory would survive a Clear, and
-  the current run's weights are never overwritten to tidy up an older file.
+  the working directory is moved in on startup by
+  `RunDirectory.adoptStrayCheckpoint` only when the destination-absence check
+  finds no `weights.ckpt` entry (refusing a non-regular stray entry if present)
+  — a checkpoint outside the run directory would survive a Clear, and the
+  current run's weights are never overwritten to tidy up an older file,
+  provided startup does not race another checkpoint writer. Because
+  `RunDirectory.adoptStrayCheckpoint` serializes with in-process publication
+  and archival under the run directory's mutex, checks destination absence, and
+  then calls ordinary `rename`, that mutex does not exclude an external writer
+  creating `weights.ckpt` between the check and `rename`; the stable-path
+  assumption excludes such a concurrent writer.
 - **UX-44 · The explored map belongs to the run.** The viewer server keeps
   retained sensed tiles in the current run (`Acorn.Host.Viewer.WorldMemory`),
   keyed by the *world* — run ID, side and seed — so that a frame from any other
@@ -998,8 +1254,17 @@ What each panel must show. How it draws it is the code's.
   resumed agent restarts the *world* from its seed, so pose and inventory begin
   again — continuity of knowledge and lifetime experience, not of world state.
 - Force-killing the viewer orphans its core child, which keeps running and
-  absorbs telemetry write errors by design; check with
-  `pgrep -f 'acorn demo --research-profile ranked --telemetry'` after an abrupt kill.
+  absorbs telemetry write errors by design. After an abrupt kill, look for it
+  without starting anything: the viewer runs the ranked core as the executable
+  `acorn-core` beside it, by its full path, with arguments that begin
+  `demo --research-profile ranked --telemetry --control-stdin`, so
+  `pgrep -fl 'acorn-core demo --research-profile ranked --telemetry'` lists
+  candidates: every process whose command line holds that text, which a core
+  still running does, and so can a ranked core of another run or an unrelated
+  process that quotes the text. A candidate's `--run-id`, and its
+  `--checkpoint` argument when it has one, narrow the candidates; they cannot
+  by themselves identify the run directory or the process a candidate belongs
+  to. A child given with `--cmd` has the name its command gives it.
 - The primitive value bars may read exactly zero for a long stretch (UX-36):
   the Swift-Sarsa fixed point at zero reward, not a rendering fault. How long
   the stretch lasts at the current pin is unmeasured.
@@ -1024,8 +1289,12 @@ What each panel must show. How it draws it is the code's.
 
 ## 9 · Telemetry contract (what the UI consumes)
 
-Schema version 7 emits one NDJSON object per step (stdout of `acorn demo
---telemetry`), plus one
+The current telemetry schema, whose version is
+`Acorn.Host.Viewer.telemetrySchemaVersion` (the core writes it in each
+frame's `schema_version`, and the page admits only that version), emits one
+NDJSON object per step (stdout of the core, which
+the viewer runs as `acorn-core demo --research-profile ranked --telemetry`
+with the run's other arguments), plus one
 terminal frame per attempt. Fields the UI relies on:
 
 | field | type | meaning |
@@ -1104,6 +1373,13 @@ scrub lands on) is internally consistent and can be painted like any other. Its
 world time repeats into the next attempt's first frame, which is why events are
 announced once across that boundary.
 
+### Implementation invariants and host-viewer contracts
+
+- **Launch options and seed masking (`Acorn.Host.Viewer.Options`):** `viewerSeed` masks entropy modulo `2^48` (`(entropy.toNat % 2^48).toUInt64`), and `rankedArguments` emits unquoted core flags (`demo --research-profile ranked --telemetry --control-stdin --seed ... --side 1024 --steps 4000 --attempts 3 --goals 13 --cycles 0 --run-id ... --agent-epoch ... --new-agent-epoch ...`, optionally followed by `--cleared` and `--checkpoint PATH`).
+- **Wire envelopes, exact telemetry numbers, and map codecs (`Acorn.Host.Viewer.Wire`, `WireNumber`, `TelemetryValue`, `MapCodec`, `Sensed`):** `WireText` enforces newline and carriage-return exclusion and UTF-8 byte length `≤ lineCapacity` (`LineBytes.text` strips one trailing `\r` for CRLF lines), `runWord` admits exact 16-lowercase-hex run IDs, `browserIntegerMax` is `9007199254740991` (`2^53 - 1`), and `HealthEnvelope` survives frames whose full-schema scientific fields fail admission. `WireNumber` serializes finite binary32 and binary64 values as exact decimals via `5^n` denominator scaling, emits `"null"` for all infinities and NaNs, preserves the sign of `-0.0`, and leaves consumer rounding to JSON readers. `TelemetryValue` renders `null` for `.optional` `none` and `\u00xx`-escapes control bytes `< 0x20` at the single emission boundary (`emitTelemetryFields`). `Sensed` excludes `agentEpoch` from `MapKey` (`MapKey` keys by `run`, `seed`, and `side`), and `MapCodec` accepts zero-count historical RLE triples, recomputes `seen` from admitted cells while ignoring header `seen` and *partial* values, and rejects base64 emission unless run byte length is divisible by 3 (emitting no `=` padding).
+- **Numeric observer programs, goal achievement, and browser schema (`Acorn.Host.Viewer.BrowserMath`, `GoalAchievement`, `BrowserKernel`, `BrowserRecord`, `BrowserSchema`, `ClockProgram`):** In `BrowserMath`, *minimum* and *maximum* handle `NaN` and `-0.0` (`0x8000000000000000`) to match JavaScript *Math.min*/*Math.max*, `BrowserMath.horizon` clamps `ceil(ln(0.01) / ln(γ))` to `[8, 600]`, `BrowserMath.relativeChange` guards denominators with `|x| < 1e-12` (returning `0` on exact equality and *Infinity* otherwise), `BrowserMath.trend` uses a `0.05` relative-change deadband, `BrowserMath.enoughSamples` requires at least `30` settled samples, `BrowserMath.finiteReturn` computes only the inner finite-horizon discounted return sum from SwiftTD RLJ 2 (2024) §3 equation (3) (not its squared lifetime error), and `BrowserMath.tdSurprise` averages absolute residuals across adjacent reported projected predictions using the TD form in SwiftTD Appendix A.1 equation (17) (rather than returning the signed residual of equation (17), and without claiming equality to the learner's internal binary32 error). In `GoalAchievement` (`lean/Acorn/Host/Viewer/GoalAchievement.lean`, citing Sutton, Bowling & Pilarski `arXiv:2208.11173v3` pp. 4–5 *"Designing around a base agent"* and Javed & Sutton 2024 *"The Big World Hypothesis"* and *"Benchmarking Algorithms in Big Worlds"*), `GoalAchievement.State.begin` refuses cycle-counter saturation (`2^64 - 1`) so wrapped cycles cannot merge, and `GoalAchievement.Pass.permille` truncates via floor integer division (`1000 * achieved / goals`). `BrowserKernel` (`Phase.runLabel`) supplies transient `busy` labels (`starting…`, `stopping…`, `clearing…`) and routes `unaskedStops` (`.failed`, `.restartScheduled`) to the connection label. `BrowserRecord` separates `.nonFinite` (casting non-finite scalars to `NaN` and setting *nonFiniteKey*), `.unmeasured` (`core_rss_bytes`, `checkpoint_bytes`, `checkpoint_write_us`, mapped to `NaN` without setting *nonFiniteKey*), `.absentIndex` (`retire_step`, `retire_unit`, mapped to `-1`), and `.absentIndices` (`subtask_unit`, converted into an *Int32Array* with `< 2^31` range and `-1` sentinel), with `demon_horizon` applying `.twice` (`2 * envelope`). *BrowserSchema.stringSortKey* hashes wire keys modulo `4294967291` without needing injectivity for `browserSchema_distinct`, `browserRules_goal_separation` isolates `gkind` and `gitem`, and unknown incoming JSON keys remain forward-compatible. `ClockProgram.agreementFollows` compares process markers, per-process clocks, and stopped flags (admitting a capture when its process marker is strictly newer regardless of either capture's clock or stopped flag, or when the process marker is the same, the prior capture is not stopped, and either the per-process clock strictly increases, or the clock is equal with the new capture stopped), whereas native `Capture.follows` (`ClockProgram.follows` in `Admission.lean`) compares lifetime and world clocks and admits a same-lifetime terminal capture from a non-terminal predecessor only at `prevWorld + 1` (never at the same world step), and `ClockProgram.snapshotFollows` enforces zero-step resolved goal ordering alongside browser safe-integer bounds.
+- **Control diagnostics, stderr logs, and identity handshake (`Acorn.Host.Viewer.ControlTelemetry`, `LogPump`, `IdentityHandshake`):** `controlDiagnostic` truncates reasons at `1024` characters with `" [truncated]"` before appending the UX-24 `failureLimit` suffix (`controlTelemetry_reasons`), `controlTail` emits up to the last `6` stderr lines substituting `"[stderr line refused: invalid UTF-8]"` on invalid UTF-8 only while `.idle`, and `controlWarning` emits warnings only while `.idle` with `abnormalExit` taking precedence over a failed checkpoint status; `LogPump` retains `logTailCapacity := 200` lines and `logQueueCapacity := 256` queued entries; and `IdentityHandshake` persists the core's first reported `CoreIdentity` before releasing buffered pending frames without modifying `desired` (`PersistedState.adopt_desired`). See [verification](verification.md#viewer-ownership-boundaries) for server HTTP, broadcast, pipe-reader, process-owner, run-directory, and supervisor boundaries.
+
 ## 10 · Algorithm claims: pin or out of viewer scope
 
 Every surface that displays an algorithm names the work, the equation, and the
@@ -1122,7 +1398,7 @@ Swift-Sarsa https://arxiv.org/pdf/2507.19539 (arXiv:2507.19539v1, 5 pp.).
 
 | Surface | In viewer | Pin or out of scope |
 |---|---|---|
-| OaK's five stages and thesis (orientation strip) | UX-4 | **Architecture named, no equation displayed.** The panel says *progression*, not *loop*: the closed loop of Alberta Plan Step 11 (utility feedback over every element) is absent from this build (`docs/design.md`), and the return glyph's hover text says what it marks. The five stages are the FC-STOMP progression of Sutton, *The OaK Architecture: A Vision of SuperIntelligence from Experience*, RLC 2025 keynote — a talk, so no PDF page; verified against the recording published by Amii (`https://www.amii.ca/videos/oak-architecture-rich-sutton-rlc2025`) and the title listed at oaklab.ai — and the STOMP progression of RRS (AIJ 324 (2023) 104001, arXiv:2202.03466v4); the mission sentence *algorithms that allow agents to achieve goals in big worlds* is quoted from oaklab.ai/mission. Each node's figure is a stream field summarised by the panel it points at, whose pins are the rows below and the next row. |
+| OaK's five stages and thesis (orientation strip) | UX-4 | **Architecture named, no equation displayed.** The panel says *progression*, not *loop*: the closed loop of Alberta Plan Step 11 (utility feedback over every element) is absent from this build (`docs/design.md`), and the return glyph's hover text says what it marks. The five stages are the FC-STOMP progression of Sutton, *The OaK Architecture: A Vision of SuperIntelligence from Experience*, RLC 2025 keynote — a talk, so no PDF page; verified against the recording published by Amii (`https://www.amii.ca/videos/oak-architecture-rich-sutton-rlc2025`) and the title listed at oaklab.ai — and the STOMP progression of RRS (AIJ 324 (2023) 104001, arXiv:2202.03466v4); the mission sentence is Acorn's own, as the mission contract states it (`docs/mission-contract.md`), and is no quotation. Each node's figure is a stream field summarised by the panel it points at, whose pins are the rows below and the next row. |
 | `features` node (imprint units, retirements) | UX-4 | Mahmood & Sutton, *Representation Search through Generate and Test*, AAAI 2013 workshop, PDF opened (`http://www.incompleteideas.net/papers/MS-AAAIws-2013.pdf`; no running page number on its face), file p. 3 of 6: *“The tester first estimates the utility of each feature. The search method then replaces a small fraction ρ of the features that are least useful with newly generated features.”* — PAR-4 (generate half) / PAR-11 (tester). Counts only; no equation displayed. The node's hover text also states D1 (8 fixed tilings over a hand-authored channel layout; only the 512 imprint projections are generated-and-tested) and that the word *imprint* is Javed's — thesis ch. 9, *Feature Generation by Continual Imprinting* — for a mechanism this bank is not. |
 | `subtasks` node and option lines (stopping bonus) | UX-4, ribbon legend, HUD | Sutton, Machado et al., *Reward-Respecting Subtasks for Model-Based Reinforcement Learning*, AIJ 324 (2023) 104001, **PDF p. 4 eq. (4)**: *“let w̄ᵢ denote one of its largest values, called the bonus weight … The quantity (w̄ᵢ − wᵢ)xᵢ(s) is sometimes called the stopping bonus”*. This build derives the bonus weight from the goal-reward GVF's weight on the ranked feature (PAR-12); the page calls the figure `bonus` and the node's caption `stopping bonus`. |
 | `options` node (shaping term) | UX-4 | Ng, Harada & Russell, *Policy invariance under reward transformations: Theory and application to reward shaping*, ICML 1999, file p. 4 Theorem 1 eq. (2) `F(s, a, s') = γ Φ(s') − Φ(s)` — the four-part pin in `docs/prior-art-review.md` PAR-6 (no running page numbers on the PDF's face). For learned subtasks, Φ is the selected feature indicator; the attainment bonus multiplies that indicator in the stopping value. Differential research centers task reward by the gain estimate. Interruption compares learned stopping/continuation estimates; SPS99 Theorem 2 assumes exact option values and is not an improvement guarantee for this implementation. |

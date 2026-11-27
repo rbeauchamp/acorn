@@ -1,19 +1,6 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentIntervals
 import Acorn.Lifetime
 
-/-!
-# Machine arithmetic for lifetime totals
-
-The full unsigned count domain exceeds exact binary64 integer conversion.
-Bounds below use the actual pinned standard rounding and packing owners; no
-integer-exact conversion or unrounded-real addition is assumed. Native primitive
-and compiler correspondence retain the declared machine trust boundary.
--/
 open Acorn
 open Float.Model (Format totalExponent UnpackedFloat)
 open Float.Model.UnpackedFloat
@@ -22,7 +9,6 @@ open AcornVerif.CurrentOrder
 
 namespace AcornVerif.CurrentLifetimeArithmetic
 
-/-- Positive rounding preserves the sign for all significands and exponent shifts. -/
 theorem round_nonnegative (spec : Format) (mantissa : Nat) (exponent : Int) :
     0 ≤ unpackedValue (round spec .positive mantissa exponent) := by
   simp only [round, roundWithAccuracy]
@@ -31,7 +17,6 @@ theorem round_nonnegative (spec : Format) (mantissa : Nat) (exponent : Int) :
   · simp only [unpackedValue, signCoefficient, one_mul]
     positivity
 
-/-- A deliberately loose relative error suffices to separate the closed lifetime caps. -/
 theorem round_relative_half (spec : Format) (sign : Sign) (mantissa : Nat) (exponent : Int)
     (positive : 0 < mantissa)
     (floor : spec.minExponent ≤ totalExponent mantissa exponent - 1) :
@@ -51,7 +36,6 @@ theorem round_relative_half (spec : Format) (sign : Sign) (mantissa : Nat) (expo
       div_le_div_of_nonneg_right
         (model_positive_dyadic_window mantissa exponent positive).1 (by norm_num)
 
-/-- At magnitudes at least one half, the binary64 subnormal floor cannot dominate relative error. -/
 theorem half_floor (mantissa : Nat) (exponent : Int) (positive : 0 < mantissa)
     (lower : (1 : ℚ) / 2 ≤ (mantissa : ℚ) * (2 : ℚ) ^ exponent) :
     Format.binary64.minExponent ≤ totalExponent mantissa exponent - 1 := by
@@ -65,7 +49,6 @@ theorem half_floor (mantissa : Nat) (exponent : Int) (positive : 0 < mantissa)
   change -1074 ≤ totalExponent mantissa exponent - 1
   omega
 
-/-- The wide lifetime arithmetic envelope remains far below binary64 overflow. -/
 theorem wide_fits (value : UnpackedFloat) (exactValue : ℚ)
     (normal : ModelNormalized Format.binary64 value)
     (bound : |exactValue| ≤ (2 : ℚ) ^ (82 : ℤ))
@@ -81,7 +64,6 @@ theorem wide_fits (value : UnpackedFloat) (exactValue : ℚ)
     _ ≤ (2 : ℚ) ^ (29 : ℤ) + (2 : ℚ) ^ (82 : ℤ) := add_le_add error bound
     _ ≤ (2 : ℚ) ^ (83 : ℤ) := by norm_num
 
-/-- Full-domain unsigned conversion is finite with a conservative magnitude envelope. -/
 theorem count_model (word : UInt64) :
     (Binary64.ofUInt64 word).Finite ∧
       |numerical64 (Binary64.ofUInt64 word)| ≤ (2 : ℚ) ^ (65 : ℤ) ∧
@@ -120,7 +102,6 @@ theorem count_model (word : UInt64) :
     exact model_normalized_finite _ _ normal
   · exact ⟨by simpa only [numerical64, decoded] using magnitude, decoded⟩
 
-/-- A positive unsigned count stays positive even beyond exact integer conversion. -/
 theorem count_relative (word : UInt64) (positive : 0 < word.toNat) :
     |numerical64 (Binary64.ofUInt64 word) - (word.toNat : ℚ)| ≤ (word.toNat : ℚ) / 2 := by
   have decoded := (count_model word).2.2
@@ -132,7 +113,6 @@ theorem count_relative (word : UInt64) (positive : 0 < word.toNat) :
   have relative := round_relative_half Format.binary64 .positive word.toNat 0 positive floor
   simpa only [numerical64, decoded, signCoefficient, one_mul, zpow_zero, mul_one] using relative
 
-/-- Conversion is nonnegative for every count and bounded away from zero when nonempty. -/
 theorem count_nonnegative (word : UInt64) :
     0 ≤ numerical64 (Binary64.ofUInt64 word) ∧
       (0 < word.toNat → (1 : ℚ) / 2 ≤ numerical64 (Binary64.ofUInt64 word)) := by
@@ -147,7 +127,6 @@ theorem count_nonnegative (word : UInt64) :
     have one : (1 : ℚ) ≤ word.toNat := by exact_mod_cast positive
     constructor <;> intros <;> linarith
 
-/-- Half-relative rounding bound on the actual normalized multiplication. -/
 theorem model_mul_relative (left right : UnpackedFloat)
     (leftNormal : ModelNormalized Format.binary64 left)
     (rightNormal : ModelNormalized Format.binary64 right)
@@ -188,7 +167,6 @@ theorem model_mul_relative (left right : UnpackedFloat)
         round_relative_half Format.binary64 (leftSign * rightSign) (lm * rm) (le + re)
           positive floor
 
-/-- Actual wide multiplication is finite and separates positive caps by relative error. -/
 theorem mul_positive_relative (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite)
     (lower : (1 : ℚ) / 2 ≤ numerical64 left * numerical64 right)
@@ -222,7 +200,6 @@ theorem mul_positive_relative (left right : Binary64) (leftFinite : left.Finite)
   · change 0 ≤ unpackedValue (decoded64 left) * unpackedValue (decoded64 right) at positive
     simpa only [numerical64, decoded, abs_of_nonneg positive] using relative
 
-/-- Normalizing a nonnegative aligned significand cannot introduce a negative result. -/
 theorem normalize_nonnegative (mantissa : Int) (exponent : Int) (zeroSign : Sign)
     (positive : 0 ≤ mantissa) :
     0 ≤ unpackedValue (normalize Format.binary64 mantissa exponent zeroSign) := by
@@ -234,7 +211,6 @@ theorem normalize_nonnegative (mantissa : Int) (exponent : Int) (zeroSign : Sign
   · exact le_rfl
   · exact round_nonnegative _ _ _
 
-/-- Nonnegative finite inputs retain their sign through exact alignment and rounding. -/
 theorem model_add_nonnegative (left right : UnpackedFloat)
     (leftNormal : ModelNormalized Format.binary64 left)
     (rightNormal : ModelNormalized Format.binary64 right)
@@ -276,7 +252,6 @@ theorem model_add_nonnegative (left right : UnpackedFloat)
         exact_mod_cast this
       exact normalize_nonnegative sum target .positive sumPositive
 
-/-- Lifetime addition stays finite and nonnegative throughout its wide magnitude envelope. -/
 theorem add_nonnegative (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (leftPositive : 0 ≤ numerical64 left)
     (rightPositive : 0 ≤ numerical64 right)

@@ -1,55 +1,8 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Host.Visits
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentConcealedTarget
 import AcornVerif.CurrentAccounting
 import AcornVerif.CurrentHostLoop
-
-/-!
-# Every decision of a run of visits is the kernel's
-
-`Host.VisitRun.decide` is one decision of a run of visits, `Host.VisitRun.after` their fold and
-`Host.runVisitDecisions` the native loop. These statements relate them to the kernel's world in
-visits (`Kernel.visits`) of the grid world, from the run's held start, with the agent of the
-construction's step order (`CurrentHostLoop.orderedAgent`), through the simulation of a host's
-callbacks that `AcornVerif.CurrentHostLoop` holds (`Simulates`, `construction_simulates`).
-
-- `executed_visits_closed_loop`: after every number of decisions a run reached, the kernel's state
-  holds the run's world, carried result and step count, the kernel's memory and the run's agent have
-  the same learners, and the action of the next decision that observes successfully, whether the
-  world takes it, refuses it or does not receive it, decodes the kernel's action at that time.
-- `executed_visits_solved`: a run of a member of the class of concealed targets has completed one
-  visit for every `cap + 1` decisions, and reports a completed visit solved exactly when
-  `Kernel.SolvesOnVisit` holds.
-- `runVisitDecisions_complete`: a value the native loop returned agrees with the fold.
-- `executed_runs_first_success` and `comparator_runs_need`: the kernel's two bounds, for one visit
-  index fixed for all members, over values the native loop returned.
-- `visits_resumed`: the account of a crash.
-
-Hypotheses and limits. A refused observation produces no action, so nothing is said of one. That a
-world never refuses, that the loop returns, that any agent learns or solves anything are not stated.
-The native loop is read as a function on the world token through the tree's `Host.returned_bind`,
-`Host.returned_lazyPure` and `Host.returned_pure`; that the compiled code computes these definitions
-is assumed, as for every executing definition. No theorem relates the native entry
-`acorn-core visits` to the loop: that it starts the loop from the admitted world and target rests on
-reading it.
-
-A crash is a loop that did not return, so `runVisitDecisions_complete` says nothing of one. The loop
-writes a checkpoint only at a visit's boundary, so a crash leaves the last completed save or none.
-`visits_resumed` takes a run at a boundary, bytes a save of its agent wrote and the state resumed
-from those bytes, and does not say that the bytes a later process loads are the bytes this run saved
-(a file is not authenticated) or that the later process was given the same start and cap (the
-checkpoint holds neither). It also takes as given that a completed save survives the crash and a
-partial one leaves the old file: `Acorn.Host.Checkpoint.IO` states what a saved report establishes
-on each platform, and where a sync stops at the drive a power loss can lose this save and the image
-it replaced. Beyond the learners nothing about the agent is claimed: resuming begins a new session,
-so the evaluator's session statistics and pending records restart, and the host's report, action
-fingerprint and checkpoint schedule are not saved.
--/
 
 namespace AcornVerif.CurrentVisits
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -59,18 +12,14 @@ open AcornVerif.CurrentConcealedTarget
 variable {order : StepOrder} {config : Host.WorldConfig} {α β : Type} {goal : Host.Goal}
   {cap : UInt64}
 
-/-- The kernel's world in visits of a run: the grid world from the run's held start, in visits of
-the run's cap. -/
 abbrev visitWorld (mode : TaskFeatureMode) (start : Host.VisitStart config goal) (cap : UInt64) :
     Kernel.World Grid.interface :=
   Kernel.visits (gridWorld config mode) (some ⟨start.world, start.carried⟩) cap.toNat
 
-/-- The first state of the kernel's world in visits of a run. -/
 abbrev visitOrigin (mode : TaskFeatureMode) (start : Host.VisitStart config goal) (cap : UInt64) :
     (visitWorld mode start cap).State :=
   Kernel.visitStart (gridWorld config mode) (some ⟨start.world, start.carried⟩) cap.toNat
 
-/-- The state of the kernel's world in visits that a run stands at. -/
 abbrev visitHere (mode : TaskFeatureMode) (start : Host.VisitStart config goal)
     (run : Host.VisitRun config α goal cap) : (visitWorld mode start cap).State :=
   (some ⟨run.attempt.run.world, run.attempt.run.carried⟩, run.attempt.steps)
@@ -89,7 +38,6 @@ theorem visit_step_last (mode : TaskFeatureMode) (start : Host.VisitStart config
       (some ⟨start.world, start.carried⟩, ⟨0, Nat.succ_pos _⟩) :=
   dite_eq_right last
 
-/-- One decision of a run, accepted or at a visit's last state, is one interaction of the kernel. -/
 theorem decide_kernel {callbacks : Host.AgentCallbacks order α β} {mode : TaskFeatureMode}
     {agent : Kernel.Agent Grid.interface} {related : α → agent.Memory → Prop}
     (simulates : Simulates callbacks mode agent related)
@@ -175,7 +123,6 @@ theorem decide_kernel {callbacks : Host.AgentCallbacks order α β} {mode : Task
         · cases refused
       · cases refused
 
-/-- The state and the memory of the kernel's run, after every number of decisions a run reached. -/
 theorem visits_invariant {callbacks : Host.AgentCallbacks order α β} {mode : TaskFeatureMode}
     {agent : Kernel.Agent Grid.interface} {related : α → agent.Memory → Prop}
     (simulates : Simulates callbacks mode agent related)
@@ -221,10 +168,6 @@ theorem visits_invariant {callbacks : Host.AgentCallbacks order α β} {mode : T
           rw [here]
           exact kept
 
-/-- **Every decision of a run of visits is the kernel's.** After every number of decisions the run
-reached, its world, carried result and step count are the state of the kernel's world in visits,
-its agent stands in the relation to the kernel's memory, and the action of its next decision,
-accepted, refused or dropped at a visit's last state, decodes the kernel's action at that time. -/
 theorem visits_simulation {callbacks : Host.AgentCallbacks order α β} {mode : TaskFeatureMode}
     {agent : Kernel.Agent Grid.interface} {related : α → agent.Memory → Prop}
     (simulates : Simulates callbacks mode agent related)
@@ -256,7 +199,6 @@ theorem visits_simulation {callbacks : Host.AgentCallbacks order α β} {mode : 
     rw [← here] at taken
     exact taken
 
-/-- What a decision does to a run's report. -/
 theorem decide_cases {callbacks : Host.AgentCallbacks order α β}
     {start : Host.VisitStart config goal} {run : Host.VisitRun config α goal cap}
     {decision : Host.VisitDecision config α goal cap}
@@ -298,13 +240,11 @@ theorem decide_cases {callbacks : Host.AgentCallbacks order α β}
       change attempt.steps.val = cap.toNat
       omega
 
-/-- The goal of a run's installed target is met at a time of the kernel's run. -/
 abbrev MetAt (mode : TaskFeatureMode) (start : Host.VisitStart config goal) (cap : UInt64)
     (agent : Kernel.Agent Grid.interface) (time : ℕ) : Prop :=
   (completion config mode cap.toNat).satisfied
     (Kernel.stateAt (visitWorld mode start cap) agent (visitOrigin mode start cap) time).1
 
-/-- A run's report, at every time. -/
 theorem visits_report {callbacks : Host.AgentCallbacks order α β} {mode : TaskFeatureMode}
     {agent : Kernel.Agent Grid.interface} {related : α → agent.Memory → Prop}
     (simulates : Simulates callbacks mode agent related)
@@ -390,9 +330,6 @@ theorem visits_report {callbacks : Host.AgentCallbacks order α β} {mode : Task
               rw [soFar, atEnd]
             · exact earlier visit reported found
 
-/-- **What a run reports is the kernel's solving on a visit.** A run of the class of concealed
-targets has completed one visit for every `cap + 1` decisions, and it reports a completed visit
-solved exactly when the kernel's agent solves the member on that visit. -/
 theorem visits_solved {callbacks : Host.AgentCallbacks order α β} {mode : TaskFeatureMode}
     {agent : Kernel.Agent Grid.interface} {related : α → agent.Memory → Prop}
     (simulates : Simulates callbacks mode agent related) (live : Live config)
@@ -413,7 +350,6 @@ theorem visits_solved {callbacks : Host.AgentCallbacks order α β} {mode : Task
   rw [clock, Nat.add_comm, Nat.add_mul_div_right _ _ (Nat.succ_pos _),
     Nat.div_eq_of_lt bound, Nat.zero_add]
 
-/-- The fold from one more decision, from its first decision. -/
 theorem after_succ (callbacks : Host.AgentCallbacks order α β) (start : Host.VisitStart config goal)
     (initial : Host.VisitRun config α goal cap) (time : ℕ) :
     Host.VisitRun.after callbacks start initial (time + 1) =
@@ -429,11 +365,6 @@ theorem after_succ (callbacks : Host.AgentCallbacks order α β) (start : Host.V
     | error refusal => rfl
     | ok decision => rfl
 
-/-- What a native run of visits may return from a run within a budget of decisions. A refusal is
-the refusal of the next decision after fewer decisions than the budget. Any other value holds the
-fold after a number of decisions within the budget: all of them when the budget ran out, and, when
-a stop was honored, a number that leaves the run at the start of a visit: the held world and result,
-a count of zero and no goal met. -/
 def VisitsAgree (callbacks : Host.AgentCallbacks order α β) (start : Host.VisitStart config goal)
     (initial : Host.VisitRun config α goal cap) (fuel : ℕ) :
     Except (Host.Refusal config α goal cap) (Host.VisitsResult config α goal cap) → Prop
@@ -447,7 +378,6 @@ def VisitsAgree (callbacks : Host.AgentCallbacks order α β) (start : Host.Visi
         result.run.attempt.run.carried = start.carried ∧ result.run.attempt.steps.val = 0 ∧
         result.run.achieved = false)
 
-/-- The native result after a first decision is a native result of one more decision. -/
 theorem lift_complete {callbacks : Host.AgentCallbacks order α β}
     {start : Host.VisitStart config goal} {initial : Host.VisitRun config α goal cap} {fuel : ℕ}
     {decision : Host.VisitDecision config α goal cap}
@@ -464,9 +394,6 @@ theorem lift_complete {callbacks : Host.AgentCallbacks order α β}
     exact ⟨time + 1, by omega, by rw [after_succ, answer]; exact ran,
       fun same => by rw [complete same], stopped⟩
 
-/-- **The native loop returns the pure fold.** For every callback record, observer, stop reader,
-budget, run, resource record, checkpoint capability and world token: a value the loop returned
-agrees with the fold (`VisitsAgree`). Nothing here says that the loop returns. -/
 theorem runVisitDecisions_complete (callbacks : Host.AgentCallbacks order α β)
     (observer : Host.StreamObserver β) (start : Host.VisitStart config goal)
     (readStop : BaseIO Bool) (fuel : ℕ) (initial : Host.VisitRun config α goal cap)
@@ -527,7 +454,6 @@ theorem runVisitDecisions_complete (callbacks : Host.AgentCallbacks order α β)
           simp only [Bool.false_eq_true, ↓reduceIte] at returned
           exact lift_complete answer _ (ih decision.next saved _ w4 returned)
 
-/-- A completed visit of a value a native run of visits returned, with what it reports. -/
 def ReportedVisit (callbacks : Host.AgentCallbacks order α β) (start : Host.VisitStart config goal)
     (cap : UInt64) (state : α) (visit : ℕ) (reported : Bool) : Prop :=
   ∃ (observer : Host.StreamObserver β) (readStop : BaseIO Bool) (fuel : ℕ) (behavior : UInt64)
@@ -554,8 +480,6 @@ theorem reported_solves {callbacks : Host.AgentCallbacks order α β} {mode : Ta
   exact (visits_solved simulates live target state behavior holds time result.run ran).2 visit
     reported flag
 
-/-- Agents whose memories stay in a relation, from related first memories, run one path of states:
-the relation is kept at every time, and every decision gives one action. -/
 theorem related_loop {first second : Kernel.Agent Grid.interface}
     (related : first.Memory → second.Memory → Prop)
     (initial : related first.initial second.initial)
@@ -583,8 +507,6 @@ theorem related_loop {first second : Kernel.Agent Grid.interface}
     rw [← ih.1]
     exact ⟨congrArg _ decided.1, decided.2⟩
 
-/-- The comparator's kernel agent simulates the comparator's callbacks: their memories are one
-stream. -/
 theorem comparator_simulates (mode : TaskFeatureMode) (stream : Rng.Xoshiro256) :
     Simulates Host.comparatorCallbacks mode (comparator stream)
       (fun (host : Rng.Xoshiro256) (memory : Rng.Xoshiro256) => host = memory) := by
@@ -597,11 +519,6 @@ theorem comparator_simulates (mode : TaskFeatureMode) (stream : Rng.Xoshiro256) 
   · intro host memory family visit steps achieved same
     exact same
 
-/-- **The executed agent at every step of every visit.** For every construction, at every step
-order, from every state of it: after every number of decisions a run reached, the kernel's world in
-visits holds the run's world, carried result and step count, the run's agent has the kernel memory's
-learners, and the action of the run's next decision, whether the world takes it, refuses it or, at a
-visit's last state, does not receive it, decodes the kernel's action at that time. -/
 theorem executed_visits_closed_loop (construction : AgentConstruction)
     (start : Host.VisitStart config goal) (cap : UInt64) (state : construction.State)
     (behavior : UInt64) (time : ℕ) (run : Host.VisitRun config construction.State goal cap)
@@ -628,8 +545,6 @@ theorem executed_visits_closed_loop (construction : AgentConstruction)
   visits_simulation (construction_simulates construction state) start state behavior rfl time run
     reached
 
-/-- **What a run of a construction reports.** The specialization of `visits_solved` to a
-construction, at every step order, from every state of it. -/
 theorem executed_visits_solved (construction : AgentConstruction) (live : Live config)
     (target : (findClass config construction.profile.taskMode live).Index)
     (state : construction.State) (behavior : UInt64) (time : ℕ)
@@ -647,11 +562,6 @@ theorem executed_visits_solved (construction : AgentConstruction) (live : Live c
   visits_solved (construction_simulates construction state) live target state behavior rfl time run
     reached
 
-/-- **First success, on the runs as executed.** Take one state of a construction and, for each of
-some members of the class of concealed targets, native runs of that member from that state. For one
-visit index, the same for every member, the members whose runs report that visit solved and every
-earlier visit unsolved number at most `49 + 7 cap`. Members solved first at a visit each chooses for
-itself are not bounded here: an agent that learns may solve more of them with experience. -/
 theorem executed_runs_first_success (construction : AgentConstruction) (live : Live config)
     (cap : UInt64) (state : construction.State) (visit : ℕ)
     (solved : Finset (findClass config construction.profile.taskMode live).Index)
@@ -672,9 +582,6 @@ theorem executed_runs_first_success (construction : AgentConstruction) (live : L
       ((each target member).2 earlier before)).mpr solves
     cases flag
 
-/-- **Need on every visit, on the comparator's runs as executed.** For one stream and one visit
-index, the same for every member, the members whose native runs report that visit solved number at
-most `49 + 7 cap`. -/
 theorem comparator_runs_need (mode : TaskFeatureMode) (live : Live config) (cap : UInt64)
     (stream : Rng.Xoshiro256) (visit : ℕ) (solved : Finset (findClass config mode live).Index)
     (each : ∀ target ∈ solved,
@@ -685,11 +592,6 @@ theorem comparator_runs_need (mode : TaskFeatureMode) (live : Live config) (cap 
     (reported_solves (comparator_simulates mode stream) live target stream rfl visit true
       (each target member)).mp rfl)
 
-/-- **A crash loses nothing the kernel's run keeps.** Take a run at a visit's boundary, the bytes a
-save of its agent wrote, and the state a later process resumes from those bytes. From a visit's
-first state the resumed agent's kernel run is the original kernel run from that boundary: the same
-states, actions and learners at every later time. So a visit a crash interrupted runs again exactly
-and no learning is lost. -/
 theorem visits_resumed (construction : AgentConstruction) (start : Host.VisitStart config goal)
     (cap : UInt64) (state receiver resumed : construction.State) (behavior : UInt64) (visits : ℕ)
     (run : Host.VisitRun config construction.State goal cap)
@@ -763,8 +665,6 @@ theorem visits_resumed (construction : AgentConstruction) (start : Host.VisitSta
   rw [same.1] at taken ⊢
   exact taken
 
-/-- **The entry's refusal is the class's condition.** A target's goal box holds a world's body,
-which `Host.targetHoldsBody` decides, exactly when the box of the class's condition does. -/
 theorem targetHoldsBody_iff (world : Host.World config) (target : Host.Position) :
     Host.targetHoldsBody world target = true ↔
       CurrentGoals.InGoalBox target world.body.position.position :=

@@ -1,82 +1,11 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentCheckpoint
 import AcornVerif.CurrentCheckpointSize
-
-/-!
-# Every state a host runs has a bounded image
-
-`AcornVerif.CurrentCheckpointSize.snapshot_size_bound` bounds a saved image for every state whose
-evaluator naturals each encode within `naturalAllowance` bytes. This module discharges that
-hypothesis for every state a host runs, and turns the bound on the image into a bound on how many
-such states there are. It is the mission rbeauchamp/acorn#195, which serves obligation 6 of
-`docs/mission-contract.md`.
-
-`Running` defines the states a host runs: the cold state, a state resumed from bytes, and every
-state one host operation after such a state (a whole step of the construction's order, the two
-observation writes, the censoring at process exit, the start of an evaluator session). It has one
-constructor for each constructor of `AgentConstruction.Reached`, with `loaded` replaced by
-`resumed`. Under a profile that restores, every agent is reached
-(`AcornVerif.CurrentCheckpoint.loader_reaches`), and the type of a ratio bounds neither of its
-naturals, so a reached agent can hold a natural longer than its allowance (argued, not proved
-here). A state that `Acorn.Checkpoint.resume` returns has a new evaluator session, and so holds no
-evaluator natural but the zero sums of its empty channels.
-
-The naturals stay below bounds that do not depend on the number of steps:
-
-- the sum of a channel's total is at most its count times the square of the channel's scale, by
-  its type, and a scale is below `2 ^ 278` (`magnitudeUnits_lt`), so a sum is below `2 ^ 620`
-  (`sum_lt`);
-- a channel's precision is written by a settlement only, as a derived precision or its merge with
-  the one held, and a merge returns one of its two arguments for each ratio; a derived precision
-  has denominators below `2 ^ 427` (`precision_bounded`, `settle_bounded`);
-- an agreement point's ratio is the ratio of the equal-question mean over the channels, whose
-  denominator is at most the number of channels times `2 ^ 620` to the power of that number,
-  whatever the records hold (`agreementRatio_bounded`).
-
-`StatsBounded` is the invariant these give: every precision and every agreement point bounded. The
-cold observations and the observations of a new session satisfy it (`initial_stats`,
-`restore_stats`). Recording a reward, an attempt or a step's predictions, and censoring, keep it
-(`recordEnvironment_stats`, `recordAttempt_stats`, `recordDemons_stats`, `censor_stats`). A whole
-step writes the observations at its completion boundary only, under every step order: the first
-part, the owed writes, the deferred planning and the tester write none (`choose_lifetime`,
-`actOrdered_bounded`). That rests on the executing library's theorems that selection, the
-draw-first selection, the deferred writes and option learning hold the lifetime record. So every
-running state satisfies the invariant (`running_bounded`), and over the grid's eleven channels
-every natural is below `128 ^ naturalAllowance`, which is `2 ^ 28672`
-(`running_naturals_allowed`): a natural below `128 ^ (digits + 1)` encodes in at most `digits + 1`
-bytes (`natural_length`).
-
-`running_snapshot_size` is then `snapshot_size_bound`. A state is a function of the bytes of its
-image, under every profile: the frame returns the payload it wrote, the image format reads its own
-encoding, and an agent is the agent of its image (`agentCode_injective`). No load is used, so the
-profile need not restore. A list of at most `n` bytes has a code below `256 ^ (n + 1)`
-(`code_injective`, `code_lt`). That gives `running_memory_bits`, for every construction.
-
-What the bound is not. It counts memory in the bytes of the exact image: it says nothing about
-native allocation or work, or about how the executed agent uses its memory.
-
-- `Running` is a definition over the states of a grid construction. No theorem says that a native
-  loop holds only such states. The host's loops are generic in the agent's type and reach an agent
-  only through the constructor, the callbacks and the checkpoint hooks, and the hooks load through
-  `Acorn.Checkpoint.resume` (argued). A host operation added to `AgentConstruction.Reached` is not
-  thereby added to `Running`.
-- No theorem here relates a running state to the memory of a kernel run, which
-  `AcornVerif.Kernel.campaign_count` and the record of contract 3 read.
-  `AcornVerif.CurrentKernelMemory` proves that link.
--/
 
 set_option exponentiation.threshold 32768
 
 namespace AcornVerif.CurrentRunningMemory
 open Acorn Acorn.Features Acorn.Handcrafted Acorn.Checkpoint
 
-/-! ## Naturals within the allowance -/
-
-/-- A natural below `128 ^ (digits + 1)` encodes in at most `digits + 1` bytes. -/
 theorem natural_length (digits : Nat) : ∀ value, value < 128 ^ (digits + 1) →
     (Format.natural.encode value).length ≤ digits + 1 := by
   induction digits with
@@ -99,15 +28,10 @@ theorem natural_length (digits : Nat) : ∀ value, value < 128 ^ (digits + 1) �
       rw [Nat.pow_succ, Nat.mul_comm] at small
       exact Nat.div_lt_of_lt_mul small
 
-/-- A natural below `128 ^ naturalAllowance`, which is `2 ^ 28672`, encodes within the
-allowance. -/
 theorem natural_allowed {value : Nat} (small : value < 128 ^ naturalAllowance) :
     (Format.natural.encode value).length ≤ naturalAllowance :=
   natural_length 4095 value small
 
-/-! ## Bounds of the evaluator's arithmetic -/
-
-/-- The units of a binary32 word are fewer than `2 ^ 278`. -/
 theorem magnitudeUnits_lt (value : Binary32) : Agreement.magnitudeUnits value < 2 ^ 278 := by
   have bound := value.magnitude_lt
   have fraction : value.magnitude % 2 ^ 23 < 2 ^ 23 := Nat.mod_lt _ (by decide)
@@ -124,20 +48,15 @@ theorem magnitudeUnits_lt (value : Binary32) : Agreement.magnitudeUnits value < 
         < 2 ^ 24 * 2 ^ 254 := Nat.mul_lt_mul_of_lt_of_le significand scale (Nat.two_pow_pos 254)
       _ = 2 ^ 278 := by rw [← Nat.pow_add]
 
-/-- The scale of a channel's discrepancies is below `2 ^ 278`. -/
 theorem envelopeUnits_lt (discount : Discount) : Agreement.envelopeUnits discount < 2 ^ 278 :=
   magnitudeUnits_lt _
 
-/-- The bound of the two denominators of a channel's precision: `2 ^ 427`. -/
 def precisionBound : Nat := 2 ^ 427
 
-/-- The bound of a channel's sum and of the denominator of its ratio: `2 ^ 620`. -/
 def sumBound : Nat := 2 ^ 620
 
-/-- The bound of the denominator of an agreement point over a number of channels. -/
 def pointBound (channels : Nat) : Nat := channels * sumBound ^ channels
 
-/-- An admitted ratio has the denominator it was admitted with. -/
 theorem admit_denominator {numerator denominator : Nat} {ratio : Agreement.Ratio}
     (admitted : Agreement.Ratio.admit numerator denominator = some ratio) :
     ratio.denominator = denominator := by
@@ -149,7 +68,6 @@ theorem admit_denominator {numerator denominator : Nat} {ratio : Agreement.Ratio
     · cases admitted
   · cases admitted
 
-/-- The larger of two ratios is one of the two. -/
 theorem maximum_cases (left right : Agreement.Ratio) :
     left.maximum right = left ∨ left.maximum right = right := by
   unfold Agreement.Ratio.maximum
@@ -157,8 +75,6 @@ theorem maximum_cases (left right : Agreement.Ratio) :
   · exact .inr rfl
   · exact .inl rfl
 
-/-- A precision the evaluator derives has both denominators below `2 ^ 427`: the first is a
-difference of units below `2 ^ 149` times the channel's scale, and the second is the scale. -/
 theorem precision_bounded {discount : Discount} {steps : Nat} {power : Binary32}
     {precision : Agreement.Precision}
     (derived : Agreement.precision discount steps power = some precision) :
@@ -188,8 +104,6 @@ theorem precision_bounded {discount : Discount} {steps : Nat} {power : Binary32}
             _ = precisionBound := by rw [← Nat.pow_add]; rfl
         · exact Nat.lt_of_lt_of_le envelope (Nat.pow_le_pow_right (by decide) (by decide))
 
-/-- A count of at most the count limit, times the square of a channel's scale, is below `2 ^ 620`:
-the limit is below `2 ^ 64` and the scale below `2 ^ 278`. -/
 theorem scaled_lt (discount : Discount) (count : Nat) (small : count ≤ Agreement.countLimit) :
     count * Agreement.envelopeUnits discount ^ 2 < sumBound := by
   have envelope := envelopeUnits_lt discount
@@ -201,13 +115,11 @@ theorem scaled_lt (discount : Discount) (count : Nat) (small : count ≤ Agreeme
           (Nat.pow_le_pow_left (Nat.le_of_lt envelope) 2) (Nat.pow_pos (Nat.two_pow_pos 278))
     _ = sumBound := by rw [← Nat.pow_mul, ← Nat.pow_add]; rfl
 
-/-- The sum of a channel's total is below `2 ^ 620`. -/
 theorem sum_lt {discount : Discount}
     (total : Agreement.Total (Agreement.envelopeUnits discount)) : total.sum < sumBound :=
   Nat.lt_of_le_of_lt total.bounded
     (scaled_lt discount total.count.val (Nat.le_of_lt_succ total.count.isLt))
 
-/-- The ratio of a channel has a denominator of at most `2 ^ 620`. -/
 theorem channel_ratio_bounded {discount : Discount} (channel : Agreement.Channel discount)
     {ratio : Agreement.Ratio} (scored : channel.ratio = some ratio) :
     ratio.denominator ≤ sumBound := by
@@ -221,8 +133,6 @@ theorem channel_ratio_bounded {discount : Discount} (channel : Agreement.Channel
         (scaled_lt discount channel.total.count.val (Nat.le_of_lt_succ channel.total.count.isLt))
     · cases scored
 
-/-- An aggregate of ratios whose denominators are each at most `2 ^ 620` counts every ratio and has
-a denominator of at most that bound to the power of their number. -/
 theorem aggregate_bounded : ∀ (ratios : List (Option Agreement.Ratio))
     (aggregate : Agreement.Aggregate),
     (∀ ratio ∈ ratios, ∀ held, ratio = some held → held.denominator ≤ sumBound) →
@@ -243,8 +153,6 @@ theorem aggregate_bounded : ∀ (ratios : List (Option Agreement.Ratio))
     rw [Nat.pow_succ]
     exact Nat.mul_le_mul small (bounded (some head) List.mem_cons_self head rfl)
 
-/-- The ratio of an aggregate of ratios whose denominators are each at most `2 ^ 620` has a
-denominator of at most their number times that bound to the power of their number. -/
 theorem aggregate_ratio_bounded (ratios : List (Option Agreement.Ratio))
     (bounded : ∀ ratio ∈ ratios, ∀ held, ratio = some held → held.denominator ≤ sumBound)
     {ratio : Agreement.Ratio}
@@ -260,33 +168,25 @@ theorem aggregate_ratio_bounded (ratios : List (Option Agreement.Ratio))
     exact Nat.mul_le_mul_left _ small
   · cases taken
 
-/-! ## The invariant of the evaluator -/
-
 section evaluator
 open Acorn.Lifetime
 
 variable {discount : Discount} {discounts : List Discount}
 
-/-- A channel's precision, when it holds one, has both denominators below `2 ^ 427`. -/
 def ChannelBounded (channel : Agreement.Channel discount) : Prop :=
   ∀ precision, channel.precision = some precision →
     precision.tail.denominator < precisionBound ∧
       precision.rounding.denominator < precisionBound
 
-/-- An empty channel is bounded: it holds no precision. -/
 theorem empty_bounded (discount : Discount) :
     ChannelBounded (Agreement.Channel.empty discount) :=
   fun _ held => nomatch held
 
-/-- Counting censored futures writes no precision. -/
 theorem censor_bounded (channel : Agreement.Channel discount) (count : Nat)
     (held : ChannelBounded channel) : ChannelBounded (channel.censor count) := by
   unfold Agreement.Channel.censor
   split <;> exact held
 
-/-- A settlement keeps the bound. It writes no precision, or the derived precision where the
-channel held none, or the merge of the one held with the derived one, and a merge returns, for
-each ratio, one of its two arguments. -/
 theorem settle_bounded (channel : Agreement.Channel discount) (forecast outcome power : Binary32)
     (steps : Nat) (started settled : UInt64) (held : ChannelBounded channel) :
     ChannelBounded (channel.settle forecast outcome power steps started settled) := by
@@ -326,7 +226,6 @@ theorem settle_bounded (channel : Agreement.Channel discount) (forecast outcome 
               · rw [same]
                 exact fresh.2
 
-/-- One pending return advanced, settled or not, keeps the channel's bound. -/
 theorem advanceSlot_bounded (state : DemonStats discount)
     (slot : Fin Acorn.FeatureConstants.pendingSamples) (cumulant : Binary32) (clock : UInt64)
     (held : ChannelBounded state.agreement) :
@@ -339,7 +238,6 @@ theorem advanceSlot_bounded (state : DemonStats discount)
     · exact settle_bounded _ _ _ _ _ _ _ held
     · exact held
 
-/-- Every pending return advanced in turn keeps the channel's bound. -/
 theorem advanceSlots_bounded (cumulant : Binary32) (clock : UInt64) :
     ∀ (slots : List (Fin Acorn.FeatureConstants.pendingSamples))
       (current : DemonStats discount ×
@@ -352,7 +250,6 @@ theorem advanceSlots_bounded (cumulant : Binary32) (clock : UInt64) :
     advanceSlots_bounded cumulant clock rest (DemonStats.visit current slot cumulant clock)
       (advanceSlot_bounded current.1 slot cumulant clock held)
 
-/-- Starting a pending return writes no precision. -/
 theorem start_bounded (state : DemonStats discount) (clock : UInt64)
     (prediction : Prediction discount) (held : ChannelBounded state.agreement) :
     ChannelBounded (state.start clock prediction).agreement := by
@@ -361,7 +258,6 @@ theorem start_bounded (state : DemonStats discount) (clock : UInt64)
   · split <;> exact held
   · exact held
 
-/-- One channel's observation of a step keeps its bound. -/
 theorem observe_bounded (state : DemonStats discount)
     (history : Vector (SumCount (.squaredError .g99)) Acorn.FeatureConstants.historyBins)
     (clock : UInt64) (cumulant : Binary32) (prediction : Prediction discount)
@@ -373,38 +269,32 @@ theorem observe_bounded (state : DemonStats discount)
     exact advanceSlots_bounded cumulant clock _ (state, history) held
   exact start_bounded _ clock prediction advanced
 
-/-- Every channel of the records is bounded. -/
 def RecordsBounded : {discounts : List Discount} → DemonRecords discounts → Prop
   | _, .nil => True
   | _, .cons head tail => ChannelBounded head.agreement ∧ RecordsBounded tail
 
-/-- Records rebuilt from their durable projection are bounded: every channel is empty. -/
 theorem restore_bounded : ∀ {discounts : List Discount} (durable : DurableDemons discounts),
     RecordsBounded durable.restore
   | _, .nil => trivial
   | _, .cons _ tail => ⟨empty_bounded _, restore_bounded tail⟩
 
-/-- Cold records are bounded: every channel is empty. -/
 theorem initial_bounded : ∀ discounts : List Discount,
     RecordsBounded (DemonRecords.initial discounts)
   | [] => trivial
   | discount :: rest => ⟨empty_bounded discount, initial_bounded rest⟩
 
-/-- Censoring every channel keeps the bound. -/
 theorem censorRecords_bounded : ∀ {discounts : List Discount} (state : DemonRecords discounts),
     RecordsBounded state → RecordsBounded state.censor
   | _, .nil, _ => trivial
   | _, .cons head tail, held =>
     ⟨censor_bounded head.agreement head.pendingCount held.1, censorRecords_bounded tail held.2⟩
 
-/-- Marking every channel failed writes no precision. -/
 theorem failRecords_bounded (fault : Agreement.Fault) :
     ∀ {discounts : List Discount} (state : DemonRecords discounts),
       RecordsBounded state → RecordsBounded (state.fail fault)
   | _, .nil, _ => trivial
   | _, .cons _ tail, held => ⟨held.1, failRecords_bounded fault tail held.2⟩
 
-/-- The records' observation of a step keeps every channel's bound. -/
 theorem observeRecords_bounded : ∀ {discounts : List Discount} (state : DemonRecords discounts)
     (history : Vector (SumCount (.squaredError .g99)) Acorn.FeatureConstants.historyBins)
     (clock : UInt64) (cumulants : Cumulants discounts) (predictions : PredictionCache discounts),
@@ -416,8 +306,6 @@ theorem observeRecords_bounded : ∀ {discounts : List Discount} (state : DemonR
       observeRecords_bounded tail (head.observe history clock cumulant prediction).2 clock
         cumulants predictions held.2⟩
 
-/-- The ratio of the records' equal-question mean has a denominator of at most the number of
-channels times `2 ^ 620` to the power of that number, whatever the records hold. -/
 theorem agreementRatio_bounded (state : DemonRecords discounts) {ratio : Agreement.Ratio}
     (scored : state.agreementRatio = some ratio) :
     ratio.denominator ≤ pointBound discounts.length := by
@@ -437,21 +325,16 @@ theorem agreementRatio_bounded (state : DemonRecords discounts) {ratio : Agreeme
 
 end evaluator
 
-/-! ## The invariant of the lifetime observations -/
-
 section observations
 open Acorn.Lifetime
 
 variable {discounts : List Discount}
 
-/-- Every agreement point of a history has a ratio whose denominator is at most the bound of a
-point over a number of channels. -/
 def HistoryBounded (channels : Nat) {bins : Nat}
     (history : Vector (Option AgreementPoint) bins) : Prop :=
   ∀ point ∈ history.toList, ∀ held, point = some held →
     held.ratio.denominator ≤ pointBound channels
 
-/-- A history with no point is bounded. -/
 theorem empty_history (channels bins : Nat) :
     HistoryBounded channels (Vector.replicate bins (none : Option AgreementPoint)) := by
   intro point member held same
@@ -459,7 +342,6 @@ theorem empty_history (channels bins : Nat) :
   rw [List.eq_of_mem_replicate member] at same
   cases same
 
-/-- Writing a bounded point into a bounded history keeps it bounded. -/
 theorem set_history {channels bins : Nat} (history : Vector (Option AgreementPoint) bins)
     (index : Nat) (within : index < bins) (point : Option AgreementPoint)
     (held : HistoryBounded channels history)
@@ -471,40 +353,30 @@ theorem set_history {channels bins : Nat} (history : Vector (Option AgreementPoi
   · exact held entry earlier kept same
   · exact fresh kept (written ▸ same)
 
-/-- **The invariant.** Every channel's precision has denominators below `2 ^ 427`, and every
-agreement point's ratio has a denominator of at most the bound of a point over the channels. -/
 def StatsBounded (stats : Stats discounts) : Prop :=
   RecordsBounded stats.demons ∧ HistoryBounded discounts.length stats.agreementHistory
 
-/-- Cold observations are bounded. -/
 theorem initial_stats (discounts : List Discount) : StatsBounded (Stats.initial discounts) :=
   ⟨initial_bounded discounts, empty_history _ _⟩
 
-/-- Observations rebuilt from their durable projection are bounded, whatever the session's
-clocks: every channel is empty and the history holds no point. -/
 theorem restore_stats (durable : Durable discounts) (started last : Option UInt64) :
     StatsBounded { durable.restore with agreementStarted := started, agreementLastClock := last } :=
   ⟨restore_bounded durable.demons, empty_history _ _⟩
 
-/-- Recording a reward writes neither a channel nor the agreement history. -/
 theorem recordEnvironment_stats (stats : Stats discounts) (clock : UInt64) (family : Fin 4)
     (value : Binary32) (held : StatsBounded stats) :
     StatsBounded (stats.recordEnvironment clock family value) :=
   held
 
-/-- Recording an attempt writes neither a channel nor the agreement history. -/
 theorem recordAttempt_stats (stats : Stats discounts) (family : Fin 4) (cycle steps : UInt64)
     (achieved : Bool) (held : StatsBounded stats) :
     StatsBounded (stats.recordAttempt family cycle steps achieved) :=
   held
 
-/-- Censoring the observations keeps them bounded. -/
 theorem censor_stats (stats : Stats discounts) (held : StatsBounded stats) :
     StatsBounded stats.censor :=
   ⟨censorRecords_bounded stats.demons held.1, held.2⟩
 
-/-- Observing a step with bounded records, and writing the agreement point of the observed
-records into a bounded history, gives bounded records and a bounded history. -/
 theorem observed_stats (stats : Stats discounts) (records : DemonRecords discounts)
     (clock : UInt64) (cumulants : Cumulants discounts) (predictions : PredictionCache discounts)
     (held : StatsBounded stats) (chosen : RecordsBounded records) :
@@ -524,7 +396,6 @@ theorem observed_stats (stats : Stats discounts) (records : DemonRecords discoun
     exact agreementRatio_bounded _ scored
   · exact held.2
 
-/-- Recording the predictions of a step keeps the observations bounded. -/
 theorem recordDemons_stats (stats : Stats discounts) (clock : UInt64)
     (cumulants : Cumulants discounts) (predictions : PredictionCache discounts)
     (held : StatsBounded stats) :
@@ -552,7 +423,6 @@ theorem recordDemons_stats (stats : Stats discounts) (clock : UInt64)
     simp only [Id.run, stopped, Bool.false_eq_true, ↓reduceIte]
     exact observed_stats stats _ clock cumulants predictions held chosen
 
-/-- The naturals of bounded channels are below `128 ^ naturalAllowance`. -/
 theorem records_small : ∀ {discounts : List Discount} (records : DemonRecords discounts),
     RecordsBounded records →
       ∀ value ∈ CurrentCheckpointSize.recordsNaturals records, value < 128 ^ naturalAllowance
@@ -585,9 +455,6 @@ theorem records_small : ∀ {discounts : List Discount} (records : DemonRecords 
           · exact Nat.lt_trans (Nat.lt_of_le_of_lt small rounding) precisions
     · exact records_small tail held.2 value later
 
-/-- **Bounded observations have allowed naturals.** Where the bound of an agreement point over
-the channels is below `128 ^ naturalAllowance`, every evaluator natural of bounded observations
-encodes within the allowance. -/
 theorem bounded_allowed (stats : Stats discounts) (held : StatsBounded stats)
     (fits : pointBound discounts.length < 128 ^ naturalAllowance) :
     ∀ value ∈ CurrentCheckpointSize.statsNaturals stats,
@@ -609,15 +476,11 @@ theorem bounded_allowed (stats : Stats discounts) (held : StatsBounded stats)
 
 end observations
 
-/-! ## A whole step -/
-
 section step
 
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
     {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
 
-/-- The completion boundary of a step keeps the observations bounded: it records the option
-episodes, which the invariant does not read, and, where the profile learns, the predictions. -/
 theorem finish_bounded (state : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
     (decision : TemporalDecision interface.actions) (held : StatsBounded state.lifetime) :
@@ -631,8 +494,6 @@ theorem finish_bounded (state : TemporalControl interface profile config criteri
   · exact held
   · exact recordDemons_stats _ _ _ _ held
 
-/-- The learning part of a step keeps the observations bounded: only its completion boundary
-writes them. -/
 theorem learn_bounded (middle : TemporalControl interface profile config criterion dimension)
     (features : SwiftTd.ActiveSet dimension) (obs : Frame interface) (reward : Binary32)
     (goal : Bool) (decision : TemporalDecision interface.actions)
@@ -644,7 +505,6 @@ theorem learn_bounded (middle : TemporalControl interface profile config criteri
   rw [(TemporalControl.closeSpan_episodes _ _).1, (TemporalControl.follow_episodes _ _ _ _ _ _ _).1]
   exact held
 
-/-- The first part of a step, under every order, writes no observation. -/
 theorem choose_lifetime (state : Agent interface profile config criterion dimension planning)
     (order : StepOrder) (percept : Percept interface) :
     (state.choose order percept).control.lifetime = state.control.lifetime := by
@@ -669,16 +529,12 @@ theorem choose_lifetime (state : Agent interface profile config criterion dimens
       percept.frame.achieved _ state.advanceClock.episodes.2
       (state.choose_selected .planAfterAct (by decide) percept).1).1
 
-/-- The tester writes no observation. -/
 theorem retire_lifetime (state : Agent interface profile config criterion dimension planning)
     (active : Vector Bool config.units.count) :
     (state.retire active).control.lifetime = state.control.lifetime := by
   unfold Agent.retire
   split <;> rfl
 
-/-- **A whole step keeps the observations bounded, under every step order.** The first part
-writes no observation, the writes an order owes and its deferred planning write none, the
-learning part writes them at its completion boundary only, and the tester writes none. -/
 theorem actOrdered_bounded (state : Agent interface profile config criterion dimension planning)
     (order : StepOrder) (percept : Percept interface)
     (held : StatsBounded state.control.lifetime) :
@@ -700,36 +556,24 @@ theorem actOrdered_bounded (state : Agent interface profile config criterion dim
 
 end step
 
-/-! ## The states a host runs -/
-
-/-- The states a host runs: cold, resumed from bytes, or one host operation after such a state. -/
 inductive Running (construction : AgentConstruction) : construction.State → Prop where
-  /-- The cold state. -/
   | initial : Running construction construction.initial
-  /-- A state the host resumes from bytes: the loaded state with a new evaluator session. -/
   | resumed (receiver state : construction.State) (bytes : List UInt8)
       (loaded : resume construction receiver bytes = .ok state) : Running construction state
-  /-- One whole step of the construction's order. -/
   | step {state : construction.State} (before : Running construction state)
       (observation : Host.Observation) (result : Host.RawStepResult) :
       Running construction (construction.callbacks.act state observation result).2
-  /-- The host records a completed world transition. -/
   | environment {state : construction.State} (before : Running construction state)
       (family : Host.GoalFamily) (reward : Binary32) :
       Running construction (construction.callbacks.recordEnvironment state family reward)
-  /-- The host records a completed attempt. -/
   | attempt {state : construction.State} (before : Running construction state)
       (family : Host.GoalFamily) (cycle steps : UInt64) (achieved : Bool) :
       Running construction (construction.callbacks.recordAttempt state family cycle steps achieved)
-  /-- The host censors the evaluator's unavailable futures at process exit. -/
   | censored {state : construction.State} (before : Running construction state) :
       Running construction state.censorObservations
-  /-- The host begins an evaluator session. -/
   | session {state : construction.State} (before : Running construction state) :
       Running construction state.beginSession
 
-/-- **Every state a host runs has bounded observations.** The cold state and a resumed state hold
-empty channels and no agreement point, and every host operation keeps the invariant. -/
 theorem running_bounded (construction : AgentConstruction) (state : construction.State)
     (running : Running construction state) : StatsBounded state.agent.control.lifetime := by
   induction running with
@@ -752,29 +596,22 @@ theorem running_bounded (construction : AgentConstruction) (state : construction
   | censored before ih => exact censor_stats _ ih
   | session before ih => exact restore_stats _ _ _
 
-/-- Every evaluator natural of a running state fits its allowance. -/
 theorem running_naturals_allowed (construction : AgentConstruction) (state : construction.State)
     (running : Running construction state) :
     ∀ value ∈ CurrentCheckpointSize.statsNaturals state.agent.control.lifetime,
       (Format.natural.encode value).length ≤ naturalAllowance := by
   exact bounded_allowed _ (running_bounded construction state running) (by decide)
 
-/-- The image of every running state fits the read limit. -/
 theorem running_snapshot_size (construction : AgentConstruction) (state : construction.State)
     (running : Running construction state) :
     (encode (snapshot construction state)).length ≤ maximumBytes construction := by
   exact CurrentCheckpointSize.snapshot_size_bound construction state
     (running_naturals_allowed construction state running)
 
-/-! ## Counting the states a host runs -/
-
-/-- A natural for each byte list: its bytes as the digits of base 256, the first lowest, closed
-by a digit one. -/
 def code : List UInt8 → Nat
   | [] => 1
   | byte :: rest => byte.toNat + 256 * code rest
 
-/-- The code of a byte list is positive. -/
 theorem code_pos : ∀ bytes : List UInt8, 0 < code bytes
   | [] => Nat.one_pos
   | _ :: rest => by
@@ -782,7 +619,6 @@ theorem code_pos : ∀ bytes : List UInt8, 0 < code bytes
     simp only [code]
     omega
 
-/-- Two byte lists with one code are one list. -/
 theorem code_injective : ∀ first second : List UInt8, code first = code second → first = second
   | [], [], _ => rfl
   | [], byte :: rest, same => by
@@ -801,7 +637,6 @@ theorem code_injective : ∀ first second : List UInt8, code first = code second
     have codes : code rest = code tail := by omega
     rw [UInt8.toNat_inj.mp bytes, code_injective rest tail codes]
 
-/-- The code of a byte list is below 256 to the power of one more than its length. -/
 theorem code_lt : ∀ bytes : List UInt8, code bytes < 256 ^ (bytes.length + 1)
   | [] => by decide
   | byte :: rest => by
@@ -811,15 +646,11 @@ theorem code_lt : ∀ bytes : List UInt8, code bytes < 256 ^ (bytes.length + 1)
     rw [Nat.pow_succ]
     omega
 
-/-- The code of the exact image of an agent of a construction. -/
 def agentCode (construction : AgentConstruction)
     (agent : Agent Grid.interface construction.profile construction.config construction.criterion
       construction.dimension construction.planning) : Nat :=
   code (encode (imagePayload construction ⟨agent.image⟩))
 
-/-- Two agents of a construction with one image code are one agent, under every profile. The
-frame returns the payload it wrote, the image format reads its own encoding, and an agent is the
-agent of its image. No load is used, so the profile need not restore. -/
 theorem agentCode_injective (construction : AgentConstruction)
     (first second : Agent Grid.interface construction.profile construction.config
       construction.criterion construction.dimension construction.planning)
@@ -837,12 +668,9 @@ theorem agentCode_injective (construction : AgentConstruction)
     congrArg Prod.fst (Option.some.inj one)
   exact (congrArg (fun image : construction.Image => image.agent) images).symm
 
-/-- The code of the exact image of a state: the code of its agent's image. -/
 def imageCode (construction : AgentConstruction) (state : construction.State) : Nat :=
   agentCode construction state.agent
 
-/-- The code of a running state's image is below 256 to the power of one more than the read
-limit. -/
 theorem imageCode_lt (construction : AgentConstruction) (state : construction.State)
     (running : Running construction state) :
     imageCode construction state < 2 ^ (8 * (maximumBytes construction + 1)) := by
@@ -853,14 +681,11 @@ theorem imageCode_lt (construction : AgentConstruction) (state : construction.St
       Nat.pow_le_pow_right (by decide) (Nat.succ_le_succ size)
     _ = 2 ^ (8 * (maximumBytes construction + 1)) := (Nat.pow_mul 2 8 _).symm
 
-/-- Two states with one image code are one state, under every profile. -/
 theorem imageCode_injective (construction : AgentConstruction)
     (first second : construction.State)
     (same : imageCode construction first = imageCode construction second) : first = second :=
   AgentConstruction.State.ext (agentCode_injective construction first.agent second.agent same)
 
-/-- **The states a host runs are finitely many.** For every construction, whether or not its
-profile restores, its running states embed in the bit strings of a fixed width. -/
 theorem running_memory_bits (construction : AgentConstruction) :
     Nonempty ({ state : construction.State // Running construction state } ↪
       Fin (2 ^ (8 * (maximumBytes construction + 1)))) := by

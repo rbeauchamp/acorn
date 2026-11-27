@@ -10,7 +10,9 @@ the executed definitions and the primary literature. No agent run informed it.
 Status notes record what has changed since; the
 [roadmap](roadmap.md) orders the remaining work.
 
-**Claim status.** Every claim below carries one of these labels:
+**Claim status.** Every claim below about what the code is and does carries
+one of these labels (stated inline, or at the head of its section or table row
+unless a narrower inline label applies):
 
 - **Machine-checked**: a Lean theorem over the executed definitions whose
   conclusion states the claim as worded, over the claim's whole domain,
@@ -28,6 +30,15 @@ Status notes record what has changed since; the
 - **Assumed**: a stated modelling assumption, such as an idealized random
   number generator.
 - **UNKNOWN**: an irreducibly empirical quantity with no observation yet.
+- **Open**: a question that neither a theorem nor an observation has yet
+  settled and that is not only empirical, such as what the executed
+  definitions do on a stated model.
+
+Observed counts are reported as counts with their source, of two kinds kept
+apart: an outcome of a registered study is reported with the decision of the
+study's registered rule, and a count from a diagnostic trace, a rerun of
+recorded seeds with per-step telemetry, is marked as a diagnostic and not
+study evidence.
 
 The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 [frontier](frontier.md) are research questions.
@@ -36,44 +47,86 @@ The findings are labelled F-A to F-F; the numbered F1 to F4 in the
 
 **Partly.**
 
-- **Learners: met.** Every one of Acorn's full-width learners (57), and every row
-  of the option models' transition parts, is SwiftTD or Swift-Sarsa,
-  transcribed with declared corrections
+- **Learners: met (argued; paper-equation transcription fidelity assumed).**
+  Every one of Acorn's full-width stored learners (for the grid instance, 57
+  under the discounted criterion and 60 under differential control, which adds
+  one duration learner per skill; for the Microduck instance, 55 and 58 under
+  the same storage layout, with ten actions and four additional prediction
+  signals), and every row and deviation learner of the option models' transition
+  parts, is SwiftTD or Swift-Sarsa, transcribed with declared corrections
   ([PAR-1](prior-art-review.md#par-1--swifttd),
-  [PAR-2](prior-art-review.md#par-2--swift-sarsa)). This matches OaK's
-  requirement that each learned weight has its own meta-learned step size.
+  [PAR-2](prior-art-review.md#par-2--swift-sarsa)) (argued from
+  `Ensemble.stored`, `Model.storage_count`, `Interface.layout`,
+  `Grid.interface`, `Microduck.interface`, `Transition`, `NumericState.step`,
+  and `Controller.valuesStep`; faithful transcription of the paper equations
+  recorded in earlier reviews is assumed). This matches OaK's
+  requirement that each learned weight has its own meta-learned step size
+  (argued).
   The off-policy questions, the learners that adapted no step size, were
   retired ([#169](https://github.com/rbeauchamp/acorn/issues/169),
-  [PAR-18](prior-art-review.md#par-18--off-policy-questions)).
-  GVF predictions are fed back as features, and nothing is replayed.
-- **Architecture: wired, with declared adaptations.** The FC-STOMP chain (feature
-  construction, subtasks, options, models, planning) is wired. Two links ran on
+  [PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued).
+  GVF predictions are fed back as features (argued from `Agent.words_def`,
+  `feedbackWords` and `Agent.frame_def`, with `observationWords` and
+  machine-checked `Agent.grid_inputs` for the grid instance), and nothing
+  is replayed (argued from `TemporalControl.step` and `RecentFeatures`, which
+  stores feature vectors only—with no action, reward or successor—for planning
+  backups rather than training replay).
+- **Architecture: wired, with declared adaptations (argued).** The FC-STOMP
+  chain (feature construction, subtasks, options, models, planning) is wired
+  (argued from the executed definitions). Two links ran on
   local substitutes that dropped the property their source relies on, the option
   models and planning, until U5 replaced them with expectation models over a
-  ranked feature subset and backups under the current values (F-B). U3 replaced
-  a third, the feature tester, with the published one. A composition defect
-  (F-A) erased option learning until U1 repaired it, and a locally derived
+  ranked feature subset and backups under the current values (F-B; argued from
+  the executed U5 definitions and machine-checked U5 theorems). U3 replaced
+  a third, the feature tester, with the published one (argued from the executed
+  U3 definitions and machine-checked turnover theorems). A composition defect
+  (F-A) erased option learning until U1 repaired it (argued at 86ce779; repair
+  argued from the machine-checked U1 theorems), and a locally derived
   exploration rate made about 90% of early primitive steps random until U2
-  replaced it (F-C). Options learned only while executing until U4 (F-F).
-- **Learning: two observations, each refuted at its horizon; otherwise
-  UNKNOWN.** In one pass of the curriculum from a fresh agent, the agent
+  replaced it (F-C; argued at 86ce779 under an assumed uniform, independent draw;
+  repair argued from the machine-checked U2 theorems). Options learned only
+  while executing until U4 (F-F; argued at 86ce779; repair argued from the
+  machine-checked U4 theorems).
+- **Learning: open; two registered comparisons with chance, each
+  hypothesis refuted at its horizon.** In one pass of the curriculum from a
+  fresh agent, the agent
   achieved more goals than a uniform-random policy on 4 of 20 seeds
   ([U6](#conformance-sequence)). Over four cycles of the curriculum, its
   attempts to reach a target shortened by more than that policy's on 0 of 20
   seeds: of 160 reach visits the agent achieved one and the policy none
-  ([U7](#conformance-sequence)). Neither observation shows that the agent
-  cannot learn; whether it learns on goals it does achieve, or over a longer
-  horizon, has not been observed. Both runs were measured before
+  ([U7](#conformance-sequence)). These counts stand as recorded; what each
+  study's registered rule refuted is its hypothesis that more than half of all
+  seeds are wins: in most worlds the agent achieves at least one more goal than
+  chance in its first pass (U6), or its reach attempts shorten over repeated
+  visits by at least 300 steps per attempt, and by at least 300 steps per
+  attempt more than chance's do (U7). Each compares the whole agent, with online
+  updates enabled throughout under the registered
+  [U6](studies/first-pass-vs-chance/protocol.md) and
+  [U7](studies/repeated-visits-vs-chance/protocol.md) protocols (argued from
+  those protocols; a configuration fact separate from whether learning
+  occurred), with a comparator that is not an ablation of it, so even a win
+  would not separate learning from authored behavioural structure such as
+  exploration duration (argued; U6), or from what persists differently in the two
+  worlds, since each arm carries its own position and inventory into the next
+  cycle (argued from `World.setGoal`, `Attempt.start` and
+  `BaselineAttempt.start`) and these can differ (U7). Neither observation shows that the agent
+  cannot learn. Whether it learns on goals it does achieve, or over a longer
+  horizon, these comparisons do not settle: U7's per-goal counts are
+  exploratory and cannot say what learning caused, and what its executed
+  update does on a stated model is a mathematical question that stays open.
+  Both runs were measured before
   [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature,
-  cue and terrain hashes; they describe the code before that change, and the
-  current code has not been run on their protocol.
+  cue and terrain hashes (argued from commit a56d707); they describe the code
+  before that change, and the current code has not been run on their protocol.
 
-The defects survived for an instructive reason. Acorn's proofs state safety and
-admission properties, such as "the stored state stays legal" or "this identity
-holds". They did not state functional ones, such as "a skill keeps its learning
-unless its unit changes" or "the planning backup equals the Bellman backup under
-the current value". Proof-first development can state exactly these; the
-missing invariants are the algorithmic ones. U1 added the first of them.
+The defects survived for an instructive reason (argued). Acorn's proofs state
+safety and admission properties, such as "the stored state stays legal" or "this
+identity holds" (argued from inspecting the proof modules). They did not state
+functional ones, such as "a skill keeps its learning unless its unit changes" or
+"the planning backup equals the Bellman backup under the current value" (argued
+at 86ce779). Proof-first development can state exactly these; the missing
+invariants are the algorithmic ones. U1 added the first of them (argued from the
+machine-checked U1 theorems).
 
 ## Baseline scorecard
 
@@ -86,29 +139,30 @@ Verdicts:
   relies on.
 - **Missing**: not present.
 
-| Prior art | Alberta Plan / OaK role | In Acorn | Verdict | Evidence and consequence |
-|---|---|---|---|---|
-| IDBD → SwiftTD [[1]](#r1) [[2]](#r2) | Step 1; per-weight meta-learned step sizes | Every learner | **Faithful** | `NumericState.step` and its two loops transcribe Algorithm 1 of [[2]](#r2), with corrections declared in PAR-1. The off-policy questions, which ran one prescribed step size per transition, were retired ([#169](https://github.com/rbeauchamp/acorn/issues/169), [PAR-18](prior-art-review.md#par-18--off-policy-questions)). |
-| Swift-Sarsa [[3]](#r3) | Step 4 (declared Sarsa in place of actor-critic) | Primitive, meta and option policies | **Faithful** | `Controller.valuesStep`: per-action value vectors sharing one error. The actor-critic departure is declared. |
-| Horde / GVFs [[4]](#r4) | Step 3 | 11 fixed on-policy GVFs whose bucketed predictions are re-encoded as features | **Adapted, partial** | Horde learns each prediction from the snippets of experience relevant to it, which "requires off-policy learning", and uses GQ(λ) ([[4]](#r4) §4). Acorn's questions are fixed and on-policy ([D5](learned-only-binding.md#d5--prediction-targets--step-2)). [#16](https://github.com/rbeauchamp/acorn/issues/16) added the same questions about each option's policy, learned off-policy; no decision read them, and [#169](https://github.com/rbeauchamp/acorn/issues/169) retired them ([PAR-18](prior-art-review.md#par-18--off-policy-questions)). Feeding predictions back is a genuine, limited predictive state. |
-| Generate and test: generator [[5]](#r5) | Step 2 | 512 random projections over the 11 × 11 tile-kind patch and the task words | **Adapted** (after U3) | Before U3 the generator read only the kind patch; it now also reads the task words (`observationPatch`, `taskContext`), so units can conjoin task and layout. Inventory and energy are still excluded (F-D). |
-| Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Contribution utility over every stored reader, a maturity age and a declared replacement rate | **Adapted** (after U3) | U3 replaced the absolute, conjunctive guard with the published relative tester ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester), [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)); turnover follows from the rate by construction over eligible units (`Lifecycle.test_accrual`, F-E). Adaptations: eq. (2) without the mean correction, and the rate accrued per eligible unit as in the authors' released code. |
-| Reward-respecting subtasks [[7]](#r7) | Step 10: highest-ranked features become subtasks | Three slots from the positive Demon-0 weights of imprint units, with held bonuses | **Adapted** (after U1) | U1 made candidates sign-correct, the bonus held, and identity the unit alone. One deviation remains: subtasks are not restricted to features whose weight is sometimes high and sometimes low ([PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks)). |
-| Potential-based shaping [[8]](#r8) | Option learning aid | Present | **Faithful** | [PAR-6](prior-art-review.md#par-6--potential-based-shaping), with limits declared. |
-| Options and interruption [[9]](#r9) | Step 10: option learning off-policy | Three options, 128-step cap, interruption, SMDP meta-credit | **Adapted** (after U4) | Before U4 only the executing option learned (F-F). Every option that is not executing now learns from the action taken ([PAR-17](prior-art-review.md#par-17--off-policy-option-learning)). The meta-controller's option values still learn by SMDP credit alone. |
-| Intra-option primitive credit [[9]](#r9) | Data reuse | Primitive Sarsa learns from every executed step | **Adapted** | [PAR-9](prior-art-review.md#par-9--intra-option-value-learning). One of the links that genuinely supports the rest. |
-| Option models [[7]](#r7) [[10]](#r10) | Step 10; the model predicts the state at option termination | A reward part, a transition part over at most 63 ranked feature slots, and a shared residual with one deviation per meta action for the value the ranked slots do not carry | **Adapted** (after U5) | Before U5 there was no transition part, and the continuation was a value estimator (F-B). Each row of the transition part is now the source's TD update ([[7]](#r7) eq. (17)) with the terminal target γ·x_j that eq. (15) requires; the ranked subset, the residual with its per-action deviations and the action-value nominal are declared adaptations ([PAR-13](prior-art-review.md#par-13--option-expectation-models)). |
-| Planning [[7]](#r7) | Steps 7 to 10: imagined outcomes evaluated by the value functions | Backups of every option's value toward r̂ plus the nominal value of each action's v̂(n̂, w) + residual, with the current weights, at free boundaries | **Adapted** (after U5) | Before U5 the backup had no look-ahead with the current value function (F-B). `PlanningResult.lookAhead` now applies the meta-controller's current weights to the predicted slots; each option's action value is backed up and the maximum is the meta-controller's choice ([PAR-14](prior-art-review.md#par-14--background-planning)). |
-| Search control [[11]](#r11) | Step 9 | A sweep over the 128 most recent earlier feature vectors, one per decision boundary, against the order they were written in | **Adapted, minimal** (after U5) | Before U5 planning happened only at the current state. The store holds feature vectors only. Priorities and other strategies are open ([#15](https://github.com/rbeauchamp/acorn/issues/15)). |
-| εz-greedy [[12]](#r12) | Step 9 exploration | Capped 1/n-tail duration ([D3](learned-only-binding.md#d3--exploration-duration--step-9)) and, since U2, a declared rate ε = 0.01 ([D6](learned-only-binding.md#d6--exploration-rate--step-9)); a persistent run may start at every decision, whichever layer acts | **Adapted** (after U2) | The duration law is a tail-equivalent surrogate for the published zeta law. At 86ce779 the rate was a local derivation with no published source, starting near 0.63 (F-C); U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)) replaced it with a declared 0.01. That is the source's CartPole setting (Appendix A, p. 14). Its Rainbow-based Atari agents reach 0.01 only at the end of a schedule: ε "follows a linear decay schedule 1.0 to 0.01 over the course of the first 4M frames" (Appendix B.3, p. 15; Table 2, p. 16). D6 keeps the constant and removes the decay. Counting one step as one frame, ε on that schedule is still about 0.99 after the 34 000 steps a first pass can take, so a whole first pass lies inside the phase D6 removed. The source's Algorithm 1 (p. 14) applies the persistent draw to the agent's one behaviour policy. Acorn's primitive control and executing options both make that draw, and a run an option begins interrupts it; until [#58](https://github.com/rbeauchamp/acorn/issues/58) only primitive control did, so while the meta-controller held options the mechanism rarely ran ([first-pass consequences](#f-c--the-derived-exploration-rate-started-near-063)). |
-| Average reward [[13]](#r13) | Steps 5 to 7 | Selectable differential control, demoted; gain updated from the reward residual | **Adapted, partial** | Differential Q-learning updates the average-reward estimate with the TD error ([PAR-15](prior-art-review.md#par-15--differential-control)). Average-reward GVFs are absent. |
-| Reward centering [[14]](#r14) | Steps 5 and 6 | — | **Missing** | A cheap, general fix for discounted methods with discount near 1. Acorn uses γ = 0.99 throughout. |
-| Learned agent state [[15]](#r15) | Perception | Only the fed-back GVF buckets | **Missing** | Severe partial observability (an 11 × 11 view of a 1024 × 1024 world) with no learned memory. |
-| Off-policy learning [[4]](#r4) [[7]](#r7) | Steps 3 and 10 | Options only | **Adapted, partial** (after U4) | Option policies learn by tree backup [[21]](#r21) and option models along frames whose action was selected with the option's own distribution ([[9]](#r9) §5). The option models learn semi-gradient along those frames, without a gradient-TD correction. The questions about each option's policy that learned along the same frames with one were retired ([#169](https://github.com/rbeauchamp/acorn/issues/169), [PAR-18](prior-art-review.md#par-18--off-policy-questions)). |
-| Utility feedback [[20]](#r20) | Step 11: feedback that assesses the utility of every element and replaces the least useful | — | **Missing (declared)** | The complete OaK loop is outside the implementation ([design](design.md#implementation-scope)). |
-| Nonlinear continual learning [[6]](#r6) [[16]](#r16) | Continual deep learning | Linear learners only | **Missing** | Outside the baseline's scope, and the current research front. |
+| Prior art | Alberta Plan / OaK role | In Acorn | Verdict | Claim status | Evidence and consequence |
+|---|---|---|---|---|---|
+| IDBD → SwiftTD [[1]](#r1) [[2]](#r2) | Step 1; per-weight meta-learned step sizes | Every learner | **Faithful** | **Argued**; transcription **assumed** | `NumericState.step` and its two loops transcribe Algorithm 1 of [[2]](#r2), with corrections declared in PAR-1 (argued from the executed definitions; paper-equation transcription fidelity recorded in earlier reviews is assumed). The off-policy questions, which ran one prescribed step size per transition, were retired ([#169](https://github.com/rbeauchamp/acorn/issues/169), [PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued). |
+| Swift-Sarsa [[3]](#r3) | Step 4 (declared Sarsa in place of actor-critic) | Primitive, meta and option policies | **Faithful** | **Argued**; transcription **assumed** | `Controller.valuesStep`: per-action value vectors sharing one error (argued from `Controller.valuesStep` and `Ensemble`; transcription fidelity assumed). The actor-critic departure is declared (argued). |
+| Horde / GVFs [[4]](#r4) | Step 3 | Fixed on-policy GVFs sized by each interface's `Interface.layout` (11 for the grid instance: Demon 0 plus ten grid signals; 5 for the Microduck instance: Demon 0 plus four additional signals) whose bucketed predictions are re-encoded as features | **Adapted, partial** | **Argued** (`Agent.grid_inputs` **machine-checked** for the grid instance) | Horde learns each prediction from the snippets of experience relevant to it, which "requires off-policy learning", and uses GQ(λ) ([[4]](#r4) §4). Acorn's questions are fixed per interface and on-policy ([D5](learned-only-binding.md#d5--prediction-targets--step-2); 11 in `Grid.interface` and 5 in `Microduck.interface`, argued from `Interface.layout`, `DemonBank.reader_count`, `Grid.interface_layout` and `Microduck.signals`). [#16](https://github.com/rbeauchamp/acorn/issues/16) added the same questions about each option's policy, learned off-policy; no decision read them, and [#169](https://github.com/rbeauchamp/acorn/issues/169) retired them ([PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued). Feeding bucketed predictions back is a genuine, limited predictive state across interfaces (argued from `Agent.words_def`, `feedbackWords` and `Agent.frame_def`, with `observationWords` and machine-checked `Agent.grid_inputs` for the grid instance). |
+| Generate and test: generator [[5]](#r5) | Step 2 | 512 random projections over the 11 × 11 tile-kind patch and the task words | **Adapted** (after U3) | **Argued** | Before U3 the generator read only the kind patch; it now also reads the task words (`observationPatch`, `taskContext`), so units can conjoin task and layout (argued). Inventory and energy are still excluded (F-D; argued). |
+| Generate and test: tester [[5]](#r5) [[6]](#r6) | Step 2: evaluate features and discard the less promising | Contribution utility over every stored reader, a maturity age and a declared replacement rate | **Adapted** (after U3) | **Argued**; accrual and turnover **machine-checked** | U3 replaced the absolute, conjunctive guard with the published relative tester ([PAR-11](prior-art-review.md#par-11--generate-and-test-tester), [D7](learned-only-binding.md#d7--feature-tester-schedule--step-2)) (argued); single-step accrual (`Lifecycle.test_accrual`) and turnover over eligible or mature cycles (`run_turnover`, `run_mature_turnover`, F-E) are machine-checked. Adaptations: eq. (2) without the mean correction, and the rate accrued per eligible unit as in the authors' released code (argued). |
+| Reward-respecting subtasks [[7]](#r7) | Step 10: highest-ranked features become subtasks | Three slots from the positive Demon-0 weights of imprint units, with held bonuses | **Adapted** (after U1) | **Argued** from **machine-checked** U1 theorems | U1 made candidates sign-correct, the bonus held, and identity the unit alone (argued from the executed definitions and machine-checked U1 theorems `Bonus.finite_positive`, `FreeDispatch.refresh_retains`, `FreeDispatch.refresh_distinct`). One deviation remains: subtasks are not restricted to features whose weight is sometimes high and sometimes low ([PAR-12](prior-art-review.md#par-12--ranked-learned-subtasks)) (argued). |
+| Potential-based shaping [[8]](#r8) | Option learning aid | Present | **Faithful** | **Argued** (from PAR-6 identities) | [PAR-6](prior-art-review.md#par-6--potential-based-shaping), with limits declared (argued from the executed definitions and the machine-checked identities cited in PAR-6). |
+| Options and interruption [[9]](#r9) | Step 10: option learning off-policy | Three options, 128-step cap, interruption, SMDP meta-credit | **Adapted** (after U4) | **Argued** from **machine-checked** U4 theorems | Before U4 only the executing option learned (F-F; argued). Every option that is not executing now learns from the action taken ([PAR-17](prior-art-review.md#par-17--off-policy-option-learning)) (argued from the machine-checked U4 theorems). The meta-controller's option values still learn by SMDP credit alone (argued). |
+| Intra-option primitive credit [[9]](#r9) | Data reuse | Primitive Sarsa learns from every executed step | **Adapted** | **Argued** (single step **machine-checked**) | [PAR-9](prior-art-review.md#par-9--intra-option-value-learning) (argued; single-step control update `TemporalControl.finish_credit` is machine-checked). One of the links that genuinely supports the rest (argued). |
+| Option models [[7]](#r7) [[10]](#r10) | Step 10; the model predicts the state at option termination | A reward part, a transition part over at most 63 ranked feature slots, and a shared residual with one deviation per meta action for the value the ranked slots do not carry (plus a duration learner under differential control) | **Adapted** (after U5) | **Argued** from **machine-checked** U5 theorems | Before U5 there was no transition part, and the continuation was a value estimator (F-B; argued). Each row of the transition part is now the source's TD update ([[7]](#r7) eq. (17)) with the terminal target γ·x_j that eq. (15) requires; the ranked subset, the residual with its per-action deviations and the action-value nominal are declared adaptations ([PAR-13](prior-art-review.md#par-13--option-expectation-models)) (argued from `Model`, `Transition`, and the machine-checked U5 storage, ranking and rounding theorems). |
+| Planning [[7]](#r7) | Steps 7 to 10: imagined outcomes evaluated by the value functions | Backups of every option's value toward r̂ plus the nominal value of each action's v̂(n̂, w) + residual, with the current weights, at free boundaries | **Adapted** (after U5) | **Argued** from **machine-checked** U5 theorems | Before U5 the backup had no look-ahead with the current value function (F-B; argued). `PlanningResult.lookAhead` now applies the meta-controller's current weights to the predicted slots; each option's action value is backed up and the maximum (or tie-window mean under differential control) is the nominal target ([PAR-14](prior-art-review.md#par-14--background-planning)) (argued from `PlanningResult.lookAhead` and the machine-checked U5 backup-rounding and propagation theorems). |
+| Search control [[11]](#r11) | Step 9 | A sweep over the 128 most recent earlier feature vectors, one per decision boundary, against the order they were written in | **Adapted, minimal** (after U5) | **Argued**; priorities **open** | Before U5 planning happened only at the current state (argued). The store holds feature vectors only (argued from `RecentFeatures` and `planningBoundary`). Priorities and other strategies are open ([#15](https://github.com/rbeauchamp/acorn/issues/15)). |
+| εz-greedy [[12]](#r12) | Step 9 exploration | Capped 1/n-tail duration ([D3](learned-only-binding.md#d3--exploration-duration--step-9)) and, since U2, a declared rate ε = 0.01 ([D6](learned-only-binding.md#d6--exploration-rate--step-9)); a persistent run may start at every decision, whichever layer acts | **Adapted** (after U2) | **Argued** from **machine-checked** U2 and `#58` theorems | The duration law is a tail-equivalent surrogate for the published zeta law (argued). At 86ce779 the rate was a local derivation with no published source, starting near 0.63 (F-C; argued); U2 ([#23](https://github.com/rbeauchamp/acorn/pull/23)) replaced it with a declared 0.01 (argued from machine-checked `TemporalControl.declared_rates`). That is the source's CartPole setting (Appendix A, p. 14). Its Rainbow-based Atari agents reach 0.01 only at the end of a schedule: ε "follows a linear decay schedule 1.0 to 0.01 over the course of the first 4M frames" (Appendix B.3, p. 15; Table 2, p. 16). D6 keeps the constant and removes the decay (argued). Counting one step as one frame, ε on that schedule is still about 0.99 after the 34 000 steps a first pass can take, so a whole first pass lies inside the phase D6 removed (argued). The source's Algorithm 1 (p. 14) applies the persistent draw to the agent's one behaviour policy. Acorn's primitive control and executing options both make that draw, and a run an option begins interrupts it (argued from machine-checked `CurrentTemporal.select_persistent`); until [#58](https://github.com/rbeauchamp/acorn/issues/58) only primitive control did, so while the meta-controller held options the mechanism rarely ran ([first-pass consequences](#f-c--the-derived-exploration-rate-started-near-063)) (argued). |
+| Average reward [[13]](#r13) | Steps 5 to 7 | Selectable differential control, demoted; gain updated from the reward residual | **Adapted, partial** | **Argued** | Differential Q-learning updates the average-reward estimate with the TD error ([PAR-15](prior-art-review.md#par-15--differential-control)); average-reward GVFs are absent (argued from the executed definitions). |
+| Reward centering [[14]](#r14) | Steps 5 and 6 | — | **Missing** | **Argued** | A cheap, general fix for discounted methods with discount near 1. Under the discounted criterion Acorn uses γ = 0.99 for control and options, whereas under differential control the shared criterion maps control and options to γ = 1; Demon 0 uses γ = 0.99 across interfaces, and in the grid instance Demons 1 to 10 use γ = 0.95 or 0.90 (argued from `Criterion.rule`, `ValueRule.gamma`, `Ensemble`, `Interface.layout`, and `demonDiscount`). |
+| Learned agent state [[15]](#r15) | Perception | Only the fed-back GVF buckets | **Missing** | **Argued** | Severe partial observability (an 11 × 11 view of a 1024 × 1024 world) with no learned memory (argued from `observationWords` and `Acorn.Host.WorldConfig.standard`). |
+| Off-policy learning [[4]](#r4) [[7]](#r7) | Steps 3 and 10 | Options only | **Adapted, partial** (after U4) | **Argued** from **machine-checked** U4 theorems | Option policies learn by tree backup [[21]](#r21) and option models along frames whose action was selected with the option's own distribution ([[9]](#r9) §5) (argued from the executed definitions and machine-checked U4 theorems). The option models learn semi-gradient along those frames, without a gradient-TD correction (argued). The questions about each option's policy that learned along the same frames with one were retired ([#169](https://github.com/rbeauchamp/acorn/issues/169), [PAR-18](prior-art-review.md#par-18--off-policy-questions)) (argued). |
+| Utility feedback [[20]](#r20) | Step 11: feedback that assesses the utility of every element and replaces the least useful | — | **Missing (declared)** | **Argued** | The complete OaK loop is outside the implementation ([design](design.md#implementation-scope)) (argued). |
+| Nonlinear continual learning [[6]](#r6) [[16]](#r16) | Continual deep learning | Linear learners only | **Missing** | **Argued** | Outside the baseline's scope, and the current research front (argued from `NumericState`, `Controller`, and `DemonBank`). |
 
-**Score.** Of 19 rows: 3 faithful (the learning core plus shaping), 12 adapted,
+**Score (argued from the scorecard rows above).** Of 19 rows: 3 faithful (the
+learning core plus shaping), 12 adapted,
 none substituted and 4 missing, counting U3's tester and generator, U4's
 off-policy option learning and U5's models, planning and search control as
 adapted. At the assessed commit the models and planning were substituted and
@@ -121,22 +175,30 @@ nonlinear continual learning) were not previously recorded.
 Correctness of what exists (state legality, admission, numeric containment and
 the proved identities) is strong, argued from machine-checked theorems. The
 weakness is fidelity and composition, which the proofs did not state and so
-could not catch.
+could not catch (argued).
 
 ## Composition findings
 
-Two links genuinely support the rest of the system:
+Two links genuinely support the rest of the system (argued):
 
-- **SwiftTD under every learner.** Per-weight credit assignment protects each
-  learner from the roughly 1,300 active features, most of them irrelevant to it.
-- **Horde feedback and primitive credit on option steps.** Predictions become
-  features, and executed option steps train the primitive controller (PAR-9).
+- **SwiftTD under every learner (argued; active-feature count under assumed
+  uniform hashing).** Per-weight credit assignment protects each learner from
+  the roughly 1,300 active features, most of them irrelevant to it (argued from
+  the executed definitions, with the ~1,300 active-feature estimate resting on
+  assumed uniform hashing).
+- **Horde feedback and primitive credit on option steps (argued; single-step
+  primitive update machine-checked).** Predictions become features (argued from
+  `Agent.words_def`, `feedbackWords` and `Agent.frame_def`, with
+  `observationWords` and machine-checked `Agent.grid_inputs` for the grid
+  instance), and executed
+  option steps train the primitive controller (PAR-9; argued, with single-step
+  control update `TemporalControl.finish_credit` machine-checked).
 
 The defining STOMP loop (subtask → option → model → planning → better
-decisions) exists structurally. The findings below describe how it was broken
-or neutralized. All six are argued from the executed definitions; none is
-machine-checked or observed. The repairs of F-A, F-C, F-E and F-F are
-argued from the machine-checked U1 to U4 theorems cited under each.
+decisions) exists structurally (argued). The findings below describe how it was
+broken or neutralized. All six are argued from the executed definitions; none is
+machine-checked or observed. The repairs of F-A, F-B, F-C, F-E and F-F are
+argued from the machine-checked U1 to U5 theorems cited under each.
 
 ### F-A · Subtask churn erased options, models and meta rows
 
@@ -158,15 +220,21 @@ initial values, and raised their exploration rates back to the initial rate
 that an option can be learned in preparation for the times at which it is high"
 ([[7]](#r7) §2, p. 8).
 
-U1 made identity the unit alone (`Assignment.same`) and made refresh slot-stable.
-`FreeDispatch.refresh_retains` proves, for every state and every Demon-0 weight
-array, that the first slot holding a still-ranked unit keeps its policy, model,
-cached prediction and meta-controller row, and that its held bonus never
-decreases. A slot is now reinstalled only when its unit leaves the ranking or is
-retired. How often that happens is UNKNOWN: it depends on the stream. Since
-[#57](https://github.com/rbeauchamp/acorn/issues/57) the refresh runs at every free
-dispatch, so a unit that leaves the three ranked score blocks is replaced at the next
-free dispatch rather than after the next achieved attempt.
+U1 made identity the unit alone (`Assignment.same`) and made refresh slot-stable
+(argued).
+`FreeDispatch.refresh_retains` proves (machine-checked), for every `FreeDispatch`
+state and every slot holding a learned selected unit with a held bonus where
+that unit remains ranked under that state's own Demon-0 ranking weights and no
+earlier slot holds it, that `FreeDispatch.refreshRanked` keeps that slot's
+policy, model, cached prediction and meta-controller row, and keeps the unit
+selected with a bonus word at least as large. A slot is now reinstalled only when its unit leaves
+the ranking or is retired (argued from `rankAssignments`, `Ensemble.release`,
+`Ensemble.releaseAll` and machine-checked `FeatureRuntime.retire_releases`). How often that happens is UNKNOWN: it depends
+on the stream. Since [#57](https://github.com/rbeauchamp/acorn/issues/57) the
+refresh runs at every free dispatch, so a unit that leaves the three ranked
+score blocks is replaced at the next free dispatch rather than after the next
+achieved attempt (argued from machine-checked `TemporalControl.select_assigns`
+and `TemporalControl.select_occupancy`).
 
 ### F-B · The option model is a value estimator, so planning cannot plan
 
@@ -174,7 +242,8 @@ free dispatch rather than after the next achieved attempt.
 ([#11](https://github.com/rbeauchamp/acorn/issues/11)): the value at the ranked
 slots is read from the current weights, and the rest is still a learned value
 estimate, the residual
-([#48](https://github.com/rbeauchamp/acorn/issues/48)). The
+([#48](https://github.com/rbeauchamp/acorn/issues/48)) (argued from the executed
+U5 definitions and the machine-checked U5 theorems). The
 [U5 section](#what-u5-changed) lists what changed and what is proved. The finding
 below describes the assessed commit. Argued.
 
@@ -233,17 +302,19 @@ derived rate:
 - **Initial values.** With α_init = 5 × 10⁻⁵, η = 0.1 and η_min = 10⁻¹⁰,
   ν = 0.633. Option learners, with α_init = 10⁻⁴ and η = 0.25, give ν = 0.638.
 - **Share of exploratory steps.** Persistent exploration serves D steps with
-  P(D ≥ n) = 1/n capped at 128, so E[D] = H₁₂₈ ≈ 5.43. By a renewal argument,
+  P(D ≥ n) = 1/n capped at 128, so E[D] = H₁₂₈ ≈ 5.43. By a renewal argument
+  under an assumed uniform, independent draw,
   the fraction of primitive steps spent exploring is
-  εE[D] / (εE[D] + 1 − ε) ≈ 0.90 while ε ≈ 0.63.
+  εE[D] / (εE[D] + 1 − ε) ≈ 0.90 while ε ≈ 0.63 (argued under that assumption).
 - **Options and the meta-controller.** Options act randomly on about 64% of their
   own steps, without persistence; the meta-controller chooses uniformly on about
-  63% of its decisions.
-- **No early decay.** With about 1,300 active features, Σα_init ≈ 0.065 < η, so
+  63% of its decisions (argued under an assumed uniform, independent draw).
+- **No early decay.** With about 1,300 active features (under assumed uniform
+  hashing), Σα_init ≈ 0.065 < η, so
   the overshoot decay does not act at initialization; only the meta-gradient can
-  lower β.
-- **Unknown then.** How fast ε would fall in a run depended on the stream, and a
-  reinstalled slot started again from the initial rate.
+  lower β (argued).
+- **Unknown then (UNKNOWN).** How fast ε would fall in a run depended on the
+  stream, and a reinstalled slot started again from the initial rate (argued).
 
 The published method declares ε for each experiment rather than deriving it: for
 example 0.01 on CartPole ([[12]](#r12) Appendix A, p. 14), and for the
@@ -255,57 +326,73 @@ durations (μ = 2) ([[12]](#r12) Appendix B, p. 14).
 U2 made a declared ε = 0.01 the default as a new departure,
 [D6](learned-only-binding.md#d6--exploration-rate--step-9): the primitive
 controller, the meta-controller and every option read it in every research
-profile except the annealed comparison, which keeps its schedule. PAR-10's
-derived rate remains a research-only selection through the native rate words,
-and the mutation-audit pins for the declared-rate and differential arms were
-re-recorded. `TemporalControl.declared_rates` proves that, under the declared
-rate policy, every consumer reads the declared word at every state, and
-`TemporalSupport.branch_exact` that each exploration branch is an exact rational
-comparison with that word.
-`TemporalSupport.declared_branch_card` counts exactly the source words that
-explore. Under an assumed uniform, independent draw, which the deterministic
-generator does not supply, `ez_duration_mean` gives a mean run length of H₁₂₈, and
-`declared_share_gt` and `declared_share_lt` bound the expected exploratory share
-of the behaviour's cycles between 4.6% and 6%. These distributional statements
-are Lean-proved results over a real-arithmetic model; their application to the
-behaviour is argued under the stated draw assumption.
+profile except the annealed comparison, which keeps its schedule (argued from
+the executed definitions and machine-checked `TemporalControl.declared_rates`).
+PAR-10's derived rate remains a research-only selection through the native rate
+words, and the mutation-audit pins for the declared-rate and differential arms
+were re-recorded (argued). `TemporalControl.declared_rates` proves
+(machine-checked) that, under the declared rate policy, every consumer reads the
+declared word at every state, `TemporalSupport.branch_exact` proves
+(machine-checked) that each exploration branch comparison is an exact rational
+comparison with its rate word, and `TemporalSupport.declared_branch` proves
+(machine-checked) that at `Handcrafted.declaredRate` the executed comparison
+equals the arithmetic threshold `(rng.next.1 >>> 11).toNat < 10737418 * 2 ^ 23`
+(which machine-checked `TemporalSupport.select_declared` carries to every
+unserved decision of `TemporalControl.selectWithOperations` under the declared
+rate policy). Separately, `TemporalSupport.declared_branch_card` is a
+Lean-proved arithmetic count showing that exactly `10737418 * 2 ^ 34` 64-bit
+words in `Finset.range (2 ^ 64)` satisfy
+`(word.toUInt64 >>> 11).toNat < 10737418 * 2 ^ 23`; combining it with
+`TemporalSupport.declared_branch` and `TemporalSupport.select_declared` to count
+the source words on which the executed exploration branch explores is argued.
+Under an assumed uniform, independent
+draw, which the deterministic generator does not supply, `ez_duration_mean`
+gives a mean run length of H₁₂₈, and `declared_share_gt` and `declared_share_lt`
+bound the expected exploratory share of the behaviour's cycles between 4.6% and
+6%. These distributional statements are Lean-proved results over a
+real-arithmetic model; their application to the behaviour is argued under the
+stated draw assumption.
 
 Two consequences of D6 bore on a first pass. The first remains and is not
 conformance with the source; the second was repaired:
 
-- **The first pass lies inside the phase D6 removed.** A first pass of the
-  standard curriculum takes at most 34 000 steps. Counting one step as one
+- **The first pass lies inside the phase D6 removed (argued).** A first pass of the
+  standard curriculum takes at most 34 000 steps (argued from the curriculum
+  caps). Counting one step as one
   frame, the source's Atari schedule gives ε = 1 − 0.99 × 34 000 / 4 000 000
   ≈ 0.99 when such a pass ends, 0.85% of the way through the decay. D6's 0.01
   is the value that schedule holds only after 4M frames. The CartPole agent
   does use 0.01 from its first step.
-- **Persistence reached one layer until [#58](https://github.com/rbeauchamp/acorn/issues/58).**
+- **Persistence reached one layer until [#58](https://github.com/rbeauchamp/acorn/issues/58)
+  (argued; post-repair step structure machine-checked).**
   The source's Algorithm 1 ([[12]](#r12) p. 14) has one behaviour policy: at
   every step with no run in progress it starts a run with probability ε,
   whichever action is greedy. Through U6, Acorn's agent started a run only in
   `TemporalControl.choosePrimitive`, reached when the meta-controller delegates
   to primitive control or the profile has no hierarchy; an executing option
-  explored one step at a time. In two diagnostic traces of U6's run, options
+  explored one step at a time (argued). In two diagnostic traces of U6's run, options
   acted on 33 354 of the 33 800 steps after the first reward and on 10 361 of
   10 363, and 0.95% and 0.93% of steps were exploratory; in the first,
   persistent runs served 10 steps from 4 starts. The traces are reruns of two
   recorded seeds (16265277883658242538 and 8789851314873071931) with per-step
   telemetry; they are diagnostics, observed on those two seeds before the
   repair and before [#155](https://github.com/rbeauchamp/acorn/issues/155)
-  changed the feature, cue and terrain hashes, and not study evidence. An
+  changed the feature, cue and terrain hashes (argued from commit a56d707), and
+  not study evidence. An
   executing option now makes the persistent draw too, and a run it begins
   interrupts it
   ([D3](learned-only-binding.md#d3--exploration-duration--step-9),
-  [PAR-8](prior-art-review.md#par-8--temporally-extended-exploration)).
-  `CurrentTemporal.select_persistent` proves every decision is a served step
-  of a run or one persistent draw, whichever layer selects the action. The
-  exploratory share a run of the repaired agent shows has not been observed
-  and is UNKNOWN, as is any effect on achievement.
+  [PAR-8](prior-art-review.md#par-8--temporally-extended-exploration)) (argued
+  from the executed definitions and machine-checked `CurrentTemporal.select_persistent`).
+  `CurrentTemporal.select_persistent` proves (machine-checked) every decision is
+  a served step of a run or one persistent draw, whichever layer selects the
+  action. The exploratory share a run of the repaired agent shows has not been
+  observed and is UNKNOWN, as is any effect on achievement.
 
 ### F-D · The representation barely expresses task-dependent preferences
 
 **Status: U3 ([#9](https://github.com/rbeauchamp/acorn/issues/9)) extended the
-generator input to the task words; whether the bank finds the needed
+generator input to the task words (argued); whether the bank finds the needed
 conjunctions is UNKNOWN.** Argued for the pre-U3 representation, conditional on
 equal prediction buckets and on no hash collision between layout features and
 the other words.
@@ -321,11 +408,16 @@ they add no conjunctions. Until
 robustness to some collisions: the slot hash read a tiling's salt and a word's
 channel only through their XOR, so two words with one value on channels whose
 XOR is below 8, such as the wood and stone buckets or energy and the day phase,
-had the same eight slots for every seed. The slot hash now mixes the salt before
-the channel enters (`Rng.hash3_eq_iff`), so whether two words share a slot
-depends on the seed: in the standard configuration at seed 0, the slot of the
-wood word in tiling 0 is the slot of the stone word in no tiling
-(`CurrentHashes.wood_not_stone`). The U6 and U7 runs had the aliased pairs.
+had the same eight slots for every seed (argued). The slot hash now feeds the
+tiling salt (`config.seed ^^^ tiling.toUInt64`) as the first argument to
+`Rng.hash3` (`tiledFeatures_def`, machine-checked), which mixes its first
+argument before its second enters (`Rng.hash3_eq_iff`, machine-checked), so
+whether two words share a slot depends on the seed (argued): wood and stone
+words with equal values do not universally share all eight tiling slots across
+8-tiling configurations (`CurrentHashes.wood_not_stone`, machine-checked, proved
+via the standard configuration at seed 0 where the wood word's tiling-0 slot
+matches none of the stone word's tilings; argued for that witness description).
+The U6 and U7 runs had the aliased pairs (argued).
 
 **Lemma.** Suppose that in s and s′ no active slot is shared between a tile or
 imprint feature and a task, inventory, energy, day or prediction word. Then
@@ -351,7 +443,7 @@ The meta-controller can still learn task-dependent option preferences, since
 v_o·ψ(τ) is representable. Because the generator read only the kind patch, even
 working retirement could not discover task × layout conjunctions. U3's imprints
 also read the task words, so the lemma's hypothesis that imprints do not depend
-on the task no longer holds for units that sample them.
+on the task no longer holds for units that sample them (argued).
 
 ### F-E · The retirement tester works against turnover
 
@@ -372,22 +464,24 @@ against turnover:
 - **Reinstallation undoes progress.** Reinstalling a slot returns its nine
   option-policy learners, two model learners and one meta-controller row to the
   initial β. Before U1 this happened at most refreshes; now it happens when a
-  slot's unit leaves the ranking.
+  slot's unit leaves the ranking (argued).
 
 Whether this conjunction is ever reachable was the question of issue
 [#3](https://github.com/rbeauchamp/acorn/issues/3), closed as superseded when
 U3 started; the issue and its kept branch record its evidence. U3's published
 tester answers it by construction, and its safety obligation is local: a new
 unit enters with zero outgoing weight in every reader
-([PAR-11](prior-art-review.md#par-11--generate-and-test-tester)).
+([PAR-11](prior-art-review.md#par-11--generate-and-test-tester)) (argued from
+the executed definitions and machine-checked turnover and retirement theorems).
 
-Turnover by construction is proved over eligible units: a replacement occurs
-within ⌈period/k⌉ tests whenever at least k units are eligible at each
-(`run_turnover`). Issue 9's wording over mature units does not hold, because a
-unit held as an option objective is mature but not eligible away from a free
-boundary and accrues no credit (U1's hold rule). The three slots hold at most
-three units, so a replacement occurs within ⌈period/(k − 3)⌉ tests whenever at
-least k > 3 units are mature at each (`run_mature_turnover`).
+Turnover by construction is proved over eligible units (machine-checked,
+`run_turnover`): a replacement occurs within ⌈period/k⌉ tests whenever at least
+k units are eligible at each. Issue 9's wording over mature units does not hold
+(argued), because a unit held as an option objective is mature but not eligible
+away from a free boundary and accrues no credit (U1's hold rule; argued). The
+three slots hold at most three units, so a replacement occurs within
+⌈period/(k − 3)⌉ tests whenever at least k > 3 units are mature at each
+(machine-checked, `run_mature_turnover`).
 
 ### F-F · Options learn from almost none of the experience
 
@@ -402,28 +496,34 @@ subtasks paper updates every subtask's option off-policy on every step
 ([[7]](#r7) §3, eq. (10)), and intra-option learning updates every option
 consistent with each action taken ([[9]](#r9) §§5–6). Combined with F-A's resets
 and F-C's random option actions, options plausibly stayed near their initial
-values. That extent is observable but was not observed.
+values (argued). That extent is observable but was not observed (UNKNOWN).
 
 U4 makes every option that is not executing learn from the action actually
 taken, on every step of a learning hierarchy
-([PAR-17](prior-art-review.md#par-17--off-policy-option-learning)). The
+([PAR-17](prior-art-review.md#par-17--off-policy-option-learning)) (argued from
+the machine-checked U4 theorems). The
 [U4 section](#what-u4-changed) lists what changed and what is proved.
 
-**Verdict on composition.** The components coexisted far more than they
+**Verdict on composition (argued).** The components coexisted far more than they
 supported one another. The chain was wired, but F-A cut it periodically, F-B
 neutralized its planning end until U5, F-F starved its option end until U4 and
 F-E left its feature-construction end inert until U3.
 
 ## Measured against the published OaK and Alberta Plan designs
 
-- **Matches.**
+- **Matches (argued; paper-equation transcription fidelity assumed).**
   - OaK asks that "all of its components learn continually" and that "each
     learned weight has a dedicated step-size parameter that is meta-learned
-    using online cross-validation" [[17]](#r17). Acorn matches both.
+    using online cross-validation" [[17]](#r17). Acorn matches both (argued from
+    the executed definitions; paper-equation transcription fidelity recorded in
+    earlier reviews is assumed).
   - Oak Lab's algorithms "learn in real-time without storing or replaying data"
-    [[18]](#r18). Acorn matches this: batch size one, no replay, IDBD-family credit
-    assignment.
-- **Agent and world size.** "The big world hypothesis says that in many
+    [[18]](#r18). Acorn matches this: batch size one, no replay, IDBD-family
+    credit assignment (argued from `TemporalControl.step`, `NumericState.step`,
+    and `RecentFeatures`, which stores feature vectors only—with no action,
+    reward or successor—for planning backups rather than training replay).
+- **Agent and world size (argued; parameter-budget counts Lean-proved over
+  declared model inputs).** "The big world hypothesis says that in many
   decision-making problems the agent is orders of magnitude smaller than the
   environment" [[19]](#r19). Acorn's standard setting does not have that
   relation in bits: about 1.9 million learned parameters hold 59.8 million
@@ -433,127 +533,215 @@ F-E left its feature-construction end inert until U3.
   argued, gives a counting statement over declared model inputs:
   a table with one entry per element of the declared product of position,
   facing, energy, day phase and craft flags would need at least 140,000 times
-  the agent's parameters. The agent senses the world through an 11 × 11 window.
+  the agent's parameters. The agent senses the world through an 11 × 11 window
+  (argued from `observationWords` and `observationPatch`).
   The [parameter-budget proofs](../lean/AcornVerif/ParameterBudget.lean) own
-  the parameter count, that margin and the derivation of the bit bound.
-- **The agent and its world.** The composed agent is written against an
+  the parameter count (`agentParameters = 1,867,777`, `agent_parameters_value`;
+  `agentBits = 1,867,777 × 32 = 59,768,864`, `agent_bits_value`), that tabular
+  margin (`state_quotient_value = 143,791`, `minStateMargin = 140,000`,
+  `state_margin_largest`, asserting neither reachability nor generalization),
+  the packed-terrain ratio (`minTerrainRatio = 19`,
+  `agent_exceeds_terrain_description`, `terrain_ratio_largest`), and the sum
+  check for the unchanged Lean model constant (`worldStateBits = 67,646,087`,
+  `world_state_bits_value`, `world_state_exceeds_agent_bits`, which retains the
+  earlier `129`-bit four-constructor goal term). Counting the live fields of
+  `Acorn.Host.World` under `Acorn.Host.WorldConfig.standard` at side `1024`,
+  where a field with at most `2^b` values counts as `b` bits (individual field
+  counts are argued while `world_state_bits_value` checks only the unchanged
+  model sum; terrain is a deterministic function of seed and scale, so it is
+  configuration rather than state, and native object overhead and complete
+  checkpoint size sit outside the model), yields: `time` (`64`), `goalStart`
+  (`64`), `body` (`163`: `20` for two `Fin 1024` coordinates, `2` for four
+  facings, `11` for energy in `Fin 2001`, and `130` for inventory of four
+  32-bit counts and two flags), `goal` (`130`: `Goal` has five constructors,
+  including both `Goal.reach` and `Goal.find` each carrying a 128-bit
+  `Position`, and `World.setGoal` admits every `Goal`, so the five constructors
+  plus the absent goal have
+  `2 * 2^128 + 4 * 2^32 + 2 + 2^64 + 1 = 2^129 + 2^64 + 4 * 2^32 + 3 < 2^130`
+  values), `harvested` (`67,371,265`: maps from `Fin (1026 * 1026)` to 64-bit
+  words number `(2^64 + 1)^1052676 < 2^(64 * 1052676 + 1)`), `deer` (`262,145`:
+  at most `1024 * 1024 / 512 = 2,048` 128-bit positions, fewer than
+  `2^(128 * 2048 + 1)`), `food` (`12,001`: at most `600` 20-bit in-box
+  positions), and `rng` (`256`), summing to `67,646,088` bits (one bit above
+  the unchanged `worldStateBits = 67,646,087` model sum in
+  `AcornVerif.ParameterBudget`).
+- **The agent and its world (argued from the executed definitions, with cited
+  theorems machine-checked).** The composed agent is written against an
   interface, not against the grid world
-  ([design](design.md#the-interface-between-the-agent-and-a-world)). A world fixes
+  ([design](design.md#the-interface-between-the-agent-and-a-world)) (argued). A
+  world fixes
   the shape of its symbol array, the horizons of its prediction signals, an action
   count, a word bound, the first channel of the agent's prediction feedback
-  words and its timing, and delivers one percept per step: a frame and the reward of the preceding
-  transition. The grid world is one instance
-  (`Grid.interface`), and `Agent.grid_inputs` states what that instance feeds each
-  learner in terms of the host's own channel, signal and potential definitions. The
-  [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show the
-  host's step under the default step order and construction equal to a
-  frozen composition over host observations (`act_eq`, `callback_eq`, `initial_eq`).
-  Three bindings to the grid world remain. One binding to its way of running
-  remains, carried by the frame (below); the checkpoint binds none, since a saved
-  image is the exact image of the agent, and loading it returns the agent that was
-  saved (`CurrentCheckpoint.load_saved`). Its timing is not one either:
-  the grid world declares that it waits for the agent (`Grid.interface_timing`),
-  the [Microduck](https://github.com/pollen-robotics/microduck)'s world declares a wall clock with a cycle and a latency
-  (`Microduck.interface_timing`, [design](design.md#the-time-a-world-declares)),
+  words and its timing, and delivers one percept per step: a frame and the reward
+  of the preceding transition (argued). The grid world is one instance
+  (`Grid.interface`; argued): `Agent.grid_inputs` proves (machine-checked)
+  equalities for the grid percept (`Grid.percept`), `Agent.words`
+  (`observationWords` with feedback predictions), frame symbols
+  (`observationPatch`), `signalValues` (`evaluateCumulants`), declared spatial
+  potentials (`spatialPotentials`) and the achievement flag, while how those
+  inputs reach each learner is argued from the executed step definitions. The
+  [correspondence proofs](../lean/AcornVerif/GridCorrespondence.lean) show
+  (machine-checked) the host's step under the default step order and
+  construction equal to a frozen composition over host observations (`act_eq`,
+  `callback_eq`, `initial_eq`).
+  Three bindings to the grid world remain (argued). One binding to its way of
+  running remains, carried by the frame (below); the checkpoint binds none
+  (argued), since a saved image is the exact image of the agent, and loading it
+  returns the agent that was saved (`CurrentCheckpoint.load_saved`,
+  machine-checked). Its timing is not one either:
+  the grid world declares that it waits for the agent (`Grid.interface_timing`,
+  machine-checked),
+  the [Microduck](https://github.com/pollen-robotics/microduck)'s world declares
+  a wall clock with a cycle and a latency
+  (`Microduck.interface_timing`, machine-checked;
+  [design](design.md#the-time-a-world-declares)),
   and the executable `microduck-host` runs that world's host loop at the declared
-  pace. The step itself is two functions, and under the `plan-after-act` and
-  `act-then-learn` step orders a host releases the action between them, with
-  planning after the action and, under `act-then-learn`, every write that reads the
-  reward after it as well
-  ([design](design.md#the-two-parts-of-a-step)); every value that either native
-  loop returns agrees with one pure fold of whole steps, in its run state and
-  outcome or in its refusal with the learned stage of a refused pass
-  (`runAttempt_complete`). One is carried by the frame: the host's achievement flag still ends an
-  option, as a field that the coder does not read (`frame_congr`); it is declared
-  as departure [D8](learned-only-binding.md#d8--achievement-event--step-10). Two
-  are inside the agent's own modules, which import no world: the lifetime
-  accounting records reward and attempts under the grid curriculum's four task
-  families and attempt cycles (`Agent.recordEnvironment`, `Agent.recordAttempt`),
-  as observations no decision reads (`act_learners`), and the evaluation mode
+  pace (argued). The step itself is two functions, and under the `plan-after-act`
+  and `act-then-learn` step orders a host releases the action between them, with
+  planning after the action and, under `act-then-learn`, every write that reads
+  the reward after it as well
+  ([design](design.md#the-two-parts-of-a-step)) (argued); every value that
+  `runAttempt` returns under any of the three step orders agrees with one pure
+  fold of whole steps, in its run state and outcome or in its refusal with the
+  learned stage of a refused pass (`runAttempt_complete`, machine-checked;
+  extension to both native loops argued). One binding is carried by the frame:
+  the host's achievement flag still ends an option (argued), as a field that the
+  coder does not read (`frame_congr`, machine-checked); it is declared as
+  departure [D8](learned-only-binding.md#d8--achievement-event--step-10)
+  (argued). Two
+  are inside the agent's own modules, which import no world (argued, enforced by
+  the boundary audit): the lifetime accounting records reward and attempts under
+  the grid curriculum's four task families and attempt cycles
+  (`Agent.recordEnvironment`, `Agent.recordAttempt`; argued), where
+  `act_learners` proves (machine-checked) that two `Agent` states with equal
+  learner state (`AcornVerif.CurrentAccounting.learners`) given the same percept
+  produce equal `Agent.act` decisions and equal resulting learner state, from
+  which it is argued that no decision reads lifetime accounting, and the
+  evaluation mode
   `withoutReachRelation` is named for the grid world's reach relation, which only
-  the grid adapter omits from its frame
-  words. A second world, the [Microduck](https://github.com/pollen-robotics/microduck), has an instance of the interface and an
-  adapter, and the executable `microduck-host` runs the agent in it against the
-  vendor's simulator; no run of it is recorded as a measurement, so that an agent
-  learns in another world is not an observation.
-- **Models.** The Alberta Plan's base agent has a transition model that "predicts
-  the state at the time the option terminates and the cumulative reward along the
-  way", and imagined outcomes "are then evaluated by the value functions"
-  ([[20]](#r20) p. 4). Acorn's model predicts no state (F-B).
-- **Planning.** "On every step there will be some amount of planning"
-  ([[20]](#r20) p. 4), with search control as Step 9. Acorn plans only at free
-  boundaries, at the current state.
-- **Subtasks and options.** Step 10 makes the highest-ranked features into
-  reward-respecting subtasks, and its learning processes "will need to be done
-  off-policy" ([[20]](#r20) pp. 9–10). Acorn's subtasks churned until U1 (F-A), and
-  until U4 its options learned only while executing (F-F).
-- **Feature finding.** Step 2 asks for a way of evaluating features and
-  "discarding the less promising so as to make room for new ones"
-  ([[20]](#r20) p. 7). Before U3, Acorn's tester did not rank and was not shown to
-  replace (F-E); U3's tester ranks by contribution utility and replaces at a
-  declared rate.
-- **Temporal uniformity.** The plan's meta-algorithms for constructing
+  the grid adapter omits from its frame words (argued). A second world, the
+  [Microduck](https://github.com/pollen-robotics/microduck), has an instance of
+  the interface and an adapter, and the executable `microduck-host` runs the
+  agent in it against the vendor's simulator (argued); no run of it is recorded
+  as a measurement, so whether the agent learns in another world is open (and
+  its empirical behaviour there is UNKNOWN).
+- **Models (argued).** The Alberta Plan's base agent has a transition model that
+  "predicts the state at the time the option terminates and the cumulative reward
+  along the way", and imagined outcomes "are then evaluated by the value
+  functions" ([[20]](#r20) p. 4). At 86ce779 Acorn's model predicted no state
+  (F-B; argued); U5 added a transition part over at most 63 ranked feature slots
+  plus a shared residual and per-action deviations (argued from `Model`,
+  `Transition`, and the machine-checked U5 theorems).
+- **Planning (argued; priorities open).** "On every step there will be some
+  amount of planning" ([[20]](#r20) p. 4), with search control as Step 9. At
+  86ce779 Acorn planned only at free boundaries, at the current state (argued);
+  U5 added a sweep over one stored vector from the 128 most recent feature
+  vectors at each free decision boundary (`planningBoundary`,
+  `RecentFeatures.advance`; argued), still with no planning on every step and
+  with priorities open ([#15](https://github.com/rbeauchamp/acorn/issues/15)).
+- **Subtasks and options (argued from the machine-checked U1 and U4 theorems).**
+  Step 10 makes the highest-ranked features into reward-respecting subtasks, and
+  its learning processes "will need to be done off-policy" ([[20]](#r20)
+  pp. 9–10). Acorn's subtasks churned until U1 (F-A; argued), and until U4 its
+  options learned only while executing (F-F; argued).
+- **Feature finding (argued; turnover machine-checked).** Step 2 asks for a way
+  of evaluating features and "discarding the less promising so as to make room
+  for new ones" ([[20]](#r20) p. 7). Before U3, Acorn's tester did not rank and
+  was not shown to replace (F-E; argued); U3's tester ranks by contribution
+  utility and replaces at a declared rate (argued from the executed U3
+  definitions, with accrual and turnover machine-checked by
+  `Lifecycle.test_accrual`, `run_turnover`, and `run_mature_turnover`).
+- **Temporal uniformity (argued at 86ce779; post-`#57` boundary theorems
+  machine-checked).** The plan's meta-algorithms for constructing
   representations or subtasks "operate on every time step" ([[20]](#r20) p. 2). At
-  86ce779 Acorn triggered the subtask ranking from host attempt and cycle events, an
-  undeclared departure that was not mild in a first pass. A request was pending
-  only after an achieved attempt or a new curriculum cycle, and was consumed at
-  the next free boundary. The ranking admits only units of positive
-  reward-prediction weight (`candidateOfWeight`), the only nonzero reward is an
-  achievement's, and a decision selects before the prediction learners see its
-  reward (`TemporalControl.step`). A request consumed in the decision that
-  followed the first achievement therefore found every weight zero,
-  installed nothing and was cleared, and the next request waited for the next
-  achievement. In a diagnostic trace of seed 16265277883658242538 of U6's run
+  86ce779 Acorn triggered the subtask ranking from host attempt and cycle events,
+  an undeclared departure that was not mild in a first pass (argued). A request
+  was pending only after an achieved attempt or a new curriculum cycle, and was
+  consumed at the next free boundary (argued). The ranking admits only units of
+  positive reward-prediction weight (`candidateOfWeight`), the only nonzero
+  reward is an achievement's, and a decision selects before the prediction
+  learners see its reward (`TemporalControl.step`) (argued). A request consumed
+  in the decision that followed the first achievement therefore found every
+  weight zero, installed nothing and was cleared, and the next request waited
+  for the next achievement (argued). In a diagnostic trace of seed
+  16265277883658242538 of U6's run
   the three options had no subtask for the first 31 000 of 34 000 steps; in one
   of seed 8789851314873071931, for the first 422 of 10 563
   ([#57](https://github.com/rbeauchamp/acorn/issues/57)). The traces are
   diagnostics of those two seeds, not study evidence. The option models were not
   affected: they take the feature ranking at every free boundary
-  (`rerankModels`). The
-  subtask ranking now runs at every free dispatch and reads no host event. A free
-  dispatch is a decision that draws a meta decision. A hierarchical agent draws one
-  whenever it serves no committed exploration run and no option is active
-  (`TemporalControl.select_drawn`). The decision at which an active option ends is also
-  a free dispatch, by the definition of `TemporalControl.selectWithOperations`, and
-  every free dispatch records its meta decision (`TemporalControl.atBoundary_interest`).
-  The decision is then taken with the slots holding
-  exactly the ranked candidates' units, one slot per candidate, for the Demon-0 weights
-  the decision started from (`TemporalControl.select_assigns`,
-  `TemporalControl.select_occupancy`). Three limits remain. The ranking does not run
-  on a step that continues an option or serves an exploration run. Selection runs
-  before the reward delivered with a decision is learned, so a candidate that reward
-  creates is installed at the next free dispatch, not at that decision. A
-  primitive-only profile draws no meta decision (`TemporalControl.primitive_undrawn`).
-  Its selection returns before the refresh, so it assigns no subtask; that is read from
-  the definition of `TemporalControl.selectWithOperations` and is not a stated theorem.
-- **The route to representation search.** Swift-Sarsa is presented as opening
-  the door to learning representations "by searching over hundreds of millions of
-  features in parallel" [[3]](#r3), leaning on step-size credit assignment over
-  large feature sets. Acorn's representation is 16,384 hashed slots; until U3
-  its generator never saw the task.
+  (`rerankModels`; argued). The
+  subtask ranking now runs at every free dispatch and reads no host event
+  (argued from `TemporalControl.selectWithOperations` and the machine-checked
+  theorems below). A free dispatch is a decision that draws a meta decision.
+  Whenever `TemporalControl.selectWithOperations` returns a decision for a
+  hierarchical profile with no served committed exploration run and no active
+  option, it draws a meta decision (`TemporalControl.select_drawn`,
+  machine-checked). The decision at which an active option ends is also a free
+  dispatch, by the definition of `TemporalControl.selectWithOperations`
+  (argued), and every successful boundary call records its meta decision
+  (`TemporalControl.atBoundary_interest`, machine-checked). Whenever
+  `TemporalControl.selectWithOperations` returns a post-selection state with a
+  drawn meta decision for a profile with `ranksSubtasks = true`, that resulting
+  state's slots hold exactly the ranked candidates' units, one slot per
+  candidate, for the Demon-0 weights the decision started from
+  (`TemporalControl.select_assigns`, `TemporalControl.select_occupancy`,
+  machine-checked; that the meta decision inside that boundary reads those
+  refreshed slots is argued from `TemporalControl.selectWithOperations`). Three
+  limits remain (argued, with `TemporalControl.primitive_undrawn`
+  machine-checked). The ranking does not run on a step that continues an option
+  or serves an exploration run (argued). Selection runs before the reward
+  delivered with a decision is learned, so a candidate that reward creates is
+  installed at the next free dispatch, not at that decision (argued). Whenever
+  `TemporalControl.selectWithOperations` returns a decision for a primitive-only
+  profile, it draws no meta decision (`TemporalControl.primitive_undrawn`,
+  machine-checked). Its selection returns before the refresh, so it assigns no
+  subtask; that is argued from the definition of
+  `TemporalControl.selectWithOperations` and is not a stated theorem.
+- **The route to representation search (argued).** Swift-Sarsa is presented as
+  opening the door to learning representations "by searching over hundreds of
+  millions of features in parallel" [[3]](#r3), leaning on step-size credit
+  assignment over large feature sets. Acorn's representation is 16,384 hashed
+  slots; until U3 its generator never saw the task (argued from the executed
+  definitions).
 - **Evaluation.** Every source above establishes usefulness empirically: SwiftTD
   on Atari prediction, Swift-Sarsa on an operant-conditioning benchmark,
   reward-respecting subtasks with planning curves in grid worlds. Acorn has two
-  observations of learning, [U6](#conformance-sequence) and
-  [U7](#conformance-sequence), each refuted at its horizon. Under its
-  proof-first policy so few observations are deliberate, but whether the agent
-  learns on goals it does achieve, or over a horizon longer than U7's four
-  cycles, is irreducibly empirical and still open.
+  measurements of the whole agent against a uniform-random policy,
+  [U6](#conformance-sequence) (goals achieved in one pass) and
+  [U7](#conformance-sequence) (the shortening of reach attempts over four
+  cycles). Their counts stand as recorded; what each study's registered rule
+  refuted at its horizon is its hypothesis that more than half of all seeds
+  are wins. Under its proof-first policy so few
+  observations are deliberate. Whether the agent learns on goals it does
+  achieve, or over a horizon longer than U7's four cycles, these comparisons do
+  not settle: U7's per-goal counts are exploratory, and since the comparator is
+  not an ablation of the agent neither comparison can say what learning caused;
+  what its executed update does on a stated model is a mathematical question
+  that stays open.
 
-Going by the published designs, the agent they describe differs from Acorn at the
-model and planning links; U3 and U4 brought the feature-testing and
-option-learning links to adapted forms of the published mechanisms. The foundation is
+Going by the published designs, U3, U4 and U5 brought Acorn's feature-testing,
+option-learning, model, planning and search-control links to adapted forms of
+the published mechanisms (leaving the residual approximation and free-boundary
+planning cadence as declared adaptations; argued from the executed definitions
+and the scorecard above). The foundation is
 theirs: SwiftTD under every learner,
 reward-respecting feature-attainment subtasks, GVF
-predictions as features, and continual operation without replay. Acorn's
-machine-checked theorems of state legality and admission have no counterpart
-in that work.
+predictions as features, and continual operation without replay (argued from the
+executed definitions; paper-equation transcription fidelity assumed). Acorn's
+machine-checked theorems of state legality and admission (listed under
+[What each claim rests on](#what-each-claim-rests-on)) have no counterpart
+in that work (argued).
 
 ## Conformance sequence
 
 The recommended next step is baseline conformance: make each STOMP link do what
 its source says, cheapest decisive fix first. Each unit is justified by
-derivation, not measurement.
+derivation, not measurement. Implementation summaries in U1 to U5 below are
+argued from the executed definitions and the machine-checked theorems cited
+under each unit; U6 and U7 report observed registered-study outcomes and
+decisions, with implementation explanations in their prose argued from the
+executed definitions and labelled inline.
 
 | Unit | Change | Source | Size | Decisive because | Status |
 |---|---|---|---|---|---|
@@ -562,37 +750,42 @@ derivation, not measurement.
 | U3 | Published tester: contribution utility with maturity and a replacement rate over imprints, and a generator input that includes task channels | [[5]](#r5) [[6]](#r6) | M | Makes turnover reachable by construction and lets feature finding reach task conjunctions (F-D, F-E) | **Landed** ([#9](https://github.com/rbeauchamp/acorn/issues/9)) |
 | U4 | Options learn from every step: tree-backup learning of every option's policy, and model learning along frames whose action was selected with the option's own distribution | [[9]](#r9); [[7]](#r7) §3–4; [[21]](#r21); Alberta Step 10 | M | Removes F-F's data starvation | **Landed** ([#10](https://github.com/rbeauchamp/acorn/issues/10)) |
 | U5 | Expectation model over a ranked small feature subset, with approximate value iteration and bounded search control over recent feature vectors | [[7]](#r7) §4–5; [[10]](#r10); Alberta Steps 8(d) and 9 | L, research | Only this makes planning plan (F-B) | **Landed** ([#11](https://github.com/rbeauchamp/acorn/issues/11)) |
-| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes. Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
-| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Run: refuted at this horizon** ([result](studies/repeated-visits-vs-chance/results.md), [protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). Authorized and run on 2026-10-04 as revision 2 at commit 96e3f6b, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes. Of 20 seeds: W 0, losses 1, ties 19, M 0; 95% interval for the fraction of wins 0.000 to 0.169 |
+| U6 | Smallest prospective observation: the ranked agent against a uniform-random comparator, pre-registered, after U1 and U2 | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | S | Answers whether it achieves more than chance in one curriculum pass | **Run: refuted at this horizon** ([result](studies/first-pass-vs-chance/results.md), [protocol](studies/first-pass-vs-chance/protocol.md), [#12](https://github.com/rbeauchamp/acorn/issues/12)). Authorized and run on 2026-10-03 at commit 6ac4eec, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes (argued from commit a56d707). Of 20 seeds: W 4, losses 9, ties 7, M 0; 95% interval for the fraction of wins 0.057 to 0.437 |
+| U7 | Prospective observation over repeated visits: the ranked agent against a uniform-random comparator that follows the same four-cycle campaign in its own copy of the world, pre-registered | [Scientific evidence](../CONTRIBUTING.md#scientific-evidence) | M | Answers whether its attempts to reach a target shorten over repeated visits, and by more than chance's do | **Run: refuted at this horizon** ([result](studies/repeated-visits-vs-chance/results.md), [protocol](studies/repeated-visits-vs-chance/protocol.md), [#61](https://github.com/rbeauchamp/acorn/issues/61)). Authorized and run on 2026-10-04 as revision 2 at commit 96e3f6b, before [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue and terrain hashes (argued from commit a56d707). Of 20 seeds: W 0, losses 1, ties 19, M 0; 95% interval for the fraction of wins 0.000 to 0.169 |
 
 U3 supersedes issue 3's reachability program: replacing the local tester with a
-published one makes turnover reachable by construction, which removes the
+published one makes turnover reachable by construction (argued from the
+machine-checked `Lifecycle.test_accrual`, `run_turnover` and
+`run_mature_turnover` theorems), which removes the
 question rather than answering it. Issue 3 was closed as superseded when U3
 started, and its branch and in-progress evidence are kept.
 
 U6's [protocol](studies/first-pass-vs-chance/protocol.md) compares the two over
 one pass of the curriculum, the longest horizon on which the core's
-random-policy diagnostic was a matched comparator when it was written. The
+random-policy diagnostic was a matched comparator when it was written (argued). The
 owner authorized revision 1 on 2026-10-03, and it was run that day at commit
 6ac4eec, the commit that registered it, before
 [#155](https://github.com/rbeauchamp/acorn/issues/155) changed the feature, cue
-and terrain hashes. The [result](studies/first-pass-vs-chance/results.md) is
+and terrain hashes (argued from commit a56d707). The [result](studies/first-pass-vs-chance/results.md) is
 **refuted at this horizon**: in most worlds the agent does not achieve more
 goals than chance in its first pass. Of 20 seeds, all with a valid outcome, the
 agent achieved at least one more goal than the comparator on 4 (W), fewer on 9
 and the same number on 7, with none missing (M = 0); the exact 95% interval for
 the fraction of seeds that are wins is 0.057 to 0.437. The result does not show
 that the agent does worse than chance in most worlds: the interval for the
-fraction of losses, 0.230 to 0.685, contains 1/2. Whether the agent learns over
-repeated visits to a goal stays UNKNOWN under that protocol, because a
-comparison over several cycles needs a comparator that follows the same
-campaign in one persistent world.
+fraction of losses, 0.230 to 0.685, contains 1/2. U6's one pass cannot measure
+repeated visits to a goal, because a comparison over several cycles needs a
+comparator that follows the same campaign in one persistent world.
 
-U7's [protocol](studies/repeated-visits-vs-chance/protocol.md) asks that
-question. The comparator now follows the agent's whole campaign: the same
+U7's [protocol](studies/repeated-visits-vs-chance/protocol.md) asks whether,
+over repeated visits to the same two targets, the agent's attempts to reach
+them get shorter, and by more than those of that policy. The comparator now
+follows the agent's whole campaign: the same
 admitted plan and attempt-boundary function, in a second copy of the initial
 world carried from attempt to attempt
-([outcome CSV](design.md#outcome-csv)). Because inventory and tools persist, an
+([outcome CSV](design.md#outcome-csv); argued from `runRandomBaseline` and
+`runBaselineCampaign`). Because inventory and tools persist (argued from
+`World.setGoal`, `Attempt.start` and `BaselineAttempt.start`), an
 arm can achieve more goals in a later cycle on what it kept, without anything
 being learned, so the protocol compares the steps of each arm's first two
 visits to the two reach goals with those of its next two, over four cycles and
@@ -614,7 +807,7 @@ goals need continual learning.
 The owner authorized execution after issue 58 landed, as revision 2 at its
 registering commit, and it was run on 2026-10-04 at commit 96e3f6b, the commit
 that registered it, before [#155](https://github.com/rbeauchamp/acorn/issues/155)
-changed the feature, cue and terrain hashes. The [result](studies/repeated-visits-vs-chance/results.md)
+changed the feature, cue and terrain hashes (argued from commit a56d707). The [result](studies/repeated-visits-vs-chance/results.md)
 is **refuted at this horizon**: in most worlds the agent's reach attempts do
 not shorten over repeated visits by at least 300 steps per attempt and by at
 least 300 more than chance's. Of 20 seeds, all with a valid outcome, none is a
@@ -624,7 +817,8 @@ Almost no reach attempt reached its target: of 160 reach visits the agent
 achieved one, on its first visit to the near target on one seed, and the
 comparator none, so on 19 seeds every cost is the cap and both improvements
 are 0. The result does not show that the agent cannot learn the reach goals.
-It is rewarded for a goal only on achieving it, so with one achievement it
+It is rewarded for a goal only on achieving it (argued from
+`StepResult.reward` and `World.step`), so with one achievement it
 received almost nothing to learn them from, and what its attempts do once it
 reaches targets was not observed. It does not show that the agent does worse
 than chance: the interval for the fraction of losses is 0.001 to 0.249. And it
@@ -633,9 +827,12 @@ record also discloses a second generator-only evaluation at the study's
 seeds, made by the validation of
 [#74](https://github.com/rbeauchamp/acorn/pull/74) after registration, which
 ran no agent or comparator on them. Whether the agent learns on goals it does
-achieve, or over a longer horizon, stays UNKNOWN.
+achieve, or over a longer horizon, this comparison does not settle: its
+per-goal counts are exploratory and cannot say what learning caused.
 
-The roadmap also tracks the missing published pieces that no unit covers:
+The roadmap also tracks the missing or partial published pieces that no unit
+covers (each absent or partial in the current code, argued from the scorecard
+above):
 
 - reward centering ([#13](https://github.com/rbeauchamp/acorn/issues/13));
 - the Differential Q-learning TD-error update of the average-reward estimate
@@ -647,36 +844,57 @@ The roadmap also tracks the missing published pieces that no unit covers:
 
 ### What U1 changed
 
+The implementation summary below is argued from the executed definitions and the
+machine-checked theorems listed at the end of this subsection.
+
 - **Sign.** Only units whose signed Demon-0 weight is positive are candidates, and
-  that positive word is both score and bonus (`candidateOfWeight`). The `Bonus`
-  type makes every selected bonus positive and finite at ranking, checkpoint
-  admission and the diagnostic driver (`Bonus.finite_positive`).
+  that positive word is both score and bonus (`candidateOfWeight`). Every value
+  of type `Bonus` is positive and finite (`Bonus.finite_positive`,
+  machine-checked); ranking, checkpoint admission and the diagnostic driver
+  construct and pass values of that type (argued).
 - **Identity.** Objective identity is the unit alone (`Assignment.same`).
 - **Held bonus.** The bonus is held from selection and, while the unit stays
   ranked, raised at each refresh to the current weight when that is larger: a
   running maximum of the weights seen at refreshes (`Assignment.retain`).
 - **Slot stability.** A still-ranked unit keeps its slot and its learned state;
-  only slots whose unit left the ranking are reinstalled (`rankAssignments`).
-- **Retirement.** A held unit is retired only at a free boundary, where every
-  slot holding it is released to the neutral objective
-  (`FeatureRuntime.retire_releases`, `FeatureRuntime.retire_occupied`).
+  only slots whose unit left the ranking are reinstalled (`rankAssignments`;
+  retention of the first slot holding a still-ranked learned unit under the
+  state's own Demon-0 ranking weights is machine-checked by
+  `FreeDispatch.refresh_retains`).
+- **Retirement.** A held unit is retired only at a free boundary: away from a
+  free boundary, retirement updates only `lifecycle` with `free = false` and
+  `recent` (`FeatureRuntime.retire_occupied`, machine-checked), and `test false`
+  replaces no held unit (`Lifecycle.test_unheld`, machine-checked); when units
+  are retired, no slot still holds any retired unit
+  (`FeatureRuntime.retire_releases`, machine-checked), and each slot holding a
+  retired unit is replaced with a fresh skill at the neutral objective
+  (argued from `Ensemble.release` and the `Ensemble.releaseAll` fold in
+  `FeatureRuntime.retire`).
 - **Distinct units.** No two slots hold the same unit, from admission on:
   every refresh leaves them distinct whatever it starts from
-  (`FreeDispatch.refresh_distinct`), and the initial state and every step carry
-  distinctness within alignment (`TemporalControl.initial_aligned`,
-  `TemporalControl.step_total`); checkpoint admission refuses an image whose
-  slots repeat one. U1's checkpoint format 15 added the held bonus word and
-  refused earlier generations.
+  (`FreeDispatch.refresh_distinct`, machine-checked), and the initial state and
+  every step from an aligned state carry distinctness within alignment
+  (`TemporalControl.initial_aligned`, `TemporalControl.step_total`,
+  machine-checked); checkpoint admission refuses
+  an image whose slots repeat one (argued). U1's checkpoint format 15 added the
+  held bonus word and refused earlier generations (argued; current format is 21).
 
 Machine-checked: `FreeDispatch.refresh_retains`, `FreeDispatch.refresh_distinct`,
 `Bonus.finite_positive`, `CurrentTemporal.attained_stopping` (the executed attained
 stopping value is at least the estimate for finite estimates within the
-prediction cap), `Assignment.words_roundtrip`, and the unchanged
-`FreeDispatch.install_closing_owner` and `FreeDispatch.install_retains_owner`.
-U1 does not establish that options now learn useful behaviour, how often units
-leave the ranking, or that a hashed-slot weight is a good attainment target.
+prediction cap), `Assignment.words_roundtrip`, `Lifecycle.test_unheld`,
+`FeatureRuntime.retire_releases`, `FeatureRuntime.retire_occupied`,
+`TemporalControl.initial_aligned`, `TemporalControl.step_total`, and the
+unchanged `FreeDispatch.install_closing_owner` and
+`FreeDispatch.install_retains_owner`.
+U1 does not establish that options now learn useful behaviour (UNKNOWN), how
+often units leave the ranking (UNKNOWN), or that a hashed-slot weight is a good
+attainment target (open).
 
 ### What U4 changed
+
+The implementation summary below is argued from the executed definitions and the
+machine-checked theorems listed at the end of this subsection.
 
 - **Every step.** After selection and before primitive credit, each option that
   is not executing learns from the action the agent actually took
@@ -717,13 +935,17 @@ correction lies in [0, 1]), `CurrentTemporal.follow_inactive`,
 `CurrentTemporal.settle_continuing` and `CurrentTemporal.settle_ending` (starts), and
 `FreeDispatch.install_unlinked` and `Ensemble.release_unlinked` (ownership). U4 does
 not establish convergence of tree backup under linear function approximation with
-adaptive step sizes, the meaning of the step-size adaptation under the corrected
-trace decay, how often a frame's behaviour has the distribution of an option that
-is not executing, or that option policies and models improve. Each option that is
-not executing costs about one executing-option step on every frame. The
-meta-controller's option values still learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)).
+adaptive step sizes (open), the meaning of the step-size adaptation under the
+corrected trace decay (open), how often a frame's behaviour has the distribution
+of an option that is not executing (UNKNOWN), or that option policies and models
+improve (UNKNOWN). Each option that is not executing costs about one
+executing-option step on every frame (argued). The meta-controller's option
+values still learn by SMDP credit alone ([[9]](#r9) §6, eq. (21)) (argued).
 
 ### What U5 changed
+
+The implementation summary below is argued from the executed definitions and the
+machine-checked theorems listed at the end of this subsection.
 
 - **Transition part.** Each option's model has a transition part: for each of at
   most 63 ranked feature slots, a learner that predicts whether the slot is
@@ -732,13 +954,20 @@ meta-controller's option values still learn by SMDP credit alone ([[9]](#r9) §6
   update, TD with cumulant zero ([[7]](#r7) §4, eq. (17)), as an ordinary SwiftTD
   learner (`Transition.step`, `Transition.terminal`). Its terminal target is
   γ·x_j, which eq. (15) requires; eq. (17) as printed passes x_j
-  (`option_model_terminal_discount_correction`).
+  (`option_model_terminal_discount_correction`, a Lean-proved real-arithmetic
+  identity applied to the executed update by hand: argued).
 - **Ranked subset.** The slots are those of the ranked score blocks of positive
   Demon-0 weight, the subtask ranking continued from 3 entries to 63
-  ([[20]](#r20) Step 8(d), p. 9). The width of 64 positions follows from a
-  memory budget: the largest power of two for which the rows of all three
-  transition parts fit in one weight vector (`rankWidth_budget`,
-  `rankWidth_maximal`). The last position is the constant input.
+  ([[20]](#r20) Step 8(d), p. 9). At the standard capacity of 16,384 slots, the
+  width is 64 positions (`CurrentPlanning.default_width`, machine-checked). That
+  width follows from the memory budget: whenever the dimension's capacity is at
+  least `Acorn.FeatureConstants.skillCount`, `rankWidth` is the largest power of
+  two whose squared count across all three skills fits within that capacity
+  (`rankWidth_budget`, `rankWidth_maximal`, machine-checked), and
+  `CurrentPlanning.transition_storage` and `CurrentPlanning.transition_budget`
+  (machine-checked) tie transition-part storage to that budget (with the
+  one-weight-vector framing argued from those bounds). The last position is the
+  constant input.
 - **Residual.** The value function reads every active feature, so for each meta
   action the model also predicts that action's value at the outcome's unranked
   slots. It does so in two parts that add up exactly: a shared residual, which
@@ -756,8 +985,9 @@ meta-controller's option values still learn by SMDP credit alone ([[9]](#r9) §6
   change in a ranked slot's value weight for any action moves that action's
   value at the next look-ahead by the change times the slot's predicted
   activity, with no new termination of the option; the executed word follows
-  within its rounding allowance. A predecessor's own value moves when planning
-  next backs it up.
+  within its rounding allowance (argued from the machine-checked propagation and
+  rounding theorems below). A predecessor's own value moves when planning
+  next backs it up (argued).
 - **Search control.** Each learning frame is recorded, when it completes, in a
   store of the 128 most recent feature vectors. Each decision boundary backs up
   every option at the current vector and at one stored earlier vector; the
@@ -768,7 +998,8 @@ meta-controller's option values still learn by SMDP credit alone ([[9]](#r9) §6
   in every model; a slot that stays ranked keeps its position and its row's
   weights from every other retained slot, and a retired ranked slot vacates its
   position (`Transition.rerank`, `Transition.retire`). A slot is held at one
-  position only, by a field of the ranking's type.
+  position only, by a field of the ranking's type (`RankedFeatures.slot_unique`,
+  machine-checked).
   [PAR-13](prior-art-review.md#par-13--option-expectation-models) records the
   cadence this replaced.
 - **Selection name and pins.** `--planning expectation` replaces `scalar`. U5
@@ -791,7 +1022,7 @@ differential control against the convex combination it approximates),
 executed tie-window mean, under its finite-word bounds and exact-mixture
 hypothesis), `CurrentPlanning.outcome_value_propagation` (the dependence of
 every exact per-action value on the value weights, before rounding),
-`CurrentPlanning.transition_storage`,
+`rankWidth_budget`, `rankWidth_maximal`, `CurrentPlanning.transition_storage`,
 `CurrentPlanning.transition_table`, `CurrentPlanning.transition_budget`,
 `CurrentPlanning.complete_budget`, `CurrentPlanning.default_budget` and
 `CurrentPlanning.default_width` (storage),
@@ -819,23 +1050,27 @@ the deviations lose nothing of a share (`CurrentPlanning.outcome_decomposition`
 and `CurrentPlanning.deterministic_outcome`). These theorems concern abstract
 rational inputs; their application to the model's design is argued, distinct
 from the execution-linked rounding and propagation results above. U5 does not
-establish what share of an outcome's value the ranked slots carry, that the
-models or the per-action deviations become accurate, that planning with a
-learned linear model is stable ([[10]](#r10) §5.1 and §7.1), or that planning
-improves decisions.
+establish what share of an outcome's value the ranked slots carry (UNKNOWN),
+that the models or the per-action deviations become accurate (UNKNOWN), that
+planning with a learned linear model is stable ([[10]](#r10) §5.1 and §7.1)
+(open), or that planning improves decisions (UNKNOWN).
 
 ### Alternatives weighed
 
+All implementation characterizations in the alternatives below are argued.
+
 - **Continue the retirement reachability program (issue 3): no.** Its object is a
-  local guard that departs from every published tester. A reachability proof
-  would not yield representation search: turnover would still be rare and not
-  utility-ranked, and the generator would still be blind to the task. Issue 3
-  recorded that neither initialized joint eligibility nor a persistent veto was
-  established. U3 dissolves the question.
+  local guard that departs from every published tester (argued). A reachability
+  proof would not yield representation search: turnover would still be rare and
+  not utility-ranked, and the generator would still be blind to the task
+  (argued). Issue 3 recorded that neither initialized joint eligibility nor a
+  persistent veto was established (open at closure). U3 dissolves the question
+  (argued).
 - **U5 first: no.** It is the most mission-relevant capability, but it is
-  research-sized, and before U1 the churn would have erased the models it needs.
-- **Measure now: no.** The derived defects would dominate the result, and
-  measuring before fixing derivable defects replaces proof obligations with
+  research-sized, and before U1 the churn would have erased the models it needs
+  (argued).
+- **Measure now: no.** The derived defects would dominate the result (argued),
+  and measuring before fixing derivable defects replaces proof obligations with
   observation. U6 measures after U1 and U2.
 - **[Regula](https://github.com/rbeauchamp/regula) adoption and gate hygiene:
   later** ([#20](https://github.com/rbeauchamp/acorn/issues/20),
@@ -843,40 +1078,65 @@ improves decisions.
   [#22](https://github.com/rbeauchamp/acorn/issues/22)). They are mission-neutral
   maintenance, and Regula adoption waits on Regula's own blockers. New admission
   code should prefer structural recursion, which avoids the well-founded-recursion
-  helpers one of those blockers concerns.
-  **Status: Regula is adopted.** The [Regula audit](verification.md#regula-audit)
-  states what is audited and how to run it.
+  helpers one of those blockers concerns (argued).
+  **Status: Regula is adopted (argued; enforced by `./scripts/regula.sh`).** The
+  [Regula audit](verification.md#regula-audit) states what is audited and how to
+  run it.
 - **Learned agent state first: no.** It is large and changes every learner's
-  input; it follows U5.
+  input (argued); it follows U5.
 
 ## What each claim rests on
 
 - **Machine-checked.** Acorn's existing theorems over executed definitions
   (state legality, admission and execution-linked identities cited in the PAR
-  entries) and the execution-linked U1, U2, U3 and U4 theorems
-  cited above. The assessment inspected the earlier theorems' statements without
-  recompiling them; U1's, U2's, U3's and U4's were compiled by the verification
-  run on each change's head.
-- **Argued.** F-A to F-F, including F-C's initial derived rate, E[D] = H₁₂₈, the renewal
-  fraction of about 0.90, and F-D's lemma (conditional on equal prediction
-  buckets and no layout collision). None is machine-checked. The repairs of
-  F-A, F-C, F-E and F-F are argued from the machine-checked theorems above.
-  Applications of the declared parameter-budget model, U2's distributional
-  model and the abstract U5 theorems are argued from Lean-proved model
-  results, as distinguished above. U2's distributional results hold under
-  the assumed uniform, independent draw listed below.
+  entries), the execution-linked U1, U2, U3, U4 and U5 theorems cited above,
+  and the other execution-linked interface, host, hash and dispatch theorems
+  labelled machine-checked above (`Agent.grid_inputs`,
+  `GridCorrespondence.initial_eq`, `GridCorrespondence.act_eq`,
+  `GridCorrespondence.callback_eq`, `CurrentCheckpoint.load_saved`,
+  `Grid.interface_timing`, `Microduck.interface_timing`, `runAttempt_complete`,
+  `frame_congr`, `act_learners`, `tiledFeatures_def`, `Rng.hash3_eq_iff`,
+  `CurrentHashes.wood_not_stone`, `TemporalControl.finish_credit`,
+  `TemporalControl.select_drawn`, `TemporalControl.atBoundary_interest`,
+  `TemporalControl.select_assigns`, `TemporalControl.select_occupancy`,
+  `TemporalControl.primitive_undrawn`, `CurrentTemporal.select_persistent`,
+  `Lifecycle.test_accrual`, `Lifecycle.test_unheld`, `run_turnover`,
+  `run_mature_turnover`, `rankWidth_budget` and `rankWidth_maximal`). All are
+  compiled by `./scripts/verify.sh` on the current head.
+- **Argued.** All implementation descriptions, scorecard verdicts and counts,
+  wiring and no-replay statements, U1 to U5 narrative summaries, U6 and U7
+  implementation explanations, and F-A to F-F,
+  including F-C's initial derived rate, E[D] = H₁₂₈, the renewal fraction of
+  about 0.90, and F-D's lemma (conditional on equal prediction buckets and no
+  layout collision). None is machine-checked as stated. The repairs of F-A, F-B,
+  F-C, F-E and F-F are argued from the machine-checked theorems above.
+  Applications of `option_model_terminal_discount_correction`, the declared
+  parameter-budget model, U2's arithmetic word-count
+  (`TemporalSupport.declared_branch_card`) and distributional model, and the
+  abstract U5 theorems are argued from Lean-proved model results, as
+  distinguished above. U2's distributional results hold under the assumed
+  uniform, independent draw listed below.
 - **Assumed.**
   - An idealized uniform, independent random draw for the renewal fraction and
     for U2's distributional results; the deterministic generator does not
     supply one.
   - Uniform hashing for the roughly 1,300 active features.
   - Faithful transcription of the paper equations recorded in earlier reviews.
-- **UNKNOWN.** Whether the agent learns on goals it does achieve, or over a
-  horizon longer than U7's four cycles; how often refreshes occur
+- **UNKNOWN.** How often refreshes occur
   and units leave the ranking; option and model quality; the benefit of
   planning; the benefit of any of U1 to U5; how often a frame's behaviour has the
-  distribution of an option that is not executing. Each depends on the
+  distribution of an option that is not executing; what share of an outcome's
+  value the ranked slots carry; the accuracy of per-action deviations; the
+  exploratory share and achievement effect of `#58`'s repair; and unmeasured
+  empirical behaviour on the Microduck. Each depends on the
   experience stream, so no derivation from the definitions can settle it.
+- **Open.** Whether the agent learns on goals it does achieve, or over a
+  horizon longer than U7's four cycles (or in another world such as the
+  Microduck): the two comparisons do not settle it, and what its executed update
+  does on a stated model is a mathematical question; search-control priorities
+  (`#15`); whether a hashed-slot weight is a good attainment target; tree-backup
+  convergence and adaptive step-size meaning under U4; and stability of planning
+  with a learned linear model under U5.
 
 ## References
 
@@ -950,8 +1210,8 @@ Section, equation and page locators refer to the versions linked here.
 17. <a id="r17"></a>Richard S. Sutton, "The OaK Architecture: A Vision of
     SuperIntelligence from Experience", NeurIPS 2025 invited talk
     ([abstract](https://neurips.cc/virtual/2025/invited-talk/109601)).
-18. <a id="r18"></a>Oak Lab, "Mission" ([page](https://oaklab.ai/mission)),
-    read 2026-09-29.
+18. <a id="r18"></a>Oak Lab, "Mission" ([archived page](https://web.archive.org/web/20260909143403/https://oaklab.ai/mission)),
+    read on the live site on 2026-09-29; Oak Lab has since withdrawn the page.
 19. <a id="r19"></a>Khurram Javed and Richard S. Sutton, "The Big World Hypothesis
     and its Ramifications for Artificial Intelligence", 2024
     ([Oak Lab](https://oaklab.ai/posts/the-big-world-hypothesis.html)).

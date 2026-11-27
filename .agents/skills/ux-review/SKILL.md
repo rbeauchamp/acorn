@@ -28,10 +28,43 @@ invariants and design references. A violated spec or repository rule is a defect
 a preference where both are silent is explicitly design judgment.
 
 Inspect the actual rendered build and the states/geometries affected by the
-change. Read [capture guidance](references/capture-evidence.md) when using browser
-evidence and [review prompts](references/review-workflow.md) for the relevant UX
-questions. One reviewer can cover them together; there is no fixed nine-agent
-review, capture manifest or repeated full pass.
+change. Serve the page only by the recipe that the Test instructions of
+`.no-mistakes.yaml` give under "Driving the viewer": from an explicitly stopped
+state, with a child command that cannot be a core. No step starts a program that
+steps the agent or one of its learners unless the owner's authorization for that
+run is stated in the change's intent ([running a
+program](../../../CONTRIBUTING.md#running-a-program)). That recipe is the one
+start of the viewer on the closed list of those instructions; every other start
+needs that authorization, a smoke test or a screenshot included. The recipe
+answers a fact met on 2026-11-21, of the viewer as it then was: with no state
+file in its run directory it started running without being asked, and its
+supervisor launched its child, which is the core unless the command line names
+another command. The viewer's supervisor now starts its child only on an
+explicit act (`--start`, a Start on the viewer's control endpoint, which the
+page's Start button sends, or a saved state that an earlier Start set to
+running for the same child), and the recipe stays as it is: a review drives the viewer built from
+the change under review, which that change can have altered, and a Start
+pressed in the page starts the child. In a viewer started by that
+recipe, and in no other, the page's Start button may be pressed: the only child
+it can start is a command that is no core, and its exit shows the lifecycle and
+its handling of a failed child. A state that only a core supplies is a
+limitation to disclose, never a reason to start one. Open the page in a fresh
+browser profile, which starts with empty storage, and leave any existing profile
+as it is: the page restores a map and a trail from the browser's storage, kept
+by address and port, so an earlier visit could put an earlier run's data into
+the capture. A private window is not enough, since it shares the storage of a
+private session that is already open. One sentence on authorization governs this
+skill's directions on starting the viewer with a core and on the states that
+such a run supplies: each only and each never about them binds a review whose
+change's intent states no authorization for that run, and where the intent
+states the owner's authorization, exactly what that authorization names or
+points to may be started and the states it supplies inspected, and nothing
+wider. It reaches no
+other rule of the review. Read [capture
+guidance](references/capture-evidence.md) when using browser evidence and
+[review prompts](references/review-workflow.md) for the relevant UX questions.
+One reviewer can cover them together; there is no fixed nine-agent review,
+capture manifest or repeated full pass.
 
 Validate findings against the rendering, DOM and applicable spec. Distinguish a
 spec violation from design judgment. If fixes are authorized, make them and

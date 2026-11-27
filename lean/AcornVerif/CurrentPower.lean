@@ -1,23 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentFloat
 import Acorn.Portable
-/-!
-# Machine unit-interval multiplication and integer power
-
-These results unfold the pinned Lean 4.35.0 standard model in
-`Init/Data/Float/Model/Unpacked/{Round,Pack/Basic,Operations/Mul}.lean`.
-They bound the two actual rounding stages, including carry and subnormal
-results, then connect those stages to `Binary64.mul` and `Portable.powLoop`.
-The loop proof quantifies over every natural exponent; it does not unroll or
-sample a selected exponent domain. The signed interval includes negative zero, whose output sign is characterized
-by exponent parity. Widening and narrowing preserve the unit bound, connecting
-the induction to the public binary32 power for every UInt32 exponent. Native
-primitive/compiler correspondence remains trusted.
--/
 
 namespace AcornVerif.CurrentPower
 open AcornVerif.CurrentFloat
@@ -25,7 +7,6 @@ open Acorn
 open Float.Model (Format totalExponent UnpackedFloat)
 open Float.Model.UnpackedFloat
 
-/-- Every finite shift retains exactly the integer quotient, regardless of residual bits. -/
 theorem model_shift_mantissa (mantissa : ExtendedMantissa) (shift : Nat) :
     (mantissa >>> shift).mantissa = mantissa.mantissa / 2^shift := by
   induction shift with
@@ -35,7 +16,6 @@ theorem model_shift_mantissa (mantissa : ExtendedMantissa) (shift : Nat) :
     simp only [ExtendedMantissa.shiftRightOne, ih]
     rw [Nat.div_div_eq_div_mul, Nat.pow_succ]
 
-/-- Nearest-even rounding increases the retained integer by at most one. -/
 theorem model_round_mantissa_ceiling (mantissa : ExtendedMantissa) :
     mantissa.roundedMantissa ≤ mantissa.mantissa + 1 := by
   unfold ExtendedMantissa.roundedMantissa
@@ -43,7 +23,6 @@ theorem model_round_mantissa_ceiling (mantissa : ExtendedMantissa) :
   | exact => simp [Accuracy.roundToNearestEven]
   | inexact order => cases order <;> simp [Accuracy.roundToNearestEven] <;> omega
 
-/-- The actual target-exponent shift leaves fewer than 53 retained bits. -/
 theorem model_first_mantissa_bound (mantissa : Nat) (exponent : Int) :
     (shiftToTargetExponent Format.binary64 mantissa exponent .exact).1.mantissa < 2^53 := by
   unfold shiftToTargetExponent shiftToExponent
@@ -59,7 +38,6 @@ theorem model_first_mantissa_bound (mantissa : Nat) (exponent : Int) :
     apply (Nat.div_lt_iff_lt_mul (Nat.two_pow_pos shift)).mpr
     rw [← Nat.pow_add]
     exact Nat.lt_of_lt_of_le hm (Nat.pow_le_pow_right (by decide) hlo)
-/-- Positive finite components with exponent at most -53 pack below one. -/
 theorem model_pack_below_one (mantissa : Nat) (exponent : Int) (positive : 0 < mantissa)
     (he : exponent ≤ -53) :
     (Float.Model.pack (.finite .positive mantissa exponent positive)).toBits.toNat < 0x3ff0000000000000 := by
@@ -85,7 +63,6 @@ theorem model_pack_below_one (mantissa : Nat) (exponent : Int) (positive : 0 < m
     have hf := Nat.mod_lt mantissa (Nat.two_pow_pos 52)
     simp only [Nat.zero_mul, Nat.zero_or]
     omega
-/-- The second normalization stage shifts once exactly on the significand carry. -/
 theorem model_second_shift_exact (mantissa : Nat) (exponent : Int) (hm : mantissa ≤ 2^53)
     (he : -1074 ≤ exponent) :
     shiftToTargetExponent Format.binary64 mantissa exponent .exact =
@@ -119,7 +96,6 @@ theorem model_second_shift_exact (mantissa : Nat) (exponent : Int) (hm : mantiss
     rw [hd]
     simp
     rfl
-/-- The actual rounding and packing stages preserve the unit bound on the product domain. -/
 theorem model_round_product_unit (mantissa : Nat) (exponent : Int) (hm : mantissa < 2^106)
     (he : exponent ≤ -106) :
     (Float.Model.pack (roundWithAccuracy Format.binary64 .positive mantissa exponent .exact)).toBits.toNat ≤
@@ -158,7 +134,6 @@ theorem model_round_product_unit (mantissa : Nat) (exponent : Int) (hm : mantiss
     split
     · decide
     · exact Nat.le_of_lt (model_pack_below_one _ _ _ he1.2)
-/-- Multiplication by a power of two shifts every positive integer leading-bit index. -/
 theorem model_log2_scaled_positive (m shift : Nat) (hm : 0 < m) :
     (m*2^shift).log2 = m.log2+shift := by
   have hp : m*2^shift ≠ 0 := by
@@ -172,7 +147,6 @@ theorem model_log2_scaled_positive (m shift : Nat) (hm : 0 < m) :
   have h : m.log2+shift+1 = m.log2+1+shift := by omega
   simpa only [h] using And.intro hl hh
 
-/-- A zero-filled scale is exact for every normalized value, including subnormals. -/
 theorem model_round_scaled_normalized (m shift : Nat) (e : Int) (hm : 0 < m)
     (ht : Format.binary64.targetExponent (totalExponent m e) = e) :
     roundWithAccuracy Format.binary64 .positive (m*2^shift) (e-shift) .exact =
@@ -194,7 +168,6 @@ theorem model_round_scaled_normalized (m shift : Nat) (e : Int) (hm : 0 < m)
     ExtendedMantissa.accuracy, Accuracy.roundToNearestEven, shiftToTargetExponent,
     ht, shiftToExponent, hshift, Nat.ne_of_gt hm]
 
-/-- A positive subnormal retains its exact components through packing and unpacking. -/
 theorem model_unpack_pack_subnormal (m : Nat) (positive : 0 < m) (bound : m < 2^52) :
     unpack Format.binary64 (pack Format.binary64 (.finite .positive m (-1074) positive)) =
       .finite .positive m (-1074) positive := by
@@ -220,14 +193,12 @@ theorem model_unpack_pack_subnormal (m : Nat) (positive : 0 < m) (bound : m < 2^
     change m = 0 at this
     omega
   simp [hnz, hm, Sign.ofBitVec, Format.exponentBias]
-/-- Decoded positive-sign unit values, with separate normal, subnormal and exact-one conditions. -/
 def ModelUnit : UnpackedFloat → Prop
   | .zero sign => sign = .positive
   | .finite sign m e _ => sign = .positive ∧ m < 2^53 ∧ -1074 ≤ e ∧ e ≤ -52 ∧
       (e = -52 → m = 2^52) ∧ (e = -1074 ∨ 2^52 ≤ m)
   | _ => False
 
-/-- Every raw positive-sign word at or below one decodes into the complete unit domain. -/
 theorem model_unpack_unit (word : UInt64) (bound : word.toNat ≤ 0x3ff0000000000000) :
     ModelUnit (unpack Format.binary64 word.toBitVec) := by
   let ev := unpackExponent (spec := Format.binary64) word.toBitVec
@@ -280,7 +251,6 @@ theorem model_unpack_unit (word : UInt64) (bound : word.toNat ≤ 0x3ff000000000
       ((ev.toNat : Int)-1075 = -1074 ∨ 2^52 ≤ (1#1 ++ mv).toNat)
     rw [hsig]
     omega
-/-- The decoded unit domain already has the exponent required by the rounding model. -/
 theorem model_unit_round_target (sign : Sign) (m : Nat) (e : Int) (positive : 0 < m)
     (unit : ModelUnit (.finite sign m e positive)) :
     Format.binary64.targetExponent (totalExponent m e) = e := by
@@ -295,7 +265,6 @@ theorem model_unit_round_target (sign : Sign) (m : Nat) (e : Int) (positive : 0 
     omega
   | inr h => exact model_normal_target m e (model_mantissa_log m h hm) he
 
-/-- Repacking preserves every decoded unit value, including zero and subnormals. -/
 theorem model_unit_unpack_pack (value : UnpackedFloat) (unit : ModelUnit value) :
     unpack Format.binary64 (pack Format.binary64 value) = value := by
   cases value with
@@ -311,7 +280,6 @@ theorem model_unit_unpack_pack (value : UnpackedFloat) (unit : ModelUnit value) 
   | infinity sign => contradiction
   | notANumber => contradiction
 
-/-- Every admitted decoded unit value packs at or below the raw encoding of one. -/
 theorem model_unit_pack_bound (value : UnpackedFloat) (unit : ModelUnit value) :
     (Float.Model.pack value).toBits.toNat ≤ 0x3ff0000000000000 := by
   cases value with
@@ -329,7 +297,6 @@ theorem model_unit_pack_bound (value : UnpackedFloat) (unit : ModelUnit value) :
   | infinity sign => contradiction
   | notANumber => contradiction
 
-/-- The actual bit-reinterpretation model preserves the complete positive-sign unit domain. -/
 theorem model_ofBits_unit (word : UInt64) (bound : word.toNat ≤ 0x3ff0000000000000) :
     ModelUnit (Float.Model.ofBits word).unpack := by
   have h := model_unpack_unit word bound
@@ -337,7 +304,6 @@ theorem model_ofBits_unit (word : UInt64) (bound : word.toNat ≤ 0x3ff000000000
   rw [model_unit_unpack_pack _ h]
   exact h
 
-/-- The standard decoded multiplication and rounding preserve the positive-sign unit bound. -/
 theorem model_mul_unit (first second : UnpackedFloat) (hu : ModelUnit first) (hv : ModelUnit second) :
     (Float.Model.pack (mul Format.binary64 first second)).toBits.toNat ≤ 0x3ff0000000000000 := by
   cases first <;> cases second <;> simp only [ModelUnit] at hu hv
@@ -388,7 +354,6 @@ theorem model_mul_unit (first second : UnpackedFloat) (hu : ModelUnit first) (hv
           have hh := Nat.lt_trans h₁ h₂
           exact hh
         · omega
-/-- The executing binary64 multiplication preserves the raw positive-sign unit interval. -/
 theorem binary64_mul_unit (first second : Binary64)
     (hu : first.bits.toNat ≤ 0x3ff0000000000000)
     (hv : second.bits.toNat ≤ 0x3ff0000000000000) :
@@ -396,7 +361,6 @@ theorem binary64_mul_unit (first second : Binary64)
   change (Float.Model.mul (Float.Model.ofBits first.bits) (Float.Model.ofBits second.bits)).toBits.toNat ≤ _
   exact model_mul_unit _ _ (model_ofBits_unit first.bits hu) (model_ofBits_unit second.bits hv)
 
-/-- The executing square-and-multiply loop preserves the unit bound for every natural exponent. -/
 theorem powLoop_unit (accumulator squared : Binary64) (remaining : Nat)
     (ha : accumulator.bits.toNat ≤ 0x3ff0000000000000)
     (hs : squared.bits.toNat ≤ 0x3ff0000000000000) :
@@ -412,7 +376,6 @@ theorem powLoop_unit (accumulator squared : Binary64) (remaining : Nat)
         · exact binary64_mul_unit _ _ ha hs
         · exact ha
       · exact binary64_mul_unit _ _ hs hs
-/-- The public machine power preserves the positive-sign unit interval for every UInt32 exponent. -/
 theorem pow_word_unit (value : Binary32) (exponent : UInt32)
     (bound : value.bits.toNat ≤ 0x3f800000) :
     (Portable.pow value exponent).bits.toNat ≤ 0x3f800000 := by
@@ -423,26 +386,22 @@ theorem pow_word_unit (value : Binary32) (exponent : UInt32)
     exact Nat.le_refl _
   · exact Conversion.widen_word_unit value bound
 
-/-- The public zero exponent gives exactly one for every raw base, including every NaN payload. -/
 theorem pow_zero_word (value : Binary32) : Portable.pow value 0 = ⟨0x3f800000⟩ := by
   rw [Portable.pow_eq]
   rw [show (0 : UInt32).toNat = 0 from rfl, Portable.powLoop_zero]
   rfl
 
-/-- Multiplying binary64 signed zeros retains exactly the exclusive-or sign. -/
 theorem mul_signed_zeros (left right : Bool) :
     (Binary64.mk (if left then 0x8000000000000000 else 0)).mul
       ⟨if right then 0x8000000000000000 else 0⟩ =
         ⟨if left != right then 0x8000000000000000 else 0⟩ := by
   cases left <;> cases right <;> rfl
 
-/-- Multiplication by binary64 one preserves either zero sign. -/
 theorem mul_one_signed_zero (sign : Bool) :
     (Binary64.ofUInt64 1).mul ⟨if sign then 0x8000000000000000 else 0⟩ =
       ⟨if sign then 0x8000000000000000 else 0⟩ := by
   cases sign <;> rfl
 
-/-- A signed-zero accumulator and positive-zero square retain the accumulator sign through any loop length. -/
 theorem powLoop_zero_accumulator (sign : Bool) (remaining : Nat) :
     Portable.powLoop ⟨if sign then 0x8000000000000000 else 0⟩ ⟨0⟩ remaining =
       ⟨if sign then 0x8000000000000000 else 0⟩ := by
@@ -460,7 +419,6 @@ theorem powLoop_zero_accumulator (sign : Bool) (remaining : Nat) :
       simp only [ite_self]
       exact ih (remaining/2) (Nat.div_lt_self (by omega) (by omega))
 
-/-- A positive power of positive zero reaches its absorbing zero state for any natural exponent. -/
 theorem powLoop_positive_zero (remaining : Nat) (positive : remaining ≠ 0) :
     Portable.powLoop (Binary64.ofUInt64 1) ⟨0⟩ remaining = ⟨0⟩ := by
   induction remaining using Nat.strongRecOn with
@@ -478,7 +436,6 @@ theorem powLoop_positive_zero (remaining : Nat) (positive : remaining ≠ 0) :
       apply ih (remaining/2) (Nat.div_lt_self (by omega) (by omega))
       omega
 
-/-- Powers of negative zero retain its sign exactly for odd positive exponents. -/
 theorem pow_negative_zero (exponent : UInt32) :
     Portable.pow ⟨0x80000000⟩ exponent =
       if exponent.toNat = 0 then ⟨0x3f800000⟩
@@ -505,7 +462,6 @@ theorem pow_negative_zero (exponent : UInt32) :
     · rename_i even
       rw [powLoop_positive_zero _ (by omega)]
       exact Conversion.narrow_signed_zero false
-/-- The signed order interval from zero to one includes every positive-sign unit word and negative zero. -/
 theorem key_unit_cases (value : Binary32) (lo : 0 ≤ value.key) (hi : value.key ≤ 0x3f800000) :
     value.bits.toNat ≤ 0x3f800000 ∨ value.bits = 0x80000000 := by
   have hm : value.magnitude = value.bits.toNat % 2^31 := by
@@ -535,7 +491,6 @@ theorem key_unit_cases (value : Binary32) (lo : 0 ≤ value.key) (hi : value.key
     simp [Binary32.key_eq_negative, hs] at hi
     exact Or.inl (by omega)
 
-/-- The public power returns a finite value in the signed unit interval for every admitted base and UInt32 exponent. -/
 theorem pow_unit (value : Binary32) (exponent : UInt32)
     (lo : 0 ≤ value.key) (hi : value.key ≤ 0x3f800000) :
     (Portable.pow value exponent).Finite ∧
@@ -566,7 +521,6 @@ theorem pow_unit (value : Binary32) (exponent : UInt32)
     split
     · decide
     · split <;> decide
-/-- Packing the three extracted binary64 fields reconstructs every original word. -/
 theorem model_packComponents_unpack (word : UInt64) :
     packComponents Format.binary64 (Sign.ofBitVec (unpackSign (spec := Format.binary64) word.toBitVec))
       (unpackExponent (spec := Format.binary64) word.toBitVec) (unpackMantissa (spec := Format.binary64) word.toBitVec) = word.toBitVec := by
@@ -605,7 +559,6 @@ theorem model_packComponents_unpack (word : UInt64) :
   have hq : word.toNat / 2^52 / 2^11 = word.toNat / 2^63 := by rw [Nat.div_div_eq_div_mul]
   omega
 
-/-- A raw normal binary64 word decodes to its exact sign, significand and exponent fields. -/
 theorem model_unpack_normal_fields (word : UInt64)
     (lo : 0 < (unpackExponent (spec := Format.binary64) word.toBitVec).toNat)
     (hi : (unpackExponent (spec := Format.binary64) word.toBitVec).toNat < 2047) :
@@ -636,7 +589,6 @@ theorem model_unpack_normal_fields (word : UInt64)
   rw [ite_eq_right hn, ite_eq_right hz]
   congr 1
 
-/-- Packing the decoded normal model preserves the complete source word. -/
 theorem model_pack_unpack_normal_word (word : UInt64)
     (lo : 0 < (unpackExponent (spec := Format.binary64) word.toBitVec).toNat)
     (hi : (unpackExponent (spec := Format.binary64) word.toBitVec).toNat < 2047) :
@@ -661,7 +613,6 @@ theorem model_pack_unpack_normal_word (word : UInt64)
   rw [heq, mf]
   exact model_packComponents_unpack word
 
-/-- Multiplying one by a normal model value preserves all significand and sign bits. -/
 theorem binary64_one_mul_normal_model (sign : Sign) (m : Nat) (e : Int)
     (lo : 2^52 ≤ m) (hi : m < 2^53) (he : -1074 ≤ e) (he' : e ≤ 971) :
     (Binary64.ofUInt64 1).mul
@@ -683,7 +634,6 @@ theorem binary64_one_mul_normal_model (sign : Sign) (m : Nat) (e : Int)
   rw [hs, Nat.mul_comm (2^52), show (-52:Int)+e = e-(52:Nat) by omega,
     model_round_scaled_exact sign m 52 e lo hi he]
 
-/-- The actual native-boundary multiplication by one preserves every raw normal binary64 word. -/
 theorem binary64_one_mul_normal (value : Binary64)
     (lo : 0 < (unpackExponent (spec := Format.binary64) value.bits.toBitVec).toNat)
     (hi : (unpackExponent (spec := Format.binary64) value.bits.toBitVec).toNat < 2047) :
@@ -702,13 +652,11 @@ theorem binary64_one_mul_normal (value : Binary64)
     ((unpackExponent (spec := Format.binary64) value.bits.toBitVec).toNat-1075) (by omega) (by omega) (by omega) (by omega)
   rw [hbits] at result
   exact result
-/-- The standard model and current raw recipe extract the same binary64 exponent bits. -/
 theorem model_exponent_word (word : UInt64) :
     (unpackExponent (spec := Format.binary64) word.toBitVec).toNat = ((word >>> 52) &&& 0x7ff : UInt64).toNat := by
   change (word.toNat >>> 52) % 2^11 = (word.toNat >>> 52) &&& (2^11-1)
   rw [Nat.and_two_pow_sub_one_eq_mod]
 
-/-- Actual multiplication by one preserves the widened word of every non-NaN binary32 source. -/
 theorem binary64_one_mul_widen (value : Binary32) (notNan : value.isNaN = false) :
     (Binary64.ofUInt64 1).mul (Conversion.widen value) = Conversion.widen value := by
   by_cases finite : value.Finite
@@ -749,7 +697,6 @@ theorem binary64_one_mul_widen (value : Binary32) (notNan : value.isNaN = false)
       rw [he]
       rfl
 
-/-- The public exponent-one power is bit-exactly the identity on every non-NaN binary32 word. -/
 theorem pow_one_word (value : Binary32) (notNan : value.isNaN = false) :
     Portable.pow value 1 = value := by
   rw [Portable.pow_eq]

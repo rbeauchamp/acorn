@@ -45,9 +45,11 @@ The hazard here is specific: much of this repository's apparent complexity is
   gate-suite check is not redundant because it has never fired.
 - **Private fields** restrict direct writes. Trace accessors and restoration
   before crediting them with a state invariant; preserve the actual boundary.
-- A comment asserting *why* is not noise. Delete comments that restate the code;
-  keep the ones a reader could not derive. Apply lens 3's rationale-yes /
-  changelog-no rule to anything you rewrite here.
+- Non-tautological *why* and decision rationale belong in `docs/` (`docs/design.md`,
+  `docs/prior-art-review.md`, or `site/AcornDocs/Verification.lean`
+  rendered to `docs/verification.md`), never in scoped Lean comments (see
+  `.no-comments.json`; `comment-ratchet.json` is empty `[]`). Apply lens 3's
+  rationale-yes / changelog-no rule to anything you write in docs.
 
 Account for the purpose of any enforcement artifact a simplification would
 remove, and establish appropriate replacement coverage before retiring it.
@@ -55,8 +57,12 @@ remove, and establish appropriate replacement coverage before retiring it.
 ### The check that makes this safe
 
 Establish preservation through the repaired guarantees' types, derivations or
-proofs and their execution links, using the proof standard's questions. Run the applicable compiled audit arms and verification required by
-`AGENTS.md` on the final changes. Matching audit pins establish agreement only for
+proofs and their execution links, using the proof standard's questions. Run the verification required by
+`AGENTS.md` on the final changes. The compiled audit arms are not on the closed
+list of the Test instructions: run the applicable ones only on the owner's
+authorization for that run, stated in the change's intent
+([running a program](../../../../CONTRIBUTING.md#running-a-program)), and
+otherwise report the pins as not rechecked. Matching audit pins establish agreement only for
 the audited executions; they cannot establish universal behavior preservation.
 Investigate unexpected digest or checksum movement without re-pinning a supposed
 simplification. Report remaining assumptions or proof gaps explicitly.

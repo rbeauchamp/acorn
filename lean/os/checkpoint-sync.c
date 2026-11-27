@@ -4,10 +4,10 @@
  * checkpoint bytes, exclusive creation, rename and cleanup decisions.
  * A file pathname must continue to name the exclusively created regular file;
  * a directory pathname must continue to name the directory holding its entry.
- * lean/Acorn/Host/Checkpoint/IO.lean states what each path here establishes.
+ * docs/verification.md#checkpoint-admission and docs/design.md#checkpoints state what each path here establishes.
  * The path shared with other platforms uses only names POSIX.1-2008 defines
- * outside its XSI option, since the merge gate compiles on macOS only. Under
- * the build flags glibc's <sys/stat.h> alone hides S_IFMT; <fcntl.h> shows it.
+ * outside its XSI option, since the merge gate compiles on macOS and Ubuntu only.
+ * Under the build flags glibc's <sys/stat.h> alone hides S_IFMT; <fcntl.h> shows it.
  */
 #include <errno.h>
 #include <fcntl.h>

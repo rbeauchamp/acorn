@@ -1,97 +1,5 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentExplorer
 import AcornVerif.CurrentFirstCredit
-
-/-!
-# The first decision after a first reward
-
-Before its first reward the executed agent of a profile with no hierarchy takes the actions of an
-explorer that reads no percept (`AcornVerif.CurrentExplorer.cold_actions`). This module says what
-its next decision reads, right after the step that learns a first reward of one: for such a
-profile under per-step credit, the declared rate and the discounted criterion, at the default
-step order, before a unit of the feature bank matures.
-
-**What the reward writes.** Before a first reward every primitive weight is a zero word, the
-shared lags are zero words, and each row holds a trace on the slots it laid
-(`AcornVerif.CurrentCreditHorizon.CtrlQuiet`). The step that learns a reward of one then has
-error one, and its first loop adds to each weight the error times the trace. So each row's weight
-on each slot reads the trace the row held there before the step (`reward_writes_traces`, and
-`first_reward_weights` of a kernel run). The frame and the action of the reward step do not
-enter: its second loop writes no weight.
-
-**The values.** After that step, the value of each action at a frame of at most 1999 slots reads
-its row's trace total on the frame (`traceTotal`, `reward_values`): the ordered sum, over the
-frame's slots, of the traces the row held when the step began. It is the same ordered sum that
-the second loop forms when a row lays a frame. The policy the controller freezes at the frame has
-the near-maximum candidates of the policy whose values are those totals (`tracePolicy`,
-`reward_candidates`).
-
-**The decision.** In a kernel run in which every reward word before a time is the zero word and
-that time's is the word one, the action at the next time is one decision of primitive control
-(`AcornVerif.CurrentExplorer.Explorer.stepOver`) over the trace policy at the frame the decision
-reads, from the state the explorer holds after the run's decisions up to and including the one
-on the rewarded percept (`first_choice`). A committed run with a step left serves its action;
-otherwise the decision is one persistent draw from the trace policy. Outside a run, when the
-generator begins none, the action is a near-maximum candidate of the trace policy
-(`first_choice_greedy`).
-
-**What the trace totals say.** A step lays a trace on the slots of its frame, in the row of its
-action, and every later step decays it. The traces a first reward turns into weights were laid on
-steps whose reward words were all zero, so a total is what it would be had no reward come: it
-records which actions the agent took before the reward, on frames that share slots with the
-frame the decision reads, and how long before.
-
-- Take a frame, and a row whose action no step among the last
-  `AcornVerif.CurrentCreditHorizon.creditReach` before a time took on a frame holding a slot of
-  that frame; a row whose action was taken on none of those steps is one. From a controller that
-  held no trace when the run began, the row laid no slot of the frame on those steps
-  (`unlaid_window`), and its total on the frame is a zero word (`unlaid_total`).
-- Take a step at most nine steps before the reward, on a frame of at most 1900 slots. On every
-  frame of at most 1999 slots that shares a slot with that one, the row of its action has a total
-  of at least the least laid trace decayed eight times (`shared_total`). That word exceeds the
-  tie window by a positive word (`AcornVerif.CurrentCreditHorizon.low_clears_tie`). So right
-  after the reward step the value of that action at such a frame is above the tie window
-  (`shared_value`).
-- So at a frame that shares such a slot, an action that the last `creditReach` steps before the
-  reward took on no frame holding a slot of this one is no candidate (`unlaid_excluded`, through
-  `AcornVerif.CurrentCreditHorizon.zero_excluded`). And at such a frame, where every one of those
-  steps whose frame holds a slot of this one took one action, that action is the one candidate,
-  and the greedy draw returns it whatever the generator (`sole_candidate`, through
-  `AcornVerif.CurrentCreditHorizon.lone_candidate`).
-
-So at a frame that shares a slot with a frame laid at most nine steps before the reward, the
-first greedy choice after the reward follows what the agent did on the frames that share slots
-with it: an action it took on none of them is excluded, and where it took one action on all of
-them, that action is chosen. Where it took several, the choice is the comparison of their rows'
-totals. In a world all of whose frames share a slot, every action taken on the last
-`creditReach` steps before the reward can hold a total on every frame.
-
-Two frames whose percepts carry a common word share a slot
-(`AcornVerif.CurrentFrameSlots.shared_slot`).
-
-What this does not say.
-
-- Which action is the candidate when the steps before the reward took several. That is the
-  comparison of their rows' trace totals on the frame, and a total depends on how many slots the
-  frame shares with each earlier frame. No theorem here evaluates a total;
-  `AcornVerif.CurrentTraceCounts` states the total of a row whose action was taken once, and
-  compares such totals.
-- Anything of a later decision. After the first reward the weights need not all be zero words,
-  so the error of a later step need not be a zero word, and a step whose error is not a zero word
-  can move every weight whose slot holds a trace.
-- That the action leads back to where the reward was earned. The totals are those of the run
-  before the reward, and are what they would be had the reward not come.
-- A run past the first maturing unit, when a replaced unit's slot is retired; the differential
-  criterion; a profile with a hierarchy; another rate policy or step order.
-
-Trust. The statements are about executed binary32 words. Lean's kernel, its model of binary32
-arithmetic and the agreement of the native operations with that model on finite operands remain
-trusted, as for every proof of executed words in this library.
--/
 
 namespace AcornVerif.CurrentFirstChoice
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -100,16 +8,10 @@ open AcornVerif.CurrentLearner AcornVerif.CurrentPreReward AcornVerif.CurrentFea
 open AcornVerif.CurrentControl AcornVerif.CurrentCreditHorizon
 open SwiftTd (ActiveSet)
 
-/-! ## What a first reward of one writes -/
-
 section Controller
 
 variable {criterion : Criterion} {dimension : Dimension} {actions : Nat}
 
-/-- **A first reward of one writes every trace into its weight.** From a quiet controller, after a
-step at reward one, every row's weight on every slot reads the trace the row held there before the
-step, whatever the frame and the action of the reward step. A slot outside a row's eligible list
-holds a zero weight and a zero trace before the step, and keeps both. -/
 theorem reward_writes_traces {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
@@ -164,15 +66,11 @@ theorem reward_writes_traces {history : List (Laid dimension actions)}
     rw [slotOf_weight, knowledge.1, ← slotOf_weight]
     exact written
 
-/-- The total of the traces a row holds on the slots of a frame, in the frame's order: the same
-ordered sum that the second loop forms, of the traces it then finds, when a row lays a frame. -/
 def traceTotal {cfg : Acorn.Config} (controller : Controller cfg dimension actions)
     (features : ActiveSet dimension) (row : Fin actions) : Binary32 :=
   Binary32.sumFrom .zero (features.indices.map fun slot =>
     ((controller.learners.get row).state.transient.z.get slot).value)
 
-/-- On at most 1999 slots, the ordered sum of a quiet row's traces is small, nonnegative and at
-most the ordered sum of as many trace bounds. -/
 theorem traces_sum_small {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (row : Fin actions)
@@ -185,11 +83,8 @@ theorem traces_sum_small {history : List (Laid dimension actions)}
         ((controller.learners.get row).state.transient.z.get slot).value)) ≤
         numerical32 (repeatSum (traceBound criterion) slots.length) := by
   have words := (quiet.rows row).slots
-  have partials := repeatSum_bound (traceBound criterion) (totalBound criterion) 1999
-    (total_check criterion) (by cases criterion <;> decide)
   have totalSmall : ∀ k ≤ 1999, Small (repeatSum (traceBound criterion) k) := fun k bound =>
-    small_of_key (partials k bound).1 (le_trans (by decide) (partials k bound).2.1)
-      (le_trans (partials k bound).2.2 (by cases criterion <;> decide))
+    (repeatSum_total criterion k bound).1
   have total := sumFrom_le_repeat (traceBound criterion) (small_bound criterion)
     (slots.map fun slot => ((controller.learners.get row).state.transient.z.get slot).value)
     .zero 0
@@ -202,11 +97,6 @@ theorem traces_sum_small {history : List (Laid dimension actions)}
         (words slot).zLow, (words slot).zHigh⟩)
   simpa only [List.length_map, Nat.zero_add] using total
 
-/-- **After a first reward of one, a row's value at a frame is its trace total there.** From a
-quiet controller, after a step at reward one, the prediction of every row at every frame of at
-most 1999 slots reads the total of the traces the row held on that frame's slots before the
-step. Each weight reads its trace (`reward_writes_traces`), and the two ordered sums add words of
-one value to words of one value. -/
 theorem reward_values {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
@@ -243,8 +133,6 @@ theorem reward_values {history : List (Laid dimension actions)}
       exact add_same_values _ _ _ _ leftFinite rightFinite termFinite traceFinite previous reads
   exact bounded next.indices le_rfl
 
-/-- A slot's trace is at most the row's trace total on a frame of at most 1999 slots that holds
-the slot: the other traces are nonnegative. -/
 theorem trace_le_total {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (row : Fin actions)
@@ -281,8 +169,6 @@ theorem trace_le_total {history : List (Laid dimension actions)}
         exact le_add_left before.1 (zSmall slot) before.2.1
   exact bounded features.indices le_rfl held
 
-/-- A row that holds zero words for its traces on a frame's slots has a zero word for its trace
-total there. -/
 theorem resting_total {cfg : Acorn.Config} (controller : Controller cfg dimension actions)
     (features : ActiveSet dimension) (row : Fin actions)
     (rest : ∀ slot ∈ features.indices,
@@ -295,10 +181,6 @@ theorem resting_total {cfg : Acorn.Config} (controller : Controller cfg dimensio
   obtain ⟨slot, held, rfl⟩ := List.mem_map.mp member
   exact rest slot held
 
-/-- **A row that has not laid a frame's slots for the credit horizon holds no trace there.** On a
-quiet controller, if a row laid no slot of a frame on the last `creditReach criterion` steps, its
-trace total on the frame is a zero word: each of those slots is outside the row's eligible list
-(`AcornVerif.CurrentCreditHorizon.ctrlQuiet_dormant`), where every register is positive zero. -/
 theorem unlaid_total {history : List (Laid dimension actions)}
     {controller : Controller (criterion.config .control) dimension actions}
     (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
@@ -313,18 +195,14 @@ theorem unlaid_total {history : List (Laid dimension actions)}
 
 end Controller
 
-/-! ## The greedy candidates -/
-
 section Policy
 
 variable {criterion : Criterion} {dimension : Dimension} {count : Word.Count}
 
-/-- The frozen policy whose value for each action is its row's trace total on a frame. -/
 def tracePolicy {cfg : Acorn.Config} (controller : Controller cfg dimension count.word.toNat)
     (features : ActiveSet dimension) (epsilon : SwiftTd.ExploreRate) : PolicySnapshot count :=
   ⟨Vector.ofFn fun row => traceTotal controller features row, epsilon⟩
 
-/-- The value of an action under the trace policy is its row's trace total. -/
 theorem tracePolicy_value {cfg : Acorn.Config}
     (controller : Controller cfg dimension count.word.toNat) (features : ActiveSet dimension)
     (epsilon : SwiftTd.ExploreRate) (row : Action count.word.toNat) :
@@ -333,10 +211,6 @@ theorem tracePolicy_value {cfg : Acorn.Config}
   change (Vector.ofFn fun row => traceTotal controller features row).get row = _
   rw [vec_get, Vector.getElem_ofFn]
 
-/-- **The greedy candidates after a first reward of one are those of the trace totals.** From a
-quiet controller, after a step at reward one, the policy frozen at any frame of at most 1999 slots
-has the near-maximum candidates of the policy whose values are the totals of the traces each row
-held on that frame's slots before the step. -/
 theorem reward_candidates {history : List (Laid dimension count.word.toNat)}
     {controller : Controller (criterion.config .control) dimension count.word.toNat}
     (quiet : CtrlQuiet criterion controller history) (features : ActiveSet dimension)
@@ -356,8 +230,6 @@ theorem reward_candidates {history : List (Laid dimension count.word.toNat)}
 
 end Policy
 
-/-! ## A kernel run -/
-
 section Run
 
 open AcornVerif.CurrentFirstCredit AcornVerif.CurrentExplorer AcornVerif.CurrentGridWorld
@@ -365,12 +237,6 @@ open AcornVerif.CurrentFirstCredit AcornVerif.CurrentExplorer AcornVerif.Current
 variable {interface : Interface} {profile : FeatureProfile} {config : Features.Config}
   {criterion : Criterion} {dimension : Dimension} {planning : PlanningSelection}
 
-/-- **In a kernel run, a first reward of one writes every trace into its weight.** For a profile
-with no hierarchy under per-step credit and the discounted criterion, from an agent state whose
-learners are at rest and whose primitive controller is quiet: when every reward word before a
-time is the zero word and that time's is the word one, over frames of at most 1999 slots and
-before a unit of the feature bank matures, then right after the step of that time every row's
-weight on every slot reads the trace the row held there when that step began. -/
 theorem first_reward_weights (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -393,16 +259,6 @@ theorem first_reward_weights (primitive : profile.usesHierarchy = false)
   rw [loop_paid primitive perStep agent world start paid young pays]
   exact reward_writes_traces ctrlPaid _ _ row slot
 
-/-- **The first decision after a first reward.** For a profile with no hierarchy under per-step
-credit, the declared rate and the discounted criterion, at the default step order, from an agent
-state whose learners are at rest and whose primitive controller is quiet: in a kernel run in
-which every reward word before the time `paid` is the zero word and that time's is the word one,
-before a unit of the feature bank matures, over frames of at most 1999 slots before that time and
-at the next, the action at the time `paid + 1` is one decision of primitive control, from the
-explorer's state after `paid + 1` decisions, over the policy whose value for each action is the
-total of the traces its row held, when the step that learns the reward began, on the slots of
-the frame the decision reads. The frame of the step that learns the reward is not bounded: it
-enters no weight. -/
 theorem first_choice (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -443,10 +299,6 @@ theorem first_choice (primitive : profile.usesHierarchy = false)
   rw [drawn, explorer]
   exact congrArg Prod.fst (Explorer.stepOver_congr _ _ _ rfl candidates)
 
-/-- **Outside a run, the first decision after a first reward takes a candidate of the trace
-totals.** Under the hypotheses of `first_choice`, when the explorer's state after `paid + 1`
-decisions holds no committed run with a step left and its generator begins none at the declared
-rate, the action at the time `paid + 1` is a near-maximum candidate of the trace policy. -/
 theorem first_choice_greedy (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -485,10 +337,6 @@ theorem first_choice_greedy (primitive : profile.usesHierarchy = false)
   rw [chosen, greedy]
   exact member
 
-/-! ## What the trace totals say -/
-
-/-- In a kernel run, a row laid a slot on none of the last `reach` steps before a time when no
-step among them both took the row's action and encoded a frame that holds the slot. -/
 theorem unlaid_window (agent : Agent interface profile config criterion dimension planning)
     (world : Kernel.World interface) (start : world.State) (time reach : ℕ)
     (other : Action interface.actions.word.toNat) (slot : FeatIdx dimension)
@@ -507,14 +355,6 @@ theorem unlaid_window (agent : Agent interface profile config criterion dimensio
   exact apart (time - reach + index) (by omega) (by omega)
     ((laidAt_row agent world start (time - reach + index)).symm.trans lays.1) lays.2
 
-/-- **A frame that shares a recently laid slot gives its row a total that clears the tie
-window.** For a profile with no hierarchy under per-step credit and the discounted criterion,
-from an agent state whose learners are at rest and whose primitive controller is quiet: in a
-kernel run in which every reward word before the time `paid` is the zero word, over frames of at
-most 1999 slots and before a unit of the feature bank matures, let a step at most nine steps
-before that time have laid, on a frame of at most 1900 slots, a slot that another frame of at
-most 1999 slots holds. Then at the time `paid` the row of that step's action has, on that other
-frame, a trace total of at least the least laid trace decayed eight times. -/
 theorem shared_total (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -545,13 +385,6 @@ theorem shared_total (primitive : profile.usesHierarchy = false)
   exact le_trans far (le_trans recent.2
     (trace_le_total ctrlPaid _ frame fitsFrame slot heldFrame))
 
-/-- **After the reward, the value of a recent action clears the tie window where its frame's
-slots are.** Under the hypotheses of `shared_total`, when the percept of the time `paid` carries
-the reward word one and the agent's clock is still below the tester's maturity threshold: right
-after the step that learns the reward, the value of the action of a step at most nine steps
-before, at a frame that shares a slot with the frame that step laid, reads at least the least
-laid trace decayed eight times, which is above the tie window
-(`AcornVerif.CurrentCreditHorizon.lowChain_above_tie`). -/
 theorem shared_value (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -580,13 +413,6 @@ theorem shared_value (primitive : profile.usesHierarchy = false)
   exact shared_total primitive perStep agent history quiet ctrl world start paid (by omega)
     silent fits laid before near fitsLaid frame fitsFrame slot heldLaid heldFrame
 
-/-- **An action not taken on the frame's slots for the credit horizon is no candidate.** Under
-the hypotheses of `shared_total`, from a controller quiet against the empty history, which holds
-no trace: at a frame that shares a slot with a frame laid at most nine steps before, take an
-action that no step among the last `creditReach` took on a frame holding a slot of this one. An
-action taken on none of those steps is one. It is not a near-maximum candidate of the trace
-policy at the frame, at any rate: its total is a zero word, and the total of the row that laid
-the shared slot clears the tie window. -/
 theorem unlaid_excluded (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -625,12 +451,6 @@ theorem unlaid_excluded (primitive : profile.usesHierarchy = false)
     exact unlaid_total ctrlPaid frame other fun held inside =>
       unlaid_window agent world start paid _ other held (apart held inside)
 
-/-- **Where one action alone was taken on the frame's slots, it is the one candidate.** Under the
-hypotheses of `shared_total`, from a controller quiet against the empty history, which holds no
-trace: at a frame that shares a slot with a frame laid at most nine steps before, suppose that
-every step among the last `creditReach` whose frame holds a slot of this one took one action.
-Then that action is the one near-maximum candidate of the trace policy at the frame, at any
-rate, and the greedy draw returns it whatever the generator. -/
 theorem sole_candidate (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)

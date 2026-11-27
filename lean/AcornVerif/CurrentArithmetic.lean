@@ -1,35 +1,14 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import AcornVerif.CurrentPower
 import Mathlib.Algebra.Order.Field.Rat
 import Mathlib.Algebra.Order.Field.Power
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Linarith
-/-!
-# Rounding semantics shared by the machine formats
-
-These proofs unfold the pinned Lean 4.35.0 standard model in
-`Init/Data/Float/Model/Unpacked/Round.lean`. Induction connects the actual
-round/sticky-bit shifts to `Acorn.Rounding.nearestEven`; exact carry
-normalization then gives the dyadic half-unit error bound for every format.
-Normalization and packing lemmas connect those components to the actual
-standard `Operations/Add.lean` and `Operations/Mul.lean` definitions and the
-executing Acorn wrappers. The local binary64 operation contracts derive finite
-results and error bounds from numerical magnitude hypotheses. Intermediate
-rounding lemmas state their separate packing obligations explicitly. No theorem
-assigns an IEEE numerical value to an exceptional encoding or proves native
-compiler/runtime correspondence. Mathlib is confined to this proof layer.
--/
 open Acorn
 open Float.Model (Format totalExponent UnpackedFloat)
 open Float.Model.UnpackedFloat
 open AcornVerif.CurrentFloat AcornVerif.CurrentPower
 namespace AcornVerif.CurrentArithmetic
-/-- The model's residual bits record exactly whether any discarded source bit is nonzero. -/
 theorem model_shift_residual (mantissa shift : Nat) :
     let shifted := ExtendedMantissa.ofMantissaAndAccuracy mantissa .exact >>> shift
     (shifted.roundBit || shifted.stickyBit) = (mantissa % 2^shift != 0) := by
@@ -48,8 +27,6 @@ theorem model_shift_residual (mantissa shift : Nat) :
     simp [Bool.or_eq_true, or_comm]
     omega
 
-/-- The exact standard-model shift and nearest-even rounding agree with the proved integer
-  quotient recipe. -/
 theorem model_round_shift_exact (mantissa shift : Nat) :
     (ExtendedMantissa.ofMantissaAndAccuracy mantissa .exact >>> shift).roundedMantissa =
       Rounding.nearestEven mantissa (2 ^ shift) := by
@@ -112,8 +89,6 @@ theorem model_round_shift_exact (mantissa shift : Nat) :
         have rtrue : (mantissa%2^shift != 0) = true := by simpa using residual
         rw [rtrue]
         rfl
-/-- The standard model's exact shift has the nearest-even half-unit distance bound on its actual
-  rounded significand. -/
 theorem model_round_shift_distance (mantissa shift : Nat) :
     let rounded := (ExtendedMantissa.ofMantissaAndAccuracy mantissa .exact >>>
       shift).roundedMantissa
@@ -122,7 +97,6 @@ theorem model_round_shift_distance (mantissa shift : Nat) :
   rw [model_round_shift_exact]
   exact Rounding.nearestEven_distance _ _ (Nat.two_pow_pos shift)
 
-/-- Every format's first target-exponent shift retains fewer than its declared precision bits. -/
 theorem model_first_mantissa_format (spec : Format) (mantissa : Nat) (exponent : Int) (accuracy :
   Accuracy) :
     (shiftToTargetExponent spec mantissa exponent accuracy).1.mantissa < 2 ^ spec.mantissaBits := by
@@ -147,7 +121,6 @@ theorem model_first_mantissa_format (spec : Format) (mantissa : Nat) (exponent :
     rw [← Nat.pow_add]
     exact Nat.lt_of_lt_of_le hm (Nat.pow_le_pow_right (by decide) hlo)
 
-/-- The second normalization shifts once exactly on a single carry, for every valid precision. -/
 theorem model_second_shift_format (spec : Format) (mantissa : Nat) (exponent : Int)
     (hm : mantissa ≤ 2 ^ spec.mantissaBits) (he : spec.minExponent ≤ exponent) :
     shiftToTargetExponent spec mantissa exponent .exact =
@@ -188,8 +161,6 @@ theorem model_second_shift_format (spec : Format) (mantissa : Nat) (exponent : I
     simp
     rfl
 
-/-- Every accuracy case follows one rounded significand and exact carry normalization in the
-actual standard model. -/
 theorem model_round_accuracy_components (spec : Format) (sign : Sign) (mantissa : Nat)
     (exponent : Int) (accuracy : Accuracy) :
     let first := shiftToTargetExponent spec mantissa exponent accuracy
@@ -221,8 +192,6 @@ theorem model_round_accuracy_components (spec : Format) (sign : Sign) (mantissa 
   · simp only [first] at hc
     simp [hc, first, ExtendedMantissa.ofMantissaAndAccuracy]
 
-/-- The complete standard rounding path is one nearest-even quotient followed only by exact carry
-  normalization. -/
 theorem model_round_exact_components (spec : Format) (sign : Sign) (mantissa : Nat) (exponent :
   Int) :
     let shift := (spec.targetExponent (totalExponent mantissa exponent) - exponent).toNat
@@ -236,20 +205,15 @@ theorem model_round_exact_components (spec : Format) (sign : Sign) (mantissa : N
   rw [model_round_accuracy_components]
   simp only [shiftToTargetExponent, shiftToExponent, model_round_shift_exact]
 
-/-- The mathematical sign coefficient used only by the proof-side dyadic interpretation. -/
 def signCoefficient : Sign → ℚ
   | .positive => 1
   | .negative => - 1
 
-/-- Total proof-side reading of unpacked components. Only zero / finite constructors denote a
-  numerical value; exceptional constructors require separate classification. -/
 def unpackedValue : UnpackedFloat → ℚ
   | .zero _ => 0
   | .finite sign mantissa exponent _ => signCoefficient sign * mantissa * (2 : ℚ) ^ exponent
   | _ => 0
 
-/-- Exact carry normalization preserves the mathematical dyadic value of the single rounded
-  quotient. This is before the separate packing overflow decision. -/
 theorem model_round_exact_value (spec : Format) (sign : Sign) (mantissa : Nat) (exponent : Int) :
     let shift := (spec.targetExponent (totalExponent mantissa exponent) - exponent).toNat
     unpackedValue (roundWithAccuracy spec sign mantissa exponent .exact) =
@@ -270,8 +234,6 @@ theorem model_round_exact_value (spec : Format) (sign : Sign) (mantissa : Nat) (
       simp only [unpackedValue, hz, Nat.cast_zero, mul_zero, zero_mul]
     · rfl
 
-/-- The actual two-stage standard rounding has at most half of its selected dyadic unit of error
-  before packing. -/
 theorem model_round_exact_error (spec : Format) (sign : Sign) (mantissa : Nat) (exponent : Int) :
     let shift := (spec.targetExponent (totalExponent mantissa exponent) - exponent).toNat
     |unpackedValue (roundWithAccuracy spec sign mantissa exponent .exact) -
@@ -296,8 +258,6 @@ theorem model_round_exact_error (spec : Format) (sign : Sign) (mantissa : Nat) (
     signCoefficient sign * mantissa * (2:ℚ)^exponent| ≤ (2:ℚ)^(exponent+shift)/2
   rw [he, abs_le]
   cases sign <;> simp only [signCoefficient] <;> constructor <;> linarith
-/-- Padding a significand with zero bits and compensating its exponent preserves its signed dyadic
-  value. -/
 theorem dyadic_padding_exact (sign : Sign) (mantissa shift : Nat) (exponent : Int) :
     signCoefficient sign * ((mantissa * 2 ^ shift : Nat) : ℚ) * (2 : ℚ) ^ (exponent - shift) =
       signCoefficient sign * mantissa * (2 : ℚ) ^ exponent := by
@@ -311,7 +271,6 @@ theorem dyadic_padding_exact (sign : Sign) (mantissa shift : Nat) (exponent : In
         signCoefficient sign * mantissa * ((2:ℚ)^shift * (2:ℚ)^(exponent-shift)) := by ring
     _ = _ := by rw [hp]
 
-/-- Exact rounding keeps zero for every format, exponent and zero sign. -/
 theorem model_roundWithAccuracy_zero (spec : Format) (sign : Sign) (exponent : Int) :
     roundWithAccuracy spec sign 0 exponent .exact = .zero sign := by
   rw [model_round_exact_components]
@@ -319,14 +278,11 @@ theorem model_roundWithAccuracy_zero (spec : Format) (sign : Sign) (exponent : I
   simp [Rounding.nearestEven]
   omega
 
-/-- The initial normalization also preserves zero and its sign. -/
 theorem model_round_zero (spec : Format) (sign : Sign) (exponent : Int) :
     round spec sign 0 exponent = .zero sign := by
   simp only [round, decreaseExponent, Nat.zero_shiftLeft]
   exact model_roundWithAccuracy_zero spec sign _
 
-/-- Full standard rounding, including initial left normalization, has half a target-unit error
-  before packing. -/
 theorem model_round_error (spec : Format) (sign : Sign) (mantissa : Nat) (exponent : Int) :
     |unpackedValue (round spec sign mantissa exponent) - signCoefficient sign * mantissa *
       (2 : ℚ) ^ exponent| ≤
@@ -352,9 +308,6 @@ theorem model_round_error (spec : Format) (sign : Sign) (mantissa : Nat) (expone
       signCoefficient sign * mantissa * (2:ℚ)^exponent| ≤ (2:ℚ)^target/2 at error
     simpa only [round, decreaseExponent, Nat.shiftLeft_eq] using error
 
-/-- Finite canonical components: the significand fits the precision and has a leading bit unless
-the exponent is at the subnormal floor. This predicate does not establish that packing avoids
-overflow. -/
 def ModelNormalized (spec : Format) : UnpackedFloat → Prop
   | .zero _ => True
   | .finite _ mantissa exponent _ =>
@@ -362,17 +315,12 @@ def ModelNormalized (spec : Format) : UnpackedFloat → Prop
       (exponent = spec.minExponent ∨ 2 ^ spec.mantissaBitsWithoutImplicit ≤ mantissa)
   | _ => False
 
-/-- Nearest-even rounding never decreases the retained integer significand, for every residual-bit
-combination. -/
 theorem model_rounded_not_below (em : ExtendedMantissa) : em.mantissa ≤ em.roundedMantissa := by
   rcases em with ⟨mantissa, r, s⟩
   cases r <;> cases s <;>
     simp [ExtendedMantissa.roundedMantissa, ExtendedMantissa.accuracy,
       Accuracy.roundToNearestEven]
 
-
-/-- A positive significand shifted to its target retains the implicit leading bit unless its
-exponent reaches the subnormal floor. -/
 theorem model_first_normalized_lower (spec : Format) (mantissa : Nat) (exponent : Int)
     (accuracy : Accuracy) (hp : 0 < mantissa)
     (he : exponent ≤ spec.targetExponent (totalExponent mantissa exponent)) :
@@ -407,8 +355,6 @@ theorem model_first_normalized_lower (spec : Format) (mantissa : Nat) (exponent 
     rw [← Nat.pow_add, hshift]
     exact hlo
 
-/-- Rounding with residual-bit accuracy yields canonical components when its input exponent needs
-no left normalization. -/
 theorem model_round_accuracy_normalized (spec : Format) (sign : Sign) (mantissa : Nat)
     (exponent : Int) (accuracy : Accuracy) (hp : 0 < mantissa)
     (he : exponent ≤ spec.targetExponent (totalExponent mantissa exponent)) :
@@ -446,8 +392,6 @@ theorem model_round_accuracy_normalized (spec : Format) (sign : Sign) (mantissa 
       · exact Or.inl h
       · exact Or.inr (Nat.le_trans h hrounded)
 
-/-- The complete standard rounding operation produces canonical components for every sign, natural
-significand and integer exponent. -/
 theorem model_round_normalized (spec : Format) (sign : Sign) (mantissa : Nat) (exponent : Int) :
     ModelNormalized spec (round spec sign mantissa exponent) := by
   by_cases hz : mantissa = 0
@@ -470,9 +414,6 @@ theorem model_round_normalized (spec : Format) (sign : Sign) (mantissa : Nat) (e
       dsimp [shift]
       omega
 
-
-/-- The actual packing exponent guard stays below its infinity branch. Normalization is a separate
-prerequisite for preserving the decoded value. -/
 def ModelFits (spec : Format) : UnpackedFloat → Prop
   | .zero _ => True
   | .finite _ _ exponent _ =>
@@ -480,7 +421,6 @@ def ModelFits (spec : Format) : UnpackedFloat → Prop
         2 ^ spec.exponentBits
   | _ => False
 
-/-- The subnormal floor and format bias derive the same exponent-field boundary. -/
 theorem model_format_min_bias (spec : Format) :
     spec.minExponent + spec.exponentBias + spec.mantissaBitsWithoutImplicit = 1 := by
   have hp := Nat.two_pow_pos (spec.exponentBits - 1)
@@ -489,8 +429,6 @@ theorem model_format_min_bias (spec : Format) :
     Int.natCast_pow, Nat.cast_ofNat]
   omega
 
-/-- Packing and extracting the sign field preserves either sign independently of all other fields.
--/
 theorem model_unpack_sign_components (spec : Format) (sign : Sign)
     (exponent : BitVec spec.exponentBits) (mantissa : BitVec spec.mantissaBitsWithoutImplicit) :
     unpackSign (packComponents spec sign exponent mantissa) = sign.toBitVec := by
@@ -500,8 +438,6 @@ theorem model_unpack_sign_components (spec : Format) (sign : Sign)
   simp [unpackSign, packComponents, BitVec.getLsbD_eq_getElem, BitVec.getLsbD_append,
     BitVec.getElem_append]
 
-/-- The actual decoder applied to packed components follows the declared exceptional, subnormal
-and normal branches. -/
 theorem model_unpack_components (spec : Format) (sign : Sign)
     (exponent : BitVec spec.exponentBits) (mantissa : BitVec spec.mantissaBitsWithoutImplicit) :
     unpack spec (packComponents spec sign exponent mantissa) =
@@ -518,8 +454,6 @@ theorem model_unpack_components (spec : Format) (sign : Sign)
     model_unpack_sign_components]
   cases sign <;> rfl
 
-/-- Packing and decoding preserve canonical finite components whenever the actual packing overflow
-guard is false. -/
 theorem model_unpack_pack_normalized (spec : Format) (value : UnpackedFloat)
     (normal : ModelNormalized spec value) (fits : ModelFits spec value) :
     unpack spec (pack spec value) = value := by
@@ -614,10 +548,6 @@ theorem model_unpack_pack_normalized (spec : Format) (value : UnpackedFloat)
           exponent := by omega
       rw [hout]
 
-
-/-- Every finite raw encoding decodes to canonical components that fit the format. The exponent-
-width hypothesis includes binary32 and binary64; one-bit exponent formats are excluded explicitly.
--/
 theorem model_unpack_format (spec : Format) (exponentWidth : 1 < spec.exponentBits)
     (bits : BitVec spec.numBits) (finite : (unpack spec bits).isFinite = true) :
     ModelNormalized spec (unpack spec bits) ∧ ModelFits spec (unpack spec bits) := by
@@ -688,9 +618,6 @@ theorem model_unpack_format (spec : Format) (exponentWidth : 1 < spec.exponentBi
       rw [heq]
       exact hev
 
-
-/-- The magnitude of a finite signed dyadic is exactly its nonnegative significand times its power
-of two. -/
 theorem model_finite_abs (sign : Sign) (mantissa : Nat) (exponent : Int)
     (positive : 0 < mantissa) :
     |unpackedValue (.finite sign mantissa exponent positive)| = mantissa * (2 : ℚ) ^ exponent := by
@@ -699,8 +626,6 @@ theorem model_finite_abs (sign : Sign) (mantissa : Nat) (exponent : Int)
   cases sign <;> simp only [unpackedValue, signCoefficient, one_mul, neg_mul, abs_neg] <;>
     exact abs_of_nonneg hp
 
-/-- A numerical magnitude bound implies the actual packing exponent guard, given a finite
-constructor and an admissible exponent limit. -/
 theorem model_fits_of_value_bound (spec : Format) (value : UnpackedFloat)
     (finite : value.isFinite = true) (limit : Int)
     (range : (limit + spec.exponentBias + spec.mantissaBitsWithoutImplicit).toNat + 1 <
@@ -723,13 +648,10 @@ theorem model_fits_of_value_bound (spec : Format) (value : UnpackedFloat)
         (limit + spec.exponentBias + spec.mantissaBitsWithoutImplicit).toNat := by omega
     omega
 
-/-- Canonical components cannot be an infinity or a NaN constructor. -/
 theorem model_normalized_finite (spec : Format) (value : UnpackedFloat)
     (normal : ModelNormalized spec value) : value.isFinite = true := by
   cases value <;> first | rfl | contradiction
 
-/-- A positive dyadic lies in the half-open power-of-two interval selected by its actual total
-exponent. -/
 theorem model_positive_dyadic_window (mantissa : Nat) (exponent : Int) (positive : 0 < mantissa) :
     (2 : ℚ) ^ (totalExponent mantissa exponent - 1) ≤ mantissa * (2 : ℚ) ^ exponent ∧
       mantissa * (2 : ℚ) ^ exponent < (2 : ℚ) ^ (totalExponent mantissa exponent) := by
@@ -750,7 +672,6 @@ theorem model_positive_dyadic_window (mantissa : Nat) (exponent : Int) (positive
     rw [ht', zpow_add₀ (by norm_num : (2:ℚ) ≠ 0), zpow_natCast]
     exact high
 
-/-- Numerical ordering of positive dyadics preserves ordering of the model total exponent. -/
 theorem model_totalExponent_mono (left right : Nat) (leftExponent rightExponent : Int)
     (leftPositive : 0 < left) (rightPositive : 0 < right)
     (ordered : (left : ℚ) * (2 : ℚ) ^ leftExponent ≤ right * (2 : ℚ) ^ rightExponent) :
@@ -761,8 +682,6 @@ theorem model_totalExponent_mono (left right : Nat) (leftExponent rightExponent 
   have he := (zpow_lt_zpow_iff_right₀ (by norm_num : (1:ℚ) < 2)).mp hp
   omega
 
-/-- Every canonical finite component already has the exponent selected by the format target rule.
--/
 theorem model_normalized_target (spec : Format) (sign : Sign) (mantissa : Nat)
     (exponent : Int) (positive : 0 < mantissa)
     (normal : ModelNormalized spec (.finite sign mantissa exponent positive)) :
@@ -778,9 +697,6 @@ theorem model_normalized_target (spec : Format) (sign : Sign) (mantissa : Nat)
     simp only [Format.targetExponent, totalExponent, logeq, Format.mantissaBits]
     omega
 
-
-/-- A power-of-two input magnitude bound supplies a uniform half-unit error bound for the complete
-standard rounding path before packing. -/
 theorem model_round_uniform_error (spec : Format) (sign : Sign) (mantissa : Nat)
     (exponent limit : Int)
     (bound : |signCoefficient sign * mantissa * (2 : ℚ) ^ exponent| ≤ (2 : ℚ) ^ limit) :
@@ -807,20 +723,14 @@ theorem model_round_uniform_error (spec : Format) (sign : Sign) (mantissa : Nat)
     exact div_le_div_of_nonneg_right
       (zpow_le_zpow_right₀ (by norm_num : (1:ℚ) ≤ 2) htarget) (by norm_num)
 
-/-- The executing signed-integer application agrees with the proof-side rational sign coefficient.
--/
 theorem model_sign_apply_value (sign : Sign) (mantissa : Nat) :
     (sign.apply mantissa : ℚ) = signCoefficient sign * mantissa := by
   cases sign <;> simp [Sign.apply, signCoefficient]
 
-/-- Multiplication of the two machine signs agrees with multiplication of their rational
-coefficients. -/
 theorem model_sign_product_value (left right : Sign) :
     signCoefficient (left * right) = signCoefficient left * signCoefficient right := by
   cases left <;> cases right <;> norm_num [signCoefficient]
 
-/-- Signed-integer normalization produces canonical components with the derived rounding bound,
-including the zero branch. -/
 theorem model_signed_round_value (spec : Format) (mantissa : Int) (exponent : Int) (zeroSign : Sign)
     (limit : Int) (bound : |(mantissa : ℚ) * (2 : ℚ) ^ exponent| ≤ (2 : ℚ) ^ limit) :
     ModelNormalized spec (normalize spec mantissa exponent zeroSign) ∧
@@ -857,9 +767,6 @@ theorem model_signed_round_value (spec : Format) (mantissa : Int) (exponent : In
       (by simpa only [hs] using bound)
     simpa only [hs] using proof
 
-
-/-- Every supported format has a nonpositive subnormal exponent floor, derived from its positive
-field widths. -/
 theorem model_format_min_nonpositive (spec : Format) : spec.minExponent ≤ 0 := by
   have hm := spec.hm
   have hp := Nat.two_pow_pos (spec.exponentBits-1)
@@ -867,8 +774,6 @@ theorem model_format_min_nonpositive (spec : Format) : spec.minExponent ≤ 0 :=
   have hpower : (1:Int) ≤ 2 ^ (spec.exponentBits-1) := by exact_mod_cast hp
   omega
 
-/-- Multiplying two canonical finite significands never needs left normalization before the
-standard multiplication rounding path. -/
 theorem model_product_exponent_ready (spec : Format) (left right : Nat)
     (leftExponent rightExponent : Int) (leftSign rightSign : Sign)
     (leftPositive : 0 < left) (rightPositive : 0 < right)
@@ -896,8 +801,6 @@ theorem model_product_exponent_ready (spec : Format) (left right : Nat)
       simp only [Format.targetExponent]
       omega
 
-/-- When the source exponent is already small enough, complete rounding uses the same residual-bit
-rounding path without padding. -/
 theorem model_round_without_padding (spec : Format) (sign : Sign) (mantissa : Nat)
     (exponent : Int) (ready : exponent ≤ spec.targetExponent (totalExponent mantissa exponent)) :
     round spec sign mantissa exponent = roundWithAccuracy spec sign mantissa exponent .exact := by
@@ -906,8 +809,6 @@ theorem model_round_without_padding (spec : Format) (sign : Sign) (mantissa : Na
   rw [hz]
   simp only [Nat.shiftLeft_zero, Int.ofNat_zero, sub_zero]
 
-/-- The actual unpacked multiplication preserves normalization and has the derived dyadic error
-bound on finite canonical operands. Packing still requires its separate guard. -/
 theorem model_mul_dyadic_local (spec : Format) (left right : UnpackedFloat)
     (leftNormal : ModelNormalized spec left) (rightNormal : ModelNormalized spec right)
     (limit : Int)
@@ -946,9 +847,6 @@ theorem model_mul_dyadic_local (spec : Format) (left right : UnpackedFloat)
         simpa only [heq] using model_round_uniform_error spec (leftSign*rightSign) (lm*rm)
           (le+re) limit (by simpa only [heq] using bound)⟩
 
-
-/-- The exact exponent-alignment operation preserves the signed dyadic value whenever the target
-exponent is no larger. -/
 theorem model_decrease_dyadic_value (sign : Sign) (mantissa : Nat) (exponent target : Int)
     (ordered : target ≤ exponent) :
     (sign.apply (decreaseExponent mantissa exponent target).1 : ℚ) * (2 : ℚ) ^ target =
@@ -960,8 +858,6 @@ theorem model_decrease_dyadic_value (sign : Sign) (mantissa : Nat) (exponent tar
   rw [ht] at hp
   exact hp
 
-/-- The actual unpacked addition, including signed alignment and cancellation, preserves
-normalization and satisfies the derived dyadic error bound before packing. -/
 theorem model_add_dyadic_local (spec : Format) (left right : UnpackedFloat)
     (leftNormal : ModelNormalized spec left) (rightNormal : ModelNormalized spec right)
     (limit : Int)
@@ -1011,9 +907,6 @@ theorem model_add_dyadic_local (spec : Format) (left right : UnpackedFloat)
       change ModelNormalized spec (normalize spec sum target .positive) ∧ _
       simpa only [heq] using proof
 
-
-/-- The actual decoder is finite exactly when its exponent field is below the all-ones field, for
-every raw encoding. -/
 theorem model_unpack_finite_exponent (spec : Format) (bits : BitVec spec.numBits) :
     (unpack spec bits).isFinite =
       decide ((unpackExponent bits).toNat < 2 ^ spec.exponentBits - 1) := by
@@ -1045,24 +938,14 @@ theorem model_unpack_finite_exponent (spec : Format) (bits : BitVec spec.numBits
     · split <;> rfl
     · rfl
 
-/-- The pinned standard-model interpretation of a raw binary64 word. No arithmetic or payload-
-changing conversion is performed here. -/
 def decoded64 (value : Binary64) : UnpackedFloat := unpack Format.binary64 value.bits.toBitVec
 
-/-- Proof-side dyadic reading of a binary64 word. Numerical claims require a finite-input
-hypothesis; exceptional words use only the total extension of unpackedValue. -/
 def numerical64 (value : Binary64) : ℚ := unpackedValue (decoded64 value)
 
-/-- The pinned standard-model interpretation of a raw binary32 word, independent of native
-arithmetic. -/
 def decoded32 (value : Binary32) : UnpackedFloat := unpack Format.binary32 value.bits.toBitVec
 
-/-- Proof-side dyadic reading of a binary32 word, meaningful as an IEEE number only under a
-finite-input hypothesis. -/
 def numerical32 (value : Binary32) : ℚ := unpackedValue (decoded32 value)
 
-/-- The raw binary64 admission predicate agrees with the actual standard decoder on every machine
-word. -/
 theorem model_decoded64_finite (value : Binary64) :
     (decoded64 value).isFinite = true ↔ value.Finite := by
   rw [decoded64, model_unpack_finite_exponent, decide_eq_true_eq]
@@ -1073,8 +956,6 @@ theorem model_decoded64_finite (value : Binary64) :
     value.magnitude < 0x7ff0000000000000
   omega
 
-/-- The raw binary32 admission predicate agrees with the actual standard decoder on every machine
-word. -/
 theorem model_decoded32_finite (value : Binary32) :
     (decoded32 value).isFinite = true ↔ value.Finite := by
   rw [decoded32, model_unpack_finite_exponent, decide_eq_true_eq]
@@ -1088,8 +969,6 @@ theorem model_decoded32_finite (value : Binary32) :
   change (((value.bits >>> 23) &&& 0xff).toNat < 255) ↔ value.magnitude < 0x7f800000
   omega
 
-/-- The standard binary64 input conversion preserves every finite decoded value, including signed
-zero and subnormals. -/
 theorem model_ofBits64_decoded (value : Binary64) (finite : value.Finite) :
     (Float.Model.ofBits value.bits).unpack = decoded64 value := by
   have valid := model_unpack_format Format.binary64 (by decide) value.bits.toBitVec
@@ -1097,8 +976,6 @@ theorem model_ofBits64_decoded (value : Binary64) (finite : value.Finite) :
   change unpack Format.binary64 (pack Format.binary64 (decoded64 value)) = decoded64 value
   exact model_unpack_pack_normalized _ _ valid.1 valid.2
 
-/-- The standard binary32 input conversion preserves every finite decoded value, including signed
-zero and subnormals. -/
 theorem model_ofBits32_decoded (value : Binary32) (finite : value.Finite) :
     (Float32.Model.ofBits value.bits).unpack = decoded32 value := by
   have valid := model_unpack_format Format.binary32 (by decide) value.bits.toBitVec
@@ -1106,8 +983,6 @@ theorem model_ofBits32_decoded (value : Binary32) (finite : value.Finite) :
   change unpack Format.binary32 (pack Format.binary32 (decoded32 value)) = decoded32 value
   exact model_unpack_pack_normalized _ _ valid.1 valid.2
 
-/-- The executing binary64 addition uses the proved unpacked addition when its result is
-normalized and fits the actual packing guard. -/
 theorem model_add64_decoded (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite)
     (normal : ModelNormalized Format.binary64 (UnpackedFloat.add Format.binary64
@@ -1122,8 +997,6 @@ theorem model_add64_decoded (left right : Binary64) (leftFinite : left.Finite)
   rw [model_ofBits64_decoded left leftFinite, model_ofBits64_decoded right rightFinite]
   exact model_unpack_pack_normalized _ _ normal fits
 
-/-- The executing binary64 multiplication uses the proved unpacked multiplication when its result
-is normalized and fits the actual packing guard. -/
 theorem model_mul64_decoded (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite)
     (normal : ModelNormalized Format.binary64 (UnpackedFloat.mul Format.binary64
@@ -1138,8 +1011,6 @@ theorem model_mul64_decoded (left right : Binary64) (leftFinite : left.Finite)
   rw [model_ofBits64_decoded left leftFinite, model_ofBits64_decoded right rightFinite]
   exact model_unpack_pack_normalized _ _ normal fits
 
-/-- The executing binary32 addition uses the proved unpacked addition when its result is
-normalized and fits the actual packing guard. -/
 theorem model_add32_decoded (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite)
     (normal : ModelNormalized Format.binary32 (UnpackedFloat.add Format.binary32
@@ -1154,9 +1025,6 @@ theorem model_add32_decoded (left right : Binary32) (leftFinite : left.Finite)
   rw [model_ofBits32_decoded left leftFinite, model_ofBits32_decoded right rightFinite]
   exact model_unpack_pack_normalized _ _ normal fits
 
-
-/-- The local arithmetic magnitude and error bounds imply the actual binary64 packing guard
-without an overflow assumption. -/
 theorem model_local64_fits (value : UnpackedFloat) (exactValue : ℚ)
     (normal : ModelNormalized Format.binary64 value)
     (bound : |exactValue| ≤ 65536)
@@ -1172,9 +1040,6 @@ theorem model_local64_fits (value : UnpackedFloat) (exactValue : ℚ)
     _ ≤ 1/137438953472+65536 := add_le_add error bound
     _ ≤ (2:ℚ)^((17:Int)) := by norm_num
 
-/-- Actual binary64 addition stays finite and has error at most 2^-37 whenever its finite operands
-have an exact dyadic sum of magnitude at most 2^16. Native primitive correspondence remains the
-declared trusted boundary. -/
 theorem binary64_add_finite_error (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite)
     (bound : |numerical64 left + numerical64 right| ≤ 65536) :
@@ -1203,9 +1068,6 @@ theorem binary64_add_finite_error (left right : Binary64) (leftFinite : left.Fin
     exact model_normalized_finite _ _ localProof.1
   · simpa only [numerical64, exactDecoded] using error
 
-/-- Actual binary64 multiplication stays finite and has error at most 2^-37 whenever its finite
-operands have an exact dyadic product of magnitude at most 2^16. Native primitive correspondence
-remains the declared trusted boundary. -/
 theorem binary64_mul_finite_error (left right : Binary64) (leftFinite : left.Finite)
     (rightFinite : right.Finite)
     (bound : |numerical64 left * numerical64 right| ≤ 65536) :

@@ -1,6 +1,6 @@
 # Mission board
 
-This page is a copy of what GitHub records about Acorn's missions, derived at 2026-11-18T17:58:06Z. GitHub is the record: this copy may lag it and never overrides it. For the current state, see the [open missions on GitHub](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission). [Regenerating the board](missions.md#regenerating-the-board) says how this page is made. New to missions? [Start here](missions.md).
+This page is a copy of what GitHub records about Acorn's missions, derived at 2026-11-19T02:06:06Z. GitHub is the record: this copy may lag it and never overrides it. For the current state, see the [open missions on GitHub](https://github.com/rbeauchamp/acorn/issues?q=is%3Aopen+label%3Amission). [Regenerating the board](missions.md#regenerating-the-board) says how this page is made. New to missions? [Start here](missions.md).
 
 ## Open missions
 
@@ -22,7 +22,7 @@ A *frozen* contract is accepted and may not be weakened. A *proposed* one has no
 
 A *target* is a statement that a mission is to prove, held in the repository as a Lean definition. Every build has Lean read it against the current code, so it cannot stop making sense unnoticed, and only the owner merges a change to it. A mission establishes its statements by proving each of its targets, and a target is marked as proved once the repository records the theorem that proves it. [Missions](missions.md#step-3-read-the-contract) says how to find one and [how to prove it](missions.md#step-5-do-the-work).
 
-43 targets are registered.
+44 targets are registered.
 
 | Mission | Target | File | Proved by |
 |---|---|---|---|
@@ -69,6 +69,7 @@ A *target* is a statement that a mission is to prove, held in the repository as 
 | [#201](https://github.com/rbeauchamp/acorn/issues/201) | AcornVerif.Targets.ColumnLatch.swing&#95;bound | [lean/AcornVerif/Targets/ColumnLatch.lean](../lean/AcornVerif/Targets/ColumnLatch.lean) | not yet |
 | [#201](https://github.com/rbeauchamp/acorn/issues/201) | AcornVerif.Targets.ColumnLatch.cell&#95;word&#95;decides | [lean/AcornVerif/Targets/ColumnLatch.lean](../lean/AcornVerif/Targets/ColumnLatch.lean) | not yet |
 | [#201](https://github.com/rbeauchamp/acorn/issues/201) | AcornVerif.Targets.ColumnLatch.counts&#95;separated | [lean/AcornVerif/Targets/ColumnLatch.lean](../lean/AcornVerif/Targets/ColumnLatch.lean) | not yet |
+| [#283](https://github.com/rbeauchamp/acorn/issues/283) | AcornVerif.Targets.CurrentConcealedTargetRung.rung&#95;learns | [lean/AcornVerif/Targets/CurrentConcealedTargetRung.lean](../lean/AcornVerif/Targets/CurrentConcealedTargetRung.lean) | not yet |
 
 ## Landed missions
 
@@ -80,6 +81,10 @@ A mission has landed when the pull request that closed it was merged into the de
 | [#196](https://github.com/rbeauchamp/acorn/issues/196) | Prove that the executed agent's control weights stay zero until its first reward | [#223](https://github.com/rbeauchamp/acorn/pull/223) | [rbeauchamp](https://github.com/rbeauchamp) (owner) | Claude (Anthropic) | 2026-11-05 |
 | [#197](https://github.com/rbeauchamp/acorn/issues/197) | Prove what a bias on a few slots does to the executed greedy choice | [#224](https://github.com/rbeauchamp/acorn/pull/224) | [rbeauchamp](https://github.com/rbeauchamp) (owner) |  | 2026-11-06 |
 | [#199](https://github.com/rbeauchamp/acorn/issues/199) | Prove how far back a first reward can reach in the executed primitive controller | [#225](https://github.com/rbeauchamp/acorn/pull/225) | [rbeauchamp](https://github.com/rbeauchamp) (owner) |  | 2026-11-06 |
+
+Closed without a landed result, so these earn no credit:
+
+- [#283](https://github.com/rbeauchamp/acorn/issues/283) Mission (withdrawn 2026-11-18, to be superseded): an algorithm for which the first rung's agent gets ahead and keeps what it has solved (&#96;rung&#95;learns&#96;): closed without being completed.
 
 ## Credit
 

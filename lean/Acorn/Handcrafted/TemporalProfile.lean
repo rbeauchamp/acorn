@@ -1,63 +1,32 @@
-/-
-Copyright (c) 2026 acorn contributors. All rights reserved.
-Released under the MIT license as described in the repository LICENSE.
-Authors: acorn contributors
--/
 import Acorn.Interface
 import Acorn.Handcrafted.FeatureProfile
 
-/-!
-# Declared temporal comparison profiles
-
-D2 is a world's declared subtask potentials, which a frame carries. D6 supplies the
-declared exploration rate and the annealed comparison's schedule; the persistent-duration law is D3 in
-`Acorn.Exploration`. Ranked targets and PAR-10 per-consumer rates reuse their
-learned owners. These declarations select the recorded research profiles.
-
-Dabney, Ostrovski & Barreto, *Temporally-Extended ε-Greedy Exploration*, ICLR
-(2021), arXiv:2006.01782v1, §4.2, PDF p. 5, describes εz-greedy by "two
-parameters, ϵ dictating when/how often to explore, and z dictating the degree
-of persistence". D6's ε = 0.01 is the paper's linear Sarsa(λ) CartPole setting
-(Appendix A, PDF p. 14) and the constant its Rainbow-based Atari agents'
-schedule keeps after decay (Appendix B.3, PDF p. 15). A continuing, clock-free agent keeps
-only the constant.
--/
 namespace Acorn.Handcrafted
 open Features
 
-/-- A frame's declared potentials enter selection with their D2 register entry. -/
 def _root_.Acorn.Features.Frame.declared {interface : Interface} (frame : Frame interface) :
     DeclaredPotentials :=
   ⟨.spatialPotentials, frame.potentials⟩
 
-/-- D6's rate: the binary32 word nearest 0.01, admitted without projection. -/
 def declaredRate : SwiftTd.ExploreRate := ⟨⟨Acorn.Constants.exploreRate1e2Bits⟩, by decide⟩
 
-/-- The schedule stores its actual closed interval, including the minimum. -/
 def annealedRange : Interval32 :=
   ⟨⟨Acorn.Constants.epsMinBits⟩, .one, by decide, by decide, by decide⟩
 
-/-- Schedule state exists only in the schedule-carrying rate policy. -/
 inductive RateState : RatePolicy → Type where
-  /-- Every consumer reads the declared rate; there is no schedule state. -/
   | declared : RateState .declared
-  /-- Each consumer reads its own learner. -/
   | perLearner : RateState .perLearner
-  /-- Every consumer reads the primitive learner. -/
   | shared : RateState .shared
-  /-- Stored minimum-bounded current rate. -/
   | annealed (rate : Bounded32 annealedRange) : RateState .annealed
 
 instance (policy : RatePolicy) : Provenance (RateState policy) := ⟨some .explorationRate⟩
 
-/-- Current initial clock state, with no arbitrary schedule parameters. -/
 def RateState.initial : (policy : RatePolicy) → RateState policy
   | .declared => .declared
   | .perLearner => .perLearner
   | .shared => .shared
   | .annealed => .annealed (Bounded32.project annealedRange ⟨Acorn.Constants.epsStartBits⟩)
 
-/-- Advance once per decision, before either the primitive-only or hierarchy path. -/
 def RateState.advance {policy : RatePolicy} : RateState policy → RateState policy
   | .declared => .declared
   | .perLearner => .perLearner
@@ -65,7 +34,6 @@ def RateState.advance {policy : RatePolicy} : RateState policy → RateState pol
   | .annealed rate => .annealed (Bounded32.project annealedRange
       (rate.value.mul ⟨Acorn.Constants.epsDecayBits⟩))
 
-/-- Controller rates are resolved lazily under the immutable policy. -/
 def RateState.controller {policy : RatePolicy} (state : RateState policy)
     (own primitive : Unit → SwiftTd.ExploreRate) : SwiftTd.ExploreRate :=
   match state with
@@ -74,8 +42,6 @@ def RateState.controller {policy : RatePolicy} (state : RateState policy)
   | .shared => primitive ()
   | .annealed rate => SwiftTd.ExploreRate.project rate.value
 
-/-- Options read the declared rate, their own learner, the shared primitive
-rate, or the annealed comparison's fixed option epsilon. -/
 def RateState.skill {policy : RatePolicy} (state : RateState policy)
     (primitive : Unit → SwiftTd.ExploreRate) : ConsumerRate :=
   match state with
@@ -84,8 +50,6 @@ def RateState.skill {policy : RatePolicy} (state : RateState policy)
   | .shared => .fixed (primitive ())
   | .annealed _ => .fixed (SwiftTd.ExploreRate.project ⟨Acorn.Constants.optionEpsilonBits⟩)
 
-/-- A controller's rate with its work: the declared word, which reads nothing, the work of the
-source the policy names, or the projection of the annealed rate. -/
 def RateState.controllerCosted {policy : RatePolicy} (state : RateState policy)
     (own primitive : Unit → Costed SwiftTd.ExploreRate) : Costed SwiftTd.ExploreRate :=
   match state with
@@ -94,15 +58,12 @@ def RateState.controllerCosted {policy : RatePolicy} (state : RateState policy)
   | .shared => primitive ()
   | .annealed rate => Costed.op .rateClose (SwiftTd.ExploreRate.project rate.value)
 
-/-- The costed controller rate's value is the controller rate of the callbacks' values. -/
 theorem RateState.controllerCosted_val {policy : RatePolicy} (state : RateState policy)
     (own primitive : Unit → Costed SwiftTd.ExploreRate) :
     (state.controllerCosted own primitive).val =
       state.controller (fun unused => (own unused).val) fun unused => (primitive unused).val := by
   cases state <;> rfl
 
-/-- The options' rate source with its work: the shared policy reads the primitive rate at the
-work of reading it, and every other policy reads nothing. -/
 def RateState.skillCosted {policy : RatePolicy} (state : RateState policy)
     (primitive : Unit → Costed SwiftTd.ExploreRate) : Costed ConsumerRate :=
   match state with
@@ -114,31 +75,25 @@ def RateState.skillCosted {policy : RatePolicy} (state : RateState policy)
   | .annealed _ =>
     Costed.pure (.fixed (SwiftTd.ExploreRate.project ⟨Acorn.Constants.optionEpsilonBits⟩))
 
-/-- The costed rate source's value is the rate source of the callback's values. -/
 theorem RateState.skillCosted_val {policy : RatePolicy} (state : RateState policy)
     (primitive : Unit → Costed SwiftTd.ExploreRate) :
     (state.skillCosted primitive).val = state.skill fun unused => (primitive unused).val := by
   cases state <;> rfl
 
-/-- Under the declared policy every controller read is the declared word, for
-every rate state and whatever the learners would derive. -/
 theorem RateState.declared_controller {policy : RatePolicy} (state : RateState policy)
     (declared : policy = .declared) (own primitive : Unit → SwiftTd.ExploreRate) :
     state.controller own primitive = declaredRate := by
   cases state <;> first | rfl | cases declared
 
-/-- Under the declared policy every option receives the declared word as a fixed rate. -/
 theorem RateState.declared_skill {policy : RatePolicy} (state : RateState policy)
     (declared : policy = .declared) (primitive : Unit → SwiftTd.ExploreRate) :
     state.skill primitive = .fixed declaredRate := by
   cases state <;> first | rfl | cases declared
 
-/-- The actual schedule write is bounded at storage for all prior legal rates. -/
 theorem annealed_write (rate : Bounded32 annealedRange) :
     annealedRange.Contains (Bounded32.project annealedRange
       (rate.value.mul ⟨Acorn.Constants.epsDecayBits⟩)).value := Bounded32.legal _
 
-/-- Every frame supplies the potential of every declared assignment. -/
 theorem spatial_admitted {interface : Interface} {config : Features.Config} {dimension : Dimension}
     (tag : Fin Acorn.FeatureConstants.skillCount) (features : SwiftTd.ActiveSet dimension)
     (frame : Frame interface) :

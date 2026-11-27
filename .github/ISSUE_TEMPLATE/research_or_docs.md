@@ -13,4 +13,4 @@ labels: ["documentation"]
 
 ## Scope and completion criteria
 
-<!-- Define the intended outcome, relevant module or document owners, any design decisions that must be settled first, and how completion is verified (`./scripts/gate.sh` for repository changes). -->
+<!-- Define the intended outcome, relevant module or document owners, any design decisions that must be settled first, and what must be established for the issue to close, with how that is checked (`./scripts/gate.sh` for repository changes). When a pull request's work is complete is decided by the review protocol in CONTRIBUTING.md, not here. -->
