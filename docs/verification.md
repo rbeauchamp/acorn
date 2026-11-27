@@ -1833,8 +1833,9 @@ installs a run other than the one it retires (`Acorn.Host.Viewer.Core.replaced_i
 the instants recorded by steps and outcomes do not go back, whatever the clock reads
 (`Acorn.Host.Viewer.Core.instant_later`, `Acorn.Host.Viewer.Core.step_last`,
 `Acorn.Host.Viewer.Core.resume_last`); and
-every result first installs its own lifecycle and publishes its control record from it
-(`Acorn.Host.Viewer.Stepped.effects_settle`). The operating system's process, signal and wait
+every result first installs its own lifecycle and settles its server-held lifecycle state and
+detail from it (`Acorn.Host.Viewer.Stepped.effects_settle`, applied through
+`Acorn.Host.Viewer.Broadcast.settle`). The operating system's process, signal and wait
 semantics, the file system's durability, the Lean runtime's IO, mutexes and clock, the identity
 a core reports, the actor's mapping of each effect and call to the native operation it names, and
 its pre-launch check of the ranked core's file remain the trusted base.
@@ -1862,9 +1863,9 @@ events that hold a Start and a state reached by them that waits to spawn the fir
 (`Acorn.Host.Viewer.Core.start_spawns`). That is a statement of existence, whose witness has
 every call between the Start and the spawn succeed; a Start whose intent cannot be written reaches
 no spawn. The state built with no state file admits a launch for every seed within the browser's
-integers (`Acorn.Host.Viewer.Core.unstarted_launch`), and the control record of the start on
-that state says the run is desired stopped and actually stopped
-(`Acorn.Host.Viewer.Core.start_control`).
+integers (`Acorn.Host.Viewer.Core.unstarted_launch`), and the typed control projection
+(`Acorn.Host.Viewer.controlTelemetry`) of the start on that state says the run is desired
+stopped and actually stopped (`Acorn.Host.Viewer.Core.start_control`).
 
 A state file is decoded only when it is a JSON object that holds the six members of the state,
 each admitted, and beside them at most a schema version and a child record; any other is refused.
@@ -1980,8 +1981,9 @@ publication and the file is still the original. So a start-up that fails before 
 as an earlier version's (`Acorn.Host.Viewer.StartSource.earlier`), or as an unbound running
 intent (`Acorn.Host.Viewer.StartSource.other`), once: in the first launch that publishes
 the stopped state. That is the boundary, and no other: the reason is not lost by a failure before
-the publication, and after the publication it has been given, in that launch's first control
-record and on standard output, and is not given again. After it, a viewer of the earlier version started on the directory meets a file
+the publication, and after the publication it has been given, in that launch's initial
+server-held lifecycle state (`Acorn.Host.Viewer.Broadcast.settle`) and on standard output,
+and is not given again. After it, a viewer of the earlier version started on the directory meets a file
 of the current version. A crash between the bind and the publication leaves the original file. A
 start-up that fails after the publication, when the ready line cannot be written for example,
 leaves a current-version stopped file, and the reason the next launch gives is that the saved
@@ -1996,10 +1998,12 @@ reason. A viewer that fails once its listener is bound
 ends through its shutdown, whose turns step the supervisor to close it and can write the map; no
 turn on that path takes a command from the queue, so nothing is started from the intent the file
 records and a Start queued by then is not handled. Whenever the start state is stopped, the one
-line that says why (`Acorn.Host.Viewer.startAccount`) is in the reason of the first control
-record the supervisor publishes, under the `--start` flag too. A page that connects while that
-record is current shows the line; one that connects after a later transition has published its
-record is sent that record and shows that transition's reason. The viewer also prints the line on its standard output, at most once in a launch: for a file
+line that says why (`Acorn.Host.Viewer.startAccount`) is in the reason of the initial
+lifecycle detail the supervisor settles into server memory
+(`Acorn.Host.Viewer.Broadcast.settle`), under the `--start` flag too. A page requested
+(`Acorn.Host.Viewer.Broadcast.snapshot`) while that initial detail is current renders the
+line; one requested after a later transition has settled renders that transition's reason from the
+current `Acorn.Host.Viewer.BroadcastSnapshot` (no wire control frames are sent to clients). The viewer also prints the line on its standard output, at most once in a launch: for a file
 left as it is until the bind (`Acorn.Host.Viewer.StartSource.kept`: an earlier version's,
 whatever intent it records, or a current-version file with a running intent when this launch
 lacks a child record — including a `--cmd` launch — or its record does not match the file's)
@@ -2273,10 +2277,11 @@ run included, and every Clear configuration, reason and reading,
 on no call, whose lifecycle is the initial lifecycle of that state's identity and intent
 (`Acorn.Host.Viewer.Lifecycle.initial`), which holds that durable state and no
 replacement, and whose detail is the initial transition with the reason given. The supervisor
-publishes that detail in its first control record. A page renders the lifecycle detail from the
-current server snapshot when requested (`Acorn.Host.Viewer.Broadcast.snapshot`), so it shows
-that reason first only if requested before a later transition replaces it
-(`Acorn.Host.Viewer.Broadcast.settle`). What the start gives is the definition as written and not
+settles that initial lifecycle state and detail into server memory via
+`Acorn.Host.Viewer.Broadcast.settle` rather than sending wire control frames to clients. A
+page renders the lifecycle detail from the current `Acorn.Host.Viewer.BroadcastSnapshot` when
+requested (`Acorn.Host.Viewer.Broadcast.snapshot`), so it shows that reason first only if
+requested before a later transition replaces it (`Acorn.Host.Viewer.Broadcast.settle`). What the start gives is the definition as written and not
 a theorem, and the bootstrap gives it only a state that it built or admitted. So a supervisor that starts from a matching saved
 running intent takes up that intent at its start and has asked for nothing there: a launch
 becomes pending only in the launch check (`Acorn.Host.Viewer.Core.launchCheck`), which
@@ -2332,12 +2337,12 @@ number other than the current version
 (`Acorn.Host.Viewer.Reached.earlier_spawns_nothing`). The third is for every state that
 the decoder returns to a launch that has no child record, or whose record differs from the one
 the JSON value's `child` member names, or that reads a value with no such record
-(`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`). The control record of a start with no
-state file says the run is stopped: for every seed, whether or not a stray checkpoint was
-adopted, and every Clear configuration, reason, reading and observation, in the control record of
-the start state the desired word and the actual word are both `stopped`
-(`Acorn.Host.Viewer.Core.start_control`); the start on a restored running state has
-another desired word. By the write clause of the first statement, a supervisor waits on the write
+(`Acorn.Host.Viewer.Reached.unbound_spawns_nothing`). The typed control projection
+(`Acorn.Host.Viewer.controlTelemetry`) of a start with no state file says the run is stopped:
+for every seed, whether or not a stray checkpoint was adopted, and every Clear configuration,
+reason, reading and observation, in `Acorn.Host.Viewer.controlTelemetry` of the start state
+the desired word and the actual word are both `stopped` (`Acorn.Host.Viewer.Core.start_control`);
+the start on a restored running state has another desired word. By the write clause of the first statement, a supervisor waits on the write
 of a running intent only after a Start was handed to its step, or from a start state that held
 one.
 
@@ -2563,7 +2568,9 @@ intent when this launch lacks a child record (including a `--cmd` launch, whose 
 records `"child":null`) or its record does not match the file's
 (`Acorn.Host.Viewer.StartSource.other`), is not published there
 (`Acorn.Host.Viewer.StartSource.kept`). A launch relies on no unpublished state either way, since the attempted launch
-is saved before the spawn. The first control record is the start's.
+is saved before the spawn. The initial server-held lifecycle state settled via
+`Acorn.Host.Viewer.Broadcast.settle` (and read into
+`Acorn.Host.Viewer.BroadcastSnapshot`) is the start's.
 
 The bootstrap. The bootstrap admits configuration and durable state, binds loopback HTTP, then
 drives the serial supervisor. It gives the supervisor a running intent only from a state file
