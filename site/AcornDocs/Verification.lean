@@ -2085,7 +2085,7 @@ is likewise read from the code. On viewer shutdown interrupting an admitted Stop
 resolves the waiter as {decl}`Acorn.Host.Viewer.ControlResult.unconfirmed` so HTTP returns `503`
 (`{"ok":false,"unconfirmed":true,"reason":...}`) if the response completes before server teardown,
 whereas server cancellation during shutdown can also yield an empty `503` or closed connection
-without a JSON body; the browser treats both fail-closed as unconfirmed/unknown. Exiting without
+without a JSON body; a JSON `/control` client treats both fail-closed as unconfirmed/unknown, while HTML form POST `/control/form` renders a `503` HTML notice page or closes during shutdown. Exiting without
 starting a core on a parse or schema refusal from
 {decl}`Acorn.Host.Viewer.RunDirectory.readState` in `lean/NativeApp/Viewer.lean` is likewise
 read from the code.
@@ -2238,9 +2238,9 @@ run included, and every Clear configuration, reason and reading,
 on no call, whose lifecycle is the initial lifecycle of that state's identity and intent
 ({decl}`Acorn.Host.Viewer.Lifecycle.initial`), which holds that durable state and no
 replacement, and whose detail is the initial transition with the reason given. The supervisor
-publishes that detail in its first control record. A page is sent the control record that is
-current when it connects ({decl}`Acorn.Host.Viewer.Broadcast.subscribe`), so it shows that reason first
-only if it connects before the record of a later transition has replaced that one
+publishes that detail in its first control record. A page renders the lifecycle detail from the
+current server snapshot when requested ({decl}`Acorn.Host.Viewer.Broadcast.snapshot`), so it shows
+that reason first only if requested before a later transition replaces it
 ({decl}`Acorn.Host.Viewer.Broadcast.settle`). What the start gives is the definition as written and not
 a theorem, and the bootstrap gives it only a state that it built or admitted. So a supervisor that starts from a matching saved
 running intent takes up that intent at its start and has asked for nothing there: a launch
