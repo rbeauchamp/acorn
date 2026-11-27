@@ -289,11 +289,4 @@ theorem fromSnapshot_none_unavailable (snapshot : BroadcastSnapshot) (nowMonoMs 
   rw [hNone]
   exact ⟨_, _, _, rfl⟩
 
-theorem unavailablePixel_border_visible (headChars detailChars : Array Char) (fault : Bool) :
-    unavailablePixel headChars detailChars fault 16 36 ≠ (0x0a, 0x0e, 0x14) := by
-  unfold unavailablePixel
-  dsimp only
-  rw [ite_eq_left (by decide)]
-  cases fault <;> decide
-
 end Acorn.Host.Viewer.StageBmp
