@@ -1,4 +1,5 @@
 import AcornVerif.CurrentFirstChoice
+import AcornVerif.FloatLibBridge
 
 namespace AcornVerif.CurrentTraceCounts
 open Acorn Acorn.Features Acorn.Handcrafted
@@ -49,7 +50,96 @@ theorem freshChain_antitone (criterion : Criterion) (age more : Nat) :
     exact le_trans (mul_le_self facts.1 (small_decay criterion) facts.2.1 (decay_le_one criterion))
       ih
 
+theorem fresh_word (criterion : Criterion) (age : Nat) :
+    (freshChain criterion age).Finite ∧ 0 ≤ numerical32 (freshChain criterion age) ∧
+      numerical32 (freshChain criterion age) ≤ (2 : ℚ) ^ (-14 : Int) := by
+  have facts := freshChain_facts criterion age
+  refine ⟨facts.1.1, facts.2.1, facts.2.2.trans ?_⟩
+  rw [step_value]
+  norm_num
+
 end Words
+
+section Numbers
+
+open AcornVerif.FloatLibBridge
+
+theorem decay_word : decayOf .discounted = ⟨0x3f641893⟩ := by
+  decide +kernel
+
+theorem decay_value :
+    numerical32 (decayOf .discounted) = 14948499 * (2 : ℚ) ^ (-24 : Int) := by
+  rw [decay_word]
+  change (1 : ℚ) * 14948499 * (2 : ℚ) ^ (-24 : Int) = _
+  ring
+
+theorem prune_value : numerical32 pruneWord = 9007202 * (2 : ℚ) ^ (-54 : Int) := by
+  change (1 : ℚ) * 9007202 * (2 : ℚ) ^ (-54 : Int) = _
+  ring
+
+theorem fresh_step (age : Nat) (near : age ≤ 80) :
+    (89099 / 100000 : ℚ) * numerical32 (freshChain .discounted age) ≤
+        numerical32 (freshChain .discounted (age + 1)) ∧
+      numerical32 (freshChain .discounted (age + 1)) ≤
+        (89101 / 100000 : ℚ) * numerical32 (freshChain .discounted age) := by
+  have facts := freshChain_facts .discounted age
+  have next := freshChain_facts .discounted (age + 1)
+  have above := freshChain_above .discounted age near
+  have same : freshChain .discounted (age + 1) =
+      (freshChain .discounted age).mul (decayOf .discounted) := rfl
+  rw [same] at next ⊢
+  have error := binary32_mul_relative (freshChain .discounted age) (decayOf .discounted)
+    facts.1.1 (small_decay .discounted).1 next.1.1
+  have e24 : (2 : ℚ) ^ (-24 : Int) = 1 / 16777216 := by norm_num
+  have e54 : (2 : ℚ) ^ (-54 : Int) = 1 / 18014398509481984 := by norm_num
+  rw [decay_value, e24] at error
+  rw [prune_value, e54] at above
+  have product : 0 ≤ numerical32 (freshChain .discounted age) * (14948499 * (1 / 16777216)) :=
+    mul_nonneg facts.2.1 (by norm_num)
+  rw [abs_of_nonneg product] at error
+  have bounds := abs_le.mp error
+  have tiny : (1 : ℚ) / 2 ^ 150 ≤ 1 / 2 ^ 100 := by norm_num
+  constructor <;> linarith [bounds.1, bounds.2]
+
+theorem fresh_ratio (age more : Nat) (near : age + more ≤ 81) :
+    (89099 / 100000 : ℚ) ^ more * numerical32 (freshChain .discounted age) ≤
+        numerical32 (freshChain .discounted (age + more)) ∧
+      numerical32 (freshChain .discounted (age + more)) ≤
+        (89101 / 100000 : ℚ) ^ more * numerical32 (freshChain .discounted age) := by
+  induction more with
+  | zero => simp
+  | succ more ih =>
+    obtain ⟨low, high⟩ := ih (by omega)
+    obtain ⟨stepLow, stepHigh⟩ := fresh_step (age + more) (by omega)
+    change _ ≤ numerical32 (freshChain .discounted (age + more + 1)) ∧
+      numerical32 (freshChain .discounted (age + more + 1)) ≤ _
+    constructor
+    · calc (89099 / 100000 : ℚ) ^ (more + 1) * numerical32 (freshChain .discounted age)
+          = 89099 / 100000 *
+            ((89099 / 100000 : ℚ) ^ more * numerical32 (freshChain .discounted age)) := by ring
+        _ ≤ 89099 / 100000 * numerical32 (freshChain .discounted (age + more)) :=
+          mul_le_mul_of_nonneg_left low (by norm_num)
+        _ ≤ _ := stepLow
+    · calc numerical32 (freshChain .discounted (age + more + 1))
+          ≤ 89101 / 100000 * numerical32 (freshChain .discounted (age + more)) := stepHigh
+        _ ≤ 89101 / 100000 *
+            ((89101 / 100000 : ℚ) ^ more * numerical32 (freshChain .discounted age)) :=
+          mul_le_mul_of_nonneg_left high (by norm_num)
+        _ = _ := by ring
+
+theorem fresh_bounds (age : Nat) (near : age ≤ 81) :
+    (89099 / 100000 : ℚ) ^ age * (13743900 * (2 : ℚ) ^ (-38 : Int)) ≤
+        numerical32 (freshChain .discounted age) ∧
+      numerical32 (freshChain .discounted age) ≤
+        (89101 / 100000 : ℚ) ^ age * (13743900 * (2 : ℚ) ^ (-38 : Int)) := by
+  have ratio := fresh_ratio 0 age (by omega)
+  rw [Nat.zero_add] at ratio
+  have start : numerical32 (freshChain .discounted 0) = 13743900 * (2 : ℚ) ^ (-38 : Int) :=
+    step_value
+  rw [start] at ratio
+  exact ratio
+
+end Numbers
 
 section Sums
 
@@ -150,6 +240,55 @@ theorem freshSum_older (criterion : Criterion) (age count : Nat) (old : 1 ≤ ag
   simp only [List.length_replicate, Nat.zero_add] at total
   exact total.2.2
 
+theorem repeatSum_one (word : Binary32) (finite : word.Finite) :
+    numerical32 (repeatSum word 1) = numerical32 word := by
+  rw [repeatSum_succ, repeatSum_zero]
+  exact zero_add_same .zero word (by decide) finite
+
+def Leads (lead : Binary32) (copies : Nat) (trail : Binary32) (fewer : Nat) : Prop :=
+  (fewer : ℚ) * numerical32 trail + numerical32 tieWindow +
+    ((copies : ℚ) + fewer + 1) * (2 : ℚ) ^ (-28 : Int) < (copies : ℚ) * numerical32 lead
+
+theorem counted_lead (lead trail : Binary32) (leadFinite : lead.Finite)
+    (trailFinite : trail.Finite) (leadNonneg : 0 ≤ numerical32 lead)
+    (trailNonneg : 0 ≤ numerical32 trail)
+    (leadSmall : numerical32 lead ≤ (2 : ℚ) ^ (-14 : Int))
+    (trailSmall : numerical32 trail ≤ (2 : ℚ) ^ (-14 : Int)) (copies fewer : Nat)
+    (fitsCopies : copies ≤ 1999) (fitsFewer : fewer ≤ 1999)
+    (margin : Leads lead copies trail fewer) :
+    (repeatSum trail fewer).key < ((repeatSum lead copies).sub tieWindow).key := by
+  have e14 : (2 : ℚ) ^ (-14 : Int) = 1 / 16384 := by norm_num
+  have e28 : (2 : ℚ) ^ (-28 : Int) = 1 / 268435456 := by norm_num
+  have e43 : (2 : ℚ) ^ (-43 : Int) = 1 / 8796093022208 := by norm_num
+  have e3 : (2 : ℚ) ^ (-3 : Int) = 1 / 8 := by norm_num
+  have tieRead := tie_value
+  rw [e43] at tieRead
+  unfold Leads at margin
+  obtain ⟨sumFinite, leadNear⟩ := repeatSum_near lead leadFinite leadNonneg leadSmall copies
+    fitsCopies
+  obtain ⟨lessFinite, trailNear⟩ := repeatSum_near trail trailFinite trailNonneg trailSmall
+    fewer fitsFewer
+  rw [e28] at leadNear trailNear margin
+  rw [e14] at leadSmall
+  rw [tieRead] at margin
+  have leadBounds := abs_le.mp leadNear
+  have trailBounds := abs_le.mp trailNear
+  have counted : (copies : ℚ) ≤ 1999 := by exact_mod_cast fitsCopies
+  have product : (copies : ℚ) * numerical32 lead ≤ 1999 * (1 / 16384) :=
+    mul_le_mul counted leadSmall leadNonneg (by norm_num)
+  have productNonneg : 0 ≤ (copies : ℚ) * numerical32 lead :=
+    mul_nonneg (Nat.cast_nonneg copies) leadNonneg
+  have copiesNonneg : (0 : ℚ) ≤ copies := Nat.cast_nonneg copies
+  obtain ⟨gapFinite, gapNear⟩ := binary32_sub_finite_strict_error (repeatSum lead copies)
+    tieWindow sumFinite (by decide) (-3) (by norm_num) (by
+      rw [tieRead, e3, abs_lt]
+      constructor <;> linarith [leadBounds.1, leadBounds.2])
+  have radius : (2 : ℚ) ^ (max ((-3 : Int) - 24) (-149)) / 2 = 1 / 268435456 := by norm_num
+  rw [radius, tieRead] at gapNear
+  have gapBounds := abs_le.mp gapNear
+  apply (numerical32_strict_order _ _ lessFinite gapFinite).mp
+  linarith [trailBounds.2, leadBounds.1, gapBounds.1]
+
 end Sums
 
 section Rows
@@ -245,7 +384,8 @@ theorem fresh_after {history : List (Laid dimension actions)}
     (fun idx absent inside => absent (fresh.1 idx inside).1)
   · refine ⟨fun slot held => ?_, fun slot absent => ?_⟩
     · have member : slot ∈ ((controller.learners.get row).state.learnFirstLoop
-          (criterion.config .control) δ controller.vDelta (decayOf criterion)).transient.eligible :=
+          (criterion.config .control) δ controller.vDelta
+          (decayOf criterion)).transient.eligible :=
         by_contra fun gone => result.2.2.2 slot gone held
       exact ⟨member, result.2.2.1 slot member⟩
     · exact (first_loop_dormant _ δ controller.vDelta (decayOf criterion) slot
@@ -329,48 +469,168 @@ theorem fresh_one_value :
   change (1 : ℚ) * 12245815 * (2 : ℚ) ^ (-38 : Int) = _
   ring
 
-theorem fresh_lead (fewer copies : Nat) (order : fewer ≤ copies) (positive : 1 ≤ copies)
-    (fits : copies ≤ 1999) :
-    (repeatSum (freshChain .discounted 1) fewer).key <
-      ((repeatSum stepWord copies).sub tieWindow).key := by
-  have e14 : (2 : ℚ) ^ (-14 : Int) = 1 / 16384 := by norm_num
+theorem share_counts (fewer copies : Nat) (share : 223 * fewer < 250 * copies)
+    (positive : 1 ≤ copies) : fewer * 391898848 + 8828861 < copies * 439772032 := by
+  rcases Nat.lt_or_ge fewer 19 with small | large
+  · have listed : fewer = 0 ∨ fewer = 1 ∨ fewer = 2 ∨ fewer = 3 ∨ fewer = 4 ∨
+        fewer = 5 ∨ fewer = 6 ∨ fewer = 7 ∨ fewer = 8 ∨ fewer = 9 ∨ fewer = 10 ∨
+        fewer = 11 ∨ fewer = 12 ∨ fewer = 13 ∨ fewer = 14 ∨ fewer = 15 ∨
+        fewer = 16 ∨ fewer = 17 ∨ fewer = 18 := by omega
+    rcases listed with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+      rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> omega
+  · omega
+
+theorem recent_leads (copies fewer age : Nat) (old : 1 ≤ age) (positive : 1 ≤ copies)
+    (share : 223 * fewer < 250 * copies) :
+    Leads stepWord copies (freshChain .discounted age) fewer := by
+  have counts : (fewer : ℚ) * 391898848 + 8828861 < (copies : ℚ) * 439772032 := by
+    exact_mod_cast share_counts fewer copies share positive
+  have below : numerical32 (freshChain .discounted age) ≤
+      numerical32 (freshChain .discounted 1) := by
+    have far := freshChain_antitone .discounted 1 (age - 1)
+    rwa [show 1 + (age - 1) = age by omega] at far
+  have scaled := mul_le_mul_of_nonneg_left below (Nat.cast_nonneg (α := ℚ) fewer)
   have e28 : (2 : ℚ) ^ (-28 : Int) = 1 / 268435456 := by norm_num
   have e38 : (2 : ℚ) ^ (-38 : Int) = 1 / 274877906944 := by norm_num
   have e43 : (2 : ℚ) ^ (-43 : Int) = 1 / 8796093022208 := by norm_num
-  have e3 : (2 : ℚ) ^ (-3 : Int) = 1 / 8 := by norm_num
-  have stepRead := step_value
-  have onceRead := fresh_one_value
-  have tieRead := tie_value
-  rw [e38] at stepRead onceRead
-  rw [e43] at tieRead
-  obtain ⟨leadFinite, leadNear⟩ := repeatSum_near stepWord small_step.1 step_nonneg step_bound
-    copies fits
-  obtain ⟨trailFinite, trailNear⟩ := repeatSum_near (freshChain .discounted 1)
-    (freshChain_facts .discounted 1).1.1 (freshChain_facts .discounted 1).2.1
-    (by rw [onceRead, e14]; norm_num) fewer (by omega)
-  rw [stepRead, e28] at leadNear
-  rw [onceRead, e28] at trailNear
-  have leadBounds := abs_le.mp leadNear
-  have trailBounds := abs_le.mp trailNear
-  have counted : (copies : ℚ) ≤ 1999 := by exact_mod_cast fits
+  rw [fresh_one_value, e38] at scaled
+  unfold Leads
+  rw [step_value, tie_value, e28, e38, e43]
+  linarith
+
+theorem fresh_lead (fewer copies : Nat) (order : fewer ≤ copies) (positive : 1 ≤ copies)
+    (fits : copies ≤ 1999) :
+    (repeatSum (freshChain .discounted 1) fewer).key <
+      ((repeatSum stepWord copies).sub tieWindow).key :=
+  counted_lead stepWord (freshChain .discounted 1) small_step.1 (fresh_word .discounted 1).1
+    step_nonneg (fresh_word .discounted 1).2.1 step_bound (fresh_word .discounted 1).2.2 copies
+    fewer fits (by omega) (recent_leads copies fewer 1 le_rfl positive (by omega))
+
+theorem fresh_fourteen (age : Nat) (recent : age ≤ 14) :
+    (99 : ℚ) / 10000000 ≤ numerical32 (freshChain .discounted age) := by
+  have low := (fresh_bounds 14 (by omega)).1
+  have far := freshChain_antitone .discounted age (14 - age)
+  rw [show age + (14 - age) = 14 by omega] at far
+  have number : (99 : ℚ) / 10000000 ≤
+      (89099 / 100000 : ℚ) ^ 14 * (13743900 * (2 : ℚ) ^ (-38 : Int)) := by norm_num
+  linarith
+
+theorem own_alone (age copies : Nat) (recent : age ≤ 14) (positive : 1 ≤ copies) :
+    Leads (freshChain .discounted age) copies .zero 0 := by
+  have word := fresh_fourteen age recent
+  have atLeast : (1 : ℚ) ≤ copies := by exact_mod_cast positive
+  have big := mul_le_mul_of_nonneg_left word (by linarith : (0 : ℚ) ≤ copies)
+  have e28 : (2 : ℚ) ^ (-28 : Int) = 1 / 268435456 := by norm_num
+  have e43 : (2 : ℚ) ^ (-43 : Int) = 1 / 8796093022208 := by norm_num
+  unfold Leads
+  rw [tie_value, e28, e43]
+  simp only [Nat.cast_zero, zero_mul, zero_add, add_zero]
+  linarith
+
+theorem earlier_leads (age more copies fewer : Nat) (recent : age ≤ 14) (older : 1 ≤ more)
+    (positive : 1 ≤ copies) (order : fewer ≤ copies) :
+    Leads (freshChain .discounted age) copies (freshChain .discounted (age + more)) fewer := by
+  have word := fresh_fourteen age recent
+  have step := (fresh_ratio age 1 (by omega)).2
+  rw [pow_one] at step
+  have far := freshChain_antitone .discounted (age + 1) (more - 1)
+  rw [show age + 1 + (more - 1) = age + more by omega] at far
+  have trailNonneg := (fresh_word .discounted (age + more)).2.1
   have atLeast : (1 : ℚ) ≤ copies := by exact_mod_cast positive
   have ordered : (fewer : ℚ) ≤ copies := by exact_mod_cast order
-  have fewerNonneg : (0 : ℚ) ≤ fewer := Nat.cast_nonneg fewer
-  obtain ⟨gapFinite, gapNear⟩ := binary32_sub_finite_strict_error (repeatSum stepWord copies)
-    tieWindow leadFinite (by decide) (-3) (by norm_num) (by
-      rw [tieRead, e3, abs_lt]
-      constructor <;> linarith [leadBounds.1, leadBounds.2])
-  have radius : (2 : ℚ) ^ (max ((-3 : Int) - 24) (-149)) / 2 = 1 / 268435456 := by norm_num
-  rw [radius, tieRead] at gapNear
-  have gapBounds := abs_le.mp gapNear
-  apply (numerical32_strict_order _ _ trailFinite gapFinite).mp
-  linarith [trailBounds.2, leadBounds.1, gapBounds.1]
+  have copiesNonneg : (0 : ℚ) ≤ copies := by linarith
+  have first := mul_le_mul_of_nonneg_right ordered trailNonneg
+  have second := mul_le_mul_of_nonneg_left (far.trans step) copiesNonneg
+  have big := mul_le_mul_of_nonneg_left word copiesNonneg
+  have e28 : (2 : ℚ) ^ (-28 : Int) = 1 / 268435456 := by norm_num
+  have e43 : (2 : ℚ) ^ (-43 : Int) = 1 / 8796093022208 := by norm_num
+  unfold Leads
+  rw [tie_value, e28, e43]
+  linarith
+
+theorem later_leads (age more copies fewer : Nat) (recent : age ≤ 14) (newer : 1 ≤ more)
+    (within : more ≤ age) (positive : 1 ≤ copies)
+    (share : fewer * 100 ^ more ≤ 89 ^ more * (copies - 1)) :
+    Leads (freshChain .discounted age) copies (freshChain .discounted (age - more)) fewer := by
+  have word := fresh_fourteen age recent
+  have ratio := (fresh_ratio (age - more) more (by omega)).1
+  rw [show age - more + more = age by omega] at ratio
+  have trailNonneg := (fresh_word .discounted (age - more)).2.1
+  have atLeast : (1 : ℚ) ≤ copies := by exact_mod_cast positive
+  have restNonneg : (0 : ℚ) ≤ (copies : ℚ) - 1 := by linarith
+  have cast : ((fewer * 100 ^ more : ℕ) : ℚ) ≤ ((89 ^ more * (copies - 1) : ℕ) : ℚ) :=
+    Nat.cast_le.mpr share
+  push_cast [Nat.cast_sub positive] at cast
+  have shareLe : (fewer : ℚ) ≤ (89 / 100 : ℚ) ^ more * ((copies : ℚ) - 1) := by
+    rw [div_pow, div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
+    exact cast
+  have powLe : (89 / 100 : ℚ) ^ more ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
+  have fewerLe : (fewer : ℚ) ≤ (copies : ℚ) - 1 :=
+    shareLe.trans (mul_le_of_le_one_left restNonneg powLe)
+  have split : (89 / 100 : ℚ) ^ more =
+      (89000 / 89099 : ℚ) ^ more * (89099 / 100000) ^ more := by
+    rw [← mul_pow]
+    norm_num
+  have shrink : (89000 / 89099 : ℚ) ^ more ≤ 89000 / 89099 :=
+    pow_le_of_le_one (by norm_num) (by norm_num) (by omega)
+  have key : (89 / 100 : ℚ) ^ more * numerical32 (freshChain .discounted (age - more)) ≤
+      89000 / 89099 * numerical32 (freshChain .discounted age) := by
+    rw [split, mul_assoc]
+    exact mul_le_mul shrink ratio (mul_nonneg (by positivity) trailNonneg) (by norm_num)
+  have first := mul_le_mul_of_nonneg_right shareLe trailNonneg
+  have second := mul_le_mul_of_nonneg_left key restNonneg
+  have big := mul_le_mul_of_nonneg_left word restNonneg
+  have e28 : (2 : ℚ) ^ (-28 : Int) = 1 / 268435456 := by norm_num
+  have e43 : (2 : ℚ) ^ (-43 : Int) = 1 / 8796093022208 := by norm_num
+  unfold Leads
+  rw [tie_value, e28, e43]
+  nlinarith [first, second, big, word, fewerLe]
+
+theorem slack_needed :
+    0 < 9 * numerical32 (freshChain .discounted 1) - 8 * numerical32 stepWord ∧
+      9 * numerical32 (freshChain .discounted 1) - 8 * numerical32 stepWord <
+        numerical32 tieWindow := by
+  rw [fresh_one_value, step_value, tie_value]
+  norm_num
 
 end Lead
 
 section Candidate
 
 variable {count : Word.Count}
+
+theorem margin_candidate (snapshot : PolicySnapshot count) (winner : Action count.word.toNat)
+    (lead : Binary32) (copies : Nat) (leadFinite : lead.Finite)
+    (leadNonneg : 0 ≤ numerical32 lead) (leadSmall : numerical32 lead ≤ (2 : ℚ) ^ (-14 : Int))
+    (fits : copies ≤ 1999) (finite : ∀ action, (snapshot.values.get action).Finite)
+    (leads : numerical32 (snapshot.values.get winner) = numerical32 (repeatSum lead copies))
+    (trails : ∀ action, action ≠ winner → ∃ (trail : Binary32) (fewer : Nat),
+      trail.Finite ∧ 0 ≤ numerical32 trail ∧ numerical32 trail ≤ (2 : ℚ) ^ (-14 : Int) ∧
+        fewer ≤ 1999 ∧
+        numerical32 (snapshot.values.get action) ≤ numerical32 (repeatSum trail fewer) ∧
+        Leads lead copies trail fewer) :
+    snapshot.candidates = [winner] ∧ ∀ rng, (snapshot.greedy rng).1 = winner := by
+  have sumFinite : (repeatSum lead copies).Finite :=
+    (repeatSum_near lead leadFinite leadNonneg leadSmall copies fits).1
+  have key : (snapshot.values.get winner).key = (repeatSum lead copies).key :=
+    le_antisymm ((numerical32_order _ _ (finite winner) sumFinite).mp leads.le)
+      ((numerical32_order _ _ sumFinite (finite winner)).mp leads.ge)
+  have threshold : (snapshot.values.get winner).sub tieWindow =
+      (repeatSum lead copies).sub tieWindow := by
+    rcases key_inj _ _ key with equal | ⟨leftZero, rightZero⟩
+    · rw [equal]
+    · exact zero_sub_tie _ _ leftZero rightZero
+  apply candidates_of_gap snapshot winner (finite winner)
+  intro action other
+  obtain ⟨trail, fewer, trailFinite, trailNonneg, trailSmall, fitsFewer, below, margin⟩ :=
+    trails action other
+  have lessFinite := (repeatSum_near trail trailFinite trailNonneg trailSmall fewer fitsFewer).1
+  have belowKey := (numerical32_order _ _ (finite action) lessFinite).mp below
+  have gap := counted_lead lead trail leadFinite trailFinite leadNonneg trailNonneg leadSmall
+    trailSmall copies fewer fits fitsFewer margin
+  rw [threshold]
+  exact ⟨finite_not_isNaN (finite action), (sub_tie_le _ sumFinite).1,
+    lt_of_le_of_lt belowKey gap⟩
 
 theorem counted_candidate (snapshot : PolicySnapshot count) (winner : Action count.word.toNat)
     (copies : Nat) (positive : 1 ≤ copies) (fits : copies ≤ 1999)
@@ -380,30 +640,71 @@ theorem counted_candidate (snapshot : PolicySnapshot count) (winner : Action cou
       numerical32 (snapshot.values.get action) ≤
         numerical32 (repeatSum (freshChain .discounted 1) fewer)) :
     snapshot.candidates = [winner] ∧ ∀ rng, (snapshot.greedy rng).1 = winner := by
-  have sumFinite : (repeatSum stepWord copies).Finite :=
-    (freshSum_small .discounted 0 copies fits).1.1
-  have key : (snapshot.values.get winner).key = (repeatSum stepWord copies).key :=
-    le_antisymm ((numerical32_order _ _ (finite winner) sumFinite).mp leads.le)
-      ((numerical32_order _ _ sumFinite (finite winner)).mp leads.ge)
-  have lead := fresh_lead 0 copies (Nat.zero_le _) positive fits
-  have threshold := sub_tie_le _ sumFinite
-  have same : snapshot.values.get winner = repeatSum stepWord copies := by
-    rcases key_inj _ _ key with equal | ⟨_, zero⟩
-    · exact equal
-    · have zeroKey := zero_key _ zero
-      rw [repeatSum_zero] at lead
-      have start : Binary32.zero.key = 0 := by decide
-      omega
-  apply candidates_of_gap snapshot winner (finite winner)
-  intro action other
+  have once := fresh_word .discounted 1
+  refine margin_candidate snapshot winner stepWord copies small_step.1 step_nonneg step_bound
+    fits finite leads fun action other => ?_
   obtain ⟨fewer, order, below⟩ := trails action other
-  have fewerFinite := (freshSum_small .discounted 1 fewer (by omega)).1.1
-  have belowKey := (numerical32_order _ _ (finite action) fewerFinite).mp below
-  have gap := fresh_lead fewer copies order positive fits
-  rw [same]
-  exact ⟨finite_not_isNaN (finite action), threshold.1, lt_of_le_of_lt belowKey gap⟩
+  exact ⟨freshChain .discounted 1, fewer, once.1, once.2.1, once.2.2, by omega, below,
+    recent_leads copies fewer 1 le_rfl positive (by omega)⟩
+
+theorem stale_candidate (snapshot : PolicySnapshot count) (earlier : Action count.word.toNat)
+    (age : Nat) (old : 15 ≤ age) (near : age ≤ 80)
+    (finite : ∀ action, (snapshot.values.get action).Finite)
+    (top : ∀ action, numerical32 (snapshot.values.get action) ≤
+      numerical32 (repeatSum (freshChain .discounted age) 1))
+    (second : numerical32 (snapshot.values.get earlier) =
+      numerical32 (repeatSum (freshChain .discounted (age + 1)) 1)) :
+    earlier ∈ snapshot.candidates := by
+  obtain ⟨⟨best, bestIs⟩, keys⟩ := best_bounds snapshot finite
+  have bestFinite : snapshot.best.Finite := bestIs ▸ finite best
+  have upper : numerical32 snapshot.best ≤ numerical32 (freshChain .discounted age) := by
+    rw [bestIs, ← repeatSum_one _ (fresh_word .discounted age).1]
+    exact top best
+  have lower : numerical32 (snapshot.values.get earlier) ≤ numerical32 snapshot.best :=
+    (numerical32_order _ _ (finite earlier) bestFinite).mpr (keys earlier)
+  rw [repeatSum_one _ (fresh_word .discounted (age + 1)).1] at second
+  have step := (fresh_step age near).1
+  have far := freshChain_antitone .discounted 15 (age - 15)
+  rw [show 15 + (age - 15) = age by omega] at far
+  have high := (fresh_bounds 15 (by omega)).2
+  have number : (89101 / 100000 : ℚ) ^ 15 * (13743900 * (2 : ℚ) ^ (-38 : Int)) ≤
+      886 / 100000000 := by norm_num
+  have nonneg := (fresh_word .discounted (age + 1)).2.1
+  have e43 : (2 : ℚ) ^ (-43 : Int) = 1 / 8796093022208 := by norm_num
+  have e3 : (2 : ℚ) ^ (-3 : Int) = 1 / 8 := by norm_num
+  have tieRead := tie_value
+  rw [e43] at tieRead
+  obtain ⟨gapFinite, gapNear⟩ := binary32_sub_finite_strict_error snapshot.best tieWindow
+    bestFinite (by decide) (-3) (by norm_num) (by
+      rw [tieRead, e3, abs_lt]
+      constructor <;> linarith)
+  have radius : (2 : ℚ) ^ (max ((-3 : Int) - 24) (-149)) / 2 = 1 / 268435456 := by norm_num
+  rw [radius, tieRead] at gapNear
+  have gapBounds := abs_le.mp gapNear
+  rw [PolicySnapshot.candidates_def]
+  dsimp only
+  refine List.mem_filter.mpr ⟨List.mem_finRange _, decide_eq_true ⟨finite_not_isNaN gapFinite,
+    finite_not_isNaN (finite earlier), ?_⟩⟩
+  exact (numerical32_order _ _ gapFinite (finite earlier)).mp (by linarith [gapBounds.2])
 
 end Candidate
+
+section Shared
+
+variable {dimension : Dimension}
+
+def shared (frame laid : ActiveSet dimension) : Nat :=
+  frame.indices.countP fun slot => decide (slot ∈ laid.indices)
+
+theorem shared_le (frame laid : ActiveSet dimension) :
+    shared frame laid ≤ frame.indices.length :=
+  List.countP_le_length
+
+theorem shared_self (frame : ActiveSet dimension) :
+    shared frame frame = frame.indices.length :=
+  List.countP_eq_length.mpr fun _ member => decide_eq_true member
+
+end Shared
 
 section Run
 
@@ -500,6 +801,191 @@ theorem loop_totals (primitive : profile.usesHierarchy = false)
       unlaid_window agent world start (last + 1) _ action held
         fun earlier early _ same => absurd same (untaken earlier early)
 
+theorem paid_candidates (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (world : Kernel.World interface) (start : world.State) (paid : Nat)
+    (young : agent.clock.toNat + paid < config.tester.maturity)
+    (silent : ∀ earlier, earlier < paid →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (pays : (Kernel.perceptAt world (executedAgent agent) start paid).reward = .one)
+    (fits : ∀ earlier, earlier < paid →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
+    (epsilon : SwiftTd.ExploreRate) :
+    ((controlOf (Kernel.memoryAt world (executedAgent agent) start (paid + 1))).snapshot frame
+        epsilon).candidates =
+      (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start paid)) frame
+        epsilon).candidates := by
+  obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent [] quiet ctrl world start paid
+    (by omega) silent fits
+  rw [List.nil_append] at ctrlPaid
+  rw [loop_paid primitive perStep agent world start paid young pays]
+  exact reward_candidates ctrlPaid _ _ frame fitsFrame epsilon
+
+theorem leading_candidate (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (world : Kernel.World interface) (start : world.State) (last : Nat) (near : last ≤ 80)
+    (young : agent.clock.toNat + (last + 1) ≤ config.tester.maturity)
+    (silent : ∀ earlier, earlier < last + 1 →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (fits : ∀ earlier, earlier < last + 1 →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (distinct : ∀ one two, one < last + 1 → two < last + 1 → one ≠ two →
+      Kernel.actionAt world (executedAgent agent) start one ≠
+        Kernel.actionAt world (executedAgent agent) start two)
+    (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
+    (taken : Nat) (early : taken ≤ last)
+    (alone : Leads (freshChain .discounted (last - taken))
+      (shared frame (laidAt agent world start taken).features) .zero 0)
+    (margin : ∀ other, other ≤ last → other ≠ taken →
+      Leads (freshChain .discounted (last - taken))
+        (shared frame (laidAt agent world start taken).features)
+        (freshChain .discounted (last - other))
+        (shared frame (laidAt agent world start other).features))
+    (epsilon : SwiftTd.ExploreRate) :
+    (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start (last + 1))) frame
+        epsilon).candidates = [Kernel.actionAt world (executedAgent agent) start taken] ∧
+      ∀ rng, ((tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start
+        (last + 1))) frame epsilon).greedy rng).1 =
+          Kernel.actionAt world (executedAgent agent) start taken := by
+  obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent [] quiet ctrl world start
+    (last + 1) young silent fits
+  rw [List.nil_append] at ctrlPaid
+  obtain ⟨totals, untaken⟩ := loop_totals primitive perStep agent quiet ctrl world start last
+    near young silent fits distinct frame fitsFrame
+  have word := fresh_word .discounted
+  have counted : ∀ laid : ActiveSet dimension, shared frame laid ≤ 1999 :=
+    fun laid => Nat.le_trans (shared_le frame laid) fitsFrame
+  refine margin_candidate _ _ (freshChain .discounted (last - taken))
+    (shared frame (laidAt agent world start taken).features) (word _).1 (word _).2.1
+    (word _).2.2 (counted _) (fun action => ?_) ?_ fun action other => ?_
+  · rw [tracePolicy_value]
+    exact (traces_sum_small ctrlPaid action frame.indices fitsFrame).1.1
+  · rw [tracePolicy_value]
+    exact totals taken (last - taken) (by omega)
+  · rw [tracePolicy_value]
+    by_cases once : ∃ earlier, earlier < last + 1 ∧
+        Kernel.actionAt world (executedAgent agent) start earlier = action
+    · obtain ⟨earlier, before, rfl⟩ := once
+      have apart : earlier ≠ taken := fun same => other (by rw [same])
+      exact ⟨freshChain .discounted (last - earlier),
+        shared frame (laidAt agent world start earlier).features, (word _).1, (word _).2.1,
+        (word _).2.2, counted _, le_of_eq (totals earlier (last - earlier) (by omega)),
+        margin earlier (by omega) apart⟩
+    · refine ⟨.zero, 0, by decide, le_of_eq zero_value.symm, ?_, Nat.zero_le _, ?_, alone⟩
+      · rw [zero_value]
+        positivity
+      · rw [zero_reads (untaken action fun earlier before same =>
+            once ⟨earlier, before, same⟩),
+          repeatSum_zero, zero_value]
+
+theorem first_choice_leading (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (world : Kernel.World interface) (start : world.State) (last : Nat) (near : last ≤ 80)
+    (young : agent.clock.toNat + (last + 1) < config.tester.maturity)
+    (silent : ∀ earlier, earlier < last + 1 →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (pays : (Kernel.perceptAt world (executedAgent agent) start (last + 1)).reward = .one)
+    (fits : ∀ earlier, earlier < last + 1 →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (fitsNext : (laidAt agent world start (last + 2)).features.indices.length ≤ 1999)
+    (distinct : ∀ one two, one < last + 1 → two < last + 1 → one ≠ two →
+      Kernel.actionAt world (executedAgent agent) start one ≠
+        Kernel.actionAt world (executedAgent agent) start two)
+    (taken : Nat) (early : taken ≤ last)
+    (alone : Leads (freshChain .discounted (last - taken))
+      (shared (laidAt agent world start (last + 2)).features
+        (laidAt agent world start taken).features) .zero 0)
+    (margin : ∀ other, other ≤ last → other ≠ taken →
+      Leads (freshChain .discounted (last - taken))
+        (shared (laidAt agent world start (last + 2)).features
+          (laidAt agent world start taken).features)
+        (freshChain .discounted (last - other))
+        (shared (laidAt agent world start (last + 2)).features
+          (laidAt agent world start other).features))
+    (unserved : ((explorerOf agent.control).after (last + 2)).run.bind ExploratoryRun.serve =
+      none)
+    (calm : (beginExploration interface.actions declaredRate
+      ((explorerOf agent.control).after (last + 2)).rng).1 = none) :
+    Kernel.actionAt world (executedAgent agent) start (last + 2) =
+      Kernel.actionAt world (executedAgent agent) start taken := by
+  have chosen := first_choice primitive perStep declared agent [] quiet ctrl world start
+    (last + 1) young silent pays fits fitsNext
+  have greedy := Explorer.stepOver_greedy ((explorerOf agent.control).after (last + 2))
+    (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start (last + 1)))
+      (laidAt agent world start (last + 2)).features declaredRate) unserved calm
+  have candidate := (leading_candidate primitive perStep agent quiet ctrl world start last near
+    (by omega) silent fits distinct (laidAt agent world start (last + 2)).features fitsNext
+    taken early alone margin declaredRate).2
+  rw [chosen, greedy]
+  exact candidate _
+
+theorem recent_candidate (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (world : Kernel.World interface) (start : world.State) (last : Nat) (near : last ≤ 80)
+    (young : agent.clock.toNat + (last + 1) ≤ config.tester.maturity)
+    (silent : ∀ earlier, earlier < last + 1 →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (fits : ∀ earlier, earlier < last + 1 →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (distinct : ∀ one two, one < last + 1 → two < last + 1 → one ≠ two →
+      Kernel.actionAt world (executedAgent agent) start one ≠
+        Kernel.actionAt world (executedAgent agent) start two)
+    (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
+    (shares : 1 ≤ shared frame (laidAt agent world start last).features)
+    (most : ∀ earlier, earlier < last →
+      223 * shared frame (laidAt agent world start earlier).features <
+        250 * shared frame (laidAt agent world start last).features)
+    (epsilon : SwiftTd.ExploreRate) :
+    (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start (last + 1))) frame
+        epsilon).candidates = [Kernel.actionAt world (executedAgent agent) start last] ∧
+      ∀ rng, ((tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start
+        (last + 1))) frame epsilon).greedy rng).1 =
+          Kernel.actionAt world (executedAgent agent) start last := by
+  refine leading_candidate primitive perStep agent quiet ctrl world start last near young silent
+    fits distinct frame fitsFrame last le_rfl ?_ (fun other before apart => ?_) epsilon
+  · rw [Nat.sub_self]
+    exact own_alone 0 _ (by omega) shares
+  · rw [Nat.sub_self]
+    exact recent_leads _ _ (last - other) (by omega) shares (most other (by omega))
+
+theorem overlap_candidate (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (world : Kernel.World interface) (start : world.State) (last : Nat) (near : last ≤ 80)
+    (young : agent.clock.toNat + (last + 1) ≤ config.tester.maturity)
+    (silent : ∀ earlier, earlier < last + 1 →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (fits : ∀ earlier, earlier < last + 1 →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (distinct : ∀ one two, one < last + 1 → two < last + 1 → one ≠ two →
+      Kernel.actionAt world (executedAgent agent) start one ≠
+        Kernel.actionAt world (executedAgent agent) start two)
+    (frame : ActiveSet dimension) (fitsFrame : frame.indices.length ≤ 1999)
+    (most : 223 * frame.indices.length <
+      250 * shared frame (laidAt agent world start last).features)
+    (epsilon : SwiftTd.ExploreRate) :
+    (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start (last + 1))) frame
+        epsilon).candidates = [Kernel.actionAt world (executedAgent agent) start last] ∧
+      ∀ rng, ((tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start
+        (last + 1))) frame epsilon).greedy rng).1 =
+          Kernel.actionAt world (executedAgent agent) start last :=
+  recent_candidate primitive perStep agent quiet ctrl world start last near young silent fits
+    distinct frame fitsFrame (by omega)
+    (fun earlier _ => by
+      have fewer := shared_le frame (laidAt agent world start earlier).features
+      omega)
+    epsilon
+
 theorem last_candidate (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep)
     (agent : Agent interface profile config .discounted dimension planning)
@@ -526,35 +1012,53 @@ theorem last_candidate (primitive : profile.usesHierarchy = false)
         epsilon).candidates = [Kernel.actionAt world (executedAgent agent) start last] ∧
       ∀ rng, ((tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start
         (last + 1))) frame epsilon).greedy rng).1 =
-          Kernel.actionAt world (executedAgent agent) start last := by
-  obtain ⟨-, ctrlPaid⟩ := loop_quiet primitive perStep agent [] quiet ctrl world start
-    (last + 1) young silent fits
-  rw [List.nil_append] at ctrlPaid
-  obtain ⟨taken, untaken⟩ := loop_totals primitive perStep agent quiet ctrl world start last
-    near young silent fits distinct frame fitsFrame
-  have counted : ∀ earlier, (frame.indices.countP fun slot =>
-      decide (slot ∈ (laidAt agent world start earlier).features.indices)) ≤ 1999 :=
-    fun earlier => Nat.le_trans List.countP_le_length fitsFrame
-  refine counted_candidate _ _ _ shares (counted last) (fun action => ?_) ?_
-    fun action other => ?_
-  · rw [tracePolicy_value]
-    exact (traces_sum_small ctrlPaid action frame.indices fitsFrame).1.1
-  · rw [tracePolicy_value]
-    exact taken last 0 rfl
-  · rw [tracePolicy_value]
-    by_cases once : ∃ earlier, earlier < last + 1 ∧
-        Kernel.actionAt world (executedAgent agent) start earlier = action
-    · obtain ⟨earlier, early, rfl⟩ := once
-      have before : earlier < last := by
-        rcases Nat.lt_or_ge earlier last with below | above
-        · exact below
-        · exact absurd (congrArg _ (by omega : earlier = last)) other
-      refine ⟨_, most earlier before, ?_⟩
-      rw [taken earlier (last - earlier) (by omega)]
-      exact freshSum_older .discounted (last - earlier) _ (by omega) (counted earlier)
-    · refine ⟨0, Nat.zero_le _, ?_⟩
-      rw [zero_reads (untaken action fun earlier early same => once ⟨earlier, early, same⟩),
-        repeatSum_zero, zero_value]
+          Kernel.actionAt world (executedAgent agent) start last :=
+  recent_candidate primitive perStep agent quiet ctrl world start last near young silent fits
+    distinct frame fitsFrame shares
+    (fun earlier before => by
+      have fewer := most earlier before
+      unfold shared
+      omega)
+    epsilon
+
+theorem first_choice_recent (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (world : Kernel.World interface) (start : world.State) (last : Nat) (near : last ≤ 80)
+    (young : agent.clock.toNat + (last + 1) < config.tester.maturity)
+    (silent : ∀ earlier, earlier < last + 1 →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (pays : (Kernel.perceptAt world (executedAgent agent) start (last + 1)).reward = .one)
+    (fits : ∀ earlier, earlier < last + 1 →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (fitsNext : (laidAt agent world start (last + 2)).features.indices.length ≤ 1999)
+    (distinct : ∀ one two, one < last + 1 → two < last + 1 → one ≠ two →
+      Kernel.actionAt world (executedAgent agent) start one ≠
+        Kernel.actionAt world (executedAgent agent) start two)
+    (shares : 1 ≤ shared (laidAt agent world start (last + 2)).features
+      (laidAt agent world start last).features)
+    (most : ∀ earlier, earlier < last →
+      223 * shared (laidAt agent world start (last + 2)).features
+          (laidAt agent world start earlier).features <
+        250 * shared (laidAt agent world start (last + 2)).features
+          (laidAt agent world start last).features)
+    (unserved : ((explorerOf agent.control).after (last + 2)).run.bind ExploratoryRun.serve =
+      none)
+    (calm : (beginExploration interface.actions declaredRate
+      ((explorerOf agent.control).after (last + 2)).rng).1 = none) :
+    Kernel.actionAt world (executedAgent agent) start (last + 2) =
+      Kernel.actionAt world (executedAgent agent) start last := by
+  have chosen := first_choice primitive perStep declared agent [] quiet ctrl world start
+    (last + 1) young silent pays fits fitsNext
+  have greedy := Explorer.stepOver_greedy ((explorerOf agent.control).after (last + 2))
+    (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start (last + 1)))
+      (laidAt agent world start (last + 2)).features declaredRate) unserved calm
+  have candidate := (recent_candidate primitive perStep agent quiet ctrl world start last near
+    (by omega) silent fits distinct (laidAt agent world start (last + 2)).features fitsNext
+    shares most declaredRate).2
+  rw [chosen, greedy]
+  exact candidate _
 
 theorem first_choice_last (primitive : profile.usesHierarchy = false)
     (perStep : profile.credit = .perStep) (declared : profile.rate = .declared)
@@ -583,17 +1087,57 @@ theorem first_choice_last (primitive : profile.usesHierarchy = false)
     (calm : (beginExploration interface.actions declaredRate
       ((explorerOf agent.control).after (last + 2)).rng).1 = none) :
     Kernel.actionAt world (executedAgent agent) start (last + 2) =
-      Kernel.actionAt world (executedAgent agent) start last := by
-  have chosen := first_choice primitive perStep declared agent [] quiet ctrl world start
-    (last + 1) young silent pays fits fitsNext
-  have greedy := Explorer.stepOver_greedy ((explorerOf agent.control).after (last + 2))
+      Kernel.actionAt world (executedAgent agent) start last :=
+  first_choice_recent primitive perStep declared agent quiet ctrl world start last near young
+    silent pays fits fitsNext distinct shares
+    (fun earlier before => by
+      have fewer := most earlier before
+      unfold shared
+      omega)
+    unserved calm
+
+theorem own_candidate (primitive : profile.usesHierarchy = false)
+    (perStep : profile.credit = .perStep)
+    (agent : Agent interface profile config .discounted dimension planning)
+    (quiet : Quiet agent.control) (ctrl : CtrlQuiet .discounted (controlOf agent) [])
+    (world : Kernel.World interface) (start : world.State) (last : Nat) (near : last ≤ 80)
+    (young : agent.clock.toNat + (last + 1) ≤ config.tester.maturity)
+    (silent : ∀ earlier, earlier < last + 1 →
+      (Kernel.perceptAt world (executedAgent agent) start earlier).reward = .zero)
+    (fits : ∀ earlier, earlier < last + 1 →
+      (laidAt agent world start earlier).features.indices.length ≤ 1999)
+    (distinct : ∀ one two, one < last + 1 → two < last + 1 → one ≠ two →
+      Kernel.actionAt world (executedAgent agent) start one ≠
+        Kernel.actionAt world (executedAgent agent) start two)
+    (taken : Nat) (early : taken ≤ last) (recent : last ≤ taken + 14)
+    (holds : 1 ≤ (laidAt agent world start taken).features.indices.length)
+    (later : ∀ more, 1 ≤ more → taken + more ≤ last →
+      shared (laidAt agent world start taken).features
+          (laidAt agent world start (taken + more)).features * 100 ^ more ≤
+        89 ^ more * ((laidAt agent world start taken).features.indices.length - 1))
+    (epsilon : SwiftTd.ExploreRate) :
     (tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start (last + 1)))
-      (laidAt agent world start (last + 2)).features declaredRate) unserved calm
-  have candidate := (last_candidate primitive perStep agent quiet ctrl world start last near
-    (by omega) silent fits distinct (laidAt agent world start (last + 2)).features fitsNext
-    shares most declaredRate).2
-  rw [chosen, greedy]
-  exact candidate _
+        (laidAt agent world start taken).features epsilon).candidates =
+          [Kernel.actionAt world (executedAgent agent) start taken] ∧
+      ∀ rng, ((tracePolicy (controlOf (Kernel.memoryAt world (executedAgent agent) start
+        (last + 1))) (laidAt agent world start taken).features epsilon).greedy rng).1 =
+          Kernel.actionAt world (executedAgent agent) start taken := by
+  refine leading_candidate primitive perStep agent quiet ctrl world start last near young silent
+    fits distinct _ (fits taken (by omega)) taken early ?_ (fun other before apart => ?_) epsilon
+  · rw [shared_self]
+    exact own_alone _ _ (by omega) holds
+  · rw [shared_self]
+    rcases Nat.lt_or_gt_of_ne apart with below | above
+    · have lead := earlier_leads (last - taken) (taken - other)
+        (laidAt agent world start taken).features.indices.length
+        (shared (laidAt agent world start taken).features (laidAt agent world start other).features)
+        (by omega) (by omega) holds (shared_le _ _)
+      rwa [show last - taken + (taken - other) = last - other by omega] at lead
+    · have share := later (other - taken) (by omega) (by omega)
+      rw [show taken + (other - taken) = other by omega] at share
+      have lead := later_leads (last - taken) (other - taken) _ _ (by omega) (by omega)
+        (by omega) holds share
+      rwa [show last - taken - (other - taken) = last - other by omega] at lead
 
 end Run
 

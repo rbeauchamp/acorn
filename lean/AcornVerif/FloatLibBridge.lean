@@ -589,6 +589,15 @@ theorem binary32_sub_relative (left right : Binary32) (leftFinite : left.Finite)
   rw [← rounded] at error
   exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
 
+theorem binary32_mul_relative (left right : Binary32) (leftFinite : left.Finite)
+    (rightFinite : right.Finite) (finite : (left.mul right).Finite) :
+    |numerical32 (left.mul right) - numerical32 left * numerical32 right| ≤
+      |numerical32 left * numerical32 right| / 16777216 + 1 / 2 ^ 150 := by
+  have rounded := binary32_mul_roundAt left right leftFinite rightFinite finite
+  have error := roundAt32_relative ((numerical32 left : ℝ) * (numerical32 right : ℝ))
+  rw [← rounded] at error
+  exact (Rat.cast_le (K := ℝ)).mp (by push_cast; exact error)
+
 theorem binary32_mul_unit_error (left right : Binary32) (leftFinite : left.Finite)
     (rightFinite : right.Finite) (finite : (left.mul right).Finite)
     (bound : |numerical32 left * numerical32 right| ≤ 128) :
