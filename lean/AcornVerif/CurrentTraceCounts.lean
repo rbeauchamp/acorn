@@ -587,8 +587,9 @@ theorem later_leads (age more copies fewer : Nat) (recent : age ≤ 14) (newer :
   nlinarith [first, second, big, word, fewerLe]
 
 theorem slack_needed :
-    9 * numerical32 (freshChain .discounted 1) - 8 * numerical32 stepWord <
-      numerical32 tieWindow := by
+    0 < 9 * numerical32 (freshChain .discounted 1) - 8 * numerical32 stepWord ∧
+      9 * numerical32 (freshChain .discounted 1) - 8 * numerical32 stepWord <
+        numerical32 tieWindow := by
   rw [fresh_one_value, step_value, tie_value]
   norm_num
 
