@@ -1852,7 +1852,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           kv .alt "Live zero-JS aerial world map stream"
         ] [],
         el .div [kv .cls "stage-caption"] [
-          el .span [] [txt "Stage image: live multipart/x-mixed-replace BMP stream (250 ms cadence; shows unavailable, stopped, failed, or stale banner)."],
+          el .span [] [txt s!"Stage image: live multipart/x-mixed-replace BMP stream (at most {1000 / BrowserConstant.readPace.value} updates per second; shows unavailable, stopped, failed, or stale banner)."],
           el .span [] [txt s!"Controls, badge & panels: {htmlSnapshotDesc}."]
         ]
       ]
