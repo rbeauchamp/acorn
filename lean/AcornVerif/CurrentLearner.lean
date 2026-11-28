@@ -312,6 +312,13 @@ theorem second_element_overshoot (state : NumericState config dimension) (idx : 
   simp [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
     NumericState.writeBetaValue, vector_get]
 
+theorem second_element_overshoot_p (state : NumericState config dimension) (idx : FeatIdx dimension)
+    (denominator total vDelta : Binary32) :
+    let next := (NumericState.secondLoopElement config true denominator total state vDelta idx).1
+    (next.transient.p.get idx).value = (state.transient.p.get idx).value := by
+  simp [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
+    NumericState.writeBetaValue, vector_get]
+
 theorem second_element_frame (state : NumericState config dimension)
     (idx other : FeatIdx dimension) (different : idx ≠ other)
     (overshoot : Bool) (denominator total vDelta : Binary32) :

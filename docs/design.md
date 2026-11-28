@@ -2607,7 +2607,7 @@ for fields, rendering, process lifecycle and persistence.
 
 ## Mechanism owners
 
-- [PAR-1](prior-art-review.md#par-1--swifttd): SwiftTD, [Acorn.SwiftTd](../lean/Acorn/SwiftTd.lean).
+- [PAR-1](prior-art-review.md#par-1--swifttd): SwiftTD, [Acorn.SwiftTd](../lean/Acorn/SwiftTd.lean) (repaired lag-1 meta-eligibility register update; executed Binary32 proofs in [AcornVerif.CurrentMetaGradient](../lean/AcornVerif/CurrentMetaGradient.lean) and real/rational analysis in [AcornVerif.MetaGradient](../lean/AcornVerif/MetaGradient.lean)).
 - [PAR-2](prior-art-review.md#par-2--swift-sarsa): Swift-Sarsa, [Acorn.Sarsa](../lean/Acorn/Sarsa.lean).
 - [PAR-3](prior-art-review.md#par-3--horde): Horde, [Acorn.Demon](../lean/Acorn/Demon.lean).
 - [PAR-4](prior-art-review.md#par-4--generate-and-test): Generate and test, [Acorn.Features](../lean/Acorn/Features.lean).
@@ -2667,7 +2667,17 @@ executable admission contracts); `AcornVerif.Traces` separates pure decay
 alone, not to overall SwiftTD trace growth where active-loop `traceIncrement`
 lives in `AcornVerif.StepSize`) and `pruning_implies_negligible` discards `ε`
 (requiring only `ε ≤ 1` with no `0 < ε` premise) to establish `z ≤ lastAlpha`,
-weaker than its name; and `AcornVerif.Rng` characterizes the exact finite bias
+weaker than its name; `AcornVerif.CurrentMetaGradient` bridges the repaired
+`Acorn.SwiftTd` meta-register recurrence (`NumericState.firstLoopElement` writing
+the updated derivative to `h` and `hTemp`, and `NumericState.secondLoopElementAt`
+accumulating `h` into `p` only when overshoot does not fire and re-basing `hTemp`
+from `h`) directly to executed Binary32 steps under explicit unclipped, non-overshoot,
+and `ulpHalf` headroom hypotheses (`step_period2_alternating_sign_preservation_binary32`,
+`step_sparse_two_step_derivative_binary32`, `firstLoopElement_weight_absorbed`,
+`etaMin_below_absorption_threshold`, and `cold_start_overshoot_cliff_binary32`,
+covering all non-overshooting counts `≤ 1999` and overshooting counts `2001..16384`
+with exact rational cliff between `1999` and `2000`, while real/rational contrast
+and fixed-step-size spectral bounds live in `AcornVerif.MetaGradient`); and `AcornVerif.Rng` characterizes the exact finite bias
 of multiply-high range reduction without rejection (`⌊x · n / 2^64⌋`, used by
 `Acorn.Rng.Xoshiro256.nextBelow` in uniform and reservoir-tie-break selection):
 `next_below_bin_card` gives exact preimage count
