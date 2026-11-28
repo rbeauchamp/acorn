@@ -726,7 +726,7 @@ the executing library, the tools except the axiom pins, and their dependencies;
 the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
-[Regula audit](#regula-audit) (360-second deadline), lean-intent's two checks
+[Regula audit](#regula-audit) (360-second deadline), lean-intent's four checks
 (180-second deadline) and the frame check (120-second deadline) on the same
 commit (each also when an earlier step failed), and, only when ordinary
 verification succeeded (so un-admitted sources are never elaborated), the pinned
@@ -754,7 +754,7 @@ Lake flags (refusing reconfiguring/rehashing flags such as `-R`,
 `--reconfigure`, `--rehash` and `--old`), empty tool/workspace-exclude prefixes
 and Verso-scoped exclude prefixes alongside `lean/no-comments.pin` and both
 workspaces. It then runs the Regula audit in the foreground while lean-intent's
-two checks, the frame check and (when admitted) the `no-comments` check run one
+four checks, the frame check and (when admitted) the `no-comments` check run one
 after another in a background subshell, passing only when every check and the
 background supervisor itself exit cleanly (recording missing timing data as
 unavailable rather than zero). Because ordinary verification has
@@ -797,25 +797,46 @@ the upstream tool's documented trust assumption that elaborated commands and
 imported plugins or initializers do not depend on per-file isolation of
 process-global mutable state within a batch.
 
-The lean-intent checks run from `lean/AcornTools/Intent.lean`. It reads the
+The lean-intent checks run from `lean/AcornTools/Intent.lean` against lean-intent
+v0.3.0 (`lean/lakefile.lean`, locked in `lean/lake-manifest.json` and
+`site/lake-manifest.json`). It reads the
 modules from Lake: the libraries among the default targets, through the Lake
 script intentLibraries of the [Lake configuration](../lean/lakefile.lean), and
 the modules of each through the modules facet of Lake itself, refusing an empty list of
-libraries, a library with no module and a module listed twice. It imports those
-modules into one environment and gives the one list to lean-intent's confirmation
-check, which decides that each deliverable's current revision is confirmed by
-answers whose authority traces back to the owner, and to its implementation check,
-which decides that each deliverable names the constant implementing it, with the
-proof that it fulfils the record. The gate passes only when the first finds
-nothing, the second reports no awaiting-implementation declaration, and the
-findings of the second are, as a set, the unimplemented findings of
-the deliverables that the checker's one closed list names as awaiting an
-implementation, each with the issue that tracks its fulfilment proof
-(`AcornVerif.Intent.onlyAwaiting_iff`, `AcornVerif.Intent.implemented_of_onlyAwaiting`).
-Another finding, an awaiting-implementation declaration, a listed name that is
-no declared deliverable and a listed deliverable that gains an implementation
-each fail it, and both checks refuse a project that declares no deliverable. The list names the hash record's
-deliverable, whose proof rbeauchamp/acorn#184 tracks, the deliverable of the
+libraries, a library with no module and a module listed twice; and it reads the
+package's executable targets and root modules through the Lake script acornTargets,
+refusing an empty or duplicated executable inventory. It imports the default-library
+modules into one environment and gives that module list to four lean-intent checks:
+the confirmation check, which decides that each deliverable's current revision is
+confirmed by answers whose authority traces back to the owner; the implementation
+check, which under lean-intent v0.3.0 requires each declared implementation to prove
+that its recorded constant meets the record (both domain hypotheses and properties,
+as `AcornVerif.Intent.Implementations.dayImplementation` proves via
+`AcornVerif.Intent.DayCycle.acornStandardDay_meets`); the required-theorems check,
+which verifies that every declared deliverable has exactly one typed required-theorems
+record (`lean/AcornVerif/Intent/Required.lean`: `AcornVerif.Intent.Required.dayRequired`,
+`AcornVerif.Intent.Required.hashRequired`,
+`AcornVerif.Intent.Required.worldInterfaceRequired` and
+`AcornVerif.Intent.Required.oneStreamRequired`) whose adequacy obligations, blind
+comparisons and cited theorems live in the built modules; and the execution check,
+run in non-strict mode against the Lake executable inventory, which verifies that
+every executable root compiles a `main` entry point and that every declared execution
+claim reaches its deliverable's recorded implementation constant from `main` in
+compiled IR. The gate passes only when the confirmation check finds nothing, the
+implementation check reports no awaiting-implementation declaration and its findings
+are, as a set, the unimplemented findings of the deliverables that the checker's one
+closed list names as awaiting an implementation, each with the issue that tracks its
+fulfilment proof
+(`AcornVerif.Intent.onlyAwaiting_iff`, `AcornVerif.Intent.implemented_of_onlyAwaiting`),
+the required-theorems check finds nothing and checks a non-empty set of theorems (so
+removing all required-theorems declarations cannot pass vacuously), and the execution
+check finds nothing. Another finding, an awaiting-implementation declaration, a listed
+name that is no declared deliverable and a listed deliverable that gains an
+implementation each fail it, and the checks refuse a project that declares no
+deliverable. The awaiting list names the hash record's
+deliverable, whose proof rbeauchamp/acorn#184 tracks (and for which
+`AcornVerif.Intent.Required.hashRequired` honestly defers O2 before running while
+awaiting implementation), the deliverable of the
 intent record of contract 1 of the mission contract, the interface every world
 meets, whose proof rbeauchamp/acorn#213 tracks, and the deliverable of the intent
 record of contract 3, the invariants of learning from one stream, whose proof
@@ -823,9 +844,23 @@ rbeauchamp/acorn#215 tracks; it was decided on the owner's
 behalf by the agent supervising Acorn's research on 2026-11-03, since the intent-first method
 confirms a record before its implementation exists, and it remains until the
 listed deliverables migrate to lean-intent's awaiting-implementation
-declaration (rbeauchamp/lean-intent#52). That the modules Lake lists are all those of the
-package, and that the constant an implementation names is what an executable runs,
-are trusted. Each check runs under a `2,000,000` heartbeat budget in Lean's unit
+declaration (rbeauchamp/lean-intent#52). Contracts 1 and 3 compare against their
+committed blind records in both directions, while the two earlier pilot records
+(`AcornVerif.Intent.Required.dayRequired` and `AcornVerif.Intent.Required.hashRequired`)
+use concrete-case comparisons because the pilot predated committed blind records.
+The execution check runs in non-strict mode (surfacing unrun deliverables and idle
+executables without failing on them) because three deliverables still await
+implementation, the {splice}`toString executableNames.length` Lake executables include
+{splice}`numberWord toolExecutables.length` gate tools and standalone
+consumers that correspond to no deliverable, and
+`AcornVerif.Intent.Implementations.dayImplementation` records the proof-library
+reading `AcornVerif.Intent.DayCycle.acornStandardDay` in `AcornVerif`, which executing
+modules are forbidden by the boundary audit to import, so all four deliverables are
+reported as run by no executable until executing-code implementations and execution
+claims land. That the modules and executables Lake lists are all those of the
+package, and that the executing code corresponds to a proof-library reading where no
+execution claim binds an executable directly, are trusted. Each check runs under a
+`2,000,000` heartbeat budget in Lean's unit
 of a thousand (ten times Lean's `200,000` per-declaration default) because
 confirmation renders each record and every definition its answers' predicates
 reach; the runner is `unsafe` solely so Lean executes module initializers to load
@@ -1311,7 +1346,7 @@ intent records under `AcornVerif.Intent` are stated; it depends on nothing beyon
 Lean's own libraries, and the audit refuses a lean-intent import by any other
 module it admits. Of the tool modules, which it does not admit, only the merge
 gate's lean-intent checker, `lean/AcornTools/Intent.lean`, imports lean-intent, for
-the two readers it runs. The compiler, native runtime, operating system and spawned
+the four readers it runs. The compiler, native runtime, operating system and spawned
 processes stay trusted.
 
 `lean/Acorn/Decisions.lean` states the contracts of the library's decision

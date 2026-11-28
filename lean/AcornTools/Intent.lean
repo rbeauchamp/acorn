@@ -1,5 +1,7 @@
 import LeanIntent.Confirmation.Read
 import LeanIntent.Implementation.Read
+import LeanIntent.Required.Read
+import LeanIntent.Execution.Read
 import AcornVerif.Intent.Awaiting
 import AcornTools.TrackedFiles
 
@@ -37,6 +39,19 @@ def projectModules : IO (Array String × Array Name) := do
     throw (IO.userError "Lake lists a module twice")
   return (libraries, modules)
 
+def projectExecutables : IO (Array (Name × Name)) := do
+  let output ← bootstrap #["script", "run", "acornTargets"]
+  let values ← IO.ofExcept ((← IO.ofExcept (Json.parse output)).getArr?)
+  let mut executables : Array (Name × Name) := #[]
+  for value in values do
+    let target ← IO.ofExcept (value.getObjValAs? String "target")
+    let root ← IO.ofExcept (value.getObjValAs? String "module")
+    executables := executables.push (Name.mkSimple target, root.toName)
+  if executables.isEmpty then throw (IO.userError "Lake lists no executable")
+  unless executables.toList.eraseDups.length == executables.size do
+    throw (IO.userError "Lake lists an executable twice")
+  return executables
+
 def describeQuestion : LeanIntent.Confirmation.Asked → String
   | .restatement => LeanIntent.Confirmation.restatementConsequence
   | .consequence name => s!"consequence '{name}'"
@@ -69,6 +84,48 @@ def describe : LeanIntent.Confirmation.Finding → String
     s!"{record}: the status of '{consequence}' disagrees with the answers kept"
   | .undeclared name => s!"{name} says who settled something and no deliverable holds it"
 
+def describeRequired : LeanIntent.Required.Finding → String
+  | .deliverableUnbuilt deliverable mod =>
+    s!"deliverable {deliverable} is declared in {mod}, which the build does not list"
+  | .implementationUnbuilt value mod =>
+    s!"implementation {value} is declared in {mod}, which the build does not list"
+  | .undeclared deliverable => s!"deliverable {deliverable} declares no Required record"
+  | .several deliverable values => s!"deliverable {deliverable} declares several Required records: {values}"
+  | .requiredUnbuilt value mod =>
+    s!"Required record {value} is declared in {mod}, which the build does not list"
+  | .untied value => s!"Required record {value} names no declared deliverable"
+  | .o2RunDeferred value deliverable =>
+    s!"Required record {value} defers O2Run even though {deliverable} declares an implementation"
+  | .blindNotConstant value =>
+    s!"Required record {value} does not name its blind record as a constant"
+  | .blindUnbuilt value blind mod =>
+    s!"Required record {value} compares with blind record {blind} in {mod}, which the build does not list"
+  | .selfComparison value record =>
+    s!"Required record {value} compares {record} with itself"
+  | .noComparisonProof value =>
+    s!"Required record {value} cites no blind-comparison proof"
+  | .notConstant value => s!"Required record {value} cites a proof that is not a bare constant"
+  | .notTheorem value constant mod =>
+    s!"Required record {value} cites {constant} of {mod}, which is not a theorem"
+  | .unbuilt value cited mod =>
+    s!"Required record {value} cites {cited} of {mod}, which the build does not list"
+
+def describeExecution : LeanIntent.Execution.Finding → String
+  | .noDeliverable => "the project declares no deliverable"
+  | .untied claim => s!"Runs claim {claim} names no declared deliverable"
+  | .unknownExecutable claim executable =>
+    s!"Runs claim {claim} names unknown executable {executable}"
+  | .noEntryPoint executable root =>
+    s!"executable {executable} (root {root}) has no compiled main entry point"
+  | .unimplemented deliverable executable =>
+    s!"executable {executable} claims to run unimplemented deliverable {deliverable}"
+  | .unreached deliverable executable impl =>
+    s!"executable {executable} does not reach {impl.name} of {impl.module} for {deliverable}"
+  | .idleExecutable executable => s!"executable {executable} claims no deliverable"
+  | .deliverableNotRun deliverable => s!"deliverable {deliverable} is run by no executable"
+  | .noncomputableSubject deliverable executable impl =>
+    s!"executable {executable} claims noncomputable subject {impl.name} of {impl.module} for {deliverable}"
+
 def heartbeats : Nat := 2000000
 
 def inEnvironment {α : Type} (env : Environment) (x : MetaM α) : IO (α × Nat) := do
@@ -81,6 +138,7 @@ def inEnvironment {α : Type} (env : Environment) (x : MetaM α) : IO (α × Nat
 unsafe def run : IO Bool := do
   AcornTrackedFiles.verifyGitRoot ".." "" true
   let (libraries, modules) ← projectModules
+  let executables ← projectExecutables
   initSearchPath (← findSysroot)
   enableInitializersExecution
   let env ← importModules (modules.map ({ module := · })) {} (loadExts := true)
@@ -89,13 +147,22 @@ unsafe def run : IO Bool := do
   let (confirmed, confirming) ← inEnvironment env (LeanIntent.Confirmation.Read.check modules)
   let (implemented, implementing) ←
     inEnvironment env (LeanIntent.Implementation.Read.check modules)
-  IO.println s!"intent: both checks read the same {modules.size} modules, those Lake lists for \
+  let (required, requiring) ← inEnvironment env (LeanIntent.Required.Read.check modules)
+  let (executed, executing) ←
+    inEnvironment env (LeanIntent.Execution.Read.check modules executables (strict := false))
+  IO.println s!"intent: all four checks read the same {modules.size} modules, those Lake lists for \
     the default libraries {libraries.toList}"
   IO.println s!"intent: deliverables declared: {deliverables.toList}"
   IO.println s!"intent: confirmation check: {confirmed.counted.length} answers count, \
     {confirmed.findings.length} findings, {confirming} of {heartbeats} thousand heartbeats"
   IO.println s!"intent: implementation check: {implemented.findings.length} findings, \
     {implementing} of {heartbeats} thousand heartbeats"
+  IO.println s!"intent: required check: {required.theorems.length} theorems, \
+    {required.findings.length} findings, {requiring} of {heartbeats} thousand heartbeats"
+  IO.println s!"intent: execution check (strict := false): {executables.size} executables, \
+    {executed.reached.length} reached, {executed.notRun.length} not run, \
+    {executed.idle.length} idle, {executed.findings.length} findings, \
+    {executing} of {heartbeats} thousand heartbeats"
   for finding in confirmed.findings do
     IO.println s!"intent: confirmation finding: {describe finding}"
   for (deliverable, value, constant) in implemented.implementations do
@@ -117,9 +184,30 @@ unsafe def run : IO Bool := do
     unless implemented.findings.contains (.unimplemented d) do
       IO.println s!"intent: {d} is listed as awaiting an implementation, and the check finds no \
         unimplemented deliverable of that name"
+  for (value, reason) in required.deferredO2Run do
+    IO.println s!"intent: required check: {value} defers O2Run ({reason})"
+  for (value, direction, reason) in required.unprovedComparisons do
+    IO.println s!"intent: required check: {value} leaves {direction} comparison unproved ({reason})"
+  for (value, reason) in required.casesComparisons do
+    IO.println s!"intent: required check: {value} compares by concrete cases ({reason})"
+  for finding in required.findings do
+    IO.println s!"intent: required finding: {describeRequired finding}"
+  if required.theorems.isEmpty then
+    IO.println "intent: required finding: no Required theorems were checked"
+  for (deliverable, executable, constant) in executed.reached do
+    IO.println s!"intent: execution check: {executable} reaches {constant.name} of \
+      {constant.module} for {deliverable}"
+  for (deliverable, executable) in executed.awaiting do
+    IO.println s!"intent: execution check: {executable} awaits implementation of {deliverable}"
+  for deliverable in executed.notRun do
+    IO.println s!"intent: execution check: {deliverable} is run by no executable"
+  for finding in executed.findings do
+    IO.println s!"intent: execution finding: {describeExecution finding}"
   return confirmed.findings.isEmpty && !deliverables.isEmpty &&
     implemented.awaiting.isEmpty &&
-    AcornVerif.Intent.onlyAwaiting pending implemented.findings
+    AcornVerif.Intent.onlyAwaiting pending implemented.findings &&
+    required.findings.isEmpty && !required.theorems.isEmpty &&
+    executed.findings.isEmpty
 
 end AcornIntentCheck
 
@@ -129,7 +217,7 @@ unsafe def main (args : List String) : IO UInt32 := do
     return 2
   try
     if ← AcornIntentCheck.run then
-      IO.println "intent: both lean-intent checks pass"
+      IO.println "intent: all four lean-intent checks pass"
       return 0
     IO.println "intent: the lean-intent checks do not pass"
     return 1

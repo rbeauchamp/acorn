@@ -379,7 +379,7 @@ require floatlib from git
   "https://github.com/lean-dojo/FloatLib" @ "d24844f039320a024c7548f992920562d9a71a60"
 
 require "lean-intent" from git
-  "https://github.com/rbeauchamp/lean-intent" @ "v0.1.0"
+  "https://github.com/rbeauchamp/lean-intent" @ "v0.3.0"
 
 def importedArtifacts (sources : Array System.FilePath) (library : String) :
     FetchM (Job Unit) := do
