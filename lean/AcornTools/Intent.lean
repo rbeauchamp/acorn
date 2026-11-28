@@ -109,10 +109,139 @@ def inEnvironment {α : Type} (env : Environment) (x : MetaM α) : IO (α × Nat
       initHeartbeats := start } { env }
   return (value, ((← IO.getNumHeartbeats) - start) / 1000)
 
-unsafe def run : IO Bool := do
-  AcornTrackedFiles.verifyGitRoot ".." "" true
-  let (libraries, modules) ← projectModules
-  let executables ← projectExecutables
+def nameParts : Name → List (Sum String Nat)
+  | .anonymous => []
+  | .str parent part => nameParts parent ++ [.inl part]
+  | .num parent part => nameParts parent ++ [.inr part]
+
+def nameToJson (name : Name) : Json :=
+  Json.arr <| (nameParts name).toArray.map fun
+    | .inl part => Json.str part
+    | .inr part => Json.num part
+
+def nameFromJson (json : Json) : Except String Name := do
+  let items ← json.getArr?
+  items.foldlM (init := Name.anonymous) fun acc item =>
+    match item with
+    | .str part => return .str acc part
+    | .num _ => return .num acc (← item.getNat?)
+    | _ => throw s!"invalid encoded Name component: {item.compress}"
+
+def optionNameToJson : Option Name → Json
+  | none => Json.null
+  | some name => nameToJson name
+
+def optionNameFromJson : Json → Except String (Option Name)
+  | .null => return none
+  | other => return some (← nameFromJson other)
+
+def constantToJson (constant : LeanIntent.Implementation.Constant) : Json :=
+  Json.mkObj [("module", nameToJson constant.module), ("name", nameToJson constant.name)]
+
+def constantFromJson (json : Json) : Except String LeanIntent.Implementation.Constant := do
+  let mod ← nameFromJson (← json.getObjVal? "module")
+  let name ← nameFromJson (← json.getObjVal? "name")
+  return ⟨mod, name⟩
+
+def claimToJson (claim : LeanIntent.Execution.Claim) : Json :=
+  Json.mkObj [
+    ("name", nameToJson claim.name),
+    ("deliverable", optionNameToJson claim.deliverable),
+    ("executable", nameToJson claim.executable)]
+
+def claimFromJson (json : Json) : Except String LeanIntent.Execution.Claim := do
+  let name ← nameFromJson (← json.getObjVal? "name")
+  let deliverable ← optionNameFromJson (← json.getObjVal? "deliverable")
+  let executable ← nameFromJson (← json.getObjVal? "executable")
+  return ⟨name, deliverable, executable⟩
+
+def executableToJson (executable : LeanIntent.Execution.Executable) : Json :=
+  Json.mkObj [
+    ("name", nameToJson executable.name),
+    ("root", nameToJson executable.root),
+    ("entry", toJson executable.entry),
+    ("reaches", Json.arr (executable.reaches.toArray.map constantToJson))]
+
+def executableFromJson (json : Json) : Except String LeanIntent.Execution.Executable := do
+  let name ← nameFromJson (← json.getObjVal? "name")
+  let root ← nameFromJson (← json.getObjVal? "root")
+  let entry ← json.getObjValAs? Bool "entry"
+  let reaches ← (← (← json.getObjVal? "reaches").getArr?).mapM constantFromJson
+  return ⟨name, root, entry, reaches.toList⟩
+
+structure ModulesResult where
+  ok : Bool
+  summaryLines : Array String
+  detailLines : Array String
+  deliverables : Array Name
+  implementations : Array (Name × LeanIntent.Implementation.Constant)
+  awaiting : Array Name
+  claims : Array LeanIntent.Execution.Claim
+  claimingHeartbeats : Nat
+
+def modulesResultToJson (result : ModulesResult) : Json :=
+  Json.mkObj [
+    ("ok", toJson result.ok),
+    ("summaryLines", toJson result.summaryLines),
+    ("detailLines", toJson result.detailLines),
+    ("deliverables", Json.arr (result.deliverables.map nameToJson)),
+    ("implementations", Json.arr (result.implementations.map fun (d, c) =>
+      Json.mkObj [("deliverable", nameToJson d), ("constant", constantToJson c)])),
+    ("awaiting", Json.arr (result.awaiting.map nameToJson)),
+    ("claims", Json.arr (result.claims.map claimToJson)),
+    ("claimingHeartbeats", toJson result.claimingHeartbeats)]
+
+def modulesResultFromJson (json : Json) : Except String ModulesResult := do
+  let ok ← json.getObjValAs? Bool "ok"
+  let summaryLines ← json.getObjValAs? (Array String) "summaryLines"
+  let detailLines ← json.getObjValAs? (Array String) "detailLines"
+  let deliverables ← (← (← json.getObjVal? "deliverables").getArr?).mapM nameFromJson
+  let implementations ← (← (← json.getObjVal? "implementations").getArr?).mapM fun item => do
+    let deliverable ← nameFromJson (← item.getObjVal? "deliverable")
+    let constant ← constantFromJson (← item.getObjVal? "constant")
+    return (deliverable, constant)
+  let awaiting ← (← (← json.getObjVal? "awaiting").getArr?).mapM nameFromJson
+  let claims ← (← (← json.getObjVal? "claims").getArr?).mapM claimFromJson
+  let claimingHeartbeats ← json.getObjValAs? Nat "claimingHeartbeats"
+  return {
+    ok, summaryLines, detailLines, deliverables, implementations, awaiting, claims,
+    claimingHeartbeats }
+
+def writeStdin
+    (child : IO.Process.Child { stdin := .piped, stdout := .piped, stderr := .piped })
+    (text : String) :
+    IO (IO.Process.Child { stdin := .null, stdout := .piped, stderr := .piped }) := do
+  let (stdin, child) ← child.takeStdin
+  stdin.putStr text
+  stdin.flush
+  return child
+
+def runWorker (flag : String) (payload : Json) : IO Json := do
+  let app ← IO.appPath
+  let child ← IO.Process.spawn {
+    cmd := app.toString
+    args := #[flag]
+    stdin := .piped
+    stdout := .piped
+    stderr := .piped
+  }
+  let child ← writeStdin child payload.compress
+  let stdoutTask ← IO.asTask child.stdout.readToEnd Task.Priority.dedicated
+  let stderr ← child.stderr.readToEnd
+  let exitCode ← child.wait
+  let stdout ← IO.ofExcept stdoutTask.get
+  unless exitCode == 0 do
+    let detail := stderr.trimAscii.toString
+    let message := if detail.isEmpty then stdout.trimAscii.toString else detail
+    throw (IO.userError message)
+  IO.ofExcept (Json.parse stdout)
+
+unsafe def runModulesWorker : IO Unit := do
+  let input ← (← IO.getStdin).readToEnd
+  let payload ← IO.ofExcept (Json.parse input)
+  let libraries ← IO.ofExcept (payload.getObjValAs? (Array String) "libraries")
+  let modules ← IO.ofExcept do
+    (← (← payload.getObjVal? "modules").getArr?).mapM nameFromJson
   initSearchPath (← findSysroot)
   enableInitializersExecution
   let env ← importModules (modules.map ({ module := · })) {} (loadExts := true)
@@ -122,52 +251,131 @@ unsafe def run : IO Bool := do
   let (implemented, implementing) ←
     inEnvironment env (LeanIntent.Implementation.Read.check modules)
   let (required, requiring) ← inEnvironment env (LeanIntent.Required.Read.check modules)
-  let (executed, executing) ←
-    inEnvironment env (LeanIntent.Execution.Read.check modules executables (strict := false))
-  IO.println s!"intent: all four checks read the same {modules.size} modules, those Lake lists for \
-    the default libraries {libraries.toList}"
-  IO.println s!"intent: deliverables declared: {deliverables.toList}"
-  IO.println s!"intent: confirmation check: {confirmed.counted.length} answers count, \
-    {confirmed.findings.length} findings, {confirming} of {heartbeats} thousand heartbeats"
-  IO.println s!"intent: implementation check: {implemented.findings.length} findings, \
-    {implementing} of {heartbeats} thousand heartbeats"
-  IO.println s!"intent: required check: {required.theorems.length} theorems, \
-    {required.findings.length} findings, {requiring} of {heartbeats} thousand heartbeats"
-  IO.println s!"intent: execution check (strict := false): {executables.size} executables, \
-    {executed.reached.length} reached, {executed.awaiting.length} awaiting, \
-    {executed.notRun.length} not run, {executed.idle.length} idle, \
-    {executed.findings.length} findings, {executing} of {heartbeats} thousand heartbeats"
+  let (claims, claiming) ← inEnvironment env (LeanIntent.Execution.Read.claims modules)
+  let summaryLines : Array String := #[
+    s!"intent: all four checks read the same {modules.size} modules, those Lake lists for \
+      the default libraries {libraries.toList}",
+    s!"intent: deliverables declared: {deliverables.toList}",
+    s!"intent: confirmation check: {confirmed.counted.length} answers count, \
+      {confirmed.findings.length} findings, {confirming} of {heartbeats} thousand heartbeats",
+    s!"intent: implementation check: {implemented.findings.length} findings, \
+      {implementing} of {heartbeats} thousand heartbeats",
+    s!"intent: required check: {required.theorems.length} theorems, \
+      {required.findings.length} findings, {requiring} of {heartbeats} thousand heartbeats"]
+  let mut detailLines : Array String := #[]
   for finding in confirmed.findings do
-    IO.println s!"intent: confirmation finding: {describe finding}"
+    detailLines := detailLines.push s!"intent: confirmation finding: {describe finding}"
   for (deliverable, value, constant) in implemented.implementations do
-    IO.println s!"intent: implementation check: {deliverable} is implemented by {value}, which \
-      records {constant.name} of {constant.module}"
+    detailLines := detailLines.push
+      s!"intent: implementation check: {deliverable} is implemented by {value}, which \
+        records {constant.name} of {constant.module}"
   for (deliverable, value, reason) in implemented.awaiting do
-    IO.println s!"intent: implementation finding: {deliverable} declares {value} awaiting \
-      ({reason}), which Acorn's closed awaiting list refuses"
+    detailLines := detailLines.push
+      s!"intent: implementation finding: {deliverable} declares {value} awaiting \
+        ({reason}), which Acorn's closed awaiting list refuses"
   let pending := awaiting.map (·.1)
   for finding in implemented.findings do
     match finding with
     | .unimplemented d =>
       match awaiting.find? (·.1 == d) with
       | some (_, issue) =>
-        IO.println s!"intent: implementation check: {d} awaits an implementation ({issue})"
-      | none => IO.println s!"intent: implementation finding: {d} is not implemented"
-    | other => IO.println s!"intent: implementation finding: {repr other}"
+        detailLines := detailLines.push
+          s!"intent: implementation check: {d} awaits an implementation ({issue})"
+      | none =>
+        detailLines := detailLines.push s!"intent: implementation finding: {d} is not implemented"
+    | other =>
+      detailLines := detailLines.push s!"intent: implementation finding: {repr other}"
   for d in pending do
     unless implemented.findings.contains (.unimplemented d) do
-      IO.println s!"intent: {d} is listed as awaiting an implementation, and the check finds no \
-        unimplemented deliverable of that name"
+      detailLines := detailLines.push
+        s!"intent: {d} is listed as awaiting an implementation, and the check finds no \
+          unimplemented deliverable of that name"
   for (value, reason) in required.deferredO2Run do
-    IO.println s!"intent: required check: {value} defers O2Run ({reason})"
+    detailLines := detailLines.push s!"intent: required check: {value} defers O2Run ({reason})"
   for (value, direction, reason) in required.unprovedComparisons do
-    IO.println s!"intent: required check: {value} leaves {direction} comparison unproved ({reason})"
+    detailLines := detailLines.push
+      s!"intent: required check: {value} leaves {direction} comparison unproved ({reason})"
   for (value, reason) in required.casesComparisons do
-    IO.println s!"intent: required check: {value} compares by concrete cases ({reason})"
+    detailLines := detailLines.push
+      s!"intent: required check: {value} compares by concrete cases ({reason})"
   for finding in required.findings do
-    IO.println s!"intent: required finding: {finding.message}"
+    detailLines := detailLines.push s!"intent: required finding: {finding.message}"
   if required.theorems.isEmpty then
-    IO.println "intent: required finding: no Required theorems were checked"
+    detailLines := detailLines.push "intent: required finding: no Required theorems were checked"
+  let ok := confirmed.findings.isEmpty && !deliverables.isEmpty &&
+    implemented.awaiting.isEmpty &&
+    AcornVerif.Intent.onlyAwaiting pending implemented.findings &&
+    required.findings.isEmpty && !required.theorems.isEmpty
+  let result : ModulesResult := {
+    ok
+    summaryLines
+    detailLines
+    deliverables
+    implementations := (implemented.implementations.map fun (d, _, c) => (d, c)).toArray
+    awaiting := (implemented.awaiting.map (·.1)).toArray
+    claims
+    claimingHeartbeats := claiming
+  }
+  IO.println (modulesResultToJson result).compress
+
+def runExecutableWorker : IO Unit := do
+  let input ← (← IO.getStdin).readToEnd
+  let payload ← IO.ofExcept (Json.parse input)
+  let name ← IO.ofExcept (nameFromJson (← IO.ofExcept (payload.getObjVal? "name")))
+  let root ← IO.ofExcept (nameFromJson (← IO.ofExcept (payload.getObjVal? "root")))
+  let targets ← IO.ofExcept do
+    (← (← payload.getObjVal? "targets").getArr?).mapM constantFromJson
+  initSearchPath (← findSysroot)
+  let start ← IO.getNumHeartbeats
+  let stored ← LeanIntent.Imported.stored root {}
+  let exe ← match LeanIntent.Execution.Read.executableIn stored name root targets.toList with
+    | .ok exe => pure exe
+    | .error why => throw (IO.userError why)
+  let used := ((← IO.getNumHeartbeats) - start) / 1000
+  IO.println (Json.mkObj [
+    ("executable", executableToJson exe),
+    ("heartbeats", toJson used)]).compress
+
+def run : IO Bool := do
+  AcornTrackedFiles.verifyGitRoot ".." "" true
+  let (libraries, modules) ← projectModules
+  let executables ← projectExecutables
+  let phase1Json ← runWorker "--worker-modules" <| Json.mkObj [
+    ("libraries", toJson libraries),
+    ("modules", Json.arr (modules.map nameToJson))]
+  let phase1 ← IO.ofExcept (modulesResultFromJson phase1Json)
+  let mut checkedExecutables : Array LeanIntent.Execution.Executable := #[]
+  let mut executing := phase1.claimingHeartbeats
+  let is := phase1.implementations.toList
+  let cls := phase1.claims.toList
+  for (name, root) in executables do
+    let targets := (cls.filter (·.executable == name)).flatMap fun cl =>
+      is.filterMap fun (d, c) => if cl.deliverable == some d then some c else none
+    let response ← try
+      runWorker "--worker-executable" <| Json.mkObj [
+        ("name", nameToJson name),
+        ("root", nameToJson root),
+        ("targets", Json.arr (targets.eraseDups.toArray.map constantToJson))]
+    catch err =>
+      throw (IO.userError
+        s!"the executable {name}, whose root module is {root}, cannot be read: {err}")
+    let exe ← IO.ofExcept (executableFromJson (← IO.ofExcept (response.getObjVal? "executable")))
+    unless exe.name == name && exe.root == root do
+      throw (IO.userError
+        s!"executable worker returned {exe.name} ({exe.root}) for {name} ({root})")
+    let used ← IO.ofExcept (response.getObjValAs? Nat "heartbeats")
+    checkedExecutables := checkedExecutables.push exe
+    executing := executing + used
+  let executed := LeanIntent.Execution.report phase1.deliverables.toList is
+    phase1.awaiting.toList checkedExecutables.toList cls
+  for line in phase1.summaryLines do
+    IO.println line
+  IO.println s!"intent: execution check (strict := false): {executables.size} executables, \
+    {executed.reached.length} reached, {executed.awaiting.length} awaiting, \
+    {executed.notRun.length} not run, {executed.idle.length} idle, \
+    {executed.findings.length} findings, {executing} of {heartbeats} thousand heartbeats"
+  for line in phase1.detailLines do
+    IO.println line
   for (deliverable, executable, constant) in executed.reached do
     IO.println s!"intent: execution check: {executable} reaches {constant.name} of \
       {constant.module} for {deliverable}"
@@ -179,24 +387,36 @@ unsafe def run : IO Bool := do
     IO.println s!"intent: execution check: {executable} claims no deliverable"
   for finding in executed.findings do
     IO.println s!"intent: execution finding: {describeExecution finding}"
-  return confirmed.findings.isEmpty && !deliverables.isEmpty &&
-    implemented.awaiting.isEmpty &&
-    AcornVerif.Intent.onlyAwaiting pending implemented.findings &&
-    required.findings.isEmpty && !required.theorems.isEmpty &&
-    executed.findings.isEmpty
+  return phase1.ok && executed.findings.isEmpty
 
 end AcornIntentCheck
 
 unsafe def main (args : List String) : IO UInt32 := do
-  unless args.isEmpty do
+  match args with
+  | [] =>
+    try
+      if ← AcornIntentCheck.run then
+        IO.println "intent: all four lean-intent checks pass"
+        return 0
+      IO.println "intent: the lean-intent checks do not pass"
+      return 1
+    catch error =>
+      IO.eprintln s!"intent-check: {error}"
+      return 1
+  | ["--worker-modules"] =>
+    try
+      AcornIntentCheck.runModulesWorker
+      return 0
+    catch error =>
+      IO.eprintln s!"{error}"
+      return 1
+  | ["--worker-executable"] =>
+    try
+      AcornIntentCheck.runExecutableWorker
+      return 0
+    catch error =>
+      IO.eprintln s!"{error}"
+      return 1
+  | _ =>
     IO.eprintln "usage: intent-check"
     return 2
-  try
-    if ← AcornIntentCheck.run then
-      IO.println "intent: all four lean-intent checks pass"
-      return 0
-    IO.println "intent: the lean-intent checks do not pass"
-    return 1
-  catch error =>
-    IO.eprintln s!"intent-check: {error}"
-    return 1

@@ -805,24 +805,30 @@ script intentLibraries of the [Lake configuration](../lean/lakefile.lean), and
 the modules of each through the modules facet of Lake itself, refusing an empty list of
 libraries, a library with no module and a module listed twice; and it reads the
 package's executable targets and root modules through the Lake script acornTargets,
-refusing an empty or duplicated executable inventory. It imports the default-library
-modules into one environment and gives that module list to four lean-intent checks:
-the confirmation check, which decides that each deliverable's current revision is
-confirmed by answers whose authority traces back to the owner; the implementation
-check, which under lean-intent v0.3.0 requires each declared implementation to prove
-that its recorded constant meets the record (both domain hypotheses and properties,
-as `AcornVerif.Intent.Implementations.dayImplementation` proves via
-`AcornVerif.Intent.DayCycle.acornStandardDay_meets`); the required-theorems check,
-which verifies that every declared deliverable has exactly one typed required-theorems
-record (`lean/AcornVerif/Intent/Required.lean`: `AcornVerif.Intent.Required.dayRequired`,
+refusing an empty or duplicated executable inventory. It imports the default-library modules into one isolated worker environment for
+the module-level readers of all four lean-intent checks: the confirmation check,
+which decides that each deliverable's current revision is confirmed by answers
+whose authority traces back to the owner; the implementation check, which under
+lean-intent v0.3.0 requires each declared implementation to prove that its
+recorded constant meets the record (both domain hypotheses and properties, as
+`AcornVerif.Intent.Implementations.dayImplementation` proves via
+`AcornVerif.Intent.DayCycle.acornStandardDay_meets`); the required-theorems
+check, which verifies that every declared deliverable has exactly one typed
+required-theorems record (`lean/AcornVerif/Intent/Required.lean`:
+`AcornVerif.Intent.Required.dayRequired`,
 `AcornVerif.Intent.Required.hashRequired`,
 `AcornVerif.Intent.Required.worldInterfaceRequired` and
 `AcornVerif.Intent.Required.oneStreamRequired`) whose adequacy obligations, blind
-comparisons and cited theorems live in the built modules; and the execution check,
-run in non-strict mode against the Lake executable inventory, which verifies that
-every executable root compiles a `main` entry point and that every declared execution
-claim reaches its deliverable's recorded implementation constant from `main` in
-compiled IR. The gate passes only when the confirmation check finds nothing, the
+comparisons and cited theorems live in the built modules; and the execution
+check, run in non-strict mode against the Lake executable inventory by reading
+declared execution claims from the default-library environment and inspecting
+each executable root through lean-intent's stored-module and reachability
+readers in its own sequential child process (so the operating system reclaims
+each imported environment's compacted regions before the next executable loads,
+avoiding multi-gigabyte memory accumulation beside Regula on 16 GiB CI runners),
+verifying that every executable root compiles a `main` entry point and that
+every declared execution claim reaches its deliverable's recorded implementation
+constant from `main` in compiled IR. The gate passes only when the confirmation check finds nothing, the
 implementation check reports no awaiting-implementation declaration and its findings
 are, as a set, the unimplemented findings of the deliverables that the checker's one
 closed list names as awaiting an implementation, each with the issue that tracks its
