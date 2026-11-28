@@ -84,32 +84,6 @@ def describe : LeanIntent.Confirmation.Finding → String
     s!"{record}: the status of '{consequence}' disagrees with the answers kept"
   | .undeclared name => s!"{name} says who settled something and no deliverable holds it"
 
-def describeRequired : LeanIntent.Required.Finding → String
-  | .deliverableUnbuilt deliverable mod =>
-    s!"deliverable {deliverable} is declared in {mod}, which the build does not list"
-  | .implementationUnbuilt value mod =>
-    s!"implementation {value} is declared in {mod}, which the build does not list"
-  | .undeclared deliverable => s!"deliverable {deliverable} declares no Required record"
-  | .several deliverable values => s!"deliverable {deliverable} declares several Required records: {values}"
-  | .requiredUnbuilt value mod =>
-    s!"Required record {value} is declared in {mod}, which the build does not list"
-  | .untied value => s!"Required record {value} names no declared deliverable"
-  | .o2RunDeferred value deliverable =>
-    s!"Required record {value} defers O2Run even though {deliverable} declares an implementation"
-  | .blindNotConstant value =>
-    s!"Required record {value} does not name its blind record as a constant"
-  | .blindUnbuilt value blind mod =>
-    s!"Required record {value} compares with blind record {blind} in {mod}, which the build does not list"
-  | .selfComparison value record =>
-    s!"Required record {value} compares {record} with itself"
-  | .noComparisonProof value =>
-    s!"Required record {value} cites no blind-comparison proof"
-  | .notConstant value => s!"Required record {value} cites a proof that is not a bare constant"
-  | .notTheorem value constant mod =>
-    s!"Required record {value} cites {constant} of {mod}, which is not a theorem"
-  | .unbuilt value cited mod =>
-    s!"Required record {value} cites {cited} of {mod}, which the build does not list"
-
 def describeExecution : LeanIntent.Execution.Finding → String
   | .noDeliverable => "the project declares no deliverable"
   | .untied claim => s!"Runs claim {claim} names no declared deliverable"
@@ -160,9 +134,9 @@ unsafe def run : IO Bool := do
   IO.println s!"intent: required check: {required.theorems.length} theorems, \
     {required.findings.length} findings, {requiring} of {heartbeats} thousand heartbeats"
   IO.println s!"intent: execution check (strict := false): {executables.size} executables, \
-    {executed.reached.length} reached, {executed.notRun.length} not run, \
-    {executed.idle.length} idle, {executed.findings.length} findings, \
-    {executing} of {heartbeats} thousand heartbeats"
+    {executed.reached.length} reached, {executed.awaiting.length} awaiting, \
+    {executed.notRun.length} not run, {executed.idle.length} idle, \
+    {executed.findings.length} findings, {executing} of {heartbeats} thousand heartbeats"
   for finding in confirmed.findings do
     IO.println s!"intent: confirmation finding: {describe finding}"
   for (deliverable, value, constant) in implemented.implementations do
@@ -191,7 +165,7 @@ unsafe def run : IO Bool := do
   for (value, reason) in required.casesComparisons do
     IO.println s!"intent: required check: {value} compares by concrete cases ({reason})"
   for finding in required.findings do
-    IO.println s!"intent: required finding: {describeRequired finding}"
+    IO.println s!"intent: required finding: {finding.message}"
   if required.theorems.isEmpty then
     IO.println "intent: required finding: no Required theorems were checked"
   for (deliverable, executable, constant) in executed.reached do
@@ -201,6 +175,8 @@ unsafe def run : IO Bool := do
     IO.println s!"intent: execution check: {executable} awaits implementation of {deliverable}"
   for deliverable in executed.notRun do
     IO.println s!"intent: execution check: {deliverable} is run by no executable"
+  for executable in executed.idle do
+    IO.println s!"intent: execution check: {executable} claims no deliverable"
   for finding in executed.findings do
     IO.println s!"intent: execution finding: {describeExecution finding}"
   return confirmed.findings.isEmpty && !deliverables.isEmpty &&
