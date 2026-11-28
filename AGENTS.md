@@ -25,7 +25,14 @@ Prefer types making illegal states unrepresentable, derivation, exhaustive
 compiler checks over closed types, universal proofs, then derived guards.
 Enumerate every construction, deserialization (including checkpoint load), update
 (including reset and retirement) and entry-point boundary; enforce the invariant
-at each. Bounding an output alone does not bound stored state.
+at each. Bounding an output alone does not bound stored state. Before removing
+or narrowing any guard or refusal, derive every caller route that can reach the
+guarded point through the owning system (callers, configuration fields, commands
+and entry points, never only motivating examples) and state in the pull request
+what happens on each route: refused by another contract, moved outside the
+published contract with its consequence stated publicly, or fixed in the same
+change. A caller precondition is insufficient if breaching it needs no attacker
+and yields a wrong result under exit status 0.
 
 Proofs must concern the executed definitions or a checked correspondence.
 Distinguish finite-word arithmetic from mathematical integers, rationals and reals.
@@ -34,14 +41,16 @@ No custom axiom, sorry, unsafe/partial application definition, panic or unchecke
 native replacement enters governed code. Reviewed tooling and the narrow C file-sync
 primitive are explicit trust boundaries.
 
-There are no scenario tests. Counterexamples diagnose missing invariants or
-contracts; close the whole defect class with a gate or proof covering every
-instance, not only those found. Prefer structural/analytic proofs to
+There are no scenario tests, and tests remain forbidden as correctness evidence
+for Acorn pull requests, merge gates and proof claims. Counterexamples diagnose
+missing invariants or contracts; close the whole defect class with a gate or
+proof covering every instance, not only those found. Prefer structural/analytic proofs to
 reflection. Before certified re-execution, estimate initial and recurring proof
 cost beside the proposed observation and obtain an owner decision if it does
 not cost clearly less. Difficulty proving a property does not make it empirical.
 
-Mathematics comes first. A run of the agent, a study or any other evaluation
+Mathematics comes first. Strict zero-run discipline governs Acorn pull requests,
+merge gates and proof claims: a run of the agent, a study or any other evaluation
 taken as an answer is the last resort, whatever its name: a measurement, a smoke
 test or a diagnostic that only chooses a direction. What deterministic code does
 at a fixed seed is a mathematical question. Before proposing a run, state the
@@ -58,7 +67,11 @@ learners over percepts, whatever the step is for, unless the owner's
 authorization for that run is stated in the change's intent;
 [running a program](CONTRIBUTING.md#running-a-program) says where the
 invocations that may be driven without that authorization are listed, and where
-to read which files that such a run produced no step opens.
+to read which files that such a run produced no step opens. Pre-formalization
+feasibility checks of a new candidate discovery algorithm belong exclusively to
+the disposable [Phase-0 exploratory falsification sandbox](CONTRIBUTING.md#phase-0-exploratory-falsification-sandbox)
+strictly outside the repository, explicitly labeled as a falsification diagnostic
+and never used as correctness or acceptance evidence.
 
 The habit of evaluation returns through specifications. When a specification
 seems to need a run to check it, treat that first as a defect in the
@@ -106,9 +119,25 @@ compatibility/nondegeneracy, affordable work/storage and sufficient specificatio
 Promotion requires separate prospective evidence and an explicit decision. Keep
 negative and inconclusive evidence honest; exclusion is not a positive result.
 
+Before any new discovery algorithm enters multi-round blind refereeing or more
+than 500 lines of Lean, it must pass a disposable
+[Phase-0 exploratory falsification sandbox](CONTRIBUTING.md#phase-0-exploratory-falsification-sandbox)
+strictly outside the repository, explicitly labeled as a falsification diagnostic
+and never correctness evidence, checking (a) wall-clock and sample-efficiency
+plausibility at target scale (M = 4,096), (b) absence of pathological constants
+or dynamic ranges (Binary32-compatible unless the owner explicitly approves
+Binary64), and (c) non-collapse on at least one realistic non-stationary
+continual-learning testbed beyond a bespoke synthetic world. Sequence
+lean-intent Step 3 (independent blind formalization) after algorithm viability
+and owner confirmation. Blind referees judge discovery proposals under the
+OaK and Bitter-Lesson discovery rubric ([the referee's review](CONTRIBUTING.md#the-referees-review)),
+evaluating both local soundness and OaK generality, simplicity and constant
+plausibility; never embed prior-round Closure Matrices or "LOCKED" banners
+inside manuscripts sent to blind referees.
+
 ## Review and delivery
 
-Use the shipped proof-review standard and pr-review-toolkit for review-and-fix.
+Use the shipped proof-review standard and acorn-pr-review for review-and-fix.
 For that review, which the author runs, one independent reviewer is the
 default; add a specialist only for a concrete uncertainty. It does not decide
 when work is complete and discharges no review that Acorn requires. The

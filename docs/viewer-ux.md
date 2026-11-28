@@ -12,7 +12,7 @@ make them distrust the next number.
 This document states what the page must show and why. It does not describe how the page achieves it: mechanism lives in `Acorn.Host.Viewer` (`Html.lean`, `ServerFrame.lean`, `ServerView.lean`, `StageBmp.lean`, `HttpServer.lean`, and the supervisor modules; design rationale, numeric and wire invariants, and process-supervision boundaries are documented in this specification, [the design](design.md), and [the verification guide](verification.md#viewer-ownership-boundaries)), and a requirement here names the owning function only where a reader would otherwise have to search. Requirements are numbered; a page behaviour that contradicts one is a bug, and a contradiction found in this document is fixed here. The gate suite requires the table of Appendix A to be the one rendered from the Lean owners of its constants. Prose quantities and completeness of that table remain review obligations.
 
 Reviews judge the page against this document: `proof-review` and
-`pr-review-toolkit` for the code and its guarantees, `ux-review` for whether
+`acorn-pr-review` for the code and its guarantees, `ux-review` for whether
 the page can be understood (`.agents/skills/ux-review/SKILL.md`).
 
 ## 1 · Invariants (non-negotiable)

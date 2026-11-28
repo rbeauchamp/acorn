@@ -5,7 +5,7 @@ description: Review Acorn diffs and PRs against proofs, typed invariants, and co
 
 # Proof review
 
-Use this standard for Acorn reviews. When `pr-review-toolkit` loads it as a
+Use this standard for Acorn reviews. When `acorn-pr-review` loads it as a
 scoring standard, apply these criteria inside that workflow; do not launch a
 second review or simplification cycle. A referee, or a reviewer assigned
 under the review protocol to give a short review, uses it as

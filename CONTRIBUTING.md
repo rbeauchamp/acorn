@@ -245,9 +245,12 @@ criticism and discharges nothing.
 
 **What the referee reads, and against what.** The maintainers give the referee
 the pull request at its head commit, the issue it names and Acorn's tracked
-text. The author addresses the referee only on the pull request, except on a
-finding that discloses a security vulnerability, where the private route
-given under the report below is the only one. The review is
+text. Manuscripts, proposals and briefs sent to a blind referee must never embed
+prior-round Closure Matrices or "LOCKED" banners: the referee reads the claims,
+derivations and code on their own merits without prior-round closure tables or
+frozen-status framing. The author addresses the referee only on the pull request,
+except on a finding that discloses a security vulnerability, where the private
+route given under the report below is the only one. The review is
 adversarial: for each claim the referee looks for the cheapest way it could be
 false, or weaker than the pull request says, while every check passes. It reads
 the claims against the issue's contract, against Acorn's
@@ -318,7 +321,21 @@ closed, and new work is a new pull request.
 of [prior art and discovery](docs/prior-art-review.md#prior-art-and-discovery),
 has two referees, each assigned by the rule above. Neither sees the other's
 report before filing its own: each files with the maintainers, who post both on
-the pull request once they hold both. Both reports must be clean.
+the pull request once they hold both. Both reports must be clean. Before a new
+discovery algorithm enters multi-round blind refereeing or more than 500 lines
+of Lean, it must clear the disposable
+[Phase-0 exploratory falsification sandbox](#phase-0-exploratory-falsification-sandbox)
+strictly outside the repository, and lean-intent Step 3 (independent blind
+formalization) is sequenced after algorithm viability and owner confirmation.
+Blind referees evaluate discovery proposals and pull requests under the **OaK
+and Bitter-Lesson discovery rubric**, judging both local soundness (derivation,
+execution linkage, non-vacuity and credit to learning) and OaK generality
+(continual, stream-based, domain-general fit), simplicity (general scalable
+mechanism over hand-engineered complexity) and constant plausibility (absence
+of fragile or pathological constants or dynamic ranges; Binary32-compatible
+unless the owner explicitly approves Binary64). Manuscripts and briefs sent to
+blind referees must never embed prior-round Closure Matrices or "LOCKED"
+banners.
 
 ### The short review
 
@@ -620,7 +637,7 @@ check refusing noncomputable in executing modules).
 A result on learned agent state
 ([#295](https://github.com/rbeauchamp/acorn/issues/295)) is stated in a fixed
 frame. [The frame of a learned-state result](docs/learned-state-frame.md) is
-its plain-word account, which the owner confirmed on 2026-11-20. The Lean is
+its owner-confirmed plain-word account. The Lean is
 `lean/AcornVerif/Targets/LearnedState.lean` and
 `lean/AcornVerif/Targets/LearnedStateAcorn.lean`, and the agent it names is
 pinned by `lean/AcornVerif/Targets/LearnedStateAcorn.frame`.
@@ -758,7 +775,7 @@ every promise is one that an organization of one owner and its agents can keep:
   checks it, this holds as a practice: a change to those files prepared by the
   owner's agents that keeps or tightens a protection is read in full by the
   agent supervising the work and landed by the agent that coordinates them,
-  under the owner's delegation of 2026-11-20; one that loosens a protection or
+  under the owner's standing delegation; one that loosens a protection or
   removes a check is admitted only by the owner's own recorded words; and a
   pull request from any other account is read on the owner's side, its whole
   diff, before it is merged. No check enforces any of this yet.
@@ -821,15 +838,15 @@ list is its trace
 
 ### Running a program
 
-On 2026-11-19 the owner of the project ruled that no one makes a run of Acorn's
-agent, or of one of its learners, without the owner's authorization for that
-run. [What counts as a run](#what-counts-as-a-run) defines a run, by whatever
-means it is made, and this section adds nothing to that definition: it says
-how the rule is applied to Acorn's programs. No step of work on a change starts
-a program that steps the agent or a learner over percepts unless the owner's
-authorization for that run is stated in the change's intent. What the step is
-for, and what the run is called, do not matter: a look at the viewer's page, a
-screenshot, a smoke test and a diagnostic are all covered.
+No one makes a run of Acorn's agent, or of one of its learners, without the
+owner's authorization for that run. [What counts as a run](#what-counts-as-a-run)
+defines a run, by whatever means it is made, and this section adds nothing to
+that definition: it says how the rule is applied to Acorn's programs. No step of
+work on a change starts a program that steps the agent or a learner over
+percepts unless the owner's authorization for that run is stated in the change's
+intent. What the step is for, and what the run is called, do not matter: a look
+at the viewer's page, a screenshot, a smoke test and a diagnostic are all
+covered.
 
 The rule is applied through a closed list. The Test instructions of
 `.no-mistakes.yaml` hold the exact invocations of Acorn's executables that work
@@ -847,29 +864,23 @@ because its source shows that it takes no step; where a change touches an
 entry's program, that reading is made again on the change's head before the
 entry is driven.
 
-The list answers a fact that a validation step met on 2026-11-21, of the viewer
-as it then was: started with no state file in its run directory, it started in
-the running state, and its supervisor launched its child process, which is the
-core unless the command line names another command. The viewer's supervisor
-now starts its child, the core or the command `--cmd` names, only on an
-explicit act: the `--start` flag, a Start on the viewer's control endpoint,
-which the page's Start button sends, or a saved state that an earlier Start
-set to running while the supervisor's child was the same one. The ranked core
-is compared with what the viewer read of it before every start; under `--cmd`
-nothing is compared, and a Start is for the command line as given, its
+The viewer's supervisor starts its child, the core or the command `--cmd` names,
+only on an explicit act: the `--start` flag, a Start on the viewer's control
+endpoint, which the page's Start button sends, or a saved state that an earlier
+Start set to running while the supervisor's child was the same one. The ranked
+core is compared with what the viewer read of it before every start; under
+`--cmd` nothing is compared, and a Start is for the command line as given, its
 restarts by that viewer included, whatever program the command comes to
-designate. With no state
-file and no such act the supervisor starts no child and the page shows the
-run stopped. The relay of standard input that the viewer starts under
-`--control-stdin`, and the browser opener under `--open-browser`, are other
-processes and are not learners. That the program starts a learner only on an
-explicit act authorizes no run: the rule above decides which acts work on a
-change may make. `./scripts/start.sh`
-passes that act, so the launcher does start the agent. The one start of the
-viewer on the list stays as it was, from an explicitly stopped state with a
-child command that cannot be a core: a step drives the viewer built from the
-change it validates, which that change can have altered, and a Start pressed
-in the page starts the child.
+designate. With no state file and no such act the supervisor starts no child and
+the page shows the run stopped. The relay of standard input that the viewer
+starts under `--control-stdin`, and the browser opener under `--open-browser`,
+are other processes and are not learners. That the program starts a learner only
+on an explicit act authorizes no run: the rule above decides which acts work on
+a change may make. `./scripts/start.sh` passes that act, so the launcher does
+start the agent. The one start of the viewer on the list stays from an
+explicitly stopped state with a child command that cannot be a core: a step
+drives the viewer built from the change it validates, which that change can have
+altered, and a Start pressed in the page starts the child.
 
 The same instructions say, in their paragraph on files that an earlier run
 left, which files that a run of the agent or a learner produced a step neither
@@ -893,13 +904,8 @@ follow. No program refuses the run.
 
 ### Proof-shaped specifications
 
-On 2026-11-19 the owner of the project stated where the habit of evaluation
-comes back into work on Acorn and how it is stopped. This subsection is that
-statement as the agents that maintain Acorn restate it: the substance is the
-owner's and the wording is theirs.
-
 AI agents trained on ordinary machine-learning practice rarely propose to skip
-a proof. The habit returns through the way a task is specified: a
+a proof. The habit of evaluation returns through the way a task is specified: a
 definition of done written as a number of tries or a success rate, with numbers
 picked from a run; generalisation tested on held-out cases; a baseline
 established by running the old agent; and then the observation that such a
@@ -909,26 +915,35 @@ and stop it at the specification, in this order:
 1. When a specification seems to need a run to check it, treat that first as a
    defect in the specification, and restate it as what the algorithm must
    maintain.
-2. A proof-shaped specification of a learning algorithm has the parts a
-   verified program has: an invariant true of every state the agent can reach;
-   a condition under which, having nothing left to correct, its choice is the
-   right one; and a measure that every mistake strictly lowers. Each is a
+2. A deterministic proof-shaped specification of a learning algorithm has the
+   parts a verified program has: an invariant true of every state the agent can
+   reach; a condition under which, having nothing left to correct, its choice is
+   the right one; and a measure that every mistake strictly lowers. Each is a
    statement about one arbitrary step. None names a horizon, a rate or a
    probability. A count of tries is then a bound that a result derives, never a
    threshold someone picked.
 
    The measure as just described does not by itself give a bound: one that a
    step which is not a mistake may raise, or whose values can fall without
-   end, allows mistakes without limit. What the derivation needs is the
-   mathematics of the agents that maintain Acorn and no part of the owner's
-   statement. These conditions are sufficient: the measure takes its values
-   in the natural numbers, every mistake strictly lowers it, and no other
-   step raises it. Each of the last two is still a statement about one
-   arbitrary step. Under them the mistakes of every run number at most the
-   measure's value where the run starts. Where a count of tries also counts
-   steps that are not mistakes, a bound on it does not follow from the
-   measure alone: it needs its own argument that the algorithm makes
+   end, allows mistakes without limit. These conditions are sufficient: the
+   measure takes its values in the natural numbers, every mistake strictly
+   lowers it, and no other step raises it. Each of the last two is still a
+   statement about one arbitrary step. Under them the mistakes of every run
+   number at most the measure's value where the run starts. Where a count of
+   tries also counts steps that are not mistakes, a bound on it does not follow
+   from the measure alone: it needs its own argument that the algorithm makes
    progress.
+
+   For stochastic continual-learning algorithms where a deterministic per-step
+   decrease does not hold on every sample path, use the parallel stochastic
+   proof-shaped counterparts alongside or in place of deterministic mistake
+   bounds: a symbolic finite-time expected regret bound, or a symbolic
+   high-probability error or regret bound with an explicit failure probability
+   delta (for every failure tolerance delta in (0, 1)). Both forms remain
+   mathematically derived over the quantified class of stochastic worlds or
+   streams—expressed symbolically in the horizon, problem scale, drift or
+   non-stationarity measure, algorithm parameters and delta—and never thresholds
+   picked from sample runs or empirical averages.
 3. Each device of evaluation has a mathematical counterpart, listed in the
    table below.
 4. Difficulty of proof is an unresolved obligation and never a reason to lower
@@ -939,12 +954,46 @@ and stop it at the specification, in this order:
 
 | Device of evaluation | Its mathematical counterpart |
 |---|---|
-| A success rate | A derived bound on mistakes that holds in every run |
+| A success rate | A derived bound on mistakes that holds in every run, or a symbolic finite-time expected regret or high-probability error bound with an explicit failure probability delta |
 | A held-out case | The scope of a quantifier over a family of problems |
 | A baseline run of the old agent | A theorem that the old agent fails the same statement |
-| Averaging over random draws | A statement for every sequence of draws |
-| Noise | The worst case over what is irrelevant |
+| Averaging over random draws | A statement for every sequence of draws, or a symbolic finite-time expected regret or high-probability bound with an explicit failure probability delta over the stated distribution |
+| Noise | The worst case over what is irrelevant, or an explicit stochastic noise model yielding a symbolic expected regret or high-probability error bound with explicit delta |
 | A check that the agent took no shortcut | The family of problems excludes the shortcut; no statement about behaviour at one place can exclude it |
+
+### Phase-0 exploratory falsification sandbox
+
+Tests remain forbidden as correctness evidence inside Acorn, and strict zero-run
+discipline continues to govern every Acorn pull request, merge gate, proof
+claim, and run of Acorn's executed agent or learners. Separately from that
+proof and delivery boundary, before any new discovery algorithm enters
+multi-round blind refereeing or more than 500 lines of Lean, it must clear a
+disposable **Phase-0 exploratory falsification sandbox** executed strictly
+outside the repository.
+
+- **Boundary and evidentiary status:** the sandbox lives strictly outside
+  `acorn/` (nothing from it is committed into the repository or run in Acorn's
+  merge gate), is disposable, and is explicitly labeled as an exploratory
+  falsification diagnostic—never as correctness evidence, acceptance evidence,
+  or a substitute for formal proofs. Any comparator run that steps Acorn's
+  existing agent or one of its implemented learners remains governed by
+  [What counts as a run](#what-counts-as-a-run) and
+  [Running a program](#running-a-program).
+- **Falsification criteria:** the sandbox checks a candidate discovery algorithm
+  before spending formalization or multi-round referee budget for:
+  - **(a) Scale plausibility:** wall-clock and sample-efficiency plausibility at
+    target scale (M = 4,096);
+  - **(b) Numeric sanity:** absence of pathological constants or dynamic ranges,
+    compatible with Binary32 precision unless the owner explicitly approves
+    Binary64;
+  - **(c) Realistic continual non-collapse:** non-collapse on at least one
+    realistic non-stationary continual-learning testbed beyond a bespoke
+    synthetic world.
+- **Outcome and sequencing:** failure on any criterion falsifies the candidate
+  before formalization; passing all three clears the candidate only to proceed
+  toward owner confirmation and formal review, never to claim correctness.
+  Sequence lean-intent Step 3 (independent blind formalization) after algorithm
+  viability and owner confirmation.
 
 ### Deliverable placement
 
