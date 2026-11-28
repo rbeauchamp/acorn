@@ -1,5 +1,5 @@
 ---
-name: pr-review-toolkit
+name: acorn-pr-review
 description: Review and fix an Acorn diff or PR using its proof standards and proportionate independent review. Use for review-and-fix or pre-PR quality passes that the author runs, not read-only reviews and not the review that the review protocol assigns.
 ---
 
