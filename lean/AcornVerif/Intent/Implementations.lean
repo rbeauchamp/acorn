@@ -7,6 +7,6 @@ open LeanIntent AcornVerif.Intent.DayCycle AcornVerif.Intent.Decisions
 
 def dayImplementation : Implementation dayDeliverable where
   subject := acornStandardDay
-  fulfils := acornStandardDay_fulfils
+  meets := acornStandardDay_meets
 
 end AcornVerif.Intent.Implementations

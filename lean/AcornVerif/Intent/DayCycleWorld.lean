@@ -342,6 +342,10 @@ theorem acornStandardDay_fulfils :
     (dayCycleFor Unit Action UInt8 Nat).Fulfilled acornStandardDay :=
   fulfilled_at (standard_fulfils standardConfig_ok _) _
 
+theorem acornStandardDay_meets :
+    (dayCycleFor Unit Action UInt8 Nat).Meets acornStandardDay :=
+  IntentRecord.meets_of_fulfilled acornStandardDay_fulfils (IntentRecord.dom_of_nil rfl _)
+
 theorem acornStandardDay_eq {seed : UInt64} {side : Coordinate} {config : WorldConfig}
     (h : WorldConfig.standard seed side = .ok config) (base c : World config) :
     acornStandardDay = (acornDay config base World.dayPhase).at c := by
