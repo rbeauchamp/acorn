@@ -346,6 +346,22 @@ theorem projectDisplay_evicted (identity : Identity) (summaries : List FrameSumm
   have hNeZero : (summaries.length == 0) = false := beq_false_of_ne (Nat.ne_of_gt hNonEmpty)
   simp [projectDisplay, hMode, hFrame, hRun, hEpoch, hNeZero, hOldest, hNewest, hMissing, hBefore]
 
+def formatCount (n : Nat) (singular plural : String) : String :=
+  formatNatCommas n ++ " " ++ (if n == 1 then singular else plural)
+
+theorem formatCount_one (singular plural : String) :
+    formatCount 1 singular plural = "1 " ++ singular := by
+  have h : formatNatCommas 1 = "1" := by decide
+  simp [formatCount, h]
+
+theorem formatCount_ne_one (n : Nat) (h : n ≠ 1) (singular plural : String) :
+    formatCount n singular plural = formatNatCommas n ++ " " ++ plural := by
+  have hbeq : (n == 1) = false := beq_false_of_ne h
+  simp [formatCount, hbeq]
+
+def shortRunHex (word : UInt64) : String :=
+  ((runHex word).drop 8).toString
+
 inductive ControlNotice where
   | forbidden
   | refused (command : Command) (reason : String)
@@ -364,11 +380,11 @@ def viewerStylesheet : String :=
   "a{color:var(--accent2);text-decoration:none;}a:hover{text-decoration:underline;}\n" ++
   "#top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;" ++
   "background:linear-gradient(180deg,#141a23,#0e131a);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}\n" ++
-  "#top h1{font-size:15px;color:var(--accent);letter-spacing:1.5px;margin-right:4px;}\n" ++
-  "#top .sub{color:var(--faint);font-size:11px;letter-spacing:.5px;}\n" ++
+  "#top h1{font-size:15px;color:var(--accent);letter-spacing:1.5px;margin-right:4px;white-space:nowrap;}\n" ++
+  "#top .sub{color:var(--faint);font-size:11px;letter-spacing:.2px;white-space:nowrap;}\n" ++
   ".stat{display:flex;flex-direction:column;align-items:flex-start;}\n" ++
-  ".stat .k{color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.5px;}\n" ++
-  ".stat .v{color:var(--ink);font-variant-numeric:tabular-nums;}\n" ++
+  ".stat .k{color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}\n" ++
+  ".stat .v{color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;}\n" ++
   "#topright{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;max-width:100%;min-width:0;}\n" ++
   "#topright>*{min-width:0;max-width:100%;}\n" ++
   "#streamhealth{display:flex;flex-wrap:wrap;gap:4px;min-width:0;max-width:44ch;overflow-wrap:anywhere;}\n" ++
@@ -386,7 +402,8 @@ def viewerStylesheet : String :=
   "#conn.wait{color:var(--warn);border-color:#4a3417;background:#20170c;}\n" ++
   "#conn.dead{color:var(--bad);border-color:#5a2a28;background:#231212;}\n" ++
   ".pill{padding:2px 9px;border-radius:99px;border:1px solid var(--border);font-size:11px;letter-spacing:.3px;}\n" ++
-  ".pill.reset{color:var(--bad);border-color:#5a2a28;background:#231212;}\n" ++
+  "#evidence-mode,#agentstate{white-space:nowrap;}\n" ++
+  ".pill.reset{color:var(--bad);border-color:#5a2a28;background:#231212;border-radius:12px;overflow-wrap:anywhere;white-space:normal;max-width:100%;}\n" ++
   ".pill.live{color:var(--accent);border-color:#28502f;background:#0f2114;}\n" ++
   ".pill.fresh{color:var(--dim);border-color:#2d3744;background:#0d1218;}\n" ++
   ".pill.unknown{color:var(--faint);border-color:#242c38;background:#0a0e14;}\n" ++
@@ -1274,7 +1291,7 @@ private def namedLearnerDetailNode (title : String) (names : Array String)
     let c := formatNatCommas (credits[idx]?.getD 0)
     s!"{nm}: α={a} · credit={c}"
   el .details [kv .cls "learner-detail"] [
-    el .summary [] [txt s!"{title} ({alphas.size} heads)"],
+    el .summary [] [txt s!"{title} ({formatCount alphas.size "head" "heads"})"],
     el .pre [] [txt (String.intercalate "\n" lines)]
   ]
 
@@ -1297,7 +1314,7 @@ private def modelLearnerDetailNode (title : String) (f : ServerFrame) : Node :=
       s!"{optName} {kind}: α={a} · credit={c}"
   let countLabel := match f.controlCriterion with
     | .discounted => "6 active, 3 unused discounted"
-    | .differential => s!"{f.alphaModels.size} heads"
+    | .differential => formatCount f.alphaModels.size "head" "heads"
   el .details [kv .cls "learner-detail"] [
     el .summary [] [txt s!"{title} ({countLabel})"],
     el .pre [] [txt (String.intercalate "\n" lines)]
@@ -1478,7 +1495,7 @@ private def renderGoalSidebar (agOpt : Option AgreementSnapshot) (selectedIsEarl
         | .invalid => (false, "st invalid", "unavailable (invalid)")
         | .achieved steps f =>
           let failSuffix := if f > 0 then s!" ({f} failed)" else ""
-          (false, "st ok", s!"solved in {formatNatCommas steps} steps{failSuffix}")
+          (false, "st ok", s!"solved in {formatCount steps "step" "steps"}{failSuffix}")
         | .failed f => (false, "st no", s!"failed ({f}/{gp.attemptCap})")
         | .active att cap f =>
           let failSuffix := if f > 0 then s!" · {f} failed" else ""
@@ -1592,16 +1609,21 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
   let worldStat := match displaySummary with
     | some s => formatNatCommas s.worldStep
     | none => "—"
+  let worldSideOpt : Option Nat := match snapshot.world with
+    | some ⟨key, _⟩ => some key.side.val
+    | none => latestFrame.map (·.summary.side)
+  let worldMetaText : String := match worldSideOpt with
+    | some side => s!"world {side}² · seed {lifecycle.identityValue.seed}"
+    | none => s!"world — · seed {lifecycle.identityValue.seed}"
   let lifeStat := match displaySummary with
-    | some s => formatNatCommas s.lifetimeStep
+    | some s => formatCount s.lifetimeStep "step" "steps"
     | none => "—"
-  let worldStatLabel := if proj.selectedIsEarlier then s!"world · {curIdLabel}" else "world"
   let lifeStatLabel := if proj.selectedIsEarlier then s!"lifetime · {curIdLabel}" else "agent lifetime"
   let rateStat :=
-    if !isRunning then "— frames/s"
+    if !isRunning then "—"
     else match observer.framesPerSecondTenths nowMonoMs with
       | some tenths => formatNatCommas (tenths / 10) ++ "." ++ toString (tenths % 10) ++ " frames/s"
-      | none => "— frames/s"
+      | none => "—"
   let seenStat := match snapshot.world with
     | some ⟨key, mem⟩ =>
       let seen := mem.seen
@@ -1616,13 +1638,26 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           s!"unretained (side {formatNatCommas f.summary.side} > {formatNatCommas mapSideCapacity})"
         else "—"
       | none => "—"
+  let seenTopStat := match snapshot.world with
+    | some ⟨key, mem⟩ =>
+      let pct := formatPercent1 mem.seen (key.side.val * key.side.val)
+      let suffix := if mem.isIncomplete || snapshot.observation.mapPartial then " (partial)" else ""
+      s!"{pct}{suffix}"
+    | none =>
+      match latestFrame with
+      | some f =>
+        if f.summary.side > mapSideCapacity then "unretained"
+        else "—"
+      | none => "—"
   let (originWord, originCls, originTitle) := match observer.lastFreshOrigin with
     | some "fresh" => ("fresh", "pill fresh", "Authoritative origin reported by the latest fresh frame.")
     | some "resumed" => ("resumed", "pill resumed", "Authoritative origin reported by the latest fresh frame (checkpoint resumed).")
     | some "cleared" => ("cleared", "pill cleared", "Authoritative origin reported by the latest fresh frame (cleared run).")
     | some other => (other, "pill fresh", "Authoritative origin reported by the latest fresh frame.")
     | none => ("origin unreported", "pill unknown", "No fresh frame has reported this process's origin yet.")
-  let idText := s!"{originWord} · {runHex lifecycle.identityValue.run} · ep {lifecycle.identityValue.agentEpoch}"
+  let fullRunId := runHex lifecycle.identityValue.run
+  let idText := s!"{originWord} · {shortRunHex lifecycle.identityValue.run} · ep {lifecycle.identityValue.agentEpoch}"
+  let idTitle := s!"{originTitle} Run {fullRunId}."
   let connBadge : String × String :=
     match liveness with
     | .fault exhausted =>
@@ -1674,16 +1709,16 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
     (if detailReason.isEmpty then [] else [kv .title detailReason])
   let topBar := el .div [kv .id "top"] [
     el .h1 [] [txt "◈ OAK"],
-    el .span [kv .cls "pill live", kv .id "evidence-mode"] [txt "LIVE RUN · zero-JS"],
-    el .div [kv .cls "stat"] [el .span [kv .cls "k"] [txt worldStatLabel], el .span [kv .cls "v", kv .id "s_world"] [txt worldStat]],
+    el .span [kv .cls "pill live", kv .id "evidence-mode"] [txt "LIVE RUN · single stream"],
+    el .span [kv .cls "sub", kv .id "s_world"] [txt worldMetaText],
     el .div [kv .cls "stat", kv .title "Total agent steps, restored from its saved checkpoint on resume."]
       [el .span [kv .cls "k"] [txt lifeStatLabel], el .span [kv .cls "v", kv .id "s_life"] [txt lifeStat]],
     el .div [kv .cls "stat", kv .title "Newly admitted fresh capture envelopes per second over the recent 1–2s window."]
       [el .span [kv .cls "k"] [txt "core"], el .span [kv .cls "v", kv .id "s_rate"] [txt rateStat]],
-    el .div [kv .cls "stat", kv .title "Retained terrain memory sensed across the current run."]
-      [el .span [kv .cls "k"] [txt "seen"], el .span [kv .cls "v", kv .id "s_seen"] [txt seenStat]],
+    el .div [kv .cls "stat", kv .title s!"Retained terrain memory sensed across the current run: {seenStat}"]
+      [el .span [kv .cls "k"] [txt "seen"], el .span [kv .cls "v", kv .id "s_seen"] [txt seenTopStat]],
     el .div [kv .id "topright"] [
-      el .span [kv .cls originCls, kv .id "agentstate", kv .title originTitle] [txt idText],
+      el .span [kv .cls originCls, kv .id "agentstate", kv .title idTitle] [txt idText],
       el .div [kv .id "streamhealth"] healthPills,
       el .div [kv .id "runctl"] [
         el .form [kv .method "POST", kv .action "/control/form", kv .cls "ctl-form"]
@@ -1852,7 +1887,7 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
           kv .alt "Live zero-JS aerial world map stream"
         ] [],
         el .div [kv .cls "stage-caption"] [
-          el .span [] [txt s!"Stage image: live multipart/x-mixed-replace BMP stream (at most {1000 / BrowserConstant.readPace.value} updates per second; shows unavailable, stopped, failed, or stale banner)."],
+          el .span [] [txt s!"Stage image: live multipart/x-mixed-replace BMP stream (at most {formatCount (1000 / BrowserConstant.readPace.value) "update" "updates"} per second; shows unavailable, stopped, failed, or stale banner)."],
           el .span [] [txt s!"Controls, badge & panels: {htmlSnapshotDesc}."]
         ]
       ]
@@ -2133,11 +2168,11 @@ def renderViewerPage (snapshot : BroadcastSnapshot) (query : ViewQuery)
             | .discounted => "Reward & γ (discounted)"
             | .differential => "Reward, γ & duration"
           (fLive, sLive, oLive, mLive, pLive,
-           s!"{formatNatCommas f.imprintUnits} units · {formatNatCommas f.retireCount} retired",
+           s!"{formatCount f.imprintUnits "unit" "units"} · {formatNatCommas f.retireCount} retired",
            f.subtaskPolicy.tag,
            optName, optCap,
            "3 option models", modCap,
-           s!"{formatNatCommas f.planningSteps} backups")
+           formatCount f.planningSteps "backup" "backups")
         | none => (false, false, false, false, false, "—", "—", "—", "Committed temporal skills", "—", "Reward & γ", "—")
       let agScoreStr := match observer.agreement with
         | some ag => agreementHeadlineText ag
