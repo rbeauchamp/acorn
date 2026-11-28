@@ -53,7 +53,7 @@ jobs:
     # and the 12-minute provisioning / 18-minute merge-gate step ceilings bound wall-clock time
     # while leaving headroom for Azure and AWS ubuntu-24.04 runner variance so regressions fail
     # promptly; each verification stage keeps verify.sh's 360-second deadline and scripts/gate.sh
-    # bounds no-comments admission (60s), Regula (360s), lean-intent (180s), frame-check (120s)
+    # bounds no-comments admission (60s), Regula (600s), lean-intent (180s), frame-check (120s)
     # and no-comments execution (300s) individually. Regula's contract names Ubuntu 24.04.5 LTS on
     # x86-64, the release that this runner image held when Regula observed it; an image of another
     # release is outside that contract.
@@ -298,7 +298,7 @@ jobs:
       # complete command unchanged: Lake reuses a stage one output only where its trace
       # matches the checked-out source, toolchain and options, and builds everything else.
       # The script then runs the Regula audit (scripts/regula.sh,
-      # docs/verification.md#regula-audit, 360-second deadline), lean-intent's confirmation and
+      # docs/verification.md#regula-audit, 600-second deadline), lean-intent's confirmation and
       # implementation checks (lean/AcornTools/Intent.lean, 180-second deadline), and the check
       # of each target's pin file (lean/AcornTools/Frame.lean, 120-second deadline), each also
       # when an earlier check failed. Only when ordinary verification succeeded (so un-admitted

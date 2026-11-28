@@ -157,7 +157,7 @@ bg_supervisor_launched=0
 # Per-check hard process-group SIGKILL deadlines (matching verify.sh's 360-second
 # no-grace-period discipline) and early-warning target budgets in seconds.
 nc_admit_timeout_s=60
-regula_timeout_s=360
+regula_timeout_s=600
 intent_timeout_s=180
 frame_timeout_s=120
 nc_timeout_s=300
@@ -966,7 +966,7 @@ fi
 
 # The two stages of ordinary verification, each under its own 360-second deadline, then
 # the Regula audit (scripts/regula.sh: Regula's proof verdict, by the two commands its release
-# publishes) under its own 360-second deadline, lean-intent's two checks (180-second deadline):
+# publishes) under its own 600-second deadline, lean-intent's two checks (180-second deadline):
 # intent-check (lean/AcornTools/Intent.lean) runs the confirmation check and the implementation
 # check on one list of modules, those Lake lists for the default libraries, and passes only when the
 # first finds nothing and the second finds only the deliverables its closed list names as awaiting

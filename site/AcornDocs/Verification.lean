@@ -726,7 +726,7 @@ the executing library, the tools except the axiom pins, and their dependencies;
 the second bounds the remaining proof build, the axiom pins and every check.
 On a four-processor machine the cold build with the checks beside
 it inside one deadline left too little margin. The gate then runs the
-[Regula audit](#regula-audit) (360-second deadline), lean-intent's four checks
+[Regula audit](#regula-audit) (600-second deadline), lean-intent's four checks
 (180-second deadline) and the frame check (120-second deadline) on the same
 commit (each also when an earlier step failed), and, only when ordinary
 verification succeeded (so un-admitted sources are never elaborated), the pinned
@@ -1052,7 +1052,7 @@ limit, where the pipeline's Test step has none; a successful provisioning step
 requires its duration handoff to `$GITHUB_OUTPUT` to succeed, while cancellation
 reporting stays best effort; each of verification's two stages
 keeps its 360-second deadline, and `scripts/gate.sh` individually bounds
-`no-comments` admission (60 seconds), the Regula audit (360 seconds),
+`no-comments` admission (60 seconds), the Regula audit (600 seconds),
 lean-intent checks (180 seconds), frame check (120 seconds) and `no-comments`
 execution (300 seconds). On every run that reaches the provisioning or merge-gate step (including
 provisioning failure/cancellation and gate failure/cancellation after
@@ -1446,7 +1446,7 @@ The audit is a second check of the merge gate and is not part of
 `./scripts/verify.sh`. It builds the claimed modules again where Lake's traces
 differ and runs Regula's checker, whose replay of the claim's cone does not fit
 beside the ordinary checks inside the 360-second deadline. The gate runs it
-after ordinary verification, under its own 360-second deadline, and requires
+after ordinary verification, under its own 600-second deadline, and requires
 both before a merge. A pass is Regula's
 proof verdict, with the meaning and the assumption that the section above
 states; it does not replace review.
