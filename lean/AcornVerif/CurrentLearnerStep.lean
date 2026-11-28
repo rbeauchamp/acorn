@@ -934,10 +934,10 @@ private theorem secondLoopElement_congr {cfg : Acorn.Config} {dim : Dimension}
   cases overshoot
   · simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt, registers, hSet,
       hW, hB, hA, hF.1, hF.2.2.1, hF.2.2.2.2.1, hF.2.2.2.2.2.1, hF.2.2.2.2.2.2.1,
-      hF.2.2.2.2.2.2.2.1, hF.2.2.2.2.2.2.2.2, Bool.false_eq_true, ite_false, and_self]
+      hF.2.2.2.2.2.2.2.2, Bool.false_eq_true, ite_false, and_self]
   · simp only [NumericState.secondLoopElement, NumericState.secondLoopElementAt,
       NumericState.writeBetaValue, registers, hSet, hW, hB, hA, hRails, hF.1, hF.2.2.1,
-      hF.2.2.2.2.1, hF.2.2.2.2.2.1, hF.2.2.2.2.2.2.1, hF.2.2.2.2.2.2.2.1,
+      hF.2.2.2.2.1, hF.2.2.2.2.2.1, hF.2.2.2.2.2.2.1,
       hF.2.2.2.2.2.2.2.2, ite_true]
     exact ⟨trivial, logStep_project_rails_eq hRails _, trivial⟩
 

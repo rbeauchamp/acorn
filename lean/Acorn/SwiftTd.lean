@@ -271,7 +271,7 @@ def firstLoopElement (state : NumericState config dimension) (idx : FeatIdx dime
       zBar := state.transient.zBar.set idx.val ⟨zBar.mul traceDecay⟩ idx.isLt
       p := state.transient.p.set idx.val ⟨p.mul traceDecay⟩ idx.isLt
       hOld := state.transient.hOld.set idx.val ⟨h⟩ idx.isLt
-      h := state.transient.h.set idx.val ⟨hTemp⟩ idx.isLt
+      h := state.transient.h.set idx.val ⟨nextH⟩ idx.isLt
       hTemp := state.transient.hTemp.set idx.val ⟨nextH⟩ idx.isLt
       deltaWeight := state.transient.deltaWeight.set idx.val
         ⟨if clipped then .zero else dw⟩ idx.isLt } }
@@ -306,7 +306,7 @@ theorem firstLoopElement_eq (state : NumericState config dimension) (idx : FeatI
           zBar := state.transient.zBar.set idx.val ⟨zBar.mul traceDecay⟩ idx.isLt
           p := state.transient.p.set idx.val ⟨p.mul traceDecay⟩ idx.isLt
           hOld := state.transient.hOld.set idx.val ⟨h⟩ idx.isLt
-          h := state.transient.h.set idx.val ⟨hTemp⟩ idx.isLt
+          h := state.transient.h.set idx.val ⟨nextH⟩ idx.isLt
           hTemp := state.transient.hTemp.set idx.val ⟨nextH⟩ idx.isLt
           deltaWeight := state.transient.deltaWeight.set idx.val
             ⟨if clipped then .zero else dw⟩ idx.isLt } }
@@ -383,14 +383,16 @@ def secondLoopElementAt (overshoot : Bool) (scale oneSubT alpha : Binary32)
   let eligible := if (state.transient.z.get idx).value.isZero then
     state.transient.eligible.push idx else state.transient.eligible
   let vDelta := vDelta.add (state.transient.deltaWeight.get idx).value
+  let hVal := (state.transient.h.get idx).value
   let zd := scale.mul alpha
   let z := (state.transient.z.get idx).value.add (zd.mul oneSubT)
-  let p := (state.transient.p.get idx).value.add (state.transient.h.get idx).value
+  let p := if overshoot then state.transient.p
+    else state.transient.p.set idx.val ⟨(state.transient.p.get idx).value.add hVal⟩ idx.isLt
   let zBar := (state.transient.zBar.get idx).value.add
     (zd.mul (oneSubT.sub (state.transient.zBar.get idx).value))
-  let hTemp := (((state.transient.hTemp.get idx).value.sub
+  let hTemp := ((hVal.sub
     ((state.transient.hOld.get idx).value.mul (z.sub zd))).sub
-      ((state.transient.h.get idx).value.mul zd))
+      (hVal.mul zd))
   let h := if overshoot then state.transient.h.set idx.val ⟨.zero⟩ idx.isLt else state.transient.h
   let next : NumericState config dimension := {
     state with
@@ -400,7 +402,7 @@ def secondLoopElementAt (overshoot : Bool) (scale oneSubT alpha : Binary32)
       z := state.transient.z.set idx.val ⟨z⟩ idx.isLt
       zDelta := state.transient.zDelta.set idx.val ⟨zd⟩ idx.isLt
       lastAlpha := state.transient.lastAlpha.set idx.val ⟨zd⟩ idx.isLt
-      p := state.transient.p.set idx.val ⟨p⟩ idx.isLt
+      p := p
       zBar := state.transient.zBar.set idx.val ⟨if overshoot then .zero else zBar⟩ idx.isLt
       hTemp := state.transient.hTemp.set idx.val ⟨if overshoot then .zero else hTemp⟩ idx.isLt
       h := h } }

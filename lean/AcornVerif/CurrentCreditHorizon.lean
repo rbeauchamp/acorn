@@ -1097,9 +1097,10 @@ theorem quiet_first (current : NumericState (criterion.config .control) dimensio
     cases criterion <;> decide +kernel
   have adapted :=
     zeroWord_mul_finite (finite_mul_zero metaFinite (zeroWord_sub hd hv)) (zero_finite p)
+  have hNextH := zeroWord_sub (zeroWord_add hTemp (zeroWord_mul_finite hd zBarFinite))
+    (finite_mul_zero zDelta hv)
   exact ⟨hproj, quiet_beta current.rails sameRails adapted, trivial, trivial, trivial, trivial, hdw,
-    hTemp, h, zeroWord_sub (zeroWord_add hTemp (zeroWord_mul_finite hd zBarFinite))
-      (finite_mul_zero zDelta hv), zeroWord_mul_finite p (decay_words criterion).1, trivial⟩
+    hNextH, h, hNextH, zeroWord_mul_finite p (decay_words criterion).1, trivial⟩
 
 theorem quiet_second (current : NumericState (criterion.config .control) dimension)
     (idx : FeatIdx dimension) (total vd : Binary32)
@@ -1112,7 +1113,7 @@ theorem quiet_second (current : NumericState (criterion.config .control) dimensi
     slotOf result.1 idx = ⟨words.weight, words.beta, #v[z, stepWord,
       words.zBar.add (stepWord.mul (complement.sub words.zBar)), stepWord, words.deltaWeight,
       words.h, words.hOld,
-      (words.hTemp.sub (words.hOld.mul (z.sub stepWord))).sub (words.h.mul stepWord),
+      (words.h.sub (words.hOld.mul (z.sub stepWord))).sub (words.h.mul stepWord),
       words.p.add words.h]⟩ ∧
     result.2 = vd.add words.deltaWeight := by
   rw [slotOf_beta] at beta
@@ -1502,7 +1503,7 @@ theorem quiet_second_loop (state : NumericState (criterion.config .control) dime
     (by decide : stepWord.Finite), dutch.1, dutch.2.1, dutch.2.2, trace.1,
     le_trans trace.2.1 trace.2.2.1, trace.2.2.2, fun _ => rfl, Or.inr rfl⟩,
     zeroWord_add acc quiet.deltaWeight⟩
-  · exact zeroWord_sub (zeroWord_sub quiet.hTemp (zeroWord_mul_finite quiet.hOld difference))
+  · exact zeroWord_sub (zeroWord_sub quiet.h (zeroWord_mul_finite quiet.hOld difference))
       (zeroWord_mul_finite quiet.h (by decide))
   · exact zeroWord_add quiet.p quiet.h
 
